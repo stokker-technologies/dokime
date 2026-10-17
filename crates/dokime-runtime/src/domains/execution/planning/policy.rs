@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::UpdateCyclePolicy as UpdatePolicy;
 use harmos::state::Transaction;
 // Local Imports
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, Timestamp};
+use crate::core::{TestCycleId};
 
 /* === Constants === */
 
@@ -44,7 +44,7 @@ impl RuntimeHandle {
         let transaction = UpdatePolicy {
             test_cycle_id: test_cycle_id.clone(),
             continue_on_failure,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         };
         transaction
             .check(&self.state_read())

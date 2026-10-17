@@ -53,7 +53,7 @@ impl RuntimeHandle {
         &self,
         request: RecordPublishRequest,
     ) -> Result<PublishReceipt, Error> {
-        self.commit_record(PublishRecord::host(request, Timestamp::now_utc()))
+        self.commit_record(PublishRecord::host(request, crate::model::time::now_utc()))
             .await
     }
 
@@ -64,7 +64,7 @@ impl RuntimeHandle {
         &self,
         request: RecordPublishRequest,
     ) -> Result<PublishReceipt, Error> {
-        self.commit_record(PublishRecord::undeclared(request, Timestamp::now_utc()))
+        self.commit_record(PublishRecord::undeclared(request, crate::model::time::now_utc()))
             .await
     }
 
@@ -73,7 +73,7 @@ impl RuntimeHandle {
         request: RecordPublishRequest,
         owner: &str,
     ) -> Result<PublishReceipt, Error> {
-        self.publish_sidecar_record_at(request, owner, Timestamp::now_utc())
+        self.publish_sidecar_record_at(request, owner, crate::model::time::now_utc())
             .await
     }
 
@@ -84,7 +84,7 @@ impl RuntimeHandle {
         occurred_at: Timestamp,
     ) -> Result<PublishReceipt, Error> {
         let mut transaction = PublishRecord::sidecar(request, owner.to_owned(), occurred_at);
-        transaction.received_at = Timestamp::now_utc();
+        transaction.received_at = crate::model::time::now_utc();
         self.commit_record(transaction).await
     }
 
@@ -141,7 +141,7 @@ impl RuntimeHandle {
         batch: TelemetryBatch,
     ) -> Result<PublishReceipt, Error> {
         wait_for_telemetry_batch_cycles(self, &batch).await;
-        self.publish_telemetry_to_streams(batch, Timestamp::now_utc())
+        self.publish_telemetry_to_streams(batch, crate::model::time::now_utc())
             .await
     }
 }

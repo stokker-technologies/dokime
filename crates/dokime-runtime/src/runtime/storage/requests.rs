@@ -91,7 +91,7 @@ impl RequestStorage {
         Self {
             storage,
             node,
-            now: Timestamp::now_utc,
+            now: crate::model::time::now_utc,
             active: Mutex::new(BTreeMap::new()),
         }
     }

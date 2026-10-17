@@ -37,7 +37,7 @@ use crate::execution_runtime::outputs::media_type_for_path;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
-use crate::core::{Identifier, RecordScope, TestExecutionId, Timestamp};
+use crate::core::{Identifier, RecordScope, TestExecutionId};
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 use crate::records::{RecordPublishRequest, RecordSeverity};
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
@@ -642,7 +642,7 @@ impl State {
     async fn offer(&mut self, lines: Vec<String>) {
         let mut rows = BTreeMap::<String, Vec<TelemetrySample>>::new();
         let mut records = Vec::new();
-        let now = Timestamp::now_utc();
+        let now = crate::model::time::now_utc();
         for line in lines {
             for found in self.lines.matches(&line) {
                 match found {
@@ -666,7 +666,7 @@ impl State {
                         };
                         let sequence = self.sequences.entry(stream.clone()).or_default();
                         let mut sample =
-                            TelemetrySample::new(identifier, *sequence, now.clone(), SOURCE);
+                            TelemetrySample::new(crate::model::identity::new_id(), identifier, *sequence, now.clone(), SOURCE);
                         *sequence += 1;
                         sample.scope = Some(self.scope.clone());
                         sample.values.extend(values);
@@ -697,7 +697,7 @@ impl State {
             };
             if let Err(error) = self
                 .runtime
-                .publish_telemetry_batch(TelemetryBatch::new(identifier, samples))
+                .publish_telemetry_batch(TelemetryBatch::new(crate::model::identity::new_id(), identifier, samples))
                 .await
             {
                 tracing::warn!(%error, %stream, "file watch rows were refused");

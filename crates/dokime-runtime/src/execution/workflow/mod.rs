@@ -278,7 +278,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             reply.cursor,
             &self.source,
             &self.records,
-            &crate::core::Timestamp::now_utc(),
+            &crate::model::time::now_utc(),
         )?;
         if state.local_inputs && reply.record_subscriptions_settling {
             state.settle_record_subscriptions();
@@ -453,7 +453,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                         if let Err(error) = state.settle_local_inputs(
                             &self.source,
                             &self.records,
-                            &crate::core::Timestamp::now_utc(),
+                            &crate::model::time::now_utc(),
                         ) {
                             state.push(crate::transport::buffer::BufferedFrame::log(
                                 super::log::Level::Error,

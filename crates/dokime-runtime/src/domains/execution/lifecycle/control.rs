@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::{ControlCycle as Control, CycleControlAction
 use harmos::state::RequestKey;
 // Local Imports
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{TestCycleId, TestExecutionId};
 
 /* === Constants === */
 
@@ -49,7 +49,7 @@ impl RuntimeHandle {
             executions: ids,
             intent: crate::transactions::ReportFinalization {
                 evidence_at,
-                requested_at: Timestamp::now_utc(),
+                requested_at: crate::model::time::now_utc(),
                 lifecycle: None,
             },
         })
@@ -147,7 +147,7 @@ impl RuntimeHandle {
         let transaction = crate::transactions::ControlExecution {
             test_execution_id: id.clone(),
             action,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         };
         let (request_id, cycle_id) = {
             let state = self.state_read();
@@ -265,7 +265,7 @@ impl RuntimeHandle {
         if matches!(action, Action::Stop) && pending_seal {
             return self.seal_settled_cycle(&test_cycle_id).await;
         }
-        let occurred_at = Timestamp::now_utc();
+        let occurred_at = crate::model::time::now_utc();
         let transaction = Control {
             test_cycle_id: test_cycle_id.clone(),
             action,

@@ -19,7 +19,7 @@ use std::time::Duration;
 // Third-Party Imports
 use harmos::sidecar::Refusal;
 // Local Imports
-use crate::core::{RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
+use crate::core::{RecordScope, TestCycleId, TestExecutionId, Value};
 use crate::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate,
     materialize_template_cases, parameter_name,
@@ -211,7 +211,7 @@ impl Harness {
     #[must_use]
     pub fn publish<R: DeclaredRecord>(mut self, record: R) -> Self {
         let mut filed = Record::new(
-            Timestamp::now_utc(),
+            crate::model::time::now_utc(),
             R::record_type(),
             R::SCHEMA_VERSION,
             HOST_SOURCE,
@@ -309,11 +309,11 @@ impl Harness {
             .filter_map(crate::definition::Subscription::record)
             .cloned()
             .collect::<Vec<_>>();
-        let execution_id = TestExecutionId::new().to_string();
+        let execution_id = crate::model::identity::new_id::<TestExecutionId>().to_string();
         let start = RunExecutionRequest {
             mode: "automatic".into(),
             execution_token: execution_id.clone(),
-            test_cycle_id: TestCycleId::new().to_string(),
+            test_cycle_id: crate::model::identity::new_id::<TestCycleId>().to_string(),
             test_execution_id: execution_id.clone(),
             workflow,
             template_identifier: self.template.clone(),
@@ -357,7 +357,7 @@ impl Harness {
             // a step can have reached anything.
             tokio::task::yield_now().await;
             for signal in deliveries(&self.measured, &self.published, &execution_id, &capture) {
-                runner.signal(signal).map_err(HarnessError::Deliver)?;
+                runner.signal(signal).await.map_err(HarnessError::Deliver)?;
             }
             Ok::<(), HarnessError>(())
         };
@@ -421,7 +421,7 @@ impl Host {
             prompt_id: request.prompt_id.clone(),
             action,
             responder: RESPONDER.to_owned(),
-            submitted_at: Timestamp::now_utc(),
+            submitted_at: crate::model::time::now_utc(),
             values,
             accepted: true,
         }
@@ -481,7 +481,8 @@ impl Harness {
             CaseMaterializationOptions {
                 max_cases: 1,
                 force: true,
-                ..CaseMaterializationOptions::default()
+                registration_id: crate::model::identity::new_id(),
+                first_label_number: 1,
             },
         )
         .map_err(|error| HarnessError::Parameters(error.to_string()))?;
@@ -957,9 +958,10 @@ fn deliveries(
             .enumerate()
             .filter_map(|(sequence, values)| {
                 let mut sample = TelemetrySample::new(
+                    crate::model::identity::new_id(),
                     identifier.clone(),
                     sequence as u64,
-                    Timestamp::now_utc(),
+                    crate::model::time::now_utc(),
                     HOST_SOURCE,
                 );
                 sample.values = values.clone();

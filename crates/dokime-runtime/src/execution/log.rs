@@ -95,7 +95,7 @@ impl Entry {
 
 /* === Public Functions === */
 pub fn timestamp() -> String {
-    let now = crate::core::Timestamp::now_utc();
+    let now = crate::model::time::now_utc();
     format!(
         "{}.{:03}Z",
         &now.as_str()[..19],

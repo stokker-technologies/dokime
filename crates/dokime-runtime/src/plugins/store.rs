@@ -135,7 +135,7 @@ impl PluginStore {
         // Authorize It
         // An unreferenced file grants nothing; the boot sweep reclaims it
         // when this edit fails after the rename.
-        let staged_at = Timestamp::now_utc();
+        let staged_at = crate::model::time::now_utc();
         let plugin = PluginSettings {
             state: PluginState::Staged,
             digest: sha256,
@@ -206,7 +206,7 @@ impl PluginStore {
             let plugin = document.plugins.get_mut(&id).expect("checked above");
             plugin.state = PluginState::Installed;
             plugin.expires_at = None;
-            plugin.consented_at.get_or_insert_with(Timestamp::now_utc);
+            plugin.consented_at.get_or_insert_with(crate::model::time::now_utc);
             if plugin.programs.is_empty() {
                 plugin.programs = inherited;
             }
@@ -252,7 +252,7 @@ impl PluginStore {
     }
 
     pub fn sweep(&self) -> Result<(), PluginError> {
-        let now = Timestamp::now_utc();
+        let now = crate::model::time::now_utc();
         self.settings.edit(|document| {
             let expired = expired_stages(document.plugins.iter(), &now);
             for id in expired {
@@ -297,7 +297,7 @@ impl PluginStore {
                 .plugins
                 .get_mut(&id)
                 .ok_or(PluginError::Unknown(id))?;
-            let at = Timestamp::now_utc();
+            let at = crate::model::time::now_utc();
             plugin.last_boot = Some(match error {
                 Some(error) => PluginLastBoot::Failed { error, at },
                 None => PluginLastBoot::Loaded { at },
@@ -367,7 +367,7 @@ impl PluginStore {
                 if let Some(plugin) = document.plugins.get_mut(&id) {
                     plugin.last_boot = Some(PluginLastBoot::Failed {
                         error,
-                        at: Timestamp::now_utc(),
+                        at: crate::model::time::now_utc(),
                     });
                 }
             }

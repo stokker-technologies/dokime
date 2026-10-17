@@ -19,7 +19,7 @@ use harmos::state::Transaction;
 // Local Imports
 use crate::transactions::CopyCycle;
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, Timestamp};
+use crate::core::{TestCycleId};
 
 /* === Constants === */
 
@@ -42,8 +42,8 @@ impl RuntimeHandle {
     ) -> Result<TestCycleId, Error> {
         let transaction = CopyCycle {
             source_cycle_id,
-            test_cycle_id: TestCycleId::new(),
-            occurred_at: Timestamp::now_utc(),
+            test_cycle_id: crate::model::identity::new_id::<TestCycleId>(),
+            occurred_at: crate::model::time::now_utc(),
         };
         {
             let state = self.state_read();

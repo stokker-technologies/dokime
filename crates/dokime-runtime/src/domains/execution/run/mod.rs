@@ -1386,7 +1386,7 @@ async fn publish_traceability(
             crate::traceability_runtime::phase::RecordExecutionTraceability {
                 scope: scope.clone(),
                 sections,
-                occurred_at: crate::core::Timestamp::now_utc(),
+                occurred_at: crate::model::time::now_utc(),
             },
         )
         .await
@@ -1676,7 +1676,7 @@ async fn close_stopped_attempt(
         attempt_id: start.attempt_id,
         step_id: start.step_id,
         started_at: start.started_at,
-        finished_at: Some(crate::core::Timestamp::now_utc()),
+        finished_at: Some(crate::model::time::now_utc()),
         termination: crate::execution::TerminationReason::Cancelled,
         detail: None,
     };

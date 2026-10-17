@@ -24,7 +24,7 @@ use super::buffer::{
     PromptOutcome, lock,
 };
 use crate::artifacts::ArtifactSink;
-use crate::core::{Identifier, PromptId, RecordScope, Timestamp, Value};
+use crate::core::{Identifier, PromptId, RecordScope, Value};
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
 use crate::prompts::{PromptRequest, PromptResponse};
@@ -301,9 +301,10 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
                 .get_mut(&self.token)
                 .ok_or("execution evidence is closed")?;
             let mut sample = TelemetrySample::new(
+                crate::model::identity::new_id(),
                 stream.clone(),
                 state.produced(stream.as_str()),
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 self.source.clone(),
             );
             sample.values = values;
@@ -487,7 +488,7 @@ impl ExecutionTransport for FrameTransport {
     fn emit(&mut self, mut record: RecordPublishRequest) {
         record
             .timestamp
-            .get_or_insert_with(crate::core::Timestamp::now_utc);
+            .get_or_insert_with(crate::model::time::now_utc);
         if let Some(state) = lock(&self.executions).get_mut(&self.token) {
             state.publish_record(record);
         }
@@ -591,7 +592,7 @@ impl Journal for FrameJournal {
     fn record(&self, mut record: RecordPublishRequest) {
         record
             .timestamp
-            .get_or_insert_with(crate::core::Timestamp::now_utc);
+            .get_or_insert_with(crate::model::time::now_utc);
         if let Some(state) = lock(&self.executions).get_mut(&self.token) {
             state.publish_record(record);
         }

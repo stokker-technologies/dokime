@@ -63,7 +63,7 @@ fn embed_report_template() {
 
     if !source.is_file() {
         eprintln!(
-            "the report template is not built; run `mise run prepare:report` (or `pnpm --dir crates/dokime-gui run build:report`)"
+            "the report template is not built; run `mise run build` (or `pnpm --dir crates/dokime-gui run build:report`)"
         );
         std::process::exit(1);
     }

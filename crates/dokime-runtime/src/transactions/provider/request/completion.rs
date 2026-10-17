@@ -497,10 +497,10 @@ mod tests {
     use super::*;
 
     fn settled_request(stopped: bool) -> (RuntimeState, CompleteRun) {
-        let mut state = RuntimeState::default();
+        let mut state = RuntimeState::new(crate::model::identity::new_id());
         let cycle_id = TestCycleId::from_seed("publication-failure-cycle");
         let request_id = CommandId::from_seed("publication-failure-request");
-        let at = Timestamp::now_utc();
+        let at = crate::model::time::now_utc();
         state.cycles.insert(
             cycle_id.clone(),
             crate::execution::TestCycle {

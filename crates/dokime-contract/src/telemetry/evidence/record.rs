@@ -116,6 +116,7 @@ impl TelemetrySample {
     }
 
     pub fn new(
+        sample_id: TelemetrySampleId,
         stream: Identifier,
         sequence: u64,
         timestamp: Timestamp,
@@ -132,7 +133,7 @@ impl TelemetrySample {
             .or_insert_with(|| Value::from(timestamp.clone()));
 
         Self {
-            sample_id: TelemetrySampleId::new(),
+            sample_id,
             stream,
             schema_version: 1,
             sequence,

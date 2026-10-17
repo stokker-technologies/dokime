@@ -134,7 +134,7 @@ impl Operation for Preview {
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
-        let resolved = resolve(snapshot.state(), request.plan.take(), &CommandId::new())?;
+        let resolved = resolve(snapshot.state(), request.plan.take(), &dokime_runtime::model::identity::new_id::<CommandId>())?;
         Ok((wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&snapshot)),

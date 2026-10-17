@@ -40,7 +40,6 @@ pub(crate) struct BuiltinDraft {
     pub scope: Option<RecordScope>,
 }
 
-#[derive(Default)]
 pub(crate) struct Drafts {
     session: crate::core::SessionId,
     first: u64,

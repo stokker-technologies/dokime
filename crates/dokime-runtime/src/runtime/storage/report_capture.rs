@@ -222,7 +222,7 @@ impl ExecutionStorage {
                     })
             })
             .transpose()?;
-        let captured_at = crate::core::Timestamp::now_utc();
+        let captured_at = crate::model::time::now_utc();
         let (mut context, logo, owner_node_id, record_contracts, telemetry_contracts) = self
             .state_manager
             .state()
@@ -257,7 +257,7 @@ impl ExecutionStorage {
             .await?
             .value?;
         context.health.push(crate::execution::HealthItem {
-            health_item_id: crate::core::HealthItemId::new(),
+            health_item_id: crate::model::identity::new_id::<crate::core::HealthItemId>(),
             scope: inputs.execution.scope.clone(),
             severity: crate::execution::HealthSeverity::Info,
             message: "Report Evidence Provenance".into(),
@@ -269,7 +269,7 @@ impl ExecutionStorage {
         });
         for path in inputs.unavailable_outputs.iter() {
             context.health.push(crate::execution::HealthItem {
-                health_item_id: crate::core::HealthItemId::new(),
+                health_item_id: crate::model::identity::new_id::<crate::core::HealthItemId>(),
                 scope: inputs.execution.scope.clone(),
                 severity: crate::execution::HealthSeverity::Warning,
                 message: format!("{path}: Unfinished At Stop — Not Included"),

@@ -83,15 +83,12 @@ impl DokimeNodeIdentity {
         }
     }
 
-    pub fn transient(hostname_label: Option<String>) -> Self {
-        Self::new(NodeId::new(), hostname_label, Timestamp::now_utc())
-    }
 }
 
 impl DokimeActorIdentity {
-    pub fn local(display_name: impl Into<String>) -> Self {
+    pub fn local(actor_id: ActorId, display_name: impl Into<String>) -> Self {
         Self {
-            actor_id: ActorId::new(),
+            actor_id,
             display_name: display_name.into(),
         }
     }

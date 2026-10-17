@@ -29,7 +29,7 @@ native = [
   "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
-storage = ["dep:base64", "dep:dokime-filesystem", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio", "dep:uuid"]
+storage = ["dep:base64", "dep:dokime-filesystem", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
   "native",
   "derive",
@@ -53,7 +53,6 @@ host = [
   "dep:tokio",
   "dep:tokio-util",
   "dep:toml",
-  "dep:uuid",
   "dep:walkdir",
   "dep:zip",
   "harmos/grpc",
@@ -88,7 +87,7 @@ keyring = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
-uuid = { workspace = true, optional = true }
+uuid = { workspace = true }
 
 # Serialization
 arrow-array = { workspace = true }

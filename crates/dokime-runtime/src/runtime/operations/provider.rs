@@ -29,7 +29,7 @@ use crate::{
     },
     handle::RuntimeHandle,
 };
-use crate::core::{TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{TestCycleId, TestExecutionId};
 use crate::domains::ExecutionProviderTarget;
 use crate::transport::{ProviderCycleOutcome, ProviderExecutionFailure};
 
@@ -446,7 +446,7 @@ async fn run_provider_cycle(
             }
             continue;
         }
-        let at = Timestamp::now_utc();
+        let at = crate::model::time::now_utc();
         match runtime
             .commit(crate::transactions::DispatchProvider {
                 request_id: request_id.clone(),
@@ -562,7 +562,7 @@ async fn prepare_attempts(
             .commit(crate::transactions::PrepareAttempt {
                 request_id: request_id.clone(),
                 ordinal,
-                at: Timestamp::now_utc(),
+                at: crate::model::time::now_utc(),
             })
             .await;
         if let Err(error) = result {
@@ -675,7 +675,7 @@ async fn submit_finish_provider_cycle(
         target,
         started_execution_ids,
         outcome,
-        finished_at: Timestamp::now_utc(),
+        finished_at: crate::model::time::now_utc(),
     };
     let publishing = std::time::Instant::now();
     tracing::debug!(request_id = %job.request_id, cycle_id = %job.test_cycle_id, phase = "terminal_publication", "provider monitor publishing terminal state");

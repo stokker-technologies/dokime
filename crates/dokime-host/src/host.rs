@@ -133,6 +133,7 @@ impl Host {
             .map(|sample| {
                 let timestamp = sample.timestamp.clone();
                 let mut telemetry_sample = dokime_contract::telemetry::TelemetrySample::new(
+                    crate::new_id(),
                     stream_id.clone(),
                     0,
                     sample.timestamp,
@@ -150,7 +151,7 @@ impl Host {
             })
             .collect();
 
-        Ok(Some(TelemetryBatch::new(stream_id, telemetry_samples)))
+        Ok(Some(TelemetryBatch::new(crate::new_id(), stream_id, telemetry_samples)))
     }
 
     fn collect_stream_samples(

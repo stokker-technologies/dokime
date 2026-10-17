@@ -61,9 +61,9 @@ impl RuntimeHandle {
             None
         } else {
             Some(rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection("provider executor is unavailable"),
             ))
         }
@@ -103,7 +103,7 @@ impl RuntimeHandle {
                     return rejected_receipt(
                         id,
                         &context,
-                        Timestamp::now_utc(),
+                        crate::model::time::now_utc(),
                         unavailable_rejection(error.to_string()),
                     );
                 }
@@ -145,9 +145,9 @@ impl RuntimeHandle {
         };
         let Some(execution_id) = execution_id else {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 Error::conflict(
                     "execution_not_planned",
                     crate::transactions::provider::EXECUTION_NOT_PLANNED,
@@ -175,9 +175,9 @@ impl RuntimeHandle {
             .map(|execution| execution.test_cycle_id.clone());
         let Some(cycle_id) = cycle_id else {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 Error::not_found("execution_not_found", "execution not found"),
             );
         };
@@ -215,25 +215,25 @@ impl RuntimeHandle {
     ) -> CommandReceipt {
         if self.is_shutting_down() {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection("runtime is shutting down"),
             );
         }
         let Some(permit) = self.admit_owned_work() else {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection("runtime is shutting down"),
             );
         };
         if self.is_shutting_down() {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection("runtime is shutting down"),
             );
         }
@@ -249,9 +249,9 @@ impl RuntimeHandle {
         .await
         .unwrap_or_else(|error| {
             rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &fallback,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 internal_rejection(format!("request admission task failed: {error}")),
             )
         })
@@ -267,9 +267,9 @@ impl RuntimeHandle {
         let _plugin_admission = self.plugin_admission.lock().await;
         if self.is_shutting_down() {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection("runtime is shutting down"),
             );
         }
@@ -291,7 +291,7 @@ impl RuntimeHandle {
                     return rejected_receipt(
                         command_id,
                         &context,
-                        Timestamp::now_utc(),
+                        crate::model::time::now_utc(),
                         Error::conflict(
                             "request_identity_conflict",
                             "request identity already belongs to another run selection",
@@ -312,7 +312,7 @@ impl RuntimeHandle {
                 return rejected_receipt(
                     command_id,
                     &context,
-                    Timestamp::now_utc(),
+                    crate::model::time::now_utc(),
                     unavailable_rejection(error.to_string()),
                 );
             }
@@ -324,7 +324,7 @@ impl RuntimeHandle {
             return rejected_receipt(
                 command_id.clone(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection(error.to_string()),
             );
         }
@@ -337,9 +337,9 @@ impl RuntimeHandle {
             .await
         {
             return rejected_receipt(
-                CommandId::new(),
+                crate::model::identity::new_id::<CommandId>(),
                 &context,
-                Timestamp::now_utc(),
+                crate::model::time::now_utc(),
                 unavailable_rejection(error.to_string()),
             );
         }
@@ -350,7 +350,7 @@ impl RuntimeHandle {
         ) {
             return receipt;
         }
-        let accepted_at = Timestamp::now_utc();
+        let accepted_at = crate::model::time::now_utc();
         let job_id = JobRunId::from_seed(command_id.as_str());
         let artifact = crate::execution_runtime::provider::provider_target_for_cycle(
             &self.state_read(),
@@ -418,7 +418,7 @@ impl RuntimeHandle {
             }
             Err(error) => {
                 let problem = error.to_string();
-                let at = Timestamp::now_utc();
+                let at = crate::model::time::now_utc();
                 if let Err(storage_error) = self
                     .request_storage
                     .update(&command_id, |receipt| {
@@ -435,7 +435,7 @@ impl RuntimeHandle {
                 rejected_receipt(
                     command_id,
                     &context,
-                    Timestamp::now_utc(),
+                    crate::model::time::now_utc(),
                     harmos_commit_rejection(error),
                 )
             }

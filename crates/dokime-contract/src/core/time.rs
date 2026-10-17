@@ -68,10 +68,6 @@ impl Timestamp {
         Self(value.into())
     }
 
-    pub fn now_utc() -> Self {
-        Self::from_system_time(SystemTime::now())
-    }
-
     pub fn from_system_time(value: SystemTime) -> Self {
         let unix_nanos = match value.duration_since(UNIX_EPOCH) {
             Ok(duration) => duration.as_nanos() as i128,

@@ -660,7 +660,7 @@ impl CycleView {
     }
 
     pub fn touch(&mut self) {
-        self.updated_at = Timestamp::now_utc();
+        self.updated_at = crate::model::time::now_utc();
     }
 
     pub fn touch_at(&mut self, at: Timestamp) {

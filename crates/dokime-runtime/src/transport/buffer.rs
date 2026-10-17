@@ -374,14 +374,14 @@ impl ExecutionState {
         }
         request
             .timestamp
-            .get_or_insert_with(crate::core::Timestamp::now_utc);
+            .get_or_insert_with(crate::model::time::now_utc);
         // The host attaches this drain's execution scope. An authored payload
         // cannot redirect evidence to another execution or broaden it globally.
         request.scope = None;
         let mut record = request.clone().into_record(
-            crate::core::RecordId::new(),
+            crate::model::identity::new_id::<crate::core::RecordId>(),
             schema_version,
-            crate::core::Timestamp::now_utc(),
+            crate::model::time::now_utc(),
             source,
         );
         record.scope = Some(crate::core::RecordScope {
@@ -1059,14 +1059,15 @@ mod tests {
     #[test]
     fn sample_replay_preserves_producer_identity() {
         let mut original = TelemetrySample::new(
+            crate::model::identity::new_id(),
             Identifier::new("reading").unwrap(),
             1,
-            Timestamp::now_utc(),
+            crate::model::time::now_utc(),
             "fixture",
         )
         .with_storage_payload(vec![1, 2]);
         original.scope = Some(RecordScope {
-            test_execution_id: Some(TestExecutionId::new()),
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
             ..Default::default()
         });
         let wire: TelemetrySample =
@@ -1074,7 +1075,7 @@ mod tests {
         assert!(sample_difference(&original, &wire, false).is_none());
         let mut admitted = wire.clone();
         admitted.received_at = Timestamp::new("2000-01-01T00:00:00Z");
-        admitted.scope.as_mut().unwrap().session_id = Some(crate::core::SessionId::new());
+        admitted.scope.as_mut().unwrap().session_id = Some(crate::model::identity::new_id::<crate::core::SessionId>());
         assert!(sample_difference(&original, &admitted, true).is_none());
         assert!(sample_difference(&original, &admitted, false).is_some());
         let mut changed = wire.clone();
@@ -1089,7 +1090,7 @@ mod tests {
         assert!(sample_difference(&original, &changed, true).is_some());
         let mut changed = wire;
         changed.scope = Some(RecordScope {
-            test_execution_id: Some(TestExecutionId::new()),
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
             ..Default::default()
         });
         assert!(sample_difference(&original, &changed, true).is_some());
@@ -1099,8 +1100,8 @@ mod tests {
     fn local_sample_replay_keeps_automatic_timestamp() {
         let request = crate::transport::protocol::RunExecutionRequest {
             execution_token: "fixture".into(),
-            test_cycle_id: crate::core::TestCycleId::new().to_string(),
-            test_execution_id: TestExecutionId::new().to_string(),
+            test_cycle_id: crate::model::identity::new_id::<crate::core::TestCycleId>().to_string(),
+            test_execution_id: crate::model::identity::new_id::<TestExecutionId>().to_string(),
             template_identifier: "fixture".into(),
             workflow: "fixture".into(),
             parameters_json: "{}".into(),
@@ -1112,6 +1113,7 @@ mod tests {
         state.local_inputs = true;
         for explicit in [None, Some(Value::Number(42.0))] {
             let mut sample = TelemetrySample::new(
+                crate::model::identity::new_id(),
                 Identifier::new("reading").unwrap(),
                 state.produced("reading"),
                 Timestamp::new("2000-01-01T00:00:00Z"),
@@ -1128,7 +1130,7 @@ mod tests {
                 explicit.unwrap_or(Value::Number(946684800.0))
             );
             let mut replay = admitted.clone();
-            replay.received_at = Timestamp::now_utc();
+            replay.received_at = crate::model::time::now_utc();
             state.validate_sample(&replay).unwrap();
             replay.values.insert("timestamp".into(), Value::Number(0.0));
             assert!(

@@ -170,7 +170,7 @@ impl Decoder {
                         let mut values = self.decode(definition, &row.payload)?;
                         let now = publication_time(row.published_unix_micros)?;
                         values.insert("timestamp".into(), Value::from(now.clone()));
-                        let mut sample = TelemetrySample::new(stream.clone(), cursor.0, now, owner);
+                        let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), cursor.0, now, owner);
                         sample.values = values;
                         sample.storage_payload = Some(row.payload.clone());
                         sample.scope = scope.clone();
@@ -180,8 +180,8 @@ impl Decoder {
                 if let Ok(samples) = samples
                     && let Ok(receipt) = handle
                         .publish_telemetry_to_streams(
-                            TelemetryBatch::new(stream.clone(), samples),
-                            Timestamp::now_utc(),
+                            TelemetryBatch::new(crate::model::identity::new_id(), stream.clone(), samples),
+                            crate::model::time::now_utc(),
                         )
                         .await
                 {
@@ -237,7 +237,7 @@ impl Decoder {
         match result {
             Ok((mut values, now)) => {
                 values.insert("timestamp".into(), Value::from(now.clone()));
-                let mut sample = TelemetrySample::new(stream.clone(), sequence, now, owner);
+                let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), sequence, now, owner);
                 sample.values = values;
                 sample.storage_payload = Some(row.payload.clone());
                 sample.scope = scope.clone();
@@ -246,8 +246,8 @@ impl Decoder {
                 // dropped row as a gap instead of holding unrelated streams behind it.
                 match handle
                     .publish_telemetry_to_streams(
-                        TelemetryBatch::new(stream.clone(), vec![sample]),
-                        Timestamp::now_utc(),
+                        TelemetryBatch::new(crate::model::identity::new_id(), stream.clone(), vec![sample]),
+                        crate::model::time::now_utc(),
                     )
                     .await
                 {
@@ -481,7 +481,7 @@ async fn refuse(
 
 fn publication_time(published_unix_micros: Option<i64>) -> Result<Timestamp, String> {
     let Some(micros) = published_unix_micros else {
-        return Ok(Timestamp::now_utc());
+        return Ok(crate::model::time::now_utc());
     };
     let instant = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(micros) * 1_000)
         .map_err(|error| format!("producer timestamp is outside the supported range: {error}"))?;

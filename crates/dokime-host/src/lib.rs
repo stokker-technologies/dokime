@@ -66,5 +66,14 @@ pub const HOST_SOURCE_ID: &str = "host.telemetry";
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn new_id<T>() -> T
+where
+    T: TryFrom<String>,
+    T::Error: std::fmt::Debug,
+{
+    T::try_from(uuid::Uuid::now_v7().to_string())
+        .expect("a freshly generated UUID is a valid Dokime identity")
+}
+
 
 /* === Tests === */

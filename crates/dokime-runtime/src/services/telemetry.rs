@@ -216,7 +216,7 @@ impl SamplingOwner {
                     batches,
                     next: 0,
                     accounted: 0,
-                    received_at: Timestamp::now_utc(),
+                    received_at: crate::model::time::now_utc(),
                 });
                 self.publish_returned(runtime).await?;
             }
@@ -841,7 +841,7 @@ impl Sampling {
         streams.sort();
         streams.dedup();
         // Tick Is Nonblocking; The Short Registry Borrow Linearizes It With Fencing.
-        source.tick(Timestamp::now_utc(), &streams);
+        source.tick(crate::model::time::now_utc(), &streams);
     }
 
     async fn update_phase_transitions(
@@ -889,7 +889,7 @@ impl Sampling {
                         batches,
                         next: 0,
                         accounted: 0,
-                        received_at: Timestamp::now_utc(),
+                        received_at: crate::model::time::now_utc(),
                     });
                     owner.publish_returned(runtime).await?;
                 }
@@ -973,7 +973,7 @@ impl Sampling {
                     batches,
                     next: 0,
                     accounted: 0,
-                    received_at: Timestamp::now_utc(),
+                    received_at: crate::model::time::now_utc(),
                 });
                 owner.publish_returned(runtime).await?;
             }

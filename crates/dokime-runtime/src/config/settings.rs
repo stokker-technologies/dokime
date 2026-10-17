@@ -26,7 +26,7 @@ use uuid::Uuid;
 // Local Imports
 use super::{ApplicationPaths, StoragePolicy};
 use crate::plugins::PluginSettings;
-use crate::core::{DokimeNodeIdentity, NodeId, Timestamp};
+use crate::core::{DokimeNodeIdentity, NodeId};
 
 /* === Constants === */
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
@@ -278,7 +278,7 @@ fn read(path: &Path) -> std::io::Result<Option<SettingsDocument>> {
 
 fn create(path: &Path) -> std::io::Result<SettingsDocument> {
     let document = SettingsDocument {
-        identity: DokimeNodeIdentity::new(NodeId::new(), hostname_label(), Timestamp::now_utc()),
+        identity: DokimeNodeIdentity::new(crate::model::identity::new_id::<NodeId>(), hostname_label(), crate::model::time::now_utc()),
         data_root: None,
         storage: None,
         appearance: Appearance::default(),

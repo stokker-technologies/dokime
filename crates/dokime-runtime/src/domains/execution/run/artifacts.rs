@@ -212,7 +212,7 @@ impl Transfers {
             let captured = if self.transfers.contains_key(&chunk.transfer_id) {
                 None
             } else {
-                let created_at = crate::core::Timestamp::now_utc();
+                let created_at = crate::model::time::now_utc();
                 let scope = context
                     .capture_publication_scope(scope.clone())
                     .await

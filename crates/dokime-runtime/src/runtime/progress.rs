@@ -179,7 +179,7 @@ impl OperationRegistry {
             phase: String::new(),
             phases: Vec::new(),
             fraction: None,
-            started_at: Timestamp::now_utc(),
+            started_at: crate::model::time::now_utc(),
             outcome: OperationOutcome::Running,
         };
         self.change(|entries| {
@@ -366,13 +366,13 @@ impl Operation {
 
     pub fn finish(&self) {
         self.settle(OperationOutcome::Finished {
-            at: Timestamp::now_utc(),
+            at: crate::model::time::now_utc(),
         });
     }
 
     pub fn fail(&self, failure: impl Display) {
         self.settle(OperationOutcome::Failed {
-            at: Timestamp::now_utc(),
+            at: crate::model::time::now_utc(),
             failure: bounded(failure.to_string()),
         });
     }
@@ -405,7 +405,7 @@ impl Drop for Owner {
             registry.settle(
                 &self.operation_id,
                 OperationOutcome::Finished {
-                    at: Timestamp::now_utc(),
+                    at: crate::model::time::now_utc(),
                 },
             );
         }

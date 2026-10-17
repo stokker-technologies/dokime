@@ -19,7 +19,7 @@
 // Local Imports
 use crate::execution::{HealthSeverity, OperatorNote};
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, exports::cycle::ArtifactContent};
-use crate::core::{ArtifactId, HealthItemId, RecordScope, Timestamp};
+use crate::core::{ArtifactId, HealthItemId, RecordScope};
 
 /* === Constants === */
 
@@ -60,14 +60,14 @@ impl RuntimeHandle {
         request: crate::evidence_runtime::OperatorNoteRequest,
     ) -> Result<OperatorNote> {
         let note = OperatorNote {
-            note_id: crate::core::NoteId::new(),
+            note_id: crate::model::identity::new_id::<crate::core::NoteId>(),
             scope: self
                 .state_read()
                 .canonical_note_scope(&request.scope.unwrap_or_default())
                 .map_err(Error::Operation)?,
             author: request.author,
             message: request.message,
-            created_at: Timestamp::now_utc(),
+            created_at: crate::model::time::now_utc(),
         };
         self.commit(crate::evidence_runtime::notes::AddOperatorNote { note: note.clone() })
             .await
@@ -100,8 +100,8 @@ impl RuntimeHandle {
             severity,
             message,
             detail,
-            health_item_id: HealthItemId::new(),
-            observed_at: Timestamp::now_utc(),
+            health_item_id: crate::model::identity::new_id::<HealthItemId>(),
+            observed_at: crate::model::time::now_utc(),
         })
         .await
     }

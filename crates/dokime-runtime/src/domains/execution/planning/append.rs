@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::AppendCycle as Append;
 // Local Imports
 use crate::definition::TestCase;
 use crate::{CommandContext, runtime::Error, RuntimeHandle};
-use crate::core::{TestCycleId, Timestamp};
+use crate::core::{TestCycleId};
 
 /* === Constants === */
 
@@ -66,7 +66,7 @@ impl RuntimeHandle {
             settings: super::settings(self, sources)?,
             test_cycle_id: test_cycle_id.clone(),
             cases,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         };
         self.commit_with_key(context.idempotency_key, transaction)
             .await?;

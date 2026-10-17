@@ -122,7 +122,7 @@ impl NativeOutput {
                 .suffix(&suffix)
                 .tempfile()
                 .map_err(error)?,
-            created_at: Timestamp::now_utc(),
+            created_at: crate::model::time::now_utc(),
             captured: false,
             pending: None,
             descriptor: None,

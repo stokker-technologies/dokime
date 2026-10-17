@@ -73,7 +73,7 @@ pub trait Prompt: Send {
     fn request(&self) -> PromptRequest {
         let definition = self.definition();
         PromptRequest {
-            prompt_id: PromptId::new(),
+            prompt_id: crate::model::identity::new_id::<PromptId>(),
             prompt_type: definition.prompt_type,
             values: definition
                 .fields

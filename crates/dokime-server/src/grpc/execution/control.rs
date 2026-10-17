@@ -156,7 +156,7 @@ impl Operation for Create {
             return Err(Status::invalid_argument("cycle label is required"));
         }
         if metadata.identifier.is_empty() {
-            metadata.identifier = format!("cycle.{}", CommandId::new());
+            metadata.identifier = format!("cycle.{}", dokime_runtime::model::identity::new_id::<CommandId>());
         }
         let metadata = canonical::decode_metadata(&metadata)?;
         let id = self
@@ -245,7 +245,7 @@ impl Operation for Append {
             }
         }
         let snapshot = self.runtime.watch_state().latest();
-        let plan = planning::resolve(snapshot.state(), plan, &CommandId::new())?;
+        let plan = planning::resolve(snapshot.state(), plan, &dokime_runtime::model::identity::new_id::<CommandId>())?;
         self.runtime
             .append_cycle_cases(id, plan.cases, context)
             .await

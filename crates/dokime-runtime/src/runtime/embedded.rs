@@ -361,6 +361,7 @@ impl harmos::operations::Operation for EmbeddedSignal {
         self.0
             .template
             .signal(std::mem::take(signal))
+            .await
             .map(Into::into)
     }
 }

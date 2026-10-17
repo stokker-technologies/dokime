@@ -529,6 +529,7 @@ mod admission_tests {
         {
             let row = Reading { value };
             let mut sample = crate::telemetry::TelemetrySample::new(
+                crate::model::identity::new_id(),
                 contract.stream.clone(),
                 index as u64,
                 crate::core::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),

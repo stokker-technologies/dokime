@@ -77,8 +77,8 @@ impl RuntimeHandle {
         let prompt_id = prompt.prompt_id.clone();
         let transaction = Request {
             prompt,
-            command_id: CommandId::new(),
-            accepted_at: Timestamp::now_utc(),
+            command_id: crate::model::identity::new_id::<CommandId>(),
+            accepted_at: crate::model::time::now_utc(),
         };
         validate_request(&self.state_read(), &transaction)?;
         self.commit(transaction)
@@ -250,7 +250,7 @@ impl RuntimeHandle {
             .filter(|key| !key.is_empty())
             .map(CommandId::from_seed)
             .unwrap_or_default();
-        let accepted_at = Timestamp::now_utc();
+        let accepted_at = crate::model::time::now_utc();
         let transaction = SubmitResponse {
             prompt_id,
             action,

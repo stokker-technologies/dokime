@@ -594,7 +594,7 @@ impl RuntimeHandle {
         if let Some(snapshot) = crate::traceability::host_traceability_snapshot_from_samples(
             host.iter(),
             scope,
-            Timestamp::now_utc(),
+            crate::model::time::now_utc(),
         ) {
             crate::traceability::replace_snapshots_by_source(
                 snapshots,
@@ -614,7 +614,7 @@ impl RuntimeHandle {
         if let Some(snapshot) = crate::traceability::lease_traceability_snapshot(
             &leases,
             &selected,
-            Timestamp::now_utc(),
+            crate::model::time::now_utc(),
         ) {
             crate::traceability::replace_snapshots_by_source(
                 snapshots,

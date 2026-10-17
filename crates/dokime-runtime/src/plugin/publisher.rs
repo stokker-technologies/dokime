@@ -59,7 +59,7 @@ impl Publisher {
                 operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
                 reason: error.to_string(),
             })?,
-            produced_at: crate::core::Timestamp::now_utc().as_str().to_owned(),
+            produced_at: crate::model::time::now_utc().as_str().to_owned(),
         };
         self.host
             .call_as::<PublishRecord>(publication)

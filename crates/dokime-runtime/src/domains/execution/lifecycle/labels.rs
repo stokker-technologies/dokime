@@ -19,7 +19,7 @@
 // Local Imports
 use crate::transactions::labels::{LabelSubject, RenameLabel};
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{TestCycleId, TestExecutionId};
 
 /* === Constants === */
 
@@ -107,7 +107,7 @@ impl RuntimeHandle {
         let transaction = RenameLabel {
             subject,
             label,
-            edited_at: Timestamp::now_utc(),
+            edited_at: crate::model::time::now_utc(),
         };
         harmos::state::Transaction::check(&transaction, &self.state_read())
             .map_err(|message| Error::conflict("conflict", message))?;

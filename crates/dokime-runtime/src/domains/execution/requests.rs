@@ -42,7 +42,7 @@ impl crate::RuntimeHandle {
         execution_id: crate::core::TestExecutionId,
         action: crate::execution::request::StepCommand,
     ) -> crate::runtime::Result<crate::execution::request::StepCommandReceipt> {
-        let at = crate::core::Timestamp::now_utc();
+        let at = crate::model::time::now_utc();
         let saved = self
             .run_request(request_id)
             .await?

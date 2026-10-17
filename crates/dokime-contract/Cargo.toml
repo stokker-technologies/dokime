@@ -34,7 +34,6 @@ tracing-error = { workspace = true, optional = true }
 # Utilities
 sha2 = { workspace = true }
 time = { workspace = true }
-uuid = { workspace = true, features = ["js"] }
 
 # Serialization
 base64 = { workspace = true }

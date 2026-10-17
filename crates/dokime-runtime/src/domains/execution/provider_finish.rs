@@ -340,7 +340,7 @@ impl RuntimeHandle {
         if self
             .commit(crate::transactions::AdvanceRunGroup {
                 request_id: request_id.clone(),
-                at: crate::core::Timestamp::now_utc(),
+                at: crate::model::time::now_utc(),
             })
             .await
             .is_err()
