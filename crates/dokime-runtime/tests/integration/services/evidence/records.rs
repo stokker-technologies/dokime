@@ -19,8 +19,13 @@
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::Message;
-use dokime_runtime::records::{RecordPublication, RecordPublishRequest, RecordSeverity};
+use std::sync::Arc;
+use async_trait::async_trait;
+use harmos::sidecar::StreamDeclaration;
+use dokime_runtime::execution::Runnable;
+use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::{InstalledPlugin, core::ValueType};
+use dokime_runtime::records::{PublishRecord, RecordContract, RecordField, RecordPublication, RecordPublishRequest, RecordSeverity};
 
 /* === Constants === */
 
@@ -29,12 +34,40 @@ use dokime_runtime::records::{RecordPublication, RecordPublishRequest, RecordSev
 /* === Type Aliases === */
 
 /* === Structs === */
+struct Publisher;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+#[async_trait]
+impl EmbeddedProvider for Publisher {
+    fn catalog(&self) -> InstalledPlugin {
+        InstalledPlugin {
+            source: "fixture.records".into(),
+            version: "0.1.0".into(),
+            enabled: true,
+            record_contracts: vec![RecordContract {
+                record_type: identifier("fixture.sidecar.observed"),
+                schema_version: 1,
+                metadata: metadata("fixture.sidecar.observed", "Observed"),
+                display: Default::default(),
+                template_id: None,
+                owner: None,
+                default_severity: RecordSeverity::Info,
+                fields: vec![RecordField::new(metadata("value", "Value"), ValueType::Number)],
+                validation_mode: None,
+                allow_extra_fields: false,
+            }],
+            ..Default::default()
+        }
+    }
+    fn streams(&self) -> Vec<StreamDeclaration> { Vec::new() }
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> { Ok(Vec::new()) }
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> { Ok(()) }
+}
+
 
 /* === Public Functions === */
 
@@ -42,14 +75,16 @@ use dokime_runtime::records::{RecordPublication, RecordPublishRequest, RecordSev
 
 /* === Tests === */
 
-pub(crate) async fn native_publications_order() {
+#[tokio::test]
+async fn native_publications_order() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = Runtime::start(
-        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-sidecar-protocol")]),
+        config(root.path()).register(Arc::new(Publisher)),
     )
     .await
     .unwrap();
     let runtime = owner.handle();
+    let caller = owner.fixture_operation_caller("fixture.records").unwrap();
     let mut records = runtime.subscribe_records();
     let mut request = RecordPublishRequest::new(
         Identifier::new("fixture.sidecar.observed").unwrap(),
@@ -92,13 +127,7 @@ pub(crate) async fn native_publications_order() {
     // and refuses to the plugin, synchronously, what it cannot file: a forged
     // source, an undeclared record type and a payload that is no request.
     for (index, publication) in publications.into_iter().enumerate() {
-        let filed = runtime
-            .operations()
-            .call_encoded(
-                "fixture-sidecar.publish-record",
-                publication.encode_to_vec(),
-            )
-            .await;
+        let filed = caller.call_as::<PublishRecord>(publication).await;
         assert_eq!(
             filed.is_ok(),
             matches!(index, 0 | 4),
@@ -106,20 +135,16 @@ pub(crate) async fn native_publications_order() {
         );
     }
     let mut admitted = Vec::new();
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while admitted.len() < 2 {
-            let entry = records.next().await.unwrap().unwrap();
-            assert_eq!(entry.record_type.as_str(), "fixture.sidecar.observed");
-            admitted.push(entry);
-        }
-    })
-    .await
-    .unwrap();
+    while admitted.len() < 2 {
+        let entry = records.next().await.unwrap().unwrap();
+        assert_eq!(entry.record_type.as_str(), "fixture.sidecar.observed");
+        admitted.push(entry);
+    }
     assert_eq!(admitted[0].timestamp.as_str(), timestamp);
     assert!(admitted[1].timestamp >= arrival);
     assert!(admitted[1].sequence > admitted[0].sequence);
     for entry in &admitted {
-        assert_eq!(entry.source, "fixture-sidecar");
+        assert_eq!(entry.source, "fixture.records");
         assert_eq!(entry.scope, None);
         assert_eq!(entry.details["value"], dokime_runtime::core::Value::Number(7.0));
     }
