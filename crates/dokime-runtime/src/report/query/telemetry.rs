@@ -18,7 +18,8 @@ use harmos::{
     operations::Context,
     storage::{
         StorageCursor,
-        query::{Query, RowSlice, Source, StreamSelection, transform::Transform},
+        operations::Query,
+        query::{RowSlice, Source, StreamSelection, transform::Transform},
     },
 };
 // Local Imports

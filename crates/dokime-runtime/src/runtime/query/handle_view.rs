@@ -78,7 +78,7 @@ impl RuntimeHandle {
                         snapshot.state().executions.values(),
                         scope.and_then(|scope| scope.test_execution_id.as_ref()),
                     );
-                    let filter = crate::queries::records::view_filter(snapshot, scope, captured)?;
+                    let filter = crate::queries::records::view_filter(snapshot, scope, captured);
                     let records = self.record_source.saved_filtered_records(&self.state_manager, snapshot.revision(), filter).await?;
                     let frame = crate::queries::records::record_frame(records.iter(), window, resolution, |record| {
                         captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))

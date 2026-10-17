@@ -18,7 +18,7 @@ use harmos::storage::{
     StorageCursor,
     query::scalar::ScalarValue,
     query::transform::{
-        FieldPath, Transform,
+        FieldPath, FieldPathExecution, Transform,
         aggregate::{Aggregate, Measure},
         histogram::Histogram,
     },

@@ -72,7 +72,7 @@ pub(super) struct FrozenFile {
     file: tokio::fs::File,
     metadata: FileMetadata,
     stream_state: Option<SavedStreamState>,
-    creating: tokio::sync::Mutex<Option<BoxFuture<'static, harmos::Result<StorageFile>>>>,
+    creating: tokio::sync::Mutex<Option<BoxFuture<'static, harmos::storage::Result<StorageFile>>>>,
     producer: Option<StorageFile>,
     written: bool,
 }

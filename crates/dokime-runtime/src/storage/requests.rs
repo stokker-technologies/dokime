@@ -174,6 +174,11 @@ impl Request {
         Ok(bytes.saturating_add(commands))
     }
 
+    /// Whether this saved request is nonterminal on `node`.
+    pub fn pending_on(&self, node: &str) -> bool {
+        self.node_id == node && !self.terminal
+    }
+
     pub fn into_receipt(self) -> Result<RunReceipt> {
         self.try_into()
     }
@@ -257,6 +262,10 @@ impl Command {
             bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
         }
         bytes
+    }
+
+    pub fn request_id(&self) -> &str {
+        &self.request_id
     }
 
     pub fn into_receipt(self, request_id: &CommandId) -> Result<StepCommandReceipt> {

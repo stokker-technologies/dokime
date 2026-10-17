@@ -22,6 +22,7 @@ use harmos::{Message, storage::SchemaKey};
 // Local Imports
 use super::{Error, Result, values};
 use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::RecordSeverity;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
@@ -240,6 +241,16 @@ impl RecordRow {
             .checked_add(std::mem::size_of::<Vec<u8>>())
             .and_then(|bound| bound.checked_add(bytes.len()))
             .ok_or_else(|| error("record decoding memory overflows"))
+    }
+
+    /// The capture sequence this row was journaled at.
+    pub fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    /// The stored owner scope, before projection into its entry.
+    pub fn scope(&self) -> Option<&ScopeRow> {
+        self.scope.as_ref()
     }
 
     /// Decode one stored record payload into its entry.

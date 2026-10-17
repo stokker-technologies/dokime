@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result::Result;
 use std::{
     fs::OpenOptions,
     io::{Read, Seek, SeekFrom},

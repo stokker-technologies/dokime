@@ -22,7 +22,7 @@ use harmos::storage::{FileReader, FileReference, ObjectRevision, ObjectVersion, 
 // Local Imports
 use crate::storage::Manager;
 use crate::{
-    execution::context::{ExecutionContext, source::CapturedSource},
+    execution::context::{ExecutionContext, captured::source::CapturedSource},
     runtime::Error,
     runtime::Result,
 };
@@ -250,7 +250,7 @@ impl ExecutionView {
         if !self.saved.covers(&file.position)? {
             return Err(Error::Storage(crate::storage::Error::Invalid("execution file exceeds the original saved view")));
         }
-        Ok(self.storage.read_file(harmos::storage::ReadFile { file: file.clone(), range }).await?)
+        Ok(self.storage.read_file(harmos::storage::operations::ReadFile { file: file.clone(), range }).await?)
     }
 }
 

@@ -15,17 +15,7 @@
 // Standard Library Imports
 use std::{collections::VecDeque, ops::Deref, sync::Arc};
 // Third Party Imports
-use harmos::storage::{
-    RecordRead, RecordReader,
-    query::{
-        RecordSelection,
-        scalar::ScalarValue,
-        transform::{
-            FieldPath,
-            filter::{Clause, Compare, Condition, Filter, Term},
-        },
-    },
-};
+use harmos::storage::{RecordRead, RecordReader, query::RecordSelection};
 // Local Imports
 use super::{Source, error};
 use crate::runtime::Result;
@@ -46,6 +36,8 @@ pub(crate) struct History {
     state_manager: crate::app::StateManager,
     rows: RecordReader<RecordRow>,
     pending: VecDeque<CapturedRecord>,
+    // Logical Seek: Only Rows Journaled After This Capture Sequence.
+    sequence_after: Option<u64>,
     after: u64,
     through: u64,
     done: bool,
@@ -68,18 +60,18 @@ pub(super) enum Start {
 
 /* === Implementations === */
 impl Source {
-    /// Saved records the filter selects, excluding this process's records after `through`.
+    /// Saved records `select` accepts, excluding this process's records after `through`.
     pub(crate) async fn saved_filtered_records(
-        &self, state_manager: &crate::app::StateManager, through: u64, filter: Filter,
+        &self, state_manager: &crate::app::StateManager, through: u64, select: impl Fn(&RecordEntry) -> bool,
     ) -> Result<Vec<RecordEntry>> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
-        let rows = self.rows(at, None, 0, vec![filter]).await?;
+        let rows = self.rows(at, None, 0).await?;
         let mut selected = Vec::new();
         for row in rows.collect().await? {
             let current = row.scope.as_ref() == Some(&self.epoch);
             let record = row.payload.entry()?;
-            if !current || record.sequence <= through {
+            if (!current || record.sequence <= through) && select(&record) {
                 selected.push(record);
             }
         }
@@ -95,20 +87,21 @@ impl Source {
     ) -> Result<History> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
-        let (after, filters) = match start {
-            Start::Physical(after) => (after, Vec::new()),
+        let (after, sequence_after) = match start {
+            Start::Physical(after) => (after, None),
             Start::Logical(after) => {
                 if scope.is_none() {
                     return Err(error("logical seek requires a process epoch"));
                 }
-                (0, logical_after(after).into_iter().collect())
+                (0, (after > 0).then_some(after))
             }
         };
         Ok(History {
             source: self.clone(),
             state_manager: state_manager.clone(),
-            rows: self.rows(at, scope, after, filters).await?,
+            rows: self.rows(at, scope, after).await?,
             pending: VecDeque::new(),
+            sequence_after,
             after,
             through,
             done: false,
@@ -124,7 +117,7 @@ impl Source {
     }
 
     async fn rows(
-        &self, at: harmos::storage::StorageCursor, scope: Option<harmos::Identifier>, after: u64, filters: Vec<Filter>,
+        &self, at: harmos::storage::StorageCursor, scope: Option<harmos::Identifier>, after: u64,
     ) -> Result<RecordReader<RecordRow>> {
         Ok(self
             .storage
@@ -132,7 +125,6 @@ impl Source {
                 at,
                 selection: RecordSelection { schema: self.schema.clone(), scope, item: None, source_start: None, source_end: None },
                 after,
-                filters,
             })
             .await?)
     }
@@ -160,7 +152,8 @@ impl History {
                 self.done = true;
                 break;
             };
-            for row in rows {
+            let sequence_after = self.sequence_after;
+            for row in rows.into_iter().filter(|row| sequence_after.is_none_or(|after| row.payload.sequence() > after)) {
                 self.pending.push_back(CapturedRecord {
                     position: row.position.sequence,
                     current_process: row.scope.as_ref() == Some(&self.source.epoch),
@@ -189,16 +182,5 @@ impl Deref for CapturedRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn logical_after(after: u64) -> Option<Filter> {
-    (after > 0).then(|| Filter {
-        clauses: vec![Clause {
-            terms: vec![Term {
-                field: FieldPath::from("payload.sequence"),
-                condition: Condition::Compare { op: Compare::Gt, value: ScalarValue::Unsigned(after) },
-                negate: false,
-            }],
-        }],
-    })
-}
 
 /* === Tests === */

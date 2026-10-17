@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+#[cfg(feature = "host")]
 pub(crate) mod admission;
 mod authoring;
 mod declared;

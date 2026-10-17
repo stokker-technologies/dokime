@@ -55,6 +55,10 @@ pub enum Error {
     #[error(transparent)]
     Runtime(#[from] harmos::Error),
     #[error(transparent)]
+    HarmosStorage(#[from] harmos::storage::Error),
+    #[error(transparent)]
+    HarmosDomain(#[from] harmos::domain::Error),
+    #[error(transparent)]
     Saved(#[from] dokime_domain::model::execution::saved::SavedEvidenceError),
     #[error("invalid persisted evidence: {0}")]
     Invalid(&'static str),
@@ -103,7 +107,7 @@ pub fn state_settings() -> harmos::config::StorageStateSettings {
 /// Read a finished file whole; the reader verifies its length and digest.
 pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<Vec<u8>> {
     let mut reader = storage
-        .read_file(harmos::storage::ReadFile { file: file.clone(), range: harmos::storage::ByteRange { offset: 0, limit: None } })
+        .read_file(harmos::storage::operations::ReadFile { file: file.clone(), range: harmos::storage::ByteRange { offset: 0, limit: None } })
         .await?;
     let mut bytes = Vec::new();
     while let Some(batch) = reader.next().await? {

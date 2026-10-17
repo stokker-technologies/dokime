@@ -17,17 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::storage::{
-    ObjectRead, ObjectRevision, ObjectVersion, StoredObject,
-    query::{
-        ObjectVersions,
-        scalar::ScalarValue,
-        transform::{
-            FieldPath,
-            filter::{Clause, Compare, Condition, Filter, Term},
-        },
-    },
-};
+use harmos::storage::{ObjectRead, ObjectRevision, ObjectVersion, StoredObject, query::ObjectVersions};
 
 // Local Imports
 use super::{Pending, RunReceipt, error, receipt_error};
@@ -64,7 +54,8 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let commands = latest::<Command>(storage, filter(vec![equal("request_id", ScalarValue::Text(id.to_string()))])).await?;
+    let request = id.to_string();
+    let commands = latest::<Command>(storage, |command| command.request_id() == request).await?;
     if commands.len() > MAX_COMMANDS {
         return Err(error("command receipt history exceeded capacity"));
     }
@@ -77,11 +68,8 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
 
 /// This node's nonterminal saved requests, ascending by identity.
 pub(super) async fn pending(storage: &Manager, node: &NodeId) -> Result<Vec<CommandId>> {
-    let requests = latest::<Request>(
-        storage,
-        filter(vec![equal("node_id", ScalarValue::Text(node.to_string())), equal("terminal", ScalarValue::Bool(false))]),
-    )
-    .await?;
+    let node = node.to_string();
+    let requests = latest::<Request>(storage, |request| request.pending_on(&node)).await?;
     let mut ids = requests
         .into_iter()
         .map(|request| CommandId::from_uuid(request.value.key()).map_err(|source| receipt_error(crate::storage::Error::from(source))))
@@ -146,28 +134,18 @@ fn storage_group_bytes() -> std::num::NonZeroUsize {
     std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()
 }
 
-async fn latest<T>(storage: &Manager, filter: Filter) -> Result<Vec<ObjectRevision<T>>>
+async fn latest<T>(storage: &Manager, select: impl Fn(&T) -> bool) -> Result<Vec<ObjectRevision<T>>>
 where
     T: StoredObject,
     crate::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
-    Ok(storage
-        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest, filters: vec![filter] })
-        .await?
-        .collect()
-        .await?)
-}
-
-fn filter(terms: Vec<Term>) -> Filter {
-    Filter { clauses: vec![Clause { terms }] }
-}
-
-fn equal(field: &str, value: ScalarValue) -> Term {
-    Term {
-        field: FieldPath::from(format!("payload.{field}").as_str()),
-        condition: Condition::Compare { op: Compare::Eq, value },
-        negate: false,
+    let mut reader =
+        storage.read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest }).await?;
+    let mut selected = Vec::new();
+    while let Some(page) = reader.next().await? {
+        selected.extend(page.into_iter().filter(|revision| select(&revision.value)));
     }
+    Ok(selected)
 }
 
 /* === Tests === */

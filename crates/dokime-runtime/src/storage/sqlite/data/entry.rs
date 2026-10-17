@@ -14,6 +14,7 @@ mod object;
 
 /* === Imports === */
 // Standard Library Imports
+use std::result::Result;
 use std::{io::Write, time::UNIX_EPOCH};
 // Third Party Imports
 use harmos::storage::*;

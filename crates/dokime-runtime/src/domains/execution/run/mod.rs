@@ -1282,8 +1282,9 @@ async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
     contract: &crate::telemetry::TelemetryContract, replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
-    use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
-    let samples_failure = |error: harmos::Error| failure("sidecar_samples", error.to_string());
+    use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
+    use harmos::storage::operations::Query;
+    let samples_failure = |error: harmos::storage::Error| failure("sidecar_samples", error.to_string());
     let scope =
         harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope_json = serde_json::to_string(&execution.scope).map_err(|error| failure("sidecar_samples", error.to_string()))?;
@@ -1312,7 +1313,7 @@ async fn replay_stream(
     let mut bytes = 0;
     let mut through = *replayed;
     while let Some(output) = reader.next().await.map_err(samples_failure)? {
-        let QueryOutput::Batch(batch) = output else {
+        let QueryArrow::Batch(batch) = output else {
             continue;
         };
         let raw = batch.as_record_batch();
@@ -1353,10 +1354,10 @@ async fn replay_stream(
     Ok(())
 }
 
-fn replay_codec_error(source: crate::storage::Error) -> harmos::Error {
+fn replay_codec_error(source: crate::storage::Error) -> harmos::storage::Error {
     match source {
-        crate::storage::Error::Runtime(source) => source,
-        source => harmos::Error::backend("decode typed sample replay", harmos::BackendFailure::Corrupt, source),
+        crate::storage::Error::HarmosStorage(source) => source,
+        source => harmos::storage::Error::backend("decode typed sample replay", harmos::storage::BackendFailure::Corrupt, source),
     }
 }
 

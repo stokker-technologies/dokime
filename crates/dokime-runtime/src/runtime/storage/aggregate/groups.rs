@@ -362,9 +362,9 @@ fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
 }
 
-fn reduction_error(error: harmos::Error) -> Error {
+fn reduction_error(error: harmos::storage::Error) -> Error {
     match error {
-        harmos::Error::InvalidInput { reason, .. } => invalid(reason),
+        harmos::storage::Error::InvalidInput { reason, .. } => invalid(reason),
         error => error.into(),
     }
 }

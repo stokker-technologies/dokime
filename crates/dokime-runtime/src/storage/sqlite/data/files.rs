@@ -13,6 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::result::Result;
 use std::{
     fs::{File, OpenOptions},
     io::{Read as _, Seek, SeekFrom, Write},

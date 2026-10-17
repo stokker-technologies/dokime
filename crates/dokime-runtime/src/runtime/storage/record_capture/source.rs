@@ -166,7 +166,7 @@ impl Source {
 impl harmos::storage::RecordProjection for Projection {
     fn project<'a>(
         &'a self, envelope: &'a harmos::state::Envelope<&serde_json::Value>, output: &'a mut harmos::storage::ProjectedRecords<'_>,
-    ) -> harmos::storage::StorageFuture<'a, ()> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = harmos::Result<()>> + Send + 'a>> {
         let span = tracing::debug_span!(
             target: "crate::record_admission",
             "record_projection"

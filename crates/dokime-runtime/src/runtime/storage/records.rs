@@ -16,23 +16,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::{
-    RecordRead, StoredRecord,
-    query::{
-        RecordSelection,
-        scalar::ScalarValue,
-        transform::{
-            FieldPath,
-            filter::{Clause, Compare, Condition, Filter, Term},
-        },
-    },
-};
+use harmos::storage::{RecordRead, StoredRecord, query::RecordSelection};
 
 // Local Imports
 use super::{context_records::ContextRecord, execution::ExecutionView};
 use crate::storage::records;
-use crate::storage::records::RecordRow;
+use crate::storage::records::{RecordRow, ScopeRow};
 use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
@@ -41,8 +32,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
-// The Transform Catalog Accepts At Most This Many Terms In One `In` Condition.
-const MEMBERSHIP_VALUES: usize = 4096;
 
 /* === Macros === */
 
@@ -54,6 +43,7 @@ pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
+    context: bool,
 }
 
 /* === Enums === */
@@ -81,10 +71,9 @@ impl RecordReader {
                 at: through.clone(),
                 selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
                 after,
-                filters: vec![execution_filter(view, context)?],
             })
             .await?;
-        Ok(Self { rows, view: view.clone() })
+        Ok(Self { rows, view: view.clone(), context })
     }
 
     pub async fn next(&mut self) -> Result<Option<Vec<ContextRecord>>> {
@@ -92,12 +81,26 @@ impl RecordReader {
     }
 
     pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedRecord>>> {
-        let Some(rows) = self.rows.next().await? else {
-            return Ok(None);
-        };
+        let mut selected = Vec::new();
+        while selected.is_empty() {
+            let Some(rows) = self.rows.next().await? else {
+                return Ok(None);
+            };
+            selected = self.select(rows)?;
+        }
+        Ok(Some(selected))
+    }
+
+    // One Page's Rows Owned By The Execution, Or Its Shared Context When Requested.
+    fn select(&self, rows: Vec<StoredRecord<RecordRow>>) -> Result<Vec<PositionedRecord>> {
         let execution = self.view.execution();
+        let subscriptions = execution.records.subscribed_records();
+        let subscribed = subscriptions.keys().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {
+            if !owned(&row, execution, self.context) && !subscribed.contains(row.item.as_str()) {
+                continue;
+            }
             let position = row.position.sequence;
             let mut decoded = decode(row)?;
             apply_execution_scope(
@@ -109,48 +112,29 @@ impl RecordReader {
             )?;
             selected.push(PositionedRecord { position, captured: decoded });
         }
-        Ok(Some(selected))
+        Ok(selected)
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn term(path: &str, condition: Condition) -> Term {
-    Term { field: FieldPath::from(path), condition, negate: false }
-}
-
-fn absent(path: &str) -> Term {
-    term(path, Condition::IsNull)
-}
-
-fn execution_filter(view: &ExecutionView, context: bool) -> Result<Filter> {
-    let execution = view.execution();
-    let subscriptions = execution.records.subscribed_records();
-    let owner = |name: &str| format!("payload.scope.{name}");
-    let equal = |path: String, value: &str| term(&path, Condition::Compare { op: Compare::Eq, value: ScalarValue::Text(value.to_owned()) });
-    let mut clauses = vec![Clause { terms: vec![equal(owner("test_execution_id"), execution.test_execution_id.as_str())] }];
-    if context {
-        clauses.push(Clause {
-            terms: vec![absent(&owner("test_execution_id")), equal(owner("test_cycle_id"), execution.test_cycle_id.as_str())],
-        });
-        clauses.push(Clause {
-            terms: ["test_execution_id", "test_cycle_id", "test_case_id", "step_id", "criterion_id"]
-                .into_iter()
-                .map(|name| absent(&owner(name)))
-                .collect(),
-        });
+// The Execution's Own Records; With Context, Also Its Cycle's Unowned
+// Records And Records Without Any Test Owner.
+fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool) -> bool {
+    let scope = row.payload.scope();
+    let field = |select: fn(&ScopeRow) -> &Option<String>| scope.and_then(|scope| select(scope).as_deref());
+    let owner = field(|scope| &scope.test_execution_id);
+    if owner == Some(execution.test_execution_id.as_str()) {
+        return true;
     }
-    let ids = subscriptions.keys().collect::<Vec<_>>();
-    for chunk in ids.chunks(MEMBERSHIP_VALUES) {
-        clauses.push(Clause {
-            terms: vec![term(
-                "_storage.item",
-                Condition::In { values: chunk.iter().map(|id| ScalarValue::Text(id.as_str().to_owned())).collect() },
-            )],
-        });
+    if !context || owner.is_some() {
+        return false;
     }
-    Ok(Filter { clauses })
+    field(|scope| &scope.test_cycle_id) == Some(execution.test_cycle_id.as_str())
+        || [field(|scope| &scope.test_cycle_id), field(|scope| &scope.test_case_id), field(|scope| &scope.step_id), field(|scope| &scope.criterion_id)]
+            .iter()
+            .all(Option::is_none)
 }
 
 fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {

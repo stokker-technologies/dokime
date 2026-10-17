@@ -462,7 +462,7 @@ impl ExecutionStorage {
     pub(crate) async fn materialize_final_report(
         self: &Arc<Self>, ctx: &harmos::operations::Context<'_>, inspection: super::execution::ExecutionView,
         prepared: PreparedExecutionReport, sealed_at: Timestamp,
-    ) -> Result<crate::runtime::operations::reports::MaterializedReport> {
+    ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
         let storage = self.clone();
         let work = async move {
@@ -494,7 +494,7 @@ impl ExecutionStorage {
     /// The final report already published for `execution` at `at`, awaiting its seal.
     pub(crate) async fn published_final_report(
         &self, execution: &TestExecutionId, at: &StorageCursor,
-    ) -> Result<Option<crate::runtime::operations::reports::MaterializedReport>> {
+    ) -> Result<Option<dokime_domain::model::reports::wire::MaterializedReport>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
         };
@@ -505,7 +505,7 @@ impl ExecutionStorage {
         if published.seal.source.evidence_through != *at {
             return Err(invalid("report request changes the frozen evidence cursor"));
         }
-        Ok(Some(crate::runtime::operations::reports::MaterializedReport { report: published.seal.report.clone() }))
+        Ok(Some(dokime_domain::model::reports::wire::MaterializedReport { report: published.seal.report.clone() }))
     }
 
     /// Seal `execution` with its published final report.
@@ -673,7 +673,7 @@ fn validate_report(
 async fn publish_final(
     ctx: &harmos::operations::Context<'_>, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
-) -> Result<crate::runtime::operations::reports::MaterializedReport> {
+) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
     let revision = acquisition.working.as_ref().ok_or_else(|| invalid("publication has no real native revision"))?;
     let seal = prepared.save_dependencies(&acquisition.storage, ctx, sealed_at, revision).await?;
     let captured = prepared.captured_input();
@@ -703,7 +703,7 @@ async fn publish_final(
     .await?;
     let report = seal.report.clone();
     acquisition.published = Some(PublishedReport { seal: Arc::new(seal), inspection, appearance: captured.context.appearance.clone() });
-    Ok(crate::runtime::operations::reports::MaterializedReport { report })
+    Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
 
 async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {

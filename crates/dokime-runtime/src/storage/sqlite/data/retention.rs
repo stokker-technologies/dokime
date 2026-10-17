@@ -13,6 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::result::Result;
 use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::{catalog::Projection, storage::*};

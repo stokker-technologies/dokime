@@ -21,6 +21,7 @@ pub(crate) use entry::Entry;
 
 /* === Imports === */
 // Standard Library Imports
+use std::result::Result;
 // Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, params, types::Value};

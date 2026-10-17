@@ -22,8 +22,9 @@ use std::num::NonZeroUsize;
 use harmos::{
     operations::{Context, StreamSettings},
     storage::{
-        arrow::ArrowBatch,
-        query::{Query, QueryOutput},
+        arrow::{ArrowBatch, ArrowSchema},
+        operations::Query,
+        query::QueryOutput,
     },
 };
 // Local Imports
@@ -70,13 +71,14 @@ pub(super) async fn batches(ctx: &Context<'_>, settings: &crate::config::Storage
                 if schema.is_some() || rows != 0 {
                     return Err(invalid("query emitted a repeated or late schema"));
                 }
-                schema = Some(value.clone());
+                schema = Some(ArrowSchema::from_ipc(value.bytes())?);
             }
             QueryOutput::Batch(batch) => {
                 let announced = schema.as_ref().ok_or_else(|| invalid("query emitted data before its schema"))?;
+                let batch = ArrowBatch::from_ipc(batch.bytes())?;
                 batch.validate_schema(announced.as_schema())?;
                 rows += batch.as_record_batch().num_rows() as u64;
-                batches.push(batch.clone());
+                batches.push(batch);
             }
         }
     }

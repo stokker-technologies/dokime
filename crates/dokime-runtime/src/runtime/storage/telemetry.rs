@@ -20,7 +20,8 @@ use harmos::{
     Identifier,
     storage::{
         RecordWrite, SchemaKey, StreamWrite,
-        query::{Query, QueryOutput, RowSlice, Source, StreamSelection},
+        operations::Query,
+        query::{QueryArrow, RowSlice, Source, StreamSelection},
     },
 };
 
@@ -352,7 +353,7 @@ async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<V
     let mut reader = storage.query(source.query.clone()).await?;
     let mut rows = Vec::new();
     while let Some(output) = reader.next().await? {
-        let QueryOutput::Batch(batch) = output else {
+        let QueryArrow::Batch(batch) = output else {
             continue;
         };
         let raw = batch.as_record_batch();

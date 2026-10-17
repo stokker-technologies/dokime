@@ -24,7 +24,8 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 use crate::RuntimeHandle;
 use crate::runtime::Error;
 use crate::runtime::Result;
-use crate::runtime::operations::reports::{MaterializeReport, ReportSubject};
+use crate::operations::reports::MaterializeReport;
+use dokime_domain::model::reports::wire::ReportSubject;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
@@ -212,7 +213,7 @@ impl RuntimeHandle {
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
         self.operations
-            .call_as::<MaterializeReport>(MaterializeReport { subject: ReportSubject::Execution(id.to_string()), at: at.clone() })
+            .call(MaterializeReport { subject: ReportSubject::Execution(id.to_string()), at: at.clone() })
             .await?;
         let _guard = gate.lock().await;
         // Only Finalization Seals The Subject, After The Full Publication Is Durable.

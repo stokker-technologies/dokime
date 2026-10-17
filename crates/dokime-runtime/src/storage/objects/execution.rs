@@ -25,6 +25,9 @@ use harmos::{
 use super::{annotations, artifacts, case, cycle, metadata, templates};
 use crate::storage::{Error, Manager, Result, records::ScopeRow};
 use dokime_domain::model::execution::result::TestExecution;
+use crate::definition::ParameterSource;
+use dokime_domain::model::execution::TerminationReason;
+use dokime_domain::model::execution::result::{CriterionStatus, StepStatus};
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */

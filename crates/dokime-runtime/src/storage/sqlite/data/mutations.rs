@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result::Result;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Third Party Imports

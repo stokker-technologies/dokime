@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result::Result;
 use std::{
     collections::HashMap,
     num::NonZeroUsize,
@@ -87,11 +88,11 @@ impl Drop for ActiveRead {
 
 impl<C: ObjectCatalog> Backend<C> {
     /// Open the root's SQLite store once for this manager's lifetime.
-    pub async fn primary(root: PathBuf) -> harmos::Result<Self> {
+    pub async fn primary(root: PathBuf) -> harmos::storage::Result<Self> {
         C::validate()?;
         let state = State::open(&root).await.map_err(|error| failure("open SQLite", error))?;
         let cut = state.data_open(None).await.map_err(|error| failure("initialize SQLite", error))?;
-        let root = root.canonicalize().map_err(|error| harmos::Error::backend("resolve SQLite root", BackendFailure::Permanent, error))?;
+        let root = root.canonicalize().map_err(|error| harmos::storage::Error::backend("resolve SQLite root", BackendFailure::Permanent, error))?;
         Ok(Self {
             catalog: std::marker::PhantomData,
             root,
@@ -107,13 +108,13 @@ impl<C: ObjectCatalog> Backend<C> {
         self.state.clone()
     }
 
-    fn read(&self, snapshot: &BackendSnapshot) -> harmos::Result<ActiveRead> {
+    fn read(&self, snapshot: &BackendSnapshot) -> harmos::storage::Result<ActiveRead> {
         self.history.check(&snapshot.at.history)?;
         let snapshots = self.snapshots.lock().unwrap();
         let pin = snapshots
             .get(&snapshot.token)
             .filter(|pin| !pin.released.load(Ordering::Acquire) && pin.at == snapshot.at.sequence)
-            .ok_or(harmos::Error::ViewExpired)?
+            .ok_or(harmos::storage::Error::NotReady { domain: "SQLite snapshot view" })?
             .clone();
         pin.reads.fetch_add(1, Ordering::AcqRel);
         Ok(ActiveRead(pin))
@@ -122,7 +123,7 @@ impl<C: ObjectCatalog> Backend<C> {
     async fn scan<T>(
         &self, snapshot: &BackendSnapshot, kind: &'static str, page: ScanPage, select: impl FnOnce(Scan) -> Result<Scan, Error>,
         convert: fn(Entry) -> Option<T>,
-    ) -> harmos::Result<Vec<T>> {
+    ) -> harmos::storage::Result<Vec<T>> {
         let read = self.read(snapshot)?;
         let scan = select(Scan::new(kind, read.0.at, read.0.generation, page)).map_err(|error| failure("select SQLite scan", error))?;
         let entries = self.state.data_scan(scan).await.map_err(|error| failure("scan SQLite entries", error))?;
@@ -487,13 +488,14 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
 /* === Private Functions === */
 
-fn invalid(reason: &'static str) -> harmos::Error {
-    harmos::Error::InvalidInput { field: "SQLite storage", reason }
+fn invalid(reason: &'static str) -> harmos::storage::Error {
+    harmos::storage::Error::InvalidInput { field: "SQLite storage", reason }
 }
 
-fn failure(operation: &'static str, error: Error) -> harmos::Error {
+fn failure(operation: &'static str, error: Error) -> harmos::storage::Error {
     match error {
-        Error::Runtime(error) => error,
+        Error::HarmosStorage(error) => error,
+        Error::HarmosDomain(error) => error.into(),
         Error::Data(reason) => invalid(reason),
         other => {
             let kind = match &other {
@@ -502,7 +504,7 @@ fn failure(operation: &'static str, error: Error) -> harmos::Error {
                 Error::Io(_) | Error::Sqlite(_) | Error::Publication(_) => BackendFailure::Transient,
                 _ => BackendFailure::Permanent,
             };
-            harmos::Error::backend(operation, kind, other)
+            harmos::storage::Error::backend(operation, kind, other)
         }
     }
 }

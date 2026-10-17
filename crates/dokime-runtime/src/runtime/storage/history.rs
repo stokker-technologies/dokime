@@ -48,7 +48,6 @@ pub(crate) async fn executions(storage: &Manager) -> Result<Vec<ObjectRevision<T
             at: storage.cursor_saved(),
             key: None,
             versions: ObjectVersions::Latest,
-            filters: Vec::new(),
         })
         .await?
         .collect()

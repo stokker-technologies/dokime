@@ -17,7 +17,8 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{ByteRange, FileReader, ReadFile};
+use harmos::storage::operations::ReadFile;
+use harmos::storage::{ByteRange, FileReader};
 
 // Local Imports
 use super::execution::ExecutionView;

@@ -26,6 +26,7 @@ use std::num::NonZeroUsize;
 // Local Imports
 use super::metadata;
 use crate::storage::{Error, Result, values};
+use dokime_domain::model::values::UnitFamily;
 
 /* === Constants === */
 

@@ -92,7 +92,6 @@ pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) 
                     at: storage.cursor_saved(),
                     selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
                     after: 0,
-                    filters: Vec::new(),
                 })
                 .await?
                 .collect()
@@ -113,7 +112,7 @@ where
     crate::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
     Ok(storage
-        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest, filters: Vec::new() })
+        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest })
         .await?
         .collect()
         .await?

@@ -789,10 +789,10 @@ fn failure(message: &'static str) -> crate::Error {
     DocumentFailure::Evaluation { message }.into()
 }
 
-fn reduction(error: harmos::Error) -> crate::Error {
+fn reduction(error: harmos::storage::Error) -> crate::Error {
     match error {
-        harmos::Error::InvalidInput { reason, .. } => failure(reason),
-        harmos::Error::ResourceExhausted { .. } => failure("document fold exceeds its value bound"),
+        harmos::storage::Error::InvalidInput { reason, .. } => failure(reason),
+        harmos::storage::Error::ResourceExhausted { .. } => failure("document fold exceeds its value bound"),
         _ => failure("document fold failed"),
     }
 }

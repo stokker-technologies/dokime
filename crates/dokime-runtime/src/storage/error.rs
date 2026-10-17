@@ -54,6 +54,10 @@ pub enum Error {
     #[error(transparent)]
     Runtime(#[from] harmos::Error),
     #[error(transparent)]
+    HarmosStorage(#[from] harmos::storage::Error),
+    #[error(transparent)]
+    HarmosDomain(#[from] harmos::domain::Error),
+    #[error(transparent)]
     Publication(#[from] dokime_filesystem::Error),
 }
 
