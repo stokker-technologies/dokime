@@ -50,14 +50,23 @@ try {
   const suite = await api.catalogGetSuite(session, { suiteId: contract.suite });
   const template = suite.templates.find((item) => item.metadata.identifier === contract.template);
   assert.ok(template);
+  // A cycle is created empty; its cases join through a registered plan, as the desktop does.
   const cycle = await api.executionCreateCycle(session, {
     metadata: { identifier: `matrix.${scenario.name}`, label: "Execution Matrix" },
-    plan: {
-      maxCases: 1,
-      selections: [{ suiteId: suite.identity.suiteId, templateId: template.templateId }],
-    },
   });
   const cycleId = cycle.cycleId;
+  const registered = await api.planningRegisterSelection(session, {
+    plan: {
+      maxCases: 1,
+      cycleId,
+      selections: [{ suiteId: suite.identity.suiteId, templateId: template.templateId }],
+    },
+    idempotencyKey: `${scenario.name}.plan`,
+  });
+  await api.executionAppendPlannedCases(session, {
+    cycleId,
+    plan: { caseIds: registered.cases.map((item) => item.caseId) },
+  });
   const admission = await api.executionRunCycle(session, {
     cycleId,
     idempotencyKey: scenario.name,
