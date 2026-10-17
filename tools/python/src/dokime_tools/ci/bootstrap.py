@@ -240,7 +240,7 @@ def prepare_harmos(
     *,
     allow_install: bool,
     cargo_config: Path | None = None,
-) -> None:
+) -> Path:
     local_source = None
     if cargo_config is not None:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("DOKIME_CI_ROLE"):
@@ -346,13 +346,13 @@ def prepare_harmos(
             shutil.copytree(staged, destination)
     if os.name != "nt":
         binary.chmod(0o755)
-    os.environ["PATH"] = str(binary.parent) + os.pathsep + os.environ["PATH"]
     github_path = os.environ.get("GITHUB_PATH")
     if github_path:
         with Path(github_path).open("a", encoding="utf-8") as output:
             output.write(str(binary.parent) + "\n")
     selected = identity.get("rev", identity.get("source"))
     _step(f"Harmos CLI uses {selected} with verified installed bytes")
+    return binary
 
 
 def install_gui_packages() -> None:

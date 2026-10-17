@@ -14,6 +14,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[package.metadata.dokime]
+debuginfo = false
+
 [dependencies]
 # Local
 dokime-domain = { path = "../../crates/dokime-domain" }

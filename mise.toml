@@ -46,6 +46,7 @@ gh = "2.102.0"
 [env]
 UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
 TMPDIR = "{{config_root}}/target/tmp"
+PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
 

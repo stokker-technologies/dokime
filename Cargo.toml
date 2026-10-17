@@ -35,9 +35,9 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "dfffeecf4bfb9168cd324ea221e7ad18faf3b623" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "dfffeecf4bfb9168cd324ea221e7ad18faf3b623" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "dfffeecf4bfb9168cd324ea221e7ad18faf3b623" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -159,13 +159,9 @@ xcap = { version = "0.9.8" }
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
-[patch."https://github.com/stokker-technologies/harmos.git"]
-harmos = { path = "../../harmos.wt/conventions/crates/harmos" }
-harmos-packaging = { path = "../../harmos.wt/conventions/crates/harmos-packaging" }
-harmos-sdk = { path = "../../harmos.wt/conventions/crates/harmos-sdk" }
-
 [profile.dev]
 debug = "line-tables-only"
+split-debuginfo = "unpacked"
 
 [profile.release]
 lto = "thin"

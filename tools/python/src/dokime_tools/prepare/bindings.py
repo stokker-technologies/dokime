@@ -62,7 +62,7 @@ def generate(
     export: Path | None = None,
     cargo_config: Path | None = None,
 ) -> None:
-    prepare_harmos(root, allow_install=False, cargo_config=cargo_config)
+    tool = prepare_harmos(root, allow_install=False, cargo_config=cargo_config)
     if export is None:
         if messages is None:
             raise ValueError("a selected contract build is required")
@@ -73,7 +73,7 @@ def generate(
         package = Path(directory) / "package"
         subprocess.run(
             [
-                "cargo",
+                str(tool),
                 "harmos",
                 "bindings",
                 "python",

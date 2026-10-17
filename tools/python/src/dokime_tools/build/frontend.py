@@ -48,6 +48,8 @@ INPUT_ROOTS = [
 ]
 
 
+VOLATILE = frozenset({".pnpm-workspace-state-v1.json", ".modules.yaml", ".vite", ".vite-temp"})
+
 # === Types === #
 
 # === Classes === #
@@ -106,6 +108,11 @@ def build_live(args: list[str]) -> None:
         sync_output(Path(directory), WEB_ROOT / "dist")
 
 
+def installed() -> list[Path]:
+    """The Installed Node Packages, Without The State pnpm And Vite Rewrite On Every Run."""
+    return sorted({path.resolve() for path in (WEB_ROOT / "node_modules").iterdir() if path.name not in VOLATILE})
+
+
 def capture(
     profile: str,
     *,
@@ -128,7 +135,7 @@ def capture(
         [command],
         [output],
         locks=[WEB_ROOT / "pnpm-lock.yaml", ROOT / "mise.lock"],
-        installed=[WEB_ROOT / "node_modules"],
+        installed=installed(),
         parents=parents or [],
         inputs=inputs or [],
     )

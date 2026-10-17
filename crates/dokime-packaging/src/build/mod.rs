@@ -45,6 +45,8 @@ pub struct Collected {
     pub package: Package,
     pub target: String,
     pub executables: BTreeMap<String, (PathBuf, Option<PathBuf>)>,
+    // The package opted out of debug info, so packaging strips the shared build's DWARF.
+    pub strip: bool,
 }
 
 // Whether a build keeps line-table debug info and ships its symbols, as the
@@ -148,6 +150,7 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
     let executables = single(executables, selected.len())?;
     Ok(Collected {
         package: package.clone(),
+        strip: !debuginfo.enabled && !target.contains("windows-msvc"),
         target,
         executables: executables.into_iter().map(|(name, mut paths)| (name, paths.remove(0))).collect(),
     })
@@ -156,7 +159,12 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
 // Bundle collected executables into `output/<package>.dokime`.
 pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Error> {
     let destination = output.join(format!("{}.dokime", collected.package.name));
-    let executables = collected.executables.into_iter().map(|(name, path)| (name, vec![path])).collect();
+    let stripped = tempfile::tempdir_in(output)?;
+    let mut executables = Executables::new();
+    for (name, (path, symbols)) in collected.executables {
+        let path = if collected.strip { strip(&path, stripped.path(), &collected.target).await? } else { path };
+        executables.insert(name, vec![(path, symbols)]);
+    }
     bundle(&collected.package, &collected.target, executables, destination).await
 }
 
@@ -306,6 +314,25 @@ async fn host_target(package: &Package) -> Result<String, Error> {
         .find_map(|line| line.strip_prefix("host: "))
         .map(str::to_owned)
         .ok_or_else(|| Error::Invalid("rustc did not report a host target".into()))
+}
+
+// A copy of `executable` without debug sections, written with the toolchain's own llvm-objcopy.
+async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
+    let mut sysroot = Command::new("rustc");
+    sysroot.arg("--print").arg("sysroot");
+    let sysroot = process::run(sysroot, "rustc sysroot probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    let sysroot = PathBuf::from(String::from_utf8_lossy(&sysroot.stdout).trim());
+    let objcopy =
+        sysroot.join("lib/rustlib").join(target).join("bin").join(if cfg!(windows) { "llvm-objcopy.exe" } else { "llvm-objcopy" });
+    if !objcopy.is_file() {
+        return Err(Error::Invalid(format!("{} is missing; install the llvm-tools-preview component", objcopy.display())));
+    }
+    let name = executable.file_name().ok_or_else(|| Error::Invalid("executable has no file name".into()))?;
+    let stripped = directory.join(name);
+    let mut command = Command::new(objcopy);
+    command.arg("--strip-debug").arg(executable).arg(&stripped);
+    process::run(command, "strip debug sections", Some(Duration::from_secs(120)), 64 * 1024, 64 * 1024).await?;
+    Ok(stripped)
 }
 
 fn single(mut executables: Executables, selected: usize) -> Result<Executables, Error> {
