@@ -109,7 +109,7 @@ export type CycleWorkspaceHeaderProps = {
   identity: CockpitIdentity;
   /** False in the frozen report: no menu, no prompts. */
   live?: boolean;
-  menu: CycleMenu | ExecutionMenu;
+  menu: CycleMenu | ExecutionMenu | null;
   /** Renames the node; absent once it sealed or archived, or with
    *  `live={false}`, the title is plain. */
   onRename?: (label: string) => Promise<unknown>;
@@ -136,7 +136,7 @@ export function CycleWorkspaceHeader({
         <EditableLabel
           label={identity.title}
           onRename={live && onRename ? onRename : null}
-          subject={menu.kind === "cycle" ? "Cycle" : "Execution"}
+          subject={menu?.kind === "execution" ? "Execution" : "Cycle"}
         />
         {identity.status ? (
           <>
@@ -159,7 +159,7 @@ export function CycleWorkspaceHeader({
             <span />
           </>
         )}
-        {live ? <NodeMenu menu={menu} /> : <span />}
+        {live && menu ? <NodeMenu menu={menu} /> : <span />}
       </div>
 
       {live && prompts ? (

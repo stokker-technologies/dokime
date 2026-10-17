@@ -32,7 +32,7 @@ import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import { type PlotDisplaySettings, PlotSettingsButton } from "@/plots/PlotSettingsDialog";
+import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
@@ -150,7 +150,8 @@ const LivePlotCard = memo(function LivePlotCard({
       }),
     [descriptor, parameters, plotPalette, position, state, telemetry, title],
   );
-  const actions = onPlotSettingsChange ? (
+  const PlotSettingsButton = usePlotSettingsEditor();
+  const actions = onPlotSettingsChange && PlotSettingsButton ? (
     <PlotSettingsButton
       plot={descriptor}
       onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}

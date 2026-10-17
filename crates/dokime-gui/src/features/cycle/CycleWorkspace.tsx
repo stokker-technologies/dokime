@@ -18,11 +18,9 @@
  * both. The sidebar tree owns selection. The route owns the URL, so every
  * selection change leaves here through `onSelectionChange`.
  *
- * `live` is the only difference between the application and the frozen report,
- * which mounts this same workspace over a snapshot. With it off both pages keep
- * identity, status and evidence and lose every command and every prompt, and
- * the reads answer from the snapshot context rather than the backend. There is
- * no second workspace.
+ * The report supplies its captured data directly to the shared evidence and
+ * execution presentation views. This wrapper owns live queries and commands;
+ * frozen rendering does not construct those resources.
  */
 
 /* === External Imports === */

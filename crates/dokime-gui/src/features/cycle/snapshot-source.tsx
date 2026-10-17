@@ -7,18 +7,9 @@
  * ***
  */
 
-/* Where the cycle workspace reads from when it is not live.
- *
- * The frozen report renders the same components as the application, so it
- * cannot have its own workspace: it has its own *source*. This context carries
- * one cycle's evidence already projected into the types the `lib/api` adapters
- * produce, and the query hooks in `cycle-queries.ts` and `server-state.ts`
- * consult it before they consult the backend. A hook that finds a source
- * returns the frozen value in the very shape its live branch returns, so no
- * component below ever learns which one it got.
- *
- * Nothing here is report-only rendering: it is report-only *data*. The
- * components stay one set, selected by the `live` boolean.
+/* Captured evidence for shared cycle presentation and recorded-data adapters.
+ * The standalone report passes this source directly into presentation views;
+ * application query adapters can also use it when displaying captured data.
  */
 
 /* === External Imports === */

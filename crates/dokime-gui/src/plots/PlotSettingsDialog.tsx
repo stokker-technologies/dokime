@@ -43,7 +43,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
-import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
+import type { DocumentDownsampleTechnique } from "@/lib/types";
+import type { PlotSettingsButtonProps } from "./plot-settings";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Constants === */
@@ -60,17 +61,6 @@ export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; labe
 ];
 
 /* === Types === */
-
-export type PlotDisplaySettings = {
-  /** `null` restores the host default; `0` keeps every retained sample. */
-  display_points: number | null;
-  downsample: DocumentDownsampleTechnique;
-};
-
-type PlotSettingsButtonProps = {
-  plot: DocumentViewPlot;
-  onSubmit: (settings: PlotDisplaySettings) => Promise<void>;
-};
 
 type PlotSettingsFormProps = PlotSettingsButtonProps & {
   onClose: () => void;
