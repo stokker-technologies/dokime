@@ -253,6 +253,17 @@ test("Retention Window", () => {
   assert.equal(state.payload?.cartesian?.point_count, x.length);
 });
 
+test("Empty Snapshot", () => {
+  // A Plot Without Records Opens On Its Revision-0 Snapshot Instead Of Waiting
+  const empty = hostFrame([], [[]]);
+  const state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 0, empty)], "auto");
+  assert.equal(state.status, "live");
+  assert.equal(state.droppedBatches, 0);
+
+  // An Append That Repeats The Revision Is Still Dropped
+  assert.equal(applyPlotMessages(state, [streamMessage("append", 0, empty)], "auto").droppedBatches, 1);
+});
+
 test("Frame Retention", () => {
   // A Snapshot Keeps One Representation: The Cartesian Frame
   const start = pulse(50);

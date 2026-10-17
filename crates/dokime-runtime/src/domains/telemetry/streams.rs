@@ -353,11 +353,26 @@ impl RuntimeHandle {
     pub(crate) async fn try_collect_telemetry_bounded(
         &self, selection: &TelemetrySelection, scan_limit: Option<usize>,
     ) -> crate::runtime::Result<Vec<TelemetrySample>> {
-        let cycle = selection.scope.test_cycle_id.clone().or_else(|| {
-            let execution_id = selection.scope.test_execution_id.as_ref()?;
+        let (cycle, sealed) = {
             let state = self.state_read();
-            state.executions.get(execution_id).map(|execution| execution.test_cycle_id.clone())
-        });
+            let execution = selection.scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id));
+            let cycle = selection.scope.test_cycle_id.clone().or_else(|| execution.map(|execution| execution.test_cycle_id.clone()));
+            (cycle, execution.is_none_or(|execution| execution.saved.is_some()))
+        };
+        // The window is bounded and empty after a restart, so a sealed
+        // execution answers from its complete stored evidence instead.
+        if let Some(execution) = selection.scope.test_execution_id.as_ref().filter(|_| sealed)
+            && let Some(mut stored) = self.sealed_telemetry(execution).await?
+        {
+            stored.retain(|sample| {
+                let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+                selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
+            });
+            if scan_limit.is_some_and(|limit| stored.len() > limit) {
+                return Err(analysis_read_budget());
+            }
+            return Ok(selection.apply(&stored));
+        }
         let read = telemetry_read_plan(selection, cycle);
         let mut rows = match read {
             TelemetryRead::Unfiltered => self.streams.query::<TelemetryRow>(..).retained().await,
@@ -368,11 +383,7 @@ impl RuntimeHandle {
         .take(scan_limit.map_or(usize::MAX, |limit| limit.saturating_add(1)))
         .collect::<Vec<_>>();
         if scan_limit.is_some_and(|limit| rows.len() > limit) {
-            return Err(crate::runtime::Error::Admission(AdmissionFailure::Validation {
-                code: "analysis_read_budget".into(),
-                message: "analysis raw evidence scan exceeds its budget; narrow the scope".into(),
-                issues: vec![],
-            }));
+            return Err(analysis_read_budget());
         }
 
         // A page resumes after its stream cursors; rows it has passed are
@@ -386,6 +397,30 @@ impl RuntimeHandle {
         rows.sort_by_key(|row| row.position);
         let samples = rows.into_iter().map(|row| row.value).map(sample_from_row).collect::<crate::runtime::Result<Vec<_>>>()?;
         Ok(selection.apply(&samples))
+    }
+
+    async fn sealed_telemetry(
+        &self, execution: &dokime_domain::model::identity::TestExecutionId,
+    ) -> crate::runtime::Result<Option<Vec<TelemetrySample>>> {
+        let Some(view) =
+            crate::runtime::storage::execution::ExecutionView::open(self.storage(), execution, harmos::storage::ObjectVersion::Latest)
+                .await?
+        else {
+            return Ok(None);
+        };
+        if view.execution().saved.is_none() {
+            return Ok(None);
+        }
+        let mut reader = view.snapshot().await?.context_telemetry()?;
+        let mut samples = Vec::new();
+        while let Some(entries) = reader.next().await? {
+            samples.extend(entries.into_iter().map(|entry| {
+                let mut sample = entry.sample;
+                sample.sequence = entry.ordinal;
+                sample
+            }));
+        }
+        Ok(Some(samples))
     }
 
     pub(crate) async fn telemetry_sample_count(&self) -> usize {
@@ -527,6 +562,14 @@ fn telemetry_row(sample: &TelemetrySample, ordinal: u64) -> crate::runtime::Resu
         stream: sample.stream.to_string(),
         payload,
         storage_payload: sample.storage_payload.clone(),
+    })
+}
+
+fn analysis_read_budget() -> crate::runtime::Error {
+    crate::runtime::Error::Admission(AdmissionFailure::Validation {
+        code: "analysis_read_budget".into(),
+        message: "analysis raw evidence scan exceeds its budget; narrow the scope".into(),
+        issues: vec![],
     })
 }
 

@@ -27,6 +27,7 @@ use {
 /* === Constants === */
 const ROWS: u64 = 40_000;
 const BATCH: u64 = 2_000;
+const STORED: u64 = 300;
 
 /* === Macros === */
 
@@ -110,6 +111,86 @@ async fn plot_points_admission() {
     owner.shutdown().await.unwrap();
 }
 
+// A running execution's watch opens with the snapshot of every plot it names,
+// then follows with appends. Once sealed and reopened after a restart, the
+// in-memory window is empty, yet window All still opens with the stored rows.
+#[tokio::test]
+async fn sealed_window_all() {
+    use dokime_runtime::{CycleStatus, runtime::command::CommandContext};
+    let root = tempfile::tempdir().unwrap();
+    let config = || crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.plots", "Plots"));
+    let gate = std::sync::Arc::new(Gate::default());
+    let mut owner = Runtime::with_execution_fixture(config(), "fixture", gate.clone()).await.unwrap();
+    let handle = owner.handle();
+    let suite = support::fixture_suite(&["passed"]);
+    support::register_fixture_progress_execution(&handle, suite.clone()).await;
+    let cycle = support::cycle_with_cases(
+        &handle,
+        support::metadata("plots.fixture", "Plots"),
+        support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
+    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    gate.started.notified().await;
+    let scope = handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions[0].scope.clone();
+    let execution = scope.test_execution_id.clone().unwrap();
+    let id = Identifier::new("fixture.progress").unwrap();
+    publish_scoped(&handle, &id, &scope, 0, STORED).await;
+    let wire_scope = model::identity::wire::EvidenceScope {
+        cycle_id: Some(cycle.to_string()),
+        execution_id: Some(execution.to_string()),
+        ..Default::default()
+    };
+    let requests = || {
+        ["fixture.progress.first", "fixture.progress.second"]
+            .map(|plot_id| model::plots::wire::PlotRequest {
+                plot_id: Some(plot_id.into()),
+                scope: Some(wire_scope.clone()),
+                ..request(10_000)
+            })
+            .to_vec()
+    };
+
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let mut watch =
+        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
+    for _ in 0..2 {
+        let frame = watch.message().await.unwrap().unwrap();
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
+        assert_eq!(served_points(&frame), STORED as usize, "a running execution opens with its window");
+    }
+    publish_scoped(&handle, &id, &scope, STORED, 1).await;
+    for _ in 0..2 {
+        let frame = watch.message().await.unwrap().unwrap();
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Append);
+        assert_eq!(served_points(&frame), 1, "a running execution follows with the new row");
+    }
+    drop(watch);
+    gate.release.notify_one();
+    support::wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    support::on_state_change(&handle, async || handle.execution_saved_checkpoint(execution.clone()).await.ok()).await;
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+
+    let mut owner = Runtime::with_execution_fixture(config(), "fixture", std::sync::Arc::new(Gate::default())).await.unwrap();
+    let handle = owner.handle();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let mut watch =
+        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
+    for _ in 0..2 {
+        let frame = watch.message().await.unwrap().unwrap();
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
+        assert_eq!(served_points(&frame), STORED as usize + 1, "a sealed execution opens with its stored rows");
+    }
+    drop(watch);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
 /* === Private Functions === */
 fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     model::plots::wire::PlotRequest {
@@ -173,6 +254,21 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
             ));
             let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample.values.insert("progress".into(), Value::Number(index as f64));
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+        })
+        .collect();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+}
+
+async fn publish_scoped(
+    handle: &dokime_runtime::RuntimeHandle, id: &Identifier, scope: &model::execution::RecordScope, start: u64, count: u64,
+) {
+    let samples = (start..start + count)
+        .map(|index| {
+            let at = Timestamp::new(format!("2026-09-13T00:{:02}:{:02}.000Z", index / 60, index % 60));
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
+            sample.values.insert("progress".into(), Value::Number(index as f64));
+            sample.scope = Some(scope.clone());
             sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();

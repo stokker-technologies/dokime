@@ -94,7 +94,8 @@ export function applyPlotMessages(
       };
       continue;
     }
-    if (message.revision <= next.revision) {
+    // A snapshot opens its own origin: an empty plot's first one is revision 0.
+    if (message.kind !== "snapshot" && message.revision <= next.revision) {
       next = { ...next, droppedBatches: next.droppedBatches + 1 };
       continue;
     }
