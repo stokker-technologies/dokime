@@ -1,3 +1,4 @@
+# Rendered by stkr project update from templates/python/release/policy.py; sha256:f4a214e844af8b1ceee78c6df9777dd4f9cc283ab2c4409bde5a069f68e72b16
 # ***
 #
 # Dokime
@@ -63,19 +64,13 @@ def policy(directory: Path, name: str) -> dict[str, Any]:
 
 def inside(directory: Path, relative: str) -> Path:
     candidate = directory / relative
-    if Path(relative).is_absolute() or not candidate.resolve().is_relative_to(
-        directory.resolve()
-    ):
+    if Path(relative).is_absolute() or not candidate.resolve().is_relative_to(directory.resolve()):
         raise ToolError(f"path must stay inside the repository: {relative}")
     return candidate
 
 
 def command(value: object, name: str) -> list[str]:
-    if (
-        not isinstance(value, list)
-        or not value
-        or any(not isinstance(part, str) or not part for part in value)
-    ):
+    if not isinstance(value, list) or not value or any(not isinstance(part, str) or not part for part in value):
         raise ToolError(f"{name} must be a nonempty argument array")
     return value
 
@@ -90,9 +85,7 @@ def execute(directory: Path, arguments: Sequence[str], *, capture: bool = False)
         capture_output=capture,
     )
     if result.returncode:
-        raise ToolError(
-            f"{arguments[0]} failed with exit code {result.returncode}: {result.stderr or ''}"
-        )
+        raise ToolError(f"{arguments[0]} failed with exit code {result.returncode}: {result.stderr or ''}")
     return result.stdout or ""
 
 

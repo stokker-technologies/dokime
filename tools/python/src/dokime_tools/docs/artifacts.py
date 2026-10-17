@@ -1,3 +1,4 @@
+# Rendered by stkr project update from templates/python/docs/artifacts.py; sha256:66ee2fd3e487b892e4331bbbf51ffb5b2f95ce6495b76808914e590b08340501
 # ***
 #
 # Dokime
@@ -21,7 +22,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from . import _policy, docs_site
+from ..release import policy
+from . import site
 
 # Type Checking Imports
 
@@ -29,9 +31,7 @@ from . import _policy, docs_site
 
 # === Constants === #
 
-SEMVER = re.compile(
-    r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?"
-)
+SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?")
 NAVIGATION = """document.querySelectorAll('[data-docs-navigation]').forEach(async (host) => {
   try {
     const metadata = host.dataset.metadata;
@@ -81,15 +81,11 @@ NAVIGATION = """document.querySelectorAll('[data-docs-navigation]').forEach(asyn
 def semver(value: str) -> tuple[int, int, int, str]:
     match = SEMVER.fullmatch(value)
     if match and match[5] and any(not item for item in match[5].split(".")):
-        raise _policy.ToolError(f"invalid semantic version: {value}")
+        raise policy.ToolError(f"invalid semantic version: {value}")
     if not match or (
-        match[4]
-        and any(
-            not item or (item.isdigit() and len(item) > 1 and item.startswith("0"))
-            for item in match[4].split(".")
-        )
+        match[4] and any(not item or (item.isdigit() and len(item) > 1 and item.startswith("0")) for item in match[4].split("."))
     ):
-        raise _policy.ToolError(f"invalid semantic version: {value}")
+        raise policy.ToolError(f"invalid semantic version: {value}")
     return (int(match[1]), int(match[2]), int(match[3]), match[4] or "")
 
 
@@ -97,10 +93,8 @@ def eligible(settings: dict, value: str) -> bool:
     major, _, _, pre = semver(value)
     for key in ["allow_unstable", "allow_prerelease", "guides", "api", "development"]:
         if key in settings and not isinstance(settings[key], bool):
-            raise _policy.ToolError(f"docs.{key} must be a boolean")
-    return (major != 0 or settings.get("allow_unstable", False)) and (
-        not pre or settings.get("allow_prerelease", True)
-    )
+            raise policy.ToolError(f"docs.{key} must be a boolean")
+    return (major != 0 or settings.get("allow_unstable", False)) and (not pre or settings.get("allow_prerelease", True))
 
 
 def digest(data: bytes) -> str:
@@ -111,30 +105,30 @@ def inventory(folder: Path) -> dict[str, str]:
     files = {}
     for path in sorted(folder.rglob("*")):
         if path.is_symlink():
-            raise _policy.ToolError(f"linked documentation artifact: {path}")
+            raise policy.ToolError(f"linked documentation artifact: {path}")
         if path.is_file():
             files[path.relative_to(folder).as_posix()] = digest(path.read_bytes())
     if not files:
-        raise _policy.ToolError("empty documentation artifact")
+        raise policy.ToolError("empty documentation artifact")
     return files
 
 
 def verify(folder: Path, manifest: dict) -> None:
     if manifest.get("schema") != 1 or manifest.get("files") != inventory(folder):
-        raise _policy.ToolError("documentation artifact manifest or content differs")
+        raise policy.ToolError("documentation artifact manifest or content differs")
     selector = manifest.get("selector", "")
     if selector != "development" and not selector.startswith("v"):
-        raise _policy.ToolError("invalid artifact selector")
+        raise policy.ToolError("invalid artifact selector")
     if selector != "development" and selector != "v" + manifest["version"]:
-        raise _policy.ToolError("release selector differs from artifact version")
+        raise policy.ToolError("release selector differs from artifact version")
     semver(manifest["version"])
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", manifest.get("revision", "")):
-        raise _policy.ToolError("artifact has no source revision")
+        raise policy.ToolError("artifact has no source revision")
     if not manifest.get("inputs") or not manifest.get("tools"):
-        raise _policy.ToolError("artifact lacks input/tool fingerprints")
-    pages = docs_site.static(folder, manifest["base"] + selector + "/", shared=True)
+        raise policy.ToolError("artifact lacks input/tool fingerprints")
+    pages = site.static(folder, manifest["base"] + selector + "/", shared=True)
     if pages != manifest.get("pages") or manifest.get("home") not in pages:
-        raise _policy.ToolError("artifact navigation differs from manifest")
+        raise policy.ToolError("artifact navigation differs from manifest")
 
 
 def archive(folder: Path, manifest: dict) -> bytes:
@@ -149,22 +143,22 @@ def archive(folder: Path, manifest: dict) -> bytes:
 
 def unpack(data: bytes, destination: Path) -> dict:
     if destination.exists():
-        raise _policy.ToolError("artifact destination must be clean")
+        raise policy.ToolError("artifact destination must be clean")
     destination.mkdir(parents=True)
     with zipfile.ZipFile(io.BytesIO(data)) as stream:
         names = stream.namelist()
         if len(names) != len(set(names)) or "manifest.json" not in names:
-            raise _policy.ToolError("invalid documentation archive entries")
+            raise policy.ToolError("invalid documentation archive entries")
         manifest = json.loads(stream.read("manifest.json"))
         expected = {"manifest.json", *("files/" + name for name in manifest["files"])}
         if set(names) != expected:
-            raise _policy.ToolError("archive entries differ from manifest")
+            raise policy.ToolError("archive entries differ from manifest")
         for name in names:
             if name == "manifest.json":
                 continue
-            target = _policy.inside(destination, name.removeprefix("files/"))
+            target = policy.inside(destination, name.removeprefix("files/"))
             if ".." in Path(name).parts or Path(name).is_absolute():
-                raise _policy.ToolError("unsafe documentation archive path")
+                raise policy.ToolError("unsafe documentation archive path")
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(stream.read(name))
     verify(destination, manifest)
@@ -180,35 +174,20 @@ def assemble(
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
-    site = _policy.inside(destination, base.strip("/"))
-    site.mkdir(parents=True, exist_ok=True)
+    published = policy.inside(destination, base.strip("/"))
+    published.mkdir(parents=True, exist_ok=True)
     catalog = []
     for folder, manifest in artifacts:
         verify(folder, manifest)
         selector = manifest["selector"]
-        if manifest["base"] != base or any(
-            item["selector"] == selector for item in catalog
-        ):
-            raise _policy.ToolError("conflicting artifact selector or base")
-        shutil.copytree(folder, _policy.inside(site, selector))
-        catalog.append(
-            {
-                key: manifest[key]
-                for key in ["selector", "version", "revision", "pages", "home"]
-            }
-        )
+        if manifest["base"] != base or any(item["selector"] == selector for item in catalog):
+            raise policy.ToolError("conflicting artifact selector or base")
+        shutil.copytree(folder, policy.inside(published, selector))
+        catalog.append({key: manifest[key] for key in ["selector", "version", "revision", "pages", "home"]})
     stable = [
-        item
-        for item in catalog
-        if item["selector"] != "development"
-        and semver(item["version"])[0] > 0
-        and not semver(item["version"])[3]
+        item for item in catalog if item["selector"] != "development" and semver(item["version"])[0] > 0 and not semver(item["version"])[3]
     ]
-    latest = (
-        max(stable, key=lambda item: semver(item["version"])[:3])["selector"]
-        if stable
-        else None
-    )
+    latest = max(stable, key=lambda item: semver(item["version"])[:3])["selector"] if stable else None
     catalog.sort(
         key=lambda item: (
             item["selector"] == "development",
@@ -218,29 +197,25 @@ def assemble(
         reverse=True,
     )
     metadata = {"schema": 1, "latest": latest, "versions": catalog, "roadmap": roadmap}
-    _policy.write_json(site / "versions.json", metadata)
-    (site / "versions.js").write_text(NAVIGATION, encoding="utf-8")
-    target = next(
-        item
-        for item in catalog
-        if item["selector"] == (latest or catalog[0]["selector"])
-    )
+    policy.write_json(published / "versions.json", metadata)
+    (published / "versions.js").write_text(NAVIGATION, encoding="utf-8")
+    target = next(item for item in catalog if item["selector"] == (latest or catalog[0]["selector"]))
     redirect = f"{base}{target['selector']}/{target['home']}"
-    (site / "index.html").write_text(
+    (published / "index.html").write_text(
         f'<html><head><meta http-equiv="refresh" content="0;url={redirect}"></head><body><a href="{redirect}">Documentation</a></body></html>',
         encoding="utf-8",
     )
     # Latest Is A Serving Alias; Immutable Version Content Is Never Rewritten.
     if latest:
-        shutil.copytree(site / latest, site / "latest")
-        for path in (site / "latest").rglob("*.html"):
-            suffix = path.relative_to(site / "latest").as_posix()
+        shutil.copytree(published / latest, published / "latest")
+        for path in (published / "latest").rglob("*.html"):
+            suffix = path.relative_to(published / "latest").as_posix()
             url = base + latest + "/" + suffix
             path.write_text(
                 f'<html><head><meta http-equiv="refresh" content="0;url={url}"></head><body><a href="{url}">Latest Stable Documentation</a></body></html>',
                 encoding="utf-8",
             )
-    docs_site.static(destination, "/")
+    site.static(destination, "/")
     return metadata
 
 

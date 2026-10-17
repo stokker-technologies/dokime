@@ -18,8 +18,10 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.ci.artifacts import _request, job_id
-from dokime_tools.ci.policy import current_event, required_platforms
+from dokime_tools.ci.artifacts import _request as _request
+from dokime_tools.ci.artifacts import job_id as job_id
+from dokime_tools.ci.policy import current_event as current_event
+from dokime_tools.ci.policy import required_platforms as required_platforms
 from dokime_tools.ci.route import verify as verify_route
 
 # Type Checking Imports

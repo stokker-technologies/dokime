@@ -17,8 +17,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools import contracts
-from dokime_tools.check.release import digest, source_revision
+from dokime_tools.package import contracts as contracts
+from dokime_tools.check.release import digest as digest
+from dokime_tools.check.release import source_revision as source_revision
 
 # Type Checking Imports
 

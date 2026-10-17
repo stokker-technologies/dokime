@@ -1,3 +1,4 @@
+# Rendered by stkr project update from templates/python/release/run.py; sha256:480503d8524f791b8f278ada28ff5fcc6c4d061199c30158c2feed1fc46b5139
 # ***
 #
 # Dokime
@@ -26,7 +27,8 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 # isort: split
-from . import _policy, evidence, release_registry, version
+from ..test import archive, run as test
+from . import policy, registry, version
 
 # Type Checking Imports
 
@@ -36,6 +38,13 @@ from . import _policy, evidence, release_registry, version
 
 STABLE = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 RESERVED = {"SHA256SUMS", "release.json", "platform.json", "published.json"}
+LOCKS = (
+    "*Cargo.lock",
+    "*mise.lock",
+    "*uv.lock",
+    "*pnpm-lock.yaml",
+    "*package-lock.json",
+)
 
 # === Types === #
 
@@ -63,11 +72,7 @@ def inputs(directory: Path) -> dict:
     graph = []
     overrides = []
     if (directory / "Cargo.toml").is_file():
-        metadata = json.loads(
-            output(
-                ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"]
-            )
-        )
+        metadata = json.loads(output(["cargo", "metadata", "--locked", "--offline", "--format-version", "1"]))
         identities = {}
         for package in metadata["packages"]:
             source = package["source"]
@@ -85,36 +90,22 @@ def inputs(directory: Path) -> dict:
                         }
                     )
                     source = "local:" + manifest.as_posix()
-            identities[package["id"]] = (
-                f"{package['name']}@{package['version']}|{source}"
-            )
+            identities[package["id"]] = f"{package['name']}@{package['version']}|{source}"
         graph = [
             {
                 "package": identities[node["id"]],
                 "features": sorted(node["features"]),
-                "dependencies": sorted(
-                    identities[dependency] for dependency in node["dependencies"]
-                ),
+                "dependencies": sorted(identities[dependency] for dependency in node["dependencies"]),
             }
             for node in metadata["resolve"]["nodes"]
         ]
+    # Tooling Lives With Its Package, So Every Tracked Lock File Counts.
     locks = {}
-    for name in (
-        "Cargo.lock",
-        "mise.lock",
-        "uv.lock",
-        "tools/python/uv.lock",
-        "pnpm-lock.yaml",
-        "package-lock.json",
-        "tools/python/evidence.toml",
-    ):
+    for name in _tracked(directory, *LOCKS):
         path = directory / name
         if path.is_file():
             locks[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    environment = {
-        name: os.environ.get(name)
-        for name in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_TARGET")
-    }
+    environment = {name: os.environ.get(name) for name in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_TARGET")}
     identity = {
         "source_tree": tree,
         "graph": sorted(graph, key=lambda node: node["package"]),
@@ -127,40 +118,31 @@ def inputs(directory: Path) -> dict:
         overrides.sort(key=lambda override: (override["package"], override["manifest"]))
         if continuous_integration():
             names = ", ".join(override["package"] for override in overrides)
-            raise _policy.ToolError(f"unpublished local dependency override: {names}")
-        _warn_overrides(
-            tuple((item["package"], item["manifest"]) for item in overrides)
-        )
+            raise policy.ToolError(f"unpublished local dependency override: {names}")
+        _warn_overrides(tuple((item["package"], item["manifest"]) for item in overrides))
         identity["local_overrides"] = overrides
     return identity
 
 
 def continuous_integration() -> bool:
     """Whether a CI runner executes this process."""
-    return any(
-        os.environ.get(name, "").lower() in {"1", "true"}
-        for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI")
-    )
+    return any(os.environ.get(name, "").lower() in {"1", "true"} for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI"))
 
 
 def tag_version(tag: str) -> str:
     if not isinstance(tag, str) or re.fullmatch("v" + STABLE, tag) is None:
-        raise _policy.ToolError("release requires a stable vMAJOR.MINOR.PATCH tag")
+        raise policy.ToolError("release requires a stable vMAJOR.MINOR.PATCH tag")
     return tag[1:]
 
 
 def target(settings: dict) -> str:
     selected = os.environ.get("RELEASE_TARGET")
     if not isinstance(selected, str) or selected not in settings.get("targets", []):
-        raise _policy.ToolError("RELEASE_TARGET must be one of release.targets")
-    system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(
-        platform.system()
-    )
-    architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(
-        platform.machine().lower(), platform.machine().lower()
-    )
+        raise policy.ToolError("RELEASE_TARGET must be one of release.targets")
+    system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system())
+    architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(platform.machine().lower(), platform.machine().lower())
     if selected != f"{system}-{architecture}":
-        raise _policy.ToolError("release target differs from the native build host")
+        raise policy.ToolError("release target differs from the native build host")
     return selected
 
 
@@ -172,16 +154,14 @@ def tools(directory: Path, settings: dict) -> dict:
     }
     if (directory / "Cargo.toml").is_file():
         commands.update({"cargo": ["cargo", "--version"], "rustc": ["rustc", "-Vv"]})
-    if (directory / "package.json").is_file():
+    if _tracked(directory, "*package.json"):
         commands.update({"node": ["node", "--version"], "npm": ["npm", "--version"]})
     commands.update(settings.get("tools", {}))
     result = {}
     for name, command in commands.items():
-        result[name] = _policy.execute(
-            directory, _policy.command(command, "release.tools"), capture=True
-        ).strip()
+        result[name] = policy.execute(directory, policy.command(command, "release.tools"), capture=True).strip()
         if not result[name]:
-            raise _policy.ToolError(f"release tool identity unavailable: {name}")
+            raise policy.ToolError(f"release tool identity unavailable: {name}")
     return result
 
 
@@ -192,10 +172,8 @@ def assets(directory: Path, settings: dict) -> list[dict]:
     for definition in settings.get("assets", []):
         if definition.get("target") != selected:
             continue
-        source = _policy.inside(directory, definition["path"])
-        name = definition.get("name", source.name).format(
-            product=settings["product"], version=value, target=selected
-        )
+        source = policy.inside(directory, definition["path"])
+        name = definition.get("name", source.name).format(product=settings["product"], version=value, target=selected)
         if (
             Path(name).name != name
             or name in RESERVED | {".", ".."}
@@ -203,14 +181,12 @@ def assets(directory: Path, settings: dict) -> list[dict]:
             or "\n" in name
             or any(item["name"] == name for item in result)
         ):
-            raise _policy.ToolError(f"invalid or duplicate release asset: {name}")
+            raise policy.ToolError(f"invalid or duplicate release asset: {name}")
         native_package = name.endswith(".whl")
-        if not native_package and not name.startswith(
-            f"{settings['product']}-{value}-{selected}"
-        ):
-            raise _policy.ToolError("release download must name product-version-target")
+        if not native_package and not name.startswith(f"{settings['product']}-{value}-{selected}"):
+            raise policy.ToolError("release download must name product-version-target")
         if not source.is_file() or source.is_symlink():
-            raise _policy.ToolError(f"missing regular release asset: {source}")
+            raise policy.ToolError(f"missing regular release asset: {source}")
         result.append(
             {
                 "name": name,
@@ -221,39 +197,31 @@ def assets(directory: Path, settings: dict) -> list[dict]:
             }
         )
     if not result:
-        raise _policy.ToolError(f"no release assets declared for {selected}")
+        raise policy.ToolError(f"no release assets declared for {selected}")
     return result
 
 
 def prepare(directory: Path, settings: dict) -> None:
-    branch = _policy.execute(
-        directory, ["git", "symbolic-ref", "--short", "HEAD"], capture=True
-    ).strip()
+    branch = policy.execute(directory, ["git", "symbolic-ref", "--short", "HEAD"], capture=True).strip()
     if not branch.startswith("release/"):
-        raise _policy.ToolError(
-            "prepare requires a release/<version> stabilization branch"
-        )
-    if _policy.execute(
-        directory, ["git", "status", "--porcelain"], capture=True
-    ).strip():
-        raise _policy.ToolError("prepare requires clean committed candidate source")
-    tags = _policy.execute(
+        raise policy.ToolError("prepare requires a release/<version> stabilization branch")
+    if policy.execute(directory, ["git", "status", "--porcelain"], capture=True).strip():
+        raise policy.ToolError("prepare requires clean committed candidate source")
+    tags = policy.execute(
         directory,
         ["git", "tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname"],
         capture=True,
     ).splitlines()
     if any(re.fullmatch("v" + STABLE, tag) is None for tag in tags):
-        raise _policy.ToolError("prerelease tags require an explicit future policy")
-    current = _policy.policy(directory, "version").get("value")
+        raise policy.ToolError("prerelease tags require an explicit future policy")
+    current = policy.policy(directory, "version").get("value")
     if not tags:
         if not isinstance(current, str) or re.fullmatch(STABLE, current) is None:
-            raise _policy.ToolError(
-                "initial release requires the current stable version"
-            )
+            raise policy.ToolError("initial release requires the current stable version")
         planned = current
     else:
         planned = (
-            _policy.execute(
+            policy.execute(
                 directory,
                 [
                     "git-cliff",
@@ -268,13 +236,11 @@ def prepare(directory: Path, settings: dict) -> None:
             .removeprefix("v")
         )
     if re.fullmatch(STABLE, planned) is None or branch != f"release/{planned}":
-        raise _policy.ToolError(f"candidate branch must be release/{planned}")
+        raise policy.ToolError(f"candidate branch must be release/{planned}")
     if tags:
         major, minor, patch = map(int, tags[0][1:].split("."))
         if planned != f"{major}.{minor}.{patch + 1}":
-            raise _policy.ToolError(
-                "git-cliff did not produce the required patch increment"
-            )
+            raise policy.ToolError("git-cliff did not produce the required patch increment")
     version.run(directory, "sync", value=planned)
     policy_path = directory / "stkr.toml"
     text = policy_path.read_text()
@@ -285,77 +251,80 @@ def prepare(directory: Path, settings: dict) -> None:
         pattern = rf"(?ms)(^\[{section}\]\s*\n)(.*?)(?=^\[|\Z)"
         match = re.search(pattern, text)
         if match is None:
-            raise _policy.ToolError(f"prepare requires [{section}] policy")
+            raise policy.ToolError(f"prepare requires [{section}] policy")
         body = re.sub(rf"(?m)^{key}\s*=.*\n?", "", match.group(2))
-        text = (
-            text[: match.start()]
-            + match.group(1)
-            + f'{key} = "{value}"\n'
-            + body
-            + text[match.end() :]
-        )
+        text = text[: match.start()] + match.group(1) + f'{key} = "{value}"\n' + body + text[match.end() :]
     policy_path.write_text(text)
-    changelog = _policy.inside(directory, settings.get("notes", "CHANGELOG.md"))
-    _policy.execute(
-        directory, ["git-cliff", "--tag", "v" + planned, "--output", str(changelog)]
-    )
+    changelog = policy.inside(directory, settings.get("notes", "CHANGELOG.md"))
+    policy.execute(directory, ["git-cliff", "--tag", "v" + planned, "--output", str(changelog)])
     commands = settings.get("lock_commands")
     if commands is None:
         commands = []
         if (directory / "Cargo.toml").exists():
             commands.append(["cargo", "update", "--workspace", "--offline"])
-        if (directory / "package.json").exists():
+        # Each Lock Is Refreshed Beside The Package That Owns It.
+        for lock in _tracked(directory, "*package-lock.json"):
+            package = str(directory / Path(lock).parent)
             commands.append(
-                ["npm", "install", "--package-lock-only", "--ignore-scripts"]
+                [
+                    "npm",
+                    "install",
+                    "--package-lock-only",
+                    "--ignore-scripts",
+                    "--prefix",
+                    package,
+                ]
             )
-        for project in [directory, directory / "tools/python"]:
-            if (project / "uv.lock").exists():
-                commands.append(["uv", "lock", "--offline", "--project", str(project)])
+        for lock in _tracked(directory, "*pnpm-lock.yaml"):
+            package = str(directory / Path(lock).parent)
+            commands.append(
+                [
+                    "pnpm",
+                    "install",
+                    "--lockfile-only",
+                    "--ignore-scripts",
+                    "--dir",
+                    package,
+                ]
+            )
+        for lock in _tracked(directory, "*uv.lock"):
+            project = str(directory / Path(lock).parent)
+            commands.append(["uv", "lock", "--offline", "--project", project])
     for command in commands:
-        _policy.execute(directory, _policy.command(command, "release.lock_commands"))
+        policy.execute(directory, policy.command(command, "release.lock_commands"))
     print(f"Prepared v{planned}; review and commit before building the candidate")
 
 
 def stage(directory: Path, settings: dict, folder: Path) -> None:
-    release_registry.require_tag(directory, settings)
+    registry.require_tag(directory, settings)
     selected = assets(directory, settings)
-    if _policy.policy(directory, "version").get("value") != tag_version(
-        settings["tag"]
-    ):
-        raise _policy.ToolError("prepared package version differs from release tag")
+    if policy.policy(directory, "version").get("value") != tag_version(settings["tag"]):
+        raise policy.ToolError("prepared package version differs from release tag")
     version.run(directory, "check")
     identity = inputs(directory)
     if identity.get("local_overrides"):
-        raise _policy.ToolError("release staging rejects local dependency overrides")
-    sha = evidence.revision(directory)
+        raise policy.ToolError("release staging rejects local dependency overrides")
+    sha = archive.revision(directory)
     if not identity["source_tree"] or not sha:
-        raise _policy.ToolError("release staging requires clean committed source")
+        raise policy.ToolError("release staging requires clean committed source")
     provider = settings.get("provider")
-    run_id = os.environ.get(
-        "GITHUB_RUN_ID" if provider == "github" else "CI_PIPELINE_ID"
-    )
-    job_id = release_registry.job_identity(settings)
+    run_id = os.environ.get("GITHUB_RUN_ID" if provider == "github" else "CI_PIPELINE_ID")
+    job_id = registry.job_identity(settings)
     if provider not in ["github", "gitlab"] or not run_id or not job_id:
-        raise _policy.ToolError(
-            "stage requires exact native provider run and job identity"
-        )
-    native_sha = os.environ.get(
-        "GITHUB_SHA" if provider == "github" else "CI_COMMIT_SHA"
-    )
+        raise policy.ToolError("stage requires exact native provider run and job identity")
+    native_sha = os.environ.get("GITHUB_SHA" if provider == "github" else "CI_COMMIT_SHA")
     if native_sha != sha:
-        raise _policy.ToolError("native build SHA differs from checkout")
+        raise policy.ToolError("native build SHA differs from checkout")
     folder.mkdir(parents=True, exist_ok=True)
     receipt = folder / "platform.json"
     if receipt.exists():
-        raise _policy.ToolError(
-            "stage exists; explicitly clean before a recovery build"
-        )
+        raise policy.ToolError("stage exists; explicitly clean before a recovery build")
     for asset in selected:
-        destination = _policy.inside(folder, asset["name"])
+        destination = policy.inside(folder, asset["name"])
         if destination.exists():
-            raise _policy.ToolError("stage cannot overwrite existing files")
-        shutil.copy(_policy.inside(directory, asset["path"]), destination)
-    _policy.write_json(
+            raise policy.ToolError("stage cannot overwrite existing files")
+        shutil.copy(policy.inside(directory, asset["path"]), destination)
+    policy.write_json(
         receipt,
         {
             "schema": 1,
@@ -378,40 +347,24 @@ def stage(directory: Path, settings: dict, folder: Path) -> None:
 def validate(directory: Path, settings: dict, folder: Path) -> None:
     receipt = json.loads((folder / "platform.json").read_text())
     verify_platform(directory, settings, folder, receipt, validated=False)
-    report_path = _policy.inside(
-        directory, settings.get("evidence", ".stkr/tests/latest.json")
-    )
-    report = json.loads(report_path.read_text())
+    report_path = policy.inside(directory, test.MANIFEST.as_posix())
     required = settings.get("tests")
     if not isinstance(required, list) or not required:
-        raise _policy.ToolError(
-            "release.tests must declare every required native suite"
-        )
-    for name in required:
-        result = report.get("tests", {}).get(name, {})
-        if (
-            result.get("revision") != receipt["sha"]
-            or result.get("outcome") != "passed"
-        ):
-            raise _policy.ToolError(
-                f"required test evidence failed or mismatched: {name}"
-            )
+        raise policy.ToolError("release.tests must declare every required native suite")
+    missing = test.missing(directory, required, receipt["sha"])
+    if missing:
+        raise policy.ToolError("required test evidence failed or mismatched: " + ", ".join(missing))
     receipt["validation"] = {
-        "job": release_registry.job_identity(settings),
-        "run_id": os.environ.get(
-            "GITHUB_RUN_ID" if settings["provider"] == "github" else "CI_PIPELINE_ID"
-        ),
+        "job": registry.job_identity(settings),
+        "run_id": os.environ.get("GITHUB_RUN_ID" if settings["provider"] == "github" else "CI_PIPELINE_ID"),
         "sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
         "outcome": "passed",
         "tests": required,
     }
-    if (
-        not receipt["validation"]["job"]
-        or receipt["validation"]["run_id"] != receipt["run_id"]
-    ):
-        raise _policy.ToolError("test job must identify the same native run as build")
+    if not receipt["validation"]["job"] or receipt["validation"]["run_id"] != receipt["run_id"]:
+        raise policy.ToolError("test job must identify the same native run as build")
     shutil.copyfile(report_path, folder / "validation.json")
-    _policy.write_json(folder / "platform.json", receipt)
+    policy.write_json(folder / "platform.json", receipt)
 
 
 def verify_platform(
@@ -422,78 +375,42 @@ def verify_platform(
     *,
     validated: bool = True,
 ) -> None:
-    if (
-        receipt.get("sha") != evidence.revision(directory)
-        or receipt.get("tag") != settings["tag"]
-    ):
-        raise _policy.ToolError(
-            "release SHA or tag differs; new commits require a new build"
-        )
+    if receipt.get("sha") != archive.revision(directory) or receipt.get("tag") != settings["tag"]:
+        raise policy.ToolError("release SHA or tag differs; new commits require a new build")
     current = inputs(directory)
-    if current.get("local_overrides") or receipt.get("inputs", {}).get(
-        "local_overrides"
-    ):
-        raise _policy.ToolError(
-            "release verification rejects local dependency overrides"
-        )
+    if current.get("local_overrides") or receipt.get("inputs", {}).get("local_overrides"):
+        raise policy.ToolError("release verification rejects local dependency overrides")
     # Platform environment remains in the original receipt; common locked/source inputs must match.
     for name in ["source_tree", "graph", "locks"]:
-        if (
-            not receipt.get("inputs", {}).get(name)
-            or receipt["inputs"][name] != current[name]
-        ):
-            if (
-                name == "graph"
-                and receipt.get("inputs", {}).get(name) == current.get(name) == []
-            ):
+        if not receipt.get("inputs", {}).get(name) or receipt["inputs"][name] != current[name]:
+            if name == "graph" and receipt.get("inputs", {}).get(name) == current.get(name) == []:
                 continue
-            raise _policy.ToolError(f"release resolved inputs differ: {name}")
-    if not validated and (
-        receipt["inputs"] != current or receipt["tools"] != tools(directory, settings)
-    ):
-        raise _policy.ToolError("same-SHA build environment or tools differ")
+            raise policy.ToolError(f"release resolved inputs differ: {name}")
+    if not validated and (receipt["inputs"] != current or receipt["tools"] != tools(directory, settings)):
+        raise policy.ToolError("same-SHA build environment or tools differ")
     if receipt["created_at"] > time.time() + 300:
-        raise _policy.ToolError("release evidence timestamp is in the future")
+        raise policy.ToolError("release evidence timestamp is in the future")
     if time.time() - receipt["created_at"] > settings.get("max_age_seconds", 7 * 86400):
-        raise _policy.ToolError(
-            "release evidence expired; explicit recovery build required"
-        )
+        raise policy.ToolError("release evidence expired; explicit recovery build required")
     for asset in receipt["assets"]:
-        file = _policy.inside(folder, asset["name"])
-        if (
-            file.is_symlink()
-            or not file.is_file()
-            or hashlib.sha256(file.read_bytes()).hexdigest() != asset["sha256"]
-        ):
-            raise _policy.ToolError(f"release asset changed: {asset['name']}")
+        file = policy.inside(folder, asset["name"])
+        if file.is_symlink() or not file.is_file() or hashlib.sha256(file.read_bytes()).hexdigest() != asset["sha256"]:
+            raise policy.ToolError(f"release asset changed: {asset['name']}")
         if asset["target"] != receipt["target"]:
-            raise _policy.ToolError("asset target differs from native receipt")
+            raise policy.ToolError("asset target differs from native receipt")
     if validated:
         result = receipt.get("validation") or {}
-        if (
-            result.get("outcome") != "passed"
-            or result.get("run_id") != receipt["run_id"]
-        ):
-            raise _policy.ToolError(
-                "release lacks successful matching native validation"
-            )
-        if hashlib.sha256(
-            (folder / "validation.json").read_bytes()
-        ).hexdigest() != result.get("sha256"):
-            raise _policy.ToolError("validation report hash differs")
-        release_registry.verify_jobs(settings, receipt)
+        if result.get("outcome") != "passed" or result.get("run_id") != receipt["run_id"]:
+            raise policy.ToolError("release lacks successful matching native validation")
+        if hashlib.sha256((folder / "validation.json").read_bytes()).hexdigest() != result.get("sha256"):
+            raise policy.ToolError("validation report hash differs")
+        registry.verify_jobs(settings, receipt)
 
 
 def assemble(directory: Path, settings: dict, root: Path) -> dict:
     required = settings.get("targets")
-    if (
-        not isinstance(required, list)
-        or not required
-        or len(set(required)) != len(required)
-    ):
-        raise _policy.ToolError(
-            "release.targets must declare unique required OS/architecture targets"
-        )
+    if not isinstance(required, list) or not required or len(set(required)) != len(required):
+        raise policy.ToolError("release.targets must declare unique required OS/architecture targets")
     selected = {}
     names = set()
     files = []
@@ -501,27 +418,25 @@ def assemble(directory: Path, settings: dict, root: Path) -> dict:
         receipt = json.loads(path.read_text())
         native = receipt.get("target")
         if native not in required or native in selected:
-            raise _policy.ToolError("unexpected or duplicate release target")
+            raise policy.ToolError("unexpected or duplicate release target")
         verify_platform(directory, settings, path.parent, receipt)
         selected[native] = receipt
         for asset in receipt["assets"]:
             if asset["name"] in names:
-                raise _policy.ToolError("release download names collide across targets")
+                raise policy.ToolError("release download names collide across targets")
             names.add(asset["name"])
-            files.append(
-                {**asset, "path": str(path.parent.relative_to(root) / asset["name"])}
-            )
+            files.append({**asset, "path": str(path.parent.relative_to(root) / asset["name"])})
     if set(selected) != set(required):
-        raise _policy.ToolError("missing required release targets")
+        raise policy.ToolError("missing required release targets")
     manifest = {
         "schema": 1,
-        "sha": evidence.revision(directory),
+        "sha": archive.revision(directory),
         "tag": settings["tag"],
         "product": settings["product"],
         "targets": selected,
         "files": files,
     }
-    _policy.write_json(root / "release.json", manifest)
+    policy.write_json(root / "release.json", manifest)
     sums = "".join(f"{asset['sha256']}  {asset['name']}\n" for asset in files)
     sums += f"{hashlib.sha256((root / 'release.json').read_bytes()).hexdigest()}  release.json\n"
     (root / "SHA256SUMS").write_text(sums)
@@ -529,25 +444,25 @@ def assemble(directory: Path, settings: dict, root: Path) -> dict:
 
 
 def run(directory: Path, verb: str) -> None:
-    settings = _policy.policy(directory, "release")
+    settings = policy.policy(directory, "release")
     if verb == "prepare":
         prepare(directory, settings)
         return
     tag_version(settings["tag"])
     if verb == "guard":
-        release_registry.require_tag(directory, settings)
+        registry.require_tag(directory, settings)
         return
     if verb == "route":
-        release_registry.check_route(directory, settings)
+        registry.check_route(directory, settings)
         return
     if verb == "verify":
-        release_registry.verify_publication(directory, settings)
+        registry.verify_publication(directory, settings)
         return
-    root = _policy.inside(directory, settings.get("directory", "target/release-assets"))
+    root = policy.inside(directory, settings.get("directory", "target/release-assets"))
     if verb == "assets":
         print(json.dumps(assets(directory, settings), indent=2))
     elif verb in ["stage", "validate"]:
-        folder = _policy.inside(root, target(settings))
+        folder = policy.inside(root, target(settings))
         if verb == "stage":
             stage(directory, settings, folder)
         else:
@@ -556,11 +471,11 @@ def run(directory: Path, verb: str) -> None:
         assemble(directory, settings, root)
     else:
         manifest = assemble(directory, settings, root)
-        release_registry.authorize(directory, settings, manifest)
+        registry.authorize(directory, settings, manifest)
         if verb == "publish":
-            release_registry.publish(directory, settings, root, manifest)
+            registry.publish(directory, settings, root, manifest)
         else:
-            release_registry.finalize(directory, settings, root, manifest)
+            registry.finalize(directory, settings, root, manifest)
 
 
 # === Private Functions === #
@@ -598,12 +513,17 @@ def _override_source(directory: Path) -> str:
 
 
 @cache
+def _tracked(directory: Path, *patterns: str) -> list[str]:
+    """Tracked paths matching Git pathspec patterns, where `*` also crosses directories."""
+    listed = policy.execute(directory, ["git", "ls-files", "-z", "--", *patterns], capture=True)
+    return sorted(filter(None, listed.split("\0")))
+
+
 def _warn_overrides(overrides: tuple[tuple[str, str], ...]) -> None:
     """Warn once per process that local overrides make evidence unpublishable."""
     listing = "\n".join(f"  {package}: {manifest}" for package, manifest in overrides)
     print(
-        "warning: unpublished local dependency overrides; local evidence is not "
-        f"publishable and CI refuses this tree:\n{listing}",
+        f"warning: unpublished local dependency overrides; local evidence is not publishable and CI refuses this tree:\n{listing}",
         file=sys.stderr,
     )
 
@@ -612,7 +532,7 @@ def _warn_overrides(overrides: tuple[tuple[str, str], ...]) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(
-        _policy.main(
+        policy.main(
             "release",
             [
                 "guard",

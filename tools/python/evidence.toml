@@ -35,7 +35,7 @@ command = [
   "tools/python",
   "python",
   "-m",
-  "dokime_tools.installer",
+  "dokime_tools.package.installer",
   "acceptance",
   "--junit",
   "{junit}",

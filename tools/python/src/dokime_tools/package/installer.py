@@ -25,8 +25,10 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.staging import stage_file
-from dokime_tools.version import ROOT
+from dokime_tools.build.outputs import executables
+from dokime_tools.test import archive
+from dokime_tools.package.staging import stage_file, stage_verified
+from dokime_tools.release.product import ROOT as ROOT
 
 # Type Checking Imports
 
@@ -54,6 +56,7 @@ def check(root: Path = ROOT) -> None:
     directory = root / TAURI
     for relative in [
         "tauri.conf.json",
+        "tauri.bundle.conf.json",
         "icons/icon.ico",
         "windows/installer-hooks.nsh",
     ]:
@@ -63,7 +66,10 @@ def check(root: Path = ROOT) -> None:
     bundle = config["bundle"]
     if "nsis" not in bundle["targets"]:
         raise ValueError("Tauri bundle targets must include nsis")
-    if bundle.get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
+    if bundle.get("externalBin") != []:
+        raise ValueError("Cargo-facing Tauri config must not require companion build outputs")
+    packaging = json.loads((directory / "tauri.bundle.conf.json").read_text(encoding="utf-8"))
+    if packaging["bundle"].get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
         raise ValueError(
             "Tauri bundle.externalBin must contain the Dokime CLI and server"
         )
@@ -89,147 +95,94 @@ def check(root: Path = ROOT) -> None:
     print("Tauri installer configuration is valid.")
 
 
-def build_args(platform: str, profile: str, signed: bool) -> list[str]:
+def bundle_args(platform: str, *, signed: bool) -> list[str]:
     if platform not in {"linux", "win32"}:
         raise ValueError("native installers require Windows or Linux")
-    if profile not in {"dev", "release"}:
-        raise ValueError(f"unknown installer profile: {profile}")
-    args = [
-        "build",
+    arguments = [
+        "bundle",
         "--config",
         "../../branding/generated/tauri.brand.json",
+        "--config",
+        "src-tauri/tauri.bundle.conf.json",
         "--bundles",
         "deb,rpm" if platform == "linux" else "nsis",
     ]
-    overlay: dict = {}
-    if profile == "dev":
-        overlay["build"] = {
-            "beforeBuildCommand": "pnpm run build && mise run tauri:resources:dev"
-        }
+    if platform == "linux":
+        arguments += ["--config", "src-tauri/tauri.linux.conf.json"]
     if not signed:
-        overlay["bundle"] = {"createUpdaterArtifacts": False}
-        overlay["plugins"] = {"updater": {"pubkey": ""}}
-    if overlay:
-        args += ["--config", json.dumps(overlay, separators=(",", ":"))]
-    if not signed:
-        args.append("--no-sign")
-    if profile == "dev":
-        args.append("--debug")
-    return args
+        arguments += [
+            "--config",
+            json.dumps({"bundle": {"createUpdaterArtifacts": False}, "plugins": {"updater": {"pubkey": ""}}}),
+            "--no-sign",
+        ]
+    return arguments
 
 
-def build(root: Path = ROOT, *, profile: str = "release") -> None:
+def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
+    if profile != "release":
+        raise ValueError("distribution installers are assembled only from release-profile application artifacts")
     check(root)
-    signed = sys.platform == "win32" and profile == "release" and _signing_available()
-    bundles = (
-        _target_directory(root)
-        / ("debug" if profile == "dev" else "release")
-        / "bundle"
-    )
+    signed = sys.platform == "win32" and _signing_available()
+    bundles = _target_directory(root) / "release" / "bundle"
     if sys.platform == "win32":
         if (bundles / "nsis").exists():
             shutil.rmtree(bundles / "nsis")
-        if profile == "release" and (root / DIST).exists():
+        if (root / DIST).exists():
             shutil.rmtree(root / DIST)
     else:
         for package in ("deb", "rpm"):
             if (bundles / package).exists():
                 shutil.rmtree(bundles / package)
-        if profile == "release" and (root / LINUX_DIST).exists():
+        if (root / LINUX_DIST).exists():
             shutil.rmtree(root / LINUX_DIST)
     command = [
         "node",
         "./node_modules/@tauri-apps/cli/tauri.js",
-        *build_args(sys.platform, profile, signed),
+        *bundle_args(sys.platform, signed=signed),
     ]
     subprocess.run(command, cwd=root / WEB, check=True)
     collect(root, profile=profile, signed=signed, bundles=bundles)
 
 
 def stage_resources(
-    root: Path = ROOT, *, profile: str = "release", target: str | None = None
+    root: Path = ROOT, *, profile: str = "release", target: str | None = None,
+    arguments: tuple[str, ...] = (),
 ) -> None:
-    for name in ["plugins", "branding"]:
-        stale = root / TAURI / "resources" / name
-        if stale.exists():
-            shutil.rmtree(stale)
-    triple = (
-        target
-        or subprocess.check_output(
-            ["mise", "exec", "--", "rustc", "--print", "host-tuple"],
-            cwd=root,
-            text=True,
-            encoding="utf-8",
-        ).strip()
-    )
-    if not triple:
-        raise ValueError("rustc did not report a host target triple")
-    command = [
-        "mise",
-        "exec",
-        "--",
-        "cargo",
-        "build",
-        "--locked",
-        "-p",
-        "dokime-cli",
-        "-p",
-        "dokime-server",
-        "--bins",
-        "--profile",
-        profile,
-        "--message-format=json-render-diagnostics",
-    ]
-    if target:
-        command += ["--target", target]
-    output = subprocess.check_output(command, cwd=root, text=True, encoding="utf-8")
-    artifacts = [
-        json.loads(line) for line in output.splitlines() if line.startswith("{")
-    ]
-    for name in ("dokime", "dokime-server"):
-        executables = {
-            item["executable"]
-            for item in artifacts
-            if item.get("reason") == "compiler-artifact"
-            and item.get("target", {}).get("name") == name
-            and "bin" in item.get("target", {}).get("kind", [])
-            and item.get("executable")
-        }
-        if len(executables) != 1:
-            raise ValueError(
-                f"Cargo must report exactly one companion {name} executable"
-            )
-        executable = Path(next(iter(executables)))
+    archive.require(root, profile, archive.tree(root), arguments)
+    receipt_path = archive.location(root, profile).with_name(archive.RECEIPT)
+    record = json.loads(receipt_path.read_text(encoding="utf-8"))
+    triple = record["target"]
+    if target is not None and target != triple:
+        raise ValueError("companion target must match the selected archive producer")
+    for name, executable in executables(root, record, ("dokime", "dokime-server")).items():
         destination = (
             root
             / TAURI
             / "binaries"
             / (f"{name}-{triple}" + (".exe" if "windows" in triple else ""))
         )
-        stage_file(executable, destination)
+        stage_verified(root, record, {executable: destination})
         print(f"Staged Tauri companion {name}: {destination}")
 
 
 def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> None:
+    if profile != "release":
+        raise ValueError("native installers are produced only by release-tag packaging")
     if sys.platform == "linux":
-        if profile == "dev":
-            bundles.mkdir(parents=True, exist_ok=True)
-            (bundles / "BUILD-PROFILE").write_text("dev\n", encoding="utf-8")
-        else:
-            version = _release_version(root)
-            slug = _slug(root)
-            sources = {
-                f"{slug}_{version}_amd64.deb": _one(
-                    list((bundles / "deb").glob("*.deb")), "DEB installer"
-                ),
-                f"{slug}-{version}-1.x86_64.rpm": _one(
-                    list((bundles / "rpm").glob("*.rpm")), "RPM installer"
-                ),
-            }
-            destination = root / LINUX_DIST
-            destination.mkdir(parents=True, exist_ok=True)
-            for name, source in sources.items():
-                stage_file(source, destination / name)
+        version = _release_version(root)
+        slug = _slug(root)
+        sources = {
+            f"{slug}_{version}_amd64.deb": _one(
+                list((bundles / "deb").glob("*.deb")), "DEB installer"
+            ),
+            f"{slug}-{version}-1.x86_64.rpm": _one(
+                list((bundles / "rpm").glob("*.rpm")), "RPM installer"
+            ),
+        }
+        destination = root / LINUX_DIST
+        destination.mkdir(parents=True, exist_ok=True)
+        for name, source in sources.items():
+            stage_file(source, destination / name)
         print(f"Built Linux packages in {bundles}")
         return
     if sys.platform != "win32":
@@ -238,10 +191,6 @@ def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> 
     installer = _one(
         [p for p in nsis.rglob("*.exe") if "setup" in p.name], "NSIS installer"
     )
-    if profile == "dev":
-        (nsis / "BUILD-PROFILE").write_text("dev\n", encoding="utf-8")
-        print(f"Built Windows installer: {installer}")
-        return
     version = _release_version(root)
     slug = _slug(root)
     destination = root / DIST / f"{slug}-{version}-{UPDATER_TARGET}-setup.exe"
@@ -330,9 +279,12 @@ def check_package(
     print(f"Tauri installer artifacts are valid for {expected}.")
 
 
-def acceptance(junit: Path, root: Path = ROOT) -> None:
+def acceptance(junit: Path, root: Path = ROOT, *, profile: str = "dev") -> None:
     environment = os.environ.copy()
-    if sys.platform == "win32":
+    release = profile == "release"
+    if release and sys.platform != "win32":
+        raise ValueError("installed release acceptance requires Windows")
+    if release:
         from dokime_tools.check.release import verify_platform
 
         package = root / "dist/build/windows"
@@ -362,7 +314,7 @@ def acceptance(junit: Path, root: Path = ROOT) -> None:
             if driver is not None:
                 environment["DOKIME_E2E_DRIVER"] = driver
     subprocess.run(
-        ["node", "crates/dokime-gui/e2e/native-desktop.mjs", "--junit", str(junit)],
+        ["node", "crates/dokime-gui/e2e/native-desktop.mjs", "--junit", str(junit), *(["--release"] if release else [])],
         cwd=root,
         env=environment,
         check=True,
@@ -372,10 +324,10 @@ def acceptance(junit: Path, root: Path = ROOT) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=["check", "build", "resources", "package", "acceptance"]
+        "command", choices=["check", "bundle", "resources", "verify", "acceptance"]
     )
     parser.add_argument("--junit", type=Path)
-    parser.add_argument("--profile", choices=["dev", "release"], default="release")
+    parser.add_argument("--profile", choices=["dev", "release"], default="dev")
     parser.add_argument("--target")
     parser.add_argument("--dist-dir", type=Path, default=DIST)
     parser.add_argument("--expected-version")
@@ -384,8 +336,8 @@ def main() -> int:
     try:
         if args.command == "check":
             check()
-        elif args.command == "build":
-            build(profile=args.profile)
+        elif args.command == "bundle":
+            bundle(profile=args.profile)
         elif args.command == "resources":
             stage_resources(profile=args.profile, target=args.target)
         elif args.command == "acceptance":
@@ -393,7 +345,7 @@ def main() -> int:
                 raise ValueError(
                     "native acceptance requires the evidence runner JUnit path"
                 )
-            acceptance(args.junit)
+            acceptance(args.junit, profile=args.profile)
         else:
             check_package(
                 dist=args.dist_dir,

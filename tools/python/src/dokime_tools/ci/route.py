@@ -20,7 +20,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.ci.artifacts import REPOSITORY, _request
+from dokime_tools.ci.artifacts import REPOSITORY as REPOSITORY
+from dokime_tools.ci.artifacts import _request as _request
 
 # Type Checking Imports
 

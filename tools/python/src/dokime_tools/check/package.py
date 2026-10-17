@@ -27,7 +27,7 @@ from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
 # Local Imports
-from dokime_tools.check.wheel import verify_wheel
+from dokime_tools.check.wheel import verify_wheel as verify_wheel
 
 # Type Checking Imports
 

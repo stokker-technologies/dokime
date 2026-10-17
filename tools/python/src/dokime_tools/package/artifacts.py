@@ -26,7 +26,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 # Third Party Imports
 # Local Imports
-from dokime_tools import contracts
+from dokime_tools.package import contracts as contracts
 from dokime_tools.check.release import (
     AUDITS,
     BINARIES,
@@ -48,10 +48,11 @@ from dokime_tools.check.release import (
     verify_platform,
     verify_test_archives,
 )
-from dokime_tools.check.wheel import verify_wheel
-from dokime_tools.ci.artifacts import job_id
-from dokime_tools.fixtures import FIXTURES, STAMP
-from dokime_tools.package.wheel import select_wheel
+from dokime_tools.check.wheel import verify_wheel as verify_wheel
+from dokime_tools.ci.artifacts import job_id as job_id
+from dokime_tools.package.fixtures import FIXTURES as FIXTURES
+from dokime_tools.package.fixtures import STAMP as STAMP
+from dokime_tools.package.wheel import select_wheel as select_wheel
 
 # Type Checking Imports
 
@@ -378,7 +379,7 @@ def platform() -> str:
 
 
 def _report_template(root: Path, manifest: dict) -> None:
-    report = root / "crates/dokime-app/dist-report/report.html"
+    report = root / "crates/dokime-runtime/dist-report/report.html"
     template = next(
         entry for entry in manifest["files"] if entry["role"] == "report-template"
     )
@@ -429,12 +430,12 @@ def _products(root: Path) -> dict[str, tuple[Path, str]]:
     products = {
         "license": (root / "LICENSE-APACHE", "licenses/LICENSE-APACHE"),
         "report-template": (
-            root / "crates/dokime-app/dist-report/report.html",
+            root / "crates/dokime-runtime/dist-report/report.html",
             REPORT_TEMPLATE,
         ),
         "plugin": (
-            root / "target/fixtures/mini-sidecar/mini-sidecar.dokime",
-            "plugins/mini-sidecar.dokime",
+            root / "target/fixtures/obc-plugin/obc-plugin.dokime",
+            "plugins/obc-plugin.dokime",
         ),
     }
     for role, name in (

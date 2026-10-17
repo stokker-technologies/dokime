@@ -23,7 +23,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.frontend import ROOT, WEB_ROOT, ensure_report
+from dokime_tools.build.frontend import ROOT as ROOT
+from dokime_tools.build.frontend import WEB_ROOT as WEB_ROOT
+from dokime_tools.build.frontend import ensure_report as ensure_report
 
 # Type Checking Imports
 

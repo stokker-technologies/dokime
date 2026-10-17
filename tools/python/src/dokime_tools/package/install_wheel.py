@@ -21,7 +21,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.package.wheel import WheelSelectionError, select_wheel
+from dokime_tools.package.wheel import WheelSelectionError as WheelSelectionError
+from dokime_tools.package.wheel import select_wheel as select_wheel
 
 # Type Checking Imports
 

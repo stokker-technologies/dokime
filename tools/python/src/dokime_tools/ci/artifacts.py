@@ -37,7 +37,8 @@ from dokime_tools.check.release import (
     required_suites,
     verify_platform,
 )
-from dokime_tools.ci.policy import current_event, required_platforms
+from dokime_tools.ci.policy import current_event as current_event
+from dokime_tools.ci.policy import required_platforms as required_platforms
 
 # Type Checking Imports
 

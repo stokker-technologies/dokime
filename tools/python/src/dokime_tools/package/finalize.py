@@ -29,7 +29,8 @@ from dokime_tools.check.release import (
     verify_release,
     verify_source_identity,
 )
-from dokime_tools.package import assets, publish
+from dokime_tools.package import assets as assets
+from dokime_tools.package import publish as publish
 
 # Type Checking Imports
 

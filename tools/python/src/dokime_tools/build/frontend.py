@@ -21,7 +21,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.staging import sync_output
+from dokime_tools.package.staging import clear_output, sync_output
+from dokime_tools.test import archive
 
 # Type Checking Imports
 
@@ -30,13 +31,12 @@ from dokime_tools.staging import sync_output
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[5]
 WEB_ROOT = ROOT / "crates/dokime-gui"
-REPORT = ROOT / "crates/dokime-app/dist-report/report.html"
+REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
 STAMP = ROOT / "target/report-template/inputs.sha256"
 INPUT_ROOTS = [
     WEB_ROOT / "src",
-    WEB_ROOT / ".generated",
     WEB_ROOT / "report.html",
     WEB_ROOT / "vite.report.config.ts",
     WEB_ROOT / "tsconfig.json",
@@ -108,6 +108,43 @@ def build_live(args: list[str]) -> None:
     ) as directory:
         subprocess.run(command + ["--outDir", directory], cwd=WEB_ROOT, check=True)
         sync_output(Path(directory), WEB_ROOT / "dist")
+
+
+
+def capture(
+    profile: str,
+    *,
+    report: bool,
+    parents: list[dict] | None = None,
+    inputs: list[Path] | None = None,
+) -> dict:
+    """Capture The Actual Node Build Before Copying Its Original Assets."""
+    kind = "report" if report else "frontend"
+    output = ROOT / "target/build" / profile / kind
+    clear_output(output)
+    command = ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build"]
+    if report:
+        command += ["--config", "vite.report.config.ts"]
+    command += ["--outDir", str(output)]
+    producer = archive.native(
+        WEB_ROOT,
+        profile,
+        "frontend",
+        [command],
+        [output],
+        locks=[WEB_ROOT / "pnpm-lock.yaml", ROOT / "mise.lock"],
+        installed=[WEB_ROOT / "node_modules"],
+        parents=parents or [],
+        inputs=inputs or [],
+    )
+    destination = REPORT.parent if report else WEB_ROOT / "dist"
+    sync_output(output, destination)
+    for source in output.rglob("*"):
+        if source.is_file():
+            archive.verify_copy(producer, source, destination / source.relative_to(output))
+    if report and not REPORT.is_file():
+        raise ValueError(f"report build did not produce {REPORT.name}")
+    return producer
 
 
 def check_assets() -> None:

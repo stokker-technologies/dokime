@@ -24,9 +24,11 @@ from xml.etree import ElementTree
 
 # Third Party Imports
 # Local Imports
-from dokime_tools import contracts, release
-from dokime_tools.check.wheel import verify_wheel
-from dokime_tools.fixtures import FIXTURES, STAMP
+from dokime_tools.package import contracts as contracts
+from dokime_tools.release import run as release
+from dokime_tools.check.wheel import verify_wheel as verify_wheel
+from dokime_tools.package.fixtures import FIXTURES as FIXTURES
+from dokime_tools.package.fixtures import STAMP as STAMP
 
 # Type Checking Imports
 

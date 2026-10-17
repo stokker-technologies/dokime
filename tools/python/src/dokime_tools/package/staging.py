@@ -16,11 +16,13 @@
 import os
 import shutil
 import stat
+from collections.abc import Mapping
 from pathlib import Path
 
 # Third Party Imports
 
 # Local Imports
+from dokime_tools.test import archive
 
 
 # Type Checking Imports
@@ -37,6 +39,27 @@ from pathlib import Path
 
 
 # === Public Functions === #
+
+
+def clear_output(path: Path) -> None:
+    """Prepare One Owned Output Without Following A Directory Link."""
+    _ensure_directory(path.parent)
+    if path.is_symlink():
+        raise ValueError(f"owned output must not be a symlink: {path}")
+    _remove(path)
+
+
+def stage_verified(root: Path, producer: dict, projection: Mapping[Path, Path]) -> dict[str, str]:
+    """Copy Selected Outputs And Compare Both Copies With Original Producer Digests."""
+    root = root.resolve()
+    files: dict[str, str] = {}
+    for source, destination in projection.items():
+        relative = destination.absolute().relative_to(root).as_posix()
+        if relative in files:
+            raise ValueError(f"staged output collision: {relative}")
+        stage_file(source, destination)
+        files[relative] = archive.verify_copy(producer, source, destination)
+    return files
 
 
 def stage_file(source: Path, destination: Path) -> None:

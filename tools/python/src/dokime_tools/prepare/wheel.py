@@ -22,8 +22,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.check.release import build_profile
-from dokime_tools.package.wheel import WheelSelectionError, select_wheel
+from dokime_tools.test import archive, policy
+from dokime_tools.package.wheel import WheelSelectionError as WheelSelectionError
+from dokime_tools.package.wheel import select_wheel as select_wheel
 
 # Type Checking Imports
 
@@ -31,8 +32,7 @@ from dokime_tools.package.wheel import WheelSelectionError, select_wheel
 
 # === Constants === #
 
-DEFAULT_WHEEL_DIR = Path("dist/python")
-WHEEL_DIR_ENV = "DOKIME_PYTHON_TEST_WHEEL_DIR"
+
 
 
 # === Types === #
@@ -44,13 +44,14 @@ WHEEL_DIR_ENV = "DOKIME_PYTHON_TEST_WHEEL_DIR"
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
-    wheel_dir = Path(args.wheel_dir)
-
+    root = Path(__file__).resolve().parents[5]
+    platform = "windows" if sys.platform == "win32" else "linux"
+    wheel_dir = root / "dist/build" / platform / "python"
+    archive.fixtures(root, archive.tree(root), args.profile, [wheel_dir.relative_to(root).as_posix()])
     wheel = _unique_wheel(wheel_dir)
 
     # One immutable client wheel supplies all cross-language categories.
     # Mise prepares the shared workspace before installing this wheel.
-    root = Path(__file__).resolve().parents[5]
     native_environment = root / ".venv"
     native_python = native_environment / (
         "Scripts/python.exe" if os.name == "nt" else "bin/python"
@@ -62,6 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "install",
             "--python",
             str(native_python),
+            "--offline",
             "--reinstall",
             "--no-deps",
             str(wheel.resolve()),
@@ -99,14 +101,7 @@ def _run(
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--wheel-dir",
-        default=os.environ.get(
-            WHEEL_DIR_ENV,
-            Path("dist/python-dev") if build_profile() == "dev" else DEFAULT_WHEEL_DIR,
-        ),
-        help="Directory containing the exact selected-profile wheel used for Python tests.",
-    )
+    parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
     return parser.parse_args(argv)
 
 

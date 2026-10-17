@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from ..release import _override_source
+from dokime_tools.release.run import _override_source as _override_source
 
 # Type Checking Imports
 

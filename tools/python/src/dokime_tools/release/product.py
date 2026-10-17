@@ -33,7 +33,7 @@ from pathlib import Path
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[5]
 RELEASE = re.compile(r"^\d+\.\d+\.\d+$")
 VERSION = RELEASE
 

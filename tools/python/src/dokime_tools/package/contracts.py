@@ -54,7 +54,8 @@ def locate(messages: Path) -> Path:
         reason = event.get("reason")
         if reason == "compiler-artifact":
             target = event["target"]
-            if target["name"] == "dokime-contract-export" and "bin" in target["kind"]:
+            # The server build script exports the operation contracts it serves.
+            if target["name"] == "dokime-server" and "bin" in target["kind"]:
                 artifacts.add(event["package_id"])
         elif reason == "build-script-executed":
             package = event["package_id"]
@@ -64,7 +65,7 @@ def locate(messages: Path) -> Path:
             finished.append(event["success"])
     if finished != [True] or len(artifacts) != 1:
         raise ValueError(
-            "expected one Dokime portable contract producer from a successful Cargo build"
+            "expected one dokime-server contract producer from a successful Cargo build"
         )
     outputs = scripts.get(next(iter(artifacts)), set())
     if not outputs:
@@ -346,7 +347,7 @@ def restored(export: Path, revision: str) -> Path:
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parents[4]
+    root = Path(__file__).resolve().parents[5]
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
     selected = subcommands.add_parser("locate")

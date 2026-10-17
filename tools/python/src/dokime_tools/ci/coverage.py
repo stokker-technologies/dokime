@@ -18,10 +18,13 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools import evidence
-from dokime_tools.check.release import digest, inputs
-from dokime_tools.ci.artifacts import job_id
-from dokime_tools.package.artifacts import directory, platform, verify
+from dokime_tools.test import run as evidence
+from dokime_tools.check.release import digest as digest
+from dokime_tools.check.release import inputs as inputs
+from dokime_tools.ci.artifacts import job_id as job_id
+from dokime_tools.package.artifacts import directory as directory
+from dokime_tools.package.artifacts import platform as platform
+from dokime_tools.package.artifacts import verify as verify
 
 # Type Checking Imports
 
