@@ -130,17 +130,14 @@ fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bo
         return false;
     }
 
-    let legacy_match = legacy_sample_has_plot_fields(sample, plot);
-    let expression_match = expression_sample_has_plot_fields(sample, plot);
-
     if has_telemetry_expression(plot) {
-        expression_match
+        expression_sample_has_plot_fields(sample, plot)
     } else {
-        legacy_match
+        field_sample_has_plot_fields(sample, plot)
     }
 }
 
-fn legacy_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
+fn field_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     // A histogram's one value is its x; the count on y is the host's.
     let has_y_field = plot.plot_type == PlotType::Histogram
         || plot.y.iter().any(|field| sample.values.contains_key(field));
