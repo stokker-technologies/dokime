@@ -52,8 +52,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<harmos::bundle::Error> for Error {
-    fn from(error: harmos::bundle::Error) -> Self {
+impl From<harmos_packaging::bundle::Error> for Error {
+    fn from(error: harmos_packaging::bundle::Error) -> Self {
         Self::Invalid(error.to_string())
     }
 }

@@ -14,6 +14,7 @@ dokime = { path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
+harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
