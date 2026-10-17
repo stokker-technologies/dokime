@@ -351,7 +351,7 @@ pub(crate) async fn mutation_receipts_outcomes() {
             })
             .await
             .unwrap(),
-        [newer.clone()]
+        std::slice::from_ref(&newer)
     );
     backend.close().await.unwrap();
     let backend = Backend::<()>::primary(root.path().to_path_buf())
