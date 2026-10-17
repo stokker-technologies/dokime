@@ -13,12 +13,11 @@
  * rendering. It puts the three things the shared components expect around
  * them — a query client nothing fetches through, a router nothing navigates
  * with, and the snapshot the workspace's hooks read instead of the backend —
- * and then mounts `AppShell` and `CycleWorkspace`.
+ * and then mounts the shared shell frames and cycle presentation.
  *
  * The router is a memory router with a root route and no children. The shell
  * reads the location (focus mode, the back chevron, the console scope) through
- * router hooks; giving it a router that goes nowhere is a smaller, more honest
- * change than teaching five components to survive without one.
+ * router hooks; the same memory router supplies those presentation hooks.
  *
  * Selection is React state here rather than a URL: a single file has no
  * address bar of its own to keep it in.
@@ -42,7 +41,7 @@ import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
-import { AppShell } from "@/shell/AppShell";
+import { ReportShell } from "./ReportShell";
 import { cycleSnapshotSource } from "./report-snapshot";
 
 /* === Constants === */
@@ -94,7 +93,7 @@ function ReportSurface() {
   const title = plan?.test_cycle.title ?? "Frozen Report";
 
   return (
-    <AppShell
+    <ReportShell
       frozen={{
         selection,
         cycleId,
@@ -103,7 +102,6 @@ function ReportSurface() {
         status: plan?.test_cycle.status ?? "planned",
         title,
       }}
-      live={false}
     >
       <CycleWorkspace
         caseId={selection.caseId}
@@ -113,7 +111,7 @@ function ReportSurface() {
         view={selection.view}
         onSelectionChange={setSelection}
       />
-    </AppShell>
+    </ReportShell>
   );
 }
 
