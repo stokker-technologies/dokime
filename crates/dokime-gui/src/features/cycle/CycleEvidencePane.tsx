@@ -28,12 +28,8 @@ import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { HubLiveState, RecordScope, TestCyclePlan } from "@/lib/types";
-import {
-  DocumentView,
-  documentWindowElapsedUnit,
-  FrozenDocumentConsole,
-  useDocumentSurface,
-} from "./DocumentView";
+import { DocumentView, useDocumentSurface } from "./DocumentView";
+import { documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
 import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
 import { useCycleDocumentQuery } from "./server-state";

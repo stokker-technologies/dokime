@@ -38,7 +38,7 @@ import { ArtifactTree } from "@/components/ArtifactTree";
 import {
   RecordListContent,
   TraceabilityDocumentContent,
-} from "@/components/document/DocumentSurface";
+} from "@/components/document/DocumentSurfaceView";
 import type { DocumentBlockChrome } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
@@ -62,13 +62,8 @@ import {
   isActiveExecutionStatus,
   isUnstartedExecution,
 } from "./cycle-workspace-model";
-import {
-  DocumentView,
-  documentHasWindowedCards,
-  documentWindowElapsedUnit,
-  FrozenDocumentConsole,
-  useDocumentSurface,
-} from "./DocumentView";
+import { DocumentView, useDocumentSurface } from "./DocumentView";
+import { documentHasWindowedCards, documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
 import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { EditableLabel } from "./EditableLabel";
 import { ExecutionControl } from "./ExecutionControl";
