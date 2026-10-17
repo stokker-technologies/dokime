@@ -27,108 +27,7 @@ use crate::error::Error;
 /* === Constants === */
 const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 
-const FILES: &[(&str, &str)] = &[
-    (".gitignore", include_str!("../../templates/.gitignore")),
-    (
-        ".gitlab-ci.yml",
-        include_str!("../../templates/.gitlab-ci.yml.tmpl"),
-    ),
-    (
-        "Cargo.toml",
-        include_str!("../../templates/Cargo.toml.tmpl"),
-    ),
-    ("README.md", include_str!("../../templates/README.md")),
-    ("mise.toml", include_str!("../../templates/mise.toml.tmpl")),
-    ("stkr.toml", include_str!("../../templates/stkr.toml.tmpl")),
-    ("src/bench.rs", include_str!("../../templates/src/bench.rs")),
-    ("src/error.rs", include_str!("../../templates/src/error.rs")),
-    ("src/lib.rs", include_str!("../../templates/src/lib.rs")),
-    ("src/main.rs", include_str!("../../templates/src/main.rs")),
-    (
-        "tests/soak.rs",
-        include_str!("../../templates/tests/soak.rs"),
-    ),
-    (
-        ".github/workflows/ci.yml",
-        include_str!("../../templates/.github/workflows/ci.yml.tmpl"),
-    ),
-    (
-        ".github/workflows/nightly.yml",
-        include_str!("../../templates/.github/workflows/nightly.yml.tmpl"),
-    ),
-    (
-        ".github/workflows/prepare-release.yml",
-        include_str!("../../templates/.github/workflows/prepare-release.yml.tmpl"),
-    ),
-    (
-        ".github/workflows/release.yml",
-        include_str!("../../templates/.github/workflows/release.yml.tmpl"),
-    ),
-    (
-        "src/domain/mod.rs",
-        include_str!("../../templates/src/domain/mod.rs"),
-    ),
-    (
-        "src/listeners/mod.rs",
-        include_str!("../../templates/src/listeners/mod.rs"),
-    ),
-    (
-        "src/listeners/unit_connected.rs",
-        include_str!("../../templates/src/listeners/unit_connected.rs"),
-    ),
-    (
-        "src/observers/mod.rs",
-        include_str!("../../templates/src/observers/mod.rs"),
-    ),
-    (
-        "src/observers/temperature.rs",
-        include_str!("../../templates/src/observers/temperature.rs"),
-    ),
-    (
-        "src/operations/mod.rs",
-        include_str!("../../templates/src/operations/mod.rs"),
-    ),
-    (
-        "src/suites/mod.rs",
-        include_str!("../../templates/src/suites/mod.rs"),
-    ),
-    (
-        "src/domain/model/mod.rs",
-        include_str!("../../templates/src/domain/model/mod.rs"),
-    ),
-    (
-        "src/domain/operations/mod.rs",
-        include_str!("../../templates/src/domain/operations/mod.rs"),
-    ),
-    (
-        "src/operations/chamber/mod.rs",
-        include_str!("../../templates/src/operations/chamber/mod.rs"),
-    ),
-    (
-        "src/operations/status/mod.rs",
-        include_str!("../../templates/src/operations/status/mod.rs"),
-    ),
-    (
-        "src/suites/soak/hold.rs",
-        include_str!("../../templates/src/suites/soak/hold.rs"),
-    ),
-    (
-        "src/suites/soak/mod.rs",
-        include_str!("../../templates/src/suites/soak/mod.rs"),
-    ),
-    (
-        "src/domain/model/chamber/mod.rs",
-        include_str!("../../templates/src/domain/model/chamber/mod.rs"),
-    ),
-    (
-        "src/domain/model/prompts/mod.rs",
-        include_str!("../../templates/src/domain/model/prompts/mod.rs"),
-    ),
-    (
-        "src/domain/model/settings/mod.rs",
-        include_str!("../../templates/src/domain/model/settings/mod.rs"),
-    ),
-];
+include!(concat!(env!("OUT_DIR"), "/template-assets.rs"));
 
 /* === Macros === */
 
@@ -144,6 +43,11 @@ pub struct Args {
     pub name: Option<String>,
 }
 
+struct Template {
+    bytes: &'static [u8],
+    text: bool,
+}
+
 struct Workspace {
     manifest: PathBuf,
     original: String,
@@ -151,6 +55,7 @@ struct Workspace {
 }
 
 /* === Enums === */
+
 
 /* === Traits === */
 
@@ -195,18 +100,23 @@ pub fn run(args: Args) -> Result<(), Error> {
         for (path, template) in FILES {
             let path = target.join(path);
             fs::create_dir_all(path.parent().expect("template has a parent"))?;
-            let mut contents = template
-                .replace("{{package}}", name)
-                .replace("{{crate}}", &crate_name)
-                .replace("{{owner}}", &owner)
-                .replace("{{repository}}", REPOSITORY)
-                .replace("{{selection}}", &selection);
-            if detached && path.file_name().is_some_and(|name| name == "Cargo.toml") {
-                contents.push_str(
-                    "\n# This package is excluded from the enclosing workspace.\n[workspace]\n",
-                );
+            if template.text {
+                let contents = std::str::from_utf8(template.bytes).expect("the asset inventory identifies UTF-8 text");
+                let mut contents = contents
+                    .replace("{{package}}", name)
+                    .replace("{{crate}}", &crate_name)
+                    .replace("{{owner}}", &owner)
+                    .replace("{{repository}}", REPOSITORY)
+                    .replace("{{selection}}", &selection);
+                if detached && path.file_name().is_some_and(|name| name == "Cargo.toml") {
+                    contents.push_str(
+                        "\n# This package is excluded from the enclosing workspace.\n[workspace]\n",
+                    );
+                }
+                fs::write(path, finalize_managed(contents))?;
+            } else {
+                fs::write(path, template.bytes)?;
             }
-            fs::write(path, finalize_managed(contents))?;
         }
         if let Some(workspace) = workspace
             && workspace.original != workspace.updated
