@@ -108,7 +108,8 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
         meta: { label: header, primary: true },
       });
     }
-    const read = (row: SeriesLegendRow) => (id === "cursor" ? row.cursor : row.cells[id]);
+    const read = (row: SeriesLegendRow) =>
+      id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id];
     return legend.accessor(read, {
       cell: ({ getValue, row }) => (
         <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>

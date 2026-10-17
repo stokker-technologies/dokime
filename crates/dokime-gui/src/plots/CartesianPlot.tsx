@@ -17,7 +17,7 @@ import type uPlot from "uplot";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
 import {
-  nearestDrawnValue,
+  nearestDrawnPoint,
   type SeriesSummary,
   seriesLegendColumns,
   seriesLegendRows,
@@ -631,12 +631,12 @@ export const CartesianPlot = memo(function CartesianPlot({
   const legendRows = useMemo(() => {
     if (!legend) return null;
     const frame = backendCartesian;
-    const cursorValues =
+    const cursorPoints =
       live && cursorX !== null && frame
-        ? frame.series.map((item) => nearestDrawnValue(item.x, item.y, cursorX))
+        ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX))
         : null;
     return seriesLegendRows({
-      cursorValues,
+      cursorPoints,
       hidden: hiddenTraces,
       summaries: legend.summaries,
       traces: renderedSeries.map((item, index) => ({
