@@ -289,7 +289,7 @@ pub struct SignalReply {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct DeliverRecordRequest {
-    #[row(description = "JSON-encoded [`Record`](crate::records::Record), as the host filed it.")]
+    #[row(description = "JSON-encoded [`Record`](dokime_domain::model::records::evidence::Record), as the host filed it.")]
     pub record_json: String,
     #[row(description = "Execution scopes and origins frozen at admission, JSON-encoded.")]
     pub captured_scopes: Vec<String>,

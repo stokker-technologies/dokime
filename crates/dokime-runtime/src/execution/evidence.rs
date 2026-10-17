@@ -32,7 +32,7 @@ use crate::telemetry::TelemetrySample;
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionEvidence {
     pub(crate) samples: BTreeMap<String, Vec<TelemetrySample>>,
-    pub(crate) subscribed_records: Vec<crate::records::Record>,
+    pub(crate) subscribed_records: Vec<dokime_domain::model::records::evidence::Record>,
     pub(crate) steps: Vec<Identifier>,
     pub(crate) attempts: Vec<super::TestStepAttempt>,
     pub(crate) gaps: Vec<crate::telemetry::LeaseGap>,

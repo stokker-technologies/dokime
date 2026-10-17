@@ -19,7 +19,7 @@ use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_runtime::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::evidence as v1;
 

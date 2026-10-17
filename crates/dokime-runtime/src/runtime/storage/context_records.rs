@@ -19,7 +19,7 @@
 use harmos::MemorySize;
 
 // Local Imports
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::identity::SessionId;
 
 /* === Constants === */

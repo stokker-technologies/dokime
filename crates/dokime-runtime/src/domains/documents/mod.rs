@@ -37,7 +37,7 @@ use crate::document::{
     resolve_document_plot_axes,
 };
 use crate::execution::TestExecution;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::{
     error::{Error, Result},
     execution::CycleView,

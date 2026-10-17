@@ -29,7 +29,10 @@ use tokio_stream::{Stream, StreamExt};
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-use crate::records::{DeclaredRecord, Deliveries, Record, RecordSource};
+use crate::records::DeclaredRecord;
+use crate::records::Deliveries;
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordSource;
 use crate::telemetry::{Streams, TelemetryStream};
 
 /* === Constants === */

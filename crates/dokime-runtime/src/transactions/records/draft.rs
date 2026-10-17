@@ -18,7 +18,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::records::{BuiltinRecordType, Record, RecordSeverity};
+use crate::records::BuiltinRecordType;
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
 use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;

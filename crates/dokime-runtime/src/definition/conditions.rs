@@ -19,7 +19,8 @@ pub use dokime_domain::model::definition::conditions::RuntimeConditionEvaluation
 // Third Party Imports
 
 // Local Imports
-use crate::records::{RecordEntry, evaluate_record_condition};
+use dokime_domain::model::records::evidence::RecordEntry;
+use crate::records::evaluate_record_condition;
 use crate::telemetry::{TelemetrySample, evaluate_telemetry_condition};
 
 /* === Constants === */

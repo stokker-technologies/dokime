@@ -8,9 +8,17 @@
  */
 
 /* === Modules === */
+pub mod evidence;
+pub mod error;
+pub mod product;
+pub mod publication;
 pub mod contract;
 
 /* === Re-Exports === */
+pub use evidence::{Record, RecordEntry, RecordMarker};
+pub use error::{RecordErrorDetail, RecordFailure};
+pub use product::*;
+pub use publication::{PublishReceipt, PublishStatus, RecordPublishRequest};
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
 pub use contract::BuiltinRecordType;

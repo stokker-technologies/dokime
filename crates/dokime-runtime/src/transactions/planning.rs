@@ -24,7 +24,7 @@ use crate::definition::TestCase;
 use crate::execution::{CycleStatus, CycleView};
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
-use crate::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::identity::CommandId;

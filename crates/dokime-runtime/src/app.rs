@@ -18,7 +18,7 @@
 use harmos::{Application, state::Origin as HarmosOrigin};
 // Local Imports
 use crate::config::Config;
-use crate::records::Records;
+use dokime_domain::state::records::Records;
 use crate::runtime_state::RuntimeState;
 use crate::streams::Streams as StreamCatalog;
 use crate::transactions::Transactions;

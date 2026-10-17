@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::records::Record;
+use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::execution::RecordScope;

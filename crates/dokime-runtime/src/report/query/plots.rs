@@ -36,7 +36,7 @@ use crate::{
 };
 use dokime_domain::model::identity::Identifier;
 use crate::expressions::DataSource;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::telemetry::TelemetryContract;
 
 /* === Constants === */

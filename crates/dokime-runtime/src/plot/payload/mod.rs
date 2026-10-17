@@ -37,7 +37,7 @@ use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
 use crate::execution::CycleView;
 use crate::plot::record_telemetry::record_telemetry_series;
 use crate::plot::record_timing::{RECORD_CONTEXT_STREAM, record_timing_series};
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use cartesian::cartesian_frame;
 use dokime_domain::model::execution::RecordScope;

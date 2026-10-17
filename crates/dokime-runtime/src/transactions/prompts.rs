@@ -19,7 +19,11 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::runtime::Error;
-use crate::records::{BuiltinRecordType, Record, RecordSeverity, ValidationMode, validate_record};
+use crate::records::BuiltinRecordType;
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordSeverity;
+use crate::records::ValidationMode;
+use crate::records::validate_record;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::Drafts;
 use dokime_domain::model::identity::CommandId;
@@ -231,13 +235,13 @@ pub(crate) fn settle_prompts(
         details.insert("source".to_owned(), Value::from("runtime"));
         details.insert("reason".to_owned(), Value::from(settlement.reason()));
         let mut record = Record::new(
+            records.next_id(),
             at.clone(),
             settlement.record_type().identifier(),
             contract.schema_version,
             "runtime",
             settlement.severity(),
         );
-        record.record_id = records.next_id();
         record.message = Some(settlement.message().to_owned());
         record.scope = Some(prompt.scope.clone());
         record.details = details;
@@ -498,13 +502,13 @@ fn prepare_prompt_record(
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
     let contract = record_type.contract();
     let mut record = Record::new(
+        state.next_record_id(),
         at,
         record_type.identifier(),
         contract.schema_version,
         "runtime",
         severity,
     );
-    record.record_id = state.next_record_id();
     record.message = message;
     record.scope = scope;
     record.details = details;

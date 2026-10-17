@@ -23,7 +23,7 @@ use crate::artifacts::ArtifactRecord;
 use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
 use crate::document::definition::DocumentDefinition;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::runtime::storage::record_capture::CapturedRecord;
 use crate::telemetry::TelemetrySample;
 use crate::execution::saved::{ExecutionOutput, ExecutionOutputContent};

@@ -184,6 +184,8 @@ pub use harmos::{Message, StreamSpec, schema};
 // Generated authoring code resolves implementation dependencies through the SDK.
 
 pub use harmos as __harmos;
+pub use dokime_domain as __domain;
+pub use dokime_domain as __domain;
 
 pub use prost as __prost;
 

@@ -136,7 +136,7 @@ pub(crate) fn implementation(
             }
 
             fn from_record(
-                record: &#sdk::records::Record,
+                record: &#sdk::__domain::model::records::Record,
             ) -> #sdk::Result<Self> {
                 if record.record_type.as_str() != <Self as #sdk::records::DeclaredRecord>::RECORD_TYPE {
                     return ::std::result::Result::Err(
@@ -181,7 +181,7 @@ pub(crate) fn implementation(
 
         #[automatically_derived]
         impl #generics #sdk::Publishable for #name #types #predicates {
-            type Payload = #sdk::records::RecordPublishRequest;
+            type Payload = #sdk::__domain::model::records::RecordPublishRequest;
 
             fn publication(self) -> Self::Payload {
                 <Self as #sdk::records::DeclaredRecord>::request(self)

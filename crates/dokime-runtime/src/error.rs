@@ -20,7 +20,7 @@ use tokio_stream::Elapsed;
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use crate::document::DocumentFailure;
-use crate::records::RecordFailure;
+use dokime_domain::model::records::error::RecordFailure;
 use crate::values::FieldError;
 
 /* === Constants === */
@@ -63,12 +63,8 @@ pub enum Error {
     #[error("the execution ended before the stream lease was granted")]
     LeaseCancelled,
 
-    #[error("record {record:?} detail {field:?}: {reason}")]
-    RecordDetail {
-        record: String,
-        field: String,
-        reason: String,
-    },
+    #[error(transparent)]
+    RecordDetail(#[from] dokime_domain::model::records::error::RecordDetailError),
 
     #[error("record {record:?}: {reason}")]
     RecordDecode { record: String, reason: String },

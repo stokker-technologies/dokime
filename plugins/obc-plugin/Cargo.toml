@@ -16,6 +16,7 @@ license.workspace = true
 
 [dependencies]
 # Local
+dokime-domain = { path = "../../crates/dokime-domain" }
 dokime-runtime = { path = "../../crates/dokime-runtime" }
 obc-runtime = { path = "runtime" }
 

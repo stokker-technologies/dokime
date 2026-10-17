@@ -91,7 +91,7 @@ struct Input<'a> {
     started_at: &'a Option<Timestamp>,
     updated_at: &'a Timestamp,
     execution_ids: &'a [TestExecutionId],
-    records: &'a crate::records::TestRecordSet,
+    records: &'a dokime_domain::state::records::set::TestRecordSet,
     continue_on_failure: bool,
     result: &'a Option<ResultSummary>,
 }
@@ -612,7 +612,7 @@ impl Cycle {
             self.updated_at.capacity(),
             self.started_at.as_ref().map_or(0, String::capacity),
             metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-            records.saturating_sub(std::mem::size_of::<crate::records::TestRecordSet>()),
+            records.saturating_sub(std::mem::size_of::<dokime_domain::state::records::set::TestRecordSet>()),
             seal.saturating_sub(std::mem::size_of::<CycleSeal>()),
             self.execution_ids
                 .len()

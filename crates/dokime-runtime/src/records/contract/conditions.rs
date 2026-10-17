@@ -18,7 +18,9 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use dokime_domain::model::values::Value;
-use crate::records::{RecordCondition, RecordConditionEvaluation, RecordEntry};
+use crate::records::RecordCondition;
+use crate::records::RecordConditionEvaluation;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 

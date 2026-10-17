@@ -72,9 +72,9 @@ pub(crate) struct ExecutionState {
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
     produced: BTreeMap<String, u64>,
-    delivered: Vec<crate::records::Record>,
+    delivered: Vec<dokime_domain::model::records::evidence::Record>,
     subscriptions: Vec<dokime_domain::model::identity::Identifier>,
-    captured_records: Vec<crate::records::Record>,
+    captured_records: Vec<dokime_domain::model::records::evidence::Record>,
     subscriptions_settling: bool,
     subscriptions_settled: bool,
     dropped: usize,
@@ -320,13 +320,13 @@ impl ExecutionState {
         }
     }
 
-    pub(crate) fn captured_records(&self) -> Vec<crate::records::Record> {
+    pub(crate) fn captured_records(&self) -> Vec<dokime_domain::model::records::evidence::Record> {
         self.captured_records.clone()
     }
 
     pub(crate) fn deliver_captured(
         &mut self,
-        record: &crate::records::Record,
+        record: &dokime_domain::model::records::evidence::Record,
         owner: &str,
         capture: Option<&dokime_domain::model::execution::RecordScope>,
     ) -> bool {
@@ -365,7 +365,7 @@ impl ExecutionState {
 
     pub(crate) fn observer_record(
         &mut self,
-        mut request: crate::records::RecordPublishRequest,
+        mut request: dokime_domain::model::records::publication::RecordPublishRequest,
         source: &str,
         schema_version: u32,
     ) -> bool {
@@ -402,7 +402,7 @@ impl ExecutionState {
         true
     }
 
-    pub(crate) fn publish_record(&mut self, request: crate::records::RecordPublishRequest) {
+    pub(crate) fn publish_record(&mut self, request: dokime_domain::model::records::publication::RecordPublishRequest) {
         if self.terminal {
             return;
         }
@@ -411,13 +411,13 @@ impl ExecutionState {
         self.push(BufferedFrame::record(encoded));
     }
 
-    pub(crate) fn delivered(&self, index: usize) -> Option<crate::records::Record> {
+    pub(crate) fn delivered(&self, index: usize) -> Option<dokime_domain::model::records::evidence::Record> {
         self.delivered
             .get(index.checked_sub(self.dropped)?)
             .cloned()
     }
 
-    pub(crate) fn next_record(&self, cursor: &mut usize) -> Option<crate::records::Record> {
+    pub(crate) fn next_record(&self, cursor: &mut usize) -> Option<dokime_domain::model::records::evidence::Record> {
         *cursor = (*cursor).max(self.dropped);
         let record = self.delivered(*cursor)?;
         *cursor += 1;
@@ -645,7 +645,7 @@ impl ExecutionState {
             .collect::<Vec<_>>();
         let mut admitted = Vec::with_capacity(frames.len());
         for (cursor, encoded, scope) in frames {
-            let mut request: crate::records::RecordPublishRequest =
+            let mut request: dokime_domain::model::records::publication::RecordPublishRequest =
                 serde_json::from_str(&encoded).map_err(|error| Refusal::of(error.to_string()))?;
             // The host's own record types, such as `process.exited`, are
             // registered wherever a run is, beside the template's.

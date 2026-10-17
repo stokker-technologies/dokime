@@ -30,7 +30,7 @@ use crate::execution::StepRecord;
 use crate::execution::StepStatus;
 use crate::execution::TestCycle;
 use crate::execution::TestExecution;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::records::RecordSeverity;
 
 /* === Constants === */

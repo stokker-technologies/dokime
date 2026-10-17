@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, CycleView, ExecutionStatus};
 use crate::records::BuiltinRecordType;
-use crate::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::BuiltinDraft;
 use dokime_domain::model::identity::TestCycleId;

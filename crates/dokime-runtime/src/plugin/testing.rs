@@ -32,7 +32,9 @@ use crate::execution::log;
 use crate::execution::{ExecutionHost, Runnable};
 use crate::plugin::Diagnostic;
 use crate::prompts::{PromptDefinition, PromptRequest, PromptResponse};
-use crate::records::{DeclaredRecord, Record, RecordPublishRequest};
+use crate::records::DeclaredRecord;
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{TelemetryRow, TelemetrySample, TelemetryStream};
 use crate::traceability::{TraceabilityRow, TraceabilitySection};
 use crate::transport::{
@@ -86,7 +88,7 @@ pub struct Report {
     outcome: SidecarExecutionOutcome,
     samples: BTreeMap<String, Vec<BTreeMap<String, Value>>>,
     records: Vec<RecordPublishRequest>,
-    subscribed_records: Vec<crate::records::Record>,
+    subscribed_records: Vec<dokime_domain::model::records::evidence::Record>,
     traceability: Vec<TraceabilitySection>,
     artifacts: Vec<Artifact>,
     log: Vec<log::Entry>,
@@ -116,7 +118,7 @@ pub struct Row<'a> {
 struct Pages {
     samples: BTreeMap<String, Vec<BTreeMap<String, Value>>>,
     records: Vec<RecordPublishRequest>,
-    subscribed_records: Vec<crate::records::Record>,
+    subscribed_records: Vec<dokime_domain::model::records::evidence::Record>,
     traceability: Vec<TraceabilitySection>,
     documents: Vec<DocumentAddition>,
     transfers: Vec<Transfer>,
@@ -214,6 +216,7 @@ impl Harness {
     #[must_use]
     pub fn publish<R: DeclaredRecord>(mut self, record: R) -> Self {
         let mut filed = Record::new(
+            crate::model::identity::new_id::<dokime_domain::model::identity::RecordId>(),
             crate::model::time::now_utc(),
             R::record_type(),
             R::SCHEMA_VERSION,

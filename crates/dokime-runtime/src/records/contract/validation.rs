@@ -21,11 +21,12 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::validation::ValidationMode;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::value_matches_type;
-use crate::records::{
-    Record, RecordEntry,
-    contract::{RecordContract, RecordField},
-    error::{RecordFailure, Result},
-};
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::records::evidence::RecordEntry;
+use crate::records::contract::RecordContract;
+use crate::records::contract::RecordField;
+use dokime_domain::model::records::error::RecordFailure;
+use dokime_domain::model::records::error::Result;
 
 /* === Constants === */
 

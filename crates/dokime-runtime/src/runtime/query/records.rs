@@ -26,7 +26,7 @@ use harmos::storage::query::{
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::execution::EvidenceOrigin;
 use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
@@ -96,7 +96,7 @@ pub(crate) fn record_frame<'a, 'b>(
 pub(crate) fn execution_capture<'a>(
     mut executions: impl Iterator<Item = &'a crate::execution::TestExecution>,
     execution_id: Option<&dokime_domain::model::identity::TestExecutionId>,
-) -> Option<&'a crate::records::TestRecordSet> {
+) -> Option<&'a dokime_domain::state::records::set::TestRecordSet> {
     let execution_id = execution_id?;
     executions
         .find(|execution| &execution.test_execution_id == execution_id)
@@ -106,7 +106,7 @@ pub(crate) fn execution_capture<'a>(
 pub(crate) fn view_filter(
     snapshot: &crate::queries::RuntimeStateSnapshot,
     scope: Option<&RecordScope>,
-    captured: Option<&crate::records::TestRecordSet>,
+    captured: Option<&dokime_domain::state::records::set::TestRecordSet>,
 ) -> harmos::Result<Filter> {
     let visible = snapshot
         .state()

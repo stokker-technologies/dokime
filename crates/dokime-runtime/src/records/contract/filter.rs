@@ -22,7 +22,9 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TelemetryStreamId;
 use dokime_domain::model::time::Timestamp;
-use crate::records::{RecordEntry, RecordPattern, RecordSeverity};
+use dokime_domain::model::records::evidence::RecordEntry;
+use crate::records::RecordPattern;
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 

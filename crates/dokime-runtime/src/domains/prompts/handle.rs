@@ -18,7 +18,7 @@ use std::time::Instant;
 // Third Party Imports
 
 // Local Imports
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::transactions::prompts::{
     RequestPrompt as Request, SubmitPromptResponse as SubmitResponse, validate_request,
     validate_response,

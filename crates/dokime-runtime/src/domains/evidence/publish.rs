@@ -10,7 +10,9 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use crate::records::{PublishReceipt, PublishStatus, RecordPublishRequest};
+pub use dokime_domain::model::records::publication::PublishReceipt;
+pub use dokime_domain::model::records::publication::PublishStatus;
+pub use dokime_domain::model::records::publication::RecordPublishRequest;
 pub(crate) use crate::transactions::PublishRecord;
 
 /* === Imports === */
@@ -21,7 +23,7 @@ use tracing::Instrument;
 
 // Local Imports
 use dokime_domain::model::execution::health::HealthSeverity;
-use crate::records::ProductRecordDraft;
+use dokime_domain::model::records::product::ProductRecordDraft;
 use crate::telemetry_runtime::sampling::{SamplingPhaseState, sampling_phase_state};
 use crate::transactions::RecordHealth;
 use crate::{runtime::Error, RuntimeHandle, state::RuntimeState, unavailable_rejection};

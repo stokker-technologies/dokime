@@ -302,16 +302,16 @@ impl RuntimeState {
         &self,
         owner: Option<&NoteOwner>,
         include_context: bool,
-    ) -> Result<Vec<&crate::records::TestRecordSet>, String> {
+    ) -> Result<Vec<&dokime_domain::state::records::set::TestRecordSet>, String> {
         if let Some(owner) = owner {
             self.note_owner_scope(owner)?;
         }
         let mut remaining = NOTE_SCAN_LIMIT;
         let mut sets = Vec::new();
         fn add<'a>(
-            sets: &mut Vec<&'a crate::records::TestRecordSet>,
+            sets: &mut Vec<&'a dokime_domain::state::records::set::TestRecordSet>,
             remaining: &mut usize,
-            records: &'a crate::records::TestRecordSet,
+            records: &'a dokime_domain::state::records::set::TestRecordSet,
         ) -> Result<(), String> {
             let cost = 1usize
                 .saturating_add(records.notes().len())

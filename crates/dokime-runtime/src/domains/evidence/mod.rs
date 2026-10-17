@@ -33,7 +33,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::records::{RecordContract, RecordEntry};
+use crate::records::RecordContract;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use crate::artifacts::ArtifactRecord;
 use crate::prompts::PromptInstance;

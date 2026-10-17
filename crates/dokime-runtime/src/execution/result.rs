@@ -33,7 +33,7 @@ use dokime_domain::model::values::Value;
 use crate::definition::{MaterializedParameter, TestCase};
 use crate::diagnostics::Diagnostic;
 use crate::document::DocumentDefinition;
-use crate::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
 

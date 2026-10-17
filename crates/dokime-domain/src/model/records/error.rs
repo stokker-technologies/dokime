@@ -17,8 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::diagnostics::StructuredErrorDetail;
-use crate::records::RecordSeverity;
+use crate::model::diagnostics::StructuredErrorDetail;
+use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -37,18 +37,26 @@ product_error!(RecordFailure, formatter {
 });
 
 /* === Type Aliases === */
-pub type Result<T> = crate::Result<T>;
+pub type Result<T> = std::result::Result<T, RecordFailure>;
 
 /* === Structs === */
+#[derive(Debug, PartialEq, thiserror::Error)]
+#[error("record {record:?} detail {field:?}: {reason}")]
+pub struct RecordDetailError {
+    pub record: String,
+    pub field: String,
+    pub reason: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordErrorDetail {
     pub message: String,
     pub code: Option<String>,
     pub source: Option<String>,
-    pub cause_chain: Vec<dokime_domain::model::diagnostics::ErrorCause>,
-    pub stacktrace_attachment: Option<dokime_domain::model::identity::ArtifactId>,
-    pub trace_id: Option<dokime_domain::model::identity::TraceId>,
-    pub correlation_id: Option<dokime_domain::model::identity::CorrelationId>,
+    pub cause_chain: Vec<crate::model::diagnostics::ErrorCause>,
+    pub stacktrace_attachment: Option<crate::model::identity::ArtifactId>,
+    pub trace_id: Option<crate::model::identity::TraceId>,
+    pub correlation_id: Option<crate::model::identity::CorrelationId>,
 }
 
 /* === Enums === */

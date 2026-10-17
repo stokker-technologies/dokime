@@ -19,7 +19,10 @@ use std::collections::BTreeMap;
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-use crate::records::{Record, RecordContract, RecordPublishRequest, RecordSeverity};
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordContract;
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use crate::records::RecordSeverity;
 use crate::values::FieldError;
 
 /* === Constants === */

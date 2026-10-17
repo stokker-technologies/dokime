@@ -45,7 +45,7 @@ use std::pin::Pin;
 use dokime_domain::model::identity::Identifier;
 use crate::execution::lease::LeaseHold;
 use crate::prompts::{PromptRequest, PromptResponse};
-use crate::records::RecordPublishRequest;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{LeaseGap, LeaseRequest};
 
 /* === Constants === */

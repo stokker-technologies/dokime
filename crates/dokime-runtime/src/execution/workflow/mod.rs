@@ -333,7 +333,7 @@ impl<T: SidecarTemplate> Workflow<T> {
 
     pub fn deliver_captured(
         &self,
-        record: &crate::records::Record,
+        record: &dokime_domain::model::records::evidence::Record,
         owner: &str,
         scopes: &[dokime_domain::model::execution::RecordScope],
     ) -> usize {

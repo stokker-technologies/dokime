@@ -30,7 +30,7 @@ pub const RECORD_PUBLICATION_VERSION: u32 = 1;
 #[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RecordPublication {
     #[row(
-        description = "The record, JSON-encoded as a [`RecordPublishRequest`](crate::records::RecordPublishRequest). Its type is resolved against the contracts the publishing sidecar declared, and it is dropped when it resolves nowhere."
+        description = "The record, JSON-encoded as a [`RecordPublishRequest`](dokime_domain::model::records::publication::RecordPublishRequest). Its type is resolved against the contracts the publishing sidecar declared, and it is dropped when it resolves nowhere."
     )]
     pub request_json: String,
     #[row(
