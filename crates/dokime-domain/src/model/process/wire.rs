@@ -60,7 +60,7 @@ pub enum Output {
 }
 
 impl Output {
-    fn artifact(self) -> Option<String> {
+    pub(crate) fn artifact(self) -> Option<String> {
         match self {
             Self::Log => None,
             Self::Artifact(name) => Some(name),

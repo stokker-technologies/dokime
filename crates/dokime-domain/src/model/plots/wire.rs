@@ -27,6 +27,7 @@ use crate::model::identity::wire::*;
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
+use crate::model::document::DownsampleTechnique;
 
 /* === Types === */
 

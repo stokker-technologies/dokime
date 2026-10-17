@@ -9,6 +9,9 @@
 
 /* === Modules === */
 pub mod termination;
+pub mod mode;
+pub mod checkpoint;
+pub mod cursor;
 pub mod saved;
 pub mod snapshot;
 pub mod result;
@@ -23,6 +26,9 @@ pub mod scope;
 
 /* === Re-Exports === */
 pub use termination::{TerminationReason};
+pub use mode::{ExecutionMode, StepCommand};
+pub use checkpoint::{ExecutionCheckpoint, SavedEvidenceError};
+pub use cursor::PageCursor;
 pub use saved::{EXECUTION_CONTEXT_MEDIA_TYPE, EXECUTION_CONTEXT_SCHEMA_VERSION, ExecutionRevision, ExecutionSource, ExecutionOutput, ExecutionSeal, VerifiedReplicaFile, CycleSeal, ExecutionOutputContent, SavedStreamState, validate_cycle_revisions, output_validation_memory, validate_outputs, validate_output_path, validate_relative_output_path};
 pub use snapshot::{ExecutionPluginIdentity, ExecutionSnapshot, ExecutionImplementation};
 pub use result::{TestCycle, CycleView, TestExecution, StepAttemptStart, TestStepAttempt, StepRecord, MeasurementRecord, CriterionResult, ResultSummary, IllegalCycleTransition, ExecutionInvalidation, CycleStatus, TestCaseStatus, ExecutionStatus, StepStatus, CriterionStatus, ResultStatus, validate_invocation, effective_attempts};

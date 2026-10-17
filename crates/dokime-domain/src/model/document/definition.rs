@@ -1390,7 +1390,7 @@ impl DocumentDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
         let identifier = identifier.as_ref();
         Self {
-            document_id: DocumentId::from_identifier(identifier).unwrap_or_default(),
+            document_id: DocumentId::from_identifier(identifier).unwrap_or_else(|_| DocumentId::from_seed(identifier)),
             metadata: metadata(identifier, label.into(), None),
             cards: Vec::new(),
             layout: DocumentLayout::default(),

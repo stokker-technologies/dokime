@@ -32,7 +32,7 @@ from dokime_tools.staging import sync_output
 
 ROOT = Path(__file__).resolve().parents[4]
 WEB_ROOT = ROOT / "crates/dokime-gui"
-REPORT = ROOT / "crates/dokime-app/dist-report/report.html"
+REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
 STAMP = ROOT / "target/report-template/inputs.sha256"
 INPUT_ROOTS = [
     WEB_ROOT / "src",

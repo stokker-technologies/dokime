@@ -37,7 +37,7 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: "../dokime-app/dist-report",
+    outDir: "../dokime-runtime/dist-report",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {

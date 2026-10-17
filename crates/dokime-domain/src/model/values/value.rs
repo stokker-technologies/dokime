@@ -14,6 +14,7 @@ pub use harmos::Value;
 
 /* === Imports === */
 // Standard Library Imports
+use std::cmp::Ordering;
 
 // Third Party Imports
 use serde::Deserialize;

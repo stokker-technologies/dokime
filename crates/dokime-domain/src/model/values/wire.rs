@@ -23,6 +23,7 @@ use time::OffsetDateTime;
 
 // Local Imports
 use crate::model::identity::wire::Timestamp;
+use crate::model::values::Value as Core;
 
 /* === Constants === */
 // Nesting deeper than this is refused when a wire value is rebuilt.

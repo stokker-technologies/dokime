@@ -23,7 +23,7 @@ fixtures = []
 
 [dependencies]
 # Local
-dokime = { path = "../../../dokime" }
+dokime-runtime = { path = "../../../dokime-runtime" }
 
 # Error Handling
 thiserror = { workspace = true }
