@@ -61,7 +61,9 @@ STEPS = ("rust", "typescript", "python")
 def rust(profile: str) -> dict:
     """Compile Once, Then Stage Executables And The Plugin Bundle From That Output."""
     report = frontend.capture(profile, report=True)
-    compiled = archive.build(ROOT, profile, parents=[report], inputs=[frontend.REPORT])
+    # Development And Bench Archives Carry The Runtime's Story Hooks; Release Binaries Never Do.
+    stories = [] if profile == "release" else ["--features", "dokime-runtime/fault-injection"]
+    compiled = archive.build(ROOT, profile, stories, parents=[report], inputs=[frontend.REPORT])
     binaries = STAGED / "bin"
     clear_output(binaries)
     selected = outputs.executables(ROOT, compiled, EXECUTABLES)

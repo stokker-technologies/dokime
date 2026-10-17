@@ -79,6 +79,8 @@ fn executable_declares_routes() {
                 "obc-plugin.connection",
                 "obc-plugin.get_status",
                 "obc-plugin.list_connections",
+                // The ripple analysis the plugin contributes is an operation too.
+                "obc-plugin.ripple",
                 // Every template of every suite serves a run and a signal.
                 "obc.charger.protection.overcurrent.run",
                 "obc.charger.protection.overcurrent.signal",

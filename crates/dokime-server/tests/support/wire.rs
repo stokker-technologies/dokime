@@ -123,7 +123,7 @@ impl WireClient {
         harmos::grpc::Codec::new(
             harmos::grpc::DecodeSettings {
                 message_bytes: NonZeroUsize::new(self.decoding).unwrap(),
-                retained_bytes: NonZeroUsize::new(self.decoding).unwrap(),
+                retained_bytes: NonZeroUsize::new(self.decoding.saturating_mul(4)).unwrap(),
             },
             harmos::grpc::EncodeSettings {
                 message_bytes: NonZeroUsize::new(self.encoding).unwrap(),

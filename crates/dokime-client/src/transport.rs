@@ -137,8 +137,10 @@ where
 {
     let response_bytes = NonZeroUsize::new(response_bytes).ok_or(Error::IncompatibleApi)?;
     let request_bytes = NonZeroUsize::new(request_bytes).ok_or(Error::IncompatibleApi)?;
+    // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
+    let retained_bytes = NonZeroUsize::new(response_bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap();
     Codec::new(
-        DecodeSettings { message_bytes: response_bytes, retained_bytes: response_bytes },
+        DecodeSettings { message_bytes: response_bytes, retained_bytes },
         EncodeSettings { message_bytes: request_bytes, buffer_bytes: NonZeroUsize::new(request_bytes.get().min(8192)).unwrap() },
     )
     .map_err(Error::Rpc)

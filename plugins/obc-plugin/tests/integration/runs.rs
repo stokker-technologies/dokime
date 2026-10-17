@@ -105,7 +105,7 @@ async fn stopping_continuous_evidence() {
 
     let outcome = drain_runtime(&workflow, "continuous", None, true).await;
 
-    assert!(outcome.passed);
+    assert!(outcome.passed, "{:?} {:?}", outcome.message, outcome.criteria);
     assert!(outcome.message.as_deref().is_some_and(|message| message.starts_with("execution completed")));
     assert_eq!(outcome.criteria[0].status, SidecarCriterionStatus::Passed as i32);
     workflow.shutdown().await;

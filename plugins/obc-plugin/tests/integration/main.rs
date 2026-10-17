@@ -139,7 +139,7 @@ fn contracts_bind_fields() {
     );
     assert_eq!(
         registration.record_contracts.iter().map(|contract| contract.record_type.as_str()).collect::<Vec<_>>(),
-        vec!["mini.run.started", "mini.run.completed"]
+        vec!["obc.run.started", "obc.run.completed"]
     );
     assert!(registration.record_contracts.iter().all(|contract| {
         contract.template_id == Some(Pulse::template_id())

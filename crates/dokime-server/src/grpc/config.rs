@@ -129,7 +129,11 @@ impl Config {
             address: self.bind_addr,
             operations: harmos::grpc::server::Settings {
                 calls: NonZeroUsize::new(32).unwrap(),
-                decode: harmos::grpc::DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
+                // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
+                decode: harmos::grpc::DecodeSettings {
+                    message_bytes: bytes,
+                    retained_bytes: NonZeroUsize::new(bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap(),
+                },
                 encode: harmos::grpc::EncodeSettings {
                     message_bytes: bytes,
                     buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),

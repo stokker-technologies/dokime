@@ -122,6 +122,10 @@ pub(crate) enum LeaseOutcome {
 
 /* === Implementations === */
 impl ExecutionState {
+    pub(crate) fn has_local_samples(&self) -> bool {
+        !self.local_samples.is_empty()
+    }
+
     pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
         if self.local_samples.len() >= MAX_LOCAL_SAMPLES {
             return Err("local sample buffer is full; consume local evidence while executing".into());
@@ -141,6 +145,8 @@ impl ExecutionState {
             }
         }
         self.local_samples.push(sample);
+        // A Local Consumer Drains Samples As They Arrive, So Each One Wakes It.
+        self.changed.notify_one();
         Ok(())
     }
 
