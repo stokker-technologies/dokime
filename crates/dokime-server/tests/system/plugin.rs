@@ -312,6 +312,12 @@ async fn serves_startup(client: &Client) -> bool {
         .is_ok()
 }
 
+async fn status_ready(client: &Client) {
+    let frame = client.settings_get_settings(Default::default()).await.unwrap();
+    let card = frame.cards.iter().find(|card| card.plugin_id == "obc-plugin").expect("the OBC settings card is registered");
+    assert_eq!(card.state, contracts::settings::SettingsCardState::Ready, "the native status operation serves the installed plugin");
+}
+
 async fn installations(client: &Client) -> Vec<contracts::plugins::PluginInstallation> {
     client
         .plugins_list_installations(Default::default())
@@ -1002,6 +1008,7 @@ async fn plugin_host_walkthrough() {
     let mut host = Host::launch_in(&root.path().join("configured"), Some(&bundle)).await;
     let client = host.connect().await;
     assert!(serves_startup(&client).await);
+    status_ready(&client).await;
     assert!(installations(&client).await.is_empty());
 
     // Scene: Reloading Unchanged Bytes Keeps The Suites
@@ -1250,6 +1257,7 @@ async fn plugin_host_walkthrough() {
     assert_eq!(listed.len(), 1);
     assert!(listed[0].active && !listed[0].restart_required);
     assert!(serves_startup(&client).await);
+    status_ready(&client).await;
 
     // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
     let removed = client

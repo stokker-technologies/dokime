@@ -56,6 +56,7 @@ enum Settlement {
     Refused,
     Ignored,
     IgnoredSignal,
+    Failure,
 }
 
 /* === Traits === */
@@ -92,6 +93,10 @@ impl Runnable for Probe {
                 ..Default::default()
             }).await.map_err(Refusal::of)?;
             self.entered.notify_one();
+            if self.mode == Settlement::Failure {
+                self.released.subscribe().wait_for(|released| *released).await.unwrap();
+                return Err(Refusal::of("fixture run failure"));
+            }
             self.cancellation.subscribe().wait_for(|cancelled| *cancelled).await.unwrap();
             if matches!(self.mode, Settlement::Deferred | Settlement::Ignored | Settlement::IgnoredSignal) {
                 self.released.subscribe().wait_for(|released| *released).await.unwrap();
@@ -300,6 +305,41 @@ async fn ignored_stop(mode: Settlement) {
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     assert!(String::from_utf8(log.bytes).unwrap().contains("the run did not answer its stop within 30 seconds"));
     probe.released.send_replace(true);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn provider_failure_closes_stream_lease() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Failure));
+    let configuration = config(root.path())
+        .with_installed_plugins([dokime_host::installed_plugin()])
+        .register(Arc::new(Provider(probe.clone())));
+    let (mut owner, handle) = started(configuration).await;
+    handle.bind_host_telemetry_source(dokime_host::host_telemetry_collector(
+        dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture),
+    ));
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite), false).await;
+    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    let scope = cycle.test_executions[0].scope.clone();
+    let leases = handle.stream_leases_for(&scope).await;
+    assert_eq!(leases.len(), 1);
+    assert!(leases[0].closed_at.is_none());
+    probe.released.send_replace(true);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let failed = cycle_snapshot(&handle, &cycle_id).await;
+    assert_eq!(failed.lifecycle, CycleStatus::Failed);
+    assert_eq!(failed.test_executions[0].status, ExecutionStatus::Failed);
+    assert!(*probe.cancellation.borrow(), "failure cleanup cancels the provider");
+    let released = handle.stream_leases_for(&scope).await;
+    assert_eq!(released.len(), 1);
+    assert!(released[0].closed_at.is_some());
+    assert!(handle.watch_state().latest().state().installed_plugin_errors.iter().any(|error| error.code.as_deref() == Some("provider_execution_run")));
     drop(handle);
     owner.shutdown().await.unwrap();
 }
