@@ -139,10 +139,10 @@ async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str
         },
         ..TelemetrySelection::default()
     };
-    // TODO(source-hook): rows of a held embedded step become queryable without a telemetry watch item; a notification on ingest commit would replace this poll.
-    while handle.selected_telemetry(selection.clone()).await.len() < rows as usize {
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
+    until_telemetry(handle, || async {
+        (handle.selected_telemetry(selection.clone()).await.len() >= rows as usize).then_some(())
+    })
+    .await;
 }
 
 /// Runs One Case To Completion And Checks Its Criterion Saw Every Row Once.
