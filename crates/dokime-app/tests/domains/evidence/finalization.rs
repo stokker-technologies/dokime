@@ -24,7 +24,7 @@ use super::*;
 /// Ample for one interactive point read, but below what materializing OBC's
 /// full report costs in a debug build, so a finalization that borrowed the
 /// interactive query budget would fail.
-const STEADY_SUITE: &str = "mini.charger.steady";
+const STEADY_SUITE: &str = "obc.charger.steady";
 /// The steady suite sweeps three voltages across three loads.
 const STEADY_CASES: usize = 9;
 

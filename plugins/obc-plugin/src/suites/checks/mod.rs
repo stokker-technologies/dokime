@@ -25,7 +25,7 @@ pub use pulse::{
 /* === Constants === */
 // Third-Party Imports
 
-pub const ID: &str = "mini.checks";
+pub const ID: &str = "obc.checks";
 
 /* === Macros === */
 

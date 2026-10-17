@@ -96,7 +96,7 @@ fn road() -> Caller {
 fn measured<C: dokime::telemetry::TelemetryStream>(
     rows: impl IntoIterator<Item = C::Row>,
 ) -> dokime::plugin::testing::Harness {
-    dokime::plugin::testing::Harness::template("mini.checks.pulse").measuring::<C>(rows)
+    dokime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
 }
 
 /* === Tests === */
@@ -109,8 +109,8 @@ pub(crate) fn suite_export_bound() {
     // The suite workflow is transport-neutral; the host binds it to the loaded
     // sidecar artifact when admitting an execution.
     assert_eq!(suites.len(), 1);
-    assert_eq!(suites[0].suite_id, "mini.checks");
-    assert_eq!(suites[0].workflow.as_deref(), Some("mini.checks"));
+    assert_eq!(suites[0].suite_id, "obc.checks");
+    assert_eq!(suites[0].workflow.as_deref(), Some("obc.checks"));
 }
 
 pub(crate) fn contracts_bind_fields() {
@@ -120,7 +120,7 @@ pub(crate) fn contracts_bind_fields() {
     // declares it.
     let contract = &registration.telemetry_contracts[0];
 
-    assert_eq!(contract.stream.as_str(), "mini.pulse");
+    assert_eq!(contract.stream.as_str(), "obc.pulse");
     assert_eq!(contract.template_id, Some(Pulse::template_id()));
     assert_eq!(contract.validation_mode, Some(ValidationMode::Strict));
     assert!(!contract.allow_extra_fields);
@@ -149,7 +149,7 @@ pub(crate) fn contracts_bind_fields() {
             .iter()
             .map(|contract| contract.record_type.as_str())
             .collect::<Vec<_>>(),
-        vec!["mini.run.started", "mini.run.completed"]
+        vec!["obc.run.started", "obc.run.completed"]
     );
     assert!(registration.record_contracts.iter().all(|contract| {
         contract.template_id == Some(Pulse::template_id())
@@ -199,7 +199,7 @@ pub(crate) fn default_case_phases() {
             .iter()
             .map(|criterion| criterion.metadata.identifier.as_str())
             .collect::<Vec<_>>(),
-        vec!["mini.checks.pulse.acceptance"]
+        vec!["obc.checks.pulse.acceptance"]
     );
 }
 
@@ -227,7 +227,7 @@ pub(crate) async fn pulse_leases_unmeasured() {
     assert!(report.passed(), "{}", report.diagnostics());
     assert!(!report.samples::<obc_plugin::PulseRow>().is_empty());
 
-    let refused = dokime::plugin::testing::Harness::template("mini.checks.pulse")
+    let refused = dokime::plugin::testing::Harness::template("obc.checks.pulse")
         .parameter("capture_system", true)
         .parameter("sample_count", 2)
         .run::<obc_plugin::suites::Suites>()

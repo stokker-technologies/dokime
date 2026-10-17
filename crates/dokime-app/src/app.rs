@@ -39,7 +39,7 @@ pub(crate) type StateManager = harmos::state::StateManager<Dokime>;
 
 pub(crate) type Streams = harmos::streams::StreamManager<Dokime>;
 
-#[cfg(feature = "sim")]
+#[cfg(feature = "simulation")]
 pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
 
 /* === Structs === */
@@ -124,7 +124,7 @@ pub async fn launch(config: Config) -> crate::Result<crate::Runtime> {
     Ok(runtime)
 }
 
-#[cfg(feature = "sim")]
+#[cfg(feature = "simulation")]
 #[tracing::instrument(level = "debug", skip_all, fields(seed))]
 pub fn simulate(
     origin: impl Into<Origin>,

@@ -69,7 +69,7 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
         .test_suites()
         .await
         .into_iter()
-        .find(|suite| suite.source == "obc-plugin" && suite.suite_id == "mini.checks")
+        .find(|suite| suite.source == "obc-plugin" && suite.suite_id == "obc.checks")
         .expect("OBC suite registered");
     start_cases(
         runtime,

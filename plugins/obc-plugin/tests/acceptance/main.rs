@@ -440,7 +440,7 @@ impl PluginLifecycle for Host {
                 let Some(publication) = notice.published() else {
                     return;
                 };
-                if publication.stream() != "mini.pulse" {
+                if publication.stream() != "obc.pulse" {
                     return;
                 }
                 assert_eq!(publication.owner(), "obc-plugin");
@@ -752,8 +752,8 @@ impl Bench {
             execution_token: token.into(),
             test_execution_id: token.into(),
             test_cycle_id: cycle.to_string(),
-            workflow: "mini.checks".into(),
-            template_identifier: "mini.checks.pulse".into(),
+            workflow: "obc.checks".into(),
+            template_identifier: "obc.checks.pulse".into(),
             parameters_json: serde_json::to_string(parameters).unwrap(),
             secrets_json: "{}".into(),
         };
@@ -1017,7 +1017,7 @@ async fn samples_use_native_streams_and_keep_execution_context() {
     // Stop the actual plugin before reading its complete native stream.
     bench.plugins.shutdown(&mut bench.host).await.unwrap();
 
-    let stream = bench.runtime.streams.publication("mini.pulse", 1).unwrap();
+    let stream = bench.runtime.streams.publication("obc.pulse", 1).unwrap();
     assert_eq!(
         stream.definition().schema().unwrap(),
         &harmos::schema::graph::Schema::from_declaration(
@@ -1091,16 +1091,16 @@ fn executable_declares_identity_and_execution_routes() {
                 "obc-plugin.observers.observe",
                 "obc-plugin.ripple",
                 // Every template of every suite serves a run and a signal.
-                "mini.charger.protection.overcurrent.run",
-                "mini.charger.protection.overcurrent.signal",
-                "mini.charger.recovery.power.run",
-                "mini.charger.recovery.power.signal",
-                "mini.charger.startup.sequence.run",
-                "mini.charger.startup.sequence.signal",
-                "mini.charger.steady.measurement.run",
-                "mini.charger.steady.measurement.signal",
-                "mini.checks.pulse.run",
-                "mini.checks.pulse.signal",
+                "obc.charger.protection.overcurrent.run",
+                "obc.charger.protection.overcurrent.signal",
+                "obc.charger.recovery.power.run",
+                "obc.charger.recovery.power.signal",
+                "obc.charger.startup.sequence.run",
+                "obc.charger.startup.sequence.signal",
+                "obc.charger.steady.measurement.run",
+                "obc.charger.steady.measurement.signal",
+                "obc.checks.pulse.run",
+                "obc.checks.pulse.signal",
             ]
             .map(str::to_owned)
         )
@@ -1113,14 +1113,14 @@ fn executable_declares_identity_and_execution_routes() {
     assert_eq!(
         streams,
         [
-            "mini.charger.protection.samples",
-            "mini.charger.recovery.samples",
-            "mini.charger.startup.log",
-            "mini.charger.startup.samples",
-            "mini.charger.steady.events",
-            "mini.charger.steady.samples",
-            "mini.pulse",
             "obc-plugin.system",
+            "obc.charger.protection.samples",
+            "obc.charger.recovery.samples",
+            "obc.charger.startup.log",
+            "obc.charger.startup.samples",
+            "obc.charger.steady.events",
+            "obc.charger.steady.samples",
+            "obc.pulse",
         ]
     );
     assert_eq!("obc-plugin", declared.id);

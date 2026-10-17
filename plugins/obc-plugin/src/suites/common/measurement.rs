@@ -65,7 +65,7 @@ pub struct InputMeasurement {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) async fn publish<C, T, O, I>(
+pub(crate) async fn publish<C, T, O, I>(
     ctx: &mut StepContext<'_, T, O, I>,
     index: u64,
     reading: Reading,
@@ -79,7 +79,7 @@ pub(super) async fn publish<C, T, O, I>(
         .await;
 }
 
-pub(super) fn row(index: u64, reading: Reading, phase: &str) -> InputMeasurement {
+pub(crate) fn row(index: u64, reading: Reading, phase: &str) -> InputMeasurement {
     InputMeasurement {
         sample_index: index as i64,
         elapsed_s: reading.elapsed_s,
@@ -96,7 +96,7 @@ pub(super) fn row(index: u64, reading: Reading, phase: &str) -> InputMeasurement
     }
 }
 
-pub(super) fn document(stream: &str, title: &str) -> Document {
+pub(crate) fn document(stream: &str, title: &str) -> Document {
     let mut voltage = Plot::xy_line("Voltage");
     voltage.id(format!("{stream}.voltage"));
     voltage.unit("V");

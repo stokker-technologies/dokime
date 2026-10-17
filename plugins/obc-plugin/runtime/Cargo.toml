@@ -9,7 +9,7 @@ version = { workspace = true }
 
 [features]
 # Deterministic whole-app simulation, forwarded to the library that owns it.
-sim = ["harmos/simulation"]
+simulation = ["harmos/simulation"]
 
 [dependencies]
 # Git

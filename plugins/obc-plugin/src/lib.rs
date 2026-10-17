@@ -20,7 +20,7 @@ pub mod suites;
 /* === Re-Exports === */
 pub use error::Error;
 pub use settings::BenchSettings;
-pub use suites::{
+pub use suites::checks::{
     DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS,
     pulse_value,
 };

@@ -22,7 +22,7 @@ pub(crate) mod reboot;
 pub(crate) mod run;
 pub(crate) mod sampling;
 pub(crate) mod session;
-#[cfg(feature = "sim")]
+#[cfg(feature = "simulation")]
 pub(crate) mod simulation;
 pub(crate) mod storage;
 pub(crate) mod streams;

@@ -28,7 +28,7 @@
 // Asked before the startup sequence goes on. The charger is energized while
 // the operator looks, so the question is raised to Warning.
 #[dokime::prompt(
-    id = "mini.charger.startup.check",
+    id = "obc.charger.startup.check",
     label = "Inspect Powered Charger",
     submit = "Submit",
     level = warning,
@@ -44,7 +44,7 @@ pub struct StartupCheck {
 // Asked before the steady-state measurement decides, with the charger under
 // load, so the question is raised to Warning.
 #[dokime::prompt(
-    id = "mini.charger.steady.check",
+    id = "obc.charger.steady.check",
     label = "Inspect Charging State",
     submit = "Submit",
     level = warning,

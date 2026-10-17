@@ -28,13 +28,13 @@ capture host observations for an execution.
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
 - `src/operations/`, `src/listeners/`, `src/observers/`: bench interaction and process observation.
 - `src/analyses/`: the plot analyses the plugin contributes.
-- `src/suites/`: one module per suite, with typed parameters and shared measurement shape.
+- `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section and verdict helpers.
 - `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.
 - `runtime/`: the embedded Harmos bench application and deterministic device model.
 - `tests/suites/`: public lifecycle, cancellation, observer shutdown, and evidence checks.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
 
-All charger streams and records use the `mini.charger` namespace. `mini.pulse`
+All charger streams and records use the `obc.charger` namespace. `obc.pulse`
 is the bench signal check, and `obc-plugin.system` is process monitoring.
 `images_directory` optionally supplies a startup reference image. Operator and
 host identity are captured as traceability, not configured as template inputs.

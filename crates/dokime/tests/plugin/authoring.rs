@@ -492,7 +492,7 @@ pub(crate) fn template_reference_is_suite_scoped() {
     assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, TEMPLATE_ID);
     assert_eq!(template_identifier(SUITE_ID, TEMPLATE_ID), Ok(()));
     assert_eq!(
-        template_identifier("mini.charger.steady", "mini.charger.steady.charging_input"),
+        template_identifier("obc.charger.steady", "obc.charger.steady.charging_input"),
         Ok(())
     );
     for (template, refusal) in [

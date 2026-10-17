@@ -33,7 +33,7 @@ use dokime_app::{
 };
 
 /* === Constants === */
-const STEADY_SUITE: &str = "mini.charger.steady";
+const STEADY_SUITE: &str = "obc.charger.steady";
 /// Half a second at the steady suite's 1 ms step: about 500 rows per case.
 const STEADY_DURATION_S: f64 = 0.5;
 const SETTLE: Duration = Duration::from_secs(600);

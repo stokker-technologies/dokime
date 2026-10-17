@@ -21,8 +21,8 @@ pub use overcurrent::{Overcurrent, Samples};
 // Local Imports
 
 /* === Constants === */
-pub const SUITE: &str = "mini.charger.protection";
-pub const TEMPLATE: &str = "mini.charger.protection.overcurrent";
+pub const SUITE: &str = "obc.charger.protection";
+pub const TEMPLATE: &str = "obc.charger.protection.overcurrent";
 
 /* === Macros === */
 

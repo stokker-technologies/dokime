@@ -306,9 +306,9 @@ Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog
 show` lists it:
 
 ```sh
-dokime plan preview --template mini.charger.steady.measurement --backend lab --json
+dokime plan preview --template obc.charger.steady.measurement --backend lab --json
 dokime cycle create --label "Campaign 1" --backend lab --json
-dokime cycle append CYCLE_ID --template mini.charger.steady.measurement --backend lab --json
+dokime cycle append CYCLE_ID --template obc.charger.steady.measurement --backend lab --json
 ```
 
 A cycle is always created explicitly and empty; `cycle append` adds the cases a

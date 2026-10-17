@@ -1001,7 +1001,7 @@ fn execution_runs_contract() {
             false,
         );
     }
-    #[cfg(feature = "sim")]
+    #[cfg(feature = "simulation")]
     {
         eprintln!("Scenario: execution::simulation::declaration_boots_runtime");
         execution::simulation::declaration_boots_runtime();

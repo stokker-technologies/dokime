@@ -21,8 +21,8 @@ pub use sequence::{Samples, Startup};
 // Local Imports
 
 /* === Constants === */
-pub const STARTUP_SUITE: &str = "mini.charger.startup";
-pub const STARTUP_TEMPLATE: &str = "mini.charger.startup.sequence";
+pub const STARTUP_SUITE: &str = "obc.charger.startup";
+pub const STARTUP_TEMPLATE: &str = "obc.charger.startup.sequence";
 const STARTUP_TEMPLATE_ID: &str = "0197f000-0000-7000-8000-000000000001";
 
 /* === Macros === */

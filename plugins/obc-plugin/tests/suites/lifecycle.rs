@@ -65,7 +65,7 @@ fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
     RunExecutionRequest {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
-        test_cycle_id: dokime::core::TestCycleId::from_seed("mini.fixture.cycle").to_string(),
+        test_cycle_id: dokime::core::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
         test_execution_id: dokime::core::TestExecutionId::from_seed(token).to_string(),
         template_identifier: template.metadata.identifier.to_string(),
         workflow: suites::checks::ID.to_owned(),
@@ -251,7 +251,7 @@ pub(crate) async fn cancellation_measures_criterion() {
             );
             let started = records(std::slice::from_ref(&reply))
                 .iter()
-                .any(|record| record.record_type.as_str() == "mini.run.started");
+                .any(|record| record.record_type.as_str() == "obc.run.started");
             replies.push(reply);
             if started {
                 break;

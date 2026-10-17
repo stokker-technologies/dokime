@@ -231,13 +231,13 @@ pub(crate) async fn faults_contained_ready() {
             "overload",
             obc_plugin::suites::protection::SUITE,
             obc_plugin::suites::protection::TEMPLATE,
-            "mini.charger.protection.faulted",
+            "obc.charger.protection.faulted",
         ),
         (
             "power-loss",
             obc_plugin::suites::recovery::SUITE,
             obc_plugin::suites::recovery::TEMPLATE,
-            "mini.charger.recovery.cleared",
+            "obc.charger.recovery.cleared",
         ),
     ] {
         let mut request = runtime_request(token, false);
@@ -541,7 +541,7 @@ async fn drain_runtime<T: SidecarTemplate>(
         // A measured sample, not a row read from the charger's log.
         let measured = samples
             .iter()
-            .any(|sample| sample.stream.as_str() != "mini.charger.startup.log");
+            .any(|sample| sample.stream.as_str() != "obc.charger.startup.log");
         if stop_after_sample && !stopped && measured {
             workflow.cancel(token);
             stopped = true;

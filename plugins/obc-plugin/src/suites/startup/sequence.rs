@@ -17,9 +17,9 @@ use std::{path::PathBuf, time::Duration};
 // Third Party Imports
 
 // Local Imports
-use super::super::parameters::Startup as Inputs;
-use super::super::system;
 use super::*;
+use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
 use dokime::core::TemplateId;
 use dokime::document::{self, PlotDefinition, PlotStyle};
@@ -34,7 +34,9 @@ use dokime::prelude::*;
 use obc_runtime::device::{Device, Power};
 
 /* === Constants === */
-const STARTUP_STREAM: &str = "mini.charger.startup.samples";
+const CONNECTION_BUDGET_S: f64 = 30.0;
+
+const STARTUP_STREAM: &str = "obc.charger.startup.samples";
 
 /* === Macros === */
 
@@ -45,9 +47,9 @@ const STARTUP_STREAM: &str = "mini.charger.startup.samples";
 // the same physical thing and each owns the stream its evidence travels, so
 // the shape declares no home and every stream declares itself.
 #[dokime::stream(
-    id = "mini.charger.startup.samples",
+    id = "obc.charger.startup.samples",
     window = 4096,
-    row = super::super::measurement::InputMeasurement,
+    row = measurement::InputMeasurement,
     label = "Charger Input Samples"
 , description = "Measured AC voltage, current, and supply timing.")]
 pub struct Samples;
@@ -55,7 +57,7 @@ pub struct Samples;
 // Read from the charger's own log file, not measured: a matcher turns each
 // status line into one row.
 #[dokime::stream(
-    id = "mini.charger.startup.log",
+    id = "obc.charger.startup.log",
     window = 256,
     label = "Charger Log",
     description = "Input power the charger reported in its log file."
@@ -79,7 +81,7 @@ pub struct Startup {
 /* === Records === */
 
 #[dokime::record(
-    id = "mini.charger.startup.initialized",
+    id = "obc.charger.startup.initialized",
     label = "Charger Initialized",
     description = "The Charger was initialized for this attempt."
 )]
@@ -87,7 +89,7 @@ pub struct Startup {
 pub struct Initialized {}
 
 #[dokime::record(
-    id = "mini.charger.startup.started",
+    id = "obc.charger.startup.started",
     label = "AC Supply Energized",
     description = "The AC supply was energized."
 )]
@@ -95,7 +97,7 @@ pub struct Initialized {}
 pub struct Started {}
 
 #[dokime::record(
-    id = "mini.charger.startup.checkpoint",
+    id = "obc.charger.startup.checkpoint",
     label = "Review the charger status indicator and startup trace",
     description = "The operator was asked to look at the bench."
 )]
@@ -108,7 +110,7 @@ pub struct Checkpoint {
 }
 
 #[dokime::record(
-    id = "mini.charger.startup.completed",
+    id = "obc.charger.startup.completed",
     label = "Startup measurement and operator decision captured",
     description = "The startup measurement and the operator's decision, together."
 )]
@@ -122,6 +124,54 @@ pub struct Completed {
     pub operator_note: String,
     #[record(description = "Whether the startup behaved the way this procedure required.")]
     pub accepted: bool,
+}
+
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
+    pub ac_voltage_v: f64,
+    #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
+    pub load_ohm: f64,
+    #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
+    pub frequency_hz: f64,
+    #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
+    pub phase_deg: f64,
+    #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
+    pub current_limit_a: f64,
+    #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
+    pub duration_s: f64,
+    #[parameter(
+        label = "Simulation Sample Interval",
+        unit = "s",
+        default = 0.001,
+        min = FINEST_STEP_S,
+        max = COARSEST_STEP_S,
+    )]
+    pub sample_interval_s: f64,
+    #[parameter(label = "Attach measurement summary", default = true)]
+    pub emit_artifact: bool,
+    #[parameter(label = "Attach reference.png from image directory", default = false)]
+    pub attach_reference: bool,
+    #[parameter(label = "Pace samples in real time", default = true)]
+    pub realtime: bool,
+    #[parameter(
+        label = "Observe until stopped",
+        default = false,
+        description = "Whether a host stop is the expected end of this run, named once more on the template's own `graceful_stop`."
+    )]
+    pub continuous: bool,
+    #[parameter(
+        label = "Wait for the unit to report itself connected",
+        default = false
+    )]
+    pub await_connection: bool,
+    #[parameter(
+        label = "Connection wait budget",
+        unit = "s",
+        default = CONNECTION_BUDGET_S,
+        min = 0.0,
+    )]
+    pub connection_budget_s: f64,
 }
 
 /* === Enums === */
@@ -166,6 +216,8 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
+bench!(Parameters);
+
 #[dokime::template(
     id = STARTUP_TEMPLATE, label = "Power Up the Charger",
     template_id = TemplateId::from_uuid(STARTUP_TEMPLATE_ID).expect("startup template UUID"),
@@ -179,10 +231,10 @@ pub enum Streams {
     records = Records,
     streams = Streams,
     attributes(path = "Testbench/Startup", provider = "sidecar"),
-    parameters = Inputs, description = "Measure AC startup inrush, inspect the Charger, then observe settling.")]
+    parameters = Parameters, description = "Measure AC startup inrush, inspect the Charger, then observe settling.")]
 impl Startup {
     async fn initialize(
-        inputs: &Inputs,
+        inputs: &Parameters,
         ctx: &mut InitializationContext<'_>,
     ) -> Result<Self, Error> {
         // The route rather than the handle: a template names no plugin at all,
@@ -348,7 +400,7 @@ impl Startup {
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Checkpoint {
             sample_index: self.produced,
-            prompt_type: "mini.charger.startup.check".into(),
+            prompt_type: "obc.charger.startup.check".into(),
         })
         .await;
         ctx.info("record=prompt_requested");
@@ -432,7 +484,7 @@ impl Startup {
     }
 
     #[dokime::criterion(
-        id = "mini.charger.startup.acceptance",
+        id = "obc.charger.startup.acceptance",
         label = "Startup trace and operator inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
     )]
@@ -446,7 +498,7 @@ impl Startup {
             return Ok(last.phase != "fault");
         }
         Ok(samples.len() as u64 >= ctx.parameters().sample_count()?
-            && super::super::support::decided(ctx.records::<Completed>(), |run| run.accepted)?)
+            && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
     }
 }
 
@@ -475,7 +527,7 @@ async fn publish_runtime_sample<T, O, I>(
     } else {
         "after_prompt"
     };
-    super::super::measurement::publish::<Samples, _, _, _>(ctx, index, reading, phase).await;
+    measurement::publish::<Samples, _, _, _>(ctx, index, reading, phase).await;
 
     Ok(())
 }
@@ -568,7 +620,7 @@ fn startup_document() -> Document {
     // === What One Execution Shows === //
 
     let mut voltage = Plot::time_series("AC Voltage");
-    voltage.id("mini.charger.startup.sequence.signals");
+    voltage.id("obc.charger.startup.sequence.signals");
     voltage.unit("V");
     voltage.style(PlotStyle::LinePoints);
     voltage.y(signal("voltage_v"));
@@ -588,32 +640,32 @@ fn startup_document() -> Document {
 
     let mut distributions = Section::new("Signal Distributions");
     distributions.plot(voltage_distribution(
-        "mini.charger.startup.sequence.voltage_distribution",
+        "obc.charger.startup.sequence.voltage_distribution",
     ));
     distributions.plot(current_distribution(
-        "mini.charger.startup.sequence.current_distribution",
+        "obc.charger.startup.sequence.current_distribution",
     ));
     distributions.plot(voltage_by_phase(
-        "mini.charger.startup.sequence.voltage_by_phase",
+        "obc.charger.startup.sequence.voltage_by_phase",
     ));
     document.section(distributions);
 
     let mut phase_breakdown = Section::new("Phase Breakdown");
     phase_breakdown.plot(mean_signal_by_phase(
-        "mini.charger.startup.sequence.mean_signal_by_phase",
+        "obc.charger.startup.sequence.mean_signal_by_phase",
     ));
     phase_breakdown.plot(sample_count_by_phase(
-        "mini.charger.startup.sequence.sample_count_by_phase",
+        "obc.charger.startup.sequence.sample_count_by_phase",
     ));
     phase_breakdown.plot(signal_correlation(
-        "mini.charger.startup.sequence.signal_correlation",
+        "obc.charger.startup.sequence.signal_correlation",
     ));
     document.section(phase_breakdown);
 
     // === The Current, And The Host Around It === //
 
     let mut current = Plot::time_series("AC Current");
-    current.id("mini.charger.startup.sequence.current");
+    current.id("obc.charger.startup.sequence.current");
     current.unit("A");
     current.y(signal("current_a"));
     current.y(signal("current_rms_a"));

@@ -32,15 +32,15 @@ use dokime_client::{Client, Target, contracts};
 use dokime_server::grpc::{Config as ServerConfig, Server};
 
 /* === Constants === */
-const STARTUP_SUITE: &str = "mini.charger.startup";
-const STARTUP_TEMPLATE: &str = "mini.charger.startup.sequence";
-const STARTUP_SAMPLES: &str = "mini.charger.startup.samples";
-const STARTUP_STREAM_LOG: &str = "mini.charger.startup/stream.log";
+const STARTUP_SUITE: &str = "obc.charger.startup";
+const STARTUP_TEMPLATE: &str = "obc.charger.startup.sequence";
+const STARTUP_SAMPLES: &str = "obc.charger.startup.samples";
+const STARTUP_STREAM_LOG: &str = "obc.charger.startup/stream.log";
 const STARTUP_SAMPLE_COUNT: u64 = 40;
-const STEADY_SUITE: &str = "mini.charger.steady";
-const STEADY_TEMPLATE: &str = "mini.charger.steady.measurement";
-const STEADY_SAMPLES: &str = "mini.charger.steady.samples";
-const STEADY_EVENTS: &str = "mini.charger.steady.events";
+const STEADY_SUITE: &str = "obc.charger.steady";
+const STEADY_TEMPLATE: &str = "obc.charger.steady.measurement";
+const STEADY_SAMPLES: &str = "obc.charger.steady.samples";
+const STEADY_EVENTS: &str = "obc.charger.steady.events";
 
 const CONNECTION_RECORD: &str = "tool.connection.acquired";
 
@@ -54,11 +54,11 @@ const HOST_STREAMS: &[&str] = &[
     "host.wifi.channel_occupancy",
     "host.bluetooth",
 ];
-const STEADY_STREAM_LOG: &str = "mini.charger.steady/stream.log";
+const STEADY_STREAM_LOG: &str = "obc.charger.steady/stream.log";
 const STEADY_HOST_SYSTEM: &str = "host.system";
 const STEADY_SAMPLE_COUNT: u64 = 240;
-const STEADY_PROMPT: &str = "mini.charger.steady.check";
-const STEADY_ACCEPTANCE: &str = "mini.charger.steady.acceptance";
+const STEADY_PROMPT: &str = "obc.charger.steady.check";
+const STEADY_ACCEPTANCE: &str = "obc.charger.steady.acceptance";
 const STEADY_SUMMARY: &str = "charger/steady-state-summary.json";
 
 /* === Macros === */
@@ -478,7 +478,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
             .as_ref()
             .expect("prompt definition")
             .prompt_type,
-        "mini.charger.startup.check"
+        "obc.charger.startup.check"
     );
     let prompt_scope = pending.scope.expect("prompt scope");
     let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
@@ -997,7 +997,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
             Some(contracts::documents::DocumentFrameFrame::Card(card)) => {
                 if let Some(contracts::documents::DocumentCardBody::Owner(reference)) = card.body
                     && reference.plot_id.as_deref()
-                        == Some("mini.charger.steady.measurement.execution.signals")
+                        == Some("obc.charger.steady.measurement.execution.signals")
                 {
                     let plot = reference.plot.expect("plot definition");
                     let request = plot.request.expect("plot request");
@@ -1045,10 +1045,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         .await
         .unwrap()
         .records;
-    for record_type in [
-        "mini.charger.steady.started",
-        "mini.charger.steady.completed",
-    ] {
+    for record_type in ["obc.charger.steady.started", "obc.charger.steady.completed"] {
         let record = records
             .iter()
             .find(|record| record.record_type == record_type)
@@ -1330,7 +1327,7 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
     let stream = plots
         .plots_watch(contracts::plots::PlotWatchRequest {
             requests: vec![contracts::plots::PlotRequest {
-                plot_id: Some("mini.charger.primary".into()),
+                plot_id: Some("obc.charger.primary".into()),
                 plot_type: contracts::plots::PlotType::TimeSeries,
                 x_scale: contracts::plots::AxisScale::Unspecified,
                 y_scale: contracts::plots::AxisScale::Unspecified,

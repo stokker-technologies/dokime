@@ -17,11 +17,12 @@
 // Third Party Imports
 
 // Local Imports
-use super::super::parameters::Protection;
-use super::super::system::{self, SystemInputs};
-use super::super::{measurement, support};
 use super::TEMPLATE;
 use crate::error::Error;
+use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::suites::common::system::{self, SystemInputs};
+use crate::suites::common::{measurement, readiness, verdicts};
+use dokime::definition::ParameterDefault;
 use dokime::prelude::*;
 use obc_runtime::device::{Device, Fault, Power, Reading};
 
@@ -32,7 +33,7 @@ use obc_runtime::device::{Device, Fault, Power, Reading};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::stream(id = "mini.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+#[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
 pub struct Overcurrent {
@@ -47,7 +48,7 @@ pub struct Overcurrent {
 /* === Records === */
 
 #[dokime::record(
-    id = "mini.charger.protection.initialized",
+    id = "obc.charger.protection.initialized",
     label = "Charger initialized",
     description = "The Charger was initialized for this attempt."
 )]
@@ -55,7 +56,7 @@ pub struct Overcurrent {
 pub struct Initialized {}
 
 #[dokime::record(
-    id = "mini.charger.protection.started",
+    id = "obc.charger.protection.started",
     label = "Charger energized",
     description = "The supply was energized."
 )]
@@ -63,7 +64,7 @@ pub struct Initialized {}
 pub struct Started {}
 
 #[dokime::record(
-    id = "mini.charger.protection.faulted",
+    id = "obc.charger.protection.faulted",
     label = "Overcurrent latch opened the Charger supply",
     description = "The overcurrent latch opened the supply."
 )]
@@ -71,7 +72,7 @@ pub struct Started {}
 pub struct Faulted {}
 
 #[dokime::record(
-    id = "mini.charger.protection.stopped",
+    id = "obc.charger.protection.stopped",
     label = "Charger supply de-energized; any fault latch remains set",
     description = "The procedure left the Charger safely disconnected, and what it decided."
 )]
@@ -86,6 +87,43 @@ pub struct Stopped {
         description = "Which rung of the load ladder opened the latch, counted from one, or zero when no declared impedance reached the limit."
     )]
     pub tripped_at_step: u64,
+}
+
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
+    pub ac_voltage_v: f64,
+    #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
+    pub load_ohm: f64,
+    #[parameter(
+        label = "Load Steps",
+        unit = "ohm",
+        expansion = "cartesian",
+        min = 0.1,
+        min_items = 1,
+        max_items = 16,
+        default = ParameterDefault::literal(dokime::core::Value::Array(::std::vec![
+            dokime::core::Value::Number(100.0),
+            dokime::core::Value::Number(50.0),
+            dokime::core::Value::Number(10.0),
+        ])), description = "The impedances the procedure applies in order, starting from the one the Charger was energized at. Declared in ohms like the load it replaces.")]
+    pub load_steps: Vec<f64>,
+    #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
+    pub frequency_hz: f64,
+    #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
+    pub phase_deg: f64,
+    #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
+    pub current_limit_a: f64,
+    #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
+    pub duration_s: f64,
+    #[parameter(
+        label = "Simulation Sample Interval",
+        unit = "s",
+        default = 0.001,
+        min = FINEST_STEP_S,
+        max = COARSEST_STEP_S,
+    )]
+    pub sample_interval_s: f64,
 }
 
 /* === Enums === */
@@ -110,18 +148,20 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
+bench!(Parameters);
+
 #[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
     subscribes = SystemInputs,
     records = Records,
     streams = Streams,
-    parameters = Protection, description = "Walk the declared ladder of loads and verify that the RMS protection latch disconnects the Charger.")]
+    parameters = Parameters, description = "Walk the declared ladder of loads and verify that the RMS protection latch disconnects the Charger.")]
 impl Overcurrent {
     async fn initialize(
-        supply: &Protection,
+        supply: &Parameters,
         ctx: &mut InitializationContext<'_>,
     ) -> Result<Self, Error> {
-        super::super::support::ready(ctx).await?;
+        readiness::ready(ctx).await?;
         Ok(Self {
             device: Device::initialize(supply.supply()).map_err(Error::Device)?,
             fault_observed: false,
@@ -218,12 +258,12 @@ impl Overcurrent {
     }
 
     #[dokime::criterion(
-        id = "mini.charger.protection.latch",
+        id = "obc.charger.protection.latch",
         label = "Overcurrent disconnects and prevents restart",
         description = "Passed once the overload latched a fault and blocked the restart."
     )]
     fn protected(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        support::decided(ctx.records::<Stopped>(), |stopped| stopped.accepted)
+        verdicts::decided(ctx.records::<Stopped>(), |stopped| stopped.accepted)
     }
 }
 

@@ -155,7 +155,7 @@ export type TestCase = {
 export type SuiteTemplateEntry = {
   /** Internal registered UUID; never shown to people. */
   template_id: string;
-  /** Readable hierarchical identifier (`mini.charger.steady.measurement`) the
+  /** Readable hierarchical identifier (`obc.charger.steady.measurement`) the
    *  CLI and Python client accept; absent when the catalog does not carry one. */
   identifier?: string | null;
   name: string;

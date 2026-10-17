@@ -9,20 +9,13 @@
 
 /* === Modules === */
 pub mod checks;
-mod measurement;
-pub mod parameters;
+pub mod common;
 pub mod protection;
 pub mod recovery;
 pub mod startup;
 pub mod steady;
-mod support;
-pub mod system;
 
 /* === Re-Exports === */
-pub use checks::{
-    DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS,
-    pulse_value,
-};
 
 /* === Imports === */
 // Standard Library Imports
@@ -42,7 +35,7 @@ pub use checks::{
 /* === Enums === */
 #[dokime::catalog]
 pub enum Suites {
-    ObcChecks(ObcChecks),
+    ObcChecks(checks::ObcChecks),
     StartupSuite(startup::StartupSuite),
     SteadySuite(steady::SteadySuite),
     ProtectionSuite(protection::Suite),

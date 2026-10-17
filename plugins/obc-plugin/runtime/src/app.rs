@@ -34,7 +34,7 @@ pub type Handle = harmos::runtime::Handle<ChargerBench>;
 
 pub type State = harmos::state::ManagedState<ChargerBench>;
 
-#[cfg(feature = "sim")]
+#[cfg(feature = "simulation")]
 pub type Simulated = harmos::simulation::SimulatedRuntime<ChargerBench>;
 
 /* === Structs === */
@@ -67,7 +67,7 @@ pub async fn launch(origin: impl Into<Origin>) -> Result<Runtime, LaunchError> {
     Ok(builder(origin, ()).runtime().await?)
 }
 
-#[cfg(feature = "sim")]
+#[cfg(feature = "simulation")]
 pub fn simulate(
     origin: impl Into<Origin>,
     seed: u64,

@@ -21,10 +21,10 @@ pub use measurement::{BenchEvent, Samples, Steady};
 // Local Imports
 
 /* === Constants === */
-pub const STEADY_SUITE: &str = "mini.charger.steady";
-pub const STEADY_TEMPLATE: &str = "mini.charger.steady.measurement";
+pub const STEADY_SUITE: &str = "obc.charger.steady";
+pub const STEADY_TEMPLATE: &str = "obc.charger.steady.measurement";
 const STEADY_TEMPLATE_ID: &str = "0197f000-0000-7000-8000-000000000002";
-pub const STEADY_ACCEPTANCE_CRITERION: &str = "mini.charger.steady.acceptance";
+pub const STEADY_ACCEPTANCE_CRITERION: &str = "obc.charger.steady.acceptance";
 pub const STEADY_ACCEPTANCE_CRITERION_LABEL: &str = "Charging Input Measurement";
 
 /* === Macros === */

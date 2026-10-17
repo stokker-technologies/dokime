@@ -21,8 +21,8 @@ pub use power::{PowerLoss, Samples};
 // Local Imports
 
 /* === Constants === */
-pub const SUITE: &str = "mini.charger.recovery";
-pub const TEMPLATE: &str = "mini.charger.recovery.power";
+pub const SUITE: &str = "obc.charger.recovery";
+pub const TEMPLATE: &str = "obc.charger.recovery.power";
 
 /* === Macros === */
 

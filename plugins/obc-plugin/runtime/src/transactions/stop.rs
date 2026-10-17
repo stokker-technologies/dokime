@@ -27,7 +27,7 @@ use crate::{Error, Testbench};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(id = "mini.bench.stop", version = 1, irreversible)]
+#[harmos::transaction(id = "obc.bench.stop", version = 1, irreversible)]
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Stop;
 

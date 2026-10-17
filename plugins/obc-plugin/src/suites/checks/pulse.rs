@@ -20,12 +20,12 @@ use std::time::Duration;
 // Local Imports
 // Third-Party Imports
 use crate::error::Error;
-use crate::suites::system::{self, SystemInputs};
+use crate::suites::common::system::{self, SystemInputs};
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 
 /* === Constants === */
-pub const ACCEPTANCE: &str = "mini.checks.pulse.acceptance";
+pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
 const LABEL: &str = "Pulse";
 
 pub const DEFAULT_SAMPLE_COUNT: i64 = 8;
@@ -46,7 +46,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 /* === Records === */
 
 #[dokime::record(
-    id = "mini.run.started",
+    id = "obc.run.started",
     label = "Run started",
     description = "The run has begun.\nDeclared here, beside the step that publishes it, and named once on the template's `records = Records`. The struct is the contract: there is no id to keep in agreement with a separate declaration."
 )]
@@ -54,7 +54,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 pub struct RunStarted {}
 
 #[dokime::record(
-    id = "mini.run.completed",
+    id = "obc.run.completed",
     label = "Run completed",
     description = "The run finished, and this is what it produced."
 )]
@@ -77,7 +77,7 @@ pub struct PulseResources {
 // resolved from its Rust type, so `value: f64` is a number column because the
 // compiler said so.
 #[dokime::stream(
-    id = "mini.pulse",
+    id = "obc.pulse",
     window = 4096,
     label = "OBC Pulse",
     description = "Deterministic samples produced inside the OBC plugin."
@@ -128,7 +128,7 @@ pub enum ObserverStreams {
 
 /* === Implementations === */
 #[dokime::template(
-    id = "mini.checks.pulse",
+    id = "obc.checks.pulse",
     label = LABEL,
     tags = ["example", "sidecar"],
     attributes(path = "OBC/Pulse"),
@@ -150,7 +150,7 @@ impl Pulse {
 
     fn document() -> Document {
         let mut pulse = Plot::time_series("Pulse");
-        pulse.id("mini.checks.pulse.signals");
+        pulse.id("obc.checks.pulse.signals");
         pulse.unit("a.u.");
         pulse.style(PlotStyle::LinePoints);
         pulse.y(PulseRow::column_value());
@@ -159,9 +159,9 @@ impl Pulse {
         let mut signals = Section::new("Pulse");
         signals.plot(pulse);
 
-        let mut document = Document::new("mini.checks.pulse.document", LABEL);
+        let mut document = Document::new("obc.checks.pulse.document", LABEL);
         document.section(signals);
-        document.section(system::section("mini.checks.pulse"));
+        document.section(system::section("obc.checks.pulse"));
 
         document
     }

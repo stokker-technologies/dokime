@@ -21,12 +21,14 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use super::super::measurement::InputMeasurement;
-use super::super::parameters::Steady as Inputs;
-use super::super::system::{self, SystemInputs};
 use super::*;
+use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::suites::common::measurement::InputMeasurement;
+use crate::suites::common::system::{self, SystemInputs};
+use crate::suites::common::{readiness, verdicts};
 use crate::{error::Error, prompts::checkpoint};
 use dokime::core::TemplateId;
+use dokime::definition::ParameterDefault;
 use dokime::document::{PlotDefinition, PlotStyle};
 use dokime::expressions::telemetry;
 use dokime::prelude::*;
@@ -35,7 +37,7 @@ use obc_runtime::device::Device;
 /* === Constants === */
 const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 
-const STEADY_STREAM: &str = "mini.charger.steady.samples";
+const STEADY_STREAM: &str = "obc.charger.steady.samples";
 
 /* === Macros === */
 
@@ -58,7 +60,7 @@ pub struct Steady {
 // stream its evidence travels, so the shape declares no home and every
 // stream declares itself.
 #[dokime::stream(
-    id = "mini.charger.steady.samples",
+    id = "obc.charger.steady.samples",
     window = 4096,
     row = InputMeasurement,
     label = "Steady-State AC Measurements"
@@ -71,7 +73,7 @@ pub struct Samples;
 // this row type, so its contract exists with nothing sampling it, and the step
 // that observes the event pushes the row.
 #[dokime::stream(
-    id = "mini.charger.steady.events",
+    id = "obc.charger.steady.events",
     window = 4096,
     label = "Steady-State Supply Events",
     description = "What happened to the Charger's supply, as the measuring step saw it."
@@ -88,7 +90,7 @@ pub struct BenchEvent {
 /* === Records === */
 
 #[dokime::record(
-    id = "mini.charger.steady.initialized",
+    id = "obc.charger.steady.initialized",
     label = "Steady-state Charger initialized",
     description = "The Charger was initialized for this attempt."
 )]
@@ -96,7 +98,7 @@ pub struct BenchEvent {
 pub struct Initialized {}
 
 #[dokime::record(
-    id = "mini.charger.steady.started",
+    id = "obc.charger.steady.started",
     label = "Steady-state Charger energized",
     description = "The supply was energized."
 )]
@@ -104,7 +106,7 @@ pub struct Initialized {}
 pub struct Started {}
 
 #[dokime::record(
-    id = "mini.charger.steady.completed",
+    id = "obc.charger.steady.completed",
     label = "Steady-state measurement and operator decision captured",
     description = "The steady-state measurement and the operator's decision, together."
 )]
@@ -114,6 +116,40 @@ pub struct Completed {
     pub sample_count: u64,
     #[record(description = "Whether the measurement behaved the way this procedure required.")]
     pub accepted: bool,
+}
+
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(
+        label = "AC Voltage (RMS)",
+        unit = "V",
+        expansion = "cartesian",
+        default = ParameterDefault::space([207.0, 230.0, 253.0]),
+    )]
+    pub ac_voltage_v: f64,
+    #[parameter(
+        label = "Load Impedance Magnitude",
+        unit = "ohm",
+        expansion = "cartesian",
+        default = ParameterDefault::linspace(80.0, 120.0, 3),
+    )]
+    pub load_ohm: f64,
+    #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
+    pub frequency_hz: f64,
+    #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
+    pub phase_deg: f64,
+    #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
+    pub current_limit_a: f64,
+    #[parameter(label = "Observation Duration", unit = "s", default = 0.05, min = SHORTEST_S)]
+    pub duration_s: f64,
+    #[parameter(
+        label = "Simulation Sample Interval",
+        unit = "s",
+        default = 0.001,
+        min = FINEST_STEP_S,
+        max = COARSEST_STEP_S,
+    )]
+    pub sample_interval_s: f64,
 }
 
 /* === Enums === */
@@ -147,6 +183,8 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
+bench!(Parameters);
+
 #[dokime::template(
     id = STEADY_TEMPLATE, label = "Charging Input Measurement",
     requires = Required,
@@ -165,13 +203,13 @@ pub enum ObserverStreams {
     // this file, bound to this template.
     records = Records,
     attributes(path = "Testbench/Steady State", provider = "sidecar"),
-    parameters = Inputs, description = "Sweep AC voltage and load while the SDK samples one shared Charger.")]
+    parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples one shared Charger.")]
 impl Steady {
     async fn initialize(
-        _: &Inputs,
+        _: &Parameters,
         ctx: &mut InitializationContext<'_>,
     ) -> Result<(Self, SteadyResources), Error> {
-        super::super::support::ready(ctx).await?;
+        readiness::ready(ctx).await?;
         let template = Self {
             accepted: false,
             prompt_action: String::new(),
@@ -358,7 +396,7 @@ impl Steady {
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         Ok(
             ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
-                && super::super::support::decided(ctx.records::<Completed>(), |run| run.accepted)?,
+                && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?,
         )
     }
 
@@ -402,7 +440,7 @@ fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
     })
 }
 
-fn nominal(ctx: &StepContext<'_, Steady, SteadyResources, Inputs>) -> Result<f64, Error> {
+fn nominal(ctx: &StepContext<'_, Steady, SteadyResources, Parameters>) -> Result<f64, Error> {
     Ok(ctx
         .resources()
         .device
@@ -426,7 +464,7 @@ fn steady_voltage(identifier: &str) -> PlotDefinition {
 
 fn steady_current() -> PlotDefinition {
     let mut plot = Plot::time_series("Current");
-    plot.id("mini.charger.steady.measurement.current");
+    plot.id("obc.charger.steady.measurement.current");
     plot.unit("A");
     plot.y(telemetry(STEADY_STREAM, "current_a"));
 
@@ -436,7 +474,7 @@ fn steady_current() -> PlotDefinition {
 fn steady_document() -> Document {
     let mut execution = Section::new("AC Voltage");
     execution.plot(steady_voltage(
-        "mini.charger.steady.measurement.execution.signals",
+        "obc.charger.steady.measurement.execution.signals",
     ));
     execution.plot(steady_current());
 
@@ -462,7 +500,7 @@ fn steady_document() -> Document {
         ),
     ] {
         let mut plot = Plot::time_series(label);
-        plot.id(format!("mini.charger.steady.{}", column.field()));
+        plot.id(format!("obc.charger.steady.{}", column.field()));
         plot.unit(unit);
         plot.y(column.on(STEADY_STREAM));
         charging.plot(plot);
