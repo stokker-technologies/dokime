@@ -31,7 +31,6 @@ tracing-error = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-regex = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 uuid = { workspace = true, features = ["js"] }

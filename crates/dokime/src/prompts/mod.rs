@@ -10,6 +10,7 @@
 /* === Modules === */
 mod authoring;
 mod declared;
+mod validation;
 
 /* === Re-Exports === */
 pub use authoring::{
@@ -18,6 +19,7 @@ pub use authoring::{
 };
 pub use declared::{DeclaredPrompt, PromptFieldValue};
 pub use dokime_contract::prompts::*;
+pub use validation::{validate_answers, validate_definition, validate_fields};
 
 pub use declared::{
     answered, confirmation_answer, declared_confirmation, declared_default, declared_field,
