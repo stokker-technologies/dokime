@@ -30,8 +30,8 @@ import { recordClockLabel, recordLevelTextClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
-import { consoleTailPinned } from "./console-follow";
-import { consoleRecordsStore, type ConsoleRecords } from "./console-buffer";
+import { type ConsoleRecords, consoleRecordsStore } from "./console-buffer";
+import { consoleFollowsTail, consoleTailPinned } from "./console-follow";
 
 // Local Imports
 
@@ -246,6 +246,8 @@ function RecordWindow({
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  // Where the operator last left the list, read synchronously on each scroll.
+  const pinned = useRef(true);
   const [height, setHeight] = useState(0);
   const populated = rows.length > 0;
   const tail = rows.at(-1)?.record_id;
@@ -263,7 +265,7 @@ function RecordWindow({
   // biome-ignore lint/correctness/useExhaustiveDependencies: a resize re-pins a following list
   useLayoutEffect(() => {
     const node = viewport.current;
-    if (node && follow && tail) node.scrollTop = node.scrollHeight;
+    if (node && consoleFollowsTail(follow, pinned.current) && tail) node.scrollTop = node.scrollHeight;
   }, [follow, height, tail]);
 
   const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
@@ -273,8 +275,9 @@ function RecordWindow({
   const onScroll = (event: UIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
     setScrollTop(node.scrollTop);
-    if (!onFollowChange) return;
     const next = consoleTailPinned(node);
+    pinned.current = next;
+    if (!onFollowChange) return;
     if (next !== follow) onFollowChange(next);
   };
 
@@ -296,7 +299,10 @@ function RecordWindow({
       {onFollowChange && !follow ? (
         <Button
           className="absolute right-[var(--shell-inset)] bottom-2 shadow-sm"
-          onClick={() => onFollowChange(true)}
+          onClick={() => {
+            pinned.current = true;
+            onFollowChange(true);
+          }}
           size="sm"
           variant="secondary"
         >

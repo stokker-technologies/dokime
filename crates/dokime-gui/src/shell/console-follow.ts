@@ -38,3 +38,13 @@ export const FOLLOW_SLACK_PX = 22;
 export function consoleTailPinned({ clientHeight, scrollHeight, scrollTop }: ScrollMetrics, slack: number = FOLLOW_SLACK_PX): boolean {
   return scrollHeight - scrollTop - clientHeight <= slack;
 }
+
+/**
+ * Whether a new row pulls the list to its tail. The geometry the operator
+ * last scrolled to decides, not the drawer's follow flag alone: that flag
+ * reaches the list a render after the wheel, and a row landing in between
+ * would otherwise snap the list back down before the release takes effect.
+ */
+export function consoleFollowsTail(follow: boolean, pinnedAtLastScroll: boolean): boolean {
+  return follow && pinnedAtLastScroll;
+}

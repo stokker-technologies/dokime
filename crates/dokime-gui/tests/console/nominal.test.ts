@@ -21,7 +21,7 @@ import {
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
 } from "@/shell/console-buffer";
-import { consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+import { consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
 
 /* === Fixture === */
 
@@ -87,6 +87,11 @@ test("Tail Follow", () => {
 
   // A List Too Short To Scroll Is Always On Its Tail
   assert.equal(consoleTailPinned({ clientHeight: 200, scrollHeight: 120, scrollTop: 0 }), true);
+
+  // A Row Landing Before The Release Reaches The Drawer Leaves The Operator Where They Scrolled
+  assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM - 300))), false);
+  assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM))), true);
+  assert.equal(consoleFollowsTail(false, true), false);
 });
 
 test("Record Buffers", () => {
