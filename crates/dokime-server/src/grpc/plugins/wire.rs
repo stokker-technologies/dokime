@@ -22,7 +22,6 @@ use super::super::value::canonical;
 use super::value;
 use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-use harmos::domain::Portable;
 use tonic::Status;
 
 /* === Constants === */

@@ -16,7 +16,7 @@
 use std::sync::Arc;
 // Third Party Imports
 use futures_util::FutureExt;
-use harmos::operations::{Context, Operation, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy};
+use harmos::operations::{Context, Operation, OperationPolicy, RestartPolicy, RetryPolicy};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::app::Lanes;

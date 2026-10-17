@@ -26,17 +26,11 @@ pub use watch_file::WatchFile;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
-use crate::model::content::wire::ArtifactMetadata;
-use crate::model::telemetry::TelemetryRow;
-use crate::model::telemetry::TelemetryStream;
-use crate::model::values::ValueType;
 
 use crate::model::files::wire::*;
 

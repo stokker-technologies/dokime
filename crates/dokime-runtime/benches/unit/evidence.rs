@@ -24,7 +24,7 @@ use criterion::{BenchmarkId, Criterion, Throughput};
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::{RecordSelection, TelemetrySelection};
 use dokime_runtime::telemetry::TelemetrySample;
-use dokime_runtime::{Identifier, Timestamp, Value};
+use dokime_runtime::{Identifier, Value};
 use {dokime_runtime::records::RecordSeverity, model::records::evidence::Record, model::records::evidence::RecordEntry};
 
 /* === Constants === */

@@ -18,8 +18,6 @@ pub use list_samples::ListSamples;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;
@@ -27,7 +25,6 @@ use super::Endpoint;
 use super::ORDINARY;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::values::wire::Value;
 
 use crate::model::telemetry::wire::*;
 

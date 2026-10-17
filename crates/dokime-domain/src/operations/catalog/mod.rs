@@ -28,8 +28,6 @@ pub use list_telemetry_schemas::ListTelemetrySchemas;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;
@@ -38,10 +36,8 @@ use super::ORDINARY;
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
-use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::values::wire::Value;
 
 use crate::model::catalog::wire::*;
 

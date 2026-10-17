@@ -64,11 +64,11 @@ fn validate_payload(
         if default_mode == ValidationMode::Prototype {
             return Ok(details.clone());
         }
-        return Err(RecordFailure::UnknownRecordType { record_type: record_type.to_string() }.into());
+        return Err(RecordFailure::UnknownRecordType { record_type: record_type.to_string() });
     };
 
     if contract.record_type != *record_type {
-        return Err(RecordFailure::UnknownRecordType { record_type: record_type.to_string() }.into());
+        return Err(RecordFailure::UnknownRecordType { record_type: record_type.to_string() });
     }
 
     if contract.schema_version != schema_version {
@@ -76,8 +76,7 @@ fn validate_payload(
             record_type: record_type.to_string(),
             expected: contract.schema_version,
             actual: schema_version,
-        }
-        .into());
+        });
     }
 
     if contract.validation_mode.unwrap_or(default_mode) == ValidationMode::Prototype {
@@ -100,7 +99,7 @@ fn validate_fields(
                 continue;
             }
             if field.required {
-                return Err(RecordFailure::MissingField { record_type: record_type.to_owned(), field: (*name).to_owned() }.into());
+                return Err(RecordFailure::MissingField { record_type: record_type.to_owned(), field: (*name).to_owned() });
             }
             continue;
         };
@@ -109,15 +108,15 @@ fn validate_fields(
             if field.nullable || !field.required {
                 continue;
             }
-            return Err(RecordFailure::InvalidField { record_type: record_type.to_owned(), field: (*name).to_owned() }.into());
+            return Err(RecordFailure::InvalidField { record_type: record_type.to_owned(), field: (*name).to_owned() });
         }
 
         if !value_matches_type(value, &field.value_type) {
-            return Err(RecordFailure::InvalidField { record_type: record_type.to_owned(), field: (*name).to_owned() }.into());
+            return Err(RecordFailure::InvalidField { record_type: record_type.to_owned(), field: (*name).to_owned() });
         }
 
         if !field.choices.is_empty() && !field.choices.contains(value) {
-            return Err(RecordFailure::InvalidChoice { record_type: record_type.to_owned(), field: (*name).to_owned() }.into());
+            return Err(RecordFailure::InvalidChoice { record_type: record_type.to_owned(), field: (*name).to_owned() });
         }
     }
 
@@ -126,7 +125,7 @@ fn validate_fields(
         let extra: Vec<String> = resolved.keys().filter(|name| !declared_names.contains(name.as_str())).cloned().collect();
 
         if !extra.is_empty() {
-            return Err(RecordFailure::UnexpectedFields { record_type: record_type.to_owned(), fields: extra }.into());
+            return Err(RecordFailure::UnexpectedFields { record_type: record_type.to_owned(), fields: extra });
         }
     }
 

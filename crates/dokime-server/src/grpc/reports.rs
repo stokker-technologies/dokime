@@ -16,7 +16,6 @@
 use std::sync::Arc;
 // Third Party Imports
 use crate::grpc::transcode::Transcode;
-use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports

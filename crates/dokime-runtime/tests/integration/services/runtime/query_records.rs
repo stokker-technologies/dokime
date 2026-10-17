@@ -376,7 +376,6 @@ async fn capture_failure_provider() {
         Arc,
         atomic::{AtomicBool, Ordering},
     };
-    use std::time::Duration;
 
     #[derive(Default)]
     struct BlockingProvider {
@@ -523,8 +522,8 @@ async fn completed_record_capacity() {
 
 #[tokio::test]
 async fn native_entry_independent() {
+    use dokime_runtime::TestCycleId;
     use dokime_runtime::storage::objects::cycle::{self, Cycle};
-    use dokime_runtime::{TestCycleId, Timestamp};
     use harmos::storage::ObjectVersion;
     use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::TestCycle};
 

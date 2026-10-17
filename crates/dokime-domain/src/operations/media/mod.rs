@@ -28,8 +28,6 @@ pub use screenshot::Screenshot;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;

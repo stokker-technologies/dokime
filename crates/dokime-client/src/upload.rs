@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 // Local Imports
-use super::{Client, contracts};
+use super::Client;
 
 /* === Constants === */
 

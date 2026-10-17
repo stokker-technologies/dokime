@@ -18,7 +18,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 // Third Party Imports
 use crate::grpc::transcode::Transcode;
-use harmos::domain::Portable;
 use harmos::{
     MemorySize,
     operations::{Response, StreamOutput},

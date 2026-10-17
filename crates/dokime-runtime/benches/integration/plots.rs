@@ -24,7 +24,7 @@ use harmos::{Message, schema::Described};
 
 // Local Imports
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
-use dokime_runtime::{Identifier, Metadata, Timestamp, ValueType};
+use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
 
 /* === Constants === */

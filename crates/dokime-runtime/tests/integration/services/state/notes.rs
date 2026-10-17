@@ -22,7 +22,7 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{AddOperatorNote, CreateOperatorNote};
-use dokime_runtime::{CaseId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_runtime::{CaseId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId};
 use model::execution::OperatorNote;
 use model::execution::notes::*;
 

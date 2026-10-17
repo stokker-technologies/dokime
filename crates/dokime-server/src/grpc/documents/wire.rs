@@ -17,7 +17,6 @@ use std::collections::VecDeque;
 // Third Party Imports
 use crate::grpc::transcode::Transcode;
 use dokime_domain::model::documents::wire::DocumentFrameFrame as Frame;
-use harmos::domain::Portable;
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};

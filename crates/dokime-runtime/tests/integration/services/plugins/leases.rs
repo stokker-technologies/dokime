@@ -23,7 +23,7 @@ use dokime_domain::model;
 use dokime_runtime::execution::Signal;
 use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::transport::{ExecutionSignal, SignalReply};
-use dokime_runtime::{Identifier, TestExecutionId, Timestamp, Value, ValueType};
+use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime};
 
 /* === Constants === */

@@ -22,14 +22,11 @@ pub use materialize_report::MaterializeReport;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;
 use super::Endpoint;
 use super::TRANSFER;
-use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 

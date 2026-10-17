@@ -33,7 +33,6 @@ use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::wire_checkpoint as checkpoint;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 const SOURCE_POLL: Duration = Duration::from_millis(250);

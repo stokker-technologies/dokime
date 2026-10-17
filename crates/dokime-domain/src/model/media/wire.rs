@@ -23,7 +23,6 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::content::wire::ArtifactMetadata;
-use crate::model::content::wire::ArtifactScope;
 
 /* === Constants === */
 

@@ -30,8 +30,6 @@ pub use watch_trace::WatchTrace;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 use super::Access;
@@ -39,7 +37,6 @@ use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
-use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 

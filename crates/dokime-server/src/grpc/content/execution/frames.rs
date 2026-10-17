@@ -16,7 +16,6 @@
 
 // Third Party Imports
 use crate::grpc::transcode::Transcode;
-use harmos::domain::Portable;
 use sha2::{Digest, Sha256};
 
 // Local Imports
