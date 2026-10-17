@@ -403,14 +403,14 @@ model or a ready-made vehicle qualification standard.
 ### Define The Operating Points
 
 A shortened version of OBC's
-[steady-state parameters](plugins/obc-plugin/src/suites/parameters.rs) declares the
+[steady-state parameters](plugins/obc-plugin/src/suites/steady/measurement.rs) declare the
 nine-case voltage/load sweep:
 
 ```rust
 use dokime::definition::ParameterDefault;
 
 #[dokime::parameters]
-pub struct Steady {
+pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
         expansion = "cartesian",
@@ -516,7 +516,7 @@ record.
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
-[measurement document](plugins/obc-plugin/src/suites/measurement.rs); `stream` selects
+[measurement document](plugins/obc-plugin/src/suites/common/measurement.rs); `stream` selects
 the suite-owned stream carrying `InputMeasurement` rows:
 
 ```rust
