@@ -16,10 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
-use super::value::{Value, ValueError};
+use crate::model::values::wire::Value;
+use crate::model::values::wire::ValueError;
 
 /* === Constants === */
 

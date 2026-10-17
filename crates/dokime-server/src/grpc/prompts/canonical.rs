@@ -25,10 +25,10 @@ use dokime_runtime::definition::RuntimeCondition;
 use dokime_runtime::domains::prompts;
 use dokime_runtime::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
 use dokime_runtime::telemetry::TelemetryConditionOperator;
-use dokime_domain::operations::common;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::prompts as contract;
-use dokime_domain::operations::schema;
-use dokime_domain::operations::value as value_wire;
+use dokime_domain::model::definition::wire as schema;
+use dokime_domain::model::values::wire as value_wire;
 
 /* === Constants === */
 
@@ -45,8 +45,8 @@ use dokime_domain::operations::value as value_wire;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn identity(value: &prompts::PromptDefinition) -> contract::PromptDefinitionIdentity {
-    contract::PromptDefinitionIdentity {
+pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
+    dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
         prompt_type: value.prompt_type.as_str().to_owned(),
         schema_version: value.schema_version,
         title: value.title.clone(),
@@ -55,25 +55,25 @@ pub(super) fn identity(value: &prompts::PromptDefinition) -> contract::PromptDef
 
 pub(super) fn definition(
     value: &prompts::PromptDefinition,
-) -> Result<contract::PromptDefinition, Status> {
+) -> Result<dokime_domain::model::prompts::wire::PromptDefinition, Status> {
     definition_heap(value, &mut Budget::new())?;
     definition_with_budget(value, &mut Budget::new())
 }
 
 pub(crate) fn instance(
     value: &prompts::PromptInstance,
-) -> Result<contract::PromptInstance, Status> {
+) -> Result<dokime_domain::model::prompts::wire::PromptInstance, Status> {
     instance_memory(value)?;
     let mut budget = Budget::new();
-    Ok(contract::PromptInstance {
+    Ok(dokime_domain::model::prompts::wire::PromptInstance {
         prompt_id: value.prompt_id.as_str().to_owned(),
         definition: Some(definition_with_budget(&value.definition, &mut budget)?),
         kind: match value.kind {
-            prompts::PromptKind::Confirmation => contract::PromptKind::Confirmation,
-            prompts::PromptKind::Form => contract::PromptKind::Form,
-            prompts::PromptKind::Choice => contract::PromptKind::Choice,
-            prompts::PromptKind::Status => contract::PromptKind::Status,
-            prompts::PromptKind::Verification => contract::PromptKind::Verification,
+            prompts::PromptKind::Confirmation => dokime_domain::model::prompts::wire::PromptKind::Confirmation,
+            prompts::PromptKind::Form => dokime_domain::model::prompts::wire::PromptKind::Form,
+            prompts::PromptKind::Choice => dokime_domain::model::prompts::wire::PromptKind::Choice,
+            prompts::PromptKind::Status => dokime_domain::model::prompts::wire::PromptKind::Status,
+            prompts::PromptKind::Verification => dokime_domain::model::prompts::wire::PromptKind::Verification,
         },
         values: Some(object(&value.values, &mut budget, 0)?),
         scope: Some(canonical::scope(&value.scope)?),
@@ -83,8 +83,8 @@ pub(crate) fn instance(
 
 pub(super) fn response(
     value: &prompts::PromptResponse,
-) -> Result<contract::PromptResponse, Status> {
-    Ok(contract::PromptResponse {
+) -> Result<dokime_domain::model::prompts::wire::PromptResponse, Status> {
+    Ok(dokime_domain::model::prompts::wire::PromptResponse {
         prompt_id: value.prompt_id.as_str().to_owned(),
         action: value.action.clone(),
         responder: value.responder.clone(),
@@ -97,7 +97,7 @@ pub(super) fn response(
 pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize, Status> {
     let mut budget = Budget::new();
     timestamp(&source.created_at)?;
-    let bytes = std::mem::size_of::<contract::PromptInstance>()
+    let bytes = std::mem::size_of::<dokime_domain::model::prompts::wire::PromptInstance>()
         .saturating_add(source.prompt_id.as_str().len())
         .saturating_add(definition_heap(&source.definition, &mut budget)?)
         .saturating_add(object_heap(&source.values, &mut budget, 0)?)
@@ -109,7 +109,7 @@ pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize,
 fn definition_with_budget(
     value: &prompts::PromptDefinition,
     budget: &mut Budget,
-) -> Result<contract::PromptDefinition, Status> {
+) -> Result<dokime_domain::model::prompts::wire::PromptDefinition, Status> {
     for len in [
         value.fields.len(),
         value.actions.len(),
@@ -122,14 +122,14 @@ fn definition_with_budget(
     if let Some(message) = &value.message {
         value::text(message)?;
     }
-    Ok(contract::PromptDefinition {
+    Ok(dokime_domain::model::prompts::wire::PromptDefinition {
         prompt_type: value.prompt_type.as_str().to_owned(),
         schema_version: value.schema_version,
         archetype: match value.archetype {
-            prompts::PromptArchetype::ConfirmationPrompt => contract::PromptArchetype::Confirmation,
-            prompts::PromptArchetype::FormPrompt => contract::PromptArchetype::Form,
-            prompts::PromptArchetype::ChoicePrompt => contract::PromptArchetype::Choice,
-            prompts::PromptArchetype::StatusPrompt => contract::PromptArchetype::Status,
+            prompts::PromptArchetype::ConfirmationPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Confirmation,
+            prompts::PromptArchetype::FormPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Form,
+            prompts::PromptArchetype::ChoicePrompt => dokime_domain::model::prompts::wire::PromptArchetype::Choice,
+            prompts::PromptArchetype::StatusPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Status,
         },
         title: value.title.clone(),
         message: value.message.clone(),
@@ -138,24 +138,24 @@ fn definition_with_budget(
             budget.node(0)?;
             value::text(&action.id)?;
             value::text(&action.label)?;
-            Ok(contract::PromptAction {
+            Ok(dokime_domain::model::prompts::wire::PromptAction {
                 id: action.id.clone(),
                 label: action.label.clone(),
                 emphasis: match action.emphasis {
                     prompts::PromptActionEmphasis::Primary => {
-                        contract::PromptActionEmphasis::Primary
+                        dokime_domain::model::prompts::wire::PromptActionEmphasis::Primary
                     }
                     prompts::PromptActionEmphasis::Secondary => {
-                        contract::PromptActionEmphasis::Secondary
+                        dokime_domain::model::prompts::wire::PromptActionEmphasis::Secondary
                     }
-                    prompts::PromptActionEmphasis::Danger => contract::PromptActionEmphasis::Danger,
+                    prompts::PromptActionEmphasis::Danger => dokime_domain::model::prompts::wire::PromptActionEmphasis::Danger,
                 },
                 requires_condition: action.requires_condition,
             })
         }))?,
         rules: collect(value.rules.iter().map(|rule| {
             value::text(&rule.message)?;
-            Ok(contract::AnswerRule {
+            Ok(dokime_domain::model::prompts::wire::AnswerRule {
                 predicate: Some(predicate(&rule.predicate.expression, budget, 0)?),
                 message: rule.message.clone(),
             })
@@ -183,7 +183,7 @@ fn definition_with_budget(
 fn field_wire(
     field: &prompts::PromptField,
     budget: &mut Budget,
-) -> Result<contract::PromptField, Status> {
+) -> Result<dokime_domain::model::prompts::wire::PromptField, Status> {
     budget.node(0)?;
     value::collection(field.choices.len())?;
     for choice in &field.choices {
@@ -193,7 +193,7 @@ fn field_wire(
     if let Some(pattern) = &validation.pattern {
         value::text(pattern)?;
     }
-    Ok(contract::PromptField {
+    Ok(dokime_domain::model::prompts::wire::PromptField {
         metadata: Some(metadata(&field.metadata)?),
         value_type: match field.value_type {
             ValueType::Boolean => schema::ValueType::Boolean,
@@ -206,11 +206,11 @@ fn field_wire(
             ValueType::Array => schema::ValueType::Array,
         },
         kind: match field.kind {
-            prompts::PromptFieldKind::Text => contract::PromptFieldKind::Text,
-            prompts::PromptFieldKind::Float => contract::PromptFieldKind::Float,
-            prompts::PromptFieldKind::Int => contract::PromptFieldKind::Int,
-            prompts::PromptFieldKind::Choice => contract::PromptFieldKind::Choice,
-            prompts::PromptFieldKind::Boolean => contract::PromptFieldKind::Boolean,
+            prompts::PromptFieldKind::Text => dokime_domain::model::prompts::wire::PromptFieldKind::Text,
+            prompts::PromptFieldKind::Float => dokime_domain::model::prompts::wire::PromptFieldKind::Float,
+            prompts::PromptFieldKind::Int => dokime_domain::model::prompts::wire::PromptFieldKind::Int,
+            prompts::PromptFieldKind::Choice => dokime_domain::model::prompts::wire::PromptFieldKind::Choice,
+            prompts::PromptFieldKind::Boolean => dokime_domain::model::prompts::wire::PromptFieldKind::Boolean,
         },
         multiple: field.multiple,
         required: field.required,
@@ -225,7 +225,7 @@ fn field_wire(
                 .iter()
                 .map(|value| projection::text(value).map_err(failure)),
         )?,
-        validation: Some(contract::PromptFieldValidation {
+        validation: Some(dokime_domain::model::prompts::wire::PromptFieldValidation {
             min_length: validation.min_length.map(|v| v as u64),
             max_length: validation.max_length.map(|v| v as u64),
             pattern: validation.pattern.clone(),
@@ -249,22 +249,22 @@ fn predicate(
     expression: &Expression,
     budget: &mut Budget,
     depth: usize,
-) -> Result<contract::AnswerPredicate, Status> {
+) -> Result<dokime_domain::model::prompts::wire::AnswerPredicate, Status> {
     let mut nodes = Vec::new();
     push_predicate(expression, budget, depth, &mut nodes)?;
-    Ok(contract::AnswerPredicate { nodes })
+    Ok(dokime_domain::model::prompts::wire::AnswerPredicate { nodes })
 }
 fn push_predicate(
     expression: &Expression,
     budget: &mut Budget,
     depth: usize,
-    nodes: &mut Vec<contract::AnswerPredicateNode>,
+    nodes: &mut Vec<dokime_domain::model::prompts::wire::AnswerPredicateNode>,
 ) -> Result<u32, Status> {
-    use contract::AnswerPredicateKind as Kind;
+    use dokime_domain::model::prompts::wire::AnswerPredicateKind as Kind;
     budget.node(depth)?;
     let index = u32::try_from(nodes.len())
         .map_err(|_| Status::resource_exhausted("prompt predicate index overflow"))?;
-    nodes.push(contract::AnswerPredicateNode { kind: None });
+    nodes.push(dokime_domain::model::prompts::wire::AnswerPredicateNode { kind: None });
     let kind = match &expression.kind {
         ExpressionKind::Literal { value } => {
             Kind::Literal(project_value(value, budget, depth + 1)?)
@@ -278,19 +278,19 @@ fn push_predicate(
             value,
         } => Kind::Not(push_predicate(value, budget, depth + 1, nodes)?),
         ExpressionKind::Binary { op, left, right } => {
-            Kind::Binary(contract::AnswerBinaryPredicate {
+            Kind::Binary(dokime_domain::model::prompts::wire::AnswerBinaryPredicate {
                 op: match op {
-                    ExpressionBinaryOp::And => contract::AnswerOperator::And,
-                    ExpressionBinaryOp::Or => contract::AnswerOperator::Or,
-                    ExpressionBinaryOp::Eq => contract::AnswerOperator::Eq,
-                    ExpressionBinaryOp::Ne => contract::AnswerOperator::Ne,
-                    ExpressionBinaryOp::Gt => contract::AnswerOperator::Gt,
-                    ExpressionBinaryOp::Gte => contract::AnswerOperator::Gte,
-                    ExpressionBinaryOp::Lt => contract::AnswerOperator::Lt,
-                    ExpressionBinaryOp::Lte => contract::AnswerOperator::Lte,
-                    ExpressionBinaryOp::Contains => contract::AnswerOperator::Contains,
-                    ExpressionBinaryOp::StartsWith => contract::AnswerOperator::StartsWith,
-                    ExpressionBinaryOp::EndsWith => contract::AnswerOperator::EndsWith,
+                    ExpressionBinaryOp::And => dokime_domain::model::prompts::wire::AnswerOperator::And,
+                    ExpressionBinaryOp::Or => dokime_domain::model::prompts::wire::AnswerOperator::Or,
+                    ExpressionBinaryOp::Eq => dokime_domain::model::prompts::wire::AnswerOperator::Eq,
+                    ExpressionBinaryOp::Ne => dokime_domain::model::prompts::wire::AnswerOperator::Ne,
+                    ExpressionBinaryOp::Gt => dokime_domain::model::prompts::wire::AnswerOperator::Gt,
+                    ExpressionBinaryOp::Gte => dokime_domain::model::prompts::wire::AnswerOperator::Gte,
+                    ExpressionBinaryOp::Lt => dokime_domain::model::prompts::wire::AnswerOperator::Lt,
+                    ExpressionBinaryOp::Lte => dokime_domain::model::prompts::wire::AnswerOperator::Lte,
+                    ExpressionBinaryOp::Contains => dokime_domain::model::prompts::wire::AnswerOperator::Contains,
+                    ExpressionBinaryOp::StartsWith => dokime_domain::model::prompts::wire::AnswerOperator::StartsWith,
+                    ExpressionBinaryOp::EndsWith => dokime_domain::model::prompts::wire::AnswerOperator::EndsWith,
                 },
                 left: push_predicate(left, budget, depth + 1, nodes)?,
                 right: push_predicate(right, budget, depth + 1, nodes)?,
@@ -309,24 +309,24 @@ fn condition_wire(
     condition: &RuntimeCondition,
     budget: &mut Budget,
     depth: usize,
-) -> Result<contract::EvidenceCondition, Status> {
+) -> Result<dokime_domain::model::prompts::wire::EvidenceCondition, Status> {
     let mut nodes = Vec::new();
     push_condition(condition, budget, depth, &mut nodes)?;
-    Ok(contract::EvidenceCondition { nodes })
+    Ok(dokime_domain::model::prompts::wire::EvidenceCondition { nodes })
 }
 fn push_condition(
     condition: &RuntimeCondition,
     budget: &mut Budget,
     depth: usize,
-    nodes: &mut Vec<contract::EvidenceConditionNode>,
+    nodes: &mut Vec<dokime_domain::model::prompts::wire::EvidenceConditionNode>,
 ) -> Result<u32, Status> {
-    use contract::EvidenceConditionKind as Kind;
+    use dokime_domain::model::prompts::wire::EvidenceConditionKind as Kind;
     budget.node(depth)?;
     let index = u32::try_from(nodes.len())
         .map_err(|_| Status::resource_exhausted("prompt condition index overflow"))?;
-    nodes.push(contract::EvidenceConditionNode { kind: None });
+    nodes.push(dokime_domain::model::prompts::wire::EvidenceConditionNode { kind: None });
     let kind = match condition {
-        RuntimeCondition::Record { condition } => Kind::Record(contract::RecordMatchCondition {
+        RuntimeCondition::Record { condition } => Kind::Record(dokime_domain::model::prompts::wire::RecordMatchCondition {
             record_type: condition.record_type.as_str().to_owned(),
             match_fields: Some(object(&condition.match_fields, budget, depth + 1)?),
         }),
@@ -335,17 +335,17 @@ fn push_condition(
             if condition.tolerance.is_some_and(|v| !v.is_finite()) {
                 return Err(Status::internal("admitted prompt has nonfinite tolerance"));
             }
-            Kind::Telemetry(contract::TelemetryMatchCondition {
+            Kind::Telemetry(dokime_domain::model::prompts::wire::TelemetryMatchCondition {
                 stream: condition.stream.as_str().to_owned(),
                 field: condition.field.clone(),
                 op: match condition.operator {
-                    TelemetryConditionOperator::Exists => contract::TelemetryMatchOperator::Exists,
-                    TelemetryConditionOperator::Eq => contract::TelemetryMatchOperator::Eq,
-                    TelemetryConditionOperator::Gt => contract::TelemetryMatchOperator::Gt,
-                    TelemetryConditionOperator::Gte => contract::TelemetryMatchOperator::Gte,
-                    TelemetryConditionOperator::Lt => contract::TelemetryMatchOperator::Lt,
-                    TelemetryConditionOperator::Lte => contract::TelemetryMatchOperator::Lte,
-                    TelemetryConditionOperator::Within => contract::TelemetryMatchOperator::Within,
+                    TelemetryConditionOperator::Exists => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Exists,
+                    TelemetryConditionOperator::Eq => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Eq,
+                    TelemetryConditionOperator::Gt => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gt,
+                    TelemetryConditionOperator::Gte => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gte,
+                    TelemetryConditionOperator::Lt => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lt,
+                    TelemetryConditionOperator::Lte => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lte,
+                    TelemetryConditionOperator::Within => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Within,
                 },
                 target: condition
                     .target
@@ -361,7 +361,7 @@ fn push_condition(
             for child in conditions {
                 links.push(push_condition(child, budget, depth + 1, nodes)?);
             }
-            let group = contract::EvidenceConditions { conditions: links };
+            let group = dokime_domain::model::prompts::wire::EvidenceConditions { conditions: links };
             if matches!(condition, RuntimeCondition::All { .. }) {
                 Kind::All(group)
             } else {
@@ -377,7 +377,7 @@ fn object(
     values: &BTreeMap<String, Value>,
     budget: &mut Budget,
     depth: usize,
-) -> Result<value_wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     budget.node(depth)?;
     canonical::object_at(values, budget, depth)
 }
@@ -416,7 +416,7 @@ fn project_value(
     source: &Value,
     budget: &mut Budget,
     depth: usize,
-) -> Result<value_wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
 }
 
@@ -431,11 +431,11 @@ fn object_heap(
 ) -> Result<usize, Status> {
     budget.node(depth)?;
     Ok(canonical::object_memory_at(source, budget, depth)?
-        - std::mem::size_of::<value_wire::Value>())
+        - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
 }
 
 fn value_heap(source: &Value, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    Ok(canonical::memory(source, budget, depth)? - std::mem::size_of::<value_wire::Value>())
+    Ok(canonical::memory(source, budget, depth)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
 }
 
 fn slots<T>(length: usize) -> usize {
@@ -473,10 +473,10 @@ fn definition_heap(
                 .as_ref()
                 .map_or(0, |id| id.as_str().len()),
         )
-        .saturating_add(slots::<contract::PromptField>(source.fields.len()))
-        .saturating_add(slots::<contract::PromptAction>(source.actions.len()))
-        .saturating_add(slots::<contract::AnswerRule>(source.rules.len()))
-        .saturating_add(slots::<value_wire::Value>(source.examples.len()));
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptField>(source.fields.len()))
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptAction>(source.actions.len()))
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::AnswerRule>(source.rules.len()))
+        .saturating_add(slots::<dokime_domain::model::values::wire::Value>(source.examples.len()));
     for field in &source.fields {
         budget.node(0)?;
         value::collection(field.choices.len())?;
@@ -548,7 +548,7 @@ fn predicate_heap(source: &Expression, budget: &mut Budget, depth: usize) -> Res
             ));
         }
     };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<contract::AnswerPredicateNode>()))
+    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime_domain::model::prompts::wire::AnswerPredicateNode>()))
 }
 
 fn condition_heap(
@@ -587,7 +587,7 @@ fn condition_heap(
             bytes
         }
     };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<contract::EvidenceConditionNode>()))
+    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime_domain::model::prompts::wire::EvidenceConditionNode>()))
 }
 
 /* === Tests === */

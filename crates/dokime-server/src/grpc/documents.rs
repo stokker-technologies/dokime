@@ -55,7 +55,7 @@ impl Operation for Capture {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::DocumentFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::documents::wire::DocumentFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -180,7 +180,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 /// The capture scope: a cycle, and the execution whose document it names, or
 /// none for the cycle's own document.
 fn owner(
-    scope: Option<contract::DocumentScope>,
+    scope: Option<dokime_domain::model::documents::wire::DocumentScope>,
 ) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id)
@@ -193,7 +193,7 @@ fn owner(
     Ok((cycle, Some(execution)))
 }
 
-fn scope(scope: Option<contract::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
+fn scope(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id)
         .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;

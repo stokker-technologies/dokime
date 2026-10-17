@@ -66,7 +66,7 @@ impl Operation for Aggregate {
         _: Self::Context<'a>,
         request: &mut wire::Aggregate,
         _: &mut (),
-    ) -> Result<Response<wire::AggregateReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::query::wire::AggregateReply>, Status> {
         let query = decode(request)?;
         self.resources
             .runtime
@@ -101,12 +101,12 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     value::collection(request.group_by.len())?;
     value::collection(request.aggregates.len())?;
     let source = match request.source {
-        wire::QuerySource::Cycles => AggregateSource::Cycles,
-        wire::QuerySource::Cases => AggregateSource::Cases,
-        wire::QuerySource::Executions => AggregateSource::Executions,
-        wire::QuerySource::Steps => AggregateSource::Steps,
-        wire::QuerySource::Records => AggregateSource::Records,
-        wire::QuerySource::Unspecified => {
+        dokime_domain::model::query::wire::QuerySource::Cycles => AggregateSource::Cycles,
+        dokime_domain::model::query::wire::QuerySource::Cases => AggregateSource::Cases,
+        dokime_domain::model::query::wire::QuerySource::Executions => AggregateSource::Executions,
+        dokime_domain::model::query::wire::QuerySource::Steps => AggregateSource::Steps,
+        dokime_domain::model::query::wire::QuerySource::Records => AggregateSource::Records,
+        dokime_domain::model::query::wire::QuerySource::Unspecified => {
             return Err(Status::invalid_argument("aggregate source is unspecified"));
         }
     };
@@ -115,15 +115,15 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
         value::text(&filter.column)?;
         value::collection(filter.values.len())?;
         let op = match filter.op {
-            wire::QueryFilterOperator::Eq => AggregateOperator::Eq,
-            wire::QueryFilterOperator::Neq => AggregateOperator::Neq,
-            wire::QueryFilterOperator::In => AggregateOperator::In,
-            wire::QueryFilterOperator::Gt => AggregateOperator::Gt,
-            wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
-            wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
-            wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
-            wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
-            wire::QueryFilterOperator::Unspecified => {
+            dokime_domain::model::query::wire::QueryFilterOperator::Eq => AggregateOperator::Eq,
+            dokime_domain::model::query::wire::QueryFilterOperator::Neq => AggregateOperator::Neq,
+            dokime_domain::model::query::wire::QueryFilterOperator::In => AggregateOperator::In,
+            dokime_domain::model::query::wire::QueryFilterOperator::Gt => AggregateOperator::Gt,
+            dokime_domain::model::query::wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
+            dokime_domain::model::query::wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
+            dokime_domain::model::query::wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
+            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
+            dokime_domain::model::query::wire::QueryFilterOperator::Unspecified => {
                 return Err(Status::invalid_argument(
                     "aggregate filter operator is unspecified",
                 ));

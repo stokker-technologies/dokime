@@ -65,7 +65,7 @@ impl Operation for Read {
         _: Self::Context<'a>,
         request: &mut history::ReadCheckpointOutput,
         _: &mut (),
-    ) -> Result<Response<history::CheckpointFileWindow>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointFileWindow>, Status> {
         value::text(&request.relative_path)?;
         if request.relative_path.is_empty() {
             return Err(Status::invalid_argument("output name is required"));
@@ -169,10 +169,10 @@ fn project(
     checkpoint: &ExecutionCheckpoint,
     content: ExecutionFileContent,
     maximum: usize,
-) -> harmos::Result<history::CheckpointFileWindow> {
+) -> harmos::Result<dokime_domain::model::history::wire::CheckpointFileWindow> {
     let checkpoint = inspection::project(checkpoint, maximum)?;
     let content = window::owned(content, maximum)?;
-    let response = history::CheckpointFileWindow {
+    let response = dokime_domain::model::history::wire::CheckpointFileWindow {
         checkpoint: Some(checkpoint),
         content: Some(content),
     };

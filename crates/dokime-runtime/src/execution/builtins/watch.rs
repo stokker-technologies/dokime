@@ -33,13 +33,13 @@ use super::Binding;
 use crate::artifacts::ArtifactWriter;
 use dokime_domain::model::identity::Identifier;
 use crate::files::{LineBuffer, LineMatch, LineMatchers};
-use dokime_domain::operations::files::FileWatchGap;
-use dokime_domain::operations::files::FileWatchGapReason;
-use dokime_domain::operations::files::FileWatchPolicy;
-use dokime_domain::operations::files::FileWatchSourcePayload;
-use dokime_domain::operations::files::WatchFileOutcome;
+use dokime_domain::model::files::wire::FileWatchGap;
+use dokime_domain::model::files::wire::FileWatchGapReason;
+use dokime_domain::model::files::wire::FileWatchPolicy;
+use dokime_domain::model::files::wire::FileWatchSourcePayload;
+use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::files::WatchedArtifact;
+use dokime_domain::model::files::wire::WatchedArtifact;
 use crate::records::{RecordPublishRequest, RecordSeverity};
 
 /* === Constants === */

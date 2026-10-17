@@ -15,7 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::identity::ArtifactId;
 use crate::model::identity::CorrelationId;

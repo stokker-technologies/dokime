@@ -17,9 +17,9 @@ use crate::{
 };
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::operations::reports::{
-    MaterializeReport, MaterializeReport, MaterializedReport, ReportSubject,
-};
+use crate::operations::reports::MaterializeReport;
+use dokime_domain::model::reports::wire::MaterializedReport;
+use dokime_domain::model::reports::wire::ReportSubject;
 use harmos::operations::{Context, Operation};
 use std::sync::Arc;
 /* === Constants === */

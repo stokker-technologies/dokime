@@ -71,7 +71,7 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut contract::ListCheckpointRecords,
         _: &mut (),
-    ) -> Result<Response<contract::CheckpointRecordPage>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointRecordPage>, Status> {
         value::text(&request.after)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let query = dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordQuery {
@@ -95,23 +95,23 @@ impl Operation for List {
 fn project(
     page: &ExecutionRecordPage,
     maximum: usize,
-) -> harmos::Result<contract::CheckpointRecordPage> {
+) -> harmos::Result<dokime_domain::model::history::wire::CheckpointRecordPage> {
     let mut records = projection::slots(page.records.len())?;
     for row in &page.records {
-        records.push(contract::SavedRecord {
+        records.push(dokime_domain::model::history::wire::SavedRecord {
             epoch: projection::text(row.epoch.as_str())?,
             record: Some(evidence::record(&row.record).map_err(original_error)?),
         });
     }
     let mut issues = projection::slots(page.issues.len())?;
     for issue in &page.issues {
-        issues.push(contract::HistoryIssue {
+        issues.push(dokime_domain::model::history::wire::HistoryIssue {
             source: issue.source.as_deref().map(projection::text).transpose()?,
             dataset: issue.dataset.as_deref().map(projection::text).transpose()?,
             message: projection::text(&issue.message)?,
         });
     }
-    let wire = contract::CheckpointRecordPage {
+    let wire = dokime_domain::model::history::wire::CheckpointRecordPage {
         checkpoint: Some(
             super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?,
         ),

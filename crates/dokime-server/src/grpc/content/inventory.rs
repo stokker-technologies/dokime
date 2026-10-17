@@ -71,7 +71,7 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut wire::ListExecutionFiles,
         _: &mut (),
-    ) -> Result<Response<wire::ListExecutionFilesReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::content::wire::ListExecutionFilesReply>, Status> {
         let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
         value::text(&request.after_path)?;
         if request.limit > 100 {
@@ -119,7 +119,7 @@ fn project(
     epoch: &str,
     request: &wire::ListExecutionFiles,
     maximum: usize,
-) -> harmos::Result<wire::ListExecutionFilesReply> {
+) -> harmos::Result<dokime_domain::model::content::wire::ListExecutionFilesReply> {
     let counted = count(entries, request)?;
     let mut files = projection::slots(entries.len())?;
     for entry in entries {
@@ -155,10 +155,10 @@ fn project(
     };
     let mut metadata_sha256 = projection::slots(digest.len())?;
     metadata_sha256.extend_from_slice(&digest);
-    let page = wire::ListExecutionFilesReply {
+    let page = dokime_domain::model::content::wire::ListExecutionFilesReply {
         files: selected,
         next_after_path,
-        cursor: Some(wire::ExecutionFilesCursor {
+        cursor: Some(dokime_domain::model::content::wire::ExecutionFilesCursor {
             epoch: projection::text(epoch)?,
             execution_id: projection::text(id.as_str())?,
             metadata_sha256,
@@ -213,8 +213,8 @@ fn count(
         more,
     })
 }
-fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<wire::ExecutionFileMetadata> {
-    Ok(wire::ExecutionFileMetadata {
+fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileMetadata> {
+    Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
         content_type: entry
             .content_type
@@ -229,7 +229,7 @@ fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<wire::ExecutionFileMet
 }
 fn timestamp(
     entry: &ExecutionFileEntry,
-) -> harmos::Result<dokime_domain::operations::common::Timestamp> {
+) -> harmos::Result<dokime_domain::model::identity::wire::Timestamp> {
     let at = time::OffsetDateTime::parse(
         entry.updated_at.as_str(),
         &time::format_description::well_known::Rfc3339,
@@ -241,7 +241,7 @@ fn timestamp(
             source,
         )
     })?;
-    Ok(dokime_domain::operations::common::Timestamp {
+    Ok(dokime_domain::model::identity::wire::Timestamp {
         seconds: at.unix_timestamp(),
         nanos: at.nanosecond() as i32,
     })

@@ -57,15 +57,15 @@ pub(super) fn detailed(status: Status, error: &HostError) -> Status {
 }
 
 /* === Private Functions === */
-fn captured(diagnostic: &Diagnostic) -> v1::CapturedRecordError {
-    v1::CapturedRecordError {
+fn captured(diagnostic: &Diagnostic) -> dokime_domain::model::evidence::wire::CapturedRecordError {
+    dokime_domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,
         source: (!diagnostic.location.is_empty()).then(|| diagnostic.location.clone()),
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(|cause| v1::CapturedErrorCause {
+            .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
                 message: cause.clone(),
                 code: None,
                 source: None,

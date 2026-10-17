@@ -18,8 +18,10 @@ use std::mem::size_of;
 
 // Third Party Imports
 use base64::Engine;
-use harmos::{Error, Result};
-use sha2::{Digest, Sha256};
+use harmos::Error;
+use harmos::Result;
+use sha2::Digest;
+use sha2::Sha256;
 
 // Local Imports
 use super::ExecutionCheckpoint;

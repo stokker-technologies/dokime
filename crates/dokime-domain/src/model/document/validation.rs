@@ -13,7 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeSet, fmt::Write};
+use std::collections::BTreeSet;
+use std::fmt::Write;
 // Third Party Imports
 
 // Local Imports

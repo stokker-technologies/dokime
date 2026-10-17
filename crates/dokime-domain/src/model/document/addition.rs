@@ -15,9 +15,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
-use super::definition::{DocumentCard, DocumentDefinition, DocumentNode, DocumentSection};
+use super::definition::DocumentCard;
+use super::definition::DocumentDefinition;
+use super::definition::DocumentNode;
+use super::definition::DocumentSection;
 use crate::model::identity::Identifier;
 
 /* === Constants === */

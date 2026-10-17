@@ -53,7 +53,7 @@ struct Preview {
 
 pub(super) struct ResolvedPlan {
     pub(super) cases: Vec<TestCase>,
-    pub(super) preview: Vec<wire::PlannedCase>,
+    pub(super) preview: Vec<dokime_domain::model::planning::wire::PlannedCase>,
 }
 
 /* === Enums === */
@@ -85,7 +85,7 @@ impl Operation for Register {
         _: Self::Context<'a>,
         request: &mut wire::RegisterSelection,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
         dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request
@@ -108,7 +108,7 @@ impl Operation for Register {
             .register_cases(registration_id, resolved.cases)
             .await
             .map_err(execution::status)?;
-        Ok((wire::PreviewSelectionReply {
+        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
         })
@@ -135,10 +135,10 @@ impl Operation for Preview {
         _: Self::Context<'a>,
         request: &mut wire::PreviewSelection,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
         let resolved = resolve(snapshot.state(), request.plan.take(), &dokime_runtime::model::identity::new_id::<CommandId>())?;
-        Ok((wire::PreviewSelectionReply {
+        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&snapshot)),
         })
@@ -160,7 +160,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
 
 pub(super) fn resolve(
     state: &RuntimeState,
-    plan: Option<wire::SelectionPlan>,
+    plan: Option<dokime_domain::model::planning::wire::SelectionPlan>,
     registration_id: &CommandId,
 ) -> Result<ResolvedPlan, Status> {
     let registry = &state.suites;
@@ -276,11 +276,11 @@ pub(super) fn resolve(
             .map(|(name, file)| {
                 value::text(&name)?;
                 let file = match file.kind {
-                    Some(wire::SelectedFileKind::Value(value)) => {
+                    Some(dokime_domain::model::planning::wire::SelectedFileKind::Value(value)) => {
                         value::text(&value)?;
                         Some(value)
                     }
-                    Some(wire::SelectedFileKind::Clear) => None,
+                    Some(dokime_domain::model::planning::wire::SelectedFileKind::Clear) => None,
                     _ => {
                         return Err(Status::invalid_argument(
                             "file selection kind must be value or clear",
@@ -343,7 +343,7 @@ pub(super) fn resolve(
             case.suite = Some(entry.suite.metadata.clone());
             case.generation_index = cases.len() as u64;
             let parameters = canonical::object(&case.parameters, &mut output_budget)?;
-            preview.push(wire::PlannedCase {
+            preview.push(dokime_domain::model::planning::wire::PlannedCase {
                 case_id: case.test_case_id.to_string(),
                 suite_id: selection.suite_id.clone(),
                 template_id: selection.template_id.clone(),
@@ -407,7 +407,7 @@ fn next_label_numbers(
 
 fn resolve_registered(
     registry: &SuiteRegistry,
-    plan: wire::SelectionPlan,
+    plan: dokime_domain::model::planning::wire::SelectionPlan,
 ) -> Result<ResolvedPlan, Status> {
     if !plan.selections.is_empty() {
         return Err(Status::invalid_argument(
@@ -471,7 +471,7 @@ fn resolve_registered(
         target = Some(selected_target);
         payload::registered_case(case, &mut payload_budget)?;
         let parameters = canonical::object(&case.parameters, &mut budget)?;
-        preview.push(wire::PlannedCase {
+        preview.push(dokime_domain::model::planning::wire::PlannedCase {
             case_id: id.to_string(),
             suite_id: entry.suite_id.clone(),
             template_id: template.test_case_template_id.to_string(),

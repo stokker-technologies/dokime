@@ -21,7 +21,11 @@ use harmos::operations::{Context, Operation};
 
 // Local Imports
 use crate::{RuntimeHandle, app::Lanes};
-use crate::operations::runtime::{GetHealth, GetIdentity, Health, Identity, Readiness};
+use crate::operations::runtime::GetHealth;
+use crate::operations::runtime::GetIdentity;
+use dokime_domain::model::runtime::wire::Health;
+use dokime_domain::model::runtime::wire::Identity;
+use dokime_domain::model::runtime::wire::Readiness;
 
 /* === Constants === */
 

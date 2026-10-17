@@ -31,7 +31,7 @@ use dokime_domain::operations::content as wire;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<wire::ArtifactFrame>);
+pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -64,10 +64,10 @@ pub(super) trait Frames: Send + 'static {
 
 /* === Implementations === */
 impl Frames for ArtifactFrames {
-    type Frame = wire::ArtifactFrame;
+    type Frame = dokime_domain::model::content::wire::ArtifactFrame;
 
     fn metadata(&self) -> Self::Frame {
-        wire::ArtifactFrame {
+        dokime_domain::model::content::wire::ArtifactFrame {
             payload: self.0.payload.clone(),
         }
     }
@@ -77,8 +77,8 @@ impl Frames for ArtifactFrames {
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        wire::ArtifactFrame {
-            payload: Some(wire::ArtifactFramePayload::Chunk(wire::ArtifactChunk {
+        dokime_domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(dokime_domain::model::content::wire::ArtifactChunk {
                 offset,
                 data,
             })),
@@ -86,9 +86,9 @@ impl Frames for ArtifactFrames {
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        wire::ArtifactFrame {
-            payload: Some(wire::ArtifactFramePayload::Complete(
-                wire::ArtifactCompletion { size_bytes, sha256 },
+        dokime_domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
+                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
             )),
         }
     }

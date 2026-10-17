@@ -19,7 +19,8 @@ use std::fmt;
 #[cfg(feature = "diagnostics")]
 use std::panic::Location;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 #[cfg(feature = "diagnostics")]
 use tracing_error::SpanTrace;
 // Local Imports

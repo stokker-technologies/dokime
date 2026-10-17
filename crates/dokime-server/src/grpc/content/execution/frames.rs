@@ -42,10 +42,10 @@ use dokime_domain::operations::content as wire;
 pub(super) fn metadata(
     content: &ExecutionFileContent,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
-    let frame = wire::ExecutionFileDownloadFrame {
-        payload: Some(wire::ExecutionFileDownloadFramePayload::Metadata(
-            wire::ExecutionFileDownloadMetadata {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
+    let frame = dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
+        payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
+            dokime_domain::model::content::wire::ExecutionFileDownloadMetadata {
                 relative_path: projection::text(&content.relative_path)?,
                 content_type: content
                     .content_type
@@ -63,13 +63,13 @@ pub(super) fn metadata(
 pub(super) fn chunk(
     content: &ExecutionFileContent,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
     let mut bytes = projection::slots(content.bytes.len())?;
     bytes.extend_from_slice(&content.bytes);
     checked(
-        wire::ExecutionFileDownloadFrame {
-            payload: Some(wire::ExecutionFileDownloadFramePayload::Chunk(
-                wire::ArtifactChunk {
+        dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
+                dokime_domain::model::content::wire::ArtifactChunk {
                     offset: content.offset,
                     data: bytes,
                 },
@@ -82,7 +82,7 @@ pub(super) fn complete(
     size: u64,
     digest: &Sha256,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
     let digest = digest.clone().finalize();
     let mut hex = [0u8; 64];
     let alphabet = b"0123456789abcdef";
@@ -92,9 +92,9 @@ pub(super) fn complete(
     }
     let sha256 = projection::text(std::str::from_utf8(&hex).expect("hexadecimal digest is ASCII"))?;
     checked(
-        wire::ExecutionFileDownloadFrame {
-            payload: Some(wire::ExecutionFileDownloadFramePayload::Complete(
-                wire::ArtifactCompletion {
+        dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Complete(
+                dokime_domain::model::content::wire::ArtifactCompletion {
                     size_bytes: size,
                     sha256,
                 },
@@ -106,9 +106,9 @@ pub(super) fn complete(
 
 /* === Private Functions === */
 fn checked(
-    frame: wire::ExecutionFileDownloadFrame,
+    frame: dokime_domain::model::content::wire::ExecutionFileDownloadFrame,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
     if frame.encoded_len() > maximum {
         return Err(exhausted());
     }

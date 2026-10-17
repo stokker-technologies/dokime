@@ -26,14 +26,14 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime_domain::operations::cursor::Cursor as NativeCursor;
-use dokime_domain::operations::cursor::Error as CursorError;
+use dokime_domain::model::execution::wire_cursor::Cursor as NativeCursor;
+use dokime_domain::model::execution::wire_cursor::Error as CursorError;
 use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
-use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::prompts as wire;
 
 /* === Constants === */
@@ -86,7 +86,7 @@ impl Operation for ListDefinitions {
         _context: Self::Context<'a>,
         request: &mut wire::ListDefinitions,
         _: &mut (),
-    ) -> Result<Response<wire::ListPromptDefinitionsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let limit = page(
             request.limit,
@@ -112,7 +112,7 @@ impl Operation for ListDefinitions {
                 .next()
                 .is_some()
                 .then(|| definitions.last().unwrap().prompt_type.clone());
-            Ok(wire::ListPromptDefinitionsReply {
+            Ok(dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
                 definitions,
                 next_after_prompt_type,
                 cursor: Some(values::cursor(&snapshot)),
@@ -137,7 +137,7 @@ impl Operation for GetDefinition {
         _context: Self::Context<'a>,
         request: &mut wire::GetDefinition,
         _: &mut (),
-    ) -> Result<Response<wire::PromptDefinition>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptDefinition>, Status> {
         value::text(&request.prompt_type)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         let definition = snapshot
@@ -166,7 +166,7 @@ impl Operation for ListPending {
         _context: Self::Context<'a>,
         request: &mut wire::ListPending,
         _: &mut (),
-    ) -> Result<Response<wire::ListPendingPromptsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status> {
         let cycle = request
             .cycle_id
             .take()
@@ -232,7 +232,7 @@ impl Operation for ListPending {
             let prompts: Vec<_> = selected
                 .into_iter()
                 .map(|prompt| {
-                    Ok(wire::PendingPromptIdentity {
+                    Ok(dokime_domain::model::prompts::wire::PendingPromptIdentity {
                         prompt_id: prompt.prompt_id.to_string(),
                         definition: Some(canonical::identity(&prompt.definition)),
                         scope: Some(values::scope(&prompt.scope)?),
@@ -246,7 +246,7 @@ impl Operation for ListPending {
                 .then(|| prompts.last().unwrap().prompt_id.clone());
             let mut cursor = values::cursor(&snapshot);
             cursor.stream = selection;
-            Ok(wire::ListPendingPromptsReply {
+            Ok(dokime_domain::model::prompts::wire::ListPendingPromptsReply {
                 prompts,
                 next_after_prompt_id,
                 cursor: Some(cursor),
@@ -271,7 +271,7 @@ impl Operation for GetPrompt {
         _context: Self::Context<'a>,
         request: &mut wire::GetPrompt,
         _: &mut (),
-    ) -> Result<Response<wire::PromptView>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptView>, Status> {
         let id = prompt_id(&request.prompt_id)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         let prompt = snapshot
@@ -282,7 +282,7 @@ impl Operation for GetPrompt {
         let response = snapshot.state().prompt_responses.get(&id);
         self.resources.produce(|| {
             let response = response.map(canonical::response).transpose()?;
-            Ok(wire::PromptView {
+            Ok(dokime_domain::model::prompts::wire::PromptView {
                 prompt: Some(canonical::instance(prompt)?),
                 response,
                 observed_cursor: Some(values::cursor(&snapshot)),
@@ -307,7 +307,7 @@ impl Operation for Respond {
         context: Self::Context<'a>,
         request: &mut wire::Respond,
         _: &mut (),
-    ) -> Result<Response<wire::PromptResponseReceipt>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptResponseReceipt>, Status> {
         let context = execution::command_context(&context, request.context.as_ref())?;
         let responder = context
             .submitted_by
@@ -341,7 +341,7 @@ impl Operation for Respond {
             .map_err(execution::status)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         self.resources.produce(|| {
-            Ok(wire::PromptResponseReceipt {
+            Ok(dokime_domain::model::prompts::wire::PromptResponseReceipt {
                 command_id: receipt.command_id.to_string(),
                 prompt_id: id.to_string(),
                 committed_revision: receipt.runtime_revision,

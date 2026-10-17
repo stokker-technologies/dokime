@@ -40,7 +40,7 @@ use super::super::{
 
 /* === Public Functions === */
 pub(super) fn selection(
-    value: dokime_domain::operations::plots::AnalysisSelection,
+    value: dokime_domain::model::plots::wire::AnalysisSelection,
 ) -> Result<dokime_runtime::analysis::Selection, Status> {
     value::text(&value.id)?;
     if value.id.is_empty() || value.version == 0 {
@@ -80,8 +80,8 @@ pub(super) fn selection(
 
 pub(crate) fn selection_wire(
     selection: &dokime_runtime::analysis::Selection,
-) -> Result<dokime_domain::operations::plots::AnalysisSelection, Status> {
-    Ok(dokime_domain::operations::plots::AnalysisSelection {
+) -> Result<dokime_domain::model::plots::wire::AnalysisSelection, Status> {
+    Ok(dokime_domain::model::plots::wire::AnalysisSelection {
         id: selection.id.clone(),
         version: selection.version,
         parameters: Some(super::wire::values(&selection.parameters)?),
@@ -90,10 +90,10 @@ pub(crate) fn selection_wire(
 
 pub(super) fn definition(
     definition: &dokime_runtime::analysis::Definition,
-) -> Result<dokime_domain::operations::plots::AnalysisDefinition, Status> {
+) -> Result<dokime_domain::model::plots::wire::AnalysisDefinition, Status> {
     definition.check().map_err(Status::internal)?;
     let mut budget = Budget::new();
-    Ok(dokime_domain::operations::plots::AnalysisDefinition {
+    Ok(dokime_domain::model::plots::wire::AnalysisDefinition {
         id: definition.id.clone(),
         version: definition.version,
         label: definition.label.clone(),
@@ -103,12 +103,12 @@ pub(super) fn definition(
             .outputs
             .iter()
             .map(
-                |output| dokime_domain::operations::plots::AnalysisOutput {
+                |output| dokime_domain::model::plots::wire::AnalysisOutput {
                     key: output.key.clone(),
                     label: output.label.clone(),
                     unit: output.unit.clone(),
                     axis: output.axis.as_ref().map(|axis| {
-                        dokime_domain::operations::plots::AnalysisAxis {
+                        dokime_domain::model::plots::wire::AnalysisAxis {
                             key: axis.key.clone(),
                             unit: axis.unit.clone(),
                         }
@@ -123,11 +123,11 @@ pub(super) fn definition(
 
 pub(super) fn computation(
     computed: dokime_runtime::runtime::query::PlotComputation,
-) -> Result<dokime_domain::operations::plots::AnalysisComputation, Status> {
-    Ok(dokime_domain::operations::plots::AnalysisComputation {
+) -> Result<dokime_domain::model::plots::wire::AnalysisComputation, Status> {
+    Ok(dokime_domain::model::plots::wire::AnalysisComputation {
         definition: Some(definition(&computed.definition)?),
         selection: Some(selection_wire(&computed.selection)?),
-        source: Some(dokime_domain::operations::plots::AnalysisEvidence {
+        source: Some(dokime_domain::model::plots::wire::AnalysisEvidence {
             epoch: computed.source.epoch,
             stream: computed.source.stream,
             scope: computed
@@ -142,7 +142,7 @@ pub(super) fn computation(
                 .telemetry_streams
                 .into_iter()
                 .map(|(key, value)| {
-                    dokime_domain::operations::plots::AnalysisEvidenceTelemetryStreamsEntry {
+                    dokime_domain::model::plots::wire::AnalysisEvidenceTelemetryStreamsEntry {
                         key,
                         value,
                     }
@@ -157,7 +157,7 @@ pub(super) fn computation(
             .series
             .into_iter()
             .map(
-                |series| dokime_domain::operations::plots::AnalysisSeries {
+                |series| dokime_domain::model::plots::wire::AnalysisSeries {
                     key: series.key,
                     label: series.label,
                     origin: series.origin,
@@ -169,7 +169,7 @@ pub(super) fn computation(
                         .outputs
                         .into_iter()
                         .map(
-                            |output| dokime_domain::operations::plots::AnalysisValues {
+                            |output| dokime_domain::model::plots::wire::AnalysisValues {
                                 display_indices: series
                                     .display_indices
                                     .get(&output.key)

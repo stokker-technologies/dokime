@@ -52,7 +52,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<wire::ExecutionFileDownloadFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileDownloadFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,

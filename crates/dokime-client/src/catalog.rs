@@ -36,7 +36,7 @@ use dokime_domain::operations::catalog;
 
 /* === Implementations === */
 impl Client {
-    pub fn suites(&self) -> Result<ResponseStream<catalog::SuiteDefinition>> {
+    pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
@@ -79,7 +79,7 @@ impl Client {
     async fn suite_page(
         &self,
         request: &catalog::ListSuites,
-    ) -> Result<catalog::ListSuitesReply> {
+    ) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
         self.verify(true).await?;
         let page = self
             .unary::<catalog::ListSuites>(catalog::ListSuites::PATH, request.clone())
@@ -92,14 +92,14 @@ impl Client {
     async fn definition(
         &self,
         request: catalog::GetSuite,
-    ) -> Result<catalog::SuiteDefinition> {
+    ) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
         let reply = self
             .unary::<catalog::GetSuite>(catalog::GetSuite::PATH, request)
             .await?;
         super::transport::value(reply)
     }
 
-    pub async fn suite(&self, identifier: &str) -> Result<catalog::SuiteDefinition> {
+    pub async fn suite(&self, identifier: &str) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
         self.verify(true).await?;
         match self
             .definition(catalog::GetSuite {
@@ -165,7 +165,7 @@ impl Client {
     pub async fn template(
         &self,
         identifier: &str,
-    ) -> Result<(catalog::SuiteDefinition, catalog::TemplateDefinition)> {
+    ) -> Result<(dokime_domain::model::catalog::wire::SuiteDefinition, dokime_domain::model::catalog::wire::TemplateDefinition)> {
         let suite = template_suite(identifier).ok_or_else(|| {
             Error::Rpc(tonic::Status::invalid_argument(
                 "a template is referenced as `<suite id>.<segment>`",
@@ -188,9 +188,9 @@ pub fn template_suite(identifier: &str) -> Option<&str> {
 
 /* === Private Functions === */
 pub(crate) fn registered_template<'a>(
-    suite: &'a catalog::SuiteDefinition,
+    suite: &'a dokime_domain::model::catalog::wire::SuiteDefinition,
     identifier: &str,
-) -> Result<&'a catalog::TemplateDefinition> {
+) -> Result<&'a dokime_domain::model::catalog::wire::TemplateDefinition> {
     let mut matches = suite.templates.iter().filter(|candidate| {
         candidate
             .metadata
@@ -213,8 +213,8 @@ pub(crate) fn registered_template<'a>(
 }
 
 fn validate_listed_identity(
-    identity: &catalog::SuiteIdentity,
-    suite: &catalog::SuiteDefinition,
+    identity: &dokime_domain::model::catalog::wire::SuiteIdentity,
+    suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
 ) -> Result<()> {
     if suite.identity.as_ref() != Some(identity) {
         return Err(invalid("suite definition differs from the listed identity"));
@@ -222,7 +222,7 @@ fn validate_listed_identity(
     Ok(())
 }
 
-fn validate_definition(id: &str, suite: &catalog::SuiteDefinition) -> Result<()> {
+fn validate_definition(id: &str, suite: &dokime_domain::model::catalog::wire::SuiteDefinition) -> Result<()> {
     let identity = suite
         .identity
         .as_ref()
@@ -239,7 +239,7 @@ fn validate_definition(id: &str, suite: &catalog::SuiteDefinition) -> Result<()>
 fn validate_page(
     epoch: &str,
     request: &catalog::ListSuites,
-    page: &catalog::ListSuitesReply,
+    page: &dokime_domain::model::catalog::wire::ListSuitesReply,
 ) -> Result<()> {
     let cursor = page
         .cursor

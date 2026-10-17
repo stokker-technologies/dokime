@@ -32,10 +32,10 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::Endpoint;
-use dokime_domain::operations::common::Metadata;
+use dokime_domain::model::identity::wire::Metadata;
 use dokime_domain::operations::execution as contract;
 use dokime_domain::operations::planning;
-use dokime_domain::operations::value::Value;
+use dokime_domain::model::values::wire::Value;
 
 /* === Constants === */
 
@@ -97,7 +97,7 @@ impl Client {
     pub async fn preview_selection(
         &self,
         request: planning::PreviewSelection,
-    ) -> Result<planning::PreviewSelectionReply> {
+    ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
         self.verify(true).await?;
         let reply = self
             .unary::<planning::PreviewSelection>(planning::PreviewSelection::PATH, request)
@@ -115,7 +115,7 @@ impl Client {
     pub async fn register_selection(
         &self,
         request: planning::RegisterSelection,
-    ) -> Result<planning::PreviewSelectionReply> {
+    ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
         dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.verify(true).await?;
@@ -258,7 +258,7 @@ impl TestCycleHandle {
         &self.id
     }
 
-    pub async fn stop(&self) -> Result<dokime_domain::operations::execution::ControlReply> {
+    pub async fn stop(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         use dokime_domain::operations::execution::StopCycle;
         self.client.verify(true).await?;
         let reply = self
@@ -402,8 +402,8 @@ impl TestCycleHandle {
     /// the cycle's case numbering.
     pub async fn append_cases(
         &self,
-        plan: planning::SelectionPlan,
-    ) -> Result<contract::ControlReply> {
+        plan: dokime_domain::model::planning::wire::SelectionPlan,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -431,28 +431,28 @@ impl TestCycleHandle {
 
 /* === Private Functions === */
 fn single_plan(
-    definition: &dokime_domain::operations::catalog::SuiteDefinition,
+    definition: &dokime_domain::model::catalog::wire::SuiteDefinition,
     template: &str,
     parameters: BTreeMap<String, dokime_domain::model::values::Value>,
-) -> Result<(planning::SelectionPlan, String)> {
+) -> Result<(dokime_domain::model::planning::wire::SelectionPlan, String)> {
     let identity = definition
         .identity
         .as_ref()
         .ok_or_else(|| invalid("suite definition has no identity"))?;
     // Templates are referenced by their readable id; the UUID stays internal.
     let selected = super::catalog::registered_template(definition, template)?;
-    let plan = planning::SelectionPlan {
+    let plan = dokime_domain::model::planning::wire::SelectionPlan {
         max_cases: 1,
         case_ids: Vec::new(),
-        selections: vec![planning::RegisteredSelection {
+        selections: vec![dokime_domain::model::planning::wire::RegisteredSelection {
             suite_id: identity.suite_id.clone(),
             template_id: selected.template_id.clone(),
             parameters: parameters
                 .into_iter()
                 .map(
-                    |(key, value)| planning::RegisteredSelectionParametersEntry {
+                    |(key, value)| dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
                         key,
-                        value: Some(planning::SelectionValues {
+                        value: Some(dokime_domain::model::planning::wire::SelectionValues {
                             values: vec![Value::from(value)],
                         }),
                     },

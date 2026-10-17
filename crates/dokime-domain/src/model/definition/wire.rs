@@ -16,13 +16,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
-use super::common::Metadata;
+use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
-use super::common::*;
-use super::value::Value;
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 /* === Constants === */
 

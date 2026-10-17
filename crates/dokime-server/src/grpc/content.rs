@@ -51,27 +51,27 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
     use dokime_domain::operations::content as wire;
     // Reserve Both The Wire Envelope And The Retained Stream Frame.
-    let chunk = wire::ArtifactChunk {
+    let chunk = dokime_domain::model::content::wire::ArtifactChunk {
         offset: u64::MAX,
         data: Vec::new(),
     };
     let overhead = [
-        transfer_frame_memory(wire::ArtifactFrame {
-            payload: Some(wire::ArtifactFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime_domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(wire::UploadArtifactFrame {
-            payload: Some(wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime_domain::model::content::wire::UploadArtifactFrame {
+            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(wire::ExecutionFileDownloadFrame {
-            payload: Some(wire::ExecutionFileDownloadFramePayload::Chunk(
+        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
                 chunk.clone(),
             )),
         }),
-        transfer_frame_memory(wire::ExecutionFileFollowFrame {
-            payload: Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(wire::AppearanceAssetFrame {
-            payload: Some(wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime_domain::model::content::wire::AppearanceAssetFrame {
+            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
         }),
     ]
     .into_iter()
@@ -84,7 +84,7 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
     if record.status == ArtifactStatus::Staged {
         return Err(Status::data_loss("invalid stored artifact metadata"));
     }
-    let mut bytes = std::mem::size_of::<dokime_domain::operations::content::ArtifactMetadata>()
+    let mut bytes = std::mem::size_of::<dokime_domain::model::content::wire::ArtifactMetadata>()
         .saturating_add(record.artifact_id.as_str().len())
         .saturating_add(record.upload_id.as_str().len())
         .saturating_add(record.filename.len())
@@ -114,7 +114,7 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
 
 pub(super) fn metadata(
     record: &ArtifactRecord,
-) -> Result<dokime_domain::operations::content::ArtifactMetadata, Status> {
+) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, Status> {
     metadata_memory(record)?;
     let invalid = || Status::data_loss("invalid stored artifact metadata");
     let sha256 = artifact_digest(record)?.to_owned();
@@ -123,10 +123,10 @@ pub(super) fn metadata(
         &time::format_description::well_known::Rfc3339,
     )
     .map_err(|_| invalid())?;
-    Ok(dokime_domain::operations::content::ArtifactMetadata {
+    Ok(dokime_domain::model::content::wire::ArtifactMetadata {
         artifact_id: record.artifact_id.as_str().to_owned(),
         upload_id: record.upload_id.as_str().to_owned(),
-        scope: Some(dokime_domain::operations::content::ArtifactScope {
+        scope: Some(dokime_domain::model::content::wire::ArtifactScope {
             cycle_id: record
                 .scope
                 .test_cycle_id
@@ -149,17 +149,17 @@ pub(super) fn metadata(
         sha256,
         state: match record.status {
             ArtifactStatus::Complete => {
-                dokime_domain::operations::content::ArtifactState::Complete
+                dokime_domain::model::content::wire::ArtifactState::Complete
             }
             ArtifactStatus::Cancelled => {
-                dokime_domain::operations::content::ArtifactState::Cancelled
+                dokime_domain::model::content::wire::ArtifactState::Cancelled
             }
             ArtifactStatus::Rejected => {
-                dokime_domain::operations::content::ArtifactState::Rejected
+                dokime_domain::model::content::wire::ArtifactState::Rejected
             }
             ArtifactStatus::Staged => return Err(invalid()),
         },
-        created_at: Some(dokime_domain::operations::common::Timestamp {
+        created_at: Some(dokime_domain::model::identity::wire::Timestamp {
             seconds: created.unix_timestamp(),
             nanos: created.nanosecond() as i32,
         }),

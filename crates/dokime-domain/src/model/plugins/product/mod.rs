@@ -11,10 +11,11 @@
 mod registration;
 
 /* === Re-Exports === */
-pub use registration::{
-    ExecutionProviderTarget, SidecarExecutionBinding, SuiteContractError, TestSuiteDefinition,
-    resolve_suite_plot_axes,
-};
+pub use registration::ExecutionProviderTarget;
+pub use registration::SidecarExecutionBinding;
+pub use registration::SuiteContractError;
+pub use registration::TestSuiteDefinition;
+pub use registration::resolve_suite_plot_axes;
 
 /* === Imports === */
 // Standard Library Imports

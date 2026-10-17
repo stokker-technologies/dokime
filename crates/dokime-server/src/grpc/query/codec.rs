@@ -41,7 +41,7 @@ use dokime_domain::operations::query as wire;
 pub(super) fn project(
     outcome: &AggregateOutcome,
     maximum: usize,
-) -> harmos::Result<wire::AggregateReply> {
+) -> harmos::Result<dokime_domain::model::query::wire::AggregateReply> {
     for column in &outcome.columns {
         super::super::value::text(column).map_err(failure)?;
     }
@@ -56,9 +56,9 @@ pub(super) fn project(
         for item in row {
             values.push(canonical::encode(item, &mut budget, 0).map_err(failure)?);
         }
-        rows.push(wire::QueryRow { values });
+        rows.push(dokime_domain::model::query::wire::QueryRow { values });
     }
-    let result = wire::AggregateReply {
+    let result = dokime_domain::model::query::wire::AggregateReply {
         columns,
         rows,
         complete: outcome.complete,

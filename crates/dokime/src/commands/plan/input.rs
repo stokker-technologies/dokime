@@ -22,9 +22,9 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::operations::planning::PreviewSelectionReply;
-use dokime_domain::operations::planning::RegisteredSelection;
-use dokime_domain::operations::planning::SelectionPlan;
+use dokime_domain::model::planning::wire::PreviewSelectionReply;
+use dokime_domain::model::planning::wire::RegisteredSelection;
+use dokime_domain::model::planning::wire::SelectionPlan;
 
 /* === Constants === */
 

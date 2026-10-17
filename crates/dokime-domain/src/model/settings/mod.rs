@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod wire;
 pub mod boolean;
 pub mod multiple_choice;
 pub mod number;
@@ -17,17 +18,21 @@ pub mod text_area;
 
 /* === Re-Exports === */
 pub use boolean::Boolean;
-pub use multiple_choice::{Choice, MultipleChoice};
+pub use multiple_choice::Choice;
+pub use multiple_choice::MultipleChoice;
 pub use number::Number;
 pub use path::Path;
-pub use secret::{SecretReference, SecretSetting};
+pub use secret::SecretReference;
+pub use secret::SecretSetting;
 pub use text_area::TextArea;
 
 /* === Imports === */
 // Standard Library Imports
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::values::Value;
 

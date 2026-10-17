@@ -93,7 +93,7 @@ impl Resources {
         value: dokime_runtime::runtime::query::PlotPayloadEnvelope,
         epoch: &str,
         selection: &str,
-    ) -> Result<Response<contract::PlotStreamFrame>, Status> {
+    ) -> Result<Response<dokime_domain::model::plots::wire::PlotStreamFrame>, Status> {
         let mut advanced = requests.clone();
         merge_plot_payload_cursor(&mut advanced, &value);
         let served = stream_frame(kind, value, epoch, selection, self.maximum)
@@ -117,7 +117,7 @@ impl Resources {
     /// plot's error instead, and false asks the watch to retry it.
     async fn snapshot(
         &self,
-        output: &mut StreamOutput<contract::PlotStreamFrame>,
+        output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
         requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
         selections: &[String],
         epoch: &str,
@@ -169,7 +169,7 @@ impl Operation for Analyses {
         _: Self::Context<'a>,
         request: &mut contract::ListAnalyses,
         _: &mut (),
-    ) -> Result<Response<contract::ListAnalysesReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::plots::wire::ListAnalysesReply>, Status> {
         super::value::text(&request.after_id)?;
         let limit = if request.limit == 0 {
             64
@@ -195,7 +195,7 @@ impl Operation for Analyses {
         let next_after_id = (page.len() > limit).then(|| page[limit - 1].id.clone());
         page.truncate(limit);
         self.resources.produce(|| {
-            Ok(contract::ListAnalysesReply {
+            Ok(dokime_domain::model::plots::wire::ListAnalysesReply {
                 definitions: page
                     .into_iter()
                     .map(analysis::definition)
@@ -222,7 +222,7 @@ impl Operation for Snapshots {
         _: Self::Context<'a>,
         request: &mut contract::QuerySnapshots,
         _: &mut (),
-    ) -> Result<Response<contract::PlotSnapshotsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::plots::wire::PlotSnapshotsReply>, Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();
         let (requests, selections) =
             decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
@@ -245,7 +245,7 @@ impl Operation for Snapshots {
                     envelope(value, &epoch, selection, self.resources.maximum)
                 })
                 .collect::<Result<Vec<_>, Status>>()?;
-            Ok(contract::PlotSnapshotsReply { envelopes })
+            Ok(dokime_domain::model::plots::wire::PlotSnapshotsReply { envelopes })
         })
     }
 }
@@ -254,7 +254,7 @@ impl Operation for Watch {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::PlotStreamFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -404,10 +404,10 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 fn plot_error_frame(
     request: &dokime_runtime::runtime::query::PlotPayloadRequest,
     message: String,
-) -> contract::PlotStreamFrame {
-    contract::PlotStreamFrame {
-        kind: contract::PlotStreamKind::Error,
-        envelope: Some(contract::PlotEnvelope {
+) -> dokime_domain::model::plots::wire::PlotStreamFrame {
+    dokime_domain::model::plots::wire::PlotStreamFrame {
+        kind: dokime_domain::model::plots::wire::PlotStreamKind::Error,
+        envelope: Some(dokime_domain::model::plots::wire::PlotEnvelope {
             plot_id: request
                 .plot_id
                 .clone()

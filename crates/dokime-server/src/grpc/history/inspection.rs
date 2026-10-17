@@ -26,7 +26,7 @@ use crate::grpc::{error::detailed, value};
 use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::runtime::query::execution_history::ExecutionCheckpoint;
-use dokime_domain::operations::checkpoint;
+use dokime_domain::model::execution::wire_checkpoint as checkpoint;
 use dokime_domain::operations::history;
 
 /* === Constants === */
@@ -112,7 +112,7 @@ impl Operation for Delete {
         _: Self::Context<'a>,
         request: &mut history::DeleteExecution,
         _: &mut (),
-    ) -> Result<Response<history::DeleteExecutionResponse>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::DeleteExecutionResponse>, Status> {
         if self
             .resources
             .runtime

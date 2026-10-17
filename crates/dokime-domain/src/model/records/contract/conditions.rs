@@ -15,7 +15,8 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::values::Value;

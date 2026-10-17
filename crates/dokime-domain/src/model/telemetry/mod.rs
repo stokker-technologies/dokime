@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod wire;
 pub mod contract;
 pub mod evidence;
 pub mod host;
@@ -18,20 +19,29 @@ pub mod stream;
 /* === Re-Exports === */
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
-pub use contract::{
-    TelemetryColumn, TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator,
-    TelemetryContract, TelemetryFilter, TelemetryRole,
-};
-pub use evidence::{TelemetryBatch, TelemetrySample};
-pub use host::{
-    HOST_STREAMS, HostTelemetryStream, UnknownHostStream, host_stream_identifiers,
-    host_telemetry_contract, host_telemetry_contracts, host_telemetry_payload,
-};
+pub use contract::TelemetryColumn;
+pub use contract::TelemetryCondition;
+pub use contract::TelemetryConditionEvaluation;
+pub use contract::TelemetryConditionOperator;
+pub use contract::TelemetryContract;
+pub use contract::TelemetryFilter;
+pub use contract::TelemetryRole;
+pub use evidence::TelemetryBatch;
+pub use evidence::TelemetrySample;
+pub use host::HOST_STREAMS;
+pub use host::HostTelemetryStream;
+pub use host::UnknownHostStream;
+pub use host::host_stream_identifiers;
+pub use host::host_telemetry_contract;
+pub use host::host_telemetry_contracts;
+pub use host::host_telemetry_payload;
 pub use row::TelemetryRow;
-pub use sampling::{
-    SamplingScope, TelemetryCaptureLease, TelemetrySampleKey, TelemetrySamplingRequest,
-    TelemetrySourceDescriptor, TelemetrySourceKind,
-};
+pub use sampling::SamplingScope;
+pub use sampling::TelemetryCaptureLease;
+pub use sampling::TelemetrySampleKey;
+pub use sampling::TelemetrySamplingRequest;
+pub use sampling::TelemetrySourceDescriptor;
+pub use sampling::TelemetrySourceKind;
 pub use stream::TelemetryStream;
 
 /* === Imports === */

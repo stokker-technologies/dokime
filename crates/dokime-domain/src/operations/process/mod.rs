@@ -21,39 +21,24 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use super::*;
 
+use crate::model::process::wire::*;
+
 /* === Constants === */
-// The grace a cancelled process gets between SIGTERM and the kill.
-pub const DEFAULT_GRACE_MS: u32 = 2_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProcessVariable {
-    pub name: String,
-    pub value: String,
-}
 
 
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProcessExit {
-    // Absent when a signal ended the process.
-    #[row(description = "Absent when a signal ended the process.")]
-    pub exit_code: Option<i32>,
-    pub duration_ms: u64,
-    // The instance was cancelled before the process exited by itself.
-    #[row(description = "The instance was cancelled before the process exited by itself.")]
-    pub cancelled: bool,
-}
+
 
 // Shared, so a template reaches it through `ctx.host()` without listing it.
 #[harmos::message]
@@ -85,12 +70,6 @@ pub struct RunProcess {
 }
 
 /* === Enums === */
-// Where one output of the process goes.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Output {
-    Log,
-    Artifact(String),
-}
 
 /* === Traits === */
 
@@ -154,24 +133,9 @@ impl RunProcess {
     }
 }
 
-impl Output {
-    fn artifact(self) -> Option<String> {
-        match self {
-            Self::Log => None,
-            Self::Artifact(name) => Some(name),
-        }
-    }
-}
 
-impl ProcessExit {
-    pub fn success(&self) -> bool {
-        self.exit_code == Some(0)
-    }
 
-    pub fn duration(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(self.duration_ms)
-    }
-}
+
 
 /* === Public Functions === */
 

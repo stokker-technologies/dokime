@@ -66,7 +66,7 @@ impl Operation for FileWatch {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::FileWatchFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::files::wire::FileWatchFrame>;
 
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
@@ -137,9 +137,9 @@ impl Operation for FileWatch {
         let sealed = watch.seal(&mut events).await;
         send_events(output, &mut events).await?;
         sealed.map_err(failure)?;
-        let completed = contract::FileWatchFrame {
-            payload: Some(contract::FileWatchFramePayload::Completed(
-                contract::FileWatchCompleted {
+        let completed = dokime_domain::model::files::wire::FileWatchFrame {
+            payload: Some(dokime_domain::model::files::wire::FileWatchFramePayload::Completed(
+                dokime_domain::model::files::wire::FileWatchCompleted {
                     artifacts: watch
                         .sealed()
                         .iter()
@@ -186,7 +186,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
 
 /* === Private Functions === */
 async fn send_events(
-    output: &mut StreamOutput<contract::FileWatchFrame>,
+    output: &mut StreamOutput<dokime_domain::model::files::wire::FileWatchFrame>,
     events: &mut Vec<WatchEvent>,
 ) -> Result<(), Status> {
     for event in events.drain(..) {
@@ -199,13 +199,13 @@ async fn send_events(
     Ok(())
 }
 
-fn frame(event: WatchEvent) -> Result<contract::FileWatchFrame, Status> {
+fn frame(event: WatchEvent) -> Result<dokime_domain::model::files::wire::FileWatchFrame, Status> {
     let payload = match event {
         WatchEvent::Progress {
             path,
             offset,
             phase,
-        } => contract::FileWatchFramePayload::Progress(contract::FileWatchProgress {
+        } => dokime_domain::model::files::wire::FileWatchFramePayload::Progress(dokime_domain::model::files::wire::FileWatchProgress {
             path,
             offset,
             phase,
@@ -214,19 +214,19 @@ fn frame(event: WatchEvent) -> Result<contract::FileWatchFrame, Status> {
             path,
             offset,
             reason,
-        } => contract::FileWatchFramePayload::Gap(contract::FileWatchGap {
+        } => dokime_domain::model::files::wire::FileWatchFramePayload::Gap(dokime_domain::model::files::wire::FileWatchGap {
             path,
             offset,
             reason,
         }),
         WatchEvent::Sealed { path, record } => {
-            contract::FileWatchFramePayload::Sealed(Box::new(contract::FileWatchSealed {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(dokime_domain::model::files::wire::FileWatchSealed {
                 path,
                 artifact: Some(metadata(&record)?),
             }))
         }
     };
-    Ok(contract::FileWatchFrame {
+    Ok(dokime_domain::model::files::wire::FileWatchFrame {
         payload: Some(payload),
     })
 }

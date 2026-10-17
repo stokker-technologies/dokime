@@ -8,10 +8,15 @@
  */
 
 /* === Modules === */
+pub mod wire;
 pub mod card;
 
 /* === Re-Exports === */
-pub use card::{HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone};
+pub use card::HostCardBlock;
+pub use card::HostCardBody;
+pub use card::HostCardKeyValue;
+pub use card::HostCardMetric;
+pub use card::HostCardTone;
 
 /* === Public Functions === */
 

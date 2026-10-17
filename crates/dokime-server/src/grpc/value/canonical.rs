@@ -27,10 +27,10 @@ use dokime_domain::model::values::ElapsedUnit;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
-use dokime_domain::operations::common;
-use dokime_domain::operations::cursor::Cursor;
-use dokime_domain::operations::schema;
-use dokime_domain::operations::value as wire;
+use dokime_domain::model::identity::wire as common;
+use dokime_domain::model::execution::wire_cursor::Cursor;
+use dokime_domain::model::definition::wire as schema;
+use dokime_domain::model::values::wire as wire;
 
 /* === Constants === */
 
@@ -48,7 +48,7 @@ use dokime_domain::operations::value as wire;
 
 /* === Public Functions === */
 pub(in crate::grpc) fn decode(
-    value: wire::Value,
+    value: dokime_domain::model::values::wire::Value,
     budget: &mut Budget,
     depth: usize,
 ) -> Result<Value, Status> {
@@ -85,15 +85,15 @@ pub(in crate::grpc) fn encode(
     value: &Value,
     budget: &mut Budget,
     depth: usize,
-) -> Result<wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     native(value, budget, depth)?;
-    Ok(wire::Value::from(value))
+    Ok(dokime_domain::model::values::wire::Value::from(value))
 }
 
 pub(in crate::grpc) fn object(
     fields: &BTreeMap<String, Value>,
     budget: &mut Budget,
-) -> Result<wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     object_at(fields, budget, 0)
 }
 
@@ -101,13 +101,13 @@ pub(in crate::grpc) fn object_at(
     fields: &BTreeMap<String, Value>,
     budget: &mut Budget,
     depth: usize,
-) -> Result<wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     collection(fields.len())?;
     for (key, value) in fields {
         text(key)?;
         native(value, budget, depth)?;
     }
-    Ok(wire::Value::from(fields))
+    Ok(dokime_domain::model::values::wire::Value::from(fields))
 }
 
 pub(in crate::grpc) fn metadata(value: &Metadata) -> Result<common::Metadata, Status> {
@@ -290,7 +290,7 @@ pub(in crate::grpc) fn execution_plugin_memory(
     };
     text(implementation)?;
     bounded(
-        std::mem::size_of::<dokime_domain::operations::execution::ExecutionPluginIdentity>()
+        std::mem::size_of::<dokime_domain::model::execution::wire::ExecutionPluginIdentity>()
             .saturating_add(value.source.len())
             .saturating_add(value.version.as_ref().map_or(0, String::len))
             .saturating_add(implementation.len()),
@@ -299,10 +299,10 @@ pub(in crate::grpc) fn execution_plugin_memory(
 
 pub(in crate::grpc) fn execution_plugin(
     value: &dokime_runtime::execution::ExecutionPluginIdentity,
-) -> Result<dokime_domain::operations::execution::ExecutionPluginIdentity, Status> {
+) -> Result<dokime_domain::model::execution::wire::ExecutionPluginIdentity, Status> {
     use dokime_runtime::execution::ExecutionImplementation;
-    use dokime_domain::operations::execution::ExecutionPluginIdentity;
-    use dokime_domain::operations::execution::ExecutionPluginIdentityImplementation as Implementation;
+    use dokime_domain::model::execution::wire::ExecutionPluginIdentity;
+    use dokime_domain::model::execution::wire::ExecutionPluginIdentityImplementation as Implementation;
     text(&value.source)?;
     if let Some(version) = &value.version {
         text(version)?;
@@ -333,11 +333,11 @@ pub(in crate::grpc) fn memory(
     let (nodes, heap) = heap(value);
     // Conservative Vec Growth: Include Four Slots Per Node, Including The Initial Allocation.
     bounded(
-        std::mem::size_of::<wire::Value>()
+        std::mem::size_of::<dokime_domain::model::values::wire::Value>()
             .saturating_add(
                 nodes
                     .saturating_mul(4)
-                    .saturating_mul(std::mem::size_of::<wire::ValueNode>()),
+                    .saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueNode>()),
             )
             .saturating_add(heap),
     )
@@ -356,19 +356,19 @@ pub(in crate::grpc) fn object_memory_at(
     depth: usize,
 ) -> Result<usize, Status> {
     collection(fields.len())?;
-    let mut bytes = std::mem::size_of::<wire::Value>()
-        .saturating_add(4 * std::mem::size_of::<wire::ValueNode>())
+    let mut bytes = std::mem::size_of::<dokime_domain::model::values::wire::Value>()
+        .saturating_add(4 * std::mem::size_of::<dokime_domain::model::values::wire::ValueNode>())
         .saturating_add(
             fields
                 .len()
                 .saturating_mul(4)
-                .saturating_mul(std::mem::size_of::<wire::ValueField>()),
+                .saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueField>()),
         );
     for (key, value) in fields {
         text(key)?;
         bytes = bytes
             .saturating_add(key.len())
-            .saturating_add(memory(value, budget, depth)? - std::mem::size_of::<wire::Value>());
+            .saturating_add(memory(value, budget, depth)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>());
     }
     bounded(bytes)
 }
@@ -407,7 +407,7 @@ pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status
         text(key)?;
         bytes = bytes
             .saturating_add(key.len())
-            .saturating_add(memory(value, &mut budget, 0)? - std::mem::size_of::<wire::Value>());
+            .saturating_add(memory(value, &mut budget, 0)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>());
     }
     bounded(bytes)
 }
@@ -479,8 +479,8 @@ pub(in crate::grpc) fn value_format(value: &dokime_domain::model::values::ValueF
     }
 }
 
-pub(in crate::grpc) fn cursor_failure(error: dokime_domain::operations::cursor::Error) -> Status {
-    use dokime_domain::operations::cursor::Error;
+pub(in crate::grpc) fn cursor_failure(error: dokime_domain::model::execution::wire_cursor::Error) -> Status {
+    use dokime_domain::model::execution::wire_cursor::Error;
     let code = match error {
         Error::Selection => tonic::Code::FailedPrecondition,
         Error::Ahead => tonic::Code::OutOfRange,
@@ -577,7 +577,7 @@ fn scope_ids(value: &dokime_domain::model::execution::RecordScope) -> [Option<&s
     ]
 }
 
-fn preflight(value: &wire::Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
+fn preflight(value: &dokime_domain::model::values::wire::Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
     if value.nodes.len() > budget.0 {
         return Err(Status::resource_exhausted(
             "value/expression budget exceeded",
@@ -600,14 +600,14 @@ fn preflight(value: &wire::Value, budget: &mut Budget, depth: usize) -> Result<(
             Ok(())
         };
         match node.kind.as_ref() {
-            Some(wire::ValueKind::Text(value)) => text(value)?,
-            Some(wire::ValueKind::Array(values)) => {
+            Some(dokime_domain::model::values::wire::ValueKind::Text(value)) => text(value)?,
+            Some(dokime_domain::model::values::wire::ValueKind::Array(values)) => {
                 collection(values.items.len())?;
                 for member in &values.items {
                     child(*member)?;
                 }
             }
-            Some(wire::ValueKind::Object(values)) => {
+            Some(dokime_domain::model::values::wire::ValueKind::Object(values)) => {
                 collection(values.fields.len())?;
                 for field in &values.fields {
                     text(&field.key)?;
@@ -649,7 +649,7 @@ fn heap(value: &Value) -> (usize, usize) {
             let mut bytes = values
                 .len()
                 .saturating_mul(4)
-                .saturating_mul(std::mem::size_of::<wire::ValueField>());
+                .saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueField>());
             for (key, value) in values {
                 let (count, heap) = heap(value);
                 nodes = nodes.saturating_add(count);

@@ -60,7 +60,7 @@ impl Operation for Read {
         _: Self::Context<'a>,
         _: &mut wire::GetDiagnostics,
         _: &mut (),
-    ) -> Result<Response<wire::DiagnosticsResponse>, Status> {
+    ) -> Result<Response<dokime_domain::model::backend::wire::DiagnosticsResponse>, Status> {
         let diagnostics = DiagnosticsSnapshot::from_runtime(
             self.resources
                 .runtime
@@ -71,8 +71,8 @@ impl Operation for Read {
             &self.resources.runtime.application_root(),
         );
         super::status::produce_result(self.resources.maximum, || {
-            Ok(wire::DiagnosticsResponse {
-                server: Some(wire::BackendDiagnostics {
+            Ok(dokime_domain::model::backend::wire::DiagnosticsResponse {
+                server: Some(dokime_domain::model::backend::wire::BackendDiagnostics {
                     version: env!("CARGO_PKG_VERSION").into(),
                     process: Some(process_diagnostics()),
                 }),
@@ -93,12 +93,12 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     )?;
     Ok(())
 }
-pub(super) fn process_diagnostics() -> wire::ProcessDiagnostics {
+pub(super) fn process_diagnostics() -> dokime_domain::model::backend::wire::ProcessDiagnostics {
     let pid = std::process::id();
     let mut system = System::new_all();
     system.refresh_all();
     let process = system.process(Pid::from_u32(pid));
-    wire::ProcessDiagnostics {
+    dokime_domain::model::backend::wire::ProcessDiagnostics {
         pid,
         cpu_percent: process.map(|process| process.cpu_usage()),
         memory_bytes: process.map(|process| process.memory()),
@@ -109,12 +109,12 @@ pub(super) fn process_diagnostics() -> wire::ProcessDiagnostics {
 /* === Private Functions === */
 fn runtime_diagnostics(
     diagnostics: &DiagnosticsSnapshot,
-) -> Result<wire::RuntimeDiagnostics, Status> {
+) -> Result<dokime_domain::model::backend::wire::RuntimeDiagnostics, Status> {
     value::text(&diagnostics.storage_root)?;
     value::collection(diagnostics.path_conventions.len())?;
     value::collection(diagnostics.startup_doctor.checks.len())?;
     value::collection(diagnostics.installed_plugin_errors.len())?;
-    Ok(wire::RuntimeDiagnostics {
+    Ok(dokime_domain::model::backend::wire::RuntimeDiagnostics {
         captured_at: Some(canonical::timestamp(&diagnostics.captured_at)?),
         session_id: diagnostics.session_id.to_string(),
         identity: Some(runtime_identity(&diagnostics.identity)?),
@@ -139,9 +139,9 @@ fn runtime_diagnostics(
 
 fn runtime_identity(
     identity: &dokime_domain::model::identity::DokimeIdentity,
-) -> Result<wire::RuntimeIdentity, Status> {
-    Ok(wire::RuntimeIdentity {
-        node: Some(wire::RuntimeNodeIdentity {
+) -> Result<dokime_domain::model::backend::wire::RuntimeIdentity, Status> {
+    Ok(dokime_domain::model::backend::wire::RuntimeIdentity {
+        node: Some(dokime_domain::model::backend::wire::RuntimeNodeIdentity {
             node_id: identity.node.node_id.to_string(),
             hostname_label: identity.node.hostname_label.clone(),
             created_at: Some(canonical::timestamp(&identity.node.created_at)?),
@@ -150,7 +150,7 @@ fn runtime_identity(
         actor: identity
             .actor
             .as_ref()
-            .map(|actor| wire::RuntimeActorIdentity {
+            .map(|actor| dokime_domain::model::backend::wire::RuntimeActorIdentity {
                 actor_id: actor.actor_id.to_string(),
                 display_name: actor.display_name.clone(),
             }),
@@ -159,8 +159,8 @@ fn runtime_identity(
 
 fn startup_doctor(
     doctor: &diagnostics_assembly::StartupDoctorSnapshot,
-) -> Result<wire::StartupDoctorSnapshot, Status> {
-    Ok(wire::StartupDoctorSnapshot {
+) -> Result<dokime_domain::model::backend::wire::StartupDoctorSnapshot, Status> {
+    Ok(dokime_domain::model::backend::wire::StartupDoctorSnapshot {
         checked_at: Some(canonical::timestamp(&doctor.checked_at)?),
         status: diagnostic_status(doctor.status),
         checks: doctor
@@ -171,12 +171,12 @@ fn startup_doctor(
     })
 }
 
-fn startup_doctor_check(check: &StartupDoctorCheck) -> Result<wire::StartupDoctorCheck, Status> {
+fn startup_doctor_check(check: &StartupDoctorCheck) -> Result<dokime_domain::model::backend::wire::StartupDoctorCheck, Status> {
     value::text(&check.message)?;
     if let Some(detail) = check.detail.as_deref() {
         value::text(detail)?;
     }
-    Ok(wire::StartupDoctorCheck {
+    Ok(dokime_domain::model::backend::wire::StartupDoctorCheck {
         key: startup_doctor_key(check.key),
         status: diagnostic_status(check.status),
         message: check.message.clone(),
@@ -184,58 +184,58 @@ fn startup_doctor_check(check: &StartupDoctorCheck) -> Result<wire::StartupDocto
     })
 }
 
-fn diagnostic_status(status: DiagnosticCheckStatus) -> wire::DiagnosticCheckStatus {
+fn diagnostic_status(status: DiagnosticCheckStatus) -> dokime_domain::model::backend::wire::DiagnosticCheckStatus {
     match status {
-        DiagnosticCheckStatus::Ok => wire::DiagnosticCheckStatus::Ok,
-        DiagnosticCheckStatus::Warning => wire::DiagnosticCheckStatus::Warning,
-        DiagnosticCheckStatus::Failed => wire::DiagnosticCheckStatus::Failed,
+        DiagnosticCheckStatus::Ok => dokime_domain::model::backend::wire::DiagnosticCheckStatus::Ok,
+        DiagnosticCheckStatus::Warning => dokime_domain::model::backend::wire::DiagnosticCheckStatus::Warning,
+        DiagnosticCheckStatus::Failed => dokime_domain::model::backend::wire::DiagnosticCheckStatus::Failed,
     }
 }
 
-fn startup_doctor_key(key: StartupDoctorCheckKey) -> wire::StartupDoctorCheckKey {
+fn startup_doctor_key(key: StartupDoctorCheckKey) -> dokime_domain::model::backend::wire::StartupDoctorCheckKey {
     match key {
-        StartupDoctorCheckKey::StorageRoot => wire::StartupDoctorCheckKey::StorageRoot,
-        StartupDoctorCheckKey::ShutdownState => wire::StartupDoctorCheckKey::ShutdownState,
+        StartupDoctorCheckKey::StorageRoot => dokime_domain::model::backend::wire::StartupDoctorCheckKey::StorageRoot,
+        StartupDoctorCheckKey::ShutdownState => dokime_domain::model::backend::wire::StartupDoctorCheckKey::ShutdownState,
     }
 }
 
 fn path_convention(
     path: &DiagnosticPathConvention,
-) -> Result<wire::DiagnosticPathConvention, Status> {
+) -> Result<dokime_domain::model::backend::wire::DiagnosticPathConvention, Status> {
     value::text(&path.relative_path)?;
     if let Some(absolute_path) = path.absolute_path.as_deref() {
         value::text(absolute_path)?;
     }
-    Ok(wire::DiagnosticPathConvention {
+    Ok(dokime_domain::model::backend::wire::DiagnosticPathConvention {
         key: diagnostic_path_key(path.key),
         // Every convention the runtime produces sits at a fixed path under the
         // storage root; no cycle- or execution-scoped file is ever written.
-        scope: wire::DiagnosticPathScope::Root,
+        scope: dokime_domain::model::backend::wire::DiagnosticPathScope::Root,
         format: diagnostic_file_format(path.format),
         relative_path: path.relative_path.clone(),
         absolute_path: path.absolute_path.clone(),
     })
 }
 
-fn diagnostic_path_key(key: DiagnosticPathKey) -> wire::DiagnosticPathKey {
+fn diagnostic_path_key(key: DiagnosticPathKey) -> dokime_domain::model::backend::wire::DiagnosticPathKey {
     match key {
-        DiagnosticPathKey::HubLog => wire::DiagnosticPathKey::HubLog,
-        DiagnosticPathKey::StartupDoctor => wire::DiagnosticPathKey::StartupDoctor,
-        DiagnosticPathKey::DiagnosticsSnapshot => wire::DiagnosticPathKey::DiagnosticsSnapshot,
-        DiagnosticPathKey::CollectBundle => wire::DiagnosticPathKey::CollectBundle,
+        DiagnosticPathKey::HubLog => dokime_domain::model::backend::wire::DiagnosticPathKey::HubLog,
+        DiagnosticPathKey::StartupDoctor => dokime_domain::model::backend::wire::DiagnosticPathKey::StartupDoctor,
+        DiagnosticPathKey::DiagnosticsSnapshot => dokime_domain::model::backend::wire::DiagnosticPathKey::DiagnosticsSnapshot,
+        DiagnosticPathKey::CollectBundle => dokime_domain::model::backend::wire::DiagnosticPathKey::CollectBundle,
     }
 }
 
-fn diagnostic_file_format(format: DiagnosticFileFormat) -> wire::DiagnosticFileFormat {
+fn diagnostic_file_format(format: DiagnosticFileFormat) -> dokime_domain::model::backend::wire::DiagnosticFileFormat {
     match format {
-        DiagnosticFileFormat::Json => wire::DiagnosticFileFormat::Json,
-        DiagnosticFileFormat::Jsonl => wire::DiagnosticFileFormat::Jsonl,
-        DiagnosticFileFormat::Zip => wire::DiagnosticFileFormat::Zip,
+        DiagnosticFileFormat::Json => dokime_domain::model::backend::wire::DiagnosticFileFormat::Json,
+        DiagnosticFileFormat::Jsonl => dokime_domain::model::backend::wire::DiagnosticFileFormat::Jsonl,
+        DiagnosticFileFormat::Zip => dokime_domain::model::backend::wire::DiagnosticFileFormat::Zip,
     }
 }
 
-fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> wire::DiagnosticsCounts {
-    wire::DiagnosticsCounts {
+fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> dokime_domain::model::backend::wire::DiagnosticsCounts {
+    dokime_domain::model::backend::wire::DiagnosticsCounts {
         test_suites: counts.test_suites as u64,
         cycles: counts.cycles as u64,
         installed_plugin_errors: counts.installed_plugin_errors as u64,
@@ -248,7 +248,7 @@ fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> wire:
 
 fn installed_plugin_error(
     error: &dokime_runtime::domains::installed_plugins::InstalledPluginErrorRecord,
-) -> Result<wire::InstalledPluginErrorRecord, Status> {
+) -> Result<dokime_domain::model::backend::wire::InstalledPluginErrorRecord, Status> {
     value::text(error.plugin_id.as_str())?;
     if let Some(id) = error.contribution_id.as_ref() {
         value::text(id.as_str())?;
@@ -272,14 +272,14 @@ fn installed_plugin_error(
             if let Some(source) = cause.source.as_deref() {
                 value::text(source)?;
             }
-            Ok(wire::ErrorCause {
+            Ok(dokime_domain::model::backend::wire::ErrorCause {
                 message: cause.message.clone(),
                 code: cause.code.clone(),
                 source: cause.source.clone(),
             })
         })
         .collect::<Result<_, Status>>()?;
-    Ok(wire::InstalledPluginErrorRecord {
+    Ok(dokime_domain::model::backend::wire::InstalledPluginErrorRecord {
         plugin_id: error.plugin_id.to_string(),
         contribution_id: error.contribution_id.as_ref().map(ToString::to_string),
         phase: installed_plugin_phase(error.phase),
@@ -303,30 +303,30 @@ fn installed_plugin_error(
 
 fn installed_plugin_phase(
     phase: dokime_runtime::domains::installed_plugins::InstalledPluginPhase,
-) -> wire::InstalledPluginPhase {
+) -> dokime_domain::model::backend::wire::InstalledPluginPhase {
     use dokime_runtime::domains::installed_plugins::InstalledPluginPhase as Phase;
     match phase {
-        Phase::Entrypoint => wire::InstalledPluginPhase::Entrypoint,
-        Phase::Action => wire::InstalledPluginPhase::Action,
-        Phase::Sidecar => wire::InstalledPluginPhase::Sidecar,
-        Phase::Provider => wire::InstalledPluginPhase::Provider,
-        Phase::Initialize => wire::InstalledPluginPhase::Initialize,
-        Phase::Run => wire::InstalledPluginPhase::Run,
-        Phase::Finalize => wire::InstalledPluginPhase::Finalize,
-        Phase::Interrupt => wire::InstalledPluginPhase::Interrupt,
+        Phase::Entrypoint => dokime_domain::model::backend::wire::InstalledPluginPhase::Entrypoint,
+        Phase::Action => dokime_domain::model::backend::wire::InstalledPluginPhase::Action,
+        Phase::Sidecar => dokime_domain::model::backend::wire::InstalledPluginPhase::Sidecar,
+        Phase::Provider => dokime_domain::model::backend::wire::InstalledPluginPhase::Provider,
+        Phase::Initialize => dokime_domain::model::backend::wire::InstalledPluginPhase::Initialize,
+        Phase::Run => dokime_domain::model::backend::wire::InstalledPluginPhase::Run,
+        Phase::Finalize => dokime_domain::model::backend::wire::InstalledPluginPhase::Finalize,
+        Phase::Interrupt => dokime_domain::model::backend::wire::InstalledPluginPhase::Interrupt,
     }
 }
 
 fn diagnostic_level(
     level: dokime_domain::model::diagnostics::DebugLevel,
-) -> dokime_domain::operations::common::Severity {
+) -> dokime_domain::model::identity::wire::Severity {
     match level {
-        dokime_domain::model::diagnostics::DebugLevel::Debug => dokime_domain::operations::common::Severity::Debug,
-        dokime_domain::model::diagnostics::DebugLevel::Info => dokime_domain::operations::common::Severity::Info,
+        dokime_domain::model::diagnostics::DebugLevel::Debug => dokime_domain::model::identity::wire::Severity::Debug,
+        dokime_domain::model::diagnostics::DebugLevel::Info => dokime_domain::model::identity::wire::Severity::Info,
         dokime_domain::model::diagnostics::DebugLevel::Warning => {
-            dokime_domain::operations::common::Severity::Warn
+            dokime_domain::model::identity::wire::Severity::Warn
         }
-        dokime_domain::model::diagnostics::DebugLevel::Error => dokime_domain::operations::common::Severity::Error,
+        dokime_domain::model::diagnostics::DebugLevel::Error => dokime_domain::model::identity::wire::Severity::Error,
     }
 }
 

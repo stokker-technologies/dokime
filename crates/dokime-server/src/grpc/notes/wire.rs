@@ -24,7 +24,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
 use dokime_runtime::execution::notes::NoteOwner;
 use dokime_runtime::execution::{HealthItem, HealthSeverity, OperatorNote};
-use dokime_domain::operations::common;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
@@ -42,8 +42,8 @@ use dokime_domain::operations::notes as contract;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn owner(value: Option<contract::AnnotationOwner>) -> Result<NoteOwner, Status> {
-    use contract::AnnotationOwnerOwner as Owner;
+pub(super) fn owner(value: Option<dokime_domain::model::notes::wire::AnnotationOwner>) -> Result<NoteOwner, Status> {
+    use dokime_domain::model::notes::wire::AnnotationOwnerOwner as Owner;
     match value
         .and_then(|value| value.owner)
         .ok_or_else(|| Status::invalid_argument("explicit annotation owner required"))?
@@ -70,13 +70,13 @@ pub(super) fn owner(value: Option<contract::AnnotationOwner>) -> Result<NoteOwne
     }
 }
 
-pub(super) fn encode_owner(value: &NoteOwner) -> contract::AnnotationOwner {
-    use contract::AnnotationOwnerOwner as Owner;
-    contract::AnnotationOwner {
+pub(super) fn encode_owner(value: &NoteOwner) -> dokime_domain::model::notes::wire::AnnotationOwner {
+    use dokime_domain::model::notes::wire::AnnotationOwnerOwner as Owner;
+    dokime_domain::model::notes::wire::AnnotationOwner {
         owner: Some(match value {
             NoteOwner::Cycle { cycle_id } => Owner::CycleId(cycle_id.to_string()),
             NoteOwner::Case { cycle_id, case_id } => {
-                Owner::PlannedCase(contract::PlannedCaseNoteOwner {
+                Owner::PlannedCase(dokime_domain::model::notes::wire::PlannedCaseNoteOwner {
                     cycle_id: cycle_id.to_string(),
                     case_id: case_id.to_string(),
                 })
@@ -84,7 +84,7 @@ pub(super) fn encode_owner(value: &NoteOwner) -> contract::AnnotationOwner {
             NoteOwner::Execution {
                 cycle_id,
                 execution_id,
-            } => Owner::Execution(contract::ExecutionNoteOwner {
+            } => Owner::Execution(dokime_domain::model::notes::wire::ExecutionNoteOwner {
                 cycle_id: cycle_id.to_string(),
                 execution_id: execution_id.to_string(),
             }),
@@ -114,9 +114,9 @@ pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
         .saturating_add(item.detail.as_ref().map_or(0, String::len)))
 }
 
-pub(crate) fn note(note: &OperatorNote) -> Result<contract::OperatorNote, Status> {
+pub(crate) fn note(note: &OperatorNote) -> Result<dokime_domain::model::notes::wire::OperatorNote, Status> {
     note_size(note)?;
-    Ok(contract::OperatorNote {
+    Ok(dokime_domain::model::notes::wire::OperatorNote {
         note_id: note.note_id.as_str().to_owned(),
         scope: Some(
             canonical::scope(&note.scope)
@@ -128,9 +128,9 @@ pub(crate) fn note(note: &OperatorNote) -> Result<contract::OperatorNote, Status
     })
 }
 
-pub(crate) fn health(item: &HealthItem) -> Result<contract::HealthItem, Status> {
+pub(crate) fn health(item: &HealthItem) -> Result<dokime_domain::model::notes::wire::HealthItem, Status> {
     health_size(item)?;
-    Ok(contract::HealthItem {
+    Ok(dokime_domain::model::notes::wire::HealthItem {
         health_item_id: item.health_item_id.as_str().to_owned(),
         scope: Some(
             canonical::scope(&item.scope)
@@ -147,20 +147,20 @@ pub(crate) fn health(item: &HealthItem) -> Result<contract::HealthItem, Status> 
     })
 }
 
-pub(super) fn receipt(value: &NoteCreation) -> Result<contract::NoteReceipt, Status> {
+pub(super) fn receipt(value: &NoteCreation) -> Result<dokime_domain::model::notes::wire::NoteReceipt, Status> {
     let (publication, unconfirmed_targets) = match &value.publication {
         NotePublication::NoExistingDatasets => {
-            (contract::NotePublication::NoExistingDatasets, Vec::new())
+            (dokime_domain::model::notes::wire::NotePublication::NoExistingDatasets, Vec::new())
         }
-        NotePublication::Confirmed => (contract::NotePublication::Confirmed, Vec::new()),
+        NotePublication::Confirmed => (dokime_domain::model::notes::wire::NotePublication::Confirmed, Vec::new()),
         NotePublication::Unconfirmed { targets } => (
-            contract::NotePublication::Unconfirmed,
+            dokime_domain::model::notes::wire::NotePublication::Unconfirmed,
             targets.iter().map(ToString::to_string).collect(),
         ),
     };
     let epoch = value.epoch.to_string();
     let value = &value.admission;
-    Ok(contract::NoteReceipt {
+    Ok(dokime_domain::model::notes::wire::NoteReceipt {
         epoch,
         mutation_id: value.mutation_id.to_string(),
         owner: Some(encode_owner(&value.owner)),

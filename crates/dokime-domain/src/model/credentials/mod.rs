@@ -11,7 +11,8 @@
 pub mod credentials;
 
 /* === Re-Exports === */
-pub use credentials::{CredentialBackendKind, RedactedCredentialBinding};
+pub use credentials::CredentialBackendKind;
+pub use credentials::RedactedCredentialBinding;
 
 /* === Public Functions === */
 

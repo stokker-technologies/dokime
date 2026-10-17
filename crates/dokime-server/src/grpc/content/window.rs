@@ -40,8 +40,8 @@ use dokime_domain::operations::content as wire;
 pub(super) fn project(
     content: &ExecutionFileContent,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileWindow> {
-    let wire = wire::ExecutionFileWindow {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
+    let wire = dokime_domain::model::content::wire::ExecutionFileWindow {
         relative_path: text(&content.relative_path)?,
         content_type: content.content_type.as_deref().map(text).transpose()?,
         kind: files::kind(&content.content_kind),
@@ -59,8 +59,8 @@ pub(super) fn project(
 pub(in crate::grpc) fn owned(
     content: ExecutionFileContent,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionFileWindow> {
-    let response = wire::ExecutionFileWindow {
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
+    let response = dokime_domain::model::content::wire::ExecutionFileWindow {
         kind: files::kind(&content.content_kind),
         state: files::state(&content.stream_state),
         relative_path: content.relative_path,

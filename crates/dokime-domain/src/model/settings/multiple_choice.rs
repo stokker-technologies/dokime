@@ -15,7 +15,8 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;

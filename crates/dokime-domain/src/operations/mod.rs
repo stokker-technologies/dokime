@@ -11,10 +11,7 @@
 pub mod appearance;
 pub mod backend;
 pub mod catalog;
-pub mod checkpoint;
-pub mod common;
 pub mod content;
-pub mod cursor;
 pub mod documents;
 pub mod evidence;
 pub mod execution;
@@ -31,10 +28,8 @@ pub mod prompts;
 pub mod query;
 pub mod reports;
 pub mod runtime;
-pub mod schema;
 pub mod settings;
 pub mod telemetry;
-pub mod value;
 
 /* === Re-Exports === */
 
@@ -44,12 +39,16 @@ pub mod value;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::catalog::{Member, Visitor};
-use harmos::operations::{
-    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, WireDeclaration,
-};
+use harmos::catalog::Member;
+use harmos::catalog::Visitor;
+use harmos::operations::OperationDeclaration;
+use harmos::operations::OperationPolicy;
+use harmos::operations::RestartPolicy;
+use harmos::operations::RetryPolicy;
+use harmos::operations::WireDeclaration;
 use harmos::schema::Described;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
 

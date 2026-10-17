@@ -31,7 +31,7 @@ use crate::{
 };
 use dokime_domain::model::identity::TestCycleId;
 use crate::execution::ExecutionStatus;
-use crate::operations::reports::MaterializedReport;
+use dokime_domain::model::reports::wire::MaterializedReport;
 
 /* === Constants === */
 

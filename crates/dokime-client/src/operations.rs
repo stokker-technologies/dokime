@@ -27,8 +27,8 @@ use harmos::{MemorySize, Protobuf};
 use super::{Client, Error as ClientError, Result as ClientResult};
 use dokime_domain::operations::runtime::GetHealth;
 use dokime_domain::operations::runtime::GetIdentity;
-use dokime_domain::operations::runtime::Health;
-use dokime_domain::operations::runtime::Identity;
+use dokime_domain::model::runtime::wire::Health;
+use dokime_domain::model::runtime::wire::Identity;
 
 /* === Constants === */
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;

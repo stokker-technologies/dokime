@@ -50,7 +50,7 @@ impl Operation for Follow {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<wire::ExecutionFileFollowFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -114,7 +114,7 @@ impl Operation for Follow {
         while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
             let terminal = matches!(
                 &frame.payload,
-                Some(wire::ExecutionFileFollowFramePayload::Terminal(_))
+                Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(_))
             );
             send(output, frame, self.resources.maximum).await?;
             if terminal {
@@ -141,8 +141,8 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 async fn send(
-    output: &mut StreamOutput<wire::ExecutionFileFollowFrame>,
-    frame: wire::ExecutionFileFollowFrame,
+    output: &mut StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>,
+    frame: dokime_domain::model::content::wire::ExecutionFileFollowFrame,
     maximum: usize,
 ) -> Result<(), Status> {
     if frame.encoded_len() > maximum {

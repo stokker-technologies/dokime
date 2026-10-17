@@ -60,7 +60,7 @@ impl Operation for Upload {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<wire::UploadArtifactFrame>;
+    type Endpoints = StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -75,11 +75,11 @@ impl Operation for Upload {
         _: Self::Context<'a>,
         _: &mut (),
         input: &mut Self::Endpoints,
-    ) -> Result<Response<wire::ArtifactMetadata>, Status> {
+    ) -> Result<Response<dokime_domain::model::content::wire::ArtifactMetadata>, Status> {
         let first = receive_upload_frame(input)
             .await?
             .ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-        let Some(wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
             return Err(Status::invalid_argument(
                 "first artifact upload frame must be a header",
             ));
@@ -186,14 +186,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 async fn receive_upload_frame(
-    input: &mut StreamInput<wire::UploadArtifactFrame>,
-) -> Result<Option<StreamItem<wire::UploadArtifactFrame>>, Status> {
+    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
+) -> Result<Option<StreamItem<dokime_domain::model::content::wire::UploadArtifactFrame>>, Status> {
     tokio::time::timeout(IDLE_TRANSFER_TIMEOUT, input.recv())
         .await
         .map_err(|_| Status::deadline_exceeded("artifact upload idle deadline exceeded"))
 }
 fn upload_header(
-    header: &wire::UploadArtifactHeader,
+    header: &dokime_domain::model::content::wire::UploadArtifactHeader,
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
     let scope = artifact_scope(header.scope.as_ref())?;
     let filename = header.filename.trim();
@@ -228,7 +228,7 @@ fn upload_header(
 }
 
 pub(in crate::grpc) fn artifact_scope(
-    scope: Option<&wire::ArtifactScope>,
+    scope: Option<&dokime_domain::model::content::wire::ArtifactScope>,
 ) -> Result<RecordScope, Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("artifact scope is required"))?;
     let cycle_id = scope
@@ -273,7 +273,7 @@ fn valid_digest(value: &str) -> bool {
 }
 
 async fn receive_artifact(
-    input: &mut StreamInput<wire::UploadArtifactFrame>,
+    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
     upload: ArtifactUpload,
     expected_size: u64,
     max_chunk_bytes: usize,
@@ -281,7 +281,7 @@ async fn receive_artifact(
     let mut offset = 0_u64;
     while let Some(frame) = receive_upload_frame(input).await? {
         match &frame.payload {
-            Some(wire::UploadArtifactFramePayload::Chunk(chunk)) => {
+            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk)) => {
                 if chunk.data.is_empty()
                     || chunk.data.len() > max_chunk_bytes
                     || chunk.offset != offset
@@ -298,7 +298,7 @@ async fn receive_artifact(
                 }
                 upload.send(&chunk.data).await.map_err(content_failure)?;
             }
-            Some(wire::UploadArtifactFramePayload::Complete(completion)) => {
+            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
                 if completion.size_bytes != offset {
                     return Err(Status::invalid_argument(
                         "artifact completion size does not match the received bytes",

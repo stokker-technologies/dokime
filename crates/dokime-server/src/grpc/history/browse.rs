@@ -67,7 +67,7 @@ impl Operation for Browse {
         _: Self::Context<'a>,
         request: &mut wire::BrowseExecutions,
         _: &mut (),
-    ) -> Result<Response<wire::ExecutionBrowsePage>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::ExecutionBrowsePage>, Status> {
         value::text(&request.after_execution_id)?;
         let after = if request.after_execution_id.is_empty() {
             None
@@ -112,7 +112,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 fn project(
     page: &ExecutionBrowsePage,
     maximum: usize,
-) -> harmos::Result<wire::ExecutionBrowsePage> {
+) -> harmos::Result<dokime_domain::model::history::wire::ExecutionBrowsePage> {
     let projected = super::wire::browse_page(page).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
@@ -134,7 +134,7 @@ fn exhausted() -> harmos::Error {
     }
 }
 
-fn execution_filter(filter: Option<wire::ExecutionFilter>) -> Result<ExecutionFilter, Status> {
+fn execution_filter(filter: Option<dokime_domain::model::history::wire::ExecutionFilter>) -> Result<ExecutionFilter, Status> {
     let Some(filter) = filter else {
         return Ok(ExecutionFilter::default());
     };
@@ -166,16 +166,16 @@ fn execution_filter(filter: Option<wire::ExecutionFilter>) -> Result<ExecutionFi
     })
 }
 
-fn execution_order(order: Option<wire::ExecutionOrder>) -> Result<ExecutionOrder, Status> {
+fn execution_order(order: Option<dokime_domain::model::history::wire::ExecutionOrder>) -> Result<ExecutionOrder, Status> {
     let Some(order) = order else {
         return Ok(ExecutionOrder::default());
     };
     let key = match order.key {
-        wire::ExecutionOrderKey::Unspecified | wire::ExecutionOrderKey::StartedAt => {
+        dokime_domain::model::history::wire::ExecutionOrderKey::Unspecified | dokime_domain::model::history::wire::ExecutionOrderKey::StartedAt => {
             ExecutionOrderKey::StartedAt
         }
-        wire::ExecutionOrderKey::FinishedAt => ExecutionOrderKey::FinishedAt,
-        wire::ExecutionOrderKey::Title => ExecutionOrderKey::Title,
+        dokime_domain::model::history::wire::ExecutionOrderKey::FinishedAt => ExecutionOrderKey::FinishedAt,
+        dokime_domain::model::history::wire::ExecutionOrderKey::Title => ExecutionOrderKey::Title,
     };
     Ok(ExecutionOrder {
         key,
@@ -183,20 +183,20 @@ fn execution_order(order: Option<wire::ExecutionOrder>) -> Result<ExecutionOrder
     })
 }
 
-fn execution_status(status: execution_wire::ExecutionStatus) -> Result<ExecutionStatus, Status> {
+fn execution_status(status: dokime_domain::model::execution::wire::ExecutionStatus) -> Result<ExecutionStatus, Status> {
     match status {
-        execution_wire::ExecutionStatus::Unspecified => {
+        dokime_domain::model::execution::wire::ExecutionStatus::Unspecified => {
             Err(Status::invalid_argument("unspecified execution status"))
         }
-        execution_wire::ExecutionStatus::Invalidated => Ok(ExecutionStatus::Invalidated),
-        execution_wire::ExecutionStatus::Skipped => Ok(ExecutionStatus::Skipped),
-        execution_wire::ExecutionStatus::Pending => Ok(ExecutionStatus::Pending),
-        execution_wire::ExecutionStatus::Running => Ok(ExecutionStatus::Running),
-        execution_wire::ExecutionStatus::Passed => Ok(ExecutionStatus::Passed),
-        execution_wire::ExecutionStatus::Failed => Ok(ExecutionStatus::Failed),
-        execution_wire::ExecutionStatus::Blocked => Ok(ExecutionStatus::Blocked),
-        execution_wire::ExecutionStatus::Cancelled => Ok(ExecutionStatus::Cancelled),
-        execution_wire::ExecutionStatus::Interrupted => Ok(ExecutionStatus::Interrupted),
+        dokime_domain::model::execution::wire::ExecutionStatus::Invalidated => Ok(ExecutionStatus::Invalidated),
+        dokime_domain::model::execution::wire::ExecutionStatus::Skipped => Ok(ExecutionStatus::Skipped),
+        dokime_domain::model::execution::wire::ExecutionStatus::Pending => Ok(ExecutionStatus::Pending),
+        dokime_domain::model::execution::wire::ExecutionStatus::Running => Ok(ExecutionStatus::Running),
+        dokime_domain::model::execution::wire::ExecutionStatus::Passed => Ok(ExecutionStatus::Passed),
+        dokime_domain::model::execution::wire::ExecutionStatus::Failed => Ok(ExecutionStatus::Failed),
+        dokime_domain::model::execution::wire::ExecutionStatus::Blocked => Ok(ExecutionStatus::Blocked),
+        dokime_domain::model::execution::wire::ExecutionStatus::Cancelled => Ok(ExecutionStatus::Cancelled),
+        dokime_domain::model::execution::wire::ExecutionStatus::Interrupted => Ok(ExecutionStatus::Interrupted),
     }
 }
 

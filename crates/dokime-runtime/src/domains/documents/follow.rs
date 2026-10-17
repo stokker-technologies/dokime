@@ -30,7 +30,7 @@ use crate::{
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::saved::SavedStreamState;
-use dokime_domain::operations::checkpoint;
+use dokime_domain::model::execution::wire_checkpoint as checkpoint;
 use dokime_domain::operations::content as wire;
 
 /* === Constants === */
@@ -44,7 +44,7 @@ const SOURCE_POLL: Duration = Duration::from_millis(250);
 pub struct ExecutionFileFollower {
     reader: FileFollower,
     source: Source,
-    metadata: wire::ExecutionFileFollowMetadata,
+    metadata: dokime_domain::model::content::wire::ExecutionFileFollowMetadata,
     finished: bool,
 }
 
@@ -54,7 +54,7 @@ struct NativeCapture {
 
 // The Served Position Of A Followed File: Its Phase, Known Length And Resume Offset.
 struct Position {
-    phase: wire::ExecutionFilePhase,
+    phase: dokime_domain::model::content::wire::ExecutionFilePhase,
     length: u64,
     offset: u64,
 }
@@ -74,7 +74,7 @@ impl RuntimeHandle {
         &self,
         execution: &TestExecutionId,
         path: &str,
-        expected: Option<&wire::ExecutionFileIdentity>,
+        expected: Option<&dokime_domain::model::content::wire::ExecutionFileIdentity>,
         offset: u64,
     ) -> Result<Option<ExecutionFileFollower>> {
         crate::execution::saved::validate_relative_output_path(path)
@@ -126,9 +126,9 @@ impl RuntimeHandle {
             let reader = self.storage().follow_file(&staged, offset).await?;
             let output = file.descriptor();
             let phase = if output.stream_state == Some(SavedStreamState::Interrupted) {
-                wire::ExecutionFilePhase::Abandoned
+                dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
             } else {
-                wire::ExecutionFilePhase::Finished
+                dokime_domain::model::content::wire::ExecutionFilePhase::Finished
             };
             let metadata = metadata(
                 &staged,
@@ -178,9 +178,9 @@ impl RuntimeHandle {
                 }
                 let reader = self.storage().follow_file(&staged, offset).await?;
                 let phase = if interrupted {
-                    wire::ExecutionFilePhase::Abandoned
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
                 } else {
-                    wire::ExecutionFilePhase::Finished
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Finished
                 };
                 let metadata = metadata(
                     &staged,
@@ -214,9 +214,9 @@ impl RuntimeHandle {
                 // A Live Admission Precedes Capture; The Sealed Harmos Phase Cannot
                 // Distinguish An Abandoned Production From A Finished One.
                 phase: if abandoned {
-                    wire::ExecutionFilePhase::Abandoned
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
                 } else {
-                    wire::ExecutionFilePhase::Producing
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Producing
                 },
                 length: progress.length,
                 offset,
@@ -310,13 +310,13 @@ impl Resident<crate::app::Dokime> for NativeCapture {
 }
 
 impl ExecutionFileFollower {
-    pub fn metadata(&self) -> &wire::ExecutionFileFollowMetadata {
+    pub fn metadata(&self) -> &dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
         &self.metadata
     }
 
-    pub fn metadata_frame(&self) -> wire::ExecutionFileFollowFrame {
-        wire::ExecutionFileFollowFrame {
-            payload: Some(wire::ExecutionFileFollowFramePayload::Metadata(
+    pub fn metadata_frame(&self) -> dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+        dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(
                 self.metadata.clone(),
             )),
         }
@@ -325,7 +325,7 @@ impl ExecutionFileFollower {
     pub async fn next_frame(
         &mut self,
         maximum: NonZeroUsize,
-    ) -> Result<Option<wire::ExecutionFileFollowFrame>> {
+    ) -> Result<Option<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
         if maximum.get() > 64 * 1024 {
             return Err(invalid("follow chunk exceeds 64 KiB"));
         }
@@ -354,16 +354,16 @@ impl ExecutionFileFollower {
                 }
                 return match live.settlement().await? {
                     Settlement::Abandoned => {
-                        self.terminal(None, wire::ExecutionFilePhase::Abandoned)
+                        self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned)
                     }
                     Settlement::Finished(reference) => {
-                        self.terminal(Some(&reference), wire::ExecutionFilePhase::Finished)
+                        self.terminal(Some(&reference), dokime_domain::model::content::wire::ExecutionFilePhase::Finished)
                     }
                     // A Dropped Original Producer Abandons The File Before Any Capture.
                     Settlement::Producing
                         if self.reader.progress().phase == FilePhase::Abandoned =>
                     {
-                        self.terminal(None, wire::ExecutionFilePhase::Abandoned)
+                        self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned)
                     }
                     Settlement::Producing => Err(invalid(
                         "finished original production has no sealed reference",
@@ -378,9 +378,9 @@ impl ExecutionFileFollower {
                 let interrupted = *interrupted;
                 let reference = (**reference).clone();
                 let phase = if interrupted {
-                    wire::ExecutionFilePhase::Abandoned
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
                 } else {
-                    wire::ExecutionFilePhase::Finished
+                    dokime_domain::model::content::wire::ExecutionFilePhase::Finished
                 };
                 return self
                     .terminal((!interrupted).then_some(&reference), phase)
@@ -392,9 +392,9 @@ impl ExecutionFileFollower {
             let interrupted = file.descriptor().stream_state == Some(SavedStreamState::Interrupted);
             let reference = file.descriptor().file.clone();
             let phase = if interrupted {
-                wire::ExecutionFilePhase::Abandoned
+                dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
             } else {
-                wire::ExecutionFilePhase::Finished
+                dokime_domain::model::content::wire::ExecutionFilePhase::Finished
             };
             return self
                 .terminal((!interrupted).then_some(&reference), phase)
@@ -402,10 +402,10 @@ impl ExecutionFileFollower {
         }
     }
 
-    fn chunk(&self, offset: u64, chunk: FileBatch) -> Result<wire::ExecutionFileFollowFrame> {
-        Ok(wire::ExecutionFileFollowFrame {
-            payload: Some(wire::ExecutionFileFollowFramePayload::Chunk(
-                wire::ArtifactChunk {
+    fn chunk(&self, offset: u64, chunk: FileBatch) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
+        Ok(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
+                dokime_domain::model::content::wire::ArtifactChunk {
                     offset,
                     data: chunk.bytes,
                 },
@@ -416,8 +416,8 @@ impl ExecutionFileFollower {
     fn terminal(
         &mut self,
         reference: Option<&FileReference>,
-        phase: wire::ExecutionFilePhase,
-    ) -> Result<wire::ExecutionFileFollowFrame> {
+        phase: dokime_domain::model::content::wire::ExecutionFilePhase,
+    ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
         let length = self.reader.offset();
         let metadata = &self.metadata;
         let frame = {
@@ -427,7 +427,7 @@ impl ExecutionFileFollower {
                         .identity
                         .as_ref()
                         .ok_or_else(|| refused("follow metadata has no original identity"))?;
-                    if phase != wire::ExecutionFilePhase::Finished
+                    if phase != dokime_domain::model::content::wire::ExecutionFilePhase::Finished
                         || reference.length != length
                         || reference.metadata.id.as_str() != identity.file_id
                         || history(&reference.position.history)
@@ -440,7 +440,7 @@ impl ExecutionFileFollower {
                             "original sealed reference differs from followed identity or length",
                         ));
                     }
-                    Ok(wire::ExecutionFileSeal {
+                    Ok(dokime_domain::model::content::wire::ExecutionFileSeal {
                         identity: Some(identity.clone()),
                         position: Some(checkpoint::StorageCursor {
                             history: Some(history(&reference.position.history)),
@@ -451,9 +451,9 @@ impl ExecutionFileFollower {
                     })
                 })
                 .transpose()?;
-            wire::ExecutionFileFollowFrame {
-                payload: Some(wire::ExecutionFileFollowFramePayload::Terminal(
-                    wire::ExecutionFileFollowTerminal {
+            dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+                payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(
+                    dokime_domain::model::content::wire::ExecutionFileFollowTerminal {
                         phase,
                         length,
                         sealed,
@@ -475,14 +475,14 @@ fn metadata(
     path: &str,
     media: &str,
     position: Position,
-) -> wire::ExecutionFileFollowMetadata {
+) -> dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
     let Position {
         phase,
         length,
         offset,
     } = position;
-    wire::ExecutionFileFollowMetadata {
-        identity: Some(wire::ExecutionFileIdentity {
+    dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
+        identity: Some(dokime_domain::model::content::wire::ExecutionFileIdentity {
             history: Some(history(&staged.history)),
             file_id: staged.id.as_str().to_owned(),
             execution_id: execution.as_str().to_owned(),
@@ -495,13 +495,13 @@ fn metadata(
         offset,
     }
 }
-fn kind(path: &str, media: &str) -> wire::ExecutionFileKind {
+fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::ExecutionFileKind {
     use crate::ExecutionFileContentKind as Kind;
     match Kind::from_metadata(path, Some(media)) {
-        Kind::Text => wire::ExecutionFileKind::Text,
-        Kind::Binary => wire::ExecutionFileKind::Binary,
-        Kind::Media => wire::ExecutionFileKind::Media,
-        Kind::Unknown => wire::ExecutionFileKind::Unknown,
+        Kind::Text => dokime_domain::model::content::wire::ExecutionFileKind::Text,
+        Kind::Binary => dokime_domain::model::content::wire::ExecutionFileKind::Binary,
+        Kind::Media => dokime_domain::model::content::wire::ExecutionFileKind::Media,
+        Kind::Unknown => dokime_domain::model::content::wire::ExecutionFileKind::Unknown,
     }
 }
 fn history(value: &harmos::storage::StoreHistory) -> checkpoint::StoreHistory {

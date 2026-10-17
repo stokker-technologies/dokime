@@ -39,15 +39,15 @@ use dokime_domain::operations::appearance as wire;
 /* === Public Functions === */
 pub(super) fn appearance(
     frame: RuntimeAppearanceFrame,
-    logo: Option<wire::AppearanceLogo>,
-) -> harmos::Result<wire::AppearanceSnapshot> {
+    logo: Option<dokime_domain::model::appearance::wire::AppearanceLogo>,
+) -> harmos::Result<dokime_domain::model::appearance::wire::AppearanceSnapshot> {
     let mut themes = canonical::slots(frame.themes.len()).map_err(|_| exhausted())?;
     for source in frame.themes {
         themes.push(theme(source)?);
     }
-    Ok(wire::AppearanceSnapshot {
+    Ok(dokime_domain::model::appearance::wire::AppearanceSnapshot {
         app_name: frame.app_name,
-        organization: frame.organization.map(|value| wire::OrganizationIdentity {
+        organization: frame.organization.map(|value| dokime_domain::model::appearance::wire::OrganizationIdentity {
             name: value.name,
             unit: value.unit,
             website: value.website,
@@ -58,10 +58,10 @@ pub(super) fn appearance(
         active_theme: frame.active_theme.map(|id| id.as_str().to_owned()),
         theme_family_locked: frame.theme_family_locked,
         mode_policy: match frame.mode_policy {
-            ThemeModePolicy::UserOrSystem => wire::ThemeModePolicy::UserOrSystem,
-            ThemeModePolicy::ForceSystem => wire::ThemeModePolicy::ForceSystem,
-            ThemeModePolicy::ForceLight => wire::ThemeModePolicy::ForceLight,
-            ThemeModePolicy::ForceDark => wire::ThemeModePolicy::ForceDark,
+            ThemeModePolicy::UserOrSystem => dokime_domain::model::appearance::wire::ThemeModePolicy::UserOrSystem,
+            ThemeModePolicy::ForceSystem => dokime_domain::model::appearance::wire::ThemeModePolicy::ForceSystem,
+            ThemeModePolicy::ForceLight => dokime_domain::model::appearance::wire::ThemeModePolicy::ForceLight,
+            ThemeModePolicy::ForceDark => dokime_domain::model::appearance::wire::ThemeModePolicy::ForceDark,
         },
         mode_locked: frame.mode_locked,
         source_plugin_id: frame.source_plugin_id.map(|id| id.as_str().to_owned()),
@@ -69,7 +69,7 @@ pub(super) fn appearance(
 }
 
 pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> harmos::Result<usize> {
-    let mut bytes = std::mem::size_of::<wire::AppearanceSnapshot>()
+    let mut bytes = std::mem::size_of::<dokime_domain::model::appearance::wire::AppearanceSnapshot>()
         .saturating_add(source.app_name.capacity())
         .saturating_add(heap(&source.organization)?)
         .saturating_add(heap(&source.title_template)?)
@@ -89,7 +89,7 @@ pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> har
             source
                 .themes
                 .len()
-                .saturating_mul(std::mem::size_of::<wire::ThemeFamily>()),
+                .saturating_mul(std::mem::size_of::<dokime_domain::model::appearance::wire::ThemeFamily>()),
         );
     for theme in &source.themes {
         bytes = bytes
@@ -100,7 +100,7 @@ pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> har
             .saturating_add(heap(&theme.stylesheet)?)
             .saturating_add(variables_heap(
                 &theme.variables,
-                std::mem::size_of::<wire::ThemeFamilyVariablesEntry>(),
+                std::mem::size_of::<dokime_domain::model::appearance::wire::ThemeFamilyVariablesEntry>(),
             )?)
             .saturating_add(heap(&theme.corner_radii)?)
             .saturating_add(variant_heap(&theme.light)?)
@@ -113,15 +113,15 @@ pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> har
 }
 
 /* === Private Functions === */
-fn theme(value: RuntimeThemeFamily) -> harmos::Result<wire::ThemeFamily> {
+fn theme(value: RuntimeThemeFamily) -> harmos::Result<dokime_domain::model::appearance::wire::ThemeFamily> {
     let mut variables = Vec::new();
     variables
         .try_reserve_exact(value.variables.len())
         .map_err(|_| exhausted())?;
     for (key, value) in value.variables {
-        variables.push(wire::ThemeFamilyVariablesEntry { key, value });
+        variables.push(dokime_domain::model::appearance::wire::ThemeFamilyVariablesEntry { key, value });
     }
-    Ok(wire::ThemeFamily {
+    Ok(dokime_domain::model::appearance::wire::ThemeFamily {
         plugin_id: value.plugin_id.as_str().to_owned(),
         theme_id: value.theme_id.as_str().to_owned(),
         label: value.label,
@@ -134,8 +134,8 @@ fn theme(value: RuntimeThemeFamily) -> harmos::Result<wire::ThemeFamily> {
     })
 }
 
-fn radii(value: ThemeCornerRadii) -> wire::ThemeCornerRadii {
-    wire::ThemeCornerRadii {
+fn radii(value: ThemeCornerRadii) -> dokime_domain::model::appearance::wire::ThemeCornerRadii {
+    dokime_domain::model::appearance::wire::ThemeCornerRadii {
         base: value.base,
         sm: value.sm,
         md: value.md,
@@ -147,15 +147,15 @@ fn radii(value: ThemeCornerRadii) -> wire::ThemeCornerRadii {
     }
 }
 
-fn variant(value: ThemeVariant) -> harmos::Result<wire::ThemeVariant> {
+fn variant(value: ThemeVariant) -> harmos::Result<dokime_domain::model::appearance::wire::ThemeVariant> {
     let mut variables = Vec::new();
     variables
         .try_reserve_exact(value.variables.len())
         .map_err(|_| exhausted())?;
     for (key, value) in value.variables {
-        variables.push(wire::ThemeVariantVariablesEntry { key, value });
+        variables.push(dokime_domain::model::appearance::wire::ThemeVariantVariablesEntry { key, value });
     }
-    Ok(wire::ThemeVariant {
+    Ok(dokime_domain::model::appearance::wire::ThemeVariant {
         variables,
         plot_palette: value.plot_palette,
     })
@@ -178,7 +178,7 @@ fn variables_heap(
 fn variant_heap(source: &ThemeVariant) -> harmos::Result<usize> {
     variables_heap(
         &source.variables,
-        std::mem::size_of::<wire::ThemeVariantVariablesEntry>(),
+        std::mem::size_of::<dokime_domain::model::appearance::wire::ThemeVariantVariablesEntry>(),
     )?
     .checked_add(heap(&source.plot_palette)?)
     .ok_or_else(exhausted)
