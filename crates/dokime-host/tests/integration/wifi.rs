@@ -19,7 +19,7 @@
 
 // Local Imports
 use crate::support::*;
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 use dokime_host::HostTelemetryStream;
 
 /* === Constants === */

@@ -687,7 +687,7 @@ impl harmos::operations::Operation for Watching {
     async fn run<'ctx>(
         &mut self,
         _: Self::Context<'ctx>,
-        _: &mut dokime_runtime::operations::files::WatchFileRequest,
+        _: &mut dokime_runtime::operations::files::WatchFile,
         _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>>
     {
@@ -759,8 +759,8 @@ pub(super) fn run_request(
     workflow: &str,
     template: &str,
     parameters_json: String,
-) -> dokime_runtime::transport::RunExecutionRequest {
-    dokime_runtime::transport::RunExecutionRequest {
+) -> dokime_runtime::transport::RunExecution {
+    dokime_runtime::transport::RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".into(),

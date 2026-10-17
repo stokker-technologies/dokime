@@ -152,7 +152,7 @@ operation!(
 operation!(
     Consent,
     v1::Consent,
-    v1::ConsentPluginRequest,
+    v1::Consent,
     (),
     host,
     request,
@@ -177,7 +177,7 @@ operation!(
 operation!(
     Remove,
     v1::Remove,
-    v1::RemovePluginRequest,
+    v1::Remove,
     (),
     host,
     request,
@@ -192,7 +192,7 @@ operation!(
 operation!(
     Identity,
     backend::GetIdentity,
-    backend::GetIdentityRequest,
+    backend::GetIdentity,
     (),
     host,
     _request,
@@ -217,7 +217,7 @@ operation!(
 operation!(
     Health,
     backend::GetHealth,
-    backend::GetHealthRequest,
+    backend::GetHealth,
     (),
     _host,
     _request,
@@ -237,7 +237,7 @@ operation!(
 operation!(
     Availability,
     backend::GetAvailability,
-    backend::GetAvailabilityRequest,
+    backend::GetAvailability,
     (),
     _host,
     _request,

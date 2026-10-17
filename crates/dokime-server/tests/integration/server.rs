@@ -53,7 +53,7 @@ async fn discovery_shares_independently() {
     let address = server.address();
     let client = connect(&server).await;
     let identity = client
-        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
+        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {})
         .await
         .unwrap()
         .into_inner();
@@ -63,7 +63,7 @@ async fn discovery_shares_independently() {
     assert!(identity.started_at.is_none());
     assert_eq!(identity.api.unwrap().descriptor_sha256.len(), 32);
     let health = client
-        .unary::<contracts::backend::GetHealth>(contracts::backend::GetHealthRequest {})
+        .unary::<contracts::backend::GetHealth>(contracts::backend::GetHealth {})
         .await
         .unwrap()
         .into_inner();
@@ -118,7 +118,7 @@ async fn discovery_shares_independently() {
     assert!(managed.observed_at_nanoseconds < 1_000_000_000);
     native.close_and_wait().await;
     let availability = client
-        .unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailabilityRequest {})
+        .unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailability {})
         .await
         .unwrap()
         .into_inner();
@@ -161,7 +161,7 @@ async fn discovery_shares_independently() {
     assert_eq!(
         connect(&second)
             .await
-            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
+            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {})
             .await
             .unwrap()
             .into_inner()
@@ -188,7 +188,7 @@ async fn malformed_credentials_wire() {
         .unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let client = connect(&server).await;
-    let mut invalid = Request::new(contracts::backend::GetIdentityRequest {});
+    let mut invalid = Request::new(contracts::backend::GetIdentity {});
     invalid.metadata_mut().insert(
         "authorization",
         "Bearer a-different-long-token-01234567890123456789"
@@ -208,7 +208,7 @@ async fn malformed_credentials_wire() {
         "Bearer short".to_owned(),
         format!("Bearer  {TOKEN}"),
     ] {
-        let mut malformed = Request::new(contracts::backend::GetIdentityRequest {});
+        let mut malformed = Request::new(contracts::backend::GetIdentity {});
         malformed
             .metadata_mut()
             .insert("authorization", authorization.parse().unwrap());
@@ -219,7 +219,7 @@ async fn malformed_credentials_wire() {
         assert_eq!(error.code(), Code::Unauthenticated);
         assert_eq!(error.message(), "invalid credentials");
     }
-    let mut duplicate = authenticated(contracts::backend::GetIdentityRequest {});
+    let mut duplicate = authenticated(contracts::backend::GetIdentity {});
     duplicate
         .metadata_mut()
         .append("authorization", format!("Bearer {TOKEN}").parse().unwrap());
@@ -233,25 +233,25 @@ async fn malformed_credentials_wire() {
     );
     client
         .unary::<contracts::backend::GetIdentity>(authenticated(
-            contracts::backend::GetIdentityRequest {},
+            contracts::backend::GetIdentity {},
         ))
         .await
         .unwrap();
     client
         .unary::<contracts::backend::GetHealth>(authenticated(
-            contracts::backend::GetHealthRequest {},
+            contracts::backend::GetHealth {},
         ))
         .await
         .unwrap();
     client
         .unary::<contracts::backend::GetAvailability>(authenticated(
-            contracts::backend::GetAvailabilityRequest {},
+            contracts::backend::GetAvailability {},
         ))
         .await
         .unwrap();
     client
         .unary::<contracts::backend::GetDiagnostics>(authenticated(
-            contracts::backend::GetDiagnosticsRequest {},
+            contracts::backend::GetDiagnostics {},
         ))
         .await
         .unwrap();
@@ -269,7 +269,7 @@ async fn diagnostics_projects_paths() {
         .unwrap();
     let client = connect(&server).await;
     let diagnostics = client
-        .unary::<contracts::backend::GetDiagnostics>(contracts::backend::GetDiagnosticsRequest {})
+        .unary::<contracts::backend::GetDiagnostics>(contracts::backend::GetDiagnostics {})
         .await
         .unwrap()
         .into_inner();
@@ -352,7 +352,7 @@ async fn tls_listener_clients() {
     let client = WireClient::new(stream);
     assert_eq!(
         client
-            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
+            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {})
             .await
             .unwrap_err()
             .code(),
@@ -360,7 +360,7 @@ async fn tls_listener_clients() {
     );
     client
         .unary::<contracts::backend::GetIdentity>(authenticated(
-            contracts::backend::GetIdentityRequest {},
+            contracts::backend::GetIdentity {},
         ))
         .await
         .unwrap();

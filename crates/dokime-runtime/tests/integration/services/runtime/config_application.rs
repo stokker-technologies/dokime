@@ -118,7 +118,7 @@ async fn data_root_reopens() {
         );
         config.seed_plugins = false;
         config.credential_backend = dokime_runtime::RuntimeCredentialConfig {
-            backend: dokime_runtime::core::CredentialBackendKind::Memory,
+            backend: dokime_runtime::CredentialBackendKind::Memory,
             local_file: None,
         };
 

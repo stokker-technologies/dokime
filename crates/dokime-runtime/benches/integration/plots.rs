@@ -23,7 +23,7 @@ use futures_util::StreamExt;
 use harmos::{Message, schema::Described};
 
 // Local Imports
-use dokime_runtime::core::{Identifier, Metadata, Timestamp, ValueType};
+use dokime_runtime::{Identifier, Metadata, Timestamp, ValueType};
 use dokime_runtime::telemetry::{
     TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample,
 };

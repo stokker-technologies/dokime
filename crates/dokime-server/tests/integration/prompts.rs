@@ -92,7 +92,7 @@ async fn prompt_answers_identity() {
     assert_eq!(
         client
             .unary::<contracts::prompts::ListDefinitions>(
-                contracts::prompts::ListPromptDefinitionsRequest::default()
+                contracts::prompts::ListDefinitions::default()
             )
             .await
             .unwrap_err()
@@ -101,7 +101,7 @@ async fn prompt_answers_identity() {
     );
     let definitions = client
         .unary::<contracts::prompts::ListDefinitions>(authenticated(
-            contracts::prompts::ListPromptDefinitionsRequest::default(),
+            contracts::prompts::ListDefinitions::default(),
         ))
         .await
         .unwrap()
@@ -109,7 +109,7 @@ async fn prompt_answers_identity() {
     assert_eq!(definitions.definitions.len(), 1);
     let definition = client
         .unary::<contracts::prompts::GetDefinition>(authenticated(
-            contracts::prompts::GetPromptDefinitionRequest {
+            contracts::prompts::GetDefinition {
                 prompt_type: "fixture.answer".into(),
             },
         ))
@@ -131,7 +131,7 @@ async fn prompt_answers_identity() {
     ));
     let first = client
         .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPendingPromptsRequest {
+            contracts::prompts::ListPending {
                 limit: 1,
                 ..Default::default()
             },
@@ -143,7 +143,7 @@ async fn prompt_answers_identity() {
     let after = first.next_after_prompt_id.clone().unwrap();
     let second = client
         .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPendingPromptsRequest {
+            contracts::prompts::ListPending {
                 limit: 1,
                 after_prompt_id: after.clone(),
                 cursor: first.cursor.clone(),
@@ -158,7 +158,7 @@ async fn prompt_answers_identity() {
     assert!(second.next_after_prompt_id.is_none());
     let different = client
         .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPendingPromptsRequest {
+            contracts::prompts::ListPending {
                 after_prompt_id: after.clone(),
                 cursor: first.cursor.clone(),
                 cycle_id: Some(uuid::Uuid::now_v7().to_string()),
@@ -168,7 +168,7 @@ async fn prompt_answers_identity() {
         .await
         .unwrap_err();
     assert_eq!(different.code(), Code::FailedPrecondition);
-    let answer = |value| contracts::prompts::RespondToPromptRequest {
+    let answer = |value| contracts::prompts::Respond {
         prompt_id: ids[0].to_string(),
         action: "submit".into(),
         values: Some(contracts::value::Value::from(&Value::Object(
@@ -206,7 +206,7 @@ async fn prompt_answers_identity() {
     assert!(receipt.accepted_at.is_some());
     let prompt = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPromptRequest {
+            contracts::prompts::GetPrompt {
                 prompt_id: ids[0].to_string(),
             },
         ))
@@ -228,7 +228,7 @@ async fn prompt_answers_identity() {
     assert_eq!(
         client
             .unary::<contracts::prompts::ListPending>(authenticated(
-                contracts::prompts::ListPendingPromptsRequest {
+                contracts::prompts::ListPending {
                     after_prompt_id: after,
                     cursor: first.cursor,
                     ..Default::default()
@@ -242,7 +242,7 @@ async fn prompt_answers_identity() {
     assert_eq!(
         client
             .unary::<contracts::prompts::ListPending>(authenticated(
-                contracts::prompts::ListPendingPromptsRequest::default()
+                contracts::prompts::ListPending::default()
             ))
             .await
             .unwrap()
@@ -253,7 +253,7 @@ async fn prompt_answers_identity() {
     );
     let read = WireClient::connect(server.local_endpoint()).await.unwrap();
     read.unary::<contracts::prompts::GetPrompt>(auth(
-        contracts::prompts::GetPromptRequest {
+        contracts::prompts::GetPrompt {
             prompt_id: ids[0].to_string(),
         },
         READ_TOKEN,
@@ -313,7 +313,7 @@ async fn prompt_condition_commit() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let view = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPromptRequest {
+            contracts::prompts::GetPrompt {
                 prompt_id: id.to_string(),
             },
         ))
@@ -338,7 +338,7 @@ async fn prompt_condition_commit() {
         condition.match_fields.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("resource_id") == Some(&Value::Text("fixture-device".into()))
     ));
-    let answer = contracts::prompts::RespondToPromptRequest {
+    let answer = contracts::prompts::Respond {
         prompt_id: id.to_string(),
         action: "submit".into(),
         accepted: true,
@@ -411,7 +411,7 @@ async fn prompt_level_watched() {
 
     let view = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPromptRequest {
+            contracts::prompts::GetPrompt {
                 prompt_id: id.to_string(),
             },
         ))
@@ -420,7 +420,7 @@ async fn prompt_level_watched() {
         .into_inner();
     let mut follow = client
         .download::<contracts::evidence::WatchRecords>(authenticated(
-            contracts::evidence::WatchRecordsRequest {
+            contracts::evidence::WatchRecords {
                 selection: Some(contracts::evidence::CapturedRecordSelection {
                     record_types: vec!["prompt.request.form".into()],
                     ..Default::default()
@@ -488,7 +488,7 @@ async fn settled_prompt_refused() {
     .await
     .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let pending = |cycle: &TestCycleId| contracts::prompts::ListPendingPromptsRequest {
+    let pending = |cycle: &TestCycleId| contracts::prompts::ListPending {
         cycle_id: Some(cycle.to_string()),
         ..Default::default()
     };
@@ -516,7 +516,7 @@ async fn settled_prompt_refused() {
     assert!(settled.prompts.is_empty());
     let late = client
         .unary::<contracts::prompts::Respond>(authenticated(
-            contracts::prompts::RespondToPromptRequest {
+            contracts::prompts::Respond {
                 prompt_id: id.to_string(),
                 action: "submit".into(),
                 values: None,

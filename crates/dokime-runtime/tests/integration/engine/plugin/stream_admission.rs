@@ -17,7 +17,7 @@
 
 // Local Imports
 use dokime_runtime::execution::{InitializationContext, SidecarTemplate, StepContext, Workflow};
-use dokime_runtime::transport::{EvidenceBatch, RunExecutionRequest, StepAdmission};
+use dokime_runtime::transport::{EvidenceBatch, RunExecution, StepAdmission};
 
 /* === Constants === */
 
@@ -116,12 +116,12 @@ impl Declared {
 async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>()
 -> (Vec<EvidenceBatch>, Vec<dokime_runtime::telemetry::TelemetrySample>) {
     let engine = Workflow::<T>::new("admission.fixture", "admission-owner");
-    let token = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>().to_string();
+    let token = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string();
     engine
-        .start(RunExecutionRequest {
+        .start(RunExecution {
             mode: "automatic".into(),
             execution_token: token.clone(),
-            test_cycle_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestCycleId>().to_string(),
+            test_cycle_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>().to_string(),
             test_execution_id: token.clone(),
             template_identifier: T::declaration().metadata.identifier.to_string(),
             workflow: "admission.fixture".into(),

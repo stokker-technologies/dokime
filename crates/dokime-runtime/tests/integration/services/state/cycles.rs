@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
-use dokime_runtime::core::{
+use dokime_runtime::{
     CaseId, CommandId, Identifier, Metadata, TemplateId, TestCycleId, Timestamp, Value,
 };
 use dokime_runtime::definition::{
@@ -105,7 +105,7 @@ fn admitted() -> (RuntimeState, TestCycleId) {
     let template: TestCaseTemplate = serde_json::from_value(serde_json::json!({
         "test_case_template_id": TemplateId::from_seed("snapshot.template"),
         "metadata": metadata("snapshot.template"), "parameters": [],
-        "criteria": [{"criterion_id": dokime_runtime::core::CriterionId::from_seed("criterion"), "metadata": metadata("criterion"), "expected": Value::from(42_i64)}]
+        "criteria": [{"criterion_id": dokime_runtime::CriterionId::from_seed("criterion"), "metadata": metadata("criterion"), "expected": Value::from(42_i64)}]
     })).unwrap();
     let suite = TestSuite {
         metadata: metadata("snapshot.suite"),
@@ -286,7 +286,7 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
 
 #[test]
 fn reruns_invalidate_steps() {
-    use dokime_runtime::core::{StepAttemptId, StepId};
+    use dokime_runtime::{StepAttemptId, StepId};
     use dokime_runtime::execution::{ExecutionSnapshot, TerminationReason, TestStepAttempt};
     use dokime_runtime::transactions::{BeginStepAttempt, RecordStepAttempt};
     let (mut state, cycle_id) = admitted();
@@ -425,7 +425,7 @@ fn reruns_invalidate_steps() {
 
 #[test]
 fn step_attempt_rewrites() {
-    use dokime_runtime::core::{StepAttemptId, StepId};
+    use dokime_runtime::{StepAttemptId, StepId};
     use dokime_runtime::execution::{ExecutionSnapshot, TerminationReason, TestStepAttempt};
     use dokime_runtime::transactions::{BeginStepAttempt, RecordStepAttempt};
     let (mut state, cycle_id) = admitted();
@@ -478,11 +478,11 @@ fn step_attempt_rewrites() {
     let first_scope = state.executions[&id].capture_scope();
     assert_eq!(
         first_scope.origin,
-        dokime_runtime::core::EvidenceOrigin::Step {
+        dokime_runtime::EvidenceOrigin::Step {
             attempt_id: begin.start.attempt_id.clone(),
         }
     );
-    let captured_id = dokime_runtime::core::RecordId::from_seed("admitted-at-first-attempt");
+    let captured_id = dokime_runtime::RecordId::from_seed("admitted-at-first-attempt");
     let mut admitted = dokime_runtime::records::Record::new(
         dokime_runtime::model::time::now_utc(),
         Identifier::new("fixture.output").unwrap(),
@@ -596,7 +596,7 @@ fn append_checks_execution() {
         .unwrap()
         .clone();
     let append = AppendCycle {
-        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original.clone()],
@@ -654,7 +654,7 @@ fn append_admissions_identity() {
         .clone();
     state.cycles.get_mut(&cycle_id).unwrap().lifecycle = CycleStatus::Stopped;
     let mut append = AppendCycle {
-        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original],
@@ -671,7 +671,7 @@ fn append_admissions_identity() {
         .unwrap();
     let removed = state.executions.remove(&removed_id).unwrap();
 
-    append.admission_identifier = dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>();
+    append.admission_identifier = dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>();
     append.check(&state).unwrap();
     append.apply(&mut state);
     let cycle = state.cycle_view(&cycle_id).unwrap();
@@ -906,7 +906,7 @@ fn recovery_completed_outcomes() {
     let (mut state, cycle_id) = admitted();
     let mut cycle = state.cycle_view(&cycle_id).unwrap();
     let mut completed = cycle.test_executions[0].clone();
-    completed.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    completed.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     completed.status = ExecutionStatus::Passed;
     completed.finished_at = Some(cycle.updated_at.clone());
     completed.result = Some(ResultSummary {
@@ -920,8 +920,8 @@ fn recovery_completed_outcomes() {
     cycle.test_executions[0].status = ExecutionStatus::Running;
     state.replace_cycle(cycle).unwrap();
     MarkRuntimeStarted {
-        record_namespace: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
-        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
+        record_namespace: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
     }
     .apply(&mut state);
     assert_eq!(
@@ -1156,7 +1156,7 @@ fn terminal_traceability_history() {
         test_cycle_id: cycle_id.clone(),
         action: dokime_runtime::transactions::CycleResetAction::Rerun {
             test_case_id: completed.test_case_id.clone(),
-            execution_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>(),
+            execution_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>(),
         },
         occurred_at: dokime_runtime::model::time::now_utc(),
     }
@@ -1506,7 +1506,7 @@ fn recovery_requires_request() {
         plugin_identity: Some(identity("old")),
     };
     assert!(run.check(&state).is_err());
-    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let reset = dokime_runtime::transactions::ResetCycle {
         test_cycle_id: cycle_id.clone(),
         action: dokime_runtime::transactions::CycleResetAction::Rerun {
@@ -1616,7 +1616,7 @@ fn copied_cycle_membership() {
     let (mut state, source_id) = admitted();
     let mut source = state.cycle_view(&source_id).unwrap();
     let mut repeated = source.test_executions[0].clone();
-    repeated.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    repeated.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     repeated.scope.test_execution_id = Some(repeated.test_execution_id.clone());
     source.test_executions.push(repeated);
     let originals = source.test_executions.clone();
@@ -1704,7 +1704,7 @@ fn request_queues_evidence() {
     let execution_id = execution.test_execution_id.clone();
     assert_eq!(execution.status, ExecutionStatus::Skipped);
     let note = dokime_runtime::execution::OperatorNote {
-        note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::NoteId>(),
+        note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::NoteId>(),
         scope: execution.scope.clone(),
         author: None,
         message: "Admitted after queuing".into(),
@@ -1847,7 +1847,7 @@ fn execution_selection_attempts() {
     let (mut state, cycle_id) = planned();
     let first = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     let mut second = first.clone();
-    second.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    second.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     second.scope = second
         .scope
         .with_test_execution(second.test_execution_id.clone());
@@ -1968,7 +1968,7 @@ fn execution_controls_requests() {
         occurred_at: dokime_runtime::model::time::now_utc(),
     };
     let mut sibling = state.executions[&id].clone();
-    sibling.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    sibling.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     sibling.scope = sibling
         .scope
         .with_test_execution(sibling.test_execution_id.clone());
@@ -2138,7 +2138,7 @@ fn canonical_execution_recovery() {
         .executions
         .get_mut(&execution_id)
         .unwrap()
-        .test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+        .test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     assert!(
         wrong_key
             .validate_execution_ownership()

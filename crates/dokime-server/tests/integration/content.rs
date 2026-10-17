@@ -21,7 +21,7 @@ use tokio::sync::Notify;
 use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
-use dokime_runtime::core::RecordScope;
+use dokime_runtime::RecordScope;
 use dokime_runtime::execution::CycleView;
 use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
@@ -199,7 +199,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
-        authenticated(contracts::execution::CreateCycleRequest {
+        authenticated(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: "content.cycle".into(),
                 label: "Content".into(),
@@ -214,7 +214,7 @@ async fn artifact_transfer(message_bytes: usize) {
     .unwrap();
     let reply = execution
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -233,7 +233,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let content = WireClient::new(stream).max_decoding_message_size(message_bytes);
     let first_page = content
         .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifactsRequest {
+            contracts::content::ListArtifacts {
                 limit: 2,
                 ..Default::default()
             },
@@ -246,7 +246,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let cursor = first_page.cursor.clone().unwrap();
     let second_page = content
         .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifactsRequest {
+            contracts::content::ListArtifacts {
                 limit: 2,
                 after_artifact_id: next_after,
                 cursor: Some(cursor.clone()),
@@ -262,7 +262,7 @@ async fn artifact_transfer(message_bytes: usize) {
     assert_eq!(
         content
             .unary::<contracts::content::ListArtifacts>(authenticated(
-                contracts::content::ListArtifactsRequest {
+                contracts::content::ListArtifacts {
                     limit: 2,
                     after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
                     cursor: Some(invalid_cursor),
@@ -277,7 +277,7 @@ async fn artifact_transfer(message_bytes: usize) {
     assert_eq!(
         content
             .download::<contracts::content::DownloadArtifact>(
-                contracts::content::DownloadArtifactRequest {
+                contracts::content::DownloadArtifact {
                     artifact_id: first_id.clone()
                 }
             )
@@ -289,7 +289,7 @@ async fn artifact_transfer(message_bytes: usize) {
     assert_eq!(
         content
             .download::<contracts::content::DownloadArtifact>(authenticated(
-                contracts::content::DownloadArtifactRequest {
+                contracts::content::DownloadArtifact {
                     artifact_id: "../file".into()
                 }
             ))
@@ -305,8 +305,8 @@ async fn artifact_transfer(message_bytes: usize) {
     assert_eq!(
         content
             .download::<contracts::content::DownloadArtifact>(authenticated(
-                contracts::content::DownloadArtifactRequest {
-                    artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::ArtifactId>().to_string(),
+                contracts::content::DownloadArtifact {
+                    artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::ArtifactId>().to_string(),
                 }
             ))
             .await
@@ -329,7 +329,7 @@ async fn artifact_transfer(message_bytes: usize) {
         .await
         .unwrap();
         let destination = root.path().join("verified.bin");
-        let request = contracts::content::DownloadArtifactRequest {
+        let request = contracts::content::DownloadArtifact {
             artifact_id: first_id.clone(),
         };
         let verified = native
@@ -445,7 +445,7 @@ async fn artifact_transfer(message_bytes: usize) {
             let id = record.artifact_id.to_string();
             let mut stream = content
                 .download::<contracts::content::DownloadArtifact>(authenticated(
-                    contracts::content::DownloadArtifactRequest { artifact_id: id },
+                    contracts::content::DownloadArtifact { artifact_id: id },
                 ))
                 .await
                 .unwrap()
@@ -502,7 +502,7 @@ async fn artifact_transfer(message_bytes: usize) {
     }
     let mut stalled = content
         .download::<contracts::content::DownloadArtifact>(authenticated(
-            contracts::content::DownloadArtifactRequest {
+            contracts::content::DownloadArtifact {
                 artifact_id: records[3].0.artifact_id.to_string(),
             },
         ))
@@ -583,7 +583,7 @@ async fn artifact_upload_owned() {
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
-        authenticated(contracts::execution::CreateCycleRequest {
+        authenticated(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: "content.upload".into(),
                 label: "Upload".into(),
@@ -598,7 +598,7 @@ async fn artifact_upload_owned() {
     .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -609,7 +609,7 @@ async fn artifact_upload_owned() {
     gate.started.notified().await;
     let execution_id = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle_id.clone(),
                 limit: 100,
                 ..Default::default()
@@ -848,7 +848,7 @@ async fn artifact_upload_owned() {
 
     let listed = content
         .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifactsRequest::default(),
+            contracts::content::ListArtifacts::default(),
         ))
         .await
         .unwrap()
@@ -880,7 +880,7 @@ async fn artifact_upload_owned() {
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -937,7 +937,7 @@ async fn completion_harness() -> (
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
-        authenticated(contracts::execution::CreateCycleRequest {
+        authenticated(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: "content.completion".into(),
                 label: "Completion".into(),
@@ -952,7 +952,7 @@ async fn completion_harness() -> (
     .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -963,7 +963,7 @@ async fn completion_harness() -> (
     gate.started.notified().await;
     let execution_id = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle_id.clone(),
                 limit: 100,
                 ..Default::default()
@@ -991,7 +991,7 @@ async fn completion_harness() -> (
 /// Wait on the live state the settled-evidence refusal reads, not on a sibling source.
 async fn wait_for_watched_lifecycle(
     owner: &Runtime,
-    cycle: &dokime_runtime::core::TestCycleId,
+    cycle: &dokime_runtime::TestCycleId,
     lifecycle: dokime_runtime::execution::CycleStatus,
 ) {
     owner
@@ -1020,7 +1020,7 @@ async fn finish_completion_harness(
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -1199,7 +1199,7 @@ async fn artifact_upload_completion() {
 async fn open_report_states() {
     let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) =
         completion_harness().await;
-    let cycle = dokime_runtime::core::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
+    let cycle = dokime_runtime::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
     let execution_id = scope
         .execution_id
         .clone()
@@ -1247,7 +1247,7 @@ async fn cycle_report(
 ) -> (contracts::reports::ReportMetadata, Vec<u8>) {
     let stream = client
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
-            contracts::reports::DownloadCycleReportRequest {
+            contracts::reports::DownloadCycleReport {
                 cycle_id: cycle_id.to_owned(),
                 identifier: String::new(),
             },
@@ -1264,7 +1264,7 @@ async fn execution_report(
 ) -> (contracts::reports::ReportMetadata, Vec<u8>) {
     let stream = client
         .download::<contracts::reports::DownloadExecutionReport>(authenticated(
-            contracts::reports::DownloadExecutionReportRequest {
+            contracts::reports::DownloadExecutionReport {
                 execution_id: execution_id.to_owned(),
             },
         ))
@@ -1333,7 +1333,7 @@ async fn large_artifact_buffering() {
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
-        authenticated(contracts::execution::CreateCycleRequest {
+        authenticated(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: "content.bundle".into(),
                 label: "Bundle".into(),
@@ -1348,7 +1348,7 @@ async fn large_artifact_buffering() {
     .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -1359,7 +1359,7 @@ async fn large_artifact_buffering() {
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -1378,7 +1378,7 @@ async fn large_artifact_buffering() {
         .unwrap();
     let mut download = content
         .download::<contracts::content::DownloadArtifact>(authenticated(
-            contracts::content::DownloadArtifactRequest {
+            contracts::content::DownloadArtifact {
                 artifact_id: artifact.artifact_id.to_string(),
             },
         ))

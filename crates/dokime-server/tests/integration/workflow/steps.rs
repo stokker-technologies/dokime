@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_runtime::core::{CriterionId, StepId};
+use dokime_runtime::{CriterionId, StepId};
 use dokime_runtime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
 
 /* === Constants === */
@@ -82,7 +82,7 @@ async fn step_pages_selections() {
     gate.started.notified().await;
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -93,7 +93,7 @@ async fn step_pages_selections() {
         .executions[0]
         .execution_id
         .clone();
-    let mut request = contracts::execution::ListExecutionStepsRequest {
+    let mut request = contracts::execution::ListExecutionSteps {
         execution_id: execution_id.clone(),
         limit: 31,
         cursor: None,
@@ -135,7 +135,7 @@ async fn step_pages_selections() {
     }
     let last = steps.last().unwrap();
     assert_eq!(last.criterion_count, 103);
-    let mut evidence = contracts::execution::ListStepEvidenceRequest {
+    let mut evidence = contracts::execution::ListStepCriteria {
         execution_id: execution_id.clone(),
         step_id: last.step_id.clone(),
         limit: 37,
@@ -227,7 +227,7 @@ async fn step_pages_selections() {
     support::on_state_change(&owner.handle(), async || {
         let cycle = client
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: id.clone(),
                 },
             ))
@@ -244,7 +244,7 @@ async fn step_pages_selections() {
     // the admitted steps and distinguishes unreported evaluations as indeterminate.
     let first = client
         .unary::<contracts::execution::ListExecutionSteps>(authenticated(
-            contracts::execution::ListExecutionStepsRequest {
+            contracts::execution::ListExecutionSteps {
                 execution_id: execution_id.clone(),
                 ..Default::default()
             },
@@ -259,7 +259,7 @@ async fn step_pages_selections() {
         .unwrap();
     let terminal = client
         .unary::<contracts::execution::ListStepCriteria>(authenticated(
-            contracts::execution::ListStepEvidenceRequest {
+            contracts::execution::ListStepCriteria {
                 execution_id,
                 step_id: with_criteria.step_id.clone(),
                 ..Default::default()

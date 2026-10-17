@@ -69,7 +69,7 @@ async fn media_capture_artifacts() {
 
     // Scope And Limits Are Refused Before Any Device Opens
     let unscoped = client
-        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::ScreenshotRequest {
+        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot {
             scope: Some(contracts::content::ArtifactScope {
                 execution_id: None,
                 ..scope.clone()
@@ -81,7 +81,7 @@ async fn media_capture_artifacts() {
     assert_eq!(unscoped.code(), Code::InvalidArgument);
     let unbounded = recording(
         &client,
-        contracts::media::AudioRecordingRequest {
+        contracts::media::AudioRecording {
             scope: Some(scope.clone()),
             input: None,
             maximum_seconds: Some(0),
@@ -93,7 +93,7 @@ async fn media_capture_artifacts() {
 
     // Stills Land Under Their Media Folders
     let screenshot = client
-        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::ScreenshotRequest {
+        .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot {
             scope: Some(scope.clone()),
             display: None,
         }))
@@ -106,7 +106,7 @@ async fn media_capture_artifacts() {
         "display",
     );
     let photo = client
-        .unary::<contracts::media::Photo>(authenticated(contracts::media::PhotoRequest {
+        .unary::<contracts::media::Photo>(authenticated(contracts::media::Photo {
             scope: Some(scope.clone()),
             camera: None,
         }))
@@ -122,7 +122,7 @@ async fn media_capture_artifacts() {
     // A Bounded Recording Reports Progress, Then Its Sealed Artifact
     let bounded = recording(
         &client,
-        contracts::media::AudioRecordingRequest {
+        contracts::media::AudioRecording {
             scope: Some(scope.clone()),
             input: None,
             maximum_seconds: Some(1),
@@ -158,7 +158,7 @@ async fn media_capture_artifacts() {
     if live_audio {
         let mut frames = recording(
             &client,
-            contracts::media::AudioRecordingRequest {
+            contracts::media::AudioRecording {
                 scope: Some(scope.clone()),
                 input: None,
                 maximum_seconds: Some(60),
@@ -188,7 +188,7 @@ async fn media_capture_artifacts() {
     if live_audio {
         let mut frames = recording(
             &client,
-            contracts::media::AudioRecordingRequest {
+            contracts::media::AudioRecording {
                 scope: Some(scope.clone()),
                 input: None,
                 maximum_seconds: Some(60),
@@ -223,7 +223,7 @@ async fn media_capture_artifacts() {
     // Video Recording Is Declared But Refused Until An Encoder Is Chosen
     let screen = recording_refusal::<contracts::media::ScreenRecording>(
         &client,
-        contracts::media::ScreenRecordingRequest {
+        contracts::media::ScreenRecording {
             scope: Some(scope.clone()),
             display: None,
             audio: Some(contracts::media::RecordingAudio {
@@ -236,7 +236,7 @@ async fn media_capture_artifacts() {
     .await;
     let camera = recording_refusal::<contracts::media::CameraRecording>(
         &client,
-        contracts::media::CameraRecordingRequest {
+        contracts::media::CameraRecording {
             scope: Some(scope),
             camera: None,
             audio: None,
@@ -261,7 +261,7 @@ pub(super) async fn running_execution(
 ) -> contracts::content::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,
-        authenticated(contracts::execution::CreateCycleRequest {
+        authenticated(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: "media.capture".into(),
                 label: "Media".into(),
@@ -276,7 +276,7 @@ pub(super) async fn running_execution(
     .unwrap();
     client
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -287,7 +287,7 @@ pub(super) async fn running_execution(
     gate.started.notified().await;
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle_id.clone(),
                 limit: 100,
                 ..Default::default()
@@ -308,7 +308,7 @@ pub(super) async fn running_execution(
 
 async fn recording(
     client: &WireClient,
-    request: contracts::media::AudioRecordingRequest,
+    request: contracts::media::AudioRecording,
 ) -> Result<WireStream<contracts::media::RecordingFrame>, tonic::Status> {
     let mut frames = client
         .download::<contracts::media::AudioRecording>(authenticated(request))

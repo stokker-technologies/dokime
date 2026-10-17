@@ -207,7 +207,7 @@ async fn stopped_report_boundary() {
                 source_kind: TelemetrySourceKind::InstalledPlugin,
                 source_id: "fixture.stop.queue".into(),
                 stream: "tracking".into(),
-                interval: Some(dokime_runtime::core::DurationMillis(10)),
+                interval: Some(dokime_runtime::DurationMillis(10)),
                 min_interval: None,
                 start_after: None,
             },

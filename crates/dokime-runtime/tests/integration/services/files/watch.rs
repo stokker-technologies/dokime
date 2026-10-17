@@ -27,9 +27,9 @@ use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::runtime::Error;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
-use dokime_contract::operations::files::{
+use dokime_domain::operations::files::{
     FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource, LineField, LineFieldKind, LineMarker,
-    LineMatcher, WatchFile, WatchFileRequest, WatchedArtifact,
+    LineMatcher, WatchFile, WatchFile, WatchedArtifact,
 };
 
 /* === Constants === */
@@ -346,7 +346,7 @@ async fn watch_refusals() {
     let mut capped = bench
         .handle
         .open_file_watch(
-            &FileWatchRequest {
+            &FileWatch {
                 maximum_files: Some(1),
                 ..base()
             },
@@ -364,7 +364,7 @@ async fn watch_refusals() {
     let mut small = bench
         .handle
         .open_file_watch(
-            &FileWatchRequest {
+            &FileWatch {
                 maximum_bytes: Some(15),
                 ..base()
             },
@@ -378,31 +378,31 @@ async fn watch_refusals() {
 
     // Requests Are Refused Before A Source Opens
     let refusals = [
-        FileWatchRequest {
+        FileWatch {
             execution_id: None,
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             rules: vec![exclude("*.log")],
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             output: "../escape".to_owned(),
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             policy: FileWatchPolicy::Unspecified,
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             poll_interval_ms: Some(1),
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             maximum_files: Some(257),
             ..base()
         },
-        FileWatchRequest {
+        FileWatch {
             source: None,
             ..base()
         },
@@ -428,7 +428,7 @@ async fn watch_refusals() {
     let scoped = bench
         .handle
         .open_file_watch(
-            &FileWatchRequest {
+            &FileWatch {
                 execution_id: None,
                 ..base()
             },
@@ -442,8 +442,8 @@ async fn watch_refusals() {
     drop(scoped);
 
     // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
-    let ftp = |url: &str| FileWatchRequest {
-        source: Some(dokime_contract::operations::files::FileWatchSource {
+    let ftp = |url: &str| FileWatch {
+        source: Some(dokime_domain::operations::files::FileWatchSource {
             payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource {
                 url: url.to_owned(),
                 credential_id: None,
@@ -577,7 +577,7 @@ async fn watch_file_matchers() {
     let tree = tempdir().unwrap();
     let log = tree.path().join("device.log");
     write(&log, b"elapsed=0.5 locked=false\n");
-    let request = WatchFileRequest {
+    let request = WatchFile {
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(local(&log)),
@@ -631,7 +631,7 @@ async fn watch_file_matchers() {
     assert!(outcome.gaps.is_empty());
 
     // Rows Reach The Declared Stream In The Execution's Scope
-    let execution = dokime_runtime::core::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let execution = dokime_runtime::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
     let rows = bench
         .handle
         .collect_telemetry(&TelemetrySelection {

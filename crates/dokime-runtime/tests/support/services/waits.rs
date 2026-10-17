@@ -21,7 +21,7 @@ use std::time::Duration;
 use futures_util::{FutureExt, StreamExt};
 
 // Local Imports
-use dokime_runtime::core::TestCycleId;
+use dokime_runtime::TestCycleId;
 use dokime_runtime::execution::TestExecution;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::execution::CycleStatus;
@@ -160,7 +160,7 @@ pub async fn wait_for_cycle_lifecycle(
 }
 
 /// Waits Until A Run Receipt Is Terminal, Which Follows Its Seals Or Unsealed Cause.
-pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_runtime::core::CommandId) {
+pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_runtime::CommandId) {
     // TODO(source-hook): RequestStorage publishes no receipt change; a watch on the durable run receipt would replace this poll.
     loop {
         if let Ok(Some(receipt)) = runtime.run_request(run).await
@@ -174,7 +174,7 @@ pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_runtime:
 
 pub async fn wait_for_execution_document_payload(
     runtime: &RuntimeHandle,
-    scope: dokime_runtime::core::RecordScope,
+    scope: dokime_runtime::RecordScope,
 ) {
     settle(runtime, || async {
         let query = runtime
@@ -201,7 +201,7 @@ pub async fn wait_for_execution_document_payload(
 
 pub fn latest_execution_for_case<'a>(
     cycle: &'a dokime_runtime::execution::CycleView,
-    test_case_id: &dokime_runtime::core::CaseId,
+    test_case_id: &dokime_runtime::CaseId,
 ) -> Option<&'a TestExecution> {
     cycle
         .test_executions

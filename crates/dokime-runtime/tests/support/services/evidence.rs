@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::identifier;
-use dokime_runtime::core::{Identifier, RecordScope, Timestamp, Value};
+use dokime_runtime::{Identifier, RecordScope, Timestamp, Value};
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::execution::{ExecutionStatus, TestExecution};
 use dokime_runtime::records::RecordSeverity;
@@ -288,7 +288,7 @@ pub async fn publish_tracking_sample(
         "python.fixture",
     );
     sample.scope = Some(
-        dokime_runtime::core::RecordScope::default()
+        dokime_runtime::RecordScope::default()
             .with_cycle(cycle.test_cycle_id.clone())
             .with_test_case(case.test_case_id.clone())
             .with_test_execution(execution.test_execution_id.clone())

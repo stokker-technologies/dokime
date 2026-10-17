@@ -16,7 +16,7 @@
 // Standard Library Imports
 use std::{collections::BTreeMap, fs, sync::Arc};
 // Third Party Imports
-use dokime_runtime::core::{
+use dokime_runtime::{
     CredentialBackendKind, HostCardBlock, HostCardTone, Identifier, Metadata,
     RedactedCredentialBinding, Value,
 };
@@ -485,8 +485,8 @@ async fn source_settings_absent() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
-        dokime_runtime::core::Metadata::new(
-            dokime_runtime::core::Identifier::new("storage.settings").unwrap(),
+        dokime_runtime::Metadata::new(
+            dokime_runtime::Identifier::new("storage.settings").unwrap(),
             "Storage Settings",
             None,
         ),

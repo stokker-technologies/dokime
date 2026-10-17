@@ -56,7 +56,7 @@ async fn live_file_rewrites() {
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle.clone(),
                 ..Default::default()
             },
@@ -65,7 +65,7 @@ async fn live_file_rewrites() {
         .unwrap()
         .into_inner();
     let id =
-        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let first = runtime
         .execution_file_target(&id, "files/a.bin".into(), false, true)
@@ -81,7 +81,7 @@ async fn live_file_rewrites() {
     std::fs::write(&first.absolute_path, &bytes).unwrap();
     std::fs::write(&second.absolute_path, []).unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let list = |limit| contracts::content::ListExecutionFilesRequest {
+    let list = |limit| contracts::content::ListExecutionFiles {
         execution_id: id.to_string(),
         limit,
         ..Default::default()
@@ -109,7 +109,7 @@ async fn live_file_rewrites() {
     while let Some(path) = after {
         let next = content
             .unary::<contracts::content::ListExecutionFiles>(authenticated(
-                contracts::content::ListExecutionFilesRequest {
+                contracts::content::ListExecutionFiles {
                     after_path: path,
                     cursor: page.cursor.clone(),
                     ..list(1)
@@ -123,7 +123,7 @@ async fn live_file_rewrites() {
     }
     assert!(paths.contains(&"files/a.bin".to_owned()) && paths.contains(&"files/b.bin".to_owned()));
     assert!(paths.windows(2).all(|pair| pair[0] < pair[1]));
-    let read = |path: &str, offset, max_bytes| contracts::content::ReadExecutionFileRequest {
+    let read = |path: &str, offset, max_bytes| contracts::content::ReadExecutionFile {
         execution_id: id.to_string(),
         relative_path: path.into(),
         offset,
@@ -184,7 +184,7 @@ async fn live_file_rewrites() {
     );
     let mut download = content
         .download::<contracts::content::DownloadExecutionFile>(authenticated(
-            contracts::content::DownloadExecutionFileRequest {
+            contracts::content::DownloadExecutionFile {
                 execution_id: id.to_string(),
                 relative_path: "files/a.bin".into(),
             },
@@ -238,7 +238,7 @@ async fn live_file_rewrites() {
     assert_eq!(
         content
             .download::<contracts::content::DownloadExecutionFile>(
-                contracts::content::DownloadExecutionFileRequest {
+                contracts::content::DownloadExecutionFile {
                     execution_id: id.to_string(),
                     relative_path: "files/a.bin".into(),
                 }
@@ -251,7 +251,7 @@ async fn live_file_rewrites() {
     assert_eq!(
         content
             .download::<contracts::content::DownloadExecutionFile>(authenticated(
-                contracts::content::DownloadExecutionFileRequest {
+                contracts::content::DownloadExecutionFile {
                     execution_id: id.to_string(),
                     relative_path: "../../secret".into(),
                 }
@@ -268,7 +268,7 @@ async fn live_file_rewrites() {
     assert_eq!(
         content
             .download::<contracts::content::DownloadExecutionFile>(authenticated(
-                contracts::content::DownloadExecutionFileRequest {
+                contracts::content::DownloadExecutionFile {
                     execution_id: id.to_string(),
                     relative_path: first.absolute_path.clone(),
                 }
@@ -290,7 +290,7 @@ async fn live_file_rewrites() {
     assert_eq!(
         content
             .download::<contracts::content::DownloadExecutionFile>(authenticated(
-                contracts::content::DownloadExecutionFileRequest {
+                contracts::content::DownloadExecutionFile {
                     execution_id: id.to_string(),
                     relative_path: "files/a.bin".into(),
                 }
@@ -317,7 +317,7 @@ async fn live_file_rewrites() {
     let cancel_content = WireClient::new(stream);
     let mut canceled = cancel_content
         .download::<contracts::content::DownloadExecutionFile>(authenticated(
-            contracts::content::DownloadExecutionFileRequest {
+            contracts::content::DownloadExecutionFile {
                 execution_id: id.to_string(),
                 relative_path: "files/a.bin".into(),
             },
@@ -362,7 +362,7 @@ async fn live_file_rewrites() {
     assert_eq!(
         content
             .unary::<contracts::content::ListExecutionFiles>(authenticated(
-                contracts::content::ListExecutionFilesRequest {
+                contracts::content::ListExecutionFiles {
                     after_path: page.next_after_path.unwrap(),
                     cursor: page.cursor,
                     ..list(1)
@@ -394,7 +394,7 @@ async fn live_file_rewrites() {
     assert_eq!(final_window.observed_size_bytes, 13);
     let mut finalized_download = content
         .download::<contracts::content::DownloadExecutionFile>(authenticated(
-            contracts::content::DownloadExecutionFileRequest {
+            contracts::content::DownloadExecutionFile {
                 execution_id: id.to_string(),
                 relative_path: "files/a.bin".into(),
             },
@@ -453,7 +453,7 @@ async fn live_file_rewrites() {
     assert!(finalized_download.message().await.unwrap().is_none());
     // Resume A Finished File From A Committed Prefix.
     use contracts::content::{ExecutionFileFollowFramePayload as FollowFrame, ExecutionFilePhase};
-    let follow = |identity, offset| contracts::content::FollowExecutionFileRequest {
+    let follow = |identity, offset| contracts::content::FollowExecutionFile {
         execution_id: id.to_string(),
         relative_path: "files/a.bin".into(),
         identity,
@@ -700,7 +700,7 @@ async fn live_follow_refusal(change: &str) {
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle,
                 ..Default::default()
             },
@@ -709,7 +709,7 @@ async fn live_follow_refusal(change: &str) {
         .unwrap()
         .into_inner();
     let id =
-        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let target = runtime
         .execution_file_target(&id, "follow.bin".into(), false, true)
@@ -718,7 +718,7 @@ async fn live_follow_refusal(change: &str) {
         .unwrap();
     let original = b"original retained prefix";
     std::fs::write(&target.absolute_path, original).unwrap();
-    let request = |identity, offset| contracts::content::FollowExecutionFileRequest {
+    let request = |identity, offset| contracts::content::FollowExecutionFile {
         execution_id: id.to_string(),
         relative_path: "follow.bin".into(),
         identity,
@@ -895,7 +895,7 @@ async fn execution_file_buffer() {
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle.clone(),
                 ..Default::default()
             },
@@ -904,7 +904,7 @@ async fn execution_file_buffer() {
         .unwrap()
         .into_inner();
     let id =
-        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let target = runtime
         .execution_file_target(&id, "large.bin".into(), false, true)
@@ -920,7 +920,7 @@ async fn execution_file_buffer() {
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut download = content
         .download::<contracts::content::DownloadExecutionFile>(authenticated(
-            contracts::content::DownloadExecutionFileRequest {
+            contracts::content::DownloadExecutionFile {
                 execution_id: id.to_string(),
                 relative_path: "large.bin".into(),
             },

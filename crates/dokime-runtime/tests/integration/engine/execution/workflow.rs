@@ -22,8 +22,8 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::Value;
-use dokime_runtime::core::{PromptId, Timestamp};
+use dokime_runtime::Value;
+use dokime_runtime::{PromptId, Timestamp};
 use dokime_runtime::definition::TestCaseTemplate;
 use dokime_runtime::definition::authoring::{
     criterion as authored_criterion, metadata as authored_metadata,
@@ -86,7 +86,7 @@ struct ProbeResources {
 struct PublishedExecutionRows(
     std::sync::Mutex<Vec<PublishedRow>>,
     Workflow<Probe>,
-    std::sync::Mutex<dokime_runtime::core::RecordScope>,
+    std::sync::Mutex<dokime_runtime::RecordScope>,
 );
 
 // A host that refuses every row the way `host.publish` answers a refusal.
@@ -133,7 +133,7 @@ impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
     fn publish(
         &self,
         execution: &str,
-        stream: &dokime_runtime::core::Identifier,
+        stream: &dokime_runtime::Identifier,
         values: BTreeMap<String, Value>,
         storage_payload: Vec<u8>,
     ) -> Result<(), String> {
@@ -164,7 +164,7 @@ impl dokime_runtime::execution::EmbeddedPublisher for RefusedPublication {
     fn publish(
         &self,
         _: &str,
-        _: &dokime_runtime::core::Identifier,
+        _: &dokime_runtime::Identifier,
         _: BTreeMap<String, Value>,
         _: Vec<u8>,
     ) -> Result<(), String> {
@@ -198,13 +198,13 @@ impl dokime_runtime::telemetry::TelemetryRow for PulseRow {
             dokime_runtime::telemetry::TelemetryColumn::declared(
                 "index",
                 "Index",
-                dokime_runtime::core::ValueType::Integer,
+                dokime_runtime::ValueType::Integer,
                 dokime_runtime::telemetry::TelemetryRole::Counter,
             ),
             dokime_runtime::telemetry::TelemetryColumn::declared(
                 "value",
                 "Value",
-                dokime_runtime::core::ValueType::Number,
+                dokime_runtime::ValueType::Number,
                 dokime_runtime::telemetry::TelemetryRole::Value,
             ),
         ]
@@ -334,8 +334,8 @@ impl std::error::Error for ProbeError {}
 impl DeclaredTemplate for Probe {
     const IDENTIFIER: &'static str = TEMPLATE;
 
-    fn template_id() -> dokime_runtime::core::TemplateId {
-        dokime_runtime::core::TemplateId::from_seed(TEMPLATE)
+    fn template_id() -> dokime_runtime::TemplateId {
+        dokime_runtime::TemplateId::from_seed(TEMPLATE)
     }
 
     fn declaration() -> TestCaseTemplate {
@@ -804,12 +804,12 @@ fn count(parameters: &BTreeMap<String, Value>, name: &str) -> u64 {
     }
 }
 
-fn cycle() -> dokime_runtime::core::TestCycleId {
-    dokime_runtime::core::TestCycleId::from_seed("probe-cycle")
+fn cycle() -> dokime_runtime::TestCycleId {
+    dokime_runtime::TestCycleId::from_seed("probe-cycle")
 }
 
-fn execution() -> dokime_runtime::core::TestExecutionId {
-    dokime_runtime::core::TestExecutionId::from_seed("probe-execution")
+fn execution() -> dokime_runtime::TestExecutionId {
+    dokime_runtime::TestExecutionId::from_seed("probe-execution")
 }
 
 #[tokio::test]
@@ -843,7 +843,7 @@ async fn interactive_commands_downstream() {
     ] {
         let command = CommandExecutionRequest {
             execution_token: token.into(),
-            command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
+            command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
             action: action.into(),
             step: step.into(),
         };
@@ -855,7 +855,7 @@ async fn interactive_commands_downstream() {
     assert_ne!(commands[0].1.attempt_id, commands[2].1.attempt_id);
     let blocked = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
         action: "run_step".into(),
         step: "start".into(),
     };
@@ -869,7 +869,7 @@ async fn interactive_commands_downstream() {
     }
     let finish = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
         action: "finish".into(),
         step: String::new(),
     };
@@ -907,7 +907,7 @@ async fn interactive_commands_downstream() {
     assert!(
         workflow
             .command(CommandExecutionRequest {
-                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
                 ..blocked
             })
             .is_err()
@@ -954,7 +954,7 @@ async fn interactive_idle_stop() {
         workflow
             .command(CommandExecutionRequest {
                 execution_token: token.into(),
-                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
                 action: "next".into(),
                 step: String::new(),
             })
@@ -995,8 +995,8 @@ fn encoded_parameters(parameters: serde_json::Value) -> String {
     serde_json::to_string(&values).unwrap()
 }
 
-fn start_request(token: &str, parameters: serde_json::Value) -> RunExecutionRequest {
-    RunExecutionRequest {
+fn start_request(token: &str, parameters: serde_json::Value) -> RunExecution {
+    RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: cycle().to_string(),
@@ -1250,10 +1250,10 @@ async fn embedded_execution_output() {
     let rows = Arc::new(PublishedExecutionRows(
         std::sync::Mutex::new(Vec::new()),
         workflow.clone(),
-        std::sync::Mutex::new(dokime_runtime::core::RecordScope {
+        std::sync::Mutex::new(dokime_runtime::RecordScope {
             test_cycle_id: Some(cycle()),
             test_execution_id: Some(execution()),
-            origin: dokime_runtime::core::EvidenceOrigin::Initialization,
+            origin: dokime_runtime::EvidenceOrigin::Initialization,
             ..Default::default()
         }),
     ));
@@ -1271,12 +1271,12 @@ async fn embedded_execution_output() {
         let reply = workflow.next("embedded", cursor).await.unwrap();
         cursor = reply.cursor;
         for encoded in &reply.capture_phases {
-            let phase: dokime_runtime::core::CapturePhase = serde_json::from_str(encoded).unwrap();
+            let phase: dokime_runtime::CapturePhase = serde_json::from_str(encoded).unwrap();
             rows.2.lock().unwrap().origin = phase.into();
         }
         for encoded in &reply.step_begins {
             let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            rows.2.lock().unwrap().origin = dokime_runtime::core::EvidenceOrigin::Step {
+            rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step {
                 attempt_id: start.attempt_id.clone(),
             };
             workflow.admit(
@@ -1368,8 +1368,8 @@ async fn refused_publication_fails() {
 async fn runtime_bindings_metadata() {
     for identifier in ["registered.first", "registered.second"] {
         let mut definition = Probe::declaration();
-        definition.metadata.identifier = dokime_runtime::core::Identifier::new(identifier).unwrap();
-        definition.test_case_template_id = dokime_runtime::core::TemplateId::from_seed(identifier);
+        definition.metadata.identifier = dokime_runtime::Identifier::new(identifier).unwrap();
+        definition.test_case_template_id = dokime_runtime::TemplateId::from_seed(identifier);
         let workflow = Workflow::<Probe>::declaring(
             WORKFLOW,
             SOURCE,
@@ -2334,8 +2334,8 @@ async fn diagnostics_preserve_success() {
     workflow.shutdown().await;
 }
 
-fn captured(execution: dokime_runtime::core::TestExecutionId) -> dokime_runtime::core::RecordScope {
-    dokime_runtime::core::RecordScope::default()
+fn captured(execution: dokime_runtime::TestExecutionId) -> dokime_runtime::RecordScope {
+    dokime_runtime::RecordScope::default()
         .with_cycle(cycle())
         .with_test_execution(execution)
 }
@@ -2343,7 +2343,7 @@ fn captured(execution: dokime_runtime::core::TestExecutionId) -> dokime_runtime:
 fn admitted(record_type: &str, source: &str, serial: &str) -> dokime_runtime::records::Record {
     let mut record = dokime_runtime::records::Record::new(
         dokime_runtime::model::time::now_utc(),
-        dokime_runtime::core::Identifier::new(record_type).expect("a fixture identifier is valid"),
+        dokime_runtime::Identifier::new(record_type).expect("a fixture identifier is valid"),
         1,
         source,
         dokime_runtime::records::RecordSeverity::Info,
@@ -2352,7 +2352,7 @@ fn admitted(record_type: &str, source: &str, serial: &str) -> dokime_runtime::re
         .details
         .insert("serial".to_owned(), Value::from(serial));
     record.scope = Some(
-        dokime_runtime::core::RecordScope::default()
+        dokime_runtime::RecordScope::default()
             .with_cycle(cycle())
             .with_test_execution(execution()),
     );
@@ -2450,14 +2450,14 @@ async fn capture_declared_scope() {
         workflow.deliver_captured(
             &elsewhere,
             SOURCE,
-            &[captured(dokime_runtime::core::TestExecutionId::from_seed(
+            &[captured(dokime_runtime::TestExecutionId::from_seed(
                 "another-execution"
             ))]
         ),
         0
     );
     // The capture overrides the scope the record was filed under.
-    elsewhere.scope = Some(captured(dokime_runtime::core::TestExecutionId::from_seed(
+    elsewhere.scope = Some(captured(dokime_runtime::TestExecutionId::from_seed(
         "another-execution",
     )));
     assert_eq!(

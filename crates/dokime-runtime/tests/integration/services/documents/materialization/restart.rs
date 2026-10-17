@@ -23,7 +23,7 @@ use harmos::storage::StorageBackend;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
+use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
 
 /* === Constants === */
 
@@ -78,7 +78,7 @@ async fn persisted_cycle_restart() {
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
-        .call_as::<MaterializeReport>(MaterializeReportRequest {
+        .call_as::<MaterializeReport>(MaterializeReport {
             subject: ReportSubject::Cycle(cycle_id.to_string()),
             at: boundary.clone(),
         })

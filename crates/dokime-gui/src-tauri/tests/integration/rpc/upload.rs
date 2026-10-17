@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
-use dokime_contract::operations::content;
+use dokime_domain::operations::content;
 use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 
 /* === Constants === */
@@ -141,8 +141,8 @@ impl ScopedFixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let metadata = || {
-            dokime_runtime::core::Metadata::new(
-                dokime_runtime::core::Identifier::new("rpc.artifact-upload").unwrap(),
+            dokime_runtime::Metadata::new(
+                dokime_runtime::Identifier::new("rpc.artifact-upload").unwrap(),
                 "Artifact upload fixture",
                 None,
             )
@@ -157,7 +157,7 @@ impl ScopedFixture {
         .unwrap();
         let handle = runtime.handle();
         let template = dokime_runtime::definition::TestCaseTemplate {
-            test_case_template_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),
+            test_case_template_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],

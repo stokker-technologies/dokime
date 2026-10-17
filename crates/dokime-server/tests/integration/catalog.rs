@@ -105,7 +105,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListRecordSchemas>(
-                contracts::catalog::ListRecordSchemasRequest::default()
+                contracts::catalog::ListRecordSchemas::default()
             )
             .await
             .unwrap_err()
@@ -114,7 +114,7 @@ async fn schemas_exact_pages() {
     );
     let first = client
         .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
-            contracts::catalog::ListRecordSchemasRequest {
+            contracts::catalog::ListRecordSchemas {
                 limit: 1,
                 ..Default::default()
             },
@@ -132,7 +132,7 @@ async fn schemas_exact_pages() {
     while let Some(marker) = after {
         let page = client
             .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
-                contracts::catalog::ListRecordSchemasRequest {
+                contracts::catalog::ListRecordSchemas {
                     limit: 1,
                     after_record_type: marker,
                     cursor: first.cursor.clone(),
@@ -154,7 +154,7 @@ async fn schemas_exact_pages() {
     assert_eq!(ids, expected);
     let record = client
         .unary::<contracts::catalog::GetRecordSchema>(authenticated(
-            contracts::catalog::GetRecordSchemaRequest {
+            contracts::catalog::GetRecordSchema {
                 record_type: "fixture.reading".into(),
             },
         ))
@@ -196,7 +196,7 @@ async fn schemas_exact_pages() {
     assert!(record.fields[2].default_value.is_none());
     let streams = client
         .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
-            contracts::catalog::ListTelemetrySchemasRequest::default(),
+            contracts::catalog::ListTelemetrySchemas::default(),
         ))
         .await
         .unwrap()
@@ -209,7 +209,7 @@ async fn schemas_exact_pages() {
     );
     let telemetry = client
         .unary::<contracts::catalog::GetTelemetrySchema>(authenticated(
-            contracts::catalog::GetTelemetrySchemaRequest {
+            contracts::catalog::GetTelemetrySchema {
                 stream: "fixture.samples".into(),
             },
         ))
@@ -239,7 +239,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::GetRecordSchema>(authenticated(
-                contracts::catalog::GetRecordSchemaRequest {
+                contracts::catalog::GetRecordSchema {
                     record_type: "missing".into()
                 }
             ))
@@ -251,7 +251,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::GetTelemetrySchema>(authenticated(
-                contracts::catalog::GetTelemetrySchemaRequest {
+                contracts::catalog::GetTelemetrySchema {
                     stream: "missing".into()
                 }
             ))
@@ -263,7 +263,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
-                contracts::catalog::ListTelemetrySchemasRequest {
+                contracts::catalog::ListTelemetrySchemas {
                     limit: 101,
                     ..Default::default()
                 }
@@ -276,7 +276,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
-                contracts::catalog::ListRecordSchemasRequest {
+                contracts::catalog::ListRecordSchemas {
                     after_record_type: "missing".into(),
                     cursor: first.cursor.clone(),
                     ..Default::default()
@@ -298,7 +298,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
-                contracts::catalog::ListRecordSchemasRequest {
+                contracts::catalog::ListRecordSchemas {
                     cursor: first.cursor,
                     ..Default::default()
                 }
@@ -311,7 +311,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
-                contracts::catalog::ListTelemetrySchemasRequest {
+                contracts::catalog::ListTelemetrySchemas {
                     cursor: streams.cursor,
                     ..Default::default()
                 }
@@ -366,7 +366,7 @@ async fn catalog_suite_extensions() {
 
     let listed = client
         .unary::<contracts::catalog::ListSuites>(authenticated(
-            contracts::catalog::ListSuitesRequest::default(),
+            contracts::catalog::ListSuites::default(),
         ))
         .await
         .unwrap()
@@ -374,7 +374,7 @@ async fn catalog_suite_extensions() {
     assert_eq!(listed.suites.len(), 1);
 
     let fetched = client
-        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuite {
             suite_id: "fixture.suite".to_owned(),
         }))
         .await

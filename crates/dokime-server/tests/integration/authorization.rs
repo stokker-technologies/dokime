@@ -79,7 +79,7 @@ macro_rules! matrix {
 }
 
 matrix! {
-    "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReportRequest {
+    "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
         subject: contracts::reports::ReportSubject::Execution(String::new()),
         at: harmos::storage::StorageCursor {
             history: harmos::storage::StoreHistory {
@@ -97,11 +97,11 @@ matrix! {
     "/dokime.v1.Backend/GetDiagnostics", unary, contracts::backend::GetDiagnostics;
     "/dokime.v1.Backend/GetHealth", unary, contracts::backend::GetHealth;
     "/dokime.v1.Backend/GetIdentity", unary, contracts::backend::GetIdentity;
-    "/dokime.v1.Backend/WatchLogs", download, contracts::backend::WatchLogs = contracts::backend::WatchLogsRequest {
+    "/dokime.v1.Backend/WatchLogs", download, contracts::backend::WatchLogs = contracts::backend::WatchLogs {
         min_level: contracts::backend::LogLevel::Unspecified,
         replay_lines: 0,
     };
-    "/dokime.v1.Backend/WatchTrace", download, contracts::backend::WatchTrace = contracts::backend::WatchTraceRequest {
+    "/dokime.v1.Backend/WatchTrace", download, contracts::backend::WatchTrace = contracts::backend::WatchTrace {
         epoch: None,
         scope: None,
         min_level: contracts::backend::LogLevel::Unspecified,
@@ -123,7 +123,7 @@ matrix! {
     "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
     "/dokime.v1.Content/ReadExecutionFile", unary, contracts::content::ReadExecutionFile;
     "/dokime.v1.Documents/CaptureCurrentDocument", download, contracts::documents::CaptureCurrentDocument;
-    "/dokime.v1.Documents/UpdatePlotSettings", unary, contracts::documents::UpdatePlotSettings = contracts::documents::UpdatePlotSettingsRequest {
+    "/dokime.v1.Documents/UpdatePlotSettings", unary, contracts::documents::UpdatePlotSettings = contracts::documents::UpdatePlotSettings {
         scope: None,
         document_id: String::new(),
         plot_id: String::new(),
@@ -145,7 +145,7 @@ matrix! {
     "/dokime.v1.Execution/ListCaseParameters", unary, contracts::execution::ListCaseParameters;
     "/dokime.v1.Execution/ListCases", unary, contracts::execution::ListCases;
     "/dokime.v1.Execution/ListCycles", unary, contracts::execution::ListCycles;
-    "/dokime.v1.Execution/ListExecutionParameters", unary, contracts::execution::ListExecutionParameters = contracts::execution::ListExecutionParametersRequest {
+    "/dokime.v1.Execution/ListExecutionParameters", unary, contracts::execution::ListExecutionParameters = contracts::execution::ListExecutionParameters {
         execution_id: String::new(),
         set: contracts::execution::ExecutionParameterSet::Unspecified,
         limit: 0,
@@ -158,7 +158,7 @@ matrix! {
     "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
     "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
     "/dokime.v1.Execution/RunCase", unary, contracts::execution::RunCase;
-    "/dokime.v1.Execution/RunExecution", unary, contracts::execution::RunExecution = contracts::execution::RunExecutionRequest {
+    "/dokime.v1.Execution/RunExecution", unary, contracts::execution::RunExecution = contracts::execution::RunExecution {
         execution_id: String::new(),
         context: None,
         idempotency_key: None,
@@ -167,7 +167,7 @@ matrix! {
     "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
     "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
     "/dokime.v1.Execution/StopExecution", unary, contracts::execution::StopExecution;
-    "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommandRequest {
+    "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommand {
         request_id: String::new(),
         command_id: String::new(),
         execution_id: String::new(),
@@ -182,7 +182,7 @@ matrix! {
     "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
-    "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatchRequest {
+    "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatch {
         execution_id: None,
         source: None,
         rules: Vec::new(),
@@ -232,7 +232,7 @@ matrix! {
     "/dokime.v1.Prompts/ListDefinitions", unary, contracts::prompts::ListDefinitions;
     "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
     "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
-    "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::AggregateRequest {
+    "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::Aggregate {
         source: contracts::query::QuerySource::Unspecified,
         filters: vec![],
         group_by: vec![],
@@ -389,7 +389,7 @@ async fn permission_matrix_enforcement() {
     for &(role, token) in PRINCIPALS {
         let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
             .unary::<contracts::backend::GetAvailability>(credentialed(
-                contracts::backend::GetAvailabilityRequest {},
+                contracts::backend::GetAvailability {},
                 Some(token),
             ))
             .await

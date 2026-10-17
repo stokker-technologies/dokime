@@ -18,7 +18,7 @@
 use tempfile::tempdir;
 // Local Imports
 use super::*;
-use dokime_runtime::core::{RecordScope, Value};
+use dokime_runtime::{RecordScope, Value};
 use dokime_runtime::definition::{
     Parameter, ParameterDefault, RustTemplate, Step, TemplateContext,
     authored_criterion as criterion, authored_metadata as metadata, authored_unit as unit,

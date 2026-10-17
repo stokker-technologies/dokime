@@ -28,7 +28,7 @@ use std::{
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 
 // Local Imports
-use dokime_runtime::core::{CommandId, TestCycleId, TestExecutionId, Value};
+use dokime_runtime::{CommandId, TestCycleId, TestExecutionId, Value};
 use dokime_runtime::{
     Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext,
     transactions::CycleDefinition,
@@ -115,7 +115,7 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
 /// Runs one steady execution to its inspection prompt and times only the
 /// report materialization of the unsealed execution.
 async fn materialization(concurrency: usize, duration: f64) -> Duration {
-    use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
+    use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
     let root = tempfile::tempdir().unwrap();
     let (mut owner, runtime, cycle, request) =
         started_cycle(root.path(), concurrency, duration).await;
@@ -123,7 +123,7 @@ async fn materialization(concurrency: usize, duration: f64) -> Duration {
         .await
         .expect("steady execution reaches inspection");
     let at = runtime.storage().flush().await.unwrap();
-    let materialize = MaterializeReportRequest {
+    let materialize = MaterializeReport {
         subject: ReportSubject::Execution(execution.to_string()),
         at,
     };
@@ -210,8 +210,8 @@ async fn started_cycle(
     std::fs::copy(super::plugin_bundle(), &bundle).unwrap();
     let mut config = dokime_runtime::RuntimeConfig::new(
         root,
-        dokime_runtime::core::Metadata::new(
-            dokime_runtime::core::Identifier::new("bench.report").unwrap(),
+        dokime_runtime::Metadata::new(
+            dokime_runtime::Identifier::new("bench.report").unwrap(),
             "Report Bench",
             None,
         ),

@@ -86,7 +86,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::{Value, ValueType};
+use dokime_runtime::{Value, ValueType};
 use dokime_runtime::definition::{
     Criterion, DeclaredTemplate, SuiteSet, authored_criterion as criterion,
     materialize_template_cases,
@@ -99,7 +99,7 @@ use dokime_runtime::harmos::plugin::Registrar;
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, TELEMETRY_NAMESPACE};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime_runtime::transport::{
-    EvidenceBatch, RunExecutionRequest, SidecarCriterionStatus, StepAdmission,
+    EvidenceBatch, RunExecution, SidecarCriterionStatus, StepAdmission,
 };
 use error::Error;
 
@@ -336,8 +336,8 @@ enum SpikeSuites {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn pulse_start() -> RunExecutionRequest {
-    RunExecutionRequest {
+fn pulse_start() -> RunExecution {
+    RunExecution {
         mode: "automatic".into(),
         execution_token: "authoring".to_owned(),
         test_cycle_id: "cycle-1".to_owned(),

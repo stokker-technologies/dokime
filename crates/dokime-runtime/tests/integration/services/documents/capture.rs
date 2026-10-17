@@ -19,8 +19,8 @@
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::core::CommandId;
-use dokime_runtime::domains::evidence::notes::{CreateNoteRequest, EditNoteRequest, NoteError};
+use dokime_runtime::CommandId;
+use dokime_runtime::domains::evidence::notes::{CreateNote, EditNote, NoteError};
 use dokime_runtime::execution::notes::NoteOwner;
 
 /* === Constants === */
@@ -49,7 +49,7 @@ async fn notes_until_seal() {
     let (mut owner, handle, id, _executor) = blocked_cycle(root.path()).await;
     let running = wait_for_cycle_lifecycle(&handle, &id, CycleStatus::Running).await;
     let execution = &running.test_executions[0];
-    let request = CreateNoteRequest {
+    let request = CreateNote {
         epoch: handle.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         owner: NoteOwner::Execution {
@@ -70,7 +70,7 @@ async fn notes_until_seal() {
         filed.scope.test_execution_id,
         Some(execution.test_execution_id.clone())
     );
-    let edit = EditNoteRequest {
+    let edit = EditNote {
         epoch: handle.process_epoch(),
         note_id: filed.note_id.clone(),
         actor: "operator".into(),
@@ -78,7 +78,7 @@ async fn notes_until_seal() {
     };
     assert!(matches!(
         handle
-            .edit_current_note(EditNoteRequest {
+            .edit_current_note(EditNote {
                 actor: "someone-else".into(),
                 ..edit.clone()
             })
@@ -91,7 +91,7 @@ async fn notes_until_seal() {
     assert_eq!(edited.message, edit.message);
 
     let cycle_note = handle
-        .create_current_note(CreateNoteRequest {
+        .create_current_note(CreateNote {
             mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
             owner: NoteOwner::Cycle {
                 cycle_id: id.clone(),
@@ -127,7 +127,7 @@ async fn notes_until_seal() {
         "the sealed report keeps the note as last edited"
     );
 
-    let late = CreateNoteRequest {
+    let late = CreateNote {
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         message: "Filed after the seal.".into(),
         ..request
@@ -138,7 +138,7 @@ async fn notes_until_seal() {
     ));
     assert!(matches!(
         handle
-            .create_current_note(CreateNoteRequest {
+            .create_current_note(CreateNote {
                 owner: NoteOwner::Cycle {
                     cycle_id: id.clone()
                 },
@@ -149,7 +149,7 @@ async fn notes_until_seal() {
     ));
     assert!(matches!(
         handle
-            .edit_current_note(EditNoteRequest {
+            .edit_current_note(EditNote {
                 note_id: cycle_note.note_id,
                 message: "Bench ambient 24 °C.".into(),
                 ..edit.clone()

@@ -17,7 +17,7 @@
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
-use dokime_runtime::core::{
+use dokime_runtime::{
     CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp,
 };
 use dokime_runtime::execution::{CycleView, OperatorNote};
@@ -57,7 +57,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
         "test_executions":[{
             "test_cycle_id": cycle_id, "test_execution_id": dokime_runtime::model::identity::new_id::<TestExecutionId>(), "test_case_id": case_id, "status":"skipped", "scope":{},
             "snapshot":dokime_runtime::execution::ExecutionSnapshot::materialize(
-                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
+                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
                 None, Default::default(), None, Default::default(),
             ).unwrap()
         }]
@@ -225,7 +225,7 @@ fn scoped_read_bounds() {
         cycle.test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
         for execution in &mut cycle.test_executions {
             execution.test_cycle_id = cycle.test_cycle_id.clone();
-            execution.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+            execution.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
         }
         state
             .replace_cycle(cycle)

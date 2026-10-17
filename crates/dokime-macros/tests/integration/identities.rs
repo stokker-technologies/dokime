@@ -138,7 +138,7 @@ fn item_names_identities() {
     assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, "Checks.probe");
     assert_eq!(
         Probe::template_id(),
-        sdk::core::TemplateId::from_seed("Checks.probe")
+        sdk::TemplateId::from_seed("Checks.probe")
     );
     assert_eq!(
         template
@@ -150,7 +150,7 @@ fn item_names_identities() {
     );
     assert_eq!(
         template.phases[0].step_id,
-        sdk::core::StepId::from_seed(format!("{}:start", Probe::template_id()))
+        sdk::StepId::from_seed(format!("{}:start", Probe::template_id()))
     );
     assert_eq!(
         template
@@ -162,7 +162,7 @@ fn item_names_identities() {
     );
     assert_eq!(
         template.criteria[0].criterion_id,
-        sdk::core::CriterionId::from_seed(format!("{}:accepted", Probe::template_id()))
+        sdk::CriterionId::from_seed(format!("{}:accepted", Probe::template_id()))
     );
     assert_eq!(
         suite

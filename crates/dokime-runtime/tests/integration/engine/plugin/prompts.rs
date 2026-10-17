@@ -194,15 +194,15 @@ async fn answers_declared_constant() {
             SignOff::PROMPT_TYPE,
             "submit",
             [
-                ("note", dokime_runtime::core::Value::from("wobbly")),
-                ("accepted", dokime_runtime::core::Value::from(false)),
-                ("sweep", dokime_runtime::core::Value::from("slow")),
-                ("retries", dokime_runtime::core::Value::from(2_i64)),
+                ("note", dokime_runtime::Value::from("wobbly")),
+                ("accepted", dokime_runtime::Value::from(false)),
+                ("sweep", dokime_runtime::Value::from("slow")),
+                ("retries", dokime_runtime::Value::from(2_i64)),
                 (
                     "repeats",
-                    dokime_runtime::core::Value::Array(vec![
-                        dokime_runtime::core::Value::from("slow"),
-                        dokime_runtime::core::Value::from("fast"),
+                    dokime_runtime::Value::Array(vec![
+                        dokime_runtime::Value::from("slow"),
+                        dokime_runtime::Value::from("fast"),
                     ]),
                 ),
             ],
@@ -210,7 +210,7 @@ async fn answers_declared_constant() {
         .answer(
             Go::PROMPT_TYPE,
             "no",
-            std::iter::empty::<(&str, dokime_runtime::core::Value)>(),
+            std::iter::empty::<(&str, dokime_runtime::Value)>(),
         )
         .run::<PluginSuites>()
         .await
@@ -258,7 +258,7 @@ fn declaration_what_registers() {
     assert_eq!(definition.fields[4].validation.min_items, Some(1));
     assert_eq!(
         definition.fields[4].default,
-        Some(dokime_runtime::core::Value::Array(vec![dokime_runtime::core::Value::from(
+        Some(dokime_runtime::Value::Array(vec![dokime_runtime::Value::from(
             "slow"
         )]))
     );

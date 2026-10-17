@@ -19,7 +19,7 @@
 
 // Local Imports
 use super::{Empty, Protocol, Resources};
-use dokime_runtime::core::{TemplateId, ValueType};
+use dokime_runtime::{TemplateId, ValueType};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime_runtime::{Refusal, Supervisor};
 

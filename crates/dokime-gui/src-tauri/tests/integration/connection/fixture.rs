@@ -199,7 +199,7 @@ type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
 type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
 type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
 type LogEnvelope = harmos::grpc::OutputEnvelope<backend::LogFrame, ()>;
-type UploadEnvelope = harmos::grpc::InputEnvelope<(), plugins::StagePluginFrame>;
+type UploadEnvelope = harmos::grpc::InputEnvelope<plugins::Stage, plugins::StagePluginFrame>;
 
 #[tonic::async_trait]
 trait FixtureUnary: harmos::operations::OperationDeclaration + Send + 'static {
@@ -332,7 +332,7 @@ where
 }
 
 impl
-    tonic::server::ServerStreamingService<harmos::operations::StreamItem<backend::WatchLogsRequest>>
+    tonic::server::ServerStreamingService<harmos::operations::StreamItem<backend::WatchLogs>>
     for Logs
 {
     type Response = harmos::operations::Response<LogEnvelope>;
@@ -341,7 +341,7 @@ impl
 
     fn call(
         &mut self,
-        request: Request<harmos::operations::StreamItem<backend::WatchLogsRequest>>,
+        request: Request<harmos::operations::StreamItem<backend::WatchLogs>>,
     ) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
@@ -395,7 +395,7 @@ impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<Upload
                     .into_request()
                     .map_err(|error| Status::data_loss(error.to_string()))?
                     .0,
-                UploadEnvelope::Request(())
+                UploadEnvelope::Request(plugins::Stage {})
             ));
             let first = input
                 .message()
@@ -481,7 +481,7 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
                     serve_unary::<backend::GetDiagnostics>(service, request).await
                 }
                 backend::WatchLogs::PATH => wire_codec::<
-                    backend::WatchLogsRequest,
+                    backend::WatchLogs,
                     harmos::operations::Response<LogEnvelope>,
                 >()
                 .server()
@@ -607,12 +607,12 @@ pub async fn server_health(endpoint: &str) -> backend::BackendHealth {
     let reply = client
         .unary(
             Request::new(harmos::operations::Response::new(
-                backend::GetHealthRequest {},
+                backend::GetHealth {},
             )),
             tonic::codegen::http::uri::PathAndQuery::from_static(backend::GetHealth::PATH),
             wire_codec::<
                 backend::BackendHealth,
-                harmos::operations::Response<backend::GetHealthRequest>,
+                harmos::operations::Response<backend::GetHealth>,
             >(),
         )
         .await

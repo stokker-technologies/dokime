@@ -68,7 +68,7 @@ async fn commands_owner_receipts() {
         .unwrap();
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id,
                 ..Default::default()
             },
@@ -82,7 +82,7 @@ async fn commands_owner_receipts() {
     let admission = accepted(
         client
             .unary::<contracts::execution::RunExecution>(authenticated(
-                contracts::execution::RunExecutionRequest {
+                contracts::execution::RunExecution {
                     execution_id: execution_id.clone(),
                     mode: contracts::execution::ExecutionMode::Interactive,
                     context: None,
@@ -96,7 +96,7 @@ async fn commands_owner_receipts() {
     started(&gate).await;
     let detail = client
         .unary::<contracts::execution::GetExecution>(authenticated(
-            contracts::execution::GetExecutionRequest {
+            contracts::execution::GetExecution {
                 execution_id: execution_id.clone(),
             },
         ))
@@ -107,7 +107,7 @@ async fn commands_owner_receipts() {
         detail.controls.unwrap().mode,
         contracts::execution::ExecutionMode::Interactive
     );
-    let command = contracts::execution::SubmitExecutionCommandRequest {
+    let command = contracts::execution::SubmitExecutionCommand {
         request_id: admission.command_id.clone(),
         command_id: uuid::Uuid::now_v7().to_string(),
         execution_id,
@@ -152,7 +152,7 @@ async fn commands_owner_receipts() {
             .into_inner(),
         receipt
     );
-    let lookup = contracts::execution::GetExecutionCommandRequest {
+    let lookup = contracts::execution::GetExecutionCommand {
         request_id: command.request_id.clone(),
         command_id: command.command_id.clone(),
     };
@@ -197,7 +197,7 @@ async fn commands_owner_receipts() {
             .await;
         if let Err(error) = &response {
             let request_id =
-                dokime_runtime::core::CommandId::from_uuid(command.request_id.clone()).unwrap();
+                dokime_runtime::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
@@ -246,7 +246,7 @@ async fn keyed_runs_restart() {
     let cycle_id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
         .await
         .unwrap();
-    let request = contracts::execution::RunCycleRequest {
+    let request = contracts::execution::RunCycle {
         idempotency_key: Some("operator-operation-1".into()),
         ..run(&cycle_id)
     };
@@ -309,7 +309,7 @@ async fn keyed_runs_restart() {
     let claim = running.last_claim.as_ref().unwrap();
     let conflict = client
         .unary::<contracts::execution::RunExecution>(authenticated(
-            contracts::execution::RunExecutionRequest {
+            contracts::execution::RunExecution {
                 mode: Default::default(),
                 execution_id: claim.execution_id.clone(),
                 context: None,
@@ -328,7 +328,7 @@ async fn keyed_runs_restart() {
             .unwrap();
     let conflict = client
         .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: other_cycle.clone(),
                 ..request.clone()
             },
@@ -430,7 +430,7 @@ async fn invalid_run_admission() {
     for key in ["".into(), " ".into(), "bad\nkey".into(), "x".repeat(257)] {
         let error = client
             .unary::<contracts::execution::RunCycle>(authenticated(
-                contracts::execution::RunCycleRequest {
+                contracts::execution::RunCycle {
                     idempotency_key: Some(key),
                     ..run(&id)
                 },
@@ -448,7 +448,7 @@ async fn invalid_run_admission() {
     );
     let denied = client
         .unary::<contracts::execution::RunCycle>(auth(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 idempotency_key: Some("valid".into()),
                 ..run(&id)
             },

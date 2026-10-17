@@ -22,7 +22,7 @@
 use harmos::Aggregate;
 
 // Local Imports
-use dokime_contract::expressions::{DataExpression, DataTransform, Expression, telemetry};
+use dokime_domain::model::expressions::{DataExpression, DataTransform, Expression, telemetry};
 
 /* === Constants === */
 const VOCABULARY: [Aggregate; 11] = [

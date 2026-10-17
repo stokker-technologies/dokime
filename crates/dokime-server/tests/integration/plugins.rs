@@ -414,7 +414,7 @@ async fn plugin_stage_identity() {
     assert_eq!(
         client
             .unary::<contracts::plugins::ListInstallations>(
-                contracts::plugins::ListInstallationsRequest::default()
+                contracts::plugins::ListInstallations::default()
             )
             .await
             .unwrap_err()
@@ -447,7 +447,7 @@ async fn plugin_stage_identity() {
     assert_eq!(
         client
             .unary::<contracts::plugins::Consent>(authenticated(
-                contracts::plugins::ConsentPluginRequest {
+                contracts::plugins::Consent {
                     install_id: staged.install_id.clone(),
                     expected_sha256: "0".repeat(64)
                 }
@@ -459,7 +459,7 @@ async fn plugin_stage_identity() {
     );
     let installed = client
         .unary::<contracts::plugins::Consent>(authenticated(
-            contracts::plugins::ConsentPluginRequest {
+            contracts::plugins::Consent {
                 install_id: staged.install_id.clone(),
                 expected_sha256: staged.sha256.clone(),
             },
@@ -476,7 +476,7 @@ async fn plugin_stage_identity() {
     assert!(!installed.active);
     let disabled = client
         .unary::<contracts::plugins::SetEnabled>(authenticated(
-            contracts::plugins::SetPluginEnabledRequest {
+            contracts::plugins::SetEnabled {
                 install_id: staged.install_id.clone(),
                 enabled: false,
             },
@@ -490,7 +490,7 @@ async fn plugin_stage_identity() {
     );
     let page = client
         .unary::<contracts::plugins::ListInstallations>(authenticated(
-            contracts::plugins::ListInstallationsRequest::default(),
+            contracts::plugins::ListInstallations::default(),
         ))
         .await
         .unwrap()
@@ -499,7 +499,7 @@ async fn plugin_stage_identity() {
     assert_eq!(page.installations[0].install_id, staged.install_id);
     let removed = client
         .unary::<contracts::plugins::Remove>(authenticated(
-            contracts::plugins::RemovePluginRequest {
+            contracts::plugins::Remove {
                 install_id: staged.install_id.clone(),
             },
         ))
@@ -512,7 +512,7 @@ async fn plugin_stage_identity() {
     );
     let current = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(
-            contracts::plugins::GetInstallationRequest {
+            contracts::plugins::GetInstallation {
                 install_id: staged.install_id,
             },
         ))
@@ -747,7 +747,7 @@ async fn operation_grants_scope() {
     assert_eq!(
         direct
             .unary::<contracts::execution::CreateCycle>(authenticated(
-                contracts::execution::CreateCycleRequest::default(),
+                contracts::execution::CreateCycle::default(),
             ))
             .await
             .unwrap_err()
@@ -964,7 +964,7 @@ async fn invalid_uploads_mutate() {
     assert_eq!(
         client
             .unary::<contracts::plugins::ListInstallations>(authenticated(
-                contracts::plugins::ListInstallationsRequest::default()
+                contracts::plugins::ListInstallations::default()
             ))
             .await
             .unwrap()
@@ -980,7 +980,7 @@ async fn invalid_uploads_mutate() {
         loop {
             match client
                 .unary::<contracts::plugins::ListInstallations>(authenticated(
-                    contracts::plugins::ListInstallationsRequest::default(),
+                    contracts::plugins::ListInstallations::default(),
                 ))
                 .await
             {
@@ -1010,7 +1010,7 @@ async fn invalid_uploads_mutate() {
     assert_eq!(
         client
             .unary::<contracts::plugins::ListInstallations>(authenticated(
-                contracts::plugins::ListInstallationsRequest::default()
+                contracts::plugins::ListInstallations::default()
             ))
             .await
             .unwrap_err()
@@ -1019,7 +1019,7 @@ async fn invalid_uploads_mutate() {
     );
     let inventory = client
         .unary::<contracts::plugins::ListAdmittedPlugins>(authenticated(
-            contracts::plugins::ListAdmittedPluginsRequest::default(),
+            contracts::plugins::ListAdmittedPlugins::default(),
         ))
         .await
         .unwrap()
@@ -1068,7 +1068,7 @@ async fn listener_shutdown_admission() {
     assert_eq!(
         client
             .unary::<contracts::plugins::ListInstallations>(authenticated(
-                contracts::plugins::ListInstallationsRequest::default()
+                contracts::plugins::ListInstallations::default()
             ))
             .await
             .unwrap()
@@ -1107,7 +1107,7 @@ async fn open_upload(
         loop {
             match client
                 .unary::<contracts::plugins::ListInstallations>(authenticated(
-                    contracts::plugins::ListInstallationsRequest::default(),
+                    contracts::plugins::ListInstallations::default(),
                 ))
                 .await
             {
@@ -1155,7 +1155,7 @@ async fn oversized_permissions_consent() {
     assert!(staged.error.as_ref().unwrap().contains("budget"));
     let page = client
         .unary::<contracts::plugins::ListInstallations>(authenticated(
-            contracts::plugins::ListInstallationsRequest::default(),
+            contracts::plugins::ListInstallations::default(),
         ))
         .await
         .unwrap()
@@ -1163,7 +1163,7 @@ async fn oversized_permissions_consent() {
     assert_eq!(page.installations[0].install_id, staged.install_id);
     let entry = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(
-            contracts::plugins::GetInstallationRequest {
+            contracts::plugins::GetInstallation {
                 install_id: staged.install_id.clone(),
             },
         ))
@@ -1175,7 +1175,7 @@ async fn oversized_permissions_consent() {
     assert_eq!(
         client
             .unary::<contracts::plugins::Consent>(authenticated(
-                contracts::plugins::ConsentPluginRequest {
+                contracts::plugins::Consent {
                     install_id: staged.install_id.clone(),
                     expected_sha256: staged.sha256
                 }
@@ -1187,7 +1187,7 @@ async fn oversized_permissions_consent() {
     );
     let entry = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(
-            contracts::plugins::GetInstallationRequest {
+            contracts::plugins::GetInstallation {
                 install_id: staged.install_id.clone(),
             },
         ))
@@ -1202,7 +1202,7 @@ async fn oversized_permissions_consent() {
     assert!(
         client
             .unary::<contracts::plugins::Remove>(authenticated(
-                contracts::plugins::RemovePluginRequest {
+                contracts::plugins::Remove {
                     install_id: staged.install_id
                 }
             ))

@@ -303,8 +303,8 @@ async fn run_matrix(interface: &str) {
         let directory = tempfile::tempdir().unwrap();
         let config = RuntimeConfig::new(
             directory.path().join("backend"),
-            dokime_runtime::core::Metadata::new(
-                dokime_runtime::core::Identifier::new("matrix").unwrap(),
+            dokime_runtime::Metadata::new(
+                dokime_runtime::Identifier::new("matrix").unwrap(),
                 "Matrix",
                 None,
             ),

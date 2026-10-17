@@ -22,7 +22,7 @@ use std::{
 use sha2::{Digest, Sha256};
 // Local Imports
 use crate::support::{self, host::Host};
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 use dokime_client::{Client, ResponseStream, contracts};
 
 /* === Constants === */
@@ -89,7 +89,7 @@ async fn wait_prompt(
 ) -> contracts::prompts::PendingPromptIdentity {
     on_change(changes, async || {
         let page = prompts
-            .prompts_list_pending(contracts::prompts::ListPendingPromptsRequest {
+            .prompts_list_pending(contracts::prompts::ListPending {
                 cycle_id: Some(cycle_id.to_owned()),
                 ..Default::default()
             })
@@ -107,7 +107,7 @@ async fn wait_completed(
 ) -> contracts::execution::CycleSummary {
     on_change(changes, async || {
         let cycle = execution
-            .execution_get_cycle(contracts::execution::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycle {
                 cycle_id: cycle_id.to_owned(),
             })
             .await
@@ -126,7 +126,7 @@ async fn wait_completed(
 async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> String {
     on_change(changes, async || {
         let page = execution
-            .execution_list_executions(contracts::execution::ListExecutionsRequest {
+            .execution_list_executions(contracts::execution::ListExecutions {
                 cycle_id: cycle_id.to_owned(),
                 ..Default::default()
             })
@@ -200,7 +200,7 @@ fn scope(cycle_id: &str, execution_id: &str) -> contracts::common::EvidenceScope
 
 async fn suite(catalog: &mut Client, suite_id: &str) -> contracts::catalog::SuiteDefinition {
     catalog
-        .catalog_get_suite(contracts::catalog::GetSuiteRequest {
+        .catalog_get_suite(contracts::catalog::GetSuite {
             suite_id: suite_id.to_owned(),
         })
         .await
@@ -215,14 +215,14 @@ async fn create_cycle(
     expected_cases: usize,
 ) -> String {
     let preview = planning
-        .planning_preview_selection(contracts::planning::PreviewSelectionRequest {
+        .planning_preview_selection(contracts::planning::PreviewSelection {
             plan: Some(plan.clone()),
         })
         .await
         .unwrap();
     assert_eq!(preview.cases.len(), expected_cases);
     let cycle_id = execution
-        .execution_create_cycle(contracts::execution::CreateCycleRequest {
+        .execution_create_cycle(contracts::execution::CreateCycle {
             metadata: Some(contracts::common::Metadata {
                 identifier: identifier.to_owned(),
                 label: identifier.to_owned(),
@@ -235,7 +235,7 @@ async fn create_cycle(
         .unwrap()
         .cycle_id;
     execution
-        .execution_append_planned_cases(contracts::execution::AppendPlannedCasesRequest {
+        .execution_append_planned_cases(contracts::execution::AppendPlannedCases {
             cycle_id: cycle_id.clone(),
             plan: Some(plan),
             context: None,
@@ -247,7 +247,7 @@ async fn create_cycle(
 
 async fn run_cycle(execution: &mut Client, cycle_id: &str) {
     let reply = execution
-        .execution_run_cycle(contracts::execution::RunCycleRequest {
+        .execution_run_cycle(contracts::execution::RunCycle {
             cycle_id: cycle_id.to_owned(),
             ..Default::default()
         })
@@ -265,7 +265,7 @@ async fn read_file(
     relative_path: &str,
 ) -> contracts::content::ExecutionFileWindow {
     content
-        .content_read_execution_file(contracts::content::ReadExecutionFileRequest {
+        .content_read_execution_file(contracts::content::ReadExecutionFile {
             execution_id: execution_id.to_owned(),
             relative_path: relative_path.to_owned(),
             offset: 0,
@@ -281,7 +281,7 @@ async fn list_file(
     relative_path: &str,
 ) -> contracts::content::ExecutionFileMetadata {
     let page = content
-        .content_list_execution_files(contracts::content::ListExecutionFilesRequest {
+        .content_list_execution_files(contracts::content::ListExecutionFiles {
             execution_id: execution_id.to_owned(),
             ..Default::default()
         })
@@ -305,7 +305,7 @@ fn value_object(
 
 async fn serves_startup(client: &Client) -> bool {
     client
-        .catalog_get_suite(contracts::catalog::GetSuiteRequest {
+        .catalog_get_suite(contracts::catalog::GetSuite {
             suite_id: STARTUP_SUITE.to_owned(),
         })
         .await
@@ -352,7 +352,7 @@ async fn install(client: &Client, bytes: &[u8]) -> contracts::plugins::PluginIns
         .await
         .unwrap();
     client
-        .plugins_consent(contracts::plugins::ConsentPluginRequest {
+        .plugins_consent(contracts::plugins::Consent {
             install_id: staged.install_id,
             expected_sha256: sha256,
         })
@@ -425,7 +425,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let live_deadline = Instant::now() + Duration::from_secs(10);
     let live_samples = loop {
         let page = telemetry
-            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
                 streams: vec![STEADY_SAMPLES.into()],
                 scope: Some(execution_scope.clone()),
                 // Headroom, not a count: the stream measures at its declared
@@ -465,7 +465,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let host_deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let page = telemetry
-            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
                 streams: vec![STEADY_HOST_SYSTEM.into()],
                 scope: Some(execution_scope.clone()),
                 limit: 10,
@@ -484,7 +484,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     }
 
     prompts
-        .prompts_respond(contracts::prompts::RespondToPromptRequest {
+        .prompts_respond(contracts::prompts::Respond {
             prompt_id: pending.prompt_id,
             action: "submit".into(),
             values: Some(value_object([
@@ -500,7 +500,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
     assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
     let summary = execution
-        .execution_list_executions(contracts::execution::ListExecutionsRequest {
+        .execution_list_executions(contracts::execution::ListExecutions {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
@@ -517,7 +517,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     );
 
     let steps = execution
-        .execution_list_execution_steps(contracts::execution::ListExecutionStepsRequest {
+        .execution_list_execution_steps(contracts::execution::ListExecutionSteps {
             execution_id: execution_id.clone(),
             ..Default::default()
         })
@@ -528,7 +528,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     for step in steps {
         criteria.extend(
             execution
-                .execution_list_step_criteria(contracts::execution::ListStepEvidenceRequest {
+                .execution_list_step_criteria(contracts::execution::ListStepCriteria {
                     execution_id: execution_id.clone(),
                     step_id: step.step_id,
                     ..Default::default()
@@ -576,7 +576,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     // through the typed query an operator's Traceability card reads.
     let observation = client.clone();
     let traceability = observation
-        .observation_get_traceability(contracts::observation::GetTraceabilityRequest {
+        .observation_get_traceability(contracts::observation::GetTraceability {
             scope: Some(execution_scope.clone()),
             ..Default::default()
         })
@@ -621,7 +621,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let mut after_stream_cursors = Vec::new();
     loop {
         let page = telemetry
-            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
                 streams: vec![STEADY_SAMPLES.into()],
                 scope: Some(execution_scope.clone()),
                 limit: u32::MAX,
@@ -667,7 +667,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     // The stream the measuring step pushes into: declared by its row type, with
     // nothing measuring it, and written by hand around the wait on the observer.
     let events = telemetry
-        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListSamples {
             streams: vec![STEADY_EVENTS.into()],
             scope: Some(execution_scope.clone()),
             limit: 100,
@@ -701,7 +701,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let mut host_instants: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     for stream in HOST_STREAMS {
         let page = telemetry
-            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
                 streams: vec![(*stream).into()],
                 scope: Some(execution_scope.clone()),
                 limit: 500,
@@ -760,7 +760,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
 
     let documents = client.clone();
     let stream = documents
-        .documents_capture_current_document(contracts::documents::CaptureCurrentDocumentRequest {
+        .documents_capture_current_document(contracts::documents::CaptureCurrentDocument {
             scope: Some(contracts::documents::DocumentScope {
                 cycle_id: cycle_id.clone(),
                 execution_id: execution_id.clone(),
@@ -814,7 +814,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
 
     let evidence = client.clone();
     let records = evidence
-        .evidence_list_records(contracts::evidence::ListRecordsRequest {
+        .evidence_list_records(contracts::evidence::ListRecords {
             selection: Some(contracts::evidence::CapturedRecordSelection {
                 scope: Some(execution_scope.clone()),
                 ..Default::default()
@@ -858,7 +858,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     assert_eq!(details["filename"], Value::Text(STEADY_SUMMARY.into()));
 
     let artifact_stream = content
-        .content_download_artifact(contracts::content::DownloadArtifactRequest { artifact_id })
+        .content_download_artifact(contracts::content::DownloadArtifact { artifact_id })
         .await
         .unwrap();
     let Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) =
@@ -944,7 +944,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let prompts = client.clone();
     on_change(changes, async || {
         let pending = prompts
-            .prompts_list_pending(contracts::prompts::ListPendingPromptsRequest {
+            .prompts_list_pending(contracts::prompts::ListPending {
                 cycle_id: Some(cycle_id.clone()),
                 ..Default::default()
             })
@@ -952,7 +952,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
             .unwrap();
         for prompt in pending.prompts {
             prompts
-                .prompts_respond(contracts::prompts::RespondToPromptRequest {
+                .prompts_respond(contracts::prompts::Respond {
                     prompt_id: prompt.prompt_id,
                     action: "submit".into(),
                     values: Some(value_object([
@@ -966,7 +966,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
                 .unwrap();
         }
         let cycle = execution
-            .execution_get_cycle(contracts::execution::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycle {
                 cycle_id: cycle_id.clone(),
             })
             .await
@@ -976,7 +976,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     })
     .await;
     let executions = execution
-        .execution_list_executions(contracts::execution::ListExecutionsRequest {
+        .execution_list_executions(contracts::execution::ListExecutions {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
@@ -1082,7 +1082,7 @@ async fn plugin_host_walkthrough() {
 
     // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
     let follow = content
-        .content_follow_execution_file(contracts::content::FollowExecutionFileRequest {
+        .content_follow_execution_file(contracts::content::FollowExecutionFile {
             execution_id: execution_id.clone(),
             relative_path: STARTUP_STREAM_LOG.into(),
             identity: None,
@@ -1145,7 +1145,7 @@ async fn plugin_host_walkthrough() {
     assert!(running_log.contains("record=prompt_requested"));
 
     prompts
-        .prompts_respond(contracts::prompts::RespondToPromptRequest {
+        .prompts_respond(contracts::prompts::Respond {
             prompt_id: pending.prompt_id,
             action: "submit".into(),
             values: Some(value_object([
@@ -1162,7 +1162,7 @@ async fn plugin_host_walkthrough() {
     assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
     let telemetry = client.clone();
     let telemetry = telemetry
-        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListSamples {
             streams: vec![STARTUP_SAMPLES.into()],
             scope: Some(scope(&cycle_id, &execution_id)),
             limit: 100,
@@ -1195,7 +1195,7 @@ async fn plugin_host_walkthrough() {
     // The Cycle Seals And Serves Its Report
     on_change(&mut changes, async || {
         execution
-            .execution_get_cycle(contracts::execution::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycle {
                 cycle_id: cycle_id.clone(),
             })
             .await
@@ -1205,7 +1205,7 @@ async fn plugin_host_walkthrough() {
     })
     .await;
     let report = client
-        .reports_download_cycle_report(contracts::reports::DownloadCycleReportRequest {
+        .reports_download_cycle_report(contracts::reports::DownloadCycleReport {
             cycle_id: cycle_id.clone(),
             identifier: String::new(),
         })
@@ -1261,7 +1261,7 @@ async fn plugin_host_walkthrough() {
 
     // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
     let removed = client
-        .plugins_remove(contracts::plugins::RemovePluginRequest {
+        .plugins_remove(contracts::plugins::Remove {
             install_id: installation.install_id.clone(),
         })
         .await

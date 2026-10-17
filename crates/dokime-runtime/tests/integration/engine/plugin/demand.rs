@@ -578,7 +578,7 @@ fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
         "gateway",
         dokime_runtime::records::RecordSeverity::Info,
     );
-    filed.details = [("serial".to_owned(), dokime_runtime::core::Value::from(serial))].into();
+    filed.details = [("serial".to_owned(), dokime_runtime::Value::from(serial))].into();
     dokime_runtime::plugin::Delivery::of(&filed)
 }
 

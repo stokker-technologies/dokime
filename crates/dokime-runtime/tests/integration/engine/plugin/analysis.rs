@@ -28,7 +28,7 @@ use dokime_runtime::analysis::{
     Analysis, Axis, Definition, Error, Handler, Limits, Operation, Output, Request, Response,
     ResultData, Samples, Values,
 };
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 
 /* === Constants === */
 

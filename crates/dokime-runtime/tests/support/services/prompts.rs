@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::{PromptId, Value};
+use dokime_runtime::{PromptId, Value};
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */

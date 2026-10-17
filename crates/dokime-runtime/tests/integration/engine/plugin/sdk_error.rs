@@ -160,7 +160,7 @@ async fn sdk_error_boundary() {
         .answer(
             PROMPT,
             "yes",
-            std::iter::empty::<(&str, dokime_runtime::core::Value)>(),
+            std::iter::empty::<(&str, dokime_runtime::Value)>(),
         )
         .run::<PluginSuites>()
         .await

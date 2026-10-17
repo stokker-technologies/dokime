@@ -53,7 +53,7 @@ async fn aggregate_answers_asked() {
     let (_held, client) = client(root.path()).await;
 
     let reply = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::AggregateRequest {
+        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: contracts::query::QuerySource::Executions,
             filters: Vec::new(),
             group_by: vec!["status".to_owned()],
@@ -80,7 +80,7 @@ async fn unknown_column_exist() {
     let (_held, client) = client(root.path()).await;
 
     let status = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::AggregateRequest {
+        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: contracts::query::QuerySource::Steps,
             filters: Vec::new(),
             group_by: vec!["step_id".to_owned()],
@@ -105,7 +105,7 @@ async fn unknown_column_exist() {
 async fn percentile_rank_bounded() {
     let root = tempfile::tempdir().unwrap();
     let (_held, client) = client(root.path()).await;
-    let request = |aggregate| contracts::query::AggregateRequest {
+    let request = |aggregate| contracts::query::Aggregate {
         source: contracts::query::QuerySource::Steps,
         filters: Vec::new(),
         group_by: Vec::new(),
@@ -146,7 +146,7 @@ async fn unspecified_source_read() {
     let (_held, client) = client(root.path()).await;
 
     let status = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::AggregateRequest {
+        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: contracts::query::QuerySource::Unspecified,
             filters: vec![],
             group_by: vec![],
@@ -173,7 +173,7 @@ async fn detailed_status_directory() {
     let root = tempfile::tempdir().unwrap();
     let (held, client) = client(root.path()).await;
     let status = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::AggregateRequest {
+        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: contracts::query::QuerySource::Steps,
             group_by: vec![format!("{home}/evidence")],
             aggregates: vec![contracts::query::QueryAggregate {

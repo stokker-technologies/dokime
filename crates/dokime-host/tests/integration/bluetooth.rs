@@ -26,7 +26,7 @@ use std::os::unix::fs::PermissionsExt;
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 use dokime_host::HostStreamSample;
 use dokime_host::collectors::bluetooth::BluetoothCollector;
 

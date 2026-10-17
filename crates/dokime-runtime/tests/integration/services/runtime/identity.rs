@@ -17,7 +17,7 @@
 use std::{path::Path, sync::Arc};
 
 // Third Party Imports
-use dokime_runtime::core::{DokimeNodeIdentity, Identifier, Metadata};
+use dokime_runtime::{DokimeNodeIdentity, Identifier, Metadata};
 use tokio::sync::Barrier;
 
 // Local Imports

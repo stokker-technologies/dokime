@@ -21,7 +21,7 @@ use harmos::storage::StorageBackend;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::core::CommandId;
+use dokime_runtime::CommandId;
 use dokime_runtime::execution::request::RunSummary;
 use dokime_runtime::storage::requests::Request;
 use dokime_runtime::domains::execution::requests::{RunPhase, RunReceipt};

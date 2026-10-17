@@ -90,7 +90,7 @@ async fn report_save_receipt() {
     let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let case = TestCase {
         suite_id: "fixture.registration".into(),
-        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CaseId>(),
+        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>(),
         test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata("fixture.case", "Stored Report Case"),
         suite: None,
@@ -134,7 +134,7 @@ async fn report_save_receipt() {
         result: None,
     };
     let input = CycleReportInput {
-        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
         cycle: CycleView {
             saved: None,
             test_cycle_id: cycle_id,
@@ -179,7 +179,7 @@ async fn report_save_receipt() {
         execution_documents: BTreeMap::new(),
         prompts: Vec::new(),
         health: vec![dokime_runtime::execution::HealthItem {
-            health_item_id: dokime_runtime::core::HealthItemId::from_seed("captured-health"),
+            health_item_id: dokime_runtime::HealthItemId::from_seed("captured-health"),
             scope: original_execution.scope.clone(),
             severity: dokime_runtime::execution::HealthSeverity::Warning,
             message: "Captured Warning".into(),
@@ -187,7 +187,7 @@ async fn report_save_receipt() {
             observed_at: finished_at.clone(),
         }],
         notes: vec![dokime_runtime::execution::OperatorNote {
-            note_id: dokime_runtime::core::NoteId::from_seed("captured-note"),
+            note_id: dokime_runtime::NoteId::from_seed("captured-note"),
             scope: original_execution.scope.clone(),
             author: None,
             message: "Original operator note".into(),
@@ -630,7 +630,7 @@ async fn cycle_report_reboot() {
     wait_for_record_type(&runtime, "provider.execution.completed").await;
 
     // Snapshot the durable record set from the running runtime's journaled state.
-    let before: Vec<(dokime_runtime::core::RecordId, String)> = runtime
+    let before: Vec<(dokime_runtime::RecordId, String)> = runtime
         .evidence_snapshot()
         .await
         .unwrap()

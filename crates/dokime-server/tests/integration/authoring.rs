@@ -64,20 +64,20 @@ impl dokime_runtime::telemetry::TelemetryRow for HomedRow {
         vec![dokime_runtime::telemetry::TelemetryColumn::declared(
             "value",
             "Value",
-            dokime_runtime::core::ValueType::Number,
+            dokime_runtime::ValueType::Number,
             dokime_runtime::telemetry::TelemetryRole::Value,
         )]
     }
 
-    fn into_row(self) -> BTreeMap<String, dokime_runtime::core::Value> {
+    fn into_row(self) -> BTreeMap<String, dokime_runtime::Value> {
         BTreeMap::from([(
             "value".to_owned(),
-            dokime_runtime::core::Value::Number(self.value),
+            dokime_runtime::Value::Number(self.value),
         )])
     }
 
     fn from_row(
-        values: &BTreeMap<String, dokime_runtime::core::Value>,
+        values: &BTreeMap<String, dokime_runtime::Value>,
     ) -> Result<Self, dokime_runtime::telemetry::FieldError> {
         Ok(Self {
             value: dokime_runtime::telemetry::field(values, "value")?,

@@ -23,7 +23,7 @@ use futures_util::future::try_join_all;
 
 // Local Imports
 use super::server::Server;
-use dokime_client::{Client, Target, contracts::observation::GetRuntimeShellRequest};
+use dokime_client::{Client, Target, contracts::observation::GetRuntimeShell};
 
 /* === Constants === */
 const PAGE_ITEMS: u32 = 50;
@@ -51,7 +51,7 @@ pub fn benchmark(criterion: &mut Criterion) {
             None,
         ))
         .unwrap();
-    let request = GetRuntimeShellRequest {
+    let request = GetRuntimeShell {
         limit: PAGE_ITEMS,
         ..Default::default()
     };

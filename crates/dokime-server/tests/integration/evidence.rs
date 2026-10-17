@@ -100,7 +100,7 @@ async fn fixed_pages_gap() {
         publish(&handle).await;
     }
     let first = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             ..Default::default()
         })
@@ -111,7 +111,7 @@ async fn fixed_pages_gap() {
     assert!(!first.replay_complete);
     publish(&handle).await;
     let second = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             after: first.scanned,
             through: first.through.clone(),
@@ -133,7 +133,7 @@ async fn fixed_pages_gap() {
             .all(|pair| pair[0] < pair[1])
     );
     let mut follow = client
-        .download::<contracts::evidence::WatchRecords>(contracts::evidence::WatchRecordsRequest {
+        .download::<contracts::evidence::WatchRecords>(contracts::evidence::WatchRecords {
             selection: Some(selection()),
             after: second.scanned,
         })
@@ -149,7 +149,7 @@ async fn fixed_pages_gap() {
     assert!(record.timestamp.is_some());
     let schema = client
         .unary::<contracts::evidence::GetCapturedRecordSchema>(
-            contracts::evidence::GetCapturedRecordSchemaRequest {
+            contracts::evidence::GetCapturedRecordSchema {
                 record_type: record.record_type.clone(),
                 schema_version: record.schema_version,
                 epoch: initial.scanned.as_ref().unwrap().epoch.clone(),
@@ -189,7 +189,7 @@ async fn filtered_scans_resync() {
         ..Default::default()
     };
     let first = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection.clone()),
             ..Default::default()
         })
@@ -200,7 +200,7 @@ async fn filtered_scans_resync() {
     assert!(first.scanned.as_ref().unwrap().position > 0);
     assert!(!first.replay_complete);
     let second = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection.clone()),
             after: first.scanned.clone(),
             through: first.through.clone(),
@@ -220,7 +220,7 @@ async fn filtered_scans_resync() {
         }
         let error = client
             .download::<contracts::evidence::WatchRecords>(
-                contracts::evidence::WatchRecordsRequest {
+                contracts::evidence::WatchRecords {
                     selection: Some(selection.clone()),
                     after: Some(cursor),
                 },
@@ -237,7 +237,7 @@ async fn filtered_scans_resync() {
     assert_eq!(
         client
             .unary::<contracts::evidence::GetCapturedRecordSchema>(
-                contracts::evidence::GetCapturedRecordSchemaRequest {
+                contracts::evidence::GetCapturedRecordSchema {
                     record_type: "calibration.field.completed".into(),
                     schema_version: u32::MAX,
                     epoch: epoch.clone()
@@ -251,7 +251,7 @@ async fn filtered_scans_resync() {
     assert_eq!(
         client
             .unary::<contracts::evidence::GetCapturedRecordSchema>(
-                contracts::evidence::GetCapturedRecordSchemaRequest {
+                contracts::evidence::GetCapturedRecordSchema {
                     record_type: "calibration.field.completed".into(),
                     schema_version: 2,
                     epoch: "old-process".into()
@@ -284,7 +284,7 @@ async fn capture_cursors_restarts() {
     let identity = WireClient::connect(server.local_endpoint())
         .await
         .unwrap()
-        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
+        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {})
         .await
         .unwrap()
         .into_inner();
@@ -292,7 +292,7 @@ async fn capture_cursors_restarts() {
         .await
         .unwrap()
         .unary::<contracts::observation::GetRuntimeShell>(
-            contracts::observation::GetRuntimeShellRequest::default(),
+            contracts::observation::GetRuntimeShell::default(),
         )
         .await
         .unwrap()
@@ -305,7 +305,7 @@ async fn capture_cursors_restarts() {
     assert_eq!(owner.handle().process_epoch().to_string(), identity.epoch);
     publish(&owner.handle()).await;
     let old = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             ..Default::default()
         })
@@ -315,7 +315,7 @@ async fn capture_cursors_restarts() {
     assert_eq!(old.records.len(), 1);
     let cursor = old.scanned.unwrap();
     assert_eq!(cursor.epoch, identity.epoch);
-    let schema_request = contracts::evidence::GetCapturedRecordSchemaRequest {
+    let schema_request = contracts::evidence::GetCapturedRecordSchema {
         record_type: "calibration.field.completed".into(),
         schema_version: old.records[0].schema_version,
         epoch: cursor.epoch.clone(),
@@ -333,7 +333,7 @@ async fn capture_cursors_restarts() {
     let fresh_identity = WireClient::connect(server.local_endpoint())
         .await
         .unwrap()
-        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
+        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {})
         .await
         .unwrap()
         .into_inner();
@@ -347,7 +347,7 @@ async fn capture_cursors_restarts() {
         .await
         .unwrap()
         .unary::<contracts::observation::GetRuntimeShell>(
-            contracts::observation::GetRuntimeShellRequest {
+            contracts::observation::GetRuntimeShell {
                 cursor: shell.observed_cursor,
                 ..Default::default()
             },
@@ -356,7 +356,7 @@ async fn capture_cursors_restarts() {
         .unwrap_err();
     assert_eq!(error.code(), Code::FailedPrecondition);
     let fresh = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             ..Default::default()
         })
@@ -372,7 +372,7 @@ async fn capture_cursors_restarts() {
         (Some(fresh_cursor), Some(cursor.clone())),
     ] {
         let error = client
-            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
                 selection: Some(selection()),
                 after,
                 through,
@@ -384,7 +384,7 @@ async fn capture_cursors_restarts() {
     assert_eq!(
         client
             .download::<contracts::evidence::WatchRecords>(
-                contracts::evidence::WatchRecordsRequest {
+                contracts::evidence::WatchRecords {
                     selection: Some(selection()),
                     after: Some(cursor.clone()),
                 }
@@ -409,7 +409,7 @@ async fn capture_cursors_restarts() {
 
     publish(&owner.handle()).await;
     let current = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             ..Default::default()
         })
@@ -426,7 +426,7 @@ async fn capture_cursors_restarts() {
     assert_ne!(current_epoch, cursor.epoch);
     client
         .unary::<contracts::evidence::GetCapturedRecordSchema>(
-            contracts::evidence::GetCapturedRecordSchemaRequest {
+            contracts::evidence::GetCapturedRecordSchema {
                 epoch: current_epoch,
                 ..schema_request
             },
@@ -458,7 +458,7 @@ async fn oversized_delivery_evidence() {
     handle.publish_product_record(draft.clone()).await.unwrap();
     assert_eq!(
         limited
-            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
                 selection: Some(selection()),
                 ..Default::default()
             })
@@ -486,7 +486,7 @@ async fn oversized_delivery_evidence() {
     handle.publish_product_record(draft.clone()).await.unwrap();
     publish(&handle).await;
     let page = client
-        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
             selection: Some(selection()),
             ..Default::default()
         })
@@ -496,7 +496,7 @@ async fn oversized_delivery_evidence() {
     assert_eq!(page.records.len(), 2);
     assert_eq!(page.records[0].message.as_ref().unwrap().len(), 2000);
     assert!(page.records[1].sequence > page.records[0].sequence);
-    let mut schema_request = contracts::evidence::GetCapturedRecordSchemaRequest {
+    let mut schema_request = contracts::evidence::GetCapturedRecordSchema {
         record_type: page.records[0].record_type.clone(),
         schema_version: page.records[0].schema_version,
         epoch: page.scanned.as_ref().unwrap().epoch.clone(),

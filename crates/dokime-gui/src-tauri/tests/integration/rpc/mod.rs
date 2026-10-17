@@ -24,7 +24,7 @@ use sha2::Digest;
 // Local Imports
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::{Fixture, TOKEN};
-use dokime_contract::operations::{backend, plugins};
+use dokime_domain::operations::{backend, plugins};
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
 use dokime_server::grpc::access::Role;
 
@@ -319,7 +319,7 @@ async fn unary_call_bridges() {
     let reply = bridge::invoke(
         &harness.window,
         "rpc",
-        fenced(generation, &backend::GetIdentityRequest {}.encode_to_vec()),
+        fenced(generation, &backend::GetIdentity {}.encode_to_vec()),
         &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
     )
     .unwrap();
@@ -457,7 +457,7 @@ async fn owner_cancellation_health() {
     .unwrap();
     assert!(
         client
-            .backend_get_health(backend::GetHealthRequest {})
+            .backend_get_health(backend::GetHealth {})
             .await
             .is_ok()
     );

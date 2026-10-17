@@ -19,7 +19,7 @@
 // Local Imports
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::artifacts::ArtifactUploadInput;
-use dokime_runtime::core::{Identifier, Metadata, RecordScope, TemplateId};
+use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
 use dokime_runtime::definition::{TestCaseTemplate, TestSuite};
 
 /* === Constants === */
@@ -168,7 +168,7 @@ pub async fn registered_cycle(
     runtime: &RuntimeHandle,
     suite_id: &str,
     metadata: Metadata,
-) -> dokime_runtime::core::TestCycleId {
+) -> dokime_runtime::TestCycleId {
     let suite = runtime
         .test_suites()
         .await

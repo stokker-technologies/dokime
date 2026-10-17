@@ -31,7 +31,7 @@ use dokime_runtime::harmos::operations::{
 use dokime_runtime::harmos::plugin::Contribution;
 use dokime_runtime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
 // Local Imports
-use dokime_runtime::core::{
+use dokime_runtime::{
     Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType,
 };
 use dokime_runtime::definition::{
@@ -42,7 +42,7 @@ use dokime_runtime::execution::{StepAttemptStart, TerminationReason, TestStepAtt
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
 use dokime_runtime::records::{RecordContract, RecordField, RecordPublishRequest, RecordSeverity};
 use dokime_runtime::transport::{
-    ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecutionRequest,
+    ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecution,
     SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome,
     SignalReply,
 };
@@ -261,7 +261,7 @@ operation!(
 );
 
 impl<M: Mode> OperationDeclaration for Run<M> {
-    type Request = RunExecutionRequest;
+    type Request = RunExecution;
     type Response = SidecarExecutionOutcome;
     const ID: &'static str = M::RUN;
     const POLICY: OperationPolicy = OperationPolicy {
@@ -318,7 +318,7 @@ impl<M: Mode> dokime_runtime::harmos::operations::Operation for Running<M> {
     async fn run<'ctx>(
         &mut self,
         host: Self::Context<'ctx>,
-        request: &mut RunExecutionRequest,
+        request: &mut RunExecution,
         _: &mut (),
     ) -> Result<Response<SidecarExecutionOutcome>, Refusal> {
         self.resources
@@ -449,7 +449,7 @@ impl Resources {
         &self,
         host: &Supervisor,
         mode: &str,
-        request: RunExecutionRequest,
+        request: RunExecution,
     ) -> Result<SidecarExecutionOutcome, Refusal> {
         {
             let mut state = self.lock();

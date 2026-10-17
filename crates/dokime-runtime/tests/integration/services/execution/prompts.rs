@@ -19,7 +19,7 @@ use tempfile::tempdir;
 // Local Imports
 use super::*;
 use crate::service_support::prompts::{assert_late_answer_refused, settlement_records};
-use dokime_runtime::core::{Identifier, Metadata, PromptId, RecordScope, Value, ValueType};
+use dokime_runtime::{Identifier, Metadata, PromptId, RecordScope, Value, ValueType};
 use dokime_runtime::definition::TestSuite;
 use dokime_runtime::prompts::{PromptField, PromptFieldKind, PromptRequest};
 use dokime_runtime::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
@@ -707,7 +707,7 @@ async fn requests_refuses_scopes() {
         assert!(runtime.request_prompt(prompt).await.is_err());
     }
     let mut prompt = prompt_request();
-    prompt.scope.test_execution_id = Some(dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>());
+    prompt.scope.test_execution_id = Some(dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>());
     assert_eq!(
         runtime.request_prompt(prompt).await.unwrap_err().code(),
         Some("prompt_scope_invalid")

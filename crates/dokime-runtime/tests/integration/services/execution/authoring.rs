@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{collections::BTreeMap, time::Duration};
 // Third Party Imports
-use dokime_runtime::core::{Identifier, Metadata, RecordScope, Value};
+use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 use dokime_runtime::definition::ParameterSource;
 use tempfile::tempdir;
 // Local Imports

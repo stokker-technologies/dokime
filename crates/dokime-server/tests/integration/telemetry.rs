@@ -99,7 +99,7 @@ async fn telemetry_pages_window() {
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let stream = dokime_runtime::domains::telemetry::telemetry_stream_id(None, &id);
-    let base = contracts::telemetry::ListTelemetrySamplesRequest {
+    let base = contracts::telemetry::ListSamples {
         streams: vec![id.to_string()],
         limit: 2,
         ..Default::default()
@@ -115,7 +115,7 @@ async fn telemetry_pages_window() {
 
     let second = client
         .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListTelemetrySamplesRequest {
+            contracts::telemetry::ListSamples {
                 after_stream_cursors: continuation(&first),
                 ..base.clone()
             },
@@ -128,7 +128,7 @@ async fn telemetry_pages_window() {
 
     let tail = client
         .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListTelemetrySamplesRequest {
+            contracts::telemetry::ListSamples {
                 latest: true,
                 ..base.clone()
             },
@@ -141,7 +141,7 @@ async fn telemetry_pages_window() {
 
     let rejected = client
         .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListTelemetrySamplesRequest {
+            contracts::telemetry::ListSamples {
                 after_stream_cursors: continuation(&second),
                 latest: true,
                 ..base

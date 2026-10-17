@@ -46,7 +46,7 @@ async fn large_cycles_order() {
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::core::ValueType::Integer;
+    parameter.value_type = dokime_runtime::ValueType::Integer;
     parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
         start: 0,
         stop: 256,
@@ -61,7 +61,7 @@ async fn large_cycles_order() {
         .await
         .unwrap();
     let summary = client
-        .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+        .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
             cycle_id: id.clone(),
         })
         .await
@@ -69,7 +69,7 @@ async fn large_cycles_order() {
         .into_inner();
     assert_eq!(summary.case_count, 257);
     assert_eq!(summary.execution_count, 257);
-    let mut request = contracts::execution::ListCasesRequest {
+    let mut request = contracts::execution::ListCases {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()
@@ -102,7 +102,7 @@ async fn large_cycles_order() {
     }
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 after_case_id: "missing".into(),
                 cursor: summary.observed_cursor.clone(),
@@ -115,7 +115,7 @@ async fn large_cycles_order() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 after_case_id: cases[0].case_id.clone(),
                 ..Default::default()
@@ -142,7 +142,7 @@ async fn large_cycles_order() {
     );
     let list = client
         .unary::<contracts::execution::ListCycles>(
-            contracts::execution::ListCyclesRequest::default(),
+            contracts::execution::ListCycles::default(),
         )
         .await
         .unwrap()
@@ -154,7 +154,7 @@ async fn large_cycles_order() {
         .unwrap();
     assert_eq!(large.case_count, 257);
     assert_eq!(large.execution_count, 257);
-    let mut request = contracts::execution::ListExecutionsRequest {
+    let mut request = contracts::execution::ListExecutions {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()
@@ -191,7 +191,7 @@ async fn large_cycles_order() {
     assert_eq!(
         client
             .unary::<contracts::execution::ListExecutions>(
-                contracts::execution::ListExecutionsRequest {
+                contracts::execution::ListExecutions {
                     cycle_id: id,
                     after_execution_id: "missing".into(),
                     cursor: list.cursor.clone(),
@@ -205,7 +205,7 @@ async fn large_cycles_order() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 after_cycle_id: "00000000-0000-0000-0000-000000000001".into(),
                 cursor: list.cursor,
                 ..Default::default()
@@ -227,7 +227,7 @@ async fn large_run_preparation() {
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::core::ValueType::Integer;
+    parameter.value_type = dokime_runtime::ValueType::Integer;
     parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
         start: 0,
         stop: PREPARATION_CASES as i64 - 1,
@@ -254,11 +254,11 @@ async fn large_run_preparation() {
     ));
     {
         client
-            .unary::<contracts::execution::StopCycle>(control(&id))
+            .unary::<contracts::execution::StopCycle>(contracts::execution::StopCycle { cycle_id: id.clone(), context: None })
             .await
             .unwrap();
         let summary = client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             })
             .await
@@ -273,7 +273,7 @@ async fn large_run_preparation() {
     // Terminal Acknowledgement Also Publishes One Durable Report Per Case.
     let after = support::on_state_change(&owner.handle(), async || {
         let summary = client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             })
             .await
@@ -292,7 +292,7 @@ async fn large_run_preparation() {
         futures_util::FutureExt::now_or_never(gate.started.notified()).is_none(),
         "stopping preparation must prevent provider dispatch"
     );
-    let mut request = contracts::execution::ListExecutionsRequest {
+    let mut request = contracts::execution::ListExecutions {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()

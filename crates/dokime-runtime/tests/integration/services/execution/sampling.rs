@@ -25,7 +25,7 @@ use super::smoke::{
     Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke,
 };
 use crate::service_support::prelude::*;
-use dokime_runtime::core::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
+use dokime_runtime::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::execution::ExecutionStatus;
 use dokime_runtime::domains::execution::requests::{RunPhase, RunReceipt};
@@ -318,7 +318,7 @@ async fn running_report_follows() {
         .update_plot_settings(
             &cycle_id,
             &execution,
-            &dokime_runtime::core::DocumentId::from_identifier("default").unwrap(),
+            &dokime_runtime::DocumentId::from_identifier("default").unwrap(),
             &Identifier::new(PULSE_PLOT).unwrap(),
             Some(LIVE_DISPLAY_POINTS),
             dokime_runtime::document::DownsampleTechnique::Lttb,

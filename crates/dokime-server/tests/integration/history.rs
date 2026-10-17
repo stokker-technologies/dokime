@@ -18,8 +18,8 @@ use std::sync::Arc;
 // Local Imports
 use super::*;
 use dokime_runtime::{execution::CycleStatus, runtime::command::CommandContext};
-use dokime_client::contracts::history::BrowseExecutionsRequest;
-use dokime_client::contracts::history::DeleteExecutionRequest;
+use dokime_client::contracts::history::BrowseExecutions;
+use dokime_client::contracts::history::DeleteExecution;
 
 /* === Constants === */
 const CONTROL_TOKEN: &str = "history-control-token-012345678901234567890";
@@ -48,7 +48,7 @@ async fn checkpoint_for(
     support::on_state_change(handle, async || {
         let checkpoint = history
             .unary::<contracts::history::BrowseExecutions>(auth(
-                BrowseExecutionsRequest {
+                BrowseExecutions {
                     limit: 100,
                     ..Default::default()
                 },
@@ -118,7 +118,7 @@ async fn deletion_validates_unsupported() {
     let mut history = WireClient::connect(server.local_endpoint()).await.unwrap();
     let live = history
         .unary::<contracts::history::BrowseExecutions>(auth(
-            BrowseExecutionsRequest {
+            BrowseExecutions {
                 limit: 100,
                 ..Default::default()
             },
@@ -142,7 +142,7 @@ async fn deletion_validates_unsupported() {
     gate.release.notify_one();
     support::wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
     let checkpoint = checkpoint_for(&handle, &mut history, &live).await;
-    let request = DeleteExecutionRequest {
+    let request = DeleteExecution {
         checkpoint: Some(checkpoint.clone()),
         request_identifier: "delete-request-1".into(),
     };
@@ -167,7 +167,7 @@ async fn deletion_validates_unsupported() {
         assert_eq!(
             history
                 .unary::<contracts::history::DeleteExecution>(auth(
-                    DeleteExecutionRequest {
+                    DeleteExecution {
                         checkpoint: Some(checkpoint.clone()),
                         request_identifier,
                     },
@@ -200,14 +200,14 @@ async fn deletion_validates_unsupported() {
     );
 
     let sealed = checkpoint_for(&handle, &mut history, &live).await;
-    let deletion = DeleteExecutionRequest {
+    let deletion = DeleteExecution {
         checkpoint: Some(sealed.clone()),
         request_identifier: "delete-request-1".into(),
     };
     for request_identifier in ["delete-request-1", "delete-request-2"] {
         let refusal = history
             .unary::<contracts::history::DeleteExecution>(auth(
-                DeleteExecutionRequest {
+                DeleteExecution {
                     request_identifier: request_identifier.into(),
                     ..deletion.clone()
                 },

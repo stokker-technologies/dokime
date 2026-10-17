@@ -92,8 +92,8 @@ async fn native_publications_order() {
     );
     request
         .details
-        .insert("value".into(), dokime_runtime::core::Value::Number(7.0));
-    request.scope = Some(dokime_runtime::core::RecordScope::default().with_cycle(dokime_runtime::model::identity::new_id::<TestCycleId>()));
+        .insert("value".into(), dokime_runtime::Value::Number(7.0));
+    request.scope = Some(dokime_runtime::RecordScope::default().with_cycle(dokime_runtime::model::identity::new_id::<TestCycleId>()));
     let timestamp = "2026-09-17T10:00:00Z";
     let first = RecordPublication {
         request_json: serde_json::to_string(&request).unwrap(),
@@ -146,7 +146,7 @@ async fn native_publications_order() {
     for entry in &admitted {
         assert_eq!(entry.source, "fixture.records");
         assert_eq!(entry.scope, None);
-        assert_eq!(entry.details["value"], dokime_runtime::core::Value::Number(7.0));
+        assert_eq!(entry.details["value"], dokime_runtime::Value::Number(7.0));
     }
     drop(records);
     drop(runtime);

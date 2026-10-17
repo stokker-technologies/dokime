@@ -92,13 +92,13 @@ impl Records {
                 )
                 .into_draft("benchmark.charger");
                 let mut record = dokime_runtime::records::Record::new(
-                    dokime_runtime::core::Timestamp::new("2026-10-04T00:00:00.000000000Z"),
+                    dokime_runtime::Timestamp::new("2026-10-04T00:00:00.000000000Z"),
                     draft.record_type,
                     1,
                     draft.source,
                     draft.severity,
                 );
-                record.record_id = dokime_runtime::core::RecordId::from_seed(format!("record-{sequence}"));
+                record.record_id = dokime_runtime::RecordId::from_seed(format!("record-{sequence}"));
                 record.message = draft.message;
                 record.details = draft.details;
                 record.scope = draft.scope;

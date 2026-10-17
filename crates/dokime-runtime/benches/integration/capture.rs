@@ -22,7 +22,7 @@ use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 use tempfile::TempDir;
 
 // Local Imports
-use dokime_runtime::core::{Identifier, Metadata};
+use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::{
     Runtime, RuntimeConfig, RuntimeHandle,
     records::{

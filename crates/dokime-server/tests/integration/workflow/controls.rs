@@ -50,7 +50,7 @@ async fn cycle_edits_state() {
     } = Gated::open().await;
     let cases = client
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -59,7 +59,7 @@ async fn cycle_edits_state() {
         .unwrap()
         .into_inner()
         .cases;
-    let case = contracts::execution::CaseControlRequest {
+    let case = contracts::execution::DeleteCase {
         cycle_id: id.clone(),
         case_id: cases[0].case_id.clone(),
         context: None,
@@ -74,7 +74,7 @@ async fn cycle_edits_state() {
     );
     client
         .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(
-            contracts::execution::UpdateCyclePolicyRequest {
+            contracts::execution::UpdateCyclePolicy {
                 cycle_id: id.clone(),
                 continue_on_failure: true,
                 context: None,
@@ -85,7 +85,7 @@ async fn cycle_edits_state() {
     assert!(
         client
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: id.clone()
                 }
             ))
@@ -96,7 +96,7 @@ async fn cycle_edits_state() {
     );
     client
         .unary::<contracts::execution::RunCase>(authenticated(
-            contracts::execution::RunCaseRequest {
+            contracts::execution::RunCase {
                 cycle_id: id.clone(),
                 case_id: case.case_id.clone(),
                 context: None,
@@ -129,7 +129,13 @@ async fn cycle_edits_state() {
         Code::FailedPrecondition
     );
     client
-        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(case.clone()))
+        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(
+            contracts::execution::ScheduleCaseRerun {
+                cycle_id: case.cycle_id.clone(),
+                case_id: case.case_id.clone(),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     let planned = attempts(&mut client, &id).await;
@@ -142,7 +148,7 @@ async fn cycle_edits_state() {
     );
     client
         .unary::<contracts::execution::RunCase>(authenticated(
-            contracts::execution::RunCaseRequest {
+            contracts::execution::RunCase {
                 cycle_id: id.clone(),
                 case_id: case.case_id.clone(),
                 context: None,
@@ -166,7 +172,7 @@ async fn cycle_edits_state() {
         .unwrap();
     let archived = client
         .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             },
         ))
@@ -189,7 +195,7 @@ async fn cycle_edits_state() {
     );
     client
         .unary::<contracts::execution::SetExecutionArchived>(authenticated(
-            contracts::execution::SetExecutionArchivedRequest {
+            contracts::execution::SetExecutionArchived {
                 execution_id: second[1].execution_id.clone(),
                 archived: true,
                 context: None,
@@ -200,7 +206,7 @@ async fn cycle_edits_state() {
     assert!(attempts(&mut client, &id).await[1].archived);
     client
         .unary::<contracts::execution::SetExecutionArchived>(authenticated(
-            contracts::execution::SetExecutionArchivedRequest {
+            contracts::execution::SetExecutionArchived {
                 execution_id: second[1].execution_id.clone(),
                 archived: false,
                 context: None,
@@ -214,7 +220,13 @@ async fn cycle_edits_state() {
         .unwrap();
     assert!(listed(&mut client, &id, None).await);
     client
-        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(case.clone()))
+        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(
+            contracts::execution::ScheduleCaseRerun {
+                cycle_id: case.cycle_id.clone(),
+                case_id: case.case_id.clone(),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     let retained = attempts(&mut client, &id).await;
@@ -264,7 +276,7 @@ async fn labels_rename_state() {
     } = Gated::open().await;
     let cases = client
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -274,7 +286,7 @@ async fn labels_rename_state() {
         .into_inner()
         .cases;
     let case_id = cases[0].case_id.clone();
-    let rename = contracts::execution::RenameCycleRequest {
+    let rename = contracts::execution::RenameCycle {
         cycle_id: id.clone(),
         label: "  Charger Burn-In ".into(),
         context: None,
@@ -293,7 +305,7 @@ async fn labels_rename_state() {
         assert_eq!(
             client
                 .unary::<contracts::execution::RenameCycle>(authenticated(
-                    contracts::execution::RenameCycleRequest {
+                    contracts::execution::RenameCycle {
                         label,
                         ..rename.clone()
                     }
@@ -313,7 +325,7 @@ async fn labels_rename_state() {
         .into_inner();
     assert_eq!(reply.label, "Charger Burn-In");
     let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();
-    let execution = contracts::execution::RenameExecutionRequest {
+    let execution = contracts::execution::RenameExecution {
         execution_id,
         label: "Charger Soak".into(),
         context: None,
@@ -326,7 +338,7 @@ async fn labels_rename_state() {
     assert_eq!(reply.label, "Charger Soak");
     let cycle = client
         .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             },
         ))
@@ -337,7 +349,7 @@ async fn labels_rename_state() {
     assert!(!cycle.sealed);
     let cases = client
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -351,7 +363,7 @@ async fn labels_rename_state() {
     // Once The Run Seals, Both Refuse With FailedPrecondition
     client
         .unary::<contracts::execution::RunCase>(authenticated(
-            contracts::execution::RunCaseRequest {
+            contracts::execution::RunCase {
                 cycle_id: id.clone(),
                 case_id: case_id.clone(),
                 context: None,
@@ -366,7 +378,7 @@ async fn labels_rename_state() {
     support::on_state_change(&owner.handle(), async || {
         client
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: id.clone(),
                 },
             ))
@@ -380,7 +392,7 @@ async fn labels_rename_state() {
     assert!(attempts(&mut client, &id).await[0].sealed);
     let late = client
         .unary::<contracts::execution::RenameCycle>(authenticated(
-            contracts::execution::RenameCycleRequest {
+            contracts::execution::RenameCycle {
                 cycle_id: id.clone(),
                 label: "Too Late".into(),
                 context: None,
@@ -401,7 +413,7 @@ async fn labels_rename_state() {
     assert_eq!(
         client
             .unary::<contracts::execution::RenameExecution>(authenticated(
-                contracts::execution::RenameExecutionRequest {
+                contracts::execution::RenameExecution {
                     execution_id: uuid::Uuid::now_v7().to_string(),
                     label: "Charger Soak".into(),
                     context: None,
@@ -416,8 +428,8 @@ async fn labels_rename_state() {
     owner.shutdown().await.unwrap();
 }
 
-fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchivedRequest {
-    contracts::execution::SetCycleArchivedRequest {
+fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchived {
+    contracts::execution::SetCycleArchived {
         cycle_id: id.into(),
         archived,
         context: None,
@@ -431,7 +443,7 @@ async fn listed(
 ) -> bool {
     client
         .unary::<contracts::execution::ListCycles>(authenticated(
-            contracts::execution::ListCyclesRequest {
+            contracts::execution::ListCycles {
                 filter: Some(contracts::execution::CycleFilter {
                     archive,
                     ..Default::default()
@@ -453,7 +465,7 @@ async fn attempts(
 ) -> Vec<contracts::execution::ExecutionSummary> {
     client
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: id.into(),
                 ..Default::default()
             },
@@ -468,7 +480,7 @@ async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClie
     support::on_state_change(handle, async || {
         if client
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: id.into(),
                 },
             ))

@@ -99,13 +99,13 @@ async fn client_verifies_identity() {
 
     client.verify(true).await.unwrap();
     let health = client
-        .backend_get_health(backend::GetHealthRequest {})
+        .backend_get_health(backend::GetHealth {})
         .await
         .unwrap();
     assert_eq!(health.backend_id, "shared");
     let calls = requests.lock().unwrap().len();
     assert!(matches!(
-        client.catalog_get_suite(catalog::GetSuiteRequest { suite_id: "absent".into() }).await,
+        client.catalog_get_suite(catalog::GetSuite { suite_id: "absent".into() }).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::PermissionDenied
     ));
 
@@ -132,7 +132,7 @@ async fn client_response_limit() {
         .unwrap();
 
     assert!(matches!(
-        client.backend_get_health(backend::GetHealthRequest {}).await,
+        client.backend_get_health(backend::GetHealth {}).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange
     ));
 }
@@ -148,7 +148,7 @@ async fn stream_close_releases() {
             .await
             .unwrap();
         let stream = client
-            .backend_watch_logs(backend::WatchLogsRequest {
+            .backend_watch_logs(backend::WatchLogs {
                 min_level: backend::LogLevel::Unspecified,
                 replay_lines: 0,
             })
@@ -164,7 +164,7 @@ async fn stream_close_releases() {
             "stream" => {
                 stream.close().await;
                 client
-                    .backend_get_health(backend::GetHealthRequest {})
+                    .backend_get_health(backend::GetHealth {})
                     .await
                     .unwrap();
             }
@@ -187,7 +187,7 @@ async fn stream_clones_close() {
         .await
         .unwrap();
     let stream = client
-        .backend_watch_logs(backend::WatchLogsRequest {
+        .backend_watch_logs(backend::WatchLogs {
             min_level: backend::LogLevel::Unspecified,
             replay_lines: 0,
         })
@@ -208,7 +208,7 @@ async fn stream_clones_close() {
     other.close().await;
     closed.notified().await;
     client
-        .backend_get_health(backend::GetHealthRequest {})
+        .backend_get_health(backend::GetHealth {})
         .await
         .unwrap();
 }

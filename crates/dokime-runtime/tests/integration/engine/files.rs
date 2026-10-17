@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime_runtime::files::{FileMatcher, InvalidRule};
-use dokime_contract::operations::files::{FileRule, FileRuleAction};
+use dokime_domain::operations::files::{FileRule, FileRuleAction};
 
 /* === Constants === */
 

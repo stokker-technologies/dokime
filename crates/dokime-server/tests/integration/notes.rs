@@ -19,7 +19,7 @@
 // Local Imports
 use super::*;
 use dokime_runtime::RuntimeConfig;
-use dokime_runtime::core::{RecordScope, TestCycleId};
+use dokime_runtime::{RecordScope, TestCycleId};
 use dokime_runtime::domains::evidence::OperatorNoteRequest;
 use dokime_runtime::execution::HealthSeverity;
 use dokime_runtime::runtime::command::CommandContext;
@@ -123,14 +123,14 @@ async fn scoped_annotation_workflow() {
     assert_eq!(
         notes
             .unary::<contracts::notes::ListNotes>(
-                contracts::notes::ListAnnotationsRequest::default()
+                contracts::notes::ListNotes::default()
             )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
-    let create = contracts::notes::CreateNoteRequest {
+    let create = contracts::notes::CreateNote {
         epoch: epoch.clone(),
         mutation_id: uuid::Uuid::now_v7().to_string(),
         owner: selection(&first, false).unwrap().owner,
@@ -180,7 +180,7 @@ async fn scoped_annotation_workflow() {
     );
     let page = notes
         .unary::<contracts::notes::ListNotes>(authenticated(
-            contracts::notes::ListAnnotationsRequest {
+            contracts::notes::ListNotes {
                 selection: selection(&first, false),
                 ..Default::default()
             },
@@ -191,7 +191,7 @@ async fn scoped_annotation_workflow() {
     assert_eq!(page.notes.len(), 1);
     let contextual = notes
         .unary::<contracts::notes::ListNotes>(authenticated(
-            contracts::notes::ListAnnotationsRequest {
+            contracts::notes::ListNotes {
                 selection: selection(&first, true),
                 limit: 1,
                 ..Default::default()
@@ -203,7 +203,7 @@ async fn scoped_annotation_workflow() {
     assert!(!contextual.next_after_id.is_empty());
     let next = notes
         .unary::<contracts::notes::ListNotes>(authenticated(
-            contracts::notes::ListAnnotationsRequest {
+            contracts::notes::ListNotes {
                 selection: selection(&first, true),
                 limit: 1,
                 after_id: contextual.next_after_id.clone(),
@@ -218,7 +218,7 @@ async fn scoped_annotation_workflow() {
     assert_eq!(
         notes
             .unary::<contracts::notes::ListNotes>(authenticated(
-                contracts::notes::ListAnnotationsRequest {
+                contracts::notes::ListNotes {
                     selection: selection(&second, true),
                     limit: 1,
                     after_id: contextual.next_after_id.clone(),
@@ -232,7 +232,7 @@ async fn scoped_annotation_workflow() {
     );
     let health = health
         .unary::<contracts::notes::ListHealth>(authenticated(
-            contracts::notes::ListAnnotationsRequest {
+            contracts::notes::ListHealth {
                 selection: selection(&first, false),
                 ..Default::default()
             },
@@ -269,7 +269,7 @@ async fn scoped_annotation_workflow() {
     assert_eq!(
         notes
             .unary::<contracts::notes::ListNotes>(authenticated(
-                contracts::notes::ListAnnotationsRequest {
+                contracts::notes::ListNotes {
                     selection: selection(&first, true),
                     limit: 1,
                     after_id: contextual.next_after_id,
@@ -323,7 +323,7 @@ async fn scoped_annotation_workflow() {
     );
     let case_notes = notes
         .unary::<contracts::notes::ListNotes>(authenticated(
-            contracts::notes::ListAnnotationsRequest {
+            contracts::notes::ListNotes {
                 selection: Some(contracts::notes::AnnotationSelection {
                     owner: Some(case_owner),
                     include_context: false,
@@ -335,7 +335,7 @@ async fn scoped_annotation_workflow() {
         .unwrap()
         .into_inner();
     assert_eq!(case_notes.notes, vec![case_receipt.note.clone().unwrap()]);
-    let edit = contracts::notes::EditNoteRequest {
+    let edit = contracts::notes::EditNote {
         epoch: epoch.clone(),
         note_id: case_receipt.note.as_ref().unwrap().note_id.clone(),
         message: "planned case note, **revised**".into(),
@@ -403,7 +403,7 @@ async fn sealed_refuses_notes() {
     .await
     .unwrap();
     let notes = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let create = contracts::notes::CreateNoteRequest {
+    let create = contracts::notes::CreateNote {
         epoch: handle.process_epoch().to_string(),
         mutation_id: uuid::Uuid::now_v7().to_string(),
         owner: selection(&id, false).unwrap().owner,
@@ -444,7 +444,7 @@ async fn sealed_refuses_notes() {
     );
     assert_eq!(
         notes
-            .unary::<contracts::notes::EditNote>(authenticated(contracts::notes::EditNoteRequest {
+            .unary::<contracts::notes::EditNote>(authenticated(contracts::notes::EditNote {
                 epoch: handle.process_epoch().to_string(),
                 note_id: filed.note_id,
                 message: "rewritten after the seal".into(),

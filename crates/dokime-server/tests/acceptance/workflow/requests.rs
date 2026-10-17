@@ -75,7 +75,7 @@ async fn crashed_run_replay() {
             .unwrap();
         let cases = client
             .unary::<contracts::execution::ListCases>(authenticated(
-                contracts::execution::ListCasesRequest {
+                contracts::execution::ListCases {
                     cycle_id: cycle.clone(),
                     ..Default::default()
                 },
@@ -87,7 +87,7 @@ async fn crashed_run_replay() {
         let admission = accepted(
             client
                 .unary::<contracts::execution::RunCase>(authenticated(
-                    contracts::execution::RunCaseRequest {
+                    contracts::execution::RunCase {
                         cycle_id: cycle.clone(),
                         case_id: case.clone(),
                         context: None,
@@ -161,7 +161,7 @@ async fn crashed_run_replay() {
     let replay = accepted(
         client
             .unary::<contracts::execution::RunCase>(authenticated(
-                contracts::execution::RunCaseRequest {
+                contracts::execution::RunCase {
                     cycle_id,
                     case_id,
                     context: None,

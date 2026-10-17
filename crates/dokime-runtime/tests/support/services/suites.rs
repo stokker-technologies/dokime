@@ -22,7 +22,7 @@ use super::contracts::{
     tracking_warning_contract,
 };
 use super::{metadata, value};
-use dokime_runtime::core::{Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
+use dokime_runtime::{Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
 use dokime_runtime::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, SuiteSet,
     TestCase, TestCaseTemplate, TestSuite,
@@ -177,11 +177,11 @@ pub fn case_template_with_identifier(
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
+            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
@@ -241,7 +241,7 @@ pub fn materialized_case(
 ) -> TestCase {
     TestCase {
         suite_id: suite_id.to_owned(),
-        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CaseId>(),
+        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>(),
         test_case_template_id: suite.map_or_else(TemplateId::new, |suite| {
             suite.test_case_templates[0].test_case_template_id.clone()
         }),
@@ -365,11 +365,11 @@ pub fn custom_suite() -> TestSuite {
             files: Vec::new(),
             phases: vec![ExecutionPhaseDefinition {
                 repeatable: false,
-                step_id: dokime_runtime::core::StepId::from_seed("evidence.fixture.step"),
+                step_id: dokime_runtime::StepId::from_seed("evidence.fixture.step"),
                 metadata: metadata("custom.phase", "Custom Phase"),
             }],
             criteria: vec![CriterionDefinition {
-                criterion_id: dokime_runtime::core::CriterionId::from_seed("evidence.fixture.criterion"),
+                criterion_id: dokime_runtime::CriterionId::from_seed("evidence.fixture.criterion"),
                 metadata: metadata("custom.criterion", "Custom Criterion"),
                 expected: Some(Value::from("passed")),
             }],

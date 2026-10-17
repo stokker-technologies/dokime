@@ -19,7 +19,7 @@ use std::time::Duration;
 use harmos::Message;
 // Local Imports
 use super::*;
-use dokime_runtime::core::{Identifier, TestExecutionId, Timestamp, Value, ValueType};
+use dokime_runtime::{Identifier, TestExecutionId, Timestamp, Value, ValueType};
 use dokime_runtime::execution::Signal;
 use dokime_runtime::telemetry::{
     SamplingScope, TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole,
@@ -94,11 +94,11 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
         if host_stream == dokime_host::HostTelemetryStream::System {
             sample.values.insert(
                 "cpu_load_percent".to_owned(),
-                dokime_runtime::core::Value::from(1.0),
+                dokime_runtime::Value::from(1.0),
             );
         }
         sample.storage_payload = Some(
-            dokime_contract::telemetry::host_telemetry_payload(host_stream, &sample.values)
+            dokime_domain::model::telemetry::host_telemetry_payload(host_stream, &sample.values)
                 .map_err(|error| error.to_string())?,
         );
         Ok(Some(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier, vec![sample])))
@@ -335,7 +335,7 @@ async fn failed_group_holds() {
     let (mut runtime, _) = runtime_with(root.path(), [gateway_artifact()]).await;
     let handle = runtime.handle();
     let execution = admitted_execution(&handle, 0).await;
-    let scope = dokime_runtime::core::RecordScope::default().with_test_execution(execution.clone());
+    let scope = dokime_runtime::RecordScope::default().with_test_execution(execution.clone());
     let unknown = Identifier::new("fixture.unregistered").unwrap();
     let failure = handle
         .lease_streams(scope_of(&execution), &[foreign_stream(), unknown], "bench")

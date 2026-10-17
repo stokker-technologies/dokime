@@ -315,10 +315,10 @@ async fn typed_columns_compare() {
     let filter = &repeat.filters[0];
     assert_eq!(filter.expression, voltage.into());
     assert_eq!(filter.operator, dokime_runtime::document::FilterOperator::Gt);
-    assert_eq!(filter.value, Some(dokime_runtime::core::Value::from(0.5)));
+    assert_eq!(filter.value, Some(dokime_runtime::Value::from(0.5)));
     assert_eq!(plot.filters, [voltage.exists()]);
     assert_eq!(
         voltage.eq("CP-03").value,
-        Some(dokime_runtime::core::Value::from("CP-03"))
+        Some(dokime_runtime::Value::from("CP-03"))
     );
 }

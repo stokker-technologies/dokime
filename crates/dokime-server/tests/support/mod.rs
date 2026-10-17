@@ -29,7 +29,7 @@ use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
 // Local Imports
 use dokime_runtime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
-use dokime_runtime::core::{
+use dokime_runtime::{
     CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId,
     Value, ValueType,
 };
@@ -176,7 +176,7 @@ impl ExecutionFixture for FixtureProgressExecutor {
 /// request metadata, and returns the cycle ID.
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient,
-    create: Request<contracts::execution::CreateCycleRequest>,
+    create: Request<contracts::execution::CreateCycle>,
     plan: contracts::planning::SelectionPlan,
 ) -> Result<String, Status> {
     let metadata = create.metadata().clone();
@@ -185,7 +185,7 @@ pub(crate) async fn planned_cycle(
         .await?
         .into_inner()
         .cycle_id;
-    let append = contracts::execution::AppendPlannedCasesRequest {
+    let append = contracts::execution::AppendPlannedCases {
         cycle_id: cycle_id.clone(),
         plan: Some(plan),
         context: None,
@@ -593,11 +593,11 @@ fn named_case_template(
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
+            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],

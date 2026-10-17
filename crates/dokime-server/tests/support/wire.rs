@@ -522,8 +522,8 @@ pub async fn fixture_with_provider(
     owner
 }
 
-pub fn create() -> contracts::execution::CreateCycleRequest {
-    contracts::execution::CreateCycleRequest {
+pub fn create() -> contracts::execution::CreateCycle {
+    contracts::execution::CreateCycle {
         metadata: Some(contracts::common::Metadata {
             identifier: "grpc.cycle".into(),
             label: "gRPC cycle".into(),
@@ -550,7 +550,7 @@ pub async fn lookup(
 ) -> Result<contracts::execution::RunRequestReceipt, tonic::Status> {
     client
         .unary::<contracts::execution::GetRunRequest>(auth(
-            contracts::execution::GetRunRequestRequest {
+            contracts::execution::GetRunRequest {
                 request_id: id.into(),
             },
             token,

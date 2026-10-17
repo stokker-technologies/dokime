@@ -26,7 +26,7 @@ use super::content::UploadGate;
 use super::*;
 use contracts::files::{
     FileRule, FileRuleAction, FileWatchFrame, FileWatchFramePayload, FileWatchPhase,
-    FileWatchPolicy, FileWatchRequest, FileWatchSource, FileWatchSourcePayload, LocalWatchSource,
+    FileWatchPolicy, FileWatch, FileWatchSource, FileWatchSourcePayload, LocalWatchSource,
 };
 
 /* === Constants === */
@@ -75,7 +75,7 @@ async fn file_watch_artifacts() {
     let log = tree.path().join("logs/charger.log");
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, b"before the watch\n").unwrap();
-    let request = |output: &str, maximum_seconds: Option<u32>| FileWatchRequest {
+    let request = |output: &str, maximum_seconds: Option<u32>| FileWatch {
         execution_id: Some(execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -97,7 +97,7 @@ async fn file_watch_artifacts() {
     // A Watch Without An Execution Is Refused Before Any Source Opens
     let unscoped = watch(
         &client,
-        FileWatchRequest {
+        FileWatch {
             execution_id: None,
             ..request("capture", Some(1))
         },
@@ -179,7 +179,7 @@ async fn file_watch_artifacts() {
 /* === Private Functions === */
 async fn watch(
     client: &WireClient,
-    request: FileWatchRequest,
+    request: FileWatch,
 ) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client
         .download::<contracts::files::FileWatch>(authenticated(request))

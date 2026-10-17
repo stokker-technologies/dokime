@@ -17,7 +17,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
 use dokime_runtime::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,

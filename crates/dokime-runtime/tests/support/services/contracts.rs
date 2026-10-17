@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::{identifier, metadata};
-use dokime_runtime::core::{Identifier, Value, ValueType};
+use dokime_runtime::{Identifier, Value, ValueType};
 use dokime_runtime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use harmos::{
@@ -172,10 +172,10 @@ pub fn provider_tracking_row(
     };
     dokime_runtime::transport::ProviderTelemetryRow {
         values: std::collections::BTreeMap::from([
-            ("elapsed_s".into(), dokime_runtime::core::Value::Number(elapsed_s)),
+            ("elapsed_s".into(), dokime_runtime::Value::Number(elapsed_s)),
             (
                 "target_locked".into(),
-                dokime_runtime::core::Value::Bool(target_locked),
+                dokime_runtime::Value::Bool(target_locked),
             ),
         ]),
         payload: row.encode_to_vec(),
@@ -375,7 +375,7 @@ pub fn fixture_host_contract(
         default_x: Some("timestamp".to_owned()),
         // A host stream declares its cadence the way the real ones do, so a
         // fixture is leasable on the same terms.
-        interval: Some(dokime_runtime::core::DurationMillis(1_000)),
+        interval: Some(dokime_runtime::DurationMillis(1_000)),
         plot_window: None,
         allow_extra_fields: true,
         scalar: false,

@@ -12,7 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use dokime_runtime::core::{Identifier, Metadata};
+use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::domains::evidence::{OperatorNoteRequest, RecordSelection};
 use dokime_runtime::records::{
     ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
@@ -180,7 +180,7 @@ async fn live_reader_cursor() {
 
 #[tokio::test]
 async fn filtered_record_view() {
-    use dokime_runtime::core::{RecordScope, SessionId};
+    use dokime_runtime::{RecordScope, SessionId};
     use dokime_runtime::runtime::query::{
         RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
     };
@@ -554,7 +554,7 @@ async fn capture_failure_provider() {
     let suite: dokime_runtime::definition::TestSuite = serde_json::from_value(serde_json::json!({
         "metadata": metadata,
         "test_case_templates": [{
-            "test_case_template_id": dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),
+            "test_case_template_id": dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),
             "metadata": metadata,
             "parameters": []
         }]
@@ -699,7 +699,7 @@ async fn completed_record_capacity() {
 
 #[tokio::test]
 async fn native_entry_independent() {
-    use dokime_runtime::core::{TestCycleId, Timestamp};
+    use dokime_runtime::{TestCycleId, Timestamp};
     use dokime_runtime::execution::{CycleStatus, TestCycle};
     use dokime_runtime::storage::objects::cycle::{self, Cycle};
     use harmos::storage::ObjectVersion;

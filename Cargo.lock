@@ -926,7 +926,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dokime",
- "dokime-contract",
+ "dokime-domain",
  "dokime-packaging",
  "dotenvy",
  "glob",
@@ -1937,7 +1937,7 @@ dependencies = [
  "clap",
  "criterion",
  "dokime-client",
- "dokime-contract",
+ "dokime-domain",
  "dokime-filesystem",
  "harmos",
  "indicatif",
@@ -1959,7 +1959,7 @@ dependencies = [
 name = "dokime-client"
 version = "0.1.0"
 dependencies = [
- "dokime-contract",
+ "dokime-domain",
  "dokime-filesystem",
  "futures-util",
  "harmos",
@@ -1980,7 +1980,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dokime-contract"
+name = "dokime-domain"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
@@ -1991,7 +1991,6 @@ dependencies = [
  "thiserror 2.0.21",
  "time",
  "tracing-error",
- "uuid",
 ]
 
 [[package]]
@@ -2025,7 +2024,7 @@ dependencies = [
  "async-trait",
  "base64 0.23.1",
  "dokime-client",
- "dokime-contract",
+ "dokime-domain",
  "dokime-filesystem",
  "dokime-runtime",
  "dokime-server",
@@ -2066,7 +2065,7 @@ name = "dokime-host"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "dokime-contract",
+ "dokime-domain",
  "dokime-runtime",
  "getifs",
  "serde",
@@ -2077,6 +2076,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "uuid",
  "windows",
 ]
 
@@ -2123,7 +2123,7 @@ dependencies = [
  "cpal",
  "criterion",
  "cssparser 0.38.0",
- "dokime-contract",
+ "dokime-domain",
  "dokime-filesystem",
  "dokime-host",
  "dokime-macros",
@@ -2175,7 +2175,7 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-client",
- "dokime-contract",
+ "dokime-domain",
  "dokime-filesystem",
  "dokime-host",
  "dokime-runtime",

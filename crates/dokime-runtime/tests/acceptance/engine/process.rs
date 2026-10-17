@@ -28,7 +28,7 @@ use dokime_runtime::harmos::operations::Host;
 // Local Imports
 use dokime_runtime::execution::log::Level;
 use dokime_runtime::host::{ProcessExited, StepHandleCancelled};
-use dokime_runtime::operations::process::{Output, RunProcess, RunProcessRequest};
+use dokime_runtime::operations::process::{Output, RunProcess, RunProcess};
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 
@@ -144,8 +144,8 @@ impl SpawnCancel {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn shell(script: &str) -> RunProcessRequest {
-    RunProcessRequest::new("sh").args(["-c", script])
+fn shell(script: &str) -> RunProcess {
+    RunProcess::new("sh").args(["-c", script])
 }
 
 fn logged(report: &dokime_runtime::plugin::testing::Report, level: Level) -> Vec<String> {

@@ -51,7 +51,7 @@ async fn inspection_separates_outputs() {
     } = Gated::open().await;
     let cycle = client
         .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             },
         ))
@@ -64,7 +64,7 @@ async fn inspection_separates_outputs() {
     assert!(cycle.result.is_none());
     let case = client
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -76,7 +76,7 @@ async fn inspection_separates_outputs() {
         .remove(0);
     let detail = client
         .unary::<contracts::execution::GetCase>(authenticated(
-            contracts::execution::GetCaseRequest {
+            contracts::execution::GetCase {
                 cycle_id: id.clone(),
                 case_id: case.case_id.clone(),
             },
@@ -88,7 +88,7 @@ async fn inspection_separates_outputs() {
     assert!(detail.parameter_count > 0);
     let planned = client
         .unary::<contracts::execution::ListCaseParameters>(authenticated(
-            contracts::execution::ListCaseParametersRequest {
+            contracts::execution::ListCaseParameters {
                 cycle_id: id.clone(),
                 case_id: case.case_id.clone(),
                 ..Default::default()
@@ -113,7 +113,7 @@ async fn inspection_separates_outputs() {
     assert_eq!(
         client
             .unary::<contracts::execution::GetCase>(authenticated(
-                contracts::execution::GetCaseRequest {
+                contracts::execution::GetCase {
                     cycle_id: id.clone(),
                     case_id: "missing".into()
                 }
@@ -134,7 +134,7 @@ async fn inspection_separates_outputs() {
         .to_string();
     for unknown_variant in [false, true] {
         let refused = client
-            .invalid_enum::<contracts::execution::RunExecution, contracts::execution::ExecutionMode>(authenticated(contracts::execution::RunExecutionRequest {
+            .invalid_enum::<contracts::execution::RunExecution, contracts::execution::ExecutionMode>(authenticated(contracts::execution::RunExecution {
                 mode: Default::default(),
                 execution_id: selected.clone(),
                 idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
@@ -157,7 +157,7 @@ async fn inspection_separates_outputs() {
     }
     client
         .unary::<contracts::execution::RunExecution>(authenticated(
-            contracts::execution::RunExecutionRequest {
+            contracts::execution::RunExecution {
                 mode: Default::default(),
                 execution_id: selected,
                 idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
@@ -173,7 +173,7 @@ async fn inspection_separates_outputs() {
     assert_eq!(
         client
             .unary::<contracts::execution::GetExecution>(
-                contracts::execution::GetExecutionRequest {
+                contracts::execution::GetExecution {
                     execution_id: execution_id.clone()
                 }
             )
@@ -182,7 +182,7 @@ async fn inspection_separates_outputs() {
             .code(),
         Code::Unauthenticated
     );
-    let request = |set| contracts::execution::ListExecutionParametersRequest {
+    let request = |set| contracts::execution::ListExecutionParameters {
         execution_id: execution_id.clone(),
         set,
         limit: 0,
@@ -255,7 +255,7 @@ async fn inspection_separates_outputs() {
     );
     // The shared name exists in both inputs and outputs: scope validation must
     // reject switching sets, not rely on an absent continuation marker.
-    let mismatch = contracts::execution::ListExecutionParametersRequest {
+    let mismatch = contracts::execution::ListExecutionParameters {
         set: contracts::execution::ExecutionParameterSet::Inputs,
         after_name: "fixture.result".into(),
         cursor: first.cursor.clone(),
@@ -269,7 +269,7 @@ async fn inspection_separates_outputs() {
             .code(),
         Code::InvalidArgument
     );
-    let malformed = contracts::execution::ListExecutionParametersRequest {
+    let malformed = contracts::execution::ListExecutionParameters {
         cursor: Some(contracts::execution::ParameterCursor {
             observed: None,
             selection: first.cursor.as_ref().unwrap().selection.clone(),
@@ -335,7 +335,7 @@ async fn inspection_separates_outputs() {
     }
     let admitted = client
         .unary::<contracts::execution::GetExecution>(authenticated(
-            contracts::execution::GetExecutionRequest {
+            contracts::execution::GetExecution {
                 execution_id: execution_id.clone(),
             },
         ))
@@ -346,7 +346,7 @@ async fn inspection_separates_outputs() {
     assert!(controls.can_pause && controls.can_stop && !controls.can_resume);
     client
         .unary::<contracts::execution::PauseExecution>(authenticated(
-            contracts::execution::ExecutionControlRequest {
+            contracts::execution::PauseExecution {
                 execution_id: execution_id.clone(),
                 context: None,
             },
@@ -355,7 +355,7 @@ async fn inspection_separates_outputs() {
         .unwrap();
     let paused = client
         .unary::<contracts::execution::GetExecution>(authenticated(
-            contracts::execution::GetExecutionRequest {
+            contracts::execution::GetExecution {
                 execution_id: execution_id.clone(),
             },
         ))
@@ -368,7 +368,7 @@ async fn inspection_separates_outputs() {
     assert!(paused.paused && paused.can_resume && !paused.can_pause);
     client
         .unary::<contracts::execution::ResumeExecution>(authenticated(
-            contracts::execution::ExecutionControlRequest {
+            contracts::execution::ResumeExecution {
                 execution_id: execution_id.clone(),
                 context: None,
             },
@@ -399,7 +399,7 @@ async fn inspection_separates_outputs() {
     support::on_state_change(&handle, async || {
         let final_detail = client
             .unary::<contracts::execution::GetExecution>(authenticated(
-                contracts::execution::GetExecutionRequest {
+                contracts::execution::GetExecution {
                     execution_id: execution_id.clone(),
                 },
             ))
@@ -436,12 +436,12 @@ async fn planned_params_limit() {
     suite.test_case_templates[0].parameters = (0..257)
         .map(|index| {
             let mut parameter = prototype.clone();
-            parameter.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
+            parameter.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
             parameter.metadata = support::metadata(&format!("p{index:03}"), "Parameter");
             parameter.expression = dokime_runtime::definition::ParameterExpr::Literal {
                 value: Value::Integer(index),
             };
-            parameter.value_type = dokime_runtime::core::ValueType::Integer;
+            parameter.value_type = dokime_runtime::ValueType::Integer;
             parameter
         })
         .collect();
@@ -467,7 +467,7 @@ async fn planned_params_limit() {
     .await
     .to_string();
     let case_id = client
-        .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
@@ -478,7 +478,7 @@ async fn planned_params_limit() {
         .remove(0)
         .case_id;
     let detail = client
-        .unary::<contracts::execution::GetCase>(contracts::execution::GetCaseRequest {
+        .unary::<contracts::execution::GetCase>(contracts::execution::GetCase {
             cycle_id: cycle_id.clone(),
             case_id: case_id.clone(),
         })
@@ -487,7 +487,7 @@ async fn planned_params_limit() {
         .into_inner();
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             },
@@ -499,7 +499,7 @@ async fn planned_params_limit() {
         .remove(0)
         .execution_id;
     assert_eq!(detail.parameter_count, 257);
-    let mut request = contracts::execution::ListCaseParametersRequest {
+    let mut request = contracts::execution::ListCaseParameters {
         cycle_id: cycle_id.clone(),
         case_id: case_id.clone(),
         limit: 73,
@@ -541,7 +541,7 @@ async fn planned_params_limit() {
             assert_eq!(
                 client
                     .unary::<contracts::execution::ListExecutionParameters>(
-                        contracts::execution::ListExecutionParametersRequest {
+                        contracts::execution::ListExecutionParameters {
                             execution_id: execution_id.clone(),
                             set: contracts::execution::ExecutionParameterSet::Inputs,
                             limit: 0,
@@ -583,7 +583,7 @@ async fn planned_params_limit() {
     }
     assert_eq!(
         client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
                 cycle_id
             })
             .await

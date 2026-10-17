@@ -20,7 +20,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::Metadata;
+use dokime_runtime::Metadata;
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::config::StorageSettings;
 

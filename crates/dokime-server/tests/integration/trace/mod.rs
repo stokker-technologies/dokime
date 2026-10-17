@@ -41,8 +41,8 @@ fn emit(execution_id: &str, count: usize) {
     });
 }
 
-fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::WatchTraceRequest {
-    contracts::backend::WatchTraceRequest {
+fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::WatchTrace {
+    contracts::backend::WatchTrace {
         epoch: None,
         scope: Some(contracts::backend::TraceScope::Execution(
             execution_id.to_owned(),
@@ -101,7 +101,7 @@ async fn trace_watch_replays() {
     assert!(stream.message().await.unwrap().is_none());
 
     let mut resumed = client
-        .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTraceRequest {
+        .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace {
             epoch: Some(first.epoch.clone()),
             ..request(&execution, first.next_sequence, false)
         })
@@ -119,7 +119,7 @@ async fn trace_watch_replays() {
         (Some(first.epoch.clone()), u64::MAX),
     ] {
         let mut invalid = client
-            .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTraceRequest {
+            .download::<contracts::backend::WatchTrace>(contracts::backend::WatchTrace {
                 epoch,
                 ..request(&execution, after, false)
             })

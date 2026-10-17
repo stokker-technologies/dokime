@@ -25,7 +25,7 @@ use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
 // Local Imports
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 use dokime_runtime::execution::{
     CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow,
 };

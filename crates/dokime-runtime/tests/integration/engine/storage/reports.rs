@@ -101,7 +101,7 @@ async fn report_publication_reopens() {
         saved: None,
         test_cycle_id: owner.clone(),
         session_id: None,
-        metadata: dokime_runtime::core::Metadata::new(
+        metadata: dokime_runtime::Metadata::new(
             Identifier::new("report.cycle").unwrap(),
             "Report Cycle",
             None,

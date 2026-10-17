@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::{Identifier, Metadata};
+use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
 use dokime_runtime::{Runtime, RuntimeConfig};
 use tempfile::tempdir;

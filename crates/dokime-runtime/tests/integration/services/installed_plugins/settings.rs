@@ -62,13 +62,13 @@ struct FixtureConnection {
 async fn boot_health_transaction() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
-    let boot_health_item_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::HealthItemId>();
+    let boot_health_item_id = dokime_runtime::model::identity::new_id::<dokime_runtime::HealthItemId>();
     let boot_health_observed_at = dokime_runtime::model::time::now_utc();
 
     runtime
         .record_health_item(dokime_runtime::execution::HealthItem {
             health_item_id: boot_health_item_id.clone(),
-            scope: dokime_runtime::core::RecordScope::default(),
+            scope: dokime_runtime::RecordScope::default(),
             severity: dokime_runtime::execution::HealthSeverity::Error,
             message: "InstalledPlugin discovery failed.".to_owned(),
             detail: Some("fixture.missing: manifest missing".to_owned()),
@@ -248,7 +248,7 @@ async fn composed_plugin_process() {
     let config = config(root.path())
         .with_installed_plugins([settings_artifact()])
         .with_credential_backend(RuntimeCredentialConfig {
-            backend: dokime_runtime::core::CredentialBackendKind::LocalFile,
+            backend: dokime_runtime::CredentialBackendKind::LocalFile,
             local_file: Some(credential_file),
         });
     let artifact_id = Identifier::new("settings-fixture").unwrap();
@@ -256,7 +256,7 @@ async fn composed_plugin_process() {
     let mut values = runtime.plugin_settings(&artifact_id).await.unwrap().values;
     values.insert(
         "workspace_id".to_owned(),
-        dokime_runtime::core::Value::from("recovered-workspace"),
+        dokime_runtime::Value::from("recovered-workspace"),
     );
 
     runtime
@@ -282,7 +282,7 @@ async fn composed_plugin_process() {
 
     assert_ne!(
         recovered.values["workspace_id"],
-        dokime_runtime::core::Value::from("recovered-workspace"),
+        dokime_runtime::Value::from("recovered-workspace"),
         "values of plugins without an install ID are not written to settings.json"
     );
     drop(runtime);

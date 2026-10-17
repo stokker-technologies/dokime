@@ -16,11 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime_runtime::core::CommandId;
+use dokime_runtime::CommandId;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::domains::evidence::notes::{CreateNoteRequest, NotePublication};
+use dokime_runtime::domains::evidence::notes::{CreateNote, NotePublication};
 use dokime_runtime::execution::notes::NoteOwner;
 
 /* === Constants === */
@@ -40,7 +40,7 @@ use dokime_runtime::execution::notes::NoteOwner;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn fixture(root: &std::path::Path) -> (Runtime, CreateNoteRequest) {
+async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
     let owner = Runtime::start(crate::service_support::budgets::runtime_config(
         root,
@@ -59,7 +59,7 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNoteRequest) {
         )
         .await
         .unwrap();
-    let request = CreateNoteRequest {
+    let request = CreateNote {
         epoch: handle.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         owner: NoteOwner::Cycle { cycle_id },

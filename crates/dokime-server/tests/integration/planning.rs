@@ -18,7 +18,7 @@
 use prost::Message;
 // Local Imports
 use super::*;
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
 
 /* === Constants === */
@@ -72,8 +72,8 @@ fn plan(
     }
 }
 
-fn create() -> contracts::execution::CreateCycleRequest {
-    contracts::execution::CreateCycleRequest {
+fn create() -> contracts::execution::CreateCycle {
+    contracts::execution::CreateCycle {
         metadata: Some(contracts::common::Metadata {
             identifier: "planning.cycle".into(),
             label: "Plan".into(),
@@ -87,8 +87,8 @@ fn create() -> contracts::execution::CreateCycleRequest {
 fn append(
     cycle_id: &str,
     plan: contracts::planning::SelectionPlan,
-) -> contracts::execution::AppendPlannedCasesRequest {
-    contracts::execution::AppendPlannedCasesRequest {
+) -> contracts::execution::AppendPlannedCases {
+    contracts::execution::AppendPlannedCases {
         cycle_id: cycle_id.into(),
         plan: Some(plan),
         context: None,
@@ -132,7 +132,7 @@ async fn ordered_selections_provider() {
     first.tags = vec!["suite-tag".into()];
     let parameter = &mut first.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::core::ValueType::Integer;
+    parameter.value_type = dokime_runtime::ValueType::Integer;
     parameter.expression = ParameterExpr::Literal {
         value: Value::Integer(0),
     };
@@ -149,11 +149,11 @@ async fn ordered_selections_provider() {
         support::metadata("fixture.second.template", "Second template");
     let parameter = &mut second.test_case_templates[0].parameters[0];
     parameter.list = Some(dokime_runtime::definition::ParameterList {
-        element_type: dokime_runtime::core::ValueType::Integer,
+        element_type: dokime_runtime::ValueType::Integer,
         min_items: None,
         max_items: None,
     });
-    parameter.value_type = dokime_runtime::core::ValueType::Array;
+    parameter.value_type = dokime_runtime::ValueType::Array;
     parameter.expression = ParameterExpr::Literal {
         value: Value::Array(vec![Value::Integer(0)]),
     };
@@ -203,7 +203,7 @@ async fn ordered_selections_provider() {
     let input = plan(vec![selected.clone(), multiple, selected]);
     let preview = planning
         .unary::<contracts::planning::PreviewSelection>(authenticated(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(input.clone()),
             },
         ))
@@ -251,7 +251,7 @@ async fn ordered_selections_provider() {
     ));
     let repeated = planning
         .unary::<contracts::planning::PreviewSelection>(authenticated(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(input.clone()),
             },
         ))
@@ -267,7 +267,7 @@ async fn ordered_selections_provider() {
     assert_eq!(repeated.cases.len(), preview.cases.len());
     let catalog = WireClient::connect(server.local_endpoint()).await.unwrap();
     let definition = catalog
-        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuite {
             suite_id: first.metadata.identifier.to_string(),
         }))
         .await
@@ -289,7 +289,7 @@ async fn ordered_selections_provider() {
         .await
         .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_runtime::core::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.lifecycle, dokime_runtime::execution::CycleStatus::Ready);
     assert_eq!(cycle.test_executions.len(), cycle.cases().count());
@@ -352,7 +352,7 @@ async fn planning_refuses_inputs() {
     let mixed = plan(vec![selection(&first), selection(&second)]);
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(mixed.clone()),
             },
         )
@@ -377,7 +377,7 @@ async fn planning_refuses_inputs() {
         .unwrap();
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(mixed.clone()),
             },
         )
@@ -438,7 +438,7 @@ async fn planning_refuses_inputs() {
         assert_eq!(
             planning
                 .unary::<contracts::planning::PreviewSelection>(
-                    contracts::planning::PreviewSelectionRequest {
+                    contracts::planning::PreviewSelection {
                         plan: Some(input.clone())
                     }
                 )
@@ -482,7 +482,7 @@ async fn planning_refuses_inputs() {
     let planning = WireClient::connect(read.local_endpoint()).await.unwrap();
     planning
         .unary::<contracts::planning::PreviewSelection>(authenticated(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(plan(vec![selection(&first)])),
             },
         ))
@@ -491,7 +491,7 @@ async fn planning_refuses_inputs() {
     assert_eq!(
         planning
             .unary::<contracts::planning::PreviewSelection>(
-                contracts::planning::PreviewSelectionRequest {
+                contracts::planning::PreviewSelection {
                     plan: Some(plan(vec![selection(&first)]))
                 }
             )
@@ -538,7 +538,7 @@ async fn template_conflicts_disambiguate() {
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(plan(vec![selection(&first)])),
             },
         )
@@ -584,7 +584,7 @@ async fn effective_native_materialization() {
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].expansion =
         dokime_runtime::definition::ParameterExpansion::Cartesian;
-    suite.test_case_templates[0].parameters[0].value_type = dokime_runtime::core::ValueType::Integer;
+    suite.test_case_templates[0].parameters[0].value_type = dokime_runtime::ValueType::Integer;
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
@@ -620,7 +620,7 @@ async fn effective_native_materialization() {
         let input = plan(vec![selection(&suite)]);
         let failure = planning
             .unary::<contracts::planning::PreviewSelection>(
-                contracts::planning::PreviewSelectionRequest {
+                contracts::planning::PreviewSelection {
                     plan: Some(input.clone()),
                 },
             )
@@ -644,7 +644,7 @@ async fn effective_native_materialization() {
             });
         let preview = planning
             .unary::<contracts::planning::PreviewSelection>(
-                contracts::planning::PreviewSelectionRequest {
+                contracts::planning::PreviewSelection {
                     plan: Some(plan(vec![selected])),
                 },
             )
@@ -666,14 +666,14 @@ async fn effective_native_materialization() {
         step: 1,
     };
     let mut other = suite.test_case_templates[0].parameters[0].clone();
-    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
+    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other dimension");
     suite.test_case_templates[0].parameters.push(other);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let input = plan(vec![selection(&suite)]);
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(input.clone()),
             },
         )
@@ -699,7 +699,7 @@ async fn payload_budget_allocation() {
     let mut suite = support::fixture_suite(&["passed"]);
     let template = &mut suite.test_case_templates[0];
     template.parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    template.parameters[0].value_type = dokime_runtime::core::ValueType::Integer;
+    template.parameters[0].value_type = dokime_runtime::ValueType::Integer;
     template.parameters[0].expression = ParameterExpr::Range {
         start: 0,
         stop: 999,
@@ -724,7 +724,7 @@ async fn payload_budget_allocation() {
     let input = plan(vec![selection(&suite)]);
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(input.clone()),
             },
         )
@@ -753,7 +753,7 @@ async fn payload_budget_allocation() {
     assert_eq!(
         planning
             .unary::<contracts::planning::PreviewSelection>(
-                contracts::planning::PreviewSelectionRequest {
+                contracts::planning::PreviewSelection {
                     plan: Some(plan(vec![selected]))
                 }
             )
@@ -770,7 +770,7 @@ async fn payload_budget_allocation() {
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(plan(vec![selection(&suite)])),
             },
         )
@@ -780,12 +780,12 @@ async fn payload_budget_allocation() {
     suite.test_case_templates[0].metadata.label = "Template".into();
     suite.metadata.description = None;
     let template = &mut suite.test_case_templates[0];
-    template.parameters[0].value_type = dokime_runtime::core::ValueType::Array;
+    template.parameters[0].value_type = dokime_runtime::ValueType::Array;
     template.parameters[0].expression = ParameterExpr::Literal {
         value: Value::Array(vec![Value::Text("x".repeat(1024)); 32]),
     };
     let mut other = template.parameters[0].clone();
-    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
+    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other");
     other.expression = ParameterExpr::Array {
         values: vec![
@@ -802,7 +802,7 @@ async fn payload_budget_allocation() {
         error_code(
             &planning
                 .unary::<contracts::planning::PreviewSelection>(
-                    contracts::planning::PreviewSelectionRequest {
+                    contracts::planning::PreviewSelection {
                         plan: Some(input.clone())
                     }
                 )
@@ -844,7 +844,7 @@ async fn registered_cases_selection() {
         .await
         .unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let request = contracts::planning::RegisterSelectionRequest {
+    let request = contracts::planning::RegisterSelection {
         plan: Some(plan(vec![selection(&suite)])),
         idempotency_key: "register-once".into(),
     };
@@ -875,7 +875,7 @@ async fn registered_cases_selection() {
     };
     let preview = planning
         .unary::<contracts::planning::PreviewSelection>(
-            contracts::planning::PreviewSelectionRequest {
+            contracts::planning::PreviewSelection {
                 plan: Some(selected.clone()),
             },
         )
@@ -895,7 +895,7 @@ async fn registered_cases_selection() {
         .await
         .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_runtime::core::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.test_executions.len(), 2);
     assert_ne!(
@@ -915,7 +915,7 @@ async fn registered_cases_selection() {
     assert_eq!(
         planning
             .unary::<contracts::planning::PreviewSelection>(
-                contracts::planning::PreviewSelectionRequest { plan: Some(mixed) }
+                contracts::planning::PreviewSelection { plan: Some(mixed) }
             )
             .await
             .unwrap_err()

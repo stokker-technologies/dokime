@@ -29,7 +29,7 @@ use dokime_runtime::{
     definition::{Step, TemplateContext},
     execution::*,
     transport::recording::RecordingSink,
-    transport::{MAX_ARTIFACT_BYTES, RunExecutionRequest, StepAdmission},
+    transport::{MAX_ARTIFACT_BYTES, RunExecution, StepAdmission},
 };
 
 /* === Constants === */
@@ -86,7 +86,7 @@ impl SidecarTemplate for Capture {
 
     fn definition() -> TemplateDefinition {
         let mut template = TemplateContext::new();
-        template.set_template_id(dokime_runtime::core::TemplateId::from_seed(TEMPLATE));
+        template.set_template_id(dokime_runtime::TemplateId::from_seed(TEMPLATE));
         template.set_metadata(dokime_runtime::definition::authoring::metadata(
             TEMPLATE,
             "Capture",
@@ -240,11 +240,11 @@ async fn watching(token: &str) -> (DirectoryRun, Arc<RecordingSink>, PathBuf) {
     let state = Arc::new(State::default());
     let workflow = Workflow::<Capture>::new(WORKFLOW, "fixture").bound(state.clone());
     workflow
-        .start(RunExecutionRequest {
+        .start(RunExecution {
             mode: "automatic".into(),
             execution_token: token.to_owned(),
-            test_cycle_id: dokime_runtime::core::TestCycleId::from_seed(token).to_string(),
-            test_execution_id: dokime_runtime::core::TestExecutionId::from_seed(token).to_string(),
+            test_cycle_id: dokime_runtime::TestCycleId::from_seed(token).to_string(),
+            test_execution_id: dokime_runtime::TestExecutionId::from_seed(token).to_string(),
             template_identifier: TEMPLATE.to_owned(),
             workflow: WORKFLOW.to_owned(),
             secrets_json: "{}".to_owned(),

@@ -257,7 +257,7 @@ mime_type = "image/svg+xml"
 
 #[tokio::test]
 async fn runtime_appearance_brand() {
-    use dokime_runtime::core::{Identifier, Metadata};
+    use dokime_runtime::{Identifier, Metadata};
     use dokime_runtime::Runtime;
 
     let root = tempdir().unwrap();

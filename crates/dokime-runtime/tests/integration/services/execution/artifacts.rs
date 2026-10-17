@@ -22,7 +22,7 @@ use std::path::Path;
 use super::smoke::{Behaviour, Smoke, SOURCE, SUITE};
 use crate::service_support::prelude::*;
 use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, SidecarTemplate, Workflow};
-use dokime_runtime::transport::{EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecutionRequest, SidecarExecutionOutcome, SignalReply, TransportFuture};
+use dokime_runtime::transport::{EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution, SidecarExecutionOutcome, SignalReply, TransportFuture};
 use dokime_runtime::Refusal;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 
@@ -76,7 +76,7 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
         self.workflow.template_identifier()
     }
 
-    fn run(&self, request: RunExecutionRequest, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
+    fn run(&self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         let admitted = Arc::new(Admitted { host, watched: self.watched.clone() });
         self.workflow.run(request, admitted, output, caller)
     }

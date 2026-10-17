@@ -206,7 +206,7 @@ pub async fn render_annotated(
     }
     let captured = CapturedExecutionReportInput {
         final_report: true,
-        owner_node_id: dokime_runtime::core::NodeId::from_seed("fixture.report.owner"),
+        owner_node_id: dokime_runtime::NodeId::from_seed("fixture.report.owner"),
         execution_id: execution.test_execution_id.clone(),
         lifecycle_id: "00000000-0000-4000-8000-000000000001".into(),
         execution: Some(ExecutionRevision {

@@ -460,7 +460,7 @@ async fn execution_plots_samples() {
     let running = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Running).await;
     let execution = running.test_executions[0].scope.clone();
     let execution_id = execution.test_execution_id.as_ref().unwrap().clone();
-    let document_id = dokime_runtime::core::DocumentId::from_identifier("default").unwrap();
+    let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
     let plot_id = Identifier::new("captured.plot").unwrap();
     runtime
         .update_plot_settings(

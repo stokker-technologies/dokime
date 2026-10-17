@@ -23,8 +23,8 @@
 use crate::support::*;
 use dokime_runtime::telemetry::TelemetryRow;
 use dokime_runtime::telemetry::validate_telemetry_sample;
-use dokime_contract::telemetry::{TelemetryBatch, TelemetrySample};
-use dokime_contract::telemetry::{ValidationMode, host_telemetry_contract};
+use dokime_domain::model::telemetry::{TelemetryBatch, TelemetrySample};
+use dokime_domain::model::telemetry::{ValidationMode, host_telemetry_contract};
 use dokime_host::{Host, HostTelemetryStream};
 
 /* === Constants === */

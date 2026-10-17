@@ -56,7 +56,7 @@ async fn running_execution_owners() {
     gate.started.notified().await;
     let attempts = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle.clone(),
                 ..Default::default()
             },
@@ -72,7 +72,7 @@ async fn running_execution_owners() {
     };
     let mut stream = documents
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(selected),
                 document_id: "default".into(),
             },

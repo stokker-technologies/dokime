@@ -180,7 +180,7 @@ async fn suite_definitions_producer() {
             "metadata": metadata,
             "parameters": [],
             "document": {
-                "document_id": dokime_runtime::core::DocumentId::from_seed("native-suite-document"),
+                "document_id": dokime_runtime::DocumentId::from_seed("native-suite-document"),
                 "metadata": metadata,
                 "cards": [{"metadata": metadata, "type": "text", "data": {"markdown": "Saved Definition"}}]
             },
@@ -255,10 +255,10 @@ async fn cycles_reopen_producers() {
         "Stored Cycle",
         None,
     );
-    let at = dokime_runtime::core::Timestamp::new("2026-10-05T09:00:00Z");
+    let at = dokime_runtime::Timestamp::new("2026-10-05T09:00:00Z");
     let mut expected = dokime_runtime::execution::TestCycle {
         saved: None,
-        test_cycle_id: dokime_runtime::core::TestCycleId::from_seed("native-latest-cycle"),
+        test_cycle_id: dokime_runtime::TestCycleId::from_seed("native-latest-cycle"),
         session_id: None,
         metadata,
         lifecycle: dokime_runtime::execution::CycleStatus::Ready,
@@ -266,8 +266,8 @@ async fn cycles_reopen_producers() {
         started_at: None,
         updated_at: at,
         execution_ids: vec![
-            dokime_runtime::core::TestExecutionId::from_seed("native-first"),
-            dokime_runtime::core::TestExecutionId::from_seed("native-second"),
+            dokime_runtime::TestExecutionId::from_seed("native-first"),
+            dokime_runtime::TestExecutionId::from_seed("native-second"),
         ],
         records: Default::default(),
         continue_on_failure: false,
@@ -278,7 +278,7 @@ async fn cycles_reopen_producers() {
     storage.flush_until(&receipt.position).await.unwrap();
 
     expected.lifecycle = dokime_runtime::execution::CycleStatus::Completed;
-    expected.updated_at = dokime_runtime::core::Timestamp::new("2026-10-05T09:01:00Z");
+    expected.updated_at = dokime_runtime::Timestamp::new("2026-10-05T09:01:00Z");
     expected.execution_ids.reverse();
     expected.result = Some(dokime_runtime::execution::ResultSummary {
         status: dokime_runtime::execution::ResultStatus::Passed,
@@ -322,7 +322,7 @@ async fn cycles_reopen_producers() {
     );
     assert_eq!(saved.as_ref().unwrap().position, receipt.position);
     assert_eq!(saved.as_ref().unwrap().version, receipt.version);
-    let missing = dokime_runtime::core::TestCycleId::from_seed("native-missing-cycle");
+    let missing = dokime_runtime::TestCycleId::from_seed("native-missing-cycle");
     let absent = dokime_runtime::storage::objects::cycle::read(
         &storage,
         &missing,
@@ -378,9 +378,9 @@ async fn executions_reopen_results() {
     )
     .unwrap()
     .with_host_version(Some("0.1.0".into()));
-    let cycle_id = dokime_runtime::core::TestCycleId::from_seed("native-frozen-cycle");
-    let execution_id = dokime_runtime::core::TestExecutionId::from_seed("native-frozen-execution");
-    let scope = dokime_runtime::core::RecordScope::default()
+    let cycle_id = dokime_runtime::TestCycleId::from_seed("native-frozen-cycle");
+    let execution_id = dokime_runtime::TestExecutionId::from_seed("native-frozen-execution");
+    let scope = dokime_runtime::RecordScope::default()
         .with_cycle(cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
         .with_test_execution(execution_id.clone());
@@ -426,8 +426,8 @@ async fn executions_reopen_results() {
     output.value = Value::Integer(i64::MIN);
     expected.output_parameters.insert("count".into(), output);
     expected.status = dokime_runtime::execution::ExecutionStatus::Failed;
-    expected.started_at = Some(dokime_runtime::core::Timestamp::new("2026-10-05T09:00:00Z"));
-    expected.finished_at = Some(dokime_runtime::core::Timestamp::new("2026-10-05T09:01:00Z"));
+    expected.started_at = Some(dokime_runtime::Timestamp::new("2026-10-05T09:00:00Z"));
+    expected.finished_at = Some(dokime_runtime::Timestamp::new("2026-10-05T09:01:00Z"));
     expected.result = Some(dokime_runtime::execution::ResultSummary {
         status: dokime_runtime::execution::ResultStatus::Failed,
         passed: 0,
@@ -477,7 +477,7 @@ async fn executions_reopen_results() {
         saved.value.effective_parameters()["count"].value,
         Value::Integer(i64::MIN)
     );
-    let missing = dokime_runtime::core::TestExecutionId::from_seed("native-frozen-missing");
+    let missing = dokime_runtime::TestExecutionId::from_seed("native-frozen-missing");
     let absent = dokime_runtime::storage::objects::execution::read(
         &storage,
         &missing,

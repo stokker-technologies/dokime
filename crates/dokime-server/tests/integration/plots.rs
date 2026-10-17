@@ -88,7 +88,7 @@ async fn plot_points_admission() {
     // The bound is measured on the plot's payload, so the unary query names
     // the same maximum over the same rows.
     let unary = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::PlotSnapshotsRequest {
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots {
             requests: vec![request(100_000)],
         })
         .await
@@ -116,7 +116,7 @@ async fn plot_points_admission() {
     );
 
     let beyond = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::PlotSnapshotsRequest {
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots {
             requests: vec![request(100_001)],
         })
         .await
@@ -171,7 +171,7 @@ async fn open_watch(
     max_points: u64,
 ) -> WireStream<contracts::plots::PlotStreamFrame> {
     client
-        .download::<contracts::plots::Watch>(contracts::plots::PlotWatchRequest {
+        .download::<contracts::plots::Watch>(contracts::plots::Watch {
             requests: vec![request(max_points)],
         })
         .await

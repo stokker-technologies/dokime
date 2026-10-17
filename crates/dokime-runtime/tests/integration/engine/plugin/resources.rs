@@ -461,7 +461,7 @@ fn resolved(
     .to_string()
 }
 
-fn start(token: &str, parameters_json: String) -> dokime_runtime::transport::RunExecutionRequest {
+fn start(token: &str, parameters_json: String) -> dokime_runtime::transport::RunExecution {
     super::native::run_request(token, SUITE, TEMPLATE, parameters_json)
 }
 

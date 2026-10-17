@@ -22,7 +22,7 @@ use serde_json::json;
 // Local Imports
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
-use dokime_contract::operations::{execution, value};
+use dokime_domain::operations::{execution, value};
 use dokime_gui::rpc::Bridge;
 
 /* === Constants === */

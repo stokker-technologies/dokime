@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::artifacts::name::{self, InvalidName};
+use dokime_domain::model::artifacts::name::{self, InvalidName};
 
 /* === Constants === */
 

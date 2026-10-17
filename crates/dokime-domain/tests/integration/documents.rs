@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::document::{Plot, PlotDefinition, format, validate_plot_definition};
-use dokime_contract::expressions::telemetry;
+use dokime_domain::model::document::{Plot, PlotDefinition, format, validate_plot_definition};
+use dokime_domain::model::expressions::telemetry;
 
 /* === Constants === */
 
@@ -40,7 +40,7 @@ use dokime_contract::expressions::telemetry;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn reconnection(field: &str) -> dokime_contract::expressions::DataExpression {
+fn reconnection(field: &str) -> dokime_domain::model::expressions::DataExpression {
     telemetry("bench.reconnection", field)
 }
 

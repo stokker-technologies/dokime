@@ -30,7 +30,7 @@ pub mod prelude {
     pub use std::sync::Arc;
     pub use std::time::Duration;
 
-    pub use dokime_runtime::core::{
+    pub use dokime_runtime::{
         CorrelationId, Identifier, Metadata, RecordScope, TemplateId, TestCycleId, TestExecutionId,
         Timestamp, Value,
     };
@@ -77,7 +77,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::{Identifier, Metadata, Value};
+use dokime_runtime::{Identifier, Metadata, Value};
 use dokime_runtime::domains::execution::provider::ExecutionFixture;
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 
@@ -150,7 +150,7 @@ pub async fn started_with_fixtures(
     (runtime, handle)
 }
 
-pub fn assert_wall_clock(timestamp: &dokime_runtime::core::Timestamp) {
+pub fn assert_wall_clock(timestamp: &dokime_runtime::Timestamp) {
     let year: i32 = timestamp
         .as_str()
         .get(0..4)
@@ -168,7 +168,7 @@ pub async fn blocked_cycle(
 ) -> (
     Runtime,
     RuntimeHandle,
-    dokime_runtime::core::TestCycleId,
+    dokime_runtime::TestCycleId,
     Arc<executors::BlockingPublishingExecutor>,
 ) {
     blocked_cycle_with(config(root)).await
@@ -179,7 +179,7 @@ pub async fn blocked_cycle_with(
 ) -> (
     Runtime,
     RuntimeHandle,
-    dokime_runtime::core::TestCycleId,
+    dokime_runtime::TestCycleId,
     Arc<executors::BlockingPublishingExecutor>,
 ) {
     let executor = Arc::new(executors::BlockingPublishingExecutor::new());

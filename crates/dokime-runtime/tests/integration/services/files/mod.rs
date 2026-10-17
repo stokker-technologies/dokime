@@ -28,8 +28,8 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
 use dokime_runtime::domains::files::{FileWatch, WatchEvent};
-use dokime_contract::operations::files::{
-    FileRule, FileRuleAction, FileWatchPolicy, FileWatchRequest, FileWatchSource,
+use dokime_domain::operations::files::{
+    FileRule, FileRuleAction, FileWatchPolicy, FileWatch, FileWatchSource,
     FileWatchSourcePayload, LocalWatchSource,
 };
 
@@ -86,8 +86,8 @@ pub(crate) fn request(
     source: FileWatchSourcePayload,
     rules: Vec<FileRule>,
     policy: FileWatchPolicy,
-) -> FileWatchRequest {
-    FileWatchRequest {
+) -> FileWatch {
+    FileWatch {
         execution_id: Some(execution.to_owned()),
         source: Some(FileWatchSource {
             payload: Some(source),

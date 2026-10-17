@@ -17,7 +17,7 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use dokime_runtime::core::{Identifier, Metadata, TestCycleId, Timestamp};
+use dokime_runtime::{Identifier, Metadata, TestCycleId, Timestamp};
 use dokime_runtime::telemetry::{
     SamplingScope, TelemetryBatch, TelemetrySamplingRequest, TelemetrySourceKind,
 };
@@ -144,7 +144,7 @@ fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
         source_kind: TelemetrySourceKind::InstalledPlugin,
         source_id: "test.source".to_owned(),
         stream: "fixture.counting".to_owned(),
-        interval: Some(dokime_runtime::core::DurationMillis(interval_ms)),
+        interval: Some(dokime_runtime::DurationMillis(interval_ms)),
         min_interval: None,
         start_after: None,
     }

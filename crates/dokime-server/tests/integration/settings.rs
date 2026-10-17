@@ -102,7 +102,7 @@ async fn frame_readable_probe() {
     let (_environment, server, client) = fixture().await;
     assert_eq!(
         client
-            .unary::<contracts::settings::GetSettings>(contracts::settings::GetSettingsRequest {})
+            .unary::<contracts::settings::GetSettings>(contracts::settings::GetSettings {})
             .await
             .unwrap_err()
             .code(),
@@ -111,7 +111,7 @@ async fn frame_readable_probe() {
 
     let frame = client
         .unary::<contracts::settings::GetSettings>(auth(
-            contracts::settings::GetSettingsRequest {},
+            contracts::settings::GetSettings {},
             super::TOKEN,
         ))
         .await
@@ -144,7 +144,7 @@ async fn storage_sources_admin() {
     assert_eq!(
         client
             .unary::<contracts::settings::ListStorageSources>(
-                contracts::settings::ListStorageSourcesRequest {}
+                contracts::settings::ListStorageSources {}
             )
             .await
             .unwrap_err()
@@ -153,7 +153,7 @@ async fn storage_sources_admin() {
     );
     let sources = client
         .unary::<contracts::settings::ListStorageSources>(auth(
-            contracts::settings::ListStorageSourcesRequest {},
+            contracts::settings::ListStorageSources {},
             super::TOKEN,
         ))
         .await
@@ -167,7 +167,7 @@ async fn storage_sources_admin() {
         assert_eq!(
             client
                 .unary::<contracts::settings::ReorderStorageSources>(auth(
-                    contracts::settings::ReorderStorageSourcesRequest {
+                    contracts::settings::ReorderStorageSources {
                         identifiers: vec!["local".into()],
                     },
                     token
@@ -180,7 +180,7 @@ async fn storage_sources_admin() {
         assert_eq!(
             client
                 .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                    contracts::settings::SetStorageSourceEnabledRequest {
+                    contracts::settings::SetStorageSourceEnabled {
                         identifier: "local".into(),
                         enabled: true,
                     },
@@ -201,7 +201,7 @@ async fn storage_sources_admin() {
         assert_eq!(
             client
                 .unary::<contracts::settings::ReorderStorageSources>(auth(
-                    contracts::settings::ReorderStorageSourcesRequest { identifiers },
+                    contracts::settings::ReorderStorageSources { identifiers },
                     ADMIN_TOKEN
                 ))
                 .await
@@ -213,7 +213,7 @@ async fn storage_sources_admin() {
     assert_eq!(
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                contracts::settings::SetStorageSourceEnabledRequest {
+                contracts::settings::SetStorageSourceEnabled {
                     identifier: "local".into(),
                     enabled: false,
                 },
@@ -235,7 +235,7 @@ async fn storage_sources_admin() {
         assert_eq!(
             client
                 .unary::<contracts::settings::ReorderStorageSources>(auth(
-                    contracts::settings::ReorderStorageSourcesRequest {
+                    contracts::settings::ReorderStorageSources {
                         identifiers: refused.clone()
                     },
                     ADMIN_TOKEN
@@ -250,7 +250,7 @@ async fn storage_sources_admin() {
     }
     let reply = client
         .unary::<contracts::settings::ReorderStorageSources>(auth(
-            contracts::settings::ReorderStorageSourcesRequest {
+            contracts::settings::ReorderStorageSources {
                 identifiers: vec!["local".into()],
             },
             ADMIN_TOKEN,
@@ -262,7 +262,7 @@ async fn storage_sources_admin() {
     assert_eq!(
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                contracts::settings::SetStorageSourceEnabledRequest {
+                contracts::settings::SetStorageSourceEnabled {
                     identifier: "local".into(),
                     enabled: true,
                 },
@@ -280,7 +280,7 @@ async fn storage_sources_admin() {
 #[tokio::test]
 async fn plugin_settings_admin() {
     let (_environment, server, client) = fixture().await;
-    let request = contracts::settings::GetPluginSettingsRequest {
+    let request = contracts::settings::GetPluginSettings {
         plugin_id: "fixture.settings".into(),
     };
     let initial = client
@@ -301,7 +301,7 @@ async fn plugin_settings_admin() {
         vec!["fixture.token"]
     );
 
-    let update = contracts::settings::UpdatePluginSettingsRequest {
+    let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture.settings".into(),
         values: Some(contracts::value::Value::from(&Value::Object(
             BTreeMap::from([("workspace".into(), Value::Text("Production".into()))]),
@@ -327,7 +327,7 @@ async fn plugin_settings_admin() {
 
     let updated = client
         .unary::<contracts::settings::UpdatePluginCredential>(auth(
-            contracts::settings::UpdatePluginCredentialRequest {
+            contracts::settings::UpdatePluginCredential {
                 plugin_id: "fixture.settings".into(),
                 credential_id: "fixture.token".into(),
                 secret: "secret-material".into(),
@@ -421,7 +421,7 @@ async fn backend_policy_revision() {
     let (_environment, server, client) = fixture().await;
     let initial = client
         .unary::<contracts::settings::ReadStoragePolicy>(auth(
-            contracts::settings::ReadStoragePolicyRequest {},
+            contracts::settings::ReadStoragePolicy {},
             super::TOKEN,
         ))
         .await
@@ -430,7 +430,7 @@ async fn backend_policy_revision() {
     assert_eq!(initial.revision, 0);
     let mut policy = initial.configured.unwrap();
     policy.compaction_interval_ms = 7_200_000;
-    let request = contracts::settings::UpdateStoragePolicyRequest {
+    let request = contracts::settings::UpdateStoragePolicy {
         expected_revision: 0,
         policy: Some(policy.clone()),
     };
@@ -461,7 +461,7 @@ async fn backend_policy_revision() {
             .code(),
         Code::FailedPrecondition
     );
-    let invalid = contracts::settings::UpdateStoragePolicyRequest {
+    let invalid = contracts::settings::UpdateStoragePolicy {
         expected_revision: 1,
         policy: Some(contracts::settings::StoragePolicy::default()),
     };
@@ -475,7 +475,7 @@ async fn backend_policy_revision() {
     );
     let read = client
         .unary::<contracts::settings::ReadStoragePolicy>(auth(
-            contracts::settings::ReadStoragePolicyRequest {},
+            contracts::settings::ReadStoragePolicy {},
             super::TOKEN,
         ))
         .await
@@ -490,7 +490,7 @@ async fn app_settings_role() {
     let (environment, server, client) = fixture().await;
     let initial = client
         .unary::<contracts::settings::ReadApplicationSettings>(auth(
-            contracts::settings::ReadApplicationSettingsRequest {},
+            contracts::settings::ReadApplicationSettings {},
             super::TOKEN,
         ))
         .await
@@ -499,7 +499,7 @@ async fn app_settings_role() {
     assert_eq!(initial.configured_data_root, None);
 
     // Appearance Needs Control; It Is Saved Without A Restart
-    let appearance = contracts::settings::UpdateAppearanceRequest {
+    let appearance = contracts::settings::UpdateAppearance {
         appearance: Some(contracts::settings::AppearancePreference {
             theme_mode: contracts::settings::ThemeMode::Dark,
             theme_family: Some("brand.theme".into()),
@@ -527,7 +527,7 @@ async fn app_settings_role() {
 
     // The Data Root Needs Admin And Applies On Restart
     let chosen = environment.root.path().join("chosen-data");
-    let data_root = contracts::settings::UpdateDataRootRequest {
+    let data_root = contracts::settings::UpdateDataRoot {
         data_root: Some(chosen.display().to_string()),
     };
     assert_eq!(
@@ -538,7 +538,7 @@ async fn app_settings_role() {
             .code(),
         Code::PermissionDenied
     );
-    let relative = contracts::settings::UpdateDataRootRequest {
+    let relative = contracts::settings::UpdateDataRoot {
         data_root: Some("relative".into()),
     };
     assert_eq!(

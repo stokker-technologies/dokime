@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 // Third Party Imports
 use async_trait::async_trait;
 use dokime_runtime::Message;
-use dokime_runtime::core::Identifier;
+use dokime_runtime::Identifier;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::transport::{ExecutionSignal, SignalReply, TransportFuture};
 use harmos::sidecar::StreamDeclaration;
@@ -69,7 +69,7 @@ impl Runnable for Idle {
 
     fn run(
         &self,
-        _: dokime_runtime::transport::RunExecutionRequest,
+        _: dokime_runtime::transport::RunExecution,
         _: Arc<dyn dokime_runtime::execution::ExecutionHost>,
         _: Option<dokime_runtime::execution::SampleOutput>,
         _: dokime_runtime::execution::Caller,
@@ -160,7 +160,7 @@ impl EmbeddedProvider for Probe {
 
 #[tokio::test]
 async fn registration_replaces_failed() {
-    use dokime_runtime::core::Metadata;
+    use dokime_runtime::Metadata;
 
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
@@ -288,7 +288,7 @@ async fn registration_replaces_failed() {
 
 #[tokio::test]
 async fn cancelled_registration_until() {
-    use dokime_runtime::core::Metadata;
+    use dokime_runtime::Metadata;
 
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
@@ -350,7 +350,7 @@ async fn cancelled_registration_until() {
 
 #[tokio::test]
 async fn replacement_settles_generation() {
-    use dokime_runtime::core::Metadata;
+    use dokime_runtime::Metadata;
 
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
@@ -454,7 +454,7 @@ impl EmbeddedProvider for ShutdownProbe {
 fn shutdown_config(root: &std::path::Path) -> dokime_runtime::RuntimeConfig {
     crate::service_support::budgets::runtime_config(
         root,
-        dokime_runtime::core::Metadata::new(
+        dokime_runtime::Metadata::new(
             Identifier::new("fixture.shutdown.host").unwrap(),
             "Shutdown Host",
             None,

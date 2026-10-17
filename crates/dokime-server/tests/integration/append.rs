@@ -60,7 +60,7 @@ fn plan(selection: contracts::planning::RegisteredSelection) -> contracts::plann
 async fn cases(execution: &WireClient, cycle_id: &str) -> Vec<contracts::execution::CaseSummary> {
     execution
         .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: cycle_id.into(),
                 ..Default::default()
             },
@@ -98,7 +98,7 @@ async fn append_cases_control() {
     // A cycle starts empty and Ready; creating it needs no plan.
     let cycle_id = execution
         .unary::<contracts::execution::CreateCycle>(auth(
-            contracts::execution::CreateCycleRequest {
+            contracts::execution::CreateCycle {
                 metadata: Some(contracts::common::Metadata {
                     label: "Append cycle".into(),
                     ..Default::default()
@@ -113,7 +113,7 @@ async fn append_cases_control() {
         .cycle_id;
     let created = execution
         .unary::<contracts::execution::GetCycle>(auth(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: cycle_id.clone(),
             },
             CONTROL_TOKEN,
@@ -130,7 +130,7 @@ async fn append_cases_control() {
     // Running an empty cycle is refused until cases are appended.
     let empty = execution
         .unary::<contracts::execution::RunCycle>(auth(
-            contracts::execution::RunCycleRequest {
+            contracts::execution::RunCycle {
                 cycle_id: cycle_id.clone(),
                 context: None,
                 idempotency_key: None,
@@ -148,7 +148,7 @@ async fn append_cases_control() {
 
     execution
         .unary::<contracts::execution::AppendPlannedCases>(auth(
-            contracts::execution::AppendPlannedCasesRequest {
+            contracts::execution::AppendPlannedCases {
                 cycle_id: cycle_id.clone(),
                 plan: Some(plan(selection(&suite, 0))),
                 context: None,
@@ -160,7 +160,7 @@ async fn append_cases_control() {
     let before = cases(&execution, &cycle_id).await;
     assert_eq!(before.len(), 1);
 
-    let request = contracts::execution::AppendPlannedCasesRequest {
+    let request = contracts::execution::AppendPlannedCases {
         cycle_id: cycle_id.clone(),
         plan: Some(plan(selection(&suite, 1))),
         context: None,
@@ -189,7 +189,7 @@ async fn append_cases_control() {
     // Appending a template again continues its numbering within the cycle.
     execution
         .unary::<contracts::execution::AppendPlannedCases>(auth(
-            contracts::execution::AppendPlannedCasesRequest {
+            contracts::execution::AppendPlannedCases {
                 cycle_id: cycle_id.clone(),
                 plan: Some(plan(selection(&suite, 0))),
                 context: None,
@@ -221,7 +221,7 @@ async fn append_cases_control() {
         .unwrap();
     execution
         .unary::<contracts::execution::RenameExecution>(auth(
-            contracts::execution::RenameExecutionRequest {
+            contracts::execution::RenameExecution {
                 execution_id: renamed,
                 label: "Bench Warm-Up".into(),
                 context: None,
@@ -232,7 +232,7 @@ async fn append_cases_control() {
         .unwrap();
     execution
         .unary::<contracts::execution::AppendPlannedCases>(auth(
-            contracts::execution::AppendPlannedCasesRequest {
+            contracts::execution::AppendPlannedCases {
                 cycle_id: cycle_id.clone(),
                 plan: Some(plan(selection(&suite, 0))),
                 context: None,
@@ -254,7 +254,7 @@ async fn append_cases_control() {
     let backend = WireClient::connect(server.local_endpoint()).await.unwrap();
     let read_methods = backend
         .unary::<contracts::backend::GetAvailability>(auth(
-            contracts::backend::GetAvailabilityRequest::default(),
+            contracts::backend::GetAvailability::default(),
             super::TOKEN,
         ))
         .await
@@ -264,7 +264,7 @@ async fn append_cases_control() {
     assert!(!read_methods.contains(&"/dokime.v1.Execution/AppendPlannedCases".into()));
     let control_methods = backend
         .unary::<contracts::backend::GetAvailability>(auth(
-            contracts::backend::GetAvailabilityRequest::default(),
+            contracts::backend::GetAvailability::default(),
             CONTROL_TOKEN,
         ))
         .await

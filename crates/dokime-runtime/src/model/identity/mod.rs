@@ -60,7 +60,7 @@ mod tests {
                 .map(|_| {
                     scope.spawn(|| {
                         (0..10_000)
-                            .map(|_| super::new_id::<dokime_contract::core::ArtifactId>())
+                            .map(|_| super::new_id::<dokime_domain::model::identity::ArtifactId>())
                             .collect::<Vec<_>>()
                     })
                 })

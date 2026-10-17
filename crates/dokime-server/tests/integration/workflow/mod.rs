@@ -140,13 +140,6 @@ impl Gated {
 
 /* === Public Functions === */
 /* === Private Functions === */
-fn control(id: &str) -> contracts::execution::CycleControlRequest {
-    contracts::execution::CycleControlRequest {
-        cycle_id: id.into(),
-        context: None,
-    }
-}
-
 #[tokio::test]
 async fn registered_create_definitions() {
     let root = tempfile::tempdir().unwrap();
@@ -170,14 +163,14 @@ async fn registered_create_definitions() {
     let observation = WireClient::new(connection);
     let suites = catalog
         .unary::<contracts::catalog::ListSuites>(authenticated(
-            contracts::catalog::ListSuitesRequest::default(),
+            contracts::catalog::ListSuites::default(),
         ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(suites.suites.len(), 1);
     let suite = catalog
-        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuite {
             suite_id: suites.suites[0].suite_id.clone(),
         }))
         .await
@@ -199,7 +192,7 @@ async fn registered_create_definitions() {
     ));
     let mut stream = observation
         .download::<contracts::observation::WatchRuntime>(authenticated(
-            contracts::observation::WatchRuntimeRequest::default(),
+            contracts::observation::WatchRuntime::default(),
         ))
         .await
         .unwrap()
@@ -211,7 +204,7 @@ async fn registered_create_definitions() {
         .unwrap();
     let planned = execution
         .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             },
         ))
@@ -223,7 +216,7 @@ async fn registered_create_definitions() {
     assert_eq!(planned.execution_count, 1);
     let cases = execution
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: id.clone(),
                 ..Default::default()
             },
@@ -235,7 +228,7 @@ async fn registered_create_definitions() {
     assert_eq!(cases[0].template_id, suite.templates[0].template_id);
     let admitted = execution
         .unary::<contracts::execution::RunCase>(authenticated(
-            contracts::execution::RunCaseRequest {
+            contracts::execution::RunCase {
                 cycle_id: id.clone(),
                 case_id: cases[0].case_id.clone(),
                 context: None,
@@ -251,11 +244,11 @@ async fn registered_create_definitions() {
     ));
     gate.started.notified().await;
     execution
-        .unary::<contracts::execution::PauseCycle>(authenticated(control(&id)))
+        .unary::<contracts::execution::PauseCycle>(authenticated(contracts::execution::PauseCycle { cycle_id: id.clone(), context: None }))
         .await
         .unwrap();
     execution
-        .unary::<contracts::execution::ResumeCycle>(authenticated(control(&id)))
+        .unary::<contracts::execution::ResumeCycle>(authenticated(contracts::execution::ResumeCycle { cycle_id: id.clone(), context: None }))
         .await
         .unwrap();
     // Disconnect observation while admitted work is waiting on the fixture.
@@ -263,7 +256,7 @@ async fn registered_create_definitions() {
     gate.release.notify_one();
     let mut stream = observation
         .download::<contracts::observation::WatchRuntime>(authenticated(
-            contracts::observation::WatchRuntimeRequest {
+            contracts::observation::WatchRuntime {
                 cursor: initial.cursor.clone(),
             },
         ))
@@ -275,7 +268,7 @@ async fn registered_create_definitions() {
         loop {
             let cycle = execution
                 .unary::<contracts::execution::GetCycle>(authenticated(
-                    contracts::execution::GetCycleRequest {
+                    contracts::execution::GetCycle {
                         cycle_id: id.clone(),
                     },
                 ))
@@ -286,7 +279,7 @@ async fn registered_create_definitions() {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
                     .unary::<contracts::execution::ListExecutions>(authenticated(
-                        contracts::execution::ListExecutionsRequest {
+                        contracts::execution::ListExecutions {
                             cycle_id: id.clone(),
                             ..Default::default()
                         },
@@ -305,7 +298,7 @@ async fn registered_create_definitions() {
     }
     let list = execution
         .unary::<contracts::execution::ListCycles>(authenticated(
-            contracts::execution::ListCyclesRequest::default(),
+            contracts::execution::ListCycles::default(),
         ))
         .await
         .unwrap()
@@ -315,13 +308,13 @@ async fn registered_create_definitions() {
         .await
         .unwrap();
     execution
-        .unary::<contracts::execution::StopCycle>(authenticated(control(&other)))
+        .unary::<contracts::execution::StopCycle>(authenticated(contracts::execution::StopCycle { cycle_id: other.clone(), context: None }))
         .await
         .unwrap();
     assert_eq!(
         execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest { cycle_id: other }
+                contracts::execution::GetCycle { cycle_id: other }
             ))
             .await
             .unwrap()
@@ -371,12 +364,12 @@ async fn stopping_running_unwind() {
     blocker.started.notified().await;
 
     execution
-        .unary::<contracts::execution::StopCycle>(authenticated(control(&cycle_id)))
+        .unary::<contracts::execution::StopCycle>(authenticated(contracts::execution::StopCycle { cycle_id: cycle_id.clone(), context: None }))
         .await
         .unwrap();
     let stopping = execution
         .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
+            contracts::execution::GetCycle {
                 cycle_id: cycle_id.clone(),
             },
         ))
@@ -389,7 +382,7 @@ async fn stopping_running_unwind() {
     let stopped = support::on_state_change(&owner.handle(), async || {
         let summary = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -405,7 +398,7 @@ async fn stopping_running_unwind() {
     assert_eq!(stopped.execution_count, 1);
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id,
                 ..Default::default()
             },
@@ -448,7 +441,7 @@ async fn runtime_shell_cursor() {
 
     let first = observation
         .unary::<contracts::observation::GetRuntimeShell>(authenticated(
-            contracts::observation::GetRuntimeShellRequest {
+            contracts::observation::GetRuntimeShell {
                 limit: 1,
                 ..Default::default()
             },
@@ -465,7 +458,7 @@ async fn runtime_shell_cursor() {
 
     let second = observation
         .unary::<contracts::observation::GetRuntimeShell>(authenticated(
-            contracts::observation::GetRuntimeShellRequest {
+            contracts::observation::GetRuntimeShell {
                 limit: 1,
                 after_cycle_id: next_cycle.clone(),
                 cursor: Some(cursor.clone()),
@@ -492,7 +485,7 @@ async fn runtime_shell_cursor() {
     assert_eq!(
         observation
             .unary::<contracts::observation::GetRuntimeShell>(authenticated(
-                contracts::observation::GetRuntimeShellRequest {
+                contracts::observation::GetRuntimeShell {
                     limit: 1,
                     after_cycle_id: next_cycle.clone(),
                     cursor: Some(future_cursor),
@@ -508,7 +501,7 @@ async fn runtime_shell_cursor() {
     assert_eq!(
         observation
             .unary::<contracts::observation::GetRuntimeShell>(authenticated(
-                contracts::observation::GetRuntimeShellRequest {
+                contracts::observation::GetRuntimeShell {
                     limit: 1,
                     after_cycle_id: next_cycle.clone(),
                     cursor: Some(wrong_epoch),
@@ -527,7 +520,7 @@ async fn runtime_shell_cursor() {
     assert_eq!(
         observation
             .unary::<contracts::observation::GetRuntimeShell>(authenticated(
-                contracts::observation::GetRuntimeShellRequest {
+                contracts::observation::GetRuntimeShell {
                     limit: 1,
                     after_cycle_id: next_cycle,
                     cursor: Some(cursor),
@@ -573,7 +566,7 @@ async fn checkpoint_telemetry_queries() {
     let checkpoint = support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -584,7 +577,7 @@ async fn checkpoint_telemetry_queries() {
             return Some(
                 history
                     .unary::<contracts::history::BrowseExecutions>(authenticated(
-                        contracts::history::BrowseExecutionsRequest {
+                        contracts::history::BrowseExecutions {
                             limit: 1,
                             ..Default::default()
                         },
@@ -609,7 +602,7 @@ async fn checkpoint_telemetry_queries() {
 
     let evidence = history
         .unary::<contracts::history::GetCheckpointEvidence>(authenticated(
-            contracts::history::GetCheckpointEvidenceRequest {
+            contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
                 sections: vec![contracts::history::EvidenceSection::TelemetryTables],
             },
@@ -630,7 +623,7 @@ async fn checkpoint_telemetry_queries() {
 
     let page = history
         .unary::<contracts::history::ListCheckpointTelemetry>(authenticated(
-            contracts::history::ListCheckpointTelemetryRequest {
+            contracts::history::ListCheckpointTelemetry {
                 checkpoint: Some(checkpoint),
                 table: telemetry.table.clone(),
                 limit: 10,
@@ -672,7 +665,7 @@ async fn historical_checkpoint_content() {
             .unwrap();
     let case_id = execution
         .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
+            contracts::execution::ListCases {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             },
@@ -696,7 +689,7 @@ async fn historical_checkpoint_content() {
         .clone();
     execution
         .unary::<contracts::execution::RunCase>(authenticated(
-            contracts::execution::RunCaseRequest {
+            contracts::execution::RunCase {
                 cycle_id: cycle_id.clone(),
                 case_id,
                 context: None,
@@ -710,7 +703,7 @@ async fn historical_checkpoint_content() {
     support::on_state_change(&owner.handle(), async || {
         if execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -728,7 +721,7 @@ async fn historical_checkpoint_content() {
 
     let browse = history
         .unary::<contracts::history::BrowseExecutions>(authenticated(
-            contracts::history::BrowseExecutionsRequest {
+            contracts::history::BrowseExecutions {
                 limit: 1,
                 ..Default::default()
             },
@@ -758,7 +751,7 @@ async fn historical_checkpoint_content() {
 
     let document = history
         .unary::<contracts::history::GetCheckpointDocument>(authenticated(
-            contracts::history::GetCheckpointDocumentRequest {
+            contracts::history::GetCheckpointDocument {
                 checkpoint: Some(checkpoint.clone()),
             },
         ))
@@ -777,7 +770,7 @@ async fn historical_checkpoint_content() {
 
     let evidence = history
         .unary::<contracts::history::GetCheckpointEvidence>(authenticated(
-            contracts::history::GetCheckpointEvidenceRequest {
+            contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
                 sections: vec![],
             },
@@ -816,7 +809,7 @@ async fn historical_checkpoint_content() {
         vec![contracts::execution::CaseParameter {
             name: "fixture.result".into(),
             value: Some(contracts::value::Value::from(
-                &dokime_runtime::core::Value::Text("passed".into())
+                &dokime_runtime::Value::Text("passed".into())
             )),
         }]
     );
@@ -829,7 +822,7 @@ async fn historical_checkpoint_content() {
 
     let context = history
         .unary::<contracts::history::GetCheckpointContext>(authenticated(
-            contracts::history::GetCheckpointContextRequest {
+            contracts::history::GetCheckpointContext {
                 checkpoint: Some(checkpoint.clone()),
             },
         ))
@@ -847,7 +840,7 @@ async fn historical_checkpoint_content() {
     );
     let records = history
         .unary::<contracts::history::ListCheckpointRecords>(authenticated(
-            contracts::history::ListCheckpointRecordsRequest {
+            contracts::history::ListCheckpointRecords {
                 checkpoint: Some(checkpoint.clone()),
                 limit: 1,
                 ..Default::default()
@@ -860,7 +853,7 @@ async fn historical_checkpoint_content() {
 
     let mut execution_stream = reports
         .download::<contracts::reports::DownloadExecutionReport>(authenticated(
-            contracts::reports::DownloadExecutionReportRequest {
+            contracts::reports::DownloadExecutionReport {
                 execution_id: checkpoint.execution_identifier.clone(),
             },
         ))
@@ -887,7 +880,7 @@ async fn historical_checkpoint_content() {
 
     let mut html_stream = reports
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
-            contracts::reports::DownloadCycleReportRequest {
+            contracts::reports::DownloadCycleReport {
                 cycle_id: cycle_id.clone(),
                 identifier: "grpc.download".into(),
             },
@@ -913,7 +906,7 @@ async fn historical_checkpoint_content() {
 
     let refreshed = history
         .unary::<contracts::history::BrowseExecutions>(authenticated(
-            contracts::history::BrowseExecutionsRequest {
+            contracts::history::BrowseExecutions {
                 limit: 1,
                 ..Default::default()
             },
@@ -968,7 +961,7 @@ async fn historical_checkpoint_content() {
         .unwrap();
     let restored = rebooted_history
         .unary::<contracts::history::GetCheckpointDocument>(authenticated(
-            contracts::history::GetCheckpointDocumentRequest {
+            contracts::history::GetCheckpointDocument {
                 checkpoint: Some(checkpoint.clone()),
             },
         ))
@@ -986,7 +979,7 @@ async fn historical_checkpoint_content() {
         .unwrap();
     let mut restored_report = rebooted_reports
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
-            contracts::reports::DownloadCycleReportRequest {
+            contracts::reports::DownloadCycleReport {
                 cycle_id: cycle_id.clone(),
                 identifier: "grpc.download".into(),
             },
@@ -1034,7 +1027,7 @@ async fn read_role_admit() {
     );
     client
         .unary::<contracts::execution::ListCycles>(authenticated(
-            contracts::execution::ListCyclesRequest::default(),
+            contracts::execution::ListCycles::default(),
         ))
         .await
         .unwrap();
@@ -1061,7 +1054,7 @@ async fn read_role_admit() {
         .unwrap()
         .into_inner()
         .cycle_id;
-    let append = |plan| contracts::execution::AppendPlannedCasesRequest {
+    let append = |plan| contracts::execution::AppendPlannedCases {
         cycle_id: cycle_id.clone(),
         plan: Some(plan),
         context: None,
@@ -1121,7 +1114,7 @@ async fn read_role_admit() {
     assert_eq!(rejection.message, failure.message());
     assert!(
         client
-            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             })
@@ -1133,7 +1126,7 @@ async fn read_role_admit() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 limit: 101,
                 ..Default::default()
             })
@@ -1146,7 +1139,7 @@ async fn read_role_admit() {
     assert_eq!(
         observation
             .download::<contracts::observation::WatchRuntime>(
-                contracts::observation::WatchRuntimeRequest {
+                contracts::observation::WatchRuntime {
                     cursor: Some(contracts::cursor::Cursor {
                         epoch: "other".into(),
                         stream: "runtime.state".into(),
@@ -1201,7 +1194,7 @@ async fn stalled_stream_execution() {
     let observation = WireClient::new(connection);
     let mut stalled = observation
         .download::<contracts::observation::WatchRuntime>(
-            contracts::observation::WatchRuntimeRequest::default(),
+            contracts::observation::WatchRuntime::default(),
         )
         .await
         .unwrap()
@@ -1216,7 +1209,7 @@ async fn stalled_stream_execution() {
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     support::on_state_change(&owner.handle(), async || {
         if client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
                 cycle_id: id.clone(),
             })
             .await
@@ -1270,7 +1263,7 @@ async fn run_cycle_targets() {
     };
     execution
         .unary::<contracts::execution::AppendPlannedCases>(authenticated(
-            contracts::execution::AppendPlannedCasesRequest {
+            contracts::execution::AppendPlannedCases {
                 cycle_id: cycle_id.clone(),
                 plan: Some(contracts::planning::SelectionPlan {
                     selections: vec![diagnostics],
@@ -1301,7 +1294,7 @@ async fn run_cycle_targets() {
     let completed = support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycleRequest {
+                contracts::execution::GetCycle {
                     cycle_id: cycle_id.clone(),
                 },
             ))
@@ -1319,7 +1312,7 @@ async fn run_cycle_targets() {
 
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutionsRequest {
+            contracts::execution::ListExecutions {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             },
@@ -1340,8 +1333,8 @@ async fn run_cycle_targets() {
     owner.shutdown().await.unwrap();
 }
 
-fn run(id: &str) -> contracts::execution::RunCycleRequest {
-    contracts::execution::RunCycleRequest {
+fn run(id: &str) -> contracts::execution::RunCycle {
+    contracts::execution::RunCycle {
         cycle_id: id.into(),
         ..Default::default()
     }

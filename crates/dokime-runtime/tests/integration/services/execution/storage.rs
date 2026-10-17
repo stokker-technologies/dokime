@@ -23,7 +23,7 @@ use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::domains::execution::requests::RunPhase;
 use dokime_runtime::execution::{CycleView, TestExecution};
-use dokime_contract::operations::content as wire;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 /// Why the first runtime refuses every final execution report.

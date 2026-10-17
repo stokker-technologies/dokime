@@ -22,7 +22,7 @@ use std::time::Duration;
 use harmos::operations::OperationDeclaration;
 
 // Local Imports
-use dokime_contract::operations::plugins::{Consent, Remove, Stage};
+use dokime_domain::operations::plugins::{Consent, Remove, Stage};
 
 /* === Constants === */
 

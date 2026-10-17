@@ -40,8 +40,8 @@ fn labelled(
     identifier: &str,
     label: &str,
     description: Option<&str>,
-) -> contracts::execution::CreateCycleRequest {
-    contracts::execution::CreateCycleRequest {
+) -> contracts::execution::CreateCycle {
+    contracts::execution::CreateCycle {
         metadata: Some(contracts::common::Metadata {
             identifier: identifier.into(),
             label: label.into(),
@@ -58,7 +58,7 @@ async fn walk(
     order: contracts::execution::CycleOrder,
     limit: u32,
 ) -> Vec<String> {
-    let mut request = contracts::execution::ListCyclesRequest {
+    let mut request = contracts::execution::ListCycles {
         limit,
         filter: Some(filter),
         order: Some(order),
@@ -201,7 +201,7 @@ async fn cycle_search_once() {
     // A continuation the filter excludes is rejected, not silently restarted.
     let excluded = client
         .unary::<contracts::execution::ListCycles>(
-            contracts::execution::ListCyclesRequest::default(),
+            contracts::execution::ListCycles::default(),
         )
         .await
         .unwrap()
@@ -215,7 +215,7 @@ async fn cycle_search_once() {
         .clone();
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 after_cycle_id: outsider,
                 cursor: excluded.cursor.clone(),
                 filter: Some(contracts::execution::CycleFilter {
@@ -234,7 +234,7 @@ async fn cycle_search_once() {
     // An undeclared status number is refused rather than widened away.
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 filter: Some(contracts::execution::CycleFilter {
                     statuses: vec![contracts::execution::CycleStatus::Unspecified],
                     ..Default::default()
@@ -264,7 +264,7 @@ async fn listed_cases_page() {
         .await
         .unwrap();
     let page = client
-        .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
             cycle_id,
             ..Default::default()
         })

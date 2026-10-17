@@ -29,7 +29,7 @@ use unftp_sbe_fs::Filesystem;
 use super::*;
 use dokime_runtime::config::RuntimeCredentialConfig;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
-use dokime_contract::operations::files::{FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource};
+use dokime_domain::operations::files::{FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource};
 
 /* === Constants === */
 const USER: &str = "bench";
@@ -115,7 +115,7 @@ async fn stream_ftp_source() {
         config
             .with_trusted_bench(true)
             .with_credential_backend(RuntimeCredentialConfig {
-                backend: dokime_runtime::core::CredentialBackendKind::LocalFile,
+                backend: dokime_runtime::CredentialBackendKind::LocalFile,
                 local_file: Some(credentials),
             })
     })

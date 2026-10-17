@@ -27,7 +27,7 @@ use dokime_runtime::harmos::operations::Host;
 use dokime_runtime::host::StepHandleCancelled;
 use dokime_runtime::operations::files::{
     FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMarker, LineMatcher,
-    LocalWatchSource, WatchFile, WatchFileRequest,
+    LocalWatchSource, WatchFile, WatchFile,
 };
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
@@ -129,7 +129,7 @@ impl LeaveWatch {
         let path = ctx.parameters().path.clone();
         let watch = ctx
             .host()
-            .submit_as::<WatchFile>(WatchFileRequest {
+            .submit_as::<WatchFile>(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {

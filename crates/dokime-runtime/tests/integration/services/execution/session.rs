@@ -23,7 +23,7 @@ use harmos::sidecar::StreamDeclaration;
 use crate::service_support::prelude::*;
 use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, StepAttemptStart, TerminationReason, TestStepAttempt};
 use dokime_runtime::execution::log::{Entry, Level};
-use dokime_runtime::transport::{EvidenceBatch, ExecutionSignal, RunExecutionRequest, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply, TransportFuture};
+use dokime_runtime::transport::{EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply, TransportFuture};
 use dokime_runtime::{InstalledPlugin, Refusal};
 use dokime_runtime::runtime::EmbeddedProvider;
 
@@ -78,12 +78,12 @@ impl Probe {
 impl Runnable for Probe {
     fn template_identifier(&self) -> &str { TEMPLATE }
 
-    fn run(&self, request: RunExecutionRequest, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
+    fn run(&self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         Box::pin(async move {
             *self.token.lock().unwrap() = request.execution_token;
             let start = StepAttemptStart {
-                attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepAttemptId>(),
-                step_id: dokime_runtime::core::StepId::from_seed(PHASE),
+                attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepAttemptId>(),
+                step_id: dokime_runtime::StepId::from_seed(PHASE),
                 started_at: dokime_runtime::model::time::now_utc(),
             };
             host.push(EvidenceBatch {
@@ -165,7 +165,7 @@ impl EmbeddedProvider for Provider {
         let template = &mut suite.test_case_templates[0];
         template.metadata = metadata(TEMPLATE, "Cancellation");
         template.phases[0].metadata = metadata(PHASE, "Stream");
-        template.phases[0].step_id = dokime_runtime::core::StepId::from_seed(PHASE);
+        template.phases[0].step_id = dokime_runtime::StepId::from_seed(PHASE);
         let mut definition = TestSuiteDefinition::new(SOURCE, suite).unwrap();
         definition.workflow = Some(SOURCE.into());
         InstalledPlugin {

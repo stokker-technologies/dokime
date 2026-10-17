@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Local Imports
 use super::*;
-use dokime_runtime::core::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
+use dokime_runtime::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
 use dokime_runtime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime_runtime::runtime::command::CommandContext;
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
@@ -109,7 +109,7 @@ async fn get_traceability_cursor() {
 
     let first = client
         .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceabilityRequest {
+            contracts::observation::GetTraceability {
                 limit: 1,
                 ..Default::default()
             },
@@ -148,7 +148,7 @@ async fn get_traceability_cursor() {
     assert_eq!(
         client
             .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceabilityRequest {
+                contracts::observation::GetTraceability {
                     limit: 1,
                     after_traceability_id: first.next_after_traceability_id.clone(),
                     cursor: first.cursor.clone(),
@@ -163,7 +163,7 @@ async fn get_traceability_cursor() {
     );
     let first_after_host = client
         .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceabilityRequest {
+            contracts::observation::GetTraceability {
                 limit: 1,
                 ..Default::default()
             },
@@ -179,7 +179,7 @@ async fn get_traceability_cursor() {
         let page = pages.last().unwrap();
         let next = client
             .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceabilityRequest {
+                contracts::observation::GetTraceability {
                     limit: 1,
                     after_traceability_id: page.next_after_traceability_id.clone(),
                     cursor: page.cursor.clone(),
@@ -222,7 +222,7 @@ async fn get_traceability_cursor() {
 
     let scoped = client
         .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceabilityRequest {
+            contracts::observation::GetTraceability {
                 scope: Some(contracts::common::EvidenceScope {
                     cycle_id: Some(cycle_id.to_string()),
                     ..Default::default()
@@ -266,7 +266,7 @@ async fn get_traceability_cursor() {
     );
     let current = client
         .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceabilityRequest {
+            contracts::observation::GetTraceability {
                 limit: 100,
                 ..Default::default()
             },
@@ -285,7 +285,7 @@ async fn get_traceability_cursor() {
                     .as_ref()
                     .map(|value| value.to_core().unwrap())
                     .is_some_and(|kind| {
-                        matches!(kind, dokime_runtime::core::Value::Text(value) if value == "second-host")
+                        matches!(kind, dokime_runtime::Value::Text(value) if value == "second-host")
                     })
         })
     }));
@@ -295,7 +295,7 @@ async fn get_traceability_cursor() {
     assert_eq!(
         client
             .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceabilityRequest {
+                contracts::observation::GetTraceability {
                     cursor: Some(invalid_cursor),
                     after_traceability_id: pages[0].next_after_traceability_id.clone(),
                     host_traceability_fingerprint: pages[0].host_traceability_fingerprint.clone(),

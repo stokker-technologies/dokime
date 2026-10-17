@@ -20,7 +20,7 @@
 // Local Imports
 use crate::service_support::waits::until_telemetry;
 use async_trait::async_trait;
-use dokime_runtime::core::{Identifier, Value};
+use dokime_runtime::{Identifier, Value};
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::schema::Described;
 use dokime_runtime::runtime::EmbeddedProvider;
@@ -200,7 +200,7 @@ impl EmbeddedProvider for Probe {
 
 #[tokio::test]
 async fn live_rows_paths() {
-    use dokime_runtime::core::Metadata;
+    use dokime_runtime::Metadata;
     use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 
     let root = tempfile::tempdir().unwrap();

@@ -17,7 +17,7 @@
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
-use dokime_runtime::core::{Identifier, Timestamp};
+use dokime_runtime::{Identifier, Timestamp};
 use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::domains::evidence::RecordPublishRequest;
 use dokime_runtime::transactions::PublishRecord;

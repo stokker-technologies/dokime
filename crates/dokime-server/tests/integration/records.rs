@@ -134,7 +134,7 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
 async fn waiting_cycle(
     root: &std::path::Path,
     expectation: Arc<Expectation>,
-) -> (Runtime, dokime_runtime::core::TestCycleId) {
+) -> (Runtime, dokime_runtime::TestCycleId) {
     let config =
         support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host"))
             .register(Arc::new(Bench { expectation }));

@@ -86,7 +86,7 @@ async fn appearance_asset_bound() {
     assert_eq!(
         appearance
             .unary::<contracts::appearance::GetAppearance>(
-                contracts::appearance::GetAppearanceRequest {}
+                contracts::appearance::GetAppearance {}
             )
             .await
             .unwrap_err()
@@ -96,7 +96,7 @@ async fn appearance_asset_bound() {
     assert_eq!(
         content
             .download::<contracts::content::DownloadAppearanceAsset>(
-                contracts::content::DownloadAppearanceAssetRequest { reference: None }
+                contracts::content::DownloadAppearanceAsset { reference: None }
             )
             .await
             .unwrap_err()
@@ -105,7 +105,7 @@ async fn appearance_asset_bound() {
     );
     let actual = appearance
         .unary::<contracts::appearance::GetAppearance>(authenticated(
-            contracts::appearance::GetAppearanceRequest {},
+            contracts::appearance::GetAppearance {},
         ))
         .await
         .unwrap()
@@ -168,7 +168,7 @@ async fn appearance_asset_bound() {
     failure(
         content
             .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
-                contracts::content::DownloadAppearanceAssetRequest {
+                contracts::content::DownloadAppearanceAsset {
                     reference: Some(contracts::appearance::AppearanceAssetReference {
                         plugin_id: "unselected.owner".into(),
                         ..reference.clone()
@@ -185,7 +185,7 @@ async fn appearance_asset_bound() {
         contracts::appearance::AppearanceFailureKind::AssetMissing,
     );
     let request = || {
-        authenticated(contracts::content::DownloadAppearanceAssetRequest {
+        authenticated(contracts::content::DownloadAppearanceAsset {
             reference: Some(reference.clone()),
         })
     };
@@ -251,7 +251,7 @@ async fn appearance_asset_bound() {
     failure(
         content
             .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
-                contracts::content::DownloadAppearanceAssetRequest {
+                contracts::content::DownloadAppearanceAsset {
                     reference: Some(contracts::appearance::AppearanceAssetReference {
                         asset_id: "../logo".into(),
                         ..reference
@@ -287,7 +287,7 @@ async fn appearance_refuses_transfer() {
     failure(
         client
             .unary::<contracts::appearance::GetAppearance>(
-                contracts::appearance::GetAppearanceRequest {},
+                contracts::appearance::GetAppearance {},
             )
             .await
             .unwrap_err(),
@@ -301,7 +301,7 @@ async fn appearance_refuses_transfer() {
     failure(
         client
             .unary::<contracts::appearance::GetAppearance>(
-                contracts::appearance::GetAppearanceRequest {},
+                contracts::appearance::GetAppearance {},
             )
             .await
             .unwrap_err(),

@@ -92,7 +92,7 @@ async fn current_document_rows() {
     assert_eq!(
         client
             .download::<contracts::documents::CaptureCurrentDocument>(
-                contracts::documents::CaptureCurrentDocumentRequest {
+                contracts::documents::CaptureCurrentDocument {
                     scope: Some(selected.clone()),
                     document_id: "default".into(),
                 }
@@ -106,7 +106,7 @@ async fn current_document_rows() {
     // frame is a header scoped to the cycle alone.
     let cycle_header = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(contracts::documents::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: String::new(),
@@ -130,7 +130,7 @@ async fn current_document_rows() {
     let epoch = handle.process_epoch().to_string();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(selected.clone()),
                 document_id: "default".into(),
             },
@@ -178,7 +178,7 @@ async fn current_document_rows() {
     assert_eq!(complete.unwrap().frame_count, frames);
     let unknown = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(selected),
                 document_id: "missing".into(),
             },
@@ -298,7 +298,7 @@ async fn summary_complete_telemetry() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(contracts::documents::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: handle.watch_state().latest().state().cycles[&cycle]
@@ -339,7 +339,7 @@ async fn summary_complete_telemetry() {
 #[tokio::test]
 async fn duration_x_axis() {
     use dokime_runtime::domains::TestSuiteDefinition;
-    use dokime_runtime::core::{Identifier, MeasurementUnit, Metadata, ValueType};
+    use dokime_runtime::{Identifier, MeasurementUnit, Metadata, ValueType};
     use dokime_runtime::definition::SuiteSet;
     use dokime_runtime::document::Plot;
     use dokime_runtime::expressions::telemetry;
@@ -402,7 +402,7 @@ async fn duration_x_axis() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(
-            contracts::documents::CaptureCurrentDocumentRequest {
+            contracts::documents::CaptureCurrentDocument {
                 scope: Some(contracts::documents::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: handle.watch_state().latest().state().cycles[&cycle]

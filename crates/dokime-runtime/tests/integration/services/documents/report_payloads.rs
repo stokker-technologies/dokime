@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::*;
 use crate::service_support::reports::{parse, payload_text, render, render_annotated};
-use dokime_runtime::core::{TraceabilityId, Value};
+use dokime_runtime::{TraceabilityId, Value};
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::document::capture::{Capture, SectionBinding};
 use dokime_runtime::document::{
@@ -53,8 +53,8 @@ use dokime_runtime::traceability::{TraceabilityEntry, TraceabilitySnapshot};
 
 /* === Private Functions === */
 fn fixture_input(cycle_label: &str) -> CycleReportInput {
-    let test_cycle_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestCycleId>();
-    let case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::CaseId>();
+    let test_cycle_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>();
+    let case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>();
     let template_id = dokime_runtime::model::identity::new_id::<TemplateId>();
     let cycle_metadata = metadata("cycle.fixture", cycle_label);
 
@@ -68,7 +68,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         generation_index: 0,
         label_number: 0,
     };
-    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let mut execution = fixture_test_execution(
         test_execution_id.clone(),
         case.test_case_id.clone(),
@@ -89,7 +89,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
     .unwrap();
 
     CycleReportInput {
-        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
         cycle: CycleView {
             saved: None,
             test_cycle_id: test_cycle_id.clone(),
@@ -126,8 +126,8 @@ fn insert_report_document(
         .insert(document_id(document_id_value), report_document(document));
 }
 
-fn document_id(value: &str) -> dokime_runtime::core::DocumentId {
-    dokime_runtime::core::DocumentId::from_identifier(value).unwrap()
+fn document_id(value: &str) -> dokime_runtime::DocumentId {
+    dokime_runtime::DocumentId::from_identifier(value).unwrap()
 }
 
 fn report_document(document: DocumentPayload) -> Capture {
@@ -310,17 +310,17 @@ fn fixture_plot_payload(
 }
 
 fn fixture_test_execution(
-    test_execution_id: dokime_runtime::core::TestExecutionId,
-    test_case_id: dokime_runtime::core::CaseId,
+    test_execution_id: dokime_runtime::TestExecutionId,
+    test_case_id: dokime_runtime::CaseId,
     scope: RecordScope,
     status: ExecutionStatus,
 ) -> TestExecution {
     let case = dokime_runtime::definition::TestCase {
         suite_id: "fixture.registration".to_owned(),
         test_case_id: test_case_id.clone(),
-        test_case_template_id: dokime_runtime::core::TemplateId::from_seed("fixture.template"),
-        metadata: dokime_runtime::core::Metadata::new(
-            dokime_runtime::core::Identifier::new("fixture.case").unwrap(),
+        test_case_template_id: dokime_runtime::TemplateId::from_seed("fixture.template"),
+        metadata: dokime_runtime::Metadata::new(
+            dokime_runtime::Identifier::new("fixture.case").unwrap(),
             "Fixture Case",
             None,
         ),
@@ -421,7 +421,7 @@ fn fixture_plot_document(
     )];
 
     DocumentPayload {
-        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::DocumentId>(),
+        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
         metadata: metadata(document_identifier, document_label),
         selection: DocumentSelection { scope },
         cards: cards.clone(),
@@ -434,7 +434,7 @@ fn fixture_plot_document(
     }
 }
 
-fn fixture_document(test_cycle_id: dokime_runtime::core::TestCycleId) -> DocumentPayload {
+fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
     let scope = RecordScope::default().with_cycle(test_cycle_id);
     let plot_id = Identifier::new("cycle.telemetry").unwrap();
     let artifact_descriptor = ArtifactListDescriptor {
@@ -501,7 +501,7 @@ fn fixture_document(test_cycle_id: dokime_runtime::core::TestCycleId) -> Documen
     ];
 
     DocumentPayload {
-        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::DocumentId>(),
+        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
         metadata: metadata("document.fixture", "Fixture Document"),
         selection: DocumentSelection {
             scope: scope.clone(),
@@ -519,7 +519,7 @@ fn fixture_document(test_cycle_id: dokime_runtime::core::TestCycleId) -> Documen
     }
 }
 
-fn fixture_wifi_document(test_cycle_id: dokime_runtime::core::TestCycleId) -> DocumentPayload {
+fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
     let scope = RecordScope::default().with_cycle(test_cycle_id);
     let plot_id = Identifier::new("wifi.channel_occupancy").unwrap();
 
@@ -807,7 +807,7 @@ async fn rendered_cycle_out() {
 async fn execution_template_cases() {
     let mut input = fixture_input("Frozen Execution");
     let case = input.cycle.cases().next().unwrap().clone();
-    let id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
@@ -815,14 +815,14 @@ async fn execution_template_cases() {
     let mut execution =
         fixture_test_execution(id, case.test_case_id, scope, ExecutionStatus::Passed);
     execution.steps.push(dokime_runtime::execution::StepRecord {
-        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
+        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
         metadata: metadata("fixture.step", "Fixture Step"),
         status: dokime_runtime::execution::StepStatus::Passed,
         started_at: None,
         finished_at: None,
         measurements: Vec::new(),
         criteria: vec![dokime_runtime::execution::CriterionResult {
-            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             status: dokime_runtime::execution::CriterionStatus::Passed,
             observed: Some(Value::from("original measurement")),
@@ -859,7 +859,7 @@ async fn execution_template_cases() {
 async fn rendered_case_plots() {
     let mut input = fixture_input("Tracking Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
-    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case_id.clone())
@@ -937,7 +937,7 @@ async fn rendered_case_plots() {
 async fn rendered_case_one() {
     let mut input = fixture_input("Evidence Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
-    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case_id.clone())
@@ -1024,7 +1024,7 @@ async fn rendered_report_interval() {
 async fn rendered_html_groups() {
     let mut input = fixture_input("Traceability Cycle");
     let case = input.cycle.cases().next().unwrap().clone();
-    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let execution_scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
@@ -1111,7 +1111,7 @@ async fn rendered_html_groups() {
 async fn stated_section_wrote() {
     let mut input = fixture_input("Stated Cycle");
     let case = input.cycle.cases().next().unwrap().clone();
-    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let execution_scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
@@ -1173,7 +1173,7 @@ async fn rendered_report_happened() {
         1,
         dokime_runtime::records::Record {
             received_at: dokime_runtime::model::time::now_utc(),
-            record_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::RecordId>(),
+            record_id: dokime_runtime::model::identity::new_id::<dokime_runtime::RecordId>(),
             timestamp: dokime_runtime::model::time::now_utc(),
             record_type: Identifier::new("provider.execution.failed").unwrap(),
             schema_version: 1,
@@ -1235,7 +1235,7 @@ async fn rendered_report_happened() {
 async fn failed_step_frames() {
     let mut input = fixture_input("Failed Step Cycle");
     let case_id = input.cycle.cases().next().unwrap().test_case_id.clone();
-    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
+    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
     let scope = RecordScope::default()
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case_id.clone())
@@ -1249,7 +1249,7 @@ async fn failed_step_frames() {
     );
     execution.finished_at = Some(Timestamp::new("2026-01-01T00:00:01Z"));
     execution.steps = vec![dokime_runtime::execution::StepRecord {
-        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
+        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
         metadata: metadata("thermo.soak.hold", "Hold"),
         status: dokime_runtime::execution::StepStatus::Failed,
         started_at: Some(Timestamp::new("2026-01-01T00:00:00Z")),
@@ -1306,7 +1306,7 @@ async fn normalised_report_rows() {
     let owner = execution.test_execution_id.to_string();
     for (label, criteria) in [("First", 1), ("Second", 0)] {
         execution.steps.push(dokime_runtime::execution::StepRecord {
-            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
+            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
             metadata: metadata("fixture.step", label),
             status: dokime_runtime::execution::StepStatus::Passed,
             started_at: None,
@@ -1314,7 +1314,7 @@ async fn normalised_report_rows() {
             measurements: Vec::new(),
             criteria: (0..criteria)
                 .map(|_| dokime_runtime::execution::CriterionResult {
-                    criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
+                    criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
                     metadata: metadata("fixture.criterion", "Fixture Criterion"),
                     status: dokime_runtime::execution::CriterionStatus::Passed,
                     observed: None,
@@ -1338,14 +1338,14 @@ async fn normalised_report_rows() {
     });
     // A Frozen Context Holds Each Subject Once, At Its Latest Observation.
     let notes = vec![OperatorNote {
-        note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::NoteId>(),
+        note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::NoteId>(),
         scope: scope.clone(),
         author: Some("operator".into()),
         message: "Edited".into(),
         created_at: Timestamp::new("2026-01-01T00:00:02Z"),
     }];
     let health = vec![HealthItem {
-        health_item_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::HealthItemId>(),
+        health_item_id: dokime_runtime::model::identity::new_id::<dokime_runtime::HealthItemId>(),
         scope: scope.clone(),
         severity: HealthSeverity::Warning,
         message: "Recovered".into(),
@@ -1391,9 +1391,9 @@ async fn normalised_report_rows() {
 // newer row; a cycle note both members hold appears once.
 #[tokio::test]
 async fn latest_member_annotations() {
-    use dokime_runtime::core::CommandId;
+    use dokime_runtime::CommandId;
     use dokime_runtime::execution::{HealthItem, HealthSeverity};
-    use dokime_runtime::domains::evidence::notes::CreateNoteRequest;
+    use dokime_runtime::domains::evidence::notes::CreateNote;
     use dokime_runtime::execution::notes::NoteOwner;
 
     let root = tempdir().unwrap();
@@ -1408,7 +1408,7 @@ async fn latest_member_annotations() {
         .map(|member| member.test_execution_id.clone())
         .collect::<Vec<_>>();
     let note = runtime
-        .create_current_note(CreateNoteRequest {
+        .create_current_note(CreateNote {
             epoch: runtime.process_epoch(),
             mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
             owner: NoteOwner::Cycle {
@@ -1421,7 +1421,7 @@ async fn latest_member_annotations() {
         .unwrap()
         .admission
         .note;
-    let health_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::HealthItemId>();
+    let health_id = dokime_runtime::model::identity::new_id::<dokime_runtime::HealthItemId>();
     let health = |message: &str, at: &str| HealthItem {
         health_item_id: health_id.clone(),
         scope: RecordScope::default().with_cycle(cycle_id.clone()),
@@ -1431,7 +1431,7 @@ async fn latest_member_annotations() {
         observed_at: Timestamp::new(at),
     };
     // Each Run Settles With Its Member's Seal Before The Next Observation
-    let run = async |member: &dokime_runtime::core::TestExecutionId| {
+    let run = async |member: &dokime_runtime::TestExecutionId| {
         let receipt = runtime
             .run_execution(
                 member.clone(),

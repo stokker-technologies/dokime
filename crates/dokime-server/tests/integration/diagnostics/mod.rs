@@ -128,7 +128,7 @@ async fn collected_archive_material() {
     let (environment, server, client) = fixture().await;
     let mut stream = client
         .download::<contracts::backend::CollectDiagnostics>(
-            contracts::backend::CollectDiagnosticsRequest {
+            contracts::backend::CollectDiagnostics {
                 max_log_tail_bytes: None,
             },
         )
@@ -283,7 +283,7 @@ async fn log_stream_file() {
     .unwrap();
 
     let mut stream = client
-        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
             min_level: contracts::backend::LogLevel::Warn,
             replay_lines: 500,
         })
@@ -331,7 +331,7 @@ async fn level_filter_stream() {
         r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime_runtime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
     )).unwrap();
     let mut stream = client
-        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
             min_level: contracts::backend::LogLevel::Warn,
             replay_lines: 0,
         })
@@ -370,7 +370,7 @@ async fn missing_file_live() {
         .join("application/logs/dokime.jsonl");
     assert!(!log.exists());
     let mut stream = client
-        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
             min_level: contracts::backend::LogLevel::Unspecified,
             replay_lines: 0,
         })
