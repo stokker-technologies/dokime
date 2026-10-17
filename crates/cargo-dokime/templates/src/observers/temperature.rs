@@ -19,7 +19,7 @@
 // Local Imports
 use crate::domain::model::chamber::TemperatureRow;
 use crate::{Bench, Plugin};
-use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 
@@ -36,7 +36,7 @@ pub struct Temperature;
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
+#[dokime_runtime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
 impl Temperature {
     async fn observe(
         &mut self,

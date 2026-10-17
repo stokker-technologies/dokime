@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Bench;
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -37,7 +37,7 @@ pub struct GetStatus {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "{{owner}}.get_status",
     version = 1,
     description = "Reports whether the bench is reachable.",

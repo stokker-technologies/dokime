@@ -238,7 +238,7 @@ pub fn run(args: Args) -> Result<(), Error> {
         }
         return Err(error);
     }
-    let terminal = dokime_cli::terminal::Terminal::default();
+    let terminal = dokime::terminal::Terminal::default();
     terminal.success(format!("Created {name}"));
     terminal.hint(format!("cd {}", args.path.display()));
     terminal.hint("mise install, then commit mise.lock: CI installs the locked tools");

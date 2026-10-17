@@ -17,7 +17,7 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::preferences::Resources;
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 use dokime_contract::operations::settings as wire;
 
 /* === Constants === */
@@ -120,21 +120,21 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
         .operations()
         .register_wire_operation::<ListStorageSources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<ReorderStorageSources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<SetStorageSourceEnabled>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     Ok(())

@@ -24,7 +24,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::{error::detailed, value};
-use dokime_app::{Error, RuntimeHandle};
+use dokime_runtime::{runtime::Error, RuntimeHandle};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
@@ -131,7 +131,7 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

@@ -17,7 +17,7 @@ mod wire;
 // Standard Library Imports
 // Third Party Imports
 // Local Imports
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 /* === Constants === */
 /* === Macros === */
 /* === Type Aliases === */

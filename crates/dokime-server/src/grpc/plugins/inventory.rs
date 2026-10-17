@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_app::state::PluginOwner;
+use dokime_runtime::state::PluginOwner;
 
 /* === Constants === */
 

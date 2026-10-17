@@ -21,7 +21,7 @@ use crate::diagnostics_assembly::{
     self, DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey,
 };
 use crate::grpc::value::{self, canonical};
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     domains::exports::storage::{
         DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey,
@@ -85,7 +85,7 @@ impl Operation for Read {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum: maximum.min(MAX_RESPONSE_BYTES),
@@ -138,7 +138,7 @@ fn runtime_diagnostics(
 }
 
 fn runtime_identity(
-    identity: &dokime_app::core::DokimeIdentity,
+    identity: &dokime_runtime::core::DokimeIdentity,
 ) -> Result<wire::RuntimeIdentity, Status> {
     Ok(wire::RuntimeIdentity {
         node: Some(wire::RuntimeNodeIdentity {
@@ -247,7 +247,7 @@ fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> wire:
 }
 
 fn installed_plugin_error(
-    error: &dokime_app::domains::installed_plugins::InstalledPluginErrorRecord,
+    error: &dokime_runtime::domains::installed_plugins::InstalledPluginErrorRecord,
 ) -> Result<wire::InstalledPluginErrorRecord, Status> {
     value::text(error.plugin_id.as_str())?;
     if let Some(id) = error.contribution_id.as_ref() {
@@ -302,9 +302,9 @@ fn installed_plugin_error(
 }
 
 fn installed_plugin_phase(
-    phase: dokime_app::domains::installed_plugins::InstalledPluginPhase,
+    phase: dokime_runtime::domains::installed_plugins::InstalledPluginPhase,
 ) -> wire::InstalledPluginPhase {
-    use dokime_app::domains::installed_plugins::InstalledPluginPhase as Phase;
+    use dokime_runtime::domains::installed_plugins::InstalledPluginPhase as Phase;
     match phase {
         Phase::Entrypoint => wire::InstalledPluginPhase::Entrypoint,
         Phase::Action => wire::InstalledPluginPhase::Action,
@@ -318,15 +318,15 @@ fn installed_plugin_phase(
 }
 
 fn diagnostic_level(
-    level: dokime_app::core::DebugLevel,
+    level: dokime_runtime::core::DebugLevel,
 ) -> dokime_contract::operations::common::Severity {
     match level {
-        dokime_app::core::DebugLevel::Debug => dokime_contract::operations::common::Severity::Debug,
-        dokime_app::core::DebugLevel::Info => dokime_contract::operations::common::Severity::Info,
-        dokime_app::core::DebugLevel::Warning => {
+        dokime_runtime::core::DebugLevel::Debug => dokime_contract::operations::common::Severity::Debug,
+        dokime_runtime::core::DebugLevel::Info => dokime_contract::operations::common::Severity::Info,
+        dokime_runtime::core::DebugLevel::Warning => {
             dokime_contract::operations::common::Severity::Warn
         }
-        dokime_app::core::DebugLevel::Error => dokime_contract::operations::common::Severity::Error,
+        dokime_runtime::core::DebugLevel::Error => dokime_contract::operations::common::Severity::Error,
     }
 }
 

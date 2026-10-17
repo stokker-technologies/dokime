@@ -30,7 +30,7 @@ pub(crate) use system::System;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Observers {
     System(System),
 }

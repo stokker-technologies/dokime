@@ -26,8 +26,8 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime::operations::cursor::{Cursor as NativeCursor, Error as CursorError};
-use dokime_app::{
+use dokime_contract::operations::cursor::{Cursor as NativeCursor, Error as CursorError};
+use dokime_runtime::{
     RuntimeHandle,
     core::{PromptId, TestCycleId, TestExecutionId},
     runtime::query::RuntimeStateSnapshot,
@@ -181,7 +181,7 @@ impl Operation for ListPending {
                     .map_err(|_| Status::invalid_argument("invalid execution UUID"))
             })
             .transpose()?;
-        let selection = dokime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
+        let selection = dokime_runtime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
         let snapshot = self.resources.runtime.watch_state().latest();
         let mut supplied = request.cursor.take();
         if let Some(cursor) = &mut supplied {
@@ -198,7 +198,7 @@ impl Operation for ListPending {
             supplied.as_ref(),
             &snapshot,
         )?;
-        let selected = |prompt: &&dokime_app::domains::prompts::PromptInstance| {
+        let selected = |prompt: &&dokime_runtime::domains::prompts::PromptInstance| {
             snapshot.state().prompt_open(prompt)
                 && cycle
                     .as_ref()
@@ -321,7 +321,7 @@ impl Operation for Respond {
             .transpose()?;
         let values = match decoded {
             None => Default::default(),
-            Some(dokime_app::core::Value::Object(fields)) => fields,
+            Some(dokime_runtime::core::Value::Object(fields)) => fields,
             Some(_) => return Err(Status::invalid_argument("prompt values must be an object")),
         };
         let receipt = self
@@ -375,31 +375,31 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
         .operations()
         .register_wire_operation::<ListDefinitions>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<GetDefinition>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<ListPending>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime.operations().register_wire_operation::<GetPrompt>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Respond>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     Ok(())

@@ -27,8 +27,8 @@ use tonic::Status;
 
 // Local Imports
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
-use dokime_app::{
-    Error, RuntimeHandle,
+use dokime_runtime::{
+    runtime::Error, RuntimeHandle,
     artifacts::ArtifactRecord,
     core::RecordScope,
     domains::media::{
@@ -298,7 +298,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
         maximum,
     });
     let operations = runtime.operations();
-    let lane = dokime_app::app::Lanes::Open;
+    let lane = dokime_runtime::app::Lanes::Open;
     operations.register_wire_operation::<Screenshot>("dokime", lane, resources.clone())?;
     operations.register_wire_operation::<Photo>("dokime", lane, resources.clone())?;
     operations.register_wire_operation::<AudioRecording>("dokime", lane, resources)?;

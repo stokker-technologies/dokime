@@ -32,14 +32,14 @@ pub const TEMPLATE: &str = "obc.charger.protection.overcurrent";
 pub struct Suite;
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Templates {
     Overcurrent(overcurrent::Overcurrent),
 }
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(id = SUITE, label = "Overcurrent Protection", tags = ["device", "protection"], templates = Templates, description = "Increase the load and verify that the RMS protection latch disconnects the Charger.")]
+#[dokime_runtime::suite(id = SUITE, label = "Overcurrent Protection", tags = ["device", "protection"], templates = Templates, description = "Increase the load and verify that the RMS protection latch disconnects the Charger.")]
 impl Suite {}
 
 /* === Public Functions === */

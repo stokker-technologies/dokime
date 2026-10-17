@@ -19,8 +19,8 @@
 // Local Imports
 use super::detail::{Bounds, diagnostic, execution, metadata, metadata_memory};
 use super::*;
-use dokime_app::execution::{CriterionStatus, StepRecord, StepStatus};
-use dokime_app::runtime::query::RuntimeStateSnapshot;
+use dokime_runtime::execution::{CriterionStatus, StepRecord, StepStatus};
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 

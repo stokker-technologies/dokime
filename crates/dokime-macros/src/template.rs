@@ -126,7 +126,7 @@ pub(crate) fn marker(name: &str, item: TokenStream) -> TokenStream {
     let refusal = Error::new(
         item.span(),
         format!(
-            "`#[dokime::{name}]` is read by its owning block: declare it inside `#[dokime::template]`"
+            "`#[dokime_runtime::{name}]` is read by its owning block: declare it inside `#[dokime_runtime::template]`"
         ),
     )
     .to_compile_error();
@@ -243,7 +243,7 @@ pub(crate) fn marks(path: &Path, name: &str) -> bool {
         .as_slice()
     {
         [marker] => *marker == name,
-        [root, marker] => (*root == "dokime" || *root == crate::facade::name()) && *marker == name,
+        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
         _ => false,
     }
 }
@@ -256,7 +256,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
-            "`#[dokime::template]` declares the template's own inherent impl, not a trait implementation",
+            "`#[dokime_runtime::template]` declares the template's own inherent impl, not a trait implementation",
         ));
     }
     let template = block.self_ty.clone();
@@ -809,7 +809,7 @@ fn parameters(block: &ItemImpl, declared_type: Option<&Expr>) -> Result<Type, Er
     if let Some(method) = declared(block, "parameters") {
         return Err(Error::new_spanned(
             &method.sig,
-            "parameters are a type: declare a `#[dokime::parameters]` struct and name it with `#[dokime::template(parameters = …)]`",
+            "parameters are a type: declare a `#[dokime_runtime::parameters]` struct and name it with `#[dokime_runtime::template(parameters = …)]`",
         ));
     }
     let Some(declared_type) = declared_type else {
@@ -833,9 +833,9 @@ fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
             other => {
                 return Err(Error::new(
                     other.span(),
-                    "this item is not read by `#[dokime::template]`. A template impl holds \
+                    "this item is not read by `#[dokime_runtime::template]`. A template impl holds \
                      initialize, traceability, document and cleanup, plus methods \
-                     marked #[dokime::step], #[dokime::criterion] or #[dokime::observer]; \
+                     marked #[dokime_runtime::step], #[dokime_runtime::criterion] or #[dokime_runtime::observer]; \
                      put helpers in a separate impl block.",
                 ));
             }
@@ -877,8 +877,8 @@ fn unclaimed(name: &syn::Ident, kind: &str) -> Error {
         name,
         format!(
             "`{name}` is not a template {kind}. A template impl holds initialize, \
-             traceability, document and cleanup, plus methods marked #[dokime::step], \
-             #[dokime::criterion] or #[dokime::observer]; put helpers in a separate impl block."
+             traceability, document and cleanup, plus methods marked #[dokime_runtime::step], \
+             #[dokime_runtime::criterion] or #[dokime_runtime::observer]; put helpers in a separate impl block."
         ),
     )
 }

@@ -34,9 +34,9 @@ pub enum Error {
     #[error("missing criterion evidence `{0}`")]
     MissingEvidence(String),
     #[error("dokime sdk: {0}")]
-    Sdk(#[from] dokime::Error),
+    Sdk(#[from] dokime_runtime::Error),
     #[error("host operation: {0}")]
-    Host(#[from] dokime::harmos::sidecar::CallError),
+    Host(#[from] dokime_runtime::harmos::sidecar::CallError),
     #[error("device: {0}")]
     Device(#[from] obc_runtime::Error),
     #[error("testbench launch: {0}")]
@@ -44,7 +44,7 @@ pub enum Error {
     #[error("device measurement resource is poisoned")]
     DeviceResourcePoisoned,
     #[error("waiting for a unit to come online: {0}")]
-    Awaited(#[from] dokime::prelude::Elapsed),
+    Awaited(#[from] dokime_runtime::prelude::Elapsed),
     #[error("reference image: {0}")]
     Image(String),
     #[error("the case asks for an observation this bench cannot run: {0}")]
@@ -56,7 +56,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
-impl From<Error> for dokime::domains::ActionDispatcherError {
+impl From<Error> for dokime_runtime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
         Self::Refused {
             code: -32_000,

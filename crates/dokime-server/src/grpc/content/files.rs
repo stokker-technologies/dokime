@@ -23,7 +23,7 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::super::value;
-use dokime_app::{RuntimeHandle, core::TestExecutionId};
+use dokime_runtime::{RuntimeHandle, core::TestExecutionId};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
@@ -106,7 +106,7 @@ impl Operation for Read {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,
@@ -128,18 +128,18 @@ pub(super) fn execution(
 }
 
 /* === Private Functions === */
-pub(super) fn read_failure(error: dokime_app::Error) -> Status {
+pub(super) fn read_failure(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_app::Error::Harmos(harmos::Error::InvalidInput {
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::InvalidInput {
             field: "execution files cursor",
             ..
         }) => Status::aborted("file listing changed; restart pagination"),
-        dokime_app::Error::Harmos(harmos::Error::InvalidInput {
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::InvalidInput {
             field: "execution files after path",
             ..
         }) => Status::invalid_argument("after path not found"),
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
-        | dokime_app::Error::ExecutionFileTooLarge => {
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
+        | dokime_runtime::runtime::Error::ExecutionFileTooLarge => {
             Status::resource_exhausted("execution output exceeds its original budget")
         }
         _ => Status::internal("cannot read execution output"),

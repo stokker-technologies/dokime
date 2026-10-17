@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime::operations::Access as Role;
+pub use dokime_contract::operations::Access as Role;
 
 /* === Imports === */
 // Standard Library Imports

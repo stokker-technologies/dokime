@@ -23,9 +23,9 @@ use tonic::Status;
 // Local Imports
 use super::value::canonical;
 use super::{execution, value};
-use dokime_app::runtime::progress::{OperationOutcome, OperationSnapshot};
-use dokime_app::runtime::query::RuntimeChange;
-use dokime_app::{RuntimeHandle, core::TestExecutionId};
+use dokime_runtime::runtime::progress::{OperationOutcome, OperationSnapshot};
+use dokime_runtime::runtime::query::RuntimeChange;
+use dokime_runtime::{RuntimeHandle, core::TestExecutionId};
 use dokime_contract::operations::observation as wire;
 
 /* === Constants === */
@@ -379,7 +379,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,
@@ -438,7 +438,7 @@ fn operation_frames(
 }
 
 fn progress_memory(
-    value: Option<&dokime_app::domains::execution::progress::LiveExecutionProgress>,
+    value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
 ) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<wire::ExecutionProgressFrame>();
     if let Some(value) = value {
@@ -456,7 +456,7 @@ fn progress_memory(
 fn progress_frame(
     revision: u64,
     resynchronized: bool,
-    value: Option<&dokime_app::domains::execution::progress::LiveExecutionProgress>,
+    value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
 ) -> wire::ExecutionProgressFrame {
     wire::ExecutionProgressFrame {
         revision,
@@ -476,7 +476,7 @@ fn progress_frame(
 }
 
 fn after_cycle_position(
-    state: &dokime_app::runtime::RuntimeState,
+    state: &dokime_runtime::runtime::RuntimeState,
     after: &str,
 ) -> Result<usize, Status> {
     if after.is_empty() {
@@ -490,7 +490,7 @@ fn after_cycle_position(
         .ok_or_else(|| Status::invalid_argument("after cycle ID not found"))
 }
 
-fn evidence_counts(counts: &dokime_app::domains::evidence::EvidenceCounts) -> wire::EvidenceCounts {
+fn evidence_counts(counts: &dokime_runtime::domains::evidence::EvidenceCounts) -> wire::EvidenceCounts {
     wire::EvidenceCounts {
         records: counts.records as u64,
         telemetry: counts.telemetry as u64,

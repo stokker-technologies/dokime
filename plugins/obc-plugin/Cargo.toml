@@ -16,7 +16,7 @@ license.workspace = true
 
 [dependencies]
 # Local
-dokime = { path = "../../crates/dokime" }
+dokime-runtime = { path = "../../crates/dokime-runtime" }
 obc-runtime = { path = "runtime" }
 
 # Error Handling

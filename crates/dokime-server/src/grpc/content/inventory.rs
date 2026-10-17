@@ -23,7 +23,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::value::{self, projection};
-use dokime_app::{ExecutionFileEntry, RuntimeHandle, core::TestExecutionId};
+use dokime_runtime::{ExecutionFileEntry, RuntimeHandle, core::TestExecutionId};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
@@ -101,7 +101,7 @@ impl Operation for List {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

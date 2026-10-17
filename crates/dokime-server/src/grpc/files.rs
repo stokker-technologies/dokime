@@ -28,8 +28,8 @@ use tonic::Status;
 
 // Local Imports
 use super::content::{content_failure, metadata};
-use dokime_app::{
-    Error, RuntimeHandle,
+use dokime_runtime::{
+    runtime::Error, RuntimeHandle,
     domains::files::{
         CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent,
     },
@@ -87,7 +87,7 @@ impl Operation for FileWatch {
         // A Step's Call Carries Its Execution; A Listener Call Names It
         let scoped = context
             .context()
-            .value::<dokime::execution::ExecutionScope>()
+            .value::<dokime_runtime::execution::ExecutionScope>()
             .ok()
             .flatten()
             .map(|scope| scope.execution);
@@ -178,7 +178,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
     });
     runtime.operations().register_wire_operation::<FileWatch>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources,
     )?;
     Ok(())

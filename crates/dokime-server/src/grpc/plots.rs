@@ -28,7 +28,7 @@ use tokio::time::Instant;
 use tonic::Status;
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     runtime::query::{
         RuntimePlotQueryMode, matching_plot_payload_request, merge_plot_payload_cursor,
@@ -87,10 +87,10 @@ impl Resources {
     /// plot never received its window.
     fn frame(
         &self,
-        requests: &mut Vec<dokime_app::runtime::query::PlotPayloadRequest>,
-        current: &dokime_app::runtime::query::PlotPayloadRequest,
-        kind: dokime_app::runtime::query::PlotPayloadStreamKind,
-        value: dokime_app::runtime::query::PlotPayloadEnvelope,
+        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
+        current: &dokime_runtime::runtime::query::PlotPayloadRequest,
+        kind: dokime_runtime::runtime::query::PlotPayloadStreamKind,
+        value: dokime_runtime::runtime::query::PlotPayloadEnvelope,
         epoch: &str,
         selection: &str,
     ) -> Result<Response<contract::PlotStreamFrame>, Status> {
@@ -118,10 +118,10 @@ impl Resources {
     async fn snapshot(
         &self,
         output: &mut StreamOutput<contract::PlotStreamFrame>,
-        requests: &mut Vec<dokime_app::runtime::query::PlotPayloadRequest>,
+        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
         selections: &[String],
         epoch: &str,
-        current: &dokime_app::runtime::query::PlotPayloadRequest,
+        current: &dokime_runtime::runtime::query::PlotPayloadRequest,
     ) -> Result<bool, Status> {
         let native = match self
             .runtime
@@ -142,7 +142,7 @@ impl Resources {
             let response = self.frame(
                 requests,
                 current,
-                dokime_app::runtime::query::PlotPayloadStreamKind::Snapshot,
+                dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot,
                 value,
                 epoch,
                 &selection,
@@ -384,17 +384,17 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     });
     runtime.operations().register_wire_operation::<Analyses>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Snapshots>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources,
     )?;
     Ok(())
@@ -402,7 +402,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 
 /* === Private Functions === */
 fn plot_error_frame(
-    request: &dokime_app::runtime::query::PlotPayloadRequest,
+    request: &dokime_runtime::runtime::query::PlotPayloadRequest,
     message: String,
 ) -> contract::PlotStreamFrame {
     contract::PlotStreamFrame {

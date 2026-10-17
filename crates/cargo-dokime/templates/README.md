@@ -27,8 +27,8 @@ mise.toml                          the tasks every CI job runs
 operations it provides. The handlers live under `src/operations/`, one folder
 per domain with the same name.
 
-Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
-module. `src/lib.rs` composes these on `#[dokime::plugin]`: `provides =
+Each contribution belongs to a named `#[dokime_runtime::catalog]` enum in its owning
+module. `src/lib.rs` composes these on `#[dokime_runtime::plugin]`: `provides =
 domain::operations::Operations` names the operations it serves, and `contributions(...)`
 lists the suites, records and listeners, evidence streams and settings it adds
 to the host. Public `Streams` and `Records` catalogs in `lib.rs` register
@@ -37,7 +37,7 @@ observer file defines its own public `Streams` and `Records` catalogs as permitt
 subsets, keeping empty catalogs explicit. Demand observers run while any declared
 stream or record has an active subscriber; registration alone does not start them.
 
-Device behaviour is a `#[dokime::operation]` on an inherent impl: an explicit
+Device behaviour is a `#[dokime_runtime::operation]` on an inherent impl: an explicit
 wire id, a version and a policy, with request and response types read off its
 `run`. Empty requests use `()`. A template names the operations it calls with
 `requires = Required` and invokes `ctx.call::<ReadChamber>(()).await?`; the call
@@ -64,7 +64,7 @@ cargo test
 ```
 
 runs `tests/soak.rs`, which drives the template through
-`dokime::plugin::testing::Harness`: parameters, settings and secrets as builder
+`dokime_runtime::plugin::testing::Harness`: parameters, settings and secrets as builder
 calls, the awaited record filed the way the host files it, and a typed report of
 the verdict, the samples, the records, the traceability and the evidence files.
 No host and no hardware are involved.

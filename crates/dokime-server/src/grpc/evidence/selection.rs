@@ -19,7 +19,7 @@ use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_app::records::RecordEntry;
+use dokime_runtime::records::RecordEntry;
 use dokime_contract::operations::{common, evidence as v1};
 
 /* === Constants === */
@@ -57,7 +57,7 @@ impl Selection {
             items.dedup();
         }
         for kind in &value.record_types {
-            dokime_app::core::Identifier::new(kind)
+            dokime_runtime::core::Identifier::new(kind)
                 .map_err(|_| Status::invalid_argument("invalid record type"))?;
         }
         if value.severities.len() > MAX_SEVERITIES

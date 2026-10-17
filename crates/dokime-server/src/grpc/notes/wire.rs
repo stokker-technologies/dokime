@@ -18,10 +18,10 @@
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
-use dokime_app::core::{CaseId, TestCycleId, TestExecutionId};
-use dokime_app::domains::evidence::notes::{NoteCreation, NotePublication};
-use dokime_app::execution::notes::NoteOwner;
-use dokime_app::execution::{HealthItem, HealthSeverity, OperatorNote};
+use dokime_runtime::core::{CaseId, TestCycleId, TestExecutionId};
+use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
+use dokime_runtime::execution::notes::NoteOwner;
+use dokime_runtime::execution::{HealthItem, HealthSeverity, OperatorNote};
 use dokime_contract::operations::{common, notes as contract};
 
 /* === Constants === */
@@ -90,9 +90,9 @@ pub(super) fn encode_owner(value: &NoteOwner) -> contract::AnnotationOwner {
 }
 
 pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
-    bounded_text(&note.message, dokime_app::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(&note.message, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
     if let Some(author) = &note.author {
-        bounded_text(author, dokime_app::execution::notes::NOTE_ACTOR_BYTES)?;
+        bounded_text(author, dokime_runtime::execution::notes::NOTE_ACTOR_BYTES)?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&note.scope)?)
@@ -101,9 +101,9 @@ pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
 }
 
 pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
-    bounded_text(&item.message, dokime_app::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(&item.message, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
     if let Some(detail) = &item.detail {
-        bounded_text(detail, dokime_app::execution::notes::NOTE_TEXT_BYTES)?;
+        bounded_text(detail, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&item.scope)?)
@@ -186,7 +186,7 @@ fn bounded_text(value: &str, limit: usize) -> Result<(), Status> {
     }
 }
 
-fn scope_bytes(scope: &dokime_app::core::RecordScope) -> Result<usize, Status> {
+fn scope_bytes(scope: &dokime_runtime::core::RecordScope) -> Result<usize, Status> {
     if let Some(case) = &scope.test_case_id {
         value::text(case.as_str())?;
         Ok(case.as_str().len())

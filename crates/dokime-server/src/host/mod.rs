@@ -35,7 +35,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use dokime_app::config::ApplicationOptions;
+use dokime_runtime::config::ApplicationOptions;
 use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
 
 /* === Constants === */
@@ -61,7 +61,7 @@ struct ExpectedPlugin {
 pub async fn run(
     args: Args,
     server_config: crate::grpc::Config,
-    terminal: dokime_cli::terminal::Terminal,
+    terminal: dokime::terminal::Terminal,
 ) -> Result<()> {
     let mut config = ApplicationOptions {
         application_root: args.application_root.clone(),
@@ -87,7 +87,7 @@ pub async fn run(
     };
     let expected = expected_plugins(&args.plugins)?;
     emit_phase(args.dev_control, "storage");
-    let mut runtime = dokime_app::app::launch(config)
+    let mut runtime = dokime_runtime::app::launch(config)
         .await
         .map_err(|error| Error::launch(error, storage_root.clone()))?;
     emit_phase(args.dev_control, "plugins");
@@ -154,7 +154,7 @@ pub async fn run(
 
 /* === Private Functions === */
 async fn development_control(
-    runtime: &mut dokime_app::Runtime,
+    runtime: &mut dokime_runtime::Runtime,
     paths: &[PathBuf],
     expected: &[ExpectedPlugin],
 ) {
@@ -208,7 +208,7 @@ async fn development_control(
                 ));
             }
             runtime
-                .reload_plugin(dokime_app::plugins::PluginBundle::new(path))
+                .reload_plugin(dokime_runtime::plugins::PluginBundle::new(path))
                 .await?;
             verify_plugins(&runtime.handle(), &candidate).await?;
             let rerun = if request["rerun"].as_bool() == Some(true) {
@@ -231,7 +231,7 @@ async fn development_control(
     }
 }
 
-async fn rerun_latest_case(handle: &dokime_app::RuntimeHandle, owners: &[String]) -> String {
+async fn rerun_latest_case(handle: &dokime_runtime::RuntimeHandle, owners: &[String]) -> String {
     let cycles = handle.cycles().await;
     let latest = cycles
         .iter()
@@ -287,7 +287,7 @@ fn emit_phase(dev_control: bool, name: &str) {
 }
 
 fn print_startup(
-    terminal: &dokime_cli::terminal::Terminal,
+    terminal: &dokime::terminal::Terminal,
     application_root: &Path,
     storage_root: &Path,
     bind_addr: SocketAddr,
@@ -325,7 +325,7 @@ fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin
                     path.display()
                 )));
             }
-            let (_, metadata) = dokime_app::plugins::inspect(&bytes)
+            let (_, metadata) = dokime_runtime::plugins::inspect(&bytes)
                 .map_err(|error| crate::host::Error::Input(error.to_string()))?;
             Ok(ExpectedPlugin {
                 package: metadata.identity.name,
@@ -340,10 +340,10 @@ fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin
 }
 
 async fn verify_plugins(
-    handle: &dokime_app::RuntimeHandle,
+    handle: &dokime_runtime::RuntimeHandle,
     expected: &[ExpectedPlugin],
 ) -> crate::host::Result<()> {
-    use dokime_app::runtime::query::{
+    use dokime_runtime::runtime::query::{
         RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
     };
     if expected.is_empty() {
@@ -368,7 +368,7 @@ async fn verify_plugins(
             let admitted = frame.installed_plugins.iter().any(|artifact| {
                 artifact.enabled && artifact.plugin_id.as_str() == owner
                     && matches!(&artifact.owner,
-                        Some(dokime_app::state::PluginOwner::Bundle { package, content_digest, installation: None, .. })
+                        Some(dokime_runtime::state::PluginOwner::Bundle { package, content_digest, installation: None, .. })
                         if package == &plugin.package && content_digest == &plugin.digest)
             });
             if !admitted {

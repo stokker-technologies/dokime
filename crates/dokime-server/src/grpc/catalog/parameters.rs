@@ -21,8 +21,8 @@ use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
 use super::super::value::{self, Budget};
-use dokime_app::core::{MeasurementUnit, UnitFamily};
-use dokime_app::definition::{
+use dokime_runtime::core::{MeasurementUnit, UnitFamily};
+use dokime_runtime::definition::{
     DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr,
 };
 use dokime_contract::operations::{catalog as wire, common, schema, value as wire_value};
@@ -145,13 +145,13 @@ pub(in crate::grpc) fn wire(
             })
             .transpose()?;
         let kind = match &parameter.expansion {
-            dokime_app::definition::ParameterExpansion::Single => {
+            dokime_runtime::definition::ParameterExpansion::Single => {
                 wire::ParameterExpansionKind::Single(true)
             }
-            dokime_app::definition::ParameterExpansion::Cartesian => {
+            dokime_runtime::definition::ParameterExpansion::Cartesian => {
                 wire::ParameterExpansionKind::Cartesian(true)
             }
-            dokime_app::definition::ParameterExpansion::Zip { group } => {
+            dokime_runtime::definition::ParameterExpansion::Zip { group } => {
                 wire::ParameterExpansionKind::Zip(group.as_str().to_owned())
             }
         };
@@ -350,12 +350,12 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 
-fn metadata(source: &dokime_app::core::Metadata, _: bool) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_runtime::core::Metadata, _: bool) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
 fn project_value(
-    source: &dokime_app::core::Value,
+    source: &dokime_runtime::core::Value,
     budget: &mut Budget,
     depth: usize,
 ) -> Result<wire_value::Value, Status> {

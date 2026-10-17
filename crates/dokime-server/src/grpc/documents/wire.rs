@@ -20,7 +20,7 @@ use harmos::Protobuf;
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
-use dokime_app::{CurrentDocumentCapture, document as native};
+use dokime_runtime::{CurrentDocumentCapture, document as native};
 
 /* === Constants === */
 
@@ -76,7 +76,7 @@ pub(super) fn frames(
     let definition = capture.definition;
     let scope = canonical::scope(&capture.selection.scope)?;
     let telemetry = captured.telemetry_cut.map(|cut| {
-        use dokime_app::CurrentDocumentTelemetryCut as ReadCut;
+        use dokime_runtime::CurrentDocumentTelemetryCut as ReadCut;
         let (delivered, source, ordinal) = match cut {
             ReadCut::Window { delivered } => (
                 delivered,
@@ -400,7 +400,7 @@ pub(super) fn frames(
 
 /* === Private Functions === */
 fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
-    use dokime_app::expressions::{DataSource, DataTransform};
+    use dokime_runtime::expressions::{DataSource, DataTransform};
     let mut streams = std::collections::BTreeSet::new();
     for expression in plot
         .y_expressions

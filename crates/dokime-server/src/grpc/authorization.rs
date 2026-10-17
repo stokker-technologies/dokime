@@ -133,7 +133,7 @@ impl Authorizer for Authorization {
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &dokime_app::RuntimeHandle, config: &Config) -> Result<(), Error> {
+pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle, config: &Config) -> Result<(), Error> {
     config.validate()?;
     let authorizer = Arc::new(Authorization::new(config.local_only())?);
     runtime.operations().register_authorizer(authorizer)?;

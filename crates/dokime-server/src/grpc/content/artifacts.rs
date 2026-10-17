@@ -26,7 +26,7 @@ use crate::grpc::{
     error::detailed,
     value,
 };
-use dokime_app::{RuntimeHandle, core::ArtifactId, runtime::ArtifactReader};
+use dokime_runtime::{RuntimeHandle, core::ArtifactId, runtime::ArtifactReader};
 use dokime_contract::operations::content as content_wire;
 
 /* === Constants === */
@@ -78,7 +78,7 @@ impl Operation for Download {
             .map_err(|source| {
                 let status = if matches!(
                     &source,
-                    dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
+                    dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
                 ) {
                     Status::resource_exhausted("cannot open stored artifact")
                 } else {
@@ -108,7 +108,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     super::upload::register(runtime, maximum)?;
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

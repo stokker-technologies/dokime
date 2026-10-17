@@ -19,7 +19,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 // Local Imports
-use dokime::paths::ApplicationPaths;
+use dokime_runtime::paths::ApplicationPaths;
 
 /* === Constants === */
 

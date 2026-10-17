@@ -28,7 +28,7 @@ pub mod soak;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Suites {
     SoakSuite(soak::SoakSuite),
 }

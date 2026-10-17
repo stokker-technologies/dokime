@@ -22,11 +22,11 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::value::{self, canonical};
-use dokime_app::RuntimeHandle;
-use dokime_app::core::TestExecutionId;
-use dokime_app::execution::ExecutionStatus;
-use dokime_app::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
-use dokime_app::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::core::TestExecutionId;
+use dokime_runtime::execution::ExecutionStatus;
+use dokime_runtime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
+use dokime_runtime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
 use dokime_contract::operations::{execution as execution_wire, history as wire};
 
 /* === Constants === */
@@ -98,7 +98,7 @@ impl Operation for Browse {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Browse>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum: maximum.min(4 * 1024 * 1024),

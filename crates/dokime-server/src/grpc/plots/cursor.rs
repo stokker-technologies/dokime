@@ -21,7 +21,7 @@ use tonic::Status;
 // Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
-use dokime_app::{
+use dokime_runtime::{
     core::{Identifier, RecordScope},
     document::{
         AxisScale, DocumentFilter, FftDetrend, FftOptions, FftWindow, FrequencyLevelUnit,

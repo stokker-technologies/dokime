@@ -23,7 +23,7 @@ use super::{
     Config, Error, appearance, authorization, catalog, content, execution, history, observation,
     planning, reports,
 };
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 

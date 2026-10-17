@@ -20,8 +20,8 @@ use tonic::Status;
 // Local Imports
 use super::super::error::detailed;
 use super::super::{execution, value};
-use dokime_app::execution::ResultStatus;
-use dokime_app::runtime::query::execution_history::{
+use dokime_runtime::execution::ResultStatus;
+use dokime_runtime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle,
     ExecutionCheckpoint,
 };
@@ -45,10 +45,10 @@ const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn query_failure(error: dokime_app::Error) -> Status {
+pub(super) fn query_failure(error: dokime_runtime::runtime::Error) -> Status {
     if matches!(
         &error,
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
     ) {
         return detailed(
             Status::resource_exhausted("historical response exceeds its original budget"),
@@ -61,11 +61,11 @@ pub(super) fn query_failure(error: dokime_app::Error) -> Status {
     )
 }
 
-pub(super) fn checkpoint_failure(error: dokime_app::Error) -> Status {
+pub(super) fn checkpoint_failure(error: dokime_runtime::runtime::Error) -> Status {
     tracing::warn!(error = %error, "checkpoint read failed");
     if matches!(
         &error,
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
     ) {
         return detailed(
             Status::resource_exhausted("checkpoint exceeds its original budget"),
@@ -93,7 +93,7 @@ pub(crate) fn checkpoint(
 ) -> Result<ExecutionCheckpoint, Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("checkpoint is required"))?;
     value::text(&value.execution_identifier)?;
-    let execution_id = dokime_app::core::TestExecutionId::from_uuid(value.execution_identifier)
+    let execution_id = dokime_runtime::core::TestExecutionId::from_uuid(value.execution_identifier)
         .map_err(|_| Status::invalid_argument("invalid checkpoint execution identifier"))?;
     if value.version.len() > MAX_CHECKPOINT_TOKEN_BYTES {
         return Err(Status::resource_exhausted(
@@ -126,7 +126,7 @@ pub(crate) fn checkpoint(
 }
 
 pub(super) fn browse_page(
-    page: &dokime_app::runtime::query::execution_history::ExecutionBrowsePage,
+    page: &dokime_runtime::runtime::query::execution_history::ExecutionBrowsePage,
 ) -> Result<history_wire::ExecutionBrowsePage, Status> {
     let mut entries = exact_slots(page.entries.len())?;
     for entry in &page.entries {
@@ -232,7 +232,7 @@ pub(super) fn checkpoint_wire_ref(
     value.validate().map_err(|error| {
         detailed(
             Status::internal("invalid native checkpoint"),
-            &dokime_app::Error::Operation(error.to_string()),
+            &dokime_runtime::runtime::Error::Operation(error.to_string()),
         )
     })?;
     let version = value
@@ -259,9 +259,9 @@ fn cursor(value: Option<checkpoint_wire::StorageCursor>) -> Result<StorageCursor
         .ok_or_else(|| Status::invalid_argument("checkpoint history is required"))?;
     value::text(&history.store)?;
     value::text(&history.epoch)?;
-    let store = dokime_app::core::Identifier::new(history.store)
+    let store = dokime_runtime::core::Identifier::new(history.store)
         .map_err(|_| Status::invalid_argument("invalid checkpoint store identifier"))?;
-    let epoch = dokime_app::core::Identifier::new(history.epoch)
+    let epoch = dokime_runtime::core::Identifier::new(history.epoch)
         .map_err(|_| Status::invalid_argument("invalid checkpoint history epoch"))?;
     Ok(StorageCursor {
         history: StoreHistory { store, epoch },
@@ -280,7 +280,7 @@ fn cursor_wire_ref(value: &StorageCursor) -> checkpoint_wire::StorageCursor {
 }
 
 pub(crate) fn traceability_memory(
-    source: &dokime_app::traceability::TraceabilitySnapshot,
+    source: &dokime_runtime::traceability::TraceabilitySnapshot,
 ) -> Result<usize, Status> {
     use super::super::value::canonical;
     use dokime_contract::operations::common;
@@ -315,7 +315,7 @@ pub(crate) fn traceability_memory(
 }
 
 pub(crate) fn traceability(
-    source: &dokime_app::traceability::TraceabilitySnapshot,
+    source: &dokime_runtime::traceability::TraceabilitySnapshot,
 ) -> Result<dokime_contract::operations::common::TraceabilitySnapshot, Status> {
     use super::super::value::canonical;
     use dokime_contract::operations::common;
@@ -367,7 +367,7 @@ fn browse_entry(
 }
 
 fn metadata(
-    value: &dokime_app::execution::storage::ExecutionMetadata,
+    value: &dokime_runtime::execution::storage::ExecutionMetadata,
 ) -> Result<history_wire::HistoricalExecutionMetadata, Status> {
     Ok(history_wire::HistoricalExecutionMetadata {
         execution_id: value.execution_id.as_str().to_owned(),

@@ -19,7 +19,7 @@ use harmos::{
 };
 use tonic::Status;
 // Local Imports
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     config::{Density, ThemeMode},
 };
@@ -109,7 +109,7 @@ impl Operation for UpdateStoragePolicy {
             .runtime
             .update_storage_policy(
                 request.expected_revision,
-                dokime_app::config::StoragePolicy {
+                dokime_runtime::config::StoragePolicy {
                     compaction_interval_ms: policy.compaction_interval_ms,
                     local_retention_ms: policy.local_retention_ms,
                 },
@@ -166,7 +166,7 @@ impl Operation for UpdateAppearance {
         if let Some(family) = &appearance.theme_family {
             super::super::value::text(family)?;
         }
-        let appearance = dokime_app::config::Appearance {
+        let appearance = dokime_runtime::config::Appearance {
             theme_mode: match appearance.theme_mode {
                 wire::ThemeMode::Unspecified | wire::ThemeMode::System => ThemeMode::System,
                 wire::ThemeMode::Light => ThemeMode::Light,
@@ -244,7 +244,7 @@ impl Operation for UpdateReportDefaults {
         let view = self
             .resources
             .runtime
-            .update_report_defaults(dokime_app::config::ReportDefaults {
+            .update_report_defaults(dokime_runtime::config::ReportDefaults {
                 plot_points: report.plot_points,
                 plot_downsample: report.plot_downsample,
             })
@@ -274,10 +274,10 @@ impl Resources {
     }
     fn policy(
         &self,
-        view: dokime_app::config::StoragePolicyView,
+        view: dokime_runtime::config::StoragePolicyView,
     ) -> Result<Response<wire::StoragePolicyView>, Status> {
         self.produce(|| {
-            let encode = |p: dokime_app::config::StoragePolicy| wire::StoragePolicy {
+            let encode = |p: dokime_runtime::config::StoragePolicy| wire::StoragePolicy {
                 compaction_interval_ms: p.compaction_interval_ms,
                 local_retention_ms: p.local_retention_ms,
             };
@@ -291,7 +291,7 @@ impl Resources {
     }
     fn application(
         &self,
-        view: dokime_app::config::ApplicationSettingsView,
+        view: dokime_runtime::config::ApplicationSettingsView,
     ) -> Result<Response<wire::ApplicationSettings>, Status> {
         let mut required = std::mem::size_of::<wire::ApplicationSettings>().saturating_add(
             view.appearance
@@ -353,42 +353,42 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
         .operations()
         .register_wire_operation::<ReadStoragePolicy>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdateStoragePolicy>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<ReadApplicationSettings>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdateAppearance>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdateDataRoot>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdateReportDefaults>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     Ok(())

@@ -24,13 +24,13 @@ use super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_app::core::{CaseId, CommandId, TemplateId, TestCycleId};
-use dokime_app::definition::{
+use dokime_runtime::core::{CaseId, CommandId, TemplateId, TestCycleId};
+use dokime_runtime::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase,
     materialize_template_cases,
 };
-use dokime_app::state::RuntimeState;
-use dokime_app::{Error, RuntimeHandle};
+use dokime_runtime::state::RuntimeState;
+use dokime_runtime::{runtime::Error, RuntimeHandle};
 use dokime_contract::operations::planning as wire;
 
 /* === Constants === */
@@ -149,7 +149,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
         .operations()
         .register_wire_operations::<Operations, RuntimeHandle>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(runtime.clone()),
         )?;
     Ok(())
@@ -319,8 +319,8 @@ pub(super) fn resolve(
         .map_err(|error| {
             if matches!(
                 error,
-                dokime_app::ApiError::CaseMaterialization(
-                    dokime_app::definition::CaseMaterializationError::CaseLimitExceeded { .. }
+                dokime_runtime::ApiError::CaseMaterialization(
+                    dokime_runtime::definition::CaseMaterializationError::CaseLimitExceeded { .. }
                 )
             ) && payload_limit < limit - cases.len()
             {

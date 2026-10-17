@@ -27,12 +27,12 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{
+use dokime_runtime::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
 };
-use dokime::harmos::plugin::{Attachment, Declared};
-use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
-use dokime::prelude::*;
+use dokime_runtime::harmos::plugin::{Attachment, Declared};
+use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 const AMBIENT_C: f64 = 22.0;
@@ -64,7 +64,7 @@ pub struct Plugin {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {}
 
 /* === Traits === */
@@ -86,24 +86,24 @@ impl Bench {
     }
 }
 
-impl dokime::harmos::operations::lifecycle::Policy for Plugin {
+impl dokime_runtime::harmos::operations::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: OperationPolicy = LIFECYCLE;
     const SHUTDOWN_POLICY: OperationPolicy = LIFECYCLE;
 }
 
-#[dokime::plugin(
+#[dokime_runtime::plugin(
     id = "{{owner}}",
     provides = domain::operations::Operations,
     requires(),
     contributions(
-        dokime::Suites<suites::Suites>,
-        dokime::Records<Records, listeners::Listeners>,
-        dokime::Evidence<observers::Streams>,
-        dokime::Settings<domain::model::settings::BenchSettings>,
+        dokime_runtime::Suites<suites::Suites>,
+        dokime_runtime::Records<Records, listeners::Listeners>,
+        dokime_runtime::Evidence<observers::Streams>,
+        dokime_runtime::Settings<domain::model::settings::BenchSettings>,
     ),
     observers = observers::Observers,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
-impl dokime::Plugin for Plugin {
+impl dokime_runtime::Plugin for Plugin {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
@@ -111,7 +111,7 @@ impl dokime::Plugin for Plugin {
 
     fn prepare(config: Configuration) -> std::result::Result<Self, Refusal> {
         let settings =
-            dokime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
+            dokime_runtime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
         // The port is discovered, so it is absent until an operator saves what
         // the card offered them: a plugin has to open before discovery can run,
         // which is exactly why a discovered field is an `Option<T>`.
@@ -150,7 +150,7 @@ impl dokime::Plugin for Plugin {
     ) -> std::result::Result<(), ServingError> {
         table.bind_operations::<domain::operations::Operations, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
-        dokime::execution::serve::<Self, suites::Suites>(table)
+        dokime_runtime::execution::serve::<Self, suites::Suites>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
@@ -160,7 +160,7 @@ impl dokime::Plugin for Plugin {
     }
 
     async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
-        dokime::execution::interrupt().await;
+        dokime_runtime::execution::interrupt().await;
         Ok(())
     }
 

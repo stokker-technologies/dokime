@@ -25,8 +25,8 @@ use tonic::Status;
 // Local Imports
 use super::bundle;
 use crate::diagnostics_assembly::DiagnosticsSnapshot;
-use dokime_app::RuntimeHandle;
-use dokime_app::domains::exports::storage::DiagnosticPathKey;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
 use dokime_contract::operations::{backend as wire, common::Timestamp};
 
 /* === Constants === */
@@ -47,11 +47,11 @@ struct Collector<'a> {
 /* === Implementations === */
 impl Collector<'_> {
     async fn health(&self) -> Result<wire::BackendHealth, Status> {
-        use dokime::operations::runtime::{GetHealth, Readiness};
+        use dokime_contract::operations::runtime::{GetHealth, Readiness};
         let instance = self
             .runtime
             .operations()
-            .submit_as::<GetHealth>(dokime::operations::runtime::Request {})
+            .submit_as::<GetHealth>(dokime_contract::operations::runtime::Request {})
             .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         let health = harmos::grpc::response(instance)
             .await
@@ -152,14 +152,14 @@ impl Collector<'_> {
         )
     }
 
-    fn artifact_ids(&self) -> Vec<dokime_app::core::Identifier> {
+    fn artifact_ids(&self) -> Vec<dokime_runtime::core::Identifier> {
         self.runtime
             .watch_state()
             .latest()
             .state()
             .installed_plugins
             .keys()
-            .filter_map(|id| dokime_app::core::Identifier::new(id.as_str()).ok())
+            .filter_map(|id| dokime_runtime::core::Identifier::new(id.as_str()).ok())
             .collect()
     }
 }
@@ -177,7 +177,7 @@ pub(super) async fn collect(
 
 /* === Private Functions === */
 pub(super) fn hub_log_path(application_root: &std::path::Path) -> std::path::PathBuf {
-    dokime_app::domains::exports::storage::path_conventions(application_root)
+    dokime_runtime::domains::exports::storage::path_conventions(application_root)
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)

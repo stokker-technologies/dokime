@@ -22,7 +22,7 @@ use tonic::Status;
 // Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
-use dokime_app::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
+use dokime_runtime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 use dokime_contract::operations::{appearance as wire, content};
 
 /* === Constants === */
@@ -140,8 +140,8 @@ pub(crate) async fn download(
         .ok_or_else(|| failure(wire::AppearanceFailureKind::InvalidReference))?;
     if reference.plugin_id.len() > 256
         || reference.asset_id.len() > 256
-        || dokime_app::core::Identifier::new(&reference.plugin_id).is_err()
-        || dokime_app::core::Identifier::new(&reference.asset_id).is_err()
+        || dokime_runtime::core::Identifier::new(&reference.plugin_id).is_err()
+        || dokime_runtime::core::Identifier::new(&reference.asset_id).is_err()
         || reference.sha256.len() != 64
         || !reference
             .sha256

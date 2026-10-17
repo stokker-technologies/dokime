@@ -29,7 +29,7 @@ pub(crate) use connection::Observed;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Listeners {
     Observed(Observed),
 }

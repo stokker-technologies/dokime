@@ -19,7 +19,7 @@
 // Local Imports
 use super::super::value::canonical;
 use super::{contract as v1, value};
-use dokime_app::plugins::{PluginEntry, PluginLastBoot, PluginState};
+use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 use harmos::Protobuf;
 use tonic::Status;
 
@@ -113,7 +113,7 @@ pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status
             "verified permission metadata is unavailable; consent refused",
         ));
     }
-    dokime_app::document::bounded::document_size(entry, limit / 2, 32).map_err(|_| {
+    dokime_runtime::document::bounded::document_size(entry, limit / 2, 32).map_err(|_| {
         Status::resource_exhausted(
             "complete permission metadata exceeds response budget; consent refused",
         )
@@ -126,7 +126,7 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
         entry.metadata = None;
         entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
     }
-    dokime_app::document::bounded::document_size(&entry, limit / 2, 32).map_err(|_| {
+    dokime_runtime::document::bounded::document_size(&entry, limit / 2, 32).map_err(|_| {
         Status::resource_exhausted("plugin installation state exceeds response budget")
     })?;
     Ok(())

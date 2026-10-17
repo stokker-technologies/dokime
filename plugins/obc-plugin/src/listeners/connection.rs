@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::{Resources, error::Error};
-use dokime::host::ToolConnectionAcquired;
-use dokime::prelude::*;
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -38,7 +38,7 @@ pub(crate) struct Observed {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::listener(id = "obc-plugin.connection", record = ToolConnectionAcquired)]
+#[dokime_runtime::listener(id = "obc-plugin.connection", record = ToolConnectionAcquired)]
 impl Observed {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }

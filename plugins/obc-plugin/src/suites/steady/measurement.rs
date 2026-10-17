@@ -27,11 +27,11 @@ use crate::suites::common::measurement::InputMeasurement;
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{readiness, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime::core::TemplateId;
-use dokime::definition::ParameterDefault;
-use dokime::document::{PlotDefinition, PlotStyle};
-use dokime::expressions::telemetry;
-use dokime::prelude::*;
+use dokime_runtime::core::TemplateId;
+use dokime_runtime::definition::ParameterDefault;
+use dokime_runtime::document::{PlotDefinition, PlotStyle};
+use dokime_runtime::expressions::telemetry;
+use dokime_runtime::prelude::*;
 use obc_runtime::device::Device;
 
 /* === Constants === */
@@ -59,7 +59,7 @@ pub struct Steady {
 // [`InputMeasurement`]: four suites measure the same physical thing and each owns the
 // stream its evidence travels, so the shape declares no home and every
 // stream declares itself.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc.charger.steady.samples",
     window = 4096,
     row = InputMeasurement,
@@ -72,7 +72,7 @@ pub struct Samples;
 // is the device's schedule and not the engine's. The stream is declared by
 // this row type, so its contract exists with nothing sampling it, and the step
 // that observes the event pushes the row.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc.charger.steady.events",
     window = 4096,
     label = "Steady-State Supply Events",
@@ -89,7 +89,7 @@ pub struct BenchEvent {
 
 /* === Records === */
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.steady.initialized",
     label = "Steady-state Charger initialized",
     description = "The Charger was initialized for this attempt."
@@ -97,7 +97,7 @@ pub struct BenchEvent {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.steady.started",
     label = "Steady-state Charger energized",
     description = "The supply was energized."
@@ -105,7 +105,7 @@ pub struct Initialized {}
 #[derive(Clone, Debug)]
 pub struct Started {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.steady.completed",
     label = "Steady-state measurement and operator decision captured",
     description = "The steady-state measurement and the operator's decision, together."
@@ -118,7 +118,7 @@ pub struct Completed {
     pub accepted: bool,
 }
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)",
@@ -153,29 +153,29 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::operations::readiness::AskReadiness),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Prompts {
     SteadyCheck(checkpoint::SteadyCheck),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     BenchEvent(BenchEvent),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
     Completed(Completed),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum ObserverStreams {
     Samples(Samples),
 }
@@ -185,7 +185,7 @@ pub enum ObserverStreams {
 /* === Implementations === */
 bench!(Parameters);
 
-#[dokime::template(
+#[dokime_runtime::template(
     id = STEADY_TEMPLATE, label = "Charging Input Measurement",
     requires = Required,
     template_id = TemplateId::from_uuid(STEADY_TEMPLATE_ID).expect("steady template UUID"),
@@ -291,7 +291,7 @@ impl Steady {
         steady_document()
     }
 
-    #[dokime::step(label = "Initialize and Energize Charger")]
+    #[dokime_runtime::step(label = "Initialize and Energize Charger")]
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         ctx.resources()
@@ -305,7 +305,7 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Measure AC Waveform",
         description = "Waits on the template's own observer, and reports what it saw around it.\nThe wait is for an exact number of rows rather than a length of time, so what the run measured does not depend on how quickly it got going. The two event rows travel a stream nothing samples: the step pushes them through a handle it holds open across the wait, beside its log lines rather than instead of them."
     )]
@@ -339,7 +339,7 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime::step(label = "Inspect Steady-State Trace")]
+    #[dokime_runtime::step(label = "Inspect Steady-State Trace")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.info("record=sidecar_prompt_requested");
         let response = ctx
@@ -357,7 +357,7 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime::step(label = "Attach Measurement Evidence")]
+    #[dokime_runtime::step(label = "Attach Measurement Evidence")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let device = ctx
             .resources()
@@ -392,7 +392,7 @@ impl Steady {
         Ok(())
     }
 
-    #[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = STEADY_ACCEPTANCE_CRITERION_LABEL, description = "Passed once the sampler reached the case's sample count and the operator accepted the trace.")]
+    #[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = STEADY_ACCEPTANCE_CRITERION_LABEL, description = "Passed once the sampler reached the case's sample count and the operator accepted the trace.")]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         Ok(
             ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
@@ -400,7 +400,7 @@ impl Steady {
         )
     }
 
-    #[dokime::observer(interval_ms = 50, streams = ObserverStreams)]
+    #[dokime_runtime::observer(interval_ms = 50, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let row = reading(ctx.resources())?;
         ctx.stream::<InputMeasurement>()

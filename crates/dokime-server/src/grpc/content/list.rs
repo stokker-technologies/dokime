@@ -24,7 +24,7 @@ use tonic::Status;
 // Local Imports
 use super::metadata;
 use crate::grpc::{error::detailed, value};
-use dokime_app::{RuntimeHandle, artifacts::ArtifactRecord};
+use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
@@ -109,7 +109,7 @@ impl Operation for List {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,
@@ -119,17 +119,17 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
-fn inventory_failure(error: dokime_app::Error) -> Status {
+fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("artifact inventory exceeds its read budget")
         }
-        dokime_app::Error::Overload { .. } => {
+        dokime_runtime::runtime::Error::Overload { .. } => {
             Status::resource_exhausted("artifact inventory is busy")
         }
-        dokime_app::Error::Unavailable { .. }
-        | dokime_app::Error::ShuttingDown
-        | dokime_app::Error::Interrupted => {
+        dokime_runtime::runtime::Error::Unavailable { .. }
+        | dokime_runtime::runtime::Error::ShuttingDown
+        | dokime_runtime::runtime::Error::Interrupted => {
             Status::unavailable("artifact inventory is unavailable")
         }
         _ => Status::internal("artifact inventory could not be read"),

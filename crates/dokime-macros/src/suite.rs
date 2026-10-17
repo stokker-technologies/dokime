@@ -60,7 +60,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
-            "`#[dokime::suite]` declares the suite's own inherent impl, not a trait implementation",
+            "`#[dokime_runtime::suite]` declares the suite's own inherent impl, not a trait implementation",
         ));
     }
     let suite = block.self_ty.clone();

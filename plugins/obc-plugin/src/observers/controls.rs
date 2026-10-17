@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::observers::{Control, POLICY};
-use dokime::harmos::operations::{
+use dokime_runtime::harmos::operations::observers::{Control, POLICY};
+use dokime_runtime::harmos::operations::{
     OperationDeclaration, OperationPolicy, ReplaySafety, Visibility, WireOperation,
 };
 

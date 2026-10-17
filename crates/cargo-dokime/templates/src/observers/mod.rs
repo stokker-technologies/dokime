@@ -29,12 +29,12 @@ pub use temperature::Temperature;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Observers {
     Temperature(Temperature),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     TemperatureRow(crate::domain::model::chamber::TemperatureRow),
 }

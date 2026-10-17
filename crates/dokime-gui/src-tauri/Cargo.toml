@@ -38,7 +38,7 @@ tauri-build = { workspace = true, features = [] }
 # Local
 dokime-client = { path = "../../dokime-client" }
 # Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
-dokime = { path = "../../dokime", default-features = false, features = ["native"] }
+dokime-runtime = { path = "../../dokime-runtime", default-features = false, features = ["native"] }
 dokime-filesystem = { path = "../../dokime-filesystem" }
 dokime-contract = { path = "../../dokime-contract", features = ["diagnostics"] }
 

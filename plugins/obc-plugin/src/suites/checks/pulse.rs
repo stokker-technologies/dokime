@@ -21,8 +21,8 @@ use std::time::Duration;
 // Third-Party Imports
 use crate::error::Error;
 use crate::suites::common::system::{self, SystemInputs};
-use dokime::document::{Document, Plot, PlotStyle, Section};
-use dokime::execution::{CriterionContext, ObserverContext, StepContext};
+use dokime_runtime::document::{Document, Plot, PlotStyle, Section};
+use dokime_runtime::execution::{CriterionContext, ObserverContext, StepContext};
 
 /* === Constants === */
 pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
@@ -45,7 +45,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 /* === Structs === */
 /* === Records === */
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.run.started",
     label = "Run started",
     description = "The run has begun.\nDeclared here, beside the step that publishes it, and named once on the template's `records = Records`. The struct is the contract: there is no id to keep in agreement with a separate declaration."
@@ -53,7 +53,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 #[derive(Clone, Debug)]
 pub struct RunStarted {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.run.completed",
     label = "Run completed",
     description = "The run finished, and this is what it produced."
@@ -76,7 +76,7 @@ pub struct PulseResources {
 // every other reference to this stream names it by. A field's column type is
 // resolved from its Rust type, so `value: f64` is a number column because the
 // compiler said so.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc.pulse",
     window = 4096,
     label = "OBC Pulse",
@@ -88,7 +88,7 @@ pub struct PulseRow {
     pub value: f64,
 }
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct PulseParameters {
     #[parameter(
         label = "Sample Count",
@@ -113,13 +113,13 @@ pub struct PulseParameters {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {
     RunStarted(RunStarted),
     RunCompleted(RunCompleted),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum ObserverStreams {
     PulseRow(PulseRow),
 }
@@ -127,7 +127,7 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::template(
+#[dokime_runtime::template(
     id = "obc.checks.pulse",
     label = LABEL,
     tags = ["example", "sidecar"],
@@ -141,7 +141,7 @@ pub enum ObserverStreams {
 impl Pulse {
     async fn initialize(
         _: &PulseParameters,
-        _ctx: &mut dokime::execution::InitializationContext<'_>,
+        _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
         let shared = PulseResources::default();
@@ -166,7 +166,7 @@ impl Pulse {
         document
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Start",
         description = "The first phase: say the run has begun.\nThe host advances its checklist on the step's id, which the engine reports before it calls this. What the step itself does is emit the record this template declared."
     )]
@@ -176,7 +176,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Stream Samples",
         description = "Waits for the declared stream to produce the rows this case asked for.\nIt waits on a count rather than on a clock, so the evidence a run produced is what ended it. A cancellation ends the wait wherever it has got to, and the criterion below then decides over the rows that exist."
     )]
@@ -203,7 +203,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Complete",
         description = "The last phase: say what the run produced."
     )]
@@ -214,7 +214,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
+    #[dokime_runtime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
     fn completed(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         if ctx.parameters().capture_system
             && !ctx.gaps::<crate::observers::system::SystemRow>().is_empty()
@@ -243,7 +243,7 @@ impl Pulse {
         Ok(samples.len() as u64 >= ctx.parameters().sample_count)
     }
 
-    #[dokime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
+    #[dokime_runtime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
     async fn pulse(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let index = ctx.resources().produced.fetch_add(1, Ordering::AcqRel);
         ctx.publish(PulseRow {

@@ -19,7 +19,7 @@ use std::time::Duration;
 
 // Local Imports
 use crate::operations::{chamber, status};
-use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
 /// The policy every bench operation declares.
@@ -38,7 +38,7 @@ pub(crate) const POLICY: OperationPolicy = OperationPolicy {
 
 /* === Enums === */
 /// The operations this plugin provides, named by `provides` and bound as served.
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Operations {
     GetStatus(status::GetStatus),
     ReadChamber(chamber::ReadChamber),

@@ -22,7 +22,7 @@ use harmos::{
 };
 use tonic::Status;
 // Local Imports
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 use dokime_contract::operations::history;
 
 /* === Constants === */
@@ -95,7 +95,7 @@ impl Operation for Get {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum: maximum.min(4 * 1024 * 1024),

@@ -21,7 +21,7 @@ use tonic::Status;
 use tracing::Instrument;
 // Local Imports
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 use dokime_contract::operations::{backend as wire, common::Timestamp};
 
 /* === Constants === */
@@ -186,7 +186,7 @@ impl Watch {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,
