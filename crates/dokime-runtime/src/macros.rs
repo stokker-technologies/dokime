@@ -55,6 +55,13 @@ macro_rules! json_message {
             }
         }
 
+        // The JSON-carried payload is bounded by its own encoded bytes.
+        impl harmos::MemorySize for $message {
+            fn memory_size(&self) -> usize {
+                std::mem::size_of::<Self>().saturating_add(serde_json::to_vec(self).map_or(0, |json| json.len()))
+            }
+        }
+
         impl harmos::schema::Described for $message {
             const NAME: &'static str = concat!(module_path!(), "::", stringify!($message));
             const FIELDS: &'static [harmos::schema::Field] = &[harmos::schema::Field {

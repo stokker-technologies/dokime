@@ -40,16 +40,35 @@ pub struct Delivery {
     pub record_json: String,
 }
 
+// One listener's callback operation: the host delivers the filed record under
+// the listener's own operation id.
+pub struct Heard<L>(pub Delivery, std::marker::PhantomData<fn() -> L>);
+
 /* === Enums === */
 
 /* === Traits === */
 pub trait Listener: 'static {
     const ID: &'static str;
 
+    const DESCRIPTION: &'static str = "";
+
     type Record: DeclaredRecord;
 }
 
 /* === Implementations === */
+crate::transport::templated!(Heard, Delivery);
+
+impl<L: Listener> harmos::operations::OperationDeclaration for Heard<L> {
+    type Response = ();
+    type Input = harmos::operations::NoStream;
+    type Output = harmos::operations::NoStream;
+    const ID: &'static str = L::ID;
+    const VERSION: u32 = 1;
+    const DESCRIPTION: &'static str = L::DESCRIPTION;
+    const POLICY: harmos::operations::OperationPolicy = LISTENER_POLICY;
+    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Host;
+}
+
 impl Delivery {
     pub fn of(record: &Record) -> Self {
         Self { record_json: serde_json::to_string(record).expect("a filed record serializes") }
