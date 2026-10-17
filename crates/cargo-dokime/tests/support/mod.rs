@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-pub mod output;
 
 /* === Re-Exports === */
 
@@ -51,11 +50,6 @@ pub fn workspace_root() -> std::path::PathBuf {
         .find(|ancestor| ancestor.join("Cargo.lock").is_file())
         .expect("the crate lives in a Cargo workspace")
         .to_owned()
-}
-
-pub fn target_directory() -> std::path::PathBuf {
-    let root = workspace_root();
-    std::env::var_os("CARGO_TARGET_DIR").map(|path| root.join(path)).unwrap_or_else(|| root.join("target"))
 }
 
 pub fn standalone_directory() -> tempfile::TempDir {

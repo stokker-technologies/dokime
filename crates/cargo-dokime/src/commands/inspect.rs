@@ -15,8 +15,8 @@
 // Standard Library Imports
 use std::path::PathBuf;
 // Third Party Imports
-use harmos::bundle::{Bundle, Limits};
 use harmos::plugin::inventory::CarrierSection;
+use harmos_packaging::bundle::{Bundle, Limits};
 // Local Imports
 use crate::error::Error;
 

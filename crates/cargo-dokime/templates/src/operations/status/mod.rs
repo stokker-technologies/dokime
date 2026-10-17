@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Bench;
+use crate::domain::operations::GetStatus;
 use dokime_runtime::prelude::*;
 
 /* === Constants === */
@@ -28,7 +29,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct GetStatus {
+pub struct StatusProbe {
     bench: Arc<Bench>,
 }
 
@@ -37,18 +38,14 @@ pub struct GetStatus {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(
-    id = "{{owner}}.get_status",
-    version = 1,
-    description = "Reports whether the bench is reachable.",
-    policy = crate::domain::operations::POLICY
-)]
-impl GetStatus {
+// The handler declares nothing: its request type is the operation.
+#[dokime_runtime::operation]
+impl StatusProbe {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
         Ok(StatusResponse::ready()
             .field("sensor", self.bench.sensor.describe())
             .field("units_connected", self.bench.connected().len() as i64)

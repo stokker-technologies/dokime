@@ -9,6 +9,7 @@
 
 /* === Modules === */
 pub mod analyses;
+pub mod domain;
 pub mod error;
 mod listeners;
 mod observers;
@@ -102,7 +103,6 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for ObcPlugin {
         dokime_runtime::Settings<BenchSettings>,
     ),
     observers = observers::Observers,
-    observer_control = observers::controls::Observe,
     restart(
         credit = 3,
         sustained_health_ms = 30_000,
@@ -142,7 +142,7 @@ impl dokime_runtime::Plugin for ObcPlugin {
         table.bind_operations::<analyses::Implemented, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, suites::Suites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<observers::controls::Observe>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {

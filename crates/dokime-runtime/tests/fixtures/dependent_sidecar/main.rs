@@ -15,9 +15,7 @@
 // Standard Library Imports
 use std::{io::Write, path::PathBuf, sync::Arc, time::Duration};
 // Third Party Imports
-use dokime_runtime::harmos::operations::{
-    Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, Visibility, WireOperation, WireTable,
-};
+use dokime_runtime::harmos::operations::{Host, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, Visibility, WireTable};
 // Local Imports
 use dokime_runtime::{Refusal, Supervisor};
 
@@ -49,7 +47,19 @@ struct DependentSettings {
     config: Config,
 }
 
-pub struct CheckHealth;
+// The dependency's health request, declared here as the operation this
+// fixture requires.
+#[dokime_runtime::message]
+#[dokime_runtime::operation(
+    id = "validation-telemetry.check_health",
+    response = (),
+    version = 1,
+    description = "Answers whether the fixture is reachable; a dependent plugin calls it.",
+    visibility = Visibility::Shared,
+    policy = POLICY
+)]
+#[derive(Clone, PartialEq)]
+pub struct CheckHealth {}
 
 struct Dependent {
     lifecycle: Option<PathBuf>,
@@ -62,19 +72,6 @@ pub enum Operations {}
 /* === Traits === */
 
 /* === Implementations === */
-impl OperationDeclaration for CheckHealth {
-    type Request = ();
-    type Response = ();
-    const ID: &'static str = "validation-telemetry.check_health";
-    const DESCRIPTION: &'static str = "Answers whether the fixture is reachable; a dependent plugin calls it.";
-    const VISIBILITY: Visibility = Visibility::Shared;
-    const POLICY: OperationPolicy = POLICY;
-}
-
-impl WireOperation for CheckHealth {
-    const VERSION: u32 = 1;
-}
-
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Dependent {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
@@ -126,7 +123,7 @@ impl dokime_runtime::Plugin for Dependent {
 
 impl Dependent {
     async fn record(&self, host: &Supervisor, phase: &str) -> std::io::Result<()> {
-        host.call_as::<CheckHealth>(()).await.map(|response| response.into_owned()).map_err(std::io::Error::other)?;
+        host.call(CheckHealth {}).await.map(|response| response.into_owned()).map_err(std::io::Error::other)?;
         let Some(lifecycle) = &self.lifecycle else {
             return Ok(());
         };

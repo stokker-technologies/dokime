@@ -9,7 +9,6 @@
 
 /* === Modules === */
 pub(super) mod continuous;
-pub(super) mod controls;
 pub(super) mod record_demand;
 
 /* === Re-Exports === */

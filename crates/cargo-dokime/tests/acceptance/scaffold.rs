@@ -99,7 +99,7 @@ pub(super) fn generated_plugin_tasks() {
         let (marker, body) = contents.split_once('\n').unwrap();
         assert!(marker.starts_with("# Rendered by stkr project update from "));
         let (_, recorded) = marker.rsplit_once("; sha256:").unwrap();
-        assert_eq!(recorded, format!("{:x}", Sha256::digest(body.as_bytes())));
+        assert_eq!(recorded, Sha256::digest(body.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
         assert!(!contents.contains("{{package}}"), "{file} has no unresolved package placeholder");
     }
 

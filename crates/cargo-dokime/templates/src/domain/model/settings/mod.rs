@@ -18,8 +18,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use crate::operations::chamber::DetectPort;
-use crate::operations::status::GetStatus;
+use crate::domain::operations::{DetectPort, GetStatus};
 use dokime_runtime::plugin::Secret;
 
 /* === Constants === */

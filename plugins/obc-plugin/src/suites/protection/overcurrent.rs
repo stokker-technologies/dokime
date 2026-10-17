@@ -125,7 +125,7 @@ pub struct Parameters {
 /* === Enums === */
 #[dokime_runtime::catalog]
 pub enum Required {
-    AskReadiness(crate::operations::readiness::AskReadiness),
+    AskReadiness(crate::domain::operations::AskReadiness),
 }
 
 #[dokime_runtime::catalog]

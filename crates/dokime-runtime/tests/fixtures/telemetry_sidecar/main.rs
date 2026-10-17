@@ -80,18 +80,30 @@ struct RecordChecks;
 
 struct CaptureStartup;
 
-struct CheckHealth;
+// The health request a dependent plugin calls; the request is its operation.
+#[dokime_runtime::message]
+#[dokime_runtime::operation(
+    id = "validation-telemetry.check_health",
+    response = (),
+    version = 1,
+    description = "Answers whether the fixture is reachable; a dependent plugin calls it.",
+    policy = POLICY,
+    visibility = dokime_runtime::harmos::operations::Visibility::Shared
+)]
+#[derive(Clone, PartialEq)]
+struct CheckHealth {}
+
+struct HealthCheck;
 
 /* === Enums === */
 #[dokime_runtime::catalog]
 enum Operations {
     CheckHealth(CheckHealth),
-    Observe(observers::controls::Observe),
 }
 
 #[dokime_runtime::catalog]
 enum Implemented {
-    CheckHealth(CheckHealth),
+    HealthCheck(HealthCheck),
 }
 
 #[dokime_runtime::catalog]
@@ -123,19 +135,13 @@ enum Subscriptions {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(
-    id = "validation-telemetry.check_health",
-    version = 1,
-    description = "Answers whether the fixture is reachable; a dependent plugin calls it.",
-    policy = POLICY,
-    visibility = dokime_runtime::harmos::operations::Visibility::Shared
-)]
-impl CheckHealth {
+#[dokime_runtime::operation]
+impl HealthCheck {
     async fn initialize(_: Arc<Resources>, _: &Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<(), Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut CheckHealth) -> Result<(), Refusal> {
         Ok(())
     }
 }
@@ -156,7 +162,6 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for TelemetrySidecar 
         dokime_runtime::Settings<TelemetrySidecarSettings>,
     ),
     observers = observers::Observers,
-    observer_control = observers::controls::Observe,
     restart = "never", description = "Publishes continuous telemetry for runtime ingest tests.")]
 impl dokime_runtime::Plugin for TelemetrySidecar {
     type Config = dokime_runtime::plugin::Configuration;
@@ -192,7 +197,7 @@ impl dokime_runtime::Plugin for TelemetrySidecar {
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, Suites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<observers::controls::Observe>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {

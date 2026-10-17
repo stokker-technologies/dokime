@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
 
 // Third Party Imports
 
@@ -27,7 +26,6 @@ use model::records::publication::RecordPublishRequest;
 use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
 
 /* === Constants === */
-const POLL: Duration = Duration::from_millis(5);
 
 /* === Macros === */
 
@@ -56,7 +54,7 @@ fn start_request(token: &str, sample_count: u64) -> RunExecution {
             )]),
             ..Default::default()
         },
-        Default::default(),
+        super::materialization(),
     )
     .expect("the host resolves declared inputs before starting the sidecar");
     RunExecution {

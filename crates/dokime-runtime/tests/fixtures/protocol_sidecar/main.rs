@@ -25,7 +25,7 @@ use std::{
 };
 // Third Party Imports
 use dokime_runtime::harmos::operations::{
-    Host, OperationDeclaration, OperationPolicy, Response, RestartPolicy, RetryPolicy, ServingError, Visibility, WireOperation, WireTable,
+    Host, OperationPolicy, Response, RestartPolicy, RetryPolicy, ServingError, Visibility, WireTable,
 };
 use dokime_runtime::harmos::plugin::Contribution;
 use dokime_runtime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
@@ -33,12 +33,13 @@ use dokime_runtime::harmos::plugin::{Registrar, RegistrationError, inventory::Se
 use dokime_domain::model;
 use dokime_runtime::definition::{ExecutionPhaseDefinition, Subscription, SuiteSet, TestCaseTemplate, TestSuite};
 use dokime_runtime::domains::TestSuiteDefinition;
+use dokime_runtime::execution::{Run, SIGNAL_POLICY, Served, Signal};
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
 use dokime_runtime::transport::{
-    ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome,
-    SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
+    ArtifactChunk, EvidenceBatch, ExecutionSignal, RUN_BOUND, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus,
+    SidecarExecutionOutcome, SignalReply,
 };
-use dokime_runtime::{Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType};
+use dokime_runtime::{Identifier, Metadata, StepAttemptId, StepId, TemplateId, Value, ValueType};
 use dokime_runtime::{Refusal, Supervisor};
 use {
     dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
@@ -54,46 +55,29 @@ const POLL: Duration = Duration::from_millis(10);
 
 const SETTLE_DELAY: Duration = Duration::from_millis(1_600);
 
+// The policy every fixture control operation declares.
+const CONTROL: OperationPolicy = OperationPolicy {
+    timeout: Duration::from_secs(30),
+    attempt_timeout: Duration::from_secs(30),
+    retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
+};
+
 /* === Macros === */
 macro_rules! operation {
-    ($name:ident, $request:ty, $response:ty, $id:literal, $seconds:literal, $visibility:ident, $method:ident) => {
-        struct $name {
+    ($handler:ident, $request:ty, $response:ty, $method:ident) => {
+        struct $handler {
             resources: Arc<Resources>,
         }
 
-        impl OperationDeclaration for $name {
-            type Request = $request;
-            type Response = $response;
-            const ID: &'static str = $id;
-            const VISIBILITY: Visibility = Visibility::$visibility;
-            const POLICY: OperationPolicy = OperationPolicy {
-                timeout: Duration::from_secs($seconds),
-                attempt_timeout: Duration::from_secs($seconds),
-                retries: RetryPolicy::Never,
-                restart: RestartPolicy::Never,
-            };
-        }
-
-        impl WireOperation for $name {
-            const VERSION: u32 = 1;
-        }
-
-        impl dokime_runtime::harmos::operations::Operation for $name {
-            type Declaration = Self;
-            type Resources = Resources;
-            type Endpoints = ();
-            type Error = Refusal;
-            type Context<'a> = &'a Supervisor;
-
-            async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
-                Ok(Self { resources })
+        #[dokime_runtime::operation]
+        impl $handler {
+            async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
+                Self { resources }
             }
 
-            async fn run<'ctx>(
-                &mut self, context: Self::Context<'ctx>, request: &mut $request, _: &mut (),
-            ) -> Result<Response<$response>, Refusal> {
-                let request = std::mem::take(request);
-                self.resources.$method(context, request).await.map(Response::new)
+            async fn run(&mut self, context: &Supervisor, request: &mut $request) -> Result<$response, Refusal> {
+                self.resources.$method(context, std::mem::take(request)).await
             }
         }
     };
@@ -106,9 +90,12 @@ macro_rules! modes {
 
             impl Mode for $name {
                 const MODE: &'static str = $mode;
+            }
+
+            impl Served for $name {
                 const RUN: &'static str = concat!("fixture.sidecar.", $mode, ".run");
                 const SIGNAL: &'static str = concat!("fixture.sidecar.", $mode, ".signal");
-                const SIGNAL_TIMEOUT: Duration = signal_timeout($mode);
+                const SIGNAL_POLICY: OperationPolicy = signal_policy($mode);
             }
         )*
 
@@ -155,9 +142,29 @@ struct Signals {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Empty {}
 
-struct Run<M>(PhantomData<fn() -> M>);
+// Reads how often the fixture started and whether it saw a cancellation.
+#[dokime_runtime::message]
+#[dokime_runtime::operation(
+    id = "fixture-sidecar.status",
+    response = Signals,
+    version = 1,
+    policy = CONTROL,
+    visibility = Visibility::Shared
+)]
+#[derive(Clone, PartialEq)]
+struct GetStatus {}
 
-struct Signal<M>(PhantomData<fn() -> M>);
+// Releases an execution the fixture holds open.
+#[dokime_runtime::message]
+#[dokime_runtime::operation(
+    id = "fixture-sidecar.release",
+    response = Empty,
+    version = 1,
+    policy = CONTROL,
+    visibility = Visibility::Shared
+)]
+#[derive(Clone, PartialEq)]
+struct ReleaseExecution {}
 
 struct Running<M> {
     resources: Arc<Resources>,
@@ -183,16 +190,13 @@ enum Operations {
     Templates(Templates),
     Status(Status),
     Release(Release),
-    PublishTelemetry(PublishTelemetry),
-    PublishRecord(PublishRecord),
+    PublishTelemetry(TelemetryPublisher),
+    PublishRecord(RecordRelay),
 }
 
 /* === Traits === */
-trait Mode: Send + Sync + 'static {
+trait Mode: Served + Send + Sync {
     const MODE: &'static str;
-    const RUN: &'static str;
-    const SIGNAL: &'static str;
-    const SIGNAL_TIMEOUT: Duration;
 }
 
 /* === Implementations === */
@@ -212,51 +216,13 @@ modes!(
     StreamLog, StreamLogRun, StreamLogSignal => "stream_log",
 );
 
-operation!(Status, Empty, Signals, "fixture-sidecar.status", 30, Shared, status);
+operation!(Status, GetStatus, Signals, status);
 
-operation!(Release, Empty, Empty, "fixture-sidecar.release", 30, Shared, release);
+operation!(Release, ReleaseExecution, Empty, release);
 
-operation!(PublishTelemetry, telemetry::Publish, Empty, "fixture-sidecar.publish-telemetry", 30, Shared, publish_telemetry);
+operation!(TelemetryPublisher, telemetry::PublishTelemetry, Empty, publish_telemetry);
 
-operation!(
-    PublishRecord,
-    dokime_runtime::records::RecordPublication,
-    publications::Published,
-    "fixture-sidecar.publish-record",
-    30,
-    Shared,
-    publish_record
-);
-
-impl<M: Mode> OperationDeclaration for Run<M> {
-    type Request = RunExecution;
-    type Response = SidecarExecutionOutcome;
-    const ID: &'static str = M::RUN;
-    const POLICY: OperationPolicy =
-        OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
-    const VISIBILITY: Visibility = Visibility::Host;
-}
-
-impl<M: Mode> WireOperation for Run<M> {
-    const VERSION: u32 = 1;
-}
-
-impl<M: Mode> OperationDeclaration for Signal<M> {
-    type Request = ExecutionSignal;
-    type Response = SignalReply;
-    const ID: &'static str = M::SIGNAL;
-    const POLICY: OperationPolicy = OperationPolicy {
-        timeout: M::SIGNAL_TIMEOUT,
-        attempt_timeout: M::SIGNAL_TIMEOUT,
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    };
-    const VISIBILITY: Visibility = Visibility::Host;
-}
-
-impl<M: Mode> WireOperation for Signal<M> {
-    const VERSION: u32 = 1;
-}
+operation!(RecordRelay, publications::RelayRecord, publications::Published, publish_record);
 
 impl<M: Mode> dokime_runtime::harmos::operations::Declares for Running<M> {
     type Declaration = Run<M>;
@@ -274,9 +240,9 @@ impl<M: Mode> dokime_runtime::harmos::operations::Operation for Running<M> {
     }
 
     async fn run<'ctx>(
-        &mut self, host: Self::Context<'ctx>, request: &mut RunExecution, _: &mut (),
+        &mut self, host: Self::Context<'ctx>, request: &mut Run<M>, _: &mut (),
     ) -> Result<Response<SidecarExecutionOutcome>, Refusal> {
-        self.resources.execute(host, M::MODE, std::mem::take(request)).await.map(Response::new)
+        self.resources.execute(host, M::MODE, std::mem::take(&mut request.0)).await.map(Response::new)
     }
 }
 
@@ -295,11 +261,9 @@ impl<M: Mode> dokime_runtime::harmos::operations::Operation for Signalling<M> {
         Ok(Self { resources, mode: PhantomData })
     }
 
-    async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut ExecutionSignal, _: &mut (),
-    ) -> Result<Response<SignalReply>, Refusal> {
-        let cancel = signal.cancel;
-        let reply = self.resources.signal(std::mem::take(signal))?;
+    async fn run<'ctx>(&mut self, _: Self::Context<'ctx>, signal: &mut Signal<M>, _: &mut ()) -> Result<Response<SignalReply>, Refusal> {
+        let cancel = signal.0.cancel;
+        let reply = self.resources.signal(std::mem::take(&mut signal.0))?;
         if cancel && M::MODE == "cancel_signal_ignored" {
             while !self.resources.lock().released {
                 tokio::time::sleep(POLL).await;
@@ -329,7 +293,7 @@ impl Contribution for Domains {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Protocol {
-    const INITIALIZATION_POLICY: OperationPolicy = <Status as OperationDeclaration>::POLICY;
+    const INITIALIZATION_POLICY: OperationPolicy = CONTROL;
     const SHUTDOWN_POLICY: OperationPolicy = Self::INITIALIZATION_POLICY;
 }
 
@@ -337,9 +301,9 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for Protocol {
     id = "fixture-sidecar",
     provides = Operations,
     requires(
-        PushEvidence,
-        dokime_runtime::records::PublishRecord,
-        dokime_runtime::harmos::operations::host::Publish,
+        EvidenceBatch,
+        dokime_runtime::records::RecordPublication,
+        dokime_runtime::harmos::operations::streams::Publish,
     ),
     contributions(Domains, dokime_runtime::Evidence<Streams>),
     restart = "never", description = "Serves Controlled Execution Replies Through The Original Physical Owner.")]
@@ -402,7 +366,7 @@ impl Resources {
         let mut push = async |mut batch: EvidenceBatch| {
             pushed += 1;
             batch.cursor = pushed;
-            host.call_as::<PushEvidence>(batch).await.map(|response| response.into_owned()).map_err(|error| Refusal::of(error.to_string()))
+            host.call(batch).await.map(|response| response.into_owned()).map_err(|error| Refusal::of(error.to_string()))
         };
         if mode == "stream_log" {
             // A log line the host persists while the run is still producing,
@@ -488,7 +452,7 @@ impl Resources {
             step_id: StepId::from_seed(format!("fixture.sidecar.{mode}.stream")),
             started_at: dokime_runtime::model::time::now_utc(),
         };
-        host.call_as::<PushEvidence>(EvidenceBatch {
+        host.call(EvidenceBatch {
             cursor: 1,
             phase: "stream".into(),
             step_begins: vec![serde_json::to_string(&start).unwrap()],
@@ -528,7 +492,7 @@ impl Resources {
         })
         .unwrap();
         let refused = mode == "cancel_refused";
-        host.call_as::<PushEvidence>(EvidenceBatch {
+        host.call(EvidenceBatch {
             cursor: 2,
             step_attempts: vec![ended],
             // A refusing run reports its step's end and then no outcome at all.
@@ -568,12 +532,12 @@ impl Resources {
         Ok(SignalReply::default())
     }
 
-    async fn status(&self, _: &Supervisor, _: Empty) -> Result<Signals, Refusal> {
+    async fn status(&self, _: &Supervisor, _: GetStatus) -> Result<Signals, Refusal> {
         let state = self.lock();
         Ok(Signals { starts: state.starts, cancelled: state.cancelled })
     }
 
-    async fn release(&self, _: &Supervisor, _: Empty) -> Result<Empty, Refusal> {
+    async fn release(&self, _: &Supervisor, _: ReleaseExecution) -> Result<Empty, Refusal> {
         self.lock().released = true;
         Ok(Empty {})
     }
@@ -582,10 +546,14 @@ impl Resources {
 /* === Public Functions === */
 
 /* === Private Functions === */
-const fn signal_timeout(mode: &str) -> Duration {
+// A signal the fixture ignores stays pending until the story releases it, so
+// its operation is bounded like a run.
+const fn signal_policy(mode: &str) -> OperationPolicy {
     match mode.as_bytes() {
-        b"cancel_signal_ignored" => RUN_BOUND,
-        _ => SIGNAL_BOUND,
+        b"cancel_signal_ignored" => {
+            OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
+        }
+        _ => SIGNAL_POLICY,
     }
 }
 

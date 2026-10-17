@@ -21,7 +21,7 @@ use dokime_runtime::plugin::testing::Harness;
 // Local Imports
 use {{crate}}::bench::Sensor;
 use {{crate}}::domain::model::chamber::ChamberReading;
-use {{crate}}::operations::chamber::ReadChamber;
+use {{crate}}::domain::operations::ReadChamber;
 
 /* === Constants === */
 
@@ -40,9 +40,9 @@ use {{crate}}::operations::chamber::ReadChamber;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn chamber() -> impl Fn(()) -> ChamberReading + Send + Sync + 'static {
+fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
-    move |()| ChamberReading {
+    move |_| ChamberReading {
         celsius: sensor.read_celsius().expect("the simulated sensor reads"),
         sensor: sensor.describe(),
     }

@@ -158,8 +158,8 @@ fn finalize_managed(contents: String) -> String {
         ""
     };
     let body = format!("{}{}", &normalized[..at], &normalized[end..]);
-    let digest = Sha256::digest(body.as_bytes());
-    format!("{}{prefix}; sha256:{digest:x}{close}\n{}", &normalized[..at], &normalized[end..])
+    let digest = Sha256::digest(body.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    format!("{}{prefix}; sha256:{digest}{close}\n{}", &normalized[..at], &normalized[end..])
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {

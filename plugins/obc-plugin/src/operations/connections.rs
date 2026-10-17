@@ -19,6 +19,8 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Resources;
+use crate::domain::model::connections::Connections;
+use crate::domain::operations::ListConnections;
 use dokime_runtime::prelude::*;
 
 /* === Constants === */
@@ -28,15 +30,8 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct ListConnections {
+pub struct ConnectionListing {
     resources: Arc<Resources>,
-}
-
-#[dokime_runtime::message]
-#[derive(Clone, PartialEq)]
-pub struct Connections {
-    #[row(description = "The resource ids, one per unit the listener heard about.")]
-    pub resources: Vec<String>,
 }
 
 /* === Enums === */
@@ -44,18 +39,13 @@ pub struct Connections {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(
-    id = "obc-plugin.list_connections",
-    version = 1,
-    description = "Reports the units this process has been told about. The connection listener accumulates them across executions; a template calls the operation without holding the plugin.",
-    policy = super::POLICY
-)]
-impl ListConnections {
+#[dokime_runtime::operation]
+impl ConnectionListing {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Connections, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut ListConnections) -> Result<Connections, Refusal> {
         Ok(Connections { resources: self.resources.connected() })
     }
 }

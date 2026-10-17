@@ -26,7 +26,8 @@ capture host observations for an execution.
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
-- `src/operations/`, `src/listeners/`, `src/observers/`: bench interaction and process observation.
+- `src/domain/`: what the plugin declares, kind first and domain second: `model/` for the replies and `operations/` for the requests it serves, each request its own operation.
+- `src/operations/`, `src/listeners/`, `src/observers/`: the handlers for those requests, bench interaction and process observation.
 - `src/analyses/`: the plot analyses the plugin contributes.
 - `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section and verdict helpers.
 - `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.

@@ -25,10 +25,11 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::definition::{SuiteSet, materialize_template_cases};
 use dokime_runtime::execution::{Answering, Caller};
-use dokime_runtime::harmos::operations::{Declares, OperationDeclaration};
+use dokime_runtime::harmos::operations::OperationDeclaration;
 use dokime_runtime::{ValidationMode, ValueType};
-use obc_plugin::operations::readiness::{AskReadiness, Readiness};
-use obc_plugin::{MiniChecks, Pulse};
+use obc_plugin::domain::model::readiness::Readiness;
+use obc_plugin::domain::operations::AskReadiness;
+use obc_plugin::{ObcChecks, Pulse};
 
 /* === Constants === */
 
@@ -61,28 +62,35 @@ struct SystemRow {
 /* === Private Functions === */
 fn answering<O, F>(answer: F) -> (String, Answering)
 where
-    O: Declares,
-    <O::Declaration as OperationDeclaration>::Request: dokime_runtime::harmos::Message,
-    <O::Declaration as OperationDeclaration>::Response: dokime_runtime::harmos::Message,
-    F: Fn(<O::Declaration as OperationDeclaration>::Request) -> <O::Declaration as OperationDeclaration>::Response + Send + Sync + 'static,
+    O: OperationDeclaration + dokime_runtime::harmos::Message,
+    O::Response: dokime_runtime::harmos::Message,
+    F: Fn(O) -> O::Response + Send + Sync + 'static,
 {
     let answer = Arc::new(answer);
     (
-        <O::Declaration as OperationDeclaration>::ID.to_owned(),
+        O::ID.to_owned(),
         Arc::new(move |payload: Vec<u8>| {
             let answer = Arc::clone(&answer);
             Box::pin(async move {
-                let request =
-                    <<O::Declaration as OperationDeclaration>::Request as dokime_runtime::harmos::Message>::decode(payload.as_slice())
-                        .map_err(|error| error.to_string())?;
+                let request = <O as dokime_runtime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
                 Ok(dokime_runtime::harmos::Message::encode_to_vec(&answer(request)))
             }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
         }),
     )
 }
 
+// The options a host materializes one registration's cases with.
+fn materialization() -> dokime_runtime::definition::CaseMaterializationOptions {
+    dokime_runtime::definition::CaseMaterializationOptions {
+        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        force: false,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
+    }
+}
+
 fn road() -> Caller {
-    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|()| Readiness { stopped: false })]))
+    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]))
 }
 
 fn measured<C: dokime_runtime::telemetry::TelemetryStream>(
@@ -97,7 +105,7 @@ fn measured<C: dokime_runtime::telemetry::TelemetryStream>(
 fn suite_export_bound() {
     // The plugin lists its suites on its own attribute; each of them answers
     // with its own registration.
-    let suites = [MiniChecks::definition()];
+    let suites = [ObcChecks::definition()];
 
     // The suite workflow is transport-neutral; the host binds it to the loaded
     // sidecar artifact when admitting an execution.
@@ -108,7 +116,7 @@ fn suite_export_bound() {
 
 #[test]
 fn contracts_bind_fields() {
-    let registration = MiniChecks::definition();
+    let registration = ObcChecks::definition();
     // The suite declares no telemetry of its own: this contract came off the
     // `#[dokime_runtime::observer]` that publishes on the stream, through the template that
     // declares it.
@@ -142,8 +150,8 @@ fn contracts_bind_fields() {
 
 #[test]
 fn default_case_phases() {
-    let template = MiniChecks::suite().test_case_templates.remove(0);
-    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).unwrap();
+    let template = ObcChecks::suite().test_case_templates.remove(0);
+    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), materialization()).unwrap();
 
     assert_eq!(generated.case_count, 1);
     assert_eq!(template.test_case_template_id, Pulse::template_id());
@@ -167,7 +175,7 @@ fn default_case_phases() {
 
 #[test]
 fn suites_survive_trip() {
-    let suites = SuiteSet::new(vec![MiniChecks::definition()]);
+    let suites = SuiteSet::new(vec![ObcChecks::definition()]);
     let encoded = serde_json::to_string(&suites).expect("the suites serialize");
     let decoded: SuiteSet = serde_json::from_str(&encoded).expect("the suites deserialize");
 

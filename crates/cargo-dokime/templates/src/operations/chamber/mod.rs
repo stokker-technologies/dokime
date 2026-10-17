@@ -20,6 +20,7 @@ use std::sync::Arc;
 // Local Imports
 use crate::Bench;
 use crate::domain::model::chamber::ChamberReading;
+use crate::domain::operations::{DetectPort, ReadChamber};
 use dokime_runtime::prelude::*;
 
 /* === Constants === */
@@ -29,11 +30,11 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct ReadChamber {
+pub struct ChamberReader {
     bench: Arc<Bench>,
 }
 
-pub struct DetectPort {
+pub struct PortDetector {
     bench: Arc<Bench>,
 }
 
@@ -42,18 +43,13 @@ pub struct DetectPort {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(
-    id = "{{owner}}.get_chamber",
-    version = 1,
-    description = "Reads the chamber. A template calls it with `ctx.call::<ReadChamber>(())`.",
-    policy = crate::domain::operations::POLICY
-)]
-impl ReadChamber {
+#[dokime_runtime::operation]
+impl ChamberReader {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 
-    async fn run(&mut self, ctx: &Supervisor, _: &()) -> Result<ChamberReading, Refusal> {
+    async fn run(&mut self, ctx: &Supervisor, _: &mut ReadChamber) -> Result<ChamberReading, Refusal> {
         if let Some(scope) = ExecutionScope::serving::<Self>(ctx) {
             tracing::debug!(key = %scope.key(), "reading the chamber for a run");
         }
@@ -64,18 +60,13 @@ impl ReadChamber {
     }
 }
 
-#[dokime_runtime::operation(
-    id = "{{owner}}.detect_port",
-    version = 1,
-    description = "Finds the sensor port the settings card offers before anybody saved one.",
-    policy = crate::domain::operations::POLICY
-)]
-impl DetectPort {
+#[dokime_runtime::operation]
+impl PortDetector {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Discovered, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut DetectPort) -> Result<Discovered, Refusal> {
         Ok(Discovered::of(self.bench.sensor.port().to_owned()))
     }
 }

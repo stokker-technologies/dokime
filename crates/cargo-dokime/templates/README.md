@@ -11,9 +11,11 @@ src/lib.rs                         the plugin, its contributions, and the handle
 src/domain/model/chamber/          what the chamber answers, and its temperature row
 src/domain/model/prompts/          the one question it asks an operator
 src/domain/model/settings/         the one settings section an operator edits
+src/domain/operations/chamber/     the chamber requests a template sends
+src/domain/operations/status/      the request for what the bench reports about itself
 src/domain/operations/             the catalog of operations the plugin provides
 src/operations/chamber/            reads the chamber; the one road a template has to it
-src/operations/status/             what the bench reports about itself
+src/operations/status/             answers the bench status request
 src/listeners/unit_connected.rs    what the bench hears between runs
 src/observers/temperature.rs       the observer that measures the chamber
 src/suites/soak/hold.rs            the procedure: steps, samples, criteria, cleanup
@@ -24,8 +26,8 @@ mise.toml                          the tasks every CI job runs
 
 `src/domain/` holds what the plugin declares, by kind first and domain second:
 `model/` for messages, rows, prompts and settings, `operations/` for the
-operations it provides. The handlers live under `src/operations/`, one folder
-per domain with the same name.
+requests it serves. The handlers live under `src/operations/`, one folder per
+domain with the same name, and are bound through `operations::Implemented`.
 
 Each contribution belongs to a named `#[dokime_runtime::catalog]` enum in its owning
 module. `src/lib.rs` composes these on `#[dokime_runtime::plugin]`: `provides =
@@ -37,12 +39,15 @@ observer file defines its own public `Streams` and `Records` catalogs as permitt
 subsets, keeping empty catalogs explicit. Demand observers run while any declared
 stream or record has an active subscriber; registration alone does not start them.
 
-Device behaviour is a `#[dokime_runtime::operation]` on an inherent impl: an explicit
-wire id, a version and a policy, with request and response types read off its
-`run`. Empty requests use `()`. A template names the operations it calls with
-`requires = Required` and invokes `ctx.call::<ReadChamber>(()).await?`; the call
-is routed through the host. Adding an operation means a variant in
-`domain::operations::Operations`.
+Each request is its operation: a `#[dokime_runtime::operation]` struct under
+`src/domain/operations/` carries an explicit wire id, its response, a version
+and a policy. Its handler is a bare `#[dokime_runtime::operation]` on an
+inherent impl whose `run` borrows that request. Empty requests are empty
+structs. A template names the operations it calls with `requires = Required`
+and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
+routed through the host. Adding an operation means a request variant in
+`domain::operations::Operations` and a handler variant in
+`operations::Implemented`.
 
 Install `cargo-dokime` and the `dokime` host, then run from this directory:
 

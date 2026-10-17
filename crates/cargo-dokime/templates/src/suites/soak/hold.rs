@@ -21,7 +21,7 @@ use std::time::Duration;
 // Local Imports
 use crate::bench::Heater;
 use crate::domain::model::prompts::SoakCheckpoint;
-use crate::operations::chamber::ReadChamber;
+use crate::domain::operations::ReadChamber;
 use crate::{Error, Result};
 use dokime_runtime::host::ToolConnectionAcquired;
 use dokime_runtime::prelude::*;
@@ -247,7 +247,7 @@ impl Hold {
         let identity = ctx.resources().heater.lock().await.identity().await?;
         // What the bench is, read off the same operation that reads what it is
         // at: the reply is all a template knows about the process serving it.
-        let bench = ctx.call::<ReadChamber>(()).await?;
+        let bench = ctx.call::<ReadChamber>(ReadChamber {}).await?;
 
         // Device Under Test
         let mut dut = TraceabilitySection::new("dut", "Device under test");
@@ -324,7 +324,7 @@ impl Hold {
             // the host routes the call under the operation's declared policy.
             // `ctx.resources()` below stays where it is the point — the heater
             // is this attempt's alone.
-            let celsius = ctx.call::<ReadChamber>(()).await?.celsius;
+            let celsius = ctx.call::<ReadChamber>(ReadChamber {}).await?.celsius;
             if (celsius - target_c).abs() <= band_c {
                 dokime_runtime::info!(ctx, "target reached at {celsius:.2} °C");
                 return Ok(());
@@ -412,7 +412,7 @@ impl Hold {
     #[observer(interval_ms = 100, streams = ObserverStreams)]
     async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let row = SoakRow {
-            celsius: ctx.call::<ReadChamber>(()).await?.celsius,
+            celsius: ctx.call::<ReadChamber>(ReadChamber {}).await?.celsius,
             holding: ctx.resources().holding.load(Ordering::Acquire),
         };
         ctx.publish(row).await;

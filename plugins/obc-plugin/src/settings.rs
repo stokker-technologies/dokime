@@ -17,7 +17,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use crate::operations::status::GetStatus;
+use crate::domain::operations::GetStatus;
 
 /* === Constants === */
 

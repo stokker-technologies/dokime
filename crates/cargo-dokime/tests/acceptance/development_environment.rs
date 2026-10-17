@@ -67,7 +67,8 @@ fn state(output: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(path)
 }
 
-fn temporary_state_is_unique_and_removed_persistent_state_stays() {
+#[test]
+fn development_state_scoped() {
     let root = tempfile::tempdir().unwrap();
     let development = root.path().join("sessions");
     let run = || {
@@ -93,7 +94,8 @@ fn temporary_state_is_unique_and_removed_persistent_state_stays() {
     assert!(!refusal(c).contains("Development data"));
 }
 
-fn root_and_dotenv_precedence_preserve_shell_then_nearest_file() {
+#[test]
+fn environment_precedence_ordered() {
     let root = tempfile::tempdir().unwrap();
     let nested = root.path().join("nested");
     std::fs::create_dir(&nested).unwrap();
@@ -117,7 +119,8 @@ fn root_and_dotenv_precedence_preserve_shell_then_nearest_file() {
     assert!(refusal(c).contains("DOKIME_DEV_ROOT must not be empty"));
 }
 
-fn cwd_and_environment_paths_are_validated_before_building() {
+#[test]
+fn environment_paths_validated() {
     let root = tempfile::tempdir().unwrap();
     let file = root.path().join("file");
     std::fs::write(&file, "").unwrap();
@@ -133,10 +136,4 @@ fn cwd_and_environment_paths_are_validated_before_building() {
     assert!(output.contains(file.to_str().unwrap()));
     assert!(output.contains(root.path().to_str().unwrap()));
     assert!(output.contains("Development data"));
-}
-
-pub(super) fn environment_contract() {
-    temporary_state_is_unique_and_removed_persistent_state_stays();
-    root_and_dotenv_precedence_preserve_shell_then_nearest_file();
-    cwd_and_environment_paths_are_validated_before_building();
 }

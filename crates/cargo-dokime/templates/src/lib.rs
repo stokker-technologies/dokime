@@ -148,9 +148,11 @@ impl dokime_runtime::Plugin for Plugin {
         &self,
         table: &mut WireTable<Supervisor>,
     ) -> std::result::Result<(), ServingError> {
-        table.bind_operations::<domain::operations::Operations, _>(self.resources())?;
+        table.bind_operations::<operations::Implemented, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
-        dokime_runtime::execution::serve::<Self, suites::Suites>(table)
+        dokime_runtime::execution::serve::<Self, suites::Suites>(table)?;
+        // Observers run under the built-in observe control the host submits.
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {

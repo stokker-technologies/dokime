@@ -40,7 +40,7 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
-    Bundle(#[from] harmos::bundle::Error),
+    Bundle(#[from] harmos_packaging::bundle::Error),
 }
 
 /* === Traits === */

@@ -153,7 +153,19 @@ struct Behaviour {
     spectrum_rows: u32,
 }
 
-struct GetBehaviour {
+// What one execution asks the settings card; the request is its operation.
+#[dokime_runtime::message]
+#[dokime_runtime::operation(
+    id = "fixture-suites.get_behaviour",
+    response = Behaviour,
+    version = 1,
+    description = "Tells one execution what the settings card asked it to do.",
+    policy = POLICY
+)]
+#[derive(Clone, PartialEq)]
+struct GetBehaviour {}
+
+struct BehaviourLookup {
     config: Arc<Config>,
 }
 
@@ -181,6 +193,11 @@ enum Records {
 #[dokime_runtime::catalog]
 enum Operations {
     GetBehaviour(GetBehaviour),
+}
+
+#[dokime_runtime::catalog]
+enum Implemented {
+    BehaviourLookup(BehaviourLookup),
 }
 
 #[dokime_runtime::catalog]
@@ -253,7 +270,7 @@ impl dokime_runtime::Plugin for SuiteSidecar {
     }
 
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<Operations, _>(self.resources())?;
+        table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, Suites>(table)
     }
 
@@ -267,18 +284,13 @@ impl dokime_runtime::Plugin for SuiteSidecar {
     }
 }
 
-#[dokime_runtime::operation(
-    id = "fixture-suites.get_behaviour",
-    version = 1,
-    description = "Tells one execution what the settings card asked it to do.",
-    policy = POLICY
-)]
-impl GetBehaviour {
+#[dokime_runtime::operation]
+impl BehaviourLookup {
     async fn initialize(config: Arc<Config>, _: &Supervisor) -> Self {
         Self { config }
     }
 
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Behaviour, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut GetBehaviour) -> Result<Behaviour, Refusal> {
         let path = |path: &Option<std::path::PathBuf>| path.as_ref().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default();
         Ok(Behaviour {
             execution_marker: path(&self.config.execution_marker),
@@ -323,7 +335,7 @@ impl Smoke {
     }
 
     async fn initialize(ctx: &mut dokime_runtime::execution::InitializationContext<'_>) -> Result<Self, Error> {
-        Ok(Self { behaviour: ctx.call::<GetBehaviour>(()).await? })
+        Ok(Self { behaviour: ctx.call::<GetBehaviour>(GetBehaviour {}).await? })
     }
 
     #[dokime_runtime::step(label = "Check")]
@@ -331,8 +343,8 @@ impl Smoke {
         // The step's host surface reaches the same operation, once as a one
         // shot and once as a submitted instance it joins.
         let host = ctx.host();
-        let called = host.call_as::<GetBehaviourDeclaration>(()).await?;
-        let submitted = host.submit_as::<GetBehaviourDeclaration>(()).await?;
+        let called = host.call(GetBehaviour {}).await?;
+        let submitted = host.submit(GetBehaviour {}).await?;
         let joined = submitted.join().await?;
         if called.into_owned() != self.behaviour || joined.into_owned() != self.behaviour {
             return Err(Error::HostDisagreed);

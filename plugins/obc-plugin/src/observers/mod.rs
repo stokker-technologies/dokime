@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-pub mod controls;
 pub(crate) mod system;
 
 /* === Re-Exports === */

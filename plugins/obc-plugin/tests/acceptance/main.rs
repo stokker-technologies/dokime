@@ -27,8 +27,8 @@ use sha2::{Digest, Sha256};
 use dokime_runtime::__harmos as harmos;
 use dokime_runtime::execution::ExecutionScope;
 use dokime_runtime::transport::{
-    DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, LeaseStream, OperatorAnswer,
-    OperatorQuestion, PushEvidence, RunExecution, SidecarExecutionOutcome, StepAdmission,
+    DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
+    RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
 use harmos::operations::{Context, Operation};
 use harmos::plugin::{
@@ -183,11 +183,11 @@ impl Hosting {
 }
 
 impl harmos::operations::Declares for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
 }
 
 impl Operation for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -223,11 +223,11 @@ impl Operation for Evidence {
 }
 
 impl harmos::operations::Declares for Question {
-    type Declaration = dokime_runtime::transport::AskOperator;
+    type Declaration = OperatorQuestion;
 }
 
 impl Operation for Question {
-    type Declaration = dokime_runtime::transport::AskOperator;
+    type Declaration = OperatorQuestion;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -245,11 +245,11 @@ impl Operation for Question {
 }
 
 impl harmos::operations::Declares for Filing {
-    type Declaration = dokime_runtime::records::PublishRecord;
+    type Declaration = dokime_runtime::records::RecordPublication;
 }
 
 impl Operation for Filing {
-    type Declaration = dokime_runtime::records::PublishRecord;
+    type Declaration = dokime_runtime::records::RecordPublication;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -279,17 +279,17 @@ impl Operation for Watching {
 
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::operations::files::WatchFile, _: &mut (),
-    ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>> {
+    ) -> harmos::Result<harmos::operations::Response<dokime_domain::model::files::wire::WatchFileOutcome>> {
         Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
     }
 }
 
 impl harmos::operations::Declares for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
 }
 
 impl Operation for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -307,11 +307,11 @@ impl Operation for Lease {
 }
 
 impl harmos::operations::Declares for Publishing {
-    type Declaration = harmos::operations::host::Publish;
+    type Declaration = harmos::operations::streams::Publish;
 }
 
 impl Operation for Publishing {
-    type Declaration = harmos::operations::host::Publish;
+    type Declaration = harmos::operations::streams::Publish;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -322,7 +322,7 @@ impl Operation for Publishing {
     }
 
     async fn run<'ctx>(
-        &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::host::Publication, _: &mut (),
+        &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         if self.native.is_none() {
             let resident = self
@@ -530,10 +530,6 @@ impl Bench {
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 streams: declaration.streams.clone(),
                 observers: declaration.observers.clone(),
-                observer_control: match &declaration.carrier {
-                    harmos::plugin::inventory::CarrierSection::Sidecar { observer_control, .. } => observer_control.as_deref().cloned(),
-                    harmos::plugin::inventory::CarrierSection::Guest => None,
-                },
                 listeners: declaration.listeners.clone(),
                 sections: declaration.sections.clone(),
                 registrations: registrar.finish(),
@@ -649,20 +645,11 @@ async fn inventory_matches_dispatch() {
         served.push((run, <dokime_runtime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime_runtime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
-    use obc_plugin::operations::{connections::ListConnections, readiness::AskReadiness, status::GetStatus};
+    use obc_plugin::domain::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
-        (
-            <GetStatus as harmos::operations::Declares>::Declaration::ID,
-            <GetStatus as harmos::operations::Declares>::Declaration::POLICY.timeout,
-        ),
-        (
-            <AskReadiness as harmos::operations::Declares>::Declaration::ID,
-            <AskReadiness as harmos::operations::Declares>::Declaration::POLICY.timeout,
-        ),
-        (
-            <ListConnections as harmos::operations::Declares>::Declaration::ID,
-            <ListConnections as harmos::operations::Declares>::Declaration::POLICY.timeout,
-        ),
+        (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
+        (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
+        (<ListConnections as OperationDeclaration>::ID, <ListConnections as OperationDeclaration>::POLICY.timeout),
     ] {
         // All three bench operations have an empty native request.
         runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
@@ -704,10 +691,10 @@ async fn inventory_matches_dispatch() {
     // dispatch all the same.
     dispatch(&runtime.operations, "obc-plugin.connection", Vec::new()).await;
     served.push(("obc-plugin.connection".to_owned(), 30_000));
-    // The observe control refuses an observer the sidecar does not serve.
-    let observe = "obc-plugin.observers.observe";
+    // The built-in observe control is served but never declared; it refuses
+    // an observer the sidecar does not serve.
+    let observe = <harmos::operations::observers::Control as harmos::operations::OperationDeclaration>::ID;
     dispatch(&runtime.operations, observe, harmos::operations::observers::Control::default().encode_to_vec()).await;
-    served.push((observe.to_owned(), harmos::operations::observers::POLICY.timeout.as_millis() as u64));
     // The ripple analysis is reached too; an empty request is refused all the same.
     let ripple = <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::ID;
     dispatch(&runtime.operations, ripple, Vec::new()).await;

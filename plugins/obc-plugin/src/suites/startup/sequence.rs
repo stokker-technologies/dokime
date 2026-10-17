@@ -177,8 +177,8 @@ pub enum Prompts {
 
 #[dokime_runtime::catalog]
 pub enum Required {
-    AskReadiness(crate::operations::readiness::AskReadiness),
-    ListConnections(crate::operations::connections::ListConnections),
+    AskReadiness(crate::domain::operations::AskReadiness),
+    ListConnections(crate::domain::operations::ListConnections),
 }
 
 // `SystemInputs` and the unit's connection: a catalog names one list, so this
@@ -233,7 +233,7 @@ impl Startup {
         // so `ctx.call` selecting the explicit route type is the only road
         // to it — and the one that holds the answer to the timeout the route
         // declared, which is what a host call would get.
-        if ctx.call::<crate::operations::readiness::AskReadiness>(()).await?.stopped {
+        if ctx.call::<crate::domain::operations::AskReadiness>(crate::domain::operations::AskReadiness {}).await?.stopped {
             return Err(Error::Device(obc_runtime::Error::Stopped));
         }
         let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
@@ -254,7 +254,7 @@ impl Startup {
         if !ctx.parameters().await_connection {
             return Ok(());
         }
-        let connections = ctx.call::<crate::operations::connections::ListConnections>(()).await?;
+        let connections = ctx.call::<crate::domain::operations::ListConnections>(crate::domain::operations::ListConnections {}).await?;
         ctx.info(format!("record=bench_connections count={}", connections.resources.len()));
         // The host's own record type, so the step names no id and reads no
         // detail map: the unit's identity is a field of the fact it waited for.
@@ -290,7 +290,7 @@ impl Startup {
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let watch = ctx
             .host()
-            .submit_as::<WatchFile>(WatchFile {
+            .submit(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: self.log.to_string_lossy().into_owned() })),

@@ -15,7 +15,6 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 // Third Party Imports
 
@@ -26,8 +25,10 @@ use dokime_runtime::execution::{Caller, SidecarTemplate, Workflow};
 use dokime_runtime::prompts::{PromptRequest, PromptResponse};
 use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use dokime_runtime::{PromptId, Timestamp};
-use obc_plugin::operations::connections::{Connections as ListedConnections, ListConnections};
-use obc_plugin::operations::readiness::{AskReadiness, Readiness};
+use obc_plugin::domain::model::connections::Connections as ListedConnections;
+use obc_plugin::domain::model::readiness::Readiness;
+use obc_plugin::domain::operations::AskReadiness;
+use obc_plugin::domain::operations::ListConnections;
 
 /* === Constants === */
 
@@ -66,8 +67,8 @@ fn assert_record_contract(request: model::records::publication::RecordPublishReq
 fn road(resources: &Connections) -> Caller {
     let connections = Arc::clone(resources);
     Caller::local(BTreeMap::from([
-        answering::<AskReadiness, _>(|()| Readiness { stopped: false }),
-        answering::<ListConnections, _>(move |()| ListedConnections { resources: connections.lock().unwrap().clone() }),
+        answering::<AskReadiness, _>(|_| Readiness { stopped: false }),
+        answering::<ListConnections, _>(move |_| ListedConnections { resources: connections.lock().unwrap().clone() }),
     ]))
 }
 
@@ -204,7 +205,7 @@ async fn faults_contained_ready() {
                 .any(|sample| matches!(sample.values.get("phase"), Some(dokime_runtime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss"))
         );
         // The bench is untouched by a fault the Charger contained.
-        assert!(road(&resources).call::<AskReadiness>(()).await.is_ok_and(|readiness| !readiness.stopped));
+        assert!(road(&resources).call::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
     }
     protection.shutdown().await;
     recovery.shutdown().await;
