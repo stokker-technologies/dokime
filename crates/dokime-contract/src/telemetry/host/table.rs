@@ -127,6 +127,8 @@ macro_rules! host_streams {
                     wifi_channel: Integer, State, "WiFi Channel", Option<i64>;
                     wifi_band: Text, State, "WiFi Band", Option<String>;
                     wifi_network_count: Integer, Value, "WiFi Networks", Option<i64>;
+                    active_wifi_channel: Integer, State, "Active WiFi Channel", Option<i64>;
+                    active_wifi_band: Text, State, "Active WiFi Band", Option<String>;
                     wifi_network_congestion_score: Number, Value, "WiFi Congestion", Option<f64>;
                     congestion_model: Text, State, "Congestion Model", Option<String>;
                     timestamp: Datetime, Value, "Timestamp", Option<$crate::telemetry::host::contracts::HostTimestamp>;
