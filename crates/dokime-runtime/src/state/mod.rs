@@ -28,9 +28,11 @@ use crate::definition::{MaterializedParameter, SuiteSnapshot};
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::records::EvidenceRecords;
+use dokime_domain::state::records::EvidenceRecords;
 use crate::records::RecordContract;
-use crate::records::{ResourceRecord, ResourceRegistry, TestRecordSet};
+use crate::records::ResourceRecord;
+use crate::records::ResourceRegistry;
+use dokime_domain::state::records::set::TestRecordSet;
 use dokime_domain::model::identity::DokimeIdentity;
 use dokime_domain::model::identity::DokimeNodeIdentity;
 use dokime_domain::model::identity::HealthItemId;
@@ -914,7 +916,7 @@ impl RuntimeState {
         Ok(execution.capture_scope())
     }
 
-    pub fn commit_record(&mut self, record: crate::records::Record) {
+    pub fn commit_record(&mut self, record: dokime_domain::model::records::evidence::Record) {
         for execution in self.executions.values_mut() {
             let own = record
                 .scope
@@ -942,7 +944,7 @@ impl RuntimeState {
 
         self.records
             .record_visibility
-            .push(crate::records::RecordVisibility {
+            .push(dokime_domain::state::records::RecordVisibility {
                 record_id: record.record_id.clone(),
                 scope: record.scope.clone(),
             });

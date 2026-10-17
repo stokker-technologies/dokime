@@ -24,7 +24,8 @@ use crate::document::{
     DocumentFailure,
     input::{DocumentSelection, Records},
 };
-use crate::records::{RecordEntry, RecordMarker};
+use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::model::records::evidence::RecordMarker;
 
 /* === Constants === */
 

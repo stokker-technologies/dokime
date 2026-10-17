@@ -31,7 +31,7 @@ use crate::document::{
     },
     input::DocumentSelection,
 };
-use crate::records::RecordMarker;
+use dokime_domain::model::records::evidence::RecordMarker;
 
 /* === Constants === */
 pub(crate) const MAX_UNAVAILABLE_REASON_BYTES: usize = 512;

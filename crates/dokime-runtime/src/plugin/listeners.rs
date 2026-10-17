@@ -17,7 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::records::{DeclaredRecord, Record};
+use crate::records::DeclaredRecord;
+use dokime_domain::model::records::evidence::Record;
 
 /* === Constants === */
 pub const LISTENER_POLICY: harmos::operations::OperationPolicy =
@@ -36,7 +37,7 @@ pub const LISTENER_POLICY: harmos::operations::OperationPolicy =
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Delivery {
-    #[row(description = "JSON-encoded [`Record`](crate::records::Record), as the host filed it.")]
+    #[row(description = "JSON-encoded [`Record`](dokime_domain::model::records::evidence::Record), as the host filed it.")]
     pub record_json: String,
 }
 

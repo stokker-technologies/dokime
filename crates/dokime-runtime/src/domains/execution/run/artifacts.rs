@@ -24,7 +24,8 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 // Local Imports
 use super::{ExecutionFixtureContext, failure};
-use crate::records::{RecordPublishRequest, RecordSeverity};
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use crate::records::RecordSeverity;
 use crate::artifacts::ArtifactUploadInput;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;

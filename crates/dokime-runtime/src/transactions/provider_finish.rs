@@ -31,9 +31,10 @@ use crate::execution::StepRecord;
 use crate::execution::StepStatus;
 use crate::execution::TestExecution;
 use crate::records::BuiltinRecordType;
-use crate::records::{
-    Record, RecordSeverity, ValidationMode as RecordValidationMode, validate_record,
-};
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordSeverity;
+use crate::records::ValidationMode as RecordValidationMode;
+use crate::records::validate_record;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
@@ -953,16 +954,17 @@ fn append_provider_evidence(
             )
         })?;
         let mut record = Record::new(
+            dokime_domain::model::identity::RecordId::from_seed(format!(
+            "provider-event:{}:{index}:{}:{}",
+            execution.test_execution_id, draft.record_type, draft.timestamp
+        )),
             draft.timestamp.clone(),
             record_type,
             contract.schema_version,
             "provider",
             draft.severity,
         );
-        record.record_id = dokime_domain::model::identity::RecordId::from_seed(format!(
-            "provider-event:{}:{index}:{}:{}",
-            execution.test_execution_id, draft.record_type, draft.timestamp
-        ));
+
         record.message = draft.message.clone();
         record.error = draft.error.clone();
         record.details = draft.details.clone();

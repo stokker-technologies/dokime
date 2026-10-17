@@ -40,7 +40,8 @@ use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::operations::files::WatchFile;
 use dokime_domain::model::files::wire::WatchedArtifact;
-use crate::records::{RecordPublishRequest, RecordSeverity};
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 const DEFAULT_POLL: Duration = Duration::from_millis(1000);

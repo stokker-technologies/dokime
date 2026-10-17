@@ -20,7 +20,8 @@ use harmos::Message;
 // Local Imports
 use super::BackgroundTask;
 use crate::RuntimeHandle;
-use crate::records::{RecordPublication, RecordPublishRequest};
+use crate::records::RecordPublication;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use crate::transport::{DeliverRecordRequest, ExecutionSignal};
@@ -429,7 +430,7 @@ pub(super) fn record_publication(
     Some((request, produced_at))
 }
 
-async fn forward(handle: &RuntimeHandle, record: &crate::records::Record) {
+async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records::evidence::Record) {
     let Ok(record_json) = serde_json::to_string(record) else {
         tracing::warn!(
             record_type = %record.record_type,
@@ -502,7 +503,7 @@ async fn forward(handle: &RuntimeHandle, record: &crate::records::Record) {
     }
 }
 
-fn listeners(handle: &RuntimeHandle, record: &crate::records::Record) -> Vec<String> {
+fn listeners(handle: &RuntimeHandle, record: &dokime_domain::model::records::evidence::Record) -> Vec<String> {
     // Forwarding starts before plugin admission; boot records have no targets yet.
     let Some(router) = handle.routing.get() else {
         return Vec::new();

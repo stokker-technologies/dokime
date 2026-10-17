@@ -35,8 +35,8 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::records::RecordEntry;
-use crate::records::TestRecordSet;
+use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::state::records::set::TestRecordSet;
 use crate::storage::records::self;
 use crate::storage::records::RecordRow;
 

@@ -31,7 +31,7 @@ use dokime_domain::model::values::Value;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
 use crate::prompts::{PromptRequest, PromptResponse};
-use crate::records::RecordPublishRequest;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{LeaseGap, LeaseRequest, SampleSink, TelemetrySample};
 use crate::transport::ArtifactChunk;
 use crate::transport::{ExecutionTransport, Journal, TransportFuture};
@@ -254,13 +254,13 @@ impl ProgressSink for FrameProgressSink {
 }
 
 impl crate::records::RecordSource for FrameRecordSource {
-    fn next_record(&self, cursor: &mut usize) -> Option<crate::records::Record> {
+    fn next_record(&self, cursor: &mut usize) -> Option<dokime_domain::model::records::evidence::Record> {
         lock(&self.executions)
             .get(&self.token)
             .and_then(|state| state.next_record(cursor))
     }
 
-    fn delivered(&self, index: usize) -> Option<crate::records::Record> {
+    fn delivered(&self, index: usize) -> Option<dokime_domain::model::records::evidence::Record> {
         lock(&self.executions)
             .get(&self.token)
             .and_then(|state| state.delivered(index))

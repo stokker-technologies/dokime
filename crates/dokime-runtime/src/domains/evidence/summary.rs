@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use crate::telemetry::TelemetrySample;

@@ -23,7 +23,8 @@ use harmos::{Message, storage::SchemaKey};
 use super::{Error, Result, values};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
-use crate::records::{Record, RecordEntry};
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -423,7 +424,7 @@ impl RecordRow {
             bytes = bytes.saturating_add(
                 error
                     .projection_memory()
-                    .saturating_sub(std::mem::size_of::<crate::records::RecordErrorDetail>()),
+                    .saturating_sub(std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()),
             );
         }
         if let Some(scope) = &self.scope {
@@ -493,7 +494,7 @@ impl RecordRow {
 }
 
 impl ErrorRow {
-    fn encoding_memory(detail: &crate::records::RecordErrorDetail) -> usize {
+    fn encoding_memory(detail: &dokime_domain::model::records::error::RecordErrorDetail) -> usize {
         let mut bytes = std::mem::size_of::<Self>().saturating_add(detail.message.len());
         for text in [
             detail.code.as_deref(),
@@ -516,7 +517,7 @@ impl ErrorRow {
         }
         bytes
     }
-    fn from_detail(detail: &crate::records::RecordErrorDetail) -> Result<Self> {
+    fn from_detail(detail: &dokime_domain::model::records::error::RecordErrorDetail) -> Result<Self> {
         if Self::encoding_memory(detail) == usize::MAX {
             return Err(error("record error encoding memory overflows"));
         }
@@ -552,7 +553,7 @@ impl ErrorRow {
     }
 
     fn projection_memory(&self) -> usize {
-        let mut bytes = std::mem::size_of::<crate::records::RecordErrorDetail>()
+        let mut bytes = std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()
             .saturating_add(self.message.capacity())
             .saturating_add(
                 self.cause_chain
@@ -578,7 +579,7 @@ impl ErrorRow {
     }
 }
 
-impl TryFrom<ErrorRow> for crate::records::RecordErrorDetail {
+impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDetail {
     type Error = Error;
 
     fn try_from(row: ErrorRow) -> Result<Self> {

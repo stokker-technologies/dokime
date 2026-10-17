@@ -40,7 +40,7 @@ use crate::plot::{
     PlotPayloadContext, build_plot_payload, complete_window, plot_payload_diagnostics,
     project_plot_payload, reads_window, resolved_format,
 };
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::{
     evidence_runtime::{RecordSelection, TelemetrySelection},
     handle::RuntimeHandle,
@@ -419,7 +419,7 @@ fn plot_records(
     records: &[RecordEntry],
     request: &PlotPayloadRequest,
     mode: RuntimePlotQueryMode,
-    captured: Option<&crate::records::TestRecordSet>,
+    captured: Option<&dokime_domain::state::records::set::TestRecordSet>,
 ) -> Vec<RecordEntry> {
     let record_types = request_record_types(request);
     if record_types.is_empty() {

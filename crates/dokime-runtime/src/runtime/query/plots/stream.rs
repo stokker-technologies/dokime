@@ -24,7 +24,7 @@ use crate::document::PlotType;
 use crate::plot::{
     PlotPayloadCursor, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind,
 };
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

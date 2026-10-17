@@ -17,10 +17,11 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
-use crate::records::{RecordEntry, RecordSeverity};
+use crate::model::identity::Identifier;
+use crate::model::execution::RecordScope;
+use crate::model::time::Timestamp;
+use crate::model::records::evidence::RecordEntry;
+use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 

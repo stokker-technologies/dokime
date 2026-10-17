@@ -41,7 +41,8 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
-use crate::records::{RecordPublishRequest, RecordSeverity};
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use crate::records::RecordSeverity;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_domain::model::artifacts::name;
 

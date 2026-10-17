@@ -17,15 +17,16 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::RecordId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::TelemetrySampleId;
-use dokime_domain::model::identity::TelemetryStreamId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
-use crate::records::{RecordErrorDetail, RecordSeverity};
+use crate::model::identity::ArtifactId;
+use crate::model::identity::Identifier;
+use crate::model::identity::RecordId;
+use crate::model::execution::RecordScope;
+use crate::model::identity::TelemetrySampleId;
+use crate::model::identity::TelemetryStreamId;
+use crate::model::time::Timestamp;
+use crate::model::values::Value;
+use crate::model::records::error::RecordErrorDetail;
+use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -127,6 +128,7 @@ impl harmos::MemorySize for Record {
 
 impl Record {
     pub fn new(
+        record_id: RecordId,
         timestamp: Timestamp,
         record_type: Identifier,
         schema_version: u32,
@@ -134,7 +136,7 @@ impl Record {
         severity: RecordSeverity,
     ) -> Self {
         Self {
-            record_id: crate::model::identity::new_id::<RecordId>(),
+            record_id,
             received_at: timestamp.clone(),
             timestamp,
             record_type,
@@ -151,11 +153,11 @@ impl Record {
         }
     }
 
-    pub fn detail<T: serde::de::DeserializeOwned>(&self, name: &str) -> crate::Result<T> {
+    pub fn detail<T: serde::de::DeserializeOwned>(&self, name: &str) -> Result<T, crate::model::records::error::RecordDetailError> {
         let value = self
             .details
             .get(name)
-            .ok_or_else(|| crate::Error::RecordDetail {
+            .ok_or_else(|| crate::model::records::error::RecordDetailError {
                 record: self.record_type.to_string(),
                 field: name.to_owned(),
                 reason: "no such detail is carried".to_owned(),
@@ -164,7 +166,7 @@ impl Record {
             .to_plain_json()
             .map_err(|error| error.to_string())
             .and_then(|json| serde_json::from_value(json).map_err(|error| error.to_string()))
-            .map_err(|_| crate::Error::RecordDetail {
+            .map_err(|_| crate::model::records::error::RecordDetailError {
                 record: self.record_type.to_string(),
                 field: name.to_owned(),
                 reason: "is not the type it was read as".to_owned(),

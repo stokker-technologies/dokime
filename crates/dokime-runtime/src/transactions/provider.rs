@@ -25,7 +25,7 @@ use crate::execution::{
     CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionStatus, ResultStatus,
     ResultSummary, StepRecord, StepStatus, TestExecution,
 };
-use crate::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::execution::CommandContext;

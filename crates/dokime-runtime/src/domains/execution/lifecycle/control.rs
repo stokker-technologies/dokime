@@ -304,7 +304,7 @@ impl RuntimeHandle {
                 .map(|execution| execution.scope.clone())
                 .collect::<Vec<_>>();
             for scope in scopes {
-                let mut request = crate::records::RecordPublishRequest::new(
+                let mut request = dokime_domain::model::records::publication::RecordPublishRequest::new(
                     if matches!(action, Action::Pause) {
                         crate::records::BuiltinRecordType::TestExecutionPaused
                     } else {

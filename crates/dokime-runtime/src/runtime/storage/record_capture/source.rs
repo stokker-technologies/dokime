@@ -36,7 +36,9 @@ use tracing::Instrument;
 
 // Local Imports
 use super::error;
-use crate::{runtime::Error, runtime::Result, records::RecordEntry};
+use crate::runtime::Error;
+use crate::runtime::Result;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::storage::records;
 
 /* === Constants === */
@@ -61,7 +63,7 @@ pub(crate) struct Projection(pub(crate) Arc<Source>);
 #[derive(serde::Deserialize)]
 struct PersistedRecord {
     dokime_encoding: u32,
-    payload: crate::records::Record,
+    payload: dokime_domain::model::records::evidence::Record,
 }
 
 #[derive(Default)]
@@ -337,8 +339,8 @@ fn project(
         }
         record
     } else {
-        let Some(crate::records::Records::Record(record)) =
-            crate::records::Records::restore(&envelope.id, envelope.version, envelope.payload)
+        let Some(dokime_domain::state::records::Records::Record(record)) =
+            dokime_domain::state::records::Records::restore(&envelope.id, envelope.version, envelope.payload)
                 .map_err(projection_error)?
         else {
             return Err(projection_error("unknown product record"));

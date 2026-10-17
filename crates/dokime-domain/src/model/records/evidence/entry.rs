@@ -17,7 +17,7 @@ use std::ops::{Deref, DerefMut};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::records::Record;
+use crate::model::records::evidence::Record;
 
 /* === Constants === */
 

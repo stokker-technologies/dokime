@@ -28,7 +28,7 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 use crate::storage::{Error, Result, records::ScopeRow};
 
 /* === Constants === */

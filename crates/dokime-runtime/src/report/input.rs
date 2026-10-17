@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use super::value::Value;
 use crate::document::capture::Capture;
 use crate::execution::CycleView;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;

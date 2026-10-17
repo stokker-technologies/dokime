@@ -19,7 +19,7 @@ use std::{collections::BTreeSet, sync::Arc};
 // Local Imports
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use crate::{
     evidence_runtime::{EvidenceSnapshot, EvidenceSummaries},

@@ -160,7 +160,7 @@ struct RecordRow<'a> {
     source: &'a str,
     display: RecordDisplay,
     message: Option<&'a str>,
-    error: Option<&'a crate::records::RecordErrorDetail>,
+    error: Option<&'a dokime_domain::model::records::error::RecordErrorDetail>,
     details: ReportValues<'a>,
     related_sample_id: Option<&'a str>,
     related_stream: Option<&'a str>,
@@ -506,7 +506,7 @@ fn record_severity(severity: crate::records::RecordSeverity) -> &'static str {
     }
 }
 
-fn record_row<'a>(input: Header<'a>, record: &'a crate::records::RecordEntry) -> RecordRow<'a> {
+fn record_row<'a>(input: Header<'a>, record: &'a dokime_domain::model::records::evidence::RecordEntry) -> RecordRow<'a> {
     let severity = record_severity(record.severity);
     RecordRow {
         record_id: record.record_id.as_str(),

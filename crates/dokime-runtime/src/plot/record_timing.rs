@@ -24,7 +24,7 @@ use crate::plot::{
     aggregate_method, expression_group_value, finish_plot_series, numeric_value, parse_timestamp,
     record_samples::RecordSampleLookup, retain_window, sample_matches_scope, sample_value,
 };
-use crate::records::RecordEntry;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::expressions::{
     DataExpression, DataSource, DataTransform, RecordTimingPoint, RecordTimingRecord,
     record_time_between,

@@ -27,7 +27,9 @@ use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::log::Level;
 use crate::execution::{ExecutionProgress, ProgressSink};
 use crate::prompts::{PromptRequest, PromptResponse};
-use crate::records::{Record, RecordPublishRequest, RecordSource};
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use crate::records::RecordSource;
 use crate::telemetry::{LeaseGap, LeaseRequest, SampleSink, TelemetrySample};
 use crate::traceability::TraceabilitySection;
 

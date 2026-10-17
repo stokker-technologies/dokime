@@ -17,7 +17,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use crate::records::Record;
+use dokime_domain::model::records::evidence::Record;
 
 /* === Constants === */
 

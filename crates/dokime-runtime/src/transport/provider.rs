@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 use crate::diagnostics::Diagnostic;
-use crate::records::{RecordErrorDetail, RecordSeverity};
+use dokime_domain::model::records::error::RecordErrorDetail;
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 

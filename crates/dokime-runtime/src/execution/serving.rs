@@ -332,7 +332,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             self.cancel(token);
         }
         if let Some(delivery) = &signal.record {
-            let record: crate::records::Record = serde_json::from_str(&delivery.record_json)
+            let record: dokime_domain::model::records::evidence::Record = serde_json::from_str(&delivery.record_json)
                 .map_err(|error| Refusal::of(format!("invalid delivered record JSON: {error}")))?;
             let mut scopes = Vec::with_capacity(delivery.captured_scopes.len());
             for encoded in &delivery.captured_scopes {

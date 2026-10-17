@@ -28,7 +28,8 @@ use harmos::storage::{
 };
 // Local Imports
 use super::{Source, error};
-use crate::{runtime::Result, records::RecordEntry};
+use crate::runtime::Result;
+use dokime_domain::model::records::evidence::RecordEntry;
 use crate::storage::records::RecordRow;
 
 /* === Constants === */

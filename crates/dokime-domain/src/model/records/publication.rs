@@ -17,15 +17,18 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::RecordId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::TelemetrySampleId;
-use dokime_domain::model::identity::TelemetryStreamId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
-use crate::records::{ProductRecordDraft, Record, RecordErrorDetail, RecordSeverity};
+use crate::model::identity::ArtifactId;
+use crate::model::identity::Identifier;
+use crate::model::identity::RecordId;
+use crate::model::execution::RecordScope;
+use crate::model::identity::TelemetrySampleId;
+use crate::model::identity::TelemetryStreamId;
+use crate::model::time::Timestamp;
+use crate::model::values::Value;
+use crate::model::records::product::ProductRecordDraft;
+use crate::model::records::evidence::Record;
+use crate::model::records::error::RecordErrorDetail;
+use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 

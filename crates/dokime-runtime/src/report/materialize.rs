@@ -156,7 +156,7 @@ pub(crate) async fn execution(
 }
 
 /* === Private Functions === */
-async fn context_records(inspection: &ExecutionView) -> Result<Vec<crate::records::RecordEntry>> {
+async fn context_records(inspection: &ExecutionView) -> Result<Vec<dokime_domain::model::records::evidence::RecordEntry>> {
     let mut records = Vec::new();
     let mut reader = inspection.context_records().await?;
     while let Some(rows) = reader.next().await? {
@@ -213,7 +213,7 @@ async fn plots(
     settings: &crate::config::StorageSettings,
     captured: &CapturedSource,
     execution: &crate::execution::TestExecution,
-    records: &[crate::records::RecordEntry],
+    records: &[dokime_domain::model::records::evidence::RecordEntry],
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
 ) -> Result<BTreeMap<String, super::value::Value>> {
     let mut pending = FuturesUnordered::new();
@@ -266,7 +266,7 @@ fn assemble(
     execution: &crate::execution::TestExecution,
     documents: BTreeMap<DocumentId, crate::document::capture::Capture>,
     plots: BTreeMap<String, super::value::Value>,
-    records: Vec<crate::records::RecordEntry>,
+    records: Vec<dokime_domain::model::records::evidence::RecordEntry>,
     preview: Vec<crate::telemetry::TelemetrySample>,
 ) -> Result<CapturedExecutionReportInput> {
     let mut cycle = captured.context.cycle.cycle.clone();

@@ -18,11 +18,11 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::NoteId;
-use dokime_domain::model::identity::RecordId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::health::HealthItem;
-use dokime_domain::model::execution::notes::OperatorNote;
+use crate::model::identity::NoteId;
+use crate::model::identity::RecordId;
+use crate::model::execution::RecordScope;
+use crate::model::execution::health::HealthItem;
+use crate::model::execution::notes::OperatorNote;
 
 /* === Constants === */
 
@@ -75,8 +75,7 @@ impl harmos::MemorySize for TestRecordSet {
 }
 
 impl TestRecordSet {
-    #[cfg(feature = "storage")]
-    pub(crate) fn with_capacity(health: usize, notes: usize) -> Self {
+    pub fn with_capacity(health: usize, notes: usize) -> Self {
         Self {
             health: Vec::with_capacity(health),
             notes: Vec::with_capacity(notes),

@@ -30,7 +30,7 @@ use harmos::operations::OperationManager;
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
 use crate::execution::{CycleView, ExecutionStatus, TestExecution};
-use crate::records::RecordPublishRequest;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use artifacts::DiscardedArtifact;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::PromptId;

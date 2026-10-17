@@ -20,11 +20,14 @@ use std::collections::BTreeMap;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 use crate::records::declared::DeclaredRecord;
-use crate::records::{Record, RecordContract, RecordSeverity, builtin_record_contracts};
+use dokime_domain::model::records::evidence::Record;
+use crate::records::RecordContract;
+use crate::records::RecordSeverity;
+use crate::records::builtin_record_contracts;
 use crate::values::{FieldError, field};
 
 /* === Constants === */
-const PRODUCT_SCHEMA_VERSION: u32 = crate::records::PRODUCT_RECORD_SCHEMA_VERSION;
+const PRODUCT_SCHEMA_VERSION: u32 = dokime_domain::model::records::product::PRODUCT_RECORD_SCHEMA_VERSION;
 
 /* === Macros === */
 macro_rules! host_record {
