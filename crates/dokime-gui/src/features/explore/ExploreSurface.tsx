@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
 import { exploreQueryKeys, useExploreHistoryQuery } from "@/features/explore/explore-queries";
 import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";

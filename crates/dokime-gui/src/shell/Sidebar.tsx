@@ -47,10 +47,9 @@ import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
-import { useBrand } from "@/lib/brand";
 import { recordLevelVariant } from "@/lib/record-display";
 import { cn } from "@/lib/utils";
-import { BrandMark } from "@/shell/BrandMark";
+import { SidebarFrame } from "./SidebarFrame";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
@@ -88,47 +87,14 @@ const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
 /* === Components === */
 
 export function Sidebar(props: SidebarProps) {
-  const { label } = useBrand();
-  const { collapsed, width } = useSidebarState();
-  const frozen = props.live === false ? props : null;
-
   return (
-    <nav
-      aria-label="Navigation"
-      className="grid min-h-0 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-r bg-card"
-      data-collapsed={collapsed || undefined}
-      style={{ width }}
-    >
-      {/* The mark and the product name, once, as one centred block at the top
-          of the one sidebar. It is exactly the page bar's height, so the brand
-          bar and the page title bar end on one line at every density. The
-          height is fixed, so the first destination starts on the same y
-          whether the rail is open or collapsed. */}
-      <div
-        className="grid place-items-center px-[var(--shell-gap)]"
-        style={{ height: "var(--page-bar-height)" }}
-      >
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <BrandMark />
-          {collapsed ? null : (
-            <span className="truncate font-heading font-semibold tracking-wide">{label}</span>
-          )}
-        </div>
-      </div>
-
-      {frozen ? (
+    <SidebarFrame>
+      {props.live === false ? (
         <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
-          <CycleSidebarCases
-            selection={frozen.selection}
-            cycleId={frozen.cycleId}
-            live={false}
-            onSelect={frozen.onSelect}
-          />
+          <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
         </ul>
-      ) : (
-        <DestinationTree />
-      )}
-    </nav>
+      ) : <DestinationTree />}
+    </SidebarFrame>
   );
 }
 

@@ -13,7 +13,7 @@ import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "rea
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import {
   type NativePlotStream,
   openNativePlotStream,

@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import {
   useNativeSessionController,
   useNativeSessionOptional,
-} from "@/app/native-session/NativeSessionProvider";
+} from "@/app/native-session/context";
 import {
   Menubar,
   MenubarCheckboxItem,

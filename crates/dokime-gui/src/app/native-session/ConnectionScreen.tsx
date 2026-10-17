@@ -46,7 +46,7 @@ import type {
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { connectionError, startupDiagnostics } from "./errors";
-import { useNativeSessionController } from "./NativeSessionProvider";
+import { useNativeSessionController } from "./context";
 import { StartupDiagnostics } from "./StartupDiagnostics";
 import {
   BACKUP_RESET_LABEL,

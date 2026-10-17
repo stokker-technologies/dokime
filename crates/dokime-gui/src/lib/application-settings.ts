@@ -21,7 +21,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Local Imports
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 

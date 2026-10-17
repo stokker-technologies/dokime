@@ -11,7 +11,7 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import type { NativeExecutionSelection } from "@/lib/api/native-checkpoints";
 import { fetchExecutionPage, groupExecutions } from "./explore-data-source";
 

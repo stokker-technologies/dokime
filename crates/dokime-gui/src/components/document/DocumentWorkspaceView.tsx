@@ -13,7 +13,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import {
   DocumentCardContent,
   type DocumentCardContentProps,

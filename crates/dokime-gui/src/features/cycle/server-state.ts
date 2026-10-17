@@ -16,7 +16,7 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   useNativeSession,
   useNativeSessionOptional,
-} from "@/app/native-session/NativeSessionProvider";
+} from "@/app/native-session/context";
 import {
   createNativeNote,
   editNativeNote,

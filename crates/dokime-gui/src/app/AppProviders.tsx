@@ -17,9 +17,10 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { DokimeToaster } from "@/components/DokimeToaster";
 import { AppearanceProvider, type ThemeModePolicy, useAppearance } from "@/lib/appearance";
-import { DesktopThemeProvider, useApplicationTheme } from "@/lib/application-theme";
+import { useApplicationTheme } from "@/lib/application-theme";
+import { DesktopThemeProvider } from "@/lib/DesktopThemeProvider";
 import { isTauriDesktop } from "@/lib/desktop-open";
-import { useNativeSessionOptional } from "./native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "./native-session/context";
 import { createDokimeQueryClient } from "./query-client";
 
 /* === Types === */

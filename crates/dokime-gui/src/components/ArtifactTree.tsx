@@ -25,7 +25,7 @@ import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { TextArtifactViewer } from "@/components/TextArtifactViewer";
 import { Button } from "@/components/ui/button";
 import {

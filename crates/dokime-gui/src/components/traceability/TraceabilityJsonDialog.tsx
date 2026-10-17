@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Button } from "@/components/ui/button";
 import {

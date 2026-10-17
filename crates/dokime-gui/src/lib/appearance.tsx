@@ -13,7 +13,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo } from "r
 
 /* === Local Imports === */
 
-import { useNativeAppearance } from "@/app/native-session/NativeSessionProvider";
+import { useNativeAppearance } from "@/app/native-session/context";
 import { type Brand, BrandProvider, defaultBrand } from "@/lib/brand";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import type { AppearanceResource } from "@/lib/rpc/appearance";

@@ -19,19 +19,17 @@ import { useCallback, useEffect } from "react";
 import { useStore } from "zustand";
 
 /* === Local Imports === */
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
-import type { HubRecord } from "@/lib/types";
 import {
   consoleBufferKey,
-  createConsoleRecordsStore,
+  consoleRecordsStore,
+  type ConsoleRecords,
   EMPTY_CONSOLE_BUFFER,
 } from "./console-buffer";
 
 /* === Constants === */
 
-/** One per window: the console's rows outlive every route. */
-export const consoleRecordsStore = createConsoleRecordsStore();
 
 /* === Hooks === */
 export function useConsoleRecords({
@@ -44,7 +42,7 @@ export function useConsoleRecords({
   enabled: boolean;
   executionId: string | null;
   level: TraceLevel;
-}): { clear: () => void; dropped: bigint; records: HubRecord[]; error: string | null } {
+}): ConsoleRecords {
   const session = useNativeSessionOptional();
   const generation = session?.identity.generation ?? null;
   const key = consoleBufferKey({ cycleId, executionId, level });

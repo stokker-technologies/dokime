@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import {
   useNativeSessionController,
   useNativeSessionOptional,
-} from "@/app/native-session/NativeSessionProvider";
+} from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

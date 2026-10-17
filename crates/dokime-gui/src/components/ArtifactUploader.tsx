@@ -15,7 +15,7 @@ import { type MutableRefObject, useEffect, useId, useRef, useState } from "react
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
