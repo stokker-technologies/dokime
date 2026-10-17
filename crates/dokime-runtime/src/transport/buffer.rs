@@ -25,7 +25,7 @@ use tokio::task::JoinHandle;
 use dokime_domain::model::identity::PromptId;
 use crate::prompts::PromptResponse;
 use crate::transport::{
-    ArtifactChunk, EvidenceBatch, RunExecutionRequest, SidecarExecutionOutcome,
+    ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome,
 };
 
 /* === Constants === */
@@ -53,7 +53,7 @@ pub(crate) struct ExecutionState {
     local_admitted: u64,
     pub(crate) callbacks: crate::execution::Callbacks,
     pub(crate) listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
-    pub(crate) request: RunExecutionRequest,
+    pub(crate) request: RunExecution,
     pub(crate) controls: Arc<super::control::Controls>,
     pub(crate) cancel: watch::Sender<bool>,
     pub(crate) changed: Arc<tokio::sync::Notify>,
@@ -157,7 +157,7 @@ impl ExecutionState {
         std::mem::take(&mut self.local_samples)
     }
 
-    pub(crate) fn new(request: RunExecutionRequest, cancel: watch::Sender<bool>) -> Self {
+    pub(crate) fn new(request: RunExecution, cancel: watch::Sender<bool>) -> Self {
         Self {
             local_inputs: false,
             local_scope: dokime_domain::model::execution::RecordScope {
@@ -1102,7 +1102,7 @@ mod tests {
 
     #[test]
     fn local_sample_replay_keeps_automatic_timestamp() {
-        let request = crate::transport::protocol::RunExecutionRequest {
+        let request = crate::transport::protocol::RunExecution {
             execution_token: "fixture".into(),
             test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
             test_execution_id: crate::model::identity::new_id::<TestExecutionId>().to_string(),

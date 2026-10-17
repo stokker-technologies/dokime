@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListPromptDefinitionsReply, ListPromptDefinitionsRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,16 @@ use super::{ListPromptDefinitionsReply, ListPromptDefinitionsRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListPromptDefinitionsRequest, response = ListPromptDefinitionsReply, id = "dokime.prompts.list_definitions", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListPromptDefinitionsReply, id = "dokime.prompts.list_definitions", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "ListDefinitions"))]
-pub struct ListDefinitions;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListDefinitions {
+    pub limit: u32,
+    pub after_prompt_type: String,
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

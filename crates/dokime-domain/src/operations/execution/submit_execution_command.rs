@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ExecutionCommandReceipt, ORDINARY, SubmitExecutionCommandRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,18 @@ use super::{ExecutionCommandReceipt, ORDINARY, SubmitExecutionCommandRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = SubmitExecutionCommandRequest, response = ExecutionCommandReceipt, id = "dokime.execution.submit_execution_command", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ExecutionCommandReceipt, id = "dokime.execution.submit_execution_command", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SubmitExecutionCommand"))]
-pub struct SubmitExecutionCommand;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubmitExecutionCommand {
+    pub request_id: String,
+    pub command_id: String,
+    pub execution_id: String,
+    pub action: ExecutionCommandAction,
+    pub step_id: Option<String>,
+}
 
 /* === Enums === */
 

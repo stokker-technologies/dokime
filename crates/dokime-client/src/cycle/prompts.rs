@@ -43,7 +43,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let view = self
             .client
-            .prompts_get_prompt(contracts::prompts::GetPromptRequest {
+            .prompts_get_prompt(contracts::prompts::GetPrompt {
                 prompt_id: id.to_string(),
             })
             .await?;
@@ -66,7 +66,7 @@ impl TestCycleHandle {
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let read = async {
-                let mut request = contracts::prompts::ListPendingPromptsRequest {
+                let mut request = contracts::prompts::ListPending {
                     cycle_id: Some(handle.id.to_string()),
                     limit: PAGE_SIZE,
                     after_prompt_id: String::new(),
@@ -129,7 +129,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let receipt = self
             .client
-            .prompts_respond(contracts::prompts::RespondToPromptRequest {
+            .prompts_respond(contracts::prompts::Respond {
                 prompt_id: id.to_string(),
                 action,
                 values: Some(values),
@@ -170,7 +170,7 @@ fn validate_page(
     epoch: &str,
     cycle: &TestCycleId,
     selection: &str,
-    request: &contracts::prompts::ListPendingPromptsRequest,
+    request: &contracts::prompts::ListPending,
     page: &contracts::prompts::ListPendingPromptsReply,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;

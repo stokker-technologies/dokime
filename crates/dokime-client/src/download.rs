@@ -77,7 +77,7 @@ impl Drop for Partial {
 impl Client {
     pub async fn download_artifact(
         &self,
-        request: contracts::content::DownloadArtifactRequest,
+        request: contracts::content::DownloadArtifact,
         destination: PathBuf,
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
         let identity = request.artifact_id.clone();
@@ -110,7 +110,7 @@ impl Client {
 
     pub async fn download_execution_file(
         &self,
-        request: contracts::content::DownloadExecutionFileRequest,
+        request: contracts::content::DownloadExecutionFile,
         destination: PathBuf,
     ) -> Result<Download<contracts::content::ExecutionFileDownloadMetadata>, Error> {
         let identity = request.relative_path.clone();
@@ -143,7 +143,7 @@ impl Client {
 
     pub async fn download_checkpoint_artifact(
         &self,
-        request: contracts::history::DownloadCheckpointArtifactRequest,
+        request: contracts::history::DownloadCheckpointArtifact,
         destination: PathBuf,
         expected: (u64, String),
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
@@ -184,7 +184,7 @@ impl Client {
 
     pub async fn download_cycle_report(
         &self,
-        request: contracts::reports::DownloadCycleReportRequest,
+        request: contracts::reports::DownloadCycleReport,
         destination: PathBuf,
     ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
         let id = request.cycle_id.clone();
@@ -216,7 +216,7 @@ impl Client {
 
     pub async fn download_execution_report(
         &self,
-        request: contracts::reports::DownloadExecutionReportRequest,
+        request: contracts::reports::DownloadExecutionReport,
         destination: PathBuf,
     ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
         let id = request.execution_id.clone();

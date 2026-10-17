@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetRecordSchemaRequest, ORDINARY, RecordSchema};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{GetRecordSchemaRequest, ORDINARY, RecordSchema};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetRecordSchemaRequest, response = RecordSchema, id = "dokime.catalog.get_record_schema", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RecordSchema, id = "dokime.catalog.get_record_schema", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Catalog", method = "GetRecordSchema"))]
-pub struct GetRecordSchema;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetRecordSchema {
+    pub record_type: String,
+}
 
 /* === Enums === */
 

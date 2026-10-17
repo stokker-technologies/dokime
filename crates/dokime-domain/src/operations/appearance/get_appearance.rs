@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{AppearanceSnapshot, GetAppearanceRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,12 @@ use super::{AppearanceSnapshot, GetAppearanceRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetAppearanceRequest, response = AppearanceSnapshot, id = "dokime.appearance.get_appearance", version = 1,
+#[harmos::message]
+#[harmos::operation(response = AppearanceSnapshot, id = "dokime.appearance.get_appearance", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Appearance", method = "GetAppearance"))]
-pub struct GetAppearance;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetAppearance {}
 
 /* === Enums === */
 

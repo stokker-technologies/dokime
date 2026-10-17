@@ -52,7 +52,7 @@ impl Operation for ListStorageSources {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::ListStorageSourcesRequest,
+        _: &mut wire::ListStorageSources,
         _: &mut (),
     ) -> Result<Response<wire::StorageSources>, Status> {
         sources(&self.resources).await
@@ -73,7 +73,7 @@ impl Operation for ReorderStorageSources {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ReorderStorageSourcesRequest,
+        request: &mut wire::ReorderStorageSources,
         _: &mut (),
     ) -> Result<Response<wire::StorageSources>, Status> {
         self.resources
@@ -99,7 +99,7 @@ impl Operation for SetStorageSourceEnabled {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::SetStorageSourceEnabledRequest,
+        request: &mut wire::SetStorageSourceEnabled,
         _: &mut (),
     ) -> Result<Response<wire::StorageSources>, Status> {
         self.resources

@@ -46,7 +46,7 @@ use std::time::Duration;
 // Third Party Imports
 use harmos::catalog::{Member, Visitor};
 use harmos::operations::{
-    OperationPolicy, RestartPolicy, RetryPolicy, WireDeclaration, WireOperation,
+    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, WireDeclaration,
 };
 use harmos::schema::Described;
 use serde::{Deserialize, Serialize};
@@ -152,7 +152,7 @@ pub enum Operations {
 
 /* === Traits === */
 // The Dokime authorization of one public operation, enforced at the listener.
-pub trait Endpoint: WireOperation {
+pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
     const ACCESS: Access;
     // Served only to a loopback listener, because the reply names a host path.
@@ -172,7 +172,6 @@ impl Visitor for Endpoints {
 impl<O> Member<O> for Endpoints
 where
     O: Endpoint,
-    O::Request: Described,
     O::Response: Described,
 {
     const ENTRY: Declaration = Declaration {

@@ -88,7 +88,7 @@ impl Operation for ListSuites {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListSuitesRequest,
+        request: &mut wire::ListSuites,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListSuitesReply>, Status> {
         list_suites(&self.resources, request).await.map(Into::into)
@@ -110,7 +110,7 @@ impl Operation for GetSuite {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetSuiteRequest,
+        request: &mut wire::GetSuite,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::SuiteDefinition>, Status> {
         get_suite(&self.resources, request).await.map(Into::into)
@@ -132,7 +132,7 @@ impl Operation for ListRecordSchemas {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListRecordSchemasRequest,
+        request: &mut wire::ListRecordSchemas,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListRecordSchemasReply>, Status> {
         list_record_schemas(&self.resources, request)
@@ -156,7 +156,7 @@ impl Operation for GetRecordSchema {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetRecordSchemaRequest,
+        request: &mut wire::GetRecordSchema,
         _: &mut (),
     ) -> Result<harmos::operations::Response<schema::RecordSchema>, Status> {
         get_record_schema(&self.resources, request)
@@ -180,7 +180,7 @@ impl Operation for ListTelemetrySchemas {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListTelemetrySchemasRequest,
+        request: &mut wire::ListTelemetrySchemas,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListTelemetrySchemasReply>, Status> {
         list_telemetry_schemas(&self.resources, request)
@@ -204,7 +204,7 @@ impl Operation for GetTelemetrySchema {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetTelemetrySchemaRequest,
+        request: &mut wire::GetTelemetrySchema,
         _: &mut (),
     ) -> Result<harmos::operations::Response<schema::TelemetrySchema>, Status> {
         get_telemetry_schema(&self.resources, request)
@@ -359,7 +359,7 @@ fn suite_memory(entry: &dokime_runtime::domains::execution::SuiteSnapshot) -> Re
 
 async fn list_suites(
     resources: &Resources,
-    request: &wire::ListSuitesRequest,
+    request: &wire::ListSuites,
 ) -> Result<wire::ListSuitesReply, Status> {
     let snapshot = resources.runtime.watch_state().latest();
     let limit = page(
@@ -409,7 +409,7 @@ async fn list_suites(
 
 async fn get_suite(
     resources: &Resources,
-    request: &wire::GetSuiteRequest,
+    request: &wire::GetSuite,
 ) -> Result<wire::SuiteDefinition, Status> {
     value::text(&request.suite_id)?;
     let snapshot = resources.runtime.watch_state().latest();
@@ -443,7 +443,7 @@ async fn get_suite(
 
 async fn list_record_schemas(
     resources: &Resources,
-    request: &wire::ListRecordSchemasRequest,
+    request: &wire::ListRecordSchemas,
 ) -> Result<wire::ListRecordSchemasReply, Status> {
     let snapshot = resources.runtime.watch_state().latest();
     let limit = page(
@@ -500,7 +500,7 @@ async fn list_record_schemas(
 
 async fn get_record_schema(
     resources: &Resources,
-    request: &wire::GetRecordSchemaRequest,
+    request: &wire::GetRecordSchema,
 ) -> Result<schema::RecordSchema, Status> {
     value::text(&request.record_type)?;
     let snapshot = resources.runtime.watch_state().latest();
@@ -515,7 +515,7 @@ async fn get_record_schema(
 
 async fn list_telemetry_schemas(
     resources: &Resources,
-    request: &wire::ListTelemetrySchemasRequest,
+    request: &wire::ListTelemetrySchemas,
 ) -> Result<wire::ListTelemetrySchemasReply, Status> {
     let snapshot = resources.runtime.watch_state().latest();
     let limit = page(
@@ -572,7 +572,7 @@ async fn list_telemetry_schemas(
 
 async fn get_telemetry_schema(
     resources: &Resources,
-    request: &wire::GetTelemetrySchemaRequest,
+    request: &wire::GetTelemetrySchema,
 ) -> Result<schema::TelemetrySchema, Status> {
     value::text(&request.stream)?;
     let snapshot = resources.runtime.watch_state().latest();

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{INSTALLATION, PluginInstallation, StagePluginFrame};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,12 @@ use super::{INSTALLATION, PluginInstallation, StagePluginFrame};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = (), response = PluginInstallation, input = StagePluginFrame, id = "dokime.plugins.stage", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PluginInstallation, input = StagePluginFrame, id = "dokime.plugins.stage", version = 1,
         policy = INSTALLATION, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "Stage"))]
-pub struct Stage;
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Stage {}
 
 /* === Enums === */
 

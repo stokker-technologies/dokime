@@ -55,21 +55,11 @@ use super::{Access, Endpoint, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadApplicationSettingsRequest {}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdateAppearanceRequest {
-    pub appearance: Option<AppearancePreference>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdateReportDefaultsRequest {
-    pub report: Option<ReportPreference>,
-}
+
+
+
 
 // The points and strategy a plot draws with when neither its author nor its
 // operator chose, live and in every report.
@@ -81,11 +71,7 @@ pub struct ReportPreference {
 }
 
 // An absent data root restores the default beneath the application root.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdateDataRootRequest {
-    pub data_root: Option<String>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -111,16 +97,9 @@ pub struct ApplicationSettings {
     pub restart_required: bool,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadStoragePolicyRequest {}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdateStoragePolicyRequest {
-    pub expected_revision: u64,
-    pub policy: Option<StoragePolicy>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -138,26 +117,13 @@ pub struct StoragePolicyView {
     pub restart_required: bool,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetSettingsRequest {}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListStorageSourcesRequest {}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReorderStorageSourcesRequest {
-    pub identifiers: Vec<String>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SetStorageSourceEnabledRequest {
-    pub identifier: String,
-    pub enabled: bool,
-}
+
+
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -274,26 +240,11 @@ pub struct CachedRefresh {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OnDemandRefresh {}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetPluginSettingsRequest {
-    pub plugin_id: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdatePluginSettingsRequest {
-    pub plugin_id: String,
-    pub values: Option<Value>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdatePluginCredentialRequest {
-    pub plugin_id: String,
-    pub credential_id: String,
-    pub secret: String,
-}
+
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

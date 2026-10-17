@@ -642,7 +642,6 @@ fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     }
 }
 fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
-    use crate::records::RecordSeverity;
     match value {
         RecordSeverity::Debug => "debug",
         RecordSeverity::Info => "info",

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{EditNoteRequest, EditNoteResponse, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,20 @@ use super::{EditNoteRequest, EditNoteResponse, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = EditNoteRequest, response = EditNoteResponse, id = "dokime.notes.edit_note", version = 1,
+#[harmos::message]
+#[harmos::operation(response = EditNoteResponse, id = "dokime.notes.edit_note", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Notes", method = "EditNote"))]
-pub struct EditNote;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditNote {
+    // Explicit process epoch from discovery.
+    #[row(description = "Explicit process epoch from discovery.")]
+    pub epoch: String,
+    pub note_id: String,
+    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
+    #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
+    pub message: String,
+}
 
 /* === Enums === */
 

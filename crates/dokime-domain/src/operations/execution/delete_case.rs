@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CaseControlRequest, ControlReply, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,16 @@ use super::{CaseControlRequest, ControlReply, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = CaseControlRequest, response = ControlReply, id = "dokime.execution.delete_case", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ControlReply, id = "dokime.execution.delete_case", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "DeleteCase"))]
-pub struct DeleteCase;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeleteCase {
+    pub cycle_id: String,
+    pub case_id: String,
+    pub context: Option<MutationContext>,
+}
 
 /* === Enums === */
 

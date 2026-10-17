@@ -63,7 +63,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::ReadCheckpointOutputRequest,
+        request: &mut history::ReadCheckpointOutput,
         _: &mut (),
     ) -> Result<Response<history::CheckpointFileWindow>, Status> {
         value::text(&request.relative_path)?;

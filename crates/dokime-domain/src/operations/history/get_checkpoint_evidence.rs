@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CheckpointEvidence, GetCheckpointEvidenceRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{CheckpointEvidence, GetCheckpointEvidenceRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetCheckpointEvidenceRequest, response = CheckpointEvidence, id = "dokime.history.get_checkpoint_evidence", version = 1,
+#[harmos::message]
+#[harmos::operation(response = CheckpointEvidence, id = "dokime.history.get_checkpoint_evidence", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "GetCheckpointEvidence"))]
-pub struct GetCheckpointEvidence;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetCheckpointEvidence {
+    pub checkpoint: Option<ExecutionCheckpoint>,
+    pub sections: Vec<EvidenceSection>,
+}
 
 /* === Enums === */
 

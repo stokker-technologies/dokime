@@ -59,7 +59,7 @@ impl Operation for GetSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetSettingsRequest,
+        _: &mut wire::GetSettings,
         _: &mut (),
     ) -> Result<Response<wire::SettingsFrame>, Status> {
         let frame = self.resources.runtime.settings_frame().await;
@@ -82,7 +82,7 @@ impl Operation for GetPluginSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetPluginSettingsRequest,
+        request: &mut wire::GetPluginSettings,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
@@ -110,7 +110,7 @@ impl Operation for UpdatePluginSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginSettingsRequest,
+        request: &mut wire::UpdatePluginSettings,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
@@ -149,7 +149,7 @@ impl Operation for UpdatePluginCredential {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginCredentialRequest,
+        request: &mut wire::UpdatePluginCredential,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;

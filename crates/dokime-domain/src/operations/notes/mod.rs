@@ -73,20 +73,7 @@ pub struct AnnotationSelection {
     pub include_context: bool,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListAnnotationsRequest {
-    pub selection: Option<AnnotationSelection>,
-    // default 50, maximum 100
-    #[row(description = "default 50, maximum 100")]
-    pub limit: u32,
-    pub after_id: String,
-    // Exact runtime revision and selection, required with after_id. Restart on change.
-    #[row(
-        description = "Exact runtime revision and selection, required with after_id. Restart on change."
-    )]
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -106,33 +93,10 @@ pub struct ListNotesResponse {
     pub next_after_id: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CreateNoteRequest {
-    // Explicit process epoch from discovery. Retry identities expire at restart.
-    #[row(
-        description = "Explicit process epoch from discovery. Retry identities expire at restart."
-    )]
-    pub epoch: String,
-    pub mutation_id: String,
-    pub owner: Option<AnnotationOwner>,
-    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
-    #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
-    pub message: String,
-}
+
 
 // Replaces an unsealed note's message. Only its author may edit it.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct EditNoteRequest {
-    // Explicit process epoch from discovery.
-    #[row(description = "Explicit process epoch from discovery.")]
-    pub epoch: String,
-    pub note_id: String,
-    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
-    #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
-    pub message: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

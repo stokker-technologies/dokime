@@ -125,7 +125,6 @@ fn integer_float_cmp(value: i64, bound: f64) -> Option<std::cmp::Ordering> {
 }
 
 fn unsigned_float_cmp(value: u64, bound: f64) -> Option<std::cmp::Ordering> {
-    use std::cmp::Ordering;
 
     if !bound.is_finite() {
         return None;

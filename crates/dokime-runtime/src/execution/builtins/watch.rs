@@ -38,7 +38,7 @@ use dokime_domain::operations::files::FileWatchGapReason;
 use dokime_domain::operations::files::FileWatchPolicy;
 use dokime_domain::operations::files::FileWatchSourcePayload;
 use dokime_domain::operations::files::WatchFileOutcome;
-use dokime_domain::operations::files::WatchFileRequest;
+use dokime_domain::operations::files::WatchFile;
 use dokime_domain::operations::files::WatchedArtifact;
 use crate::records::{RecordPublishRequest, RecordSeverity};
 
@@ -118,7 +118,7 @@ impl Tail {
 /* === Public Functions === */
 pub(super) async fn run(
     binding: Binding,
-    request: WatchFileRequest,
+    request: WatchFile,
     mut cancel: watch::Receiver<bool>,
 ) -> Result<WatchFileOutcome, String> {
     // Resolve The File, Its Artifact And Its Matchers

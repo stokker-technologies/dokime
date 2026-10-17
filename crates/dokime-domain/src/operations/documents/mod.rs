@@ -47,22 +47,9 @@ pub struct DocumentScope {
     pub execution_id: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CaptureCurrentDocumentRequest {
-    pub scope: Option<DocumentScope>,
-    pub document_id: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdatePlotSettingsRequest {
-    pub scope: Option<DocumentScope>,
-    pub document_id: String,
-    pub plot_id: String,
-    pub display_points: Option<u32>,
-    pub downsample: DownsampleTechnique,
-}
+
+
 
 // Sources are captured separately; this is not an atomic latest/durable snapshot.
 // Missing frontiers mean the source was not needed by this capture.

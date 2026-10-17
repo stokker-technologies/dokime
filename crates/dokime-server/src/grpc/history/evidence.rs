@@ -68,7 +68,7 @@ impl Operation for Get {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::GetCheckpointEvidenceRequest,
+        request: &mut contract::GetCheckpointEvidence,
         _: &mut (),
     ) -> Result<Response<contract::CheckpointEvidence>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;

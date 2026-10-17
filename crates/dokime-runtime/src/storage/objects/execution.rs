@@ -2521,7 +2521,6 @@ pub async fn flush_seal(
 
 /* === Private Functions === */
 fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str {
-    use crate::definition::ParameterSource;
     match value {
         ParameterSource::Definition => "definition",
         ParameterSource::Traceability => "traceability",
@@ -2536,7 +2535,6 @@ fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str 
 }
 
 fn termination_reason(value: &crate::execution::TerminationReason) -> &'static str {
-    use crate::execution::TerminationReason;
     match value {
         TerminationReason::Completed => "completed",
         TerminationReason::Failed => "failed",
@@ -2619,7 +2617,6 @@ fn copied_strings(values: &[String]) -> Result<Vec<String>> {
 }
 
 fn step_status_text(value: &crate::execution::StepStatus) -> &'static str {
-    use crate::execution::StepStatus;
     match value {
         StepStatus::Pending => "pending",
         StepStatus::Running => "running",
@@ -2631,7 +2628,6 @@ fn step_status_text(value: &crate::execution::StepStatus) -> &'static str {
 }
 
 fn criterion_status_text(value: &crate::execution::CriterionStatus) -> &'static str {
-    use crate::execution::CriterionStatus;
     match value {
         CriterionStatus::Pending => "pending",
         CriterionStatus::Passed => "passed",

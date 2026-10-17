@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListAnnotationsRequest, ListNotesResponse, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,23 @@ use super::{ListAnnotationsRequest, ListNotesResponse, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListAnnotationsRequest, response = ListNotesResponse, id = "dokime.notes.list_notes", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListNotesResponse, id = "dokime.notes.list_notes", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Notes", method = "ListNotes"))]
-pub struct ListNotes;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListNotes {
+    pub selection: Option<AnnotationSelection>,
+    // default 50, maximum 100
+    #[row(description = "default 50, maximum 100")]
+    pub limit: u32,
+    pub after_id: String,
+    // Exact runtime revision and selection, required with after_id. Restart on change.
+    #[row(
+        description = "Exact runtime revision and selection, required with after_id. Restart on change."
+    )]
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

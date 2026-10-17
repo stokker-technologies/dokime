@@ -312,7 +312,7 @@ impl harmos::operations::Operation for EmbeddedRun {
     async fn run<'ctx>(
         &mut self,
         _: Self::Context<'ctx>,
-        request: &mut crate::transport::RunExecutionRequest,
+        request: &mut crate::transport::RunExecution,
         _: &mut (),
     ) -> std::result::Result<
         harmos::operations::Response<crate::transport::SidecarExecutionOutcome>,

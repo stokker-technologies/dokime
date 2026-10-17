@@ -2776,7 +2776,6 @@ fn elapsed_unit_name(value: &dokime_domain::model::values::ElapsedUnit) -> &'sta
 }
 
 fn format_name(value: &dokime_domain::model::values::ValueFormat) -> &'static str {
-    use dokime_domain::model::values::ValueFormat;
     match value {
         ValueFormat::Normal { .. } => "normal",
         ValueFormat::Fixed { .. } => "fixed",

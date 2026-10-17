@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ExecutionFileWindow, ORDINARY, ReadExecutionFileRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{ExecutionFileWindow, ORDINARY, ReadExecutionFileRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ReadExecutionFileRequest, response = ExecutionFileWindow, id = "dokime.content.read_execution_file", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ExecutionFileWindow, id = "dokime.content.read_execution_file", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "ReadExecutionFile"))]
-pub struct ReadExecutionFile;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReadExecutionFile {
+    pub execution_id: String,
+    pub relative_path: String,
+    pub offset: u64,
+    pub max_bytes: u32,
+}
 
 /* === Enums === */
 

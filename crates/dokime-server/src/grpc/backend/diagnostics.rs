@@ -58,7 +58,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetDiagnosticsRequest,
+        _: &mut wire::GetDiagnostics,
         _: &mut (),
     ) -> Result<Response<wire::DiagnosticsResponse>, Status> {
         let diagnostics = DiagnosticsSnapshot::from_runtime(

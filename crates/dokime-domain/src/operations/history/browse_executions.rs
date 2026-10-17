@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{BrowseExecutionsRequest, ExecutionBrowsePage, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{BrowseExecutionsRequest, ExecutionBrowsePage, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = BrowseExecutionsRequest, response = ExecutionBrowsePage, id = "dokime.history.browse_executions", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ExecutionBrowsePage, id = "dokime.history.browse_executions", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "BrowseExecutions"))]
-pub struct BrowseExecutions;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct BrowseExecutions {
+    pub limit: u32,
+    pub after_execution_id: String,
+    pub filter: Option<ExecutionFilter>,
+    pub order: Option<ExecutionOrder>,
+}
 
 /* === Enums === */
 

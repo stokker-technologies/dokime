@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListTelemetrySchemasReply, ListTelemetrySchemasRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,16 @@ use super::{ListTelemetrySchemasReply, ListTelemetrySchemasRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListTelemetrySchemasRequest, response = ListTelemetrySchemasReply, id = "dokime.catalog.list_telemetry_schemas", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListTelemetrySchemasReply, id = "dokime.catalog.list_telemetry_schemas", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Catalog", method = "ListTelemetrySchemas"))]
-pub struct ListTelemetrySchemas;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListTelemetrySchemas {
+    pub limit: u32,
+    pub after_stream: String,
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

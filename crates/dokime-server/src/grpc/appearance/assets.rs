@@ -132,7 +132,7 @@ pub(super) async fn capture(
 
 pub(crate) async fn download(
     runtime: &RuntimeHandle,
-    request: content::DownloadAppearanceAssetRequest,
+    request: content::DownloadAppearanceAsset,
     max_message_bytes: usize,
     output: &mut StreamOutput<content::AppearanceAssetFrame>,
 ) -> Result<(), Status> {

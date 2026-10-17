@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListExecutionsReply, ListExecutionsRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{ListExecutionsReply, ListExecutionsRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListExecutionsRequest, response = ListExecutionsReply, id = "dokime.execution.list_executions", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListExecutionsReply, id = "dokime.execution.list_executions", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "ListExecutions"))]
-pub struct ListExecutions;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListExecutions {
+    pub cycle_id: String,
+    pub limit: u32,
+    pub after_execution_id: String,
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

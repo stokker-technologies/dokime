@@ -69,7 +69,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListExecutionFilesRequest,
+        request: &mut wire::ListExecutionFiles,
         _: &mut (),
     ) -> Result<Response<wire::ListExecutionFilesReply>, Status> {
         let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
@@ -117,7 +117,7 @@ fn project(
     entries: &[ExecutionFileEntry],
     id: &TestExecutionId,
     epoch: &str,
-    request: &wire::ListExecutionFilesRequest,
+    request: &wire::ListExecutionFiles,
     maximum: usize,
 ) -> harmos::Result<wire::ListExecutionFilesReply> {
     let counted = count(entries, request)?;
@@ -171,7 +171,7 @@ fn project(
 }
 fn count(
     entries: &[ExecutionFileEntry],
-    request: &wire::ListExecutionFilesRequest,
+    request: &wire::ListExecutionFiles,
 ) -> harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
         return Err(exhausted());

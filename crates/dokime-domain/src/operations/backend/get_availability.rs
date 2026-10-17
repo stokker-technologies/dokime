@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{BackendAvailability, GetAvailabilityRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,12 @@ use super::{BackendAvailability, GetAvailabilityRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetAvailabilityRequest, response = BackendAvailability, id = "dokime.backend.get_availability", version = 1,
+#[harmos::message]
+#[harmos::operation(response = BackendAvailability, id = "dokime.backend.get_availability", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "GetAvailability"))]
-pub struct GetAvailability;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetAvailability {}
 
 /* === Enums === */
 

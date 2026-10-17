@@ -71,7 +71,7 @@ impl Operation for ReadHealth {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut crate::operations::runtime::Request,
+        _: &mut GetHealth,
         _: &mut (),
     ) -> Result<harmos::operations::Response<Health>, Self::Error> {
         let stopping = *self.resources.shutdown.borrow()
@@ -115,7 +115,7 @@ impl Operation for ReadIdentity {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut crate::operations::runtime::Request,
+        _: &mut GetIdentity,
         _: &mut (),
     ) -> Result<harmos::operations::Response<Identity>, Self::Error> {
         Ok((self.resources.identity.clone()).into())

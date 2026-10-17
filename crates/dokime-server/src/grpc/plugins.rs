@@ -121,7 +121,7 @@ impl Operation for ListInstallations {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::ListInstallationsRequest,
+        request: &mut v1::ListInstallations,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::InstallationPage>, Status> {
         let size = page_size(request.page_size)?;
@@ -180,7 +180,7 @@ impl Operation for GetInstallation {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::GetInstallationRequest,
+        request: &mut v1::GetInstallation,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
@@ -340,7 +340,7 @@ impl Operation for Consent {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::ConsentPluginRequest,
+        request: &mut v1::Consent,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
@@ -389,7 +389,7 @@ impl Operation for SetEnabled {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::SetPluginEnabledRequest,
+        request: &mut v1::SetEnabled,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
@@ -422,7 +422,7 @@ impl Operation for Remove {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::RemovePluginRequest,
+        request: &mut v1::Remove,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::RemovePluginReply>, Status> {
         let id = id(&request.install_id)?;
@@ -469,7 +469,7 @@ impl Operation for ListAdmittedPlugins {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::ListAdmittedPluginsRequest,
+        request: &mut v1::ListAdmittedPlugins,
         _: &mut Self::Endpoints,
     ) -> Result<Response<v1::AdmittedPluginPage>, Status> {
         inventory::page(

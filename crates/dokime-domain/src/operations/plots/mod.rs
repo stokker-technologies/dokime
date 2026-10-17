@@ -45,11 +45,7 @@ use super::{Access, Endpoint, FOLLOW, ORDINARY};
 // The native bridge and server reject a request with more than 32 plots. The
 // reply contains repeated envelopes in one bounded message; callers must
 // lower max_points or split a batch on exhaustion.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotSnapshotsRequest {
-    pub requests: Vec<PlotRequest>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -61,11 +57,7 @@ pub struct PlotSnapshotsReply {
 // open another one. Requests without a cursor receive an initial Snapshot
 // before the watch begins; later frames are coalesced by the server at 100 ms
 // only after a runtime state or telemetry watch advances.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWatchRequest {
-    pub requests: Vec<PlotRequest>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -541,12 +533,7 @@ pub struct PlotWifiBandScan {
 }
 
 // Analysis IDs Are Open; Each Contribution Declares Its Parameters And Outputs.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListAnalysesRequest {
-    pub limit: u32,
-    pub after_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

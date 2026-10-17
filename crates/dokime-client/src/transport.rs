@@ -45,16 +45,16 @@ impl Client {
     pub(super) async fn download<O>(
         &self,
         path: &'static str,
-        message: O::Request,
+        message: O,
     ) -> Result<ResponseStream<O::Item>>
     where
         O: OutputDeclaration,
-        O::Request: Protobuf + Sync,
+        O: Protobuf + Sync,
         O::Response: Protobuf + MemorySize,
         O::Item: Protobuf + MemorySize,
     {
         self.require(path)?;
-        let codec = codec::<OutputEnvelope<O::Item, O::Response>, O::Request>(
+        let codec = codec::<OutputEnvelope<O::Item, O::Response>, O>(
             self.response_limit(),
             self.request_limit(),
         )?;
@@ -114,18 +114,18 @@ impl Client {
     pub(super) async fn upload<O, S>(
         &self,
         path: &'static str,
-        message: O::Request,
+        message: O,
         items: S,
     ) -> Result<O::Response>
     where
         O: InputDeclaration,
-        O::Request: Protobuf + Sync,
+        O: Protobuf + Sync,
         O::Response: Protobuf + MemorySize,
         O::Item: Protobuf + Sync,
         S: tokio_stream::Stream<Item = O::Item> + Send + 'static,
     {
         self.require(path)?;
-        let codec = codec::<O::Response, InputEnvelope<O::Request, O::Item>>(
+        let codec = codec::<O::Response, InputEnvelope<O, O::Item>>(
             self.response_limit(),
             self.request_limit(),
         )?;

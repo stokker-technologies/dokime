@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{DiagnosticsResponse, GetDiagnosticsRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,12 @@ use super::{DiagnosticsResponse, GetDiagnosticsRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetDiagnosticsRequest, response = DiagnosticsResponse, id = "dokime.backend.get_diagnostics", version = 1,
+#[harmos::message]
+#[harmos::operation(response = DiagnosticsResponse, id = "dokime.backend.get_diagnostics", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "GetDiagnostics"))]
-pub struct GetDiagnostics;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetDiagnostics {}
 
 /* === Enums === */
 

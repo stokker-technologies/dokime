@@ -146,7 +146,7 @@ impl Operation for Create {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CreateCycleRequest,
+        request: &mut wire::CreateCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -198,7 +198,7 @@ impl Operation for Copy {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CopyCycleRequest,
+        request: &mut wire::CopyCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -232,7 +232,7 @@ impl Operation for Append {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::AppendPlannedCasesRequest,
+        request: &mut wire::AppendPlannedCases,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -274,7 +274,7 @@ impl Operation for Delete {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CaseControlRequest,
+        request: &mut wire::DeleteCase,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -307,7 +307,7 @@ impl Operation for Rerun {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CaseControlRequest,
+        request: &mut wire::ScheduleCaseRerun,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -340,7 +340,7 @@ impl Operation for ArchiveCycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::SetCycleArchivedRequest,
+        request: &mut wire::SetCycleArchived,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -372,7 +372,7 @@ impl Operation for ArchiveExecution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::SetExecutionArchivedRequest,
+        request: &mut wire::SetExecutionArchived,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -407,7 +407,7 @@ impl Operation for RenameCycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RenameCycleRequest,
+        request: &mut wire::RenameCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -442,7 +442,7 @@ impl Operation for RenameExecution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RenameExecutionRequest,
+        request: &mut wire::RenameExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -476,7 +476,7 @@ impl Operation for Policy {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::UpdateCyclePolicyRequest,
+        request: &mut wire::UpdateCyclePolicy,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -509,7 +509,7 @@ impl Operation for PauseCycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CycleControlRequest,
+        request: &mut wire::PauseCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -538,7 +538,7 @@ impl Operation for ResumeCycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CycleControlRequest,
+        request: &mut wire::ResumeCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -567,7 +567,7 @@ impl Operation for StopCycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CycleControlRequest,
+        request: &mut wire::StopCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -596,7 +596,7 @@ impl Operation for PauseExecution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::ExecutionControlRequest,
+        request: &mut wire::PauseExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -628,7 +628,7 @@ impl Operation for ResumeExecution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::ExecutionControlRequest,
+        request: &mut wire::ResumeExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
@@ -660,7 +660,7 @@ impl Operation for StopExecution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::ExecutionControlRequest,
+        request: &mut wire::StopExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;

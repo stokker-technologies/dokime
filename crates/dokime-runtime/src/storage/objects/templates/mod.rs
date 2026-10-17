@@ -1388,7 +1388,6 @@ fn copied_strings(values: &[String]) -> Result<Vec<String>> {
 }
 
 fn unit_family(family: &dokime_domain::model::values::UnitFamily) -> &'static str {
-    use dokime_domain::model::values::UnitFamily;
     match family {
         UnitFamily::Count => "count",
         UnitFamily::Distance => "distance",

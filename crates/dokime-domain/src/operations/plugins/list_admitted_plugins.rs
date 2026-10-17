@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{AdmittedPluginPage, ListAdmittedPluginsRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{AdmittedPluginPage, ListAdmittedPluginsRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListAdmittedPluginsRequest, response = AdmittedPluginPage, id = "dokime.plugins.list_admitted_plugins", version = 1,
+#[harmos::message]
+#[harmos::operation(response = AdmittedPluginPage, id = "dokime.plugins.list_admitted_plugins", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "ListAdmittedPlugins"))]
-pub struct ListAdmittedPlugins;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListAdmittedPlugins {
+    pub page_size: u32,
+    pub after: Option<AdmittedPluginCursor>,
+}
 
 /* === Enums === */
 

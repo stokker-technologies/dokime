@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ExecutionProgressFrame, FOLLOW, WatchExecutionProgressRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,14 @@ use super::{ExecutionProgressFrame, FOLLOW, WatchExecutionProgressRequest};
 
 /* === Structs === */
 // Streams the latest process-local progress for one execution. This is operational state: it is coalesced, cleared at termination, and never persisted as telemetry or report evidence.
-#[harmos::operation(request = WatchExecutionProgressRequest, response = (), output = ExecutionProgressFrame, id = "dokime.observation.watch_execution_progress", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = ExecutionProgressFrame, id = "dokime.observation.watch_execution_progress", version = 1,
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "WatchExecutionProgress"))]
-pub struct WatchExecutionProgress;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchExecutionProgress {
+    pub test_execution_id: String,
+}
 
 /* === Enums === */
 

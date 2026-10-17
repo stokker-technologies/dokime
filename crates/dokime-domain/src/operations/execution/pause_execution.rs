@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ControlReply, ExecutionControlRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,15 @@ use super::{ControlReply, ExecutionControlRequest, ORDINARY};
 
 /* === Structs === */
 // Controls require that execution's active execution-addressed request.
-#[harmos::operation(request = ExecutionControlRequest, response = ControlReply, id = "dokime.execution.pause_execution", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ControlReply, id = "dokime.execution.pause_execution", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "PauseExecution"))]
-pub struct PauseExecution;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PauseExecution {
+    pub execution_id: String,
+    pub context: Option<MutationContext>,
+}
 
 /* === Enums === */
 

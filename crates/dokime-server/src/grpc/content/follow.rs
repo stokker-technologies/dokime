@@ -60,7 +60,7 @@ impl Operation for Follow {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::FollowExecutionFileRequest,
+        request: &mut wire::FollowExecutionFile,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;

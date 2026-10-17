@@ -65,7 +65,7 @@ impl Operation for Browse {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::BrowseExecutionsRequest,
+        request: &mut wire::BrowseExecutions,
         _: &mut (),
     ) -> Result<Response<wire::ExecutionBrowsePage>, Status> {
         value::text(&request.after_execution_id)?;

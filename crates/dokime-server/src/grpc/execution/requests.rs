@@ -78,7 +78,7 @@ impl Operation for Cycle {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RunCycleRequest,
+        request: &mut wire::RunCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RunReply>, Status> {
         let context = context_for_run(
@@ -107,7 +107,7 @@ impl Operation for Case {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RunCaseRequest,
+        request: &mut wire::RunCase,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RunReply>, Status> {
         let context = context_for_run(
@@ -139,7 +139,7 @@ impl Operation for Execution {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RunExecutionRequest,
+        request: &mut wire::RunExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RunReply>, Status> {
         let context = context_for_run(
@@ -174,7 +174,7 @@ impl Operation for Lookup {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::GetRunRequestRequest,
+        request: &mut wire::GetRunRequest,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RunRequestReceipt>, Status> {
         get(&self.resources, principal(&context)?, request).await
@@ -207,7 +207,7 @@ pub(super) fn register(
 async fn get(
     resources: &super::Resources,
     principal: &Principal,
-    request: &wire::GetRunRequestRequest,
+    request: &wire::GetRunRequest,
 ) -> Result<harmos::operations::Response<wire::RunRequestReceipt>, Status> {
     let runtime = &resources.runtime;
     value::text(&request.request_id)?;

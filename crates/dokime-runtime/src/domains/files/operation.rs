@@ -31,7 +31,7 @@ use crate::{runtime::Error, RuntimeHandle};
 use dokime_domain::operations::files::FileWatchGap;
 use dokime_domain::operations::files::WatchFile as Declaration;
 use dokime_domain::operations::files::WatchFileOutcome;
-use dokime_domain::operations::files::WatchFileRequest;
+use dokime_domain::operations::files::WatchFile;
 use dokime_domain::operations::files::WatchedArtifact;
 
 /* === Constants === */
@@ -78,7 +78,7 @@ impl Operation for WatchFile {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut WatchFileRequest,
+        request: &mut WatchFile,
         _: &mut (),
     ) -> crate::runtime::Result<Response<WatchFileOutcome>> {
         // A Step's Call Carries Its Execution

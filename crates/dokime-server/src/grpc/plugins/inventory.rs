@@ -37,7 +37,7 @@ use dokime_runtime::state::PluginOwner;
 /* === Public Functions === */
 pub(super) fn page(
     runtime: &RuntimeHandle,
-    request: &mut v1::ListAdmittedPluginsRequest,
+    request: &mut v1::ListAdmittedPlugins,
     limit: usize,
     local_only: bool,
 ) -> Result<harmos::operations::Response<v1::AdmittedPluginPage>, Status> {

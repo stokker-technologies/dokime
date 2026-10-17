@@ -70,7 +70,7 @@ impl Operation for ReadStoragePolicy {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::ReadStoragePolicyRequest,
+        _: &mut wire::ReadStoragePolicy,
         _: &mut (),
     ) -> Result<Response<wire::StoragePolicyView>, Status> {
         let view = self
@@ -97,7 +97,7 @@ impl Operation for UpdateStoragePolicy {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdateStoragePolicyRequest,
+        request: &mut wire::UpdateStoragePolicy,
         _: &mut (),
     ) -> Result<Response<wire::StoragePolicyView>, Status> {
         let policy = request
@@ -134,7 +134,7 @@ impl Operation for ReadApplicationSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::ReadApplicationSettingsRequest,
+        _: &mut wire::ReadApplicationSettings,
         _: &mut (),
     ) -> Result<Response<wire::ApplicationSettings>, Status> {
         self.resources
@@ -156,7 +156,7 @@ impl Operation for UpdateAppearance {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdateAppearanceRequest,
+        request: &mut wire::UpdateAppearance,
         _: &mut (),
     ) -> Result<Response<wire::ApplicationSettings>, Status> {
         let appearance = request
@@ -203,7 +203,7 @@ impl Operation for UpdateDataRoot {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdateDataRootRequest,
+        request: &mut wire::UpdateDataRoot,
         _: &mut (),
     ) -> Result<Response<wire::ApplicationSettings>, Status> {
         if let Some(path) = &request.data_root {
@@ -234,7 +234,7 @@ impl Operation for UpdateReportDefaults {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdateReportDefaultsRequest,
+        request: &mut wire::UpdateReportDefaults,
         _: &mut (),
     ) -> Result<Response<wire::ApplicationSettings>, Status> {
         let report = request

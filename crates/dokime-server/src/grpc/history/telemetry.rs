@@ -69,7 +69,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ListCheckpointTelemetryRequest,
+        request: &mut contract::ListCheckpointTelemetry,
         _: &mut (),
     ) -> Result<Response<contract::CheckpointTelemetryPage>, Status> {
         value::text(&request.table)?;

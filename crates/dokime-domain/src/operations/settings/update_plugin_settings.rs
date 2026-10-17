@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, PluginRuntimeSettings, UpdatePluginSettingsRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{ORDINARY, PluginRuntimeSettings, UpdatePluginSettingsRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = UpdatePluginSettingsRequest, response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_settings", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_settings", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdatePluginSettings"))]
-pub struct UpdatePluginSettings;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdatePluginSettings {
+    pub plugin_id: String,
+    pub values: Option<Value>,
+}
 
 /* === Enums === */
 

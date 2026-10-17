@@ -139,7 +139,7 @@ impl ExecutionRequestHandle {
         self.client.verify(false).await?;
         let receipt = self
             .client
-            .execution_get_run_request(contracts::execution::GetRunRequestRequest {
+            .execution_get_run_request(contracts::execution::GetRunRequest {
                 request_id: self.id.to_string(),
             })
             .await?;
@@ -180,7 +180,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let detail = self
             .client
-            .execution_get_execution(contracts::execution::GetExecutionRequest {
+            .execution_get_execution(contracts::execution::GetExecution {
                 execution_id: self.id.to_string(),
             })
             .await?;
@@ -196,7 +196,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpointRequest {
+            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
                 execution_identifier: self.id.to_string(),
             })
             .await?;
@@ -212,7 +212,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let document = self
             .client
-            .history_get_checkpoint_document(contracts::history::GetCheckpointDocumentRequest {
+            .history_get_checkpoint_document(contracts::history::GetCheckpointDocument {
                 checkpoint: Some(checkpoint.clone()),
             })
             .await?;
@@ -264,7 +264,7 @@ impl TestExecutionHandle {
         };
         let reply = self
             .client
-            .execution_run_execution(contracts::execution::RunExecutionRequest {
+            .execution_run_execution(contracts::execution::RunExecution {
                 execution_id: self.id.to_string(),
                 context: None,
                 idempotency_key: Some(key.to_owned()),
@@ -282,7 +282,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let receipt = self
             .client
-            .execution_get_execution_command(contracts::execution::GetExecutionCommandRequest {
+            .execution_get_execution_command(contracts::execution::GetExecutionCommand {
                 request_id: request_id.to_string(),
                 command_id: command_id.to_string(),
             })
@@ -306,7 +306,7 @@ impl TestExecutionHandle {
             ),
             StepCommand::Finish => (contracts::execution::ExecutionCommandAction::Finish, None),
         };
-        let request = contracts::execution::SubmitExecutionCommandRequest {
+        let request = contracts::execution::SubmitExecutionCommand {
             request_id: request_id.to_string(),
             command_id: command_id.to_string(),
             execution_id: self.id.to_string(),
@@ -328,7 +328,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::ExecutionControlRequest {
+            .execution_pause_execution(contracts::execution::PauseExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -341,7 +341,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ExecutionControlRequest {
+            .execution_resume_execution(contracts::execution::ResumeExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -354,7 +354,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::ExecutionControlRequest {
+            .execution_stop_execution(contracts::execution::StopExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })

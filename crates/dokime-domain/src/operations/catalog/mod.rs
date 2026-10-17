@@ -49,13 +49,7 @@ use super::{Access, Endpoint, ORDINARY};
 /* === Structs === */
 // Pages are ordered by registered suite ID. A changed cursor requires restarting
 // pagination; pages are not pinned across runtime changes.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListSuitesRequest {
-    pub limit: u32,
-    pub after_suite_id: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -65,11 +59,7 @@ pub struct ListSuitesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetSuiteRequest {
-    pub suite_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -262,13 +252,7 @@ pub struct BinaryExpression {
 // Current admitted schemas, ordered by type/stream ID. These catalogs exclude
 // retired definitions retained only for immutable historical evidence. A cursor
 // belongs to one runtime epoch/revision; restart pagination when it expires.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListRecordSchemasRequest {
-    pub limit: u32,
-    pub after_record_type: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -286,19 +270,9 @@ pub struct RecordSchemaIdentity {
     pub metadata: Option<Metadata>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetRecordSchemaRequest {
-    pub record_type: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListTelemetrySchemasRequest {
-    pub limit: u32,
-    pub after_stream: String,
-    pub cursor: Option<Cursor>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -316,11 +290,7 @@ pub struct TelemetrySchemaIdentity {
     pub metadata: Option<Metadata>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetTelemetrySchemaRequest {
-    pub stream: String,
-}
+
 
 /* === Enums === */
 #[harmos::message]

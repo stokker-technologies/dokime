@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetSettingsRequest, ORDINARY, SettingsFrame};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,12 @@ use super::{GetSettingsRequest, ORDINARY, SettingsFrame};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetSettingsRequest, response = SettingsFrame, id = "dokime.settings.get_settings", version = 1,
+#[harmos::message]
+#[harmos::operation(response = SettingsFrame, id = "dokime.settings.get_settings", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "GetSettings"))]
-pub struct GetSettings;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetSettings {}
 
 /* === Enums === */
 

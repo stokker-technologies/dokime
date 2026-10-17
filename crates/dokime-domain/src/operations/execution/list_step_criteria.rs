@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListStepCriteriaReply, ListStepEvidenceRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{ListStepCriteriaReply, ListStepEvidenceRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListStepEvidenceRequest, response = ListStepCriteriaReply, id = "dokime.execution.list_step_criteria", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListStepCriteriaReply, id = "dokime.execution.list_step_criteria", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "ListStepCriteria"))]
-pub struct ListStepCriteria;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListStepCriteria {
+    pub execution_id: String,
+    pub step_id: String,
+    pub limit: u32,
+    pub cursor: Option<StepPageCursor>,
+}
 
 /* === Enums === */
 

@@ -282,7 +282,6 @@ fn emit_phase(dev_control: bool, name: &str) {
     if !dev_control {
         return;
     }
-    use std::io::Write;
     let phase = serde_json::json!({ "event": "phase", "name": name });
     let _ = writeln!(std::io::stdout().lock(), "{phase}");
 }

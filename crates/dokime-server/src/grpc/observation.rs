@@ -85,7 +85,7 @@ impl Operation for Shell {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetRuntimeShellRequest,
+        request: &mut wire::GetRuntimeShell,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::RuntimeShellSnapshot>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -171,7 +171,7 @@ impl Operation for Runtime {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::WatchRuntimeRequest,
+        request: &mut wire::WatchRuntime,
         output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
         let mut watch = self.resources.runtime.watch_state();
@@ -233,7 +233,7 @@ impl Operation for Progress {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::WatchExecutionProgressRequest,
+        request: &mut wire::WatchExecutionProgress,
         output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
         let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
@@ -278,7 +278,7 @@ impl Operation for Traceability {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetTraceabilityRequest,
+        request: &mut wire::GetTraceability,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::TraceabilityPage>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();

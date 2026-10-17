@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{FOLLOW, RuntimeStateFrame, WatchRuntimeRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{FOLLOW, RuntimeStateFrame, WatchRuntimeRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = WatchRuntimeRequest, response = (), output = RuntimeStateFrame, id = "dokime.observation.watch_runtime", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = RuntimeStateFrame, id = "dokime.observation.watch_runtime", version = 1,
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "WatchRuntime"))]
-pub struct WatchRuntime;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchRuntime {
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{DeleteExecutionRequest, DeleteExecutionResponse, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{DeleteExecutionRequest, DeleteExecutionResponse, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = DeleteExecutionRequest, response = DeleteExecutionResponse, id = "dokime.history.delete_execution", version = 1,
+#[harmos::message]
+#[harmos::operation(response = DeleteExecutionResponse, id = "dokime.history.delete_execution", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "DeleteExecution"))]
-pub struct DeleteExecution;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeleteExecution {
+    pub checkpoint: Option<ExecutionCheckpoint>,
+    pub request_identifier: String,
+}
 
 /* === Enums === */
 

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, RunCycleRequest, RunReply};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,16 @@ use super::{ORDINARY, RunCycleRequest, RunReply};
 
 /* === Structs === */
 // RunCycle dispatches one provider run per execution target its runnable cases resolve to, sequentially and in case order, under one request.
-#[harmos::operation(request = RunCycleRequest, response = RunReply, id = "dokime.execution.run_cycle", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RunReply, id = "dokime.execution.run_cycle", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RunCycle"))]
-pub struct RunCycle;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunCycle {
+    pub cycle_id: String,
+    pub context: Option<MutationContext>,
+    pub idempotency_key: Option<String>,
+}
 
 /* === Enums === */
 

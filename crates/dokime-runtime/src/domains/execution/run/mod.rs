@@ -44,7 +44,7 @@ use crate::telemetry::SamplingScope;
 use crate::transport::{
     EvidenceBatch, ExecutionSignal, ProviderCriterionOutcome, ProviderCycleOutcome,
     ProviderExecutionFailure, ProviderExecutionOutcome, ProviderPhaseOutcome,
-    ProviderStatusOutcome, RunExecutionRequest, SidecarCriterionOutcome, SidecarCriterionStatus,
+    ProviderStatusOutcome, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus,
     SidecarExecutionOutcome, SignalReply,
 };
 use session::Session;
@@ -172,7 +172,7 @@ impl Target {
 
     async fn run(
         &self,
-        request: RunExecutionRequest,
+        request: RunExecution,
     ) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
         let mut context = harmos::operations::CallContext::default();
         context
@@ -783,7 +783,7 @@ async fn execute_case(
             .map_err(|error| failure("sidecar_start", error.to_string()))?,
         None => BTreeMap::new(),
     };
-    let request = RunExecutionRequest {
+    let request = RunExecution {
         mode: execution.mode.as_str().into(),
         execution_token: execution_token.clone(),
         test_cycle_id: cycle.test_cycle_id.to_string(),

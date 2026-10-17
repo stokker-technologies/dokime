@@ -182,7 +182,6 @@ impl Value {
     }
 
     fn push(&mut self, value: &crate::model::values::Value) -> u32 {
-        use crate::model::values::Value as Core;
         let index = self.nodes.len();
         self.nodes.push(ValueNode { kind: None });
         let kind = match value {

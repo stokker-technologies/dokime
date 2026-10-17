@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, RemovePluginReply, RemovePluginRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ORDINARY, RemovePluginReply, RemovePluginRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = RemovePluginRequest, response = RemovePluginReply, id = "dokime.plugins.remove", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RemovePluginReply, id = "dokime.plugins.remove", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "Remove"))]
-pub struct Remove;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Remove {
+    pub install_id: String,
+}
 
 /* === Enums === */
 

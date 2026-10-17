@@ -115,26 +115,9 @@ pub struct MutationContext {
 // and policy into a new ready cycle. No execution evidence or derived parameters
 // are copied. The source remains untouched, including if currently running.
 // Copy does not certify provider availability; Run validates that separately.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CopyCycleRequest {
-    pub source_cycle_id: String,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CreateCycleRequest {
-    // The label is required and nonblank; an empty identifier is derived by the
-    // backend. Description, tags and attributes are optional.
-    #[row(
-        description = "The label is required and nonblank; an empty identifier is derived by the backend. Description, tags and attributes are optional."
-    )]
-    pub metadata: Option<Metadata>,
-    pub continue_on_failure: bool,
-    pub context: Option<MutationContext>,
-}
+
+
 
 // Creates an empty Ready cycle. Cases join it only through AppendPlannedCases.
 #[harmos::message]
@@ -147,19 +130,9 @@ pub struct CreateCycleReply {
 // Append cases generated from the current registered catalog to an existing
 // mutable cycle. The plan is resolved and validated against one captured
 // registry snapshot before the existing append transaction is committed.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AppendPlannedCasesRequest {
-    pub cycle_id: String,
-    pub plan: Option<SelectionPlan>,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCycleRequest {
-    pub cycle_id: String,
-}
+
+
 
 // Server-side selection and ordering for the live cycle list.
 //
@@ -191,15 +164,7 @@ pub struct CycleOrder {
 // `after_cycle_id` must still be a member of the filtered result. A changed
 // selection, a changed order, or a continuation ID the filter excludes is
 // rejected rather than silently restarted.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListCyclesRequest {
-    pub limit: u32,
-    pub after_cycle_id: String,
-    pub cursor: Option<Cursor>,
-    pub filter: Option<CycleFilter>,
-    pub order: Option<CycleOrder>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -209,38 +174,16 @@ pub struct ListCyclesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CycleControlRequest {
-    pub cycle_id: String,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExecutionControlRequest {
-    pub execution_id: String,
-    pub context: Option<MutationContext>,
-}
+
+
 
 // Archiving is orthogonal to the lifecycle and admitted only on a terminal
 // cycle or execution: it hides the row from lists that do not ask for archived
 // rows and changes nothing else.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SetCycleArchivedRequest {
-    pub cycle_id: String,
-    pub archived: bool,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SetExecutionArchivedRequest {
-    pub execution_id: String,
-    pub archived: bool,
-    pub context: Option<MutationContext>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -252,25 +195,9 @@ pub struct ArchiveReply {
 // cycle and an execution whose case has a sealed attempt refuse it with
 // FailedPrecondition, since the sealed report froze the label. An execution's
 // label is its case's label, so every attempt of that case is renamed together.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RenameCycleRequest {
-    pub cycle_id: String,
-    // nonblank after trimming, at most 4096 bytes UTF-8
-    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
-    pub label: String,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RenameExecutionRequest {
-    pub execution_id: String,
-    // nonblank after trimming, at most 4096 bytes UTF-8
-    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
-    pub label: String,
-    pub context: Option<MutationContext>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -283,21 +210,9 @@ pub struct RenameReply {
 // DeleteCase only removes an unexecuted case. ScheduleCaseRerun makes the
 // cycle ready without altering prior attempts or starting execution. A subsequent
 // RunCase dispatches the next attempt; prior attempts and evidence remain retained.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CaseControlRequest {
-    pub cycle_id: String,
-    pub case_id: String,
-    pub context: Option<MutationContext>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdateCyclePolicyRequest {
-    pub cycle_id: String,
-    pub continue_on_failure: bool,
-    pub context: Option<MutationContext>,
-}
+
+
 
 // Optional keys are exact opaque values: 1–256 UTF-8 bytes, nonblank, no control
 // characters. Namespace: stable node + authenticated principal, shared across
@@ -305,59 +220,22 @@ pub struct UpdateCyclePolicyRequest {
 // correlation labels do not affect identity. Persist a key before first send.
 // Repeating the original request resolves its durable receipt after restart;
 // it never resumes an interrupted acquisition. Omission provides no retry safety.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RunCycleRequest {
-    pub cycle_id: String,
-    pub context: Option<MutationContext>,
-    pub idempotency_key: Option<String>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RunCaseRequest {
-    pub cycle_id: String,
-    pub case_id: String,
-    pub context: Option<MutationContext>,
-    pub idempotency_key: Option<String>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RunExecutionRequest {
-    pub execution_id: String,
-    pub context: Option<MutationContext>,
-    pub idempotency_key: Option<String>,
-    pub mode: ExecutionMode,
-}
+
+
+
 
 // Lookup is independent of live cycles and epoch cursors. A Read principal may
 // inspect its own receipts; Admin may inspect any. Unknown and other-owner IDs
 // both return NotFound. A native receipt with no submitter is Admin-only.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetRunRequestRequest {
-    pub request_id: String,
-}
+
 
 // Commands belong to an admitted interactive run. Reuse the same command UUID
 // and identical action to recover admission; a transport failure is uncertain.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubmitExecutionCommandRequest {
-    pub request_id: String,
-    pub command_id: String,
-    pub execution_id: String,
-    pub action: ExecutionCommandAction,
-    pub step_id: Option<String>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetExecutionCommandRequest {
-    pub request_id: String,
-    pub command_id: String,
-}
+
+
 
 // Completion references the actual callback attempt; Finish completes only
 // after cleanup and evaluation. Interrupted commands are never replayed.
@@ -497,14 +375,7 @@ pub struct CycleSummary {
 // Ordinals are zero-based positions at this cursor, not permanent identities.
 // Continuations require the same epoch/revision and an existing after-ID in the
 // requested cycle; changed revisions abort and unknown markers are invalid.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListCasesRequest {
-    pub cycle_id: String,
-    pub limit: u32,
-    pub after_case_id: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -514,14 +385,7 @@ pub struct ListCasesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListExecutionsRequest {
-    pub cycle_id: String,
-    pub limit: u32,
-    pub after_execution_id: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -591,12 +455,7 @@ pub struct ExecutionSummary {
 }
 
 // Current-runtime detail. Published historical checkpoints are a separate API.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCaseRequest {
-    pub cycle_id: String,
-    pub case_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -608,11 +467,7 @@ pub struct CaseDetail {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetExecutionRequest {
-    pub execution_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -691,15 +546,7 @@ pub struct ParameterCursor {
     pub selection: Option<ParameterCursorSelection>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListCaseParametersRequest {
-    pub cycle_id: String,
-    pub case_id: String,
-    pub limit: u32,
-    pub after_name: String,
-    pub cursor: Option<ParameterCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -716,15 +563,7 @@ pub struct ListCaseParametersReply {
     pub cursor: Option<ParameterCursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListExecutionParametersRequest {
-    pub execution_id: String,
-    pub set: ExecutionParameterSet,
-    pub limit: u32,
-    pub after_name: String,
-    pub cursor: Option<ParameterCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -761,22 +600,9 @@ pub struct StepPageCursor {
     pub next_ordinal: u64,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListExecutionStepsRequest {
-    pub execution_id: String,
-    pub limit: u32,
-    pub cursor: Option<StepPageCursor>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListStepEvidenceRequest {
-    pub execution_id: String,
-    pub step_id: String,
-    pub limit: u32,
-    pub cursor: Option<StepPageCursor>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

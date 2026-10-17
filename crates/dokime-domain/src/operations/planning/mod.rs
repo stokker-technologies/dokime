@@ -104,20 +104,9 @@ pub struct SelectionPlan {
 
 // Registration owns case identity independently of cycles. A nonempty key makes
 // retries reproduce the same case IDs; conflicting content is rejected.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegisterSelectionRequest {
-    pub plan: Option<SelectionPlan>,
-    pub idempotency_key: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PreviewSelectionRequest {
-    pub plan: Option<SelectionPlan>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

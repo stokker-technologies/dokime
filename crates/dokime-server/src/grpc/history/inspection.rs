@@ -72,7 +72,7 @@ impl Operation for Inspect {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::GetExecutionCheckpointRequest,
+        request: &mut history::GetExecutionCheckpoint,
         _: &mut (),
     ) -> Result<Response<checkpoint::ExecutionCheckpoint>, Status> {
         value::text(&request.execution_identifier)?;
@@ -110,7 +110,7 @@ impl Operation for Delete {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::DeleteExecutionRequest,
+        request: &mut history::DeleteExecution,
         _: &mut (),
     ) -> Result<Response<history::DeleteExecutionResponse>, Status> {
         if self

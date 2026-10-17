@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ArtifactMetadata, TRANSFER, UploadArtifactFrame};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,12 @@ use super::{ArtifactMetadata, TRANSFER, UploadArtifactFrame};
 
 /* === Structs === */
 // Uploads one immutable artifact into the runtime's active execution. The first frame is a header and the remaining frames are contiguous chunks; end of stream commits the runtime upload.
-#[harmos::operation(request = (), response = ArtifactMetadata, input = UploadArtifactFrame, id = "dokime.content.upload_artifact", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ArtifactMetadata, input = UploadArtifactFrame, id = "dokime.content.upload_artifact", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "UploadArtifact"))]
-pub struct UploadArtifact;
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UploadArtifact {}
 
 /* === Enums === */
 

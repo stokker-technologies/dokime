@@ -40,7 +40,7 @@ impl Client {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
-                let mut request = catalog::ListSuitesRequest {
+                let mut request = catalog::ListSuites {
                     limit: 100,
                     after_suite_id: String::new(),
                     cursor: None,
@@ -50,7 +50,7 @@ impl Client {
                     for identity in page.suites {
                         client.verify(true).await?;
                         let suite = client
-                            .definition(catalog::GetSuiteRequest {
+                            .definition(catalog::GetSuite {
                                 suite_id: identity.suite_id.clone(),
                             })
                             .await?;
@@ -78,7 +78,7 @@ impl Client {
 
     async fn suite_page(
         &self,
-        request: &catalog::ListSuitesRequest,
+        request: &catalog::ListSuites,
     ) -> Result<catalog::ListSuitesReply> {
         self.verify(true).await?;
         let page = self
@@ -91,7 +91,7 @@ impl Client {
 
     async fn definition(
         &self,
-        request: catalog::GetSuiteRequest,
+        request: catalog::GetSuite,
     ) -> Result<catalog::SuiteDefinition> {
         let reply = self
             .unary::<catalog::GetSuite>(catalog::GetSuite::PATH, request)
@@ -102,7 +102,7 @@ impl Client {
     pub async fn suite(&self, identifier: &str) -> Result<catalog::SuiteDefinition> {
         self.verify(true).await?;
         match self
-            .definition(catalog::GetSuiteRequest {
+            .definition(catalog::GetSuite {
                 suite_id: identifier.into(),
             })
             .await
@@ -114,7 +114,7 @@ impl Client {
             Err(Error::Rpc(status)) if status.code() == tonic::Code::NotFound => {}
             Err(error) => return Err(error),
         }
-        let mut request = catalog::ListSuitesRequest {
+        let mut request = catalog::ListSuites {
             limit: 100,
             after_suite_id: String::new(),
             cursor: None,
@@ -144,7 +144,7 @@ impl Client {
         }
         let id = matched.ok_or_else(|| Error::Rpc(tonic::Status::not_found("suite not found")))?;
         let suite = self
-            .definition(catalog::GetSuiteRequest {
+            .definition(catalog::GetSuite {
                 suite_id: id.clone(),
             })
             .await?;
@@ -238,7 +238,7 @@ fn validate_definition(id: &str, suite: &catalog::SuiteDefinition) -> Result<()>
 
 fn validate_page(
     epoch: &str,
-    request: &catalog::ListSuitesRequest,
+    request: &catalog::ListSuites,
     page: &catalog::ListSuitesReply,
 ) -> Result<()> {
     let cursor = page

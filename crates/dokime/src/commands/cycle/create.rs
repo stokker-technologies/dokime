@@ -21,7 +21,7 @@ use std::{io::Write, path::PathBuf, time::Duration};
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::operations::common::Metadata;
-use dokime_domain::operations::execution::CreateCycleRequest;
+use dokime_domain::operations::execution::CreateCycle;
 use dokime_domain::operations::planning::SelectionPlan;
 
 /* === Constants === */
@@ -33,7 +33,7 @@ use dokime_domain::operations::planning::SelectionPlan;
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_on_failure"], help = "Read The Canonical CreateCycleRequest JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_on_failure"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
     input_file: Option<PathBuf>,
     #[arg(long, required_unless_present = "input_file", help = "Cycle Title.")]
     label: Option<String>,
@@ -75,10 +75,10 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let request = match args.input_file {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            serde_json::from_slice::<CreateCycleRequest>(&bytes)
+            serde_json::from_slice::<CreateCycle>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
-        None => CreateCycleRequest {
+        None => CreateCycle {
             metadata: Some(Metadata {
                 identifier: args.identifier.unwrap_or_default(),
                 label: args

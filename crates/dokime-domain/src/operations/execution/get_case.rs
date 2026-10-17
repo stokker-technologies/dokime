@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CaseDetail, GetCaseRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{CaseDetail, GetCaseRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetCaseRequest, response = CaseDetail, id = "dokime.execution.get_case", version = 1,
+#[harmos::message]
+#[harmos::operation(response = CaseDetail, id = "dokime.execution.get_case", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "GetCase"))]
-pub struct GetCase;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetCase {
+    pub cycle_id: String,
+    pub case_id: String,
+}
 
 /* === Enums === */
 

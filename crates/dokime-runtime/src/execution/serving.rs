@@ -30,7 +30,7 @@ use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
 use crate::transport::buffer::lock;
 use crate::transport::{
     AskOperator, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution,
-    LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence, RUN_BOUND, RunExecutionRequest,
+    LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence, RUN_BOUND, RunExecution,
     SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
 };
 
@@ -95,7 +95,7 @@ pub trait Runnable: Send + Sync + 'static {
 
     fn run(
         &self,
-        request: RunExecutionRequest,
+        request: RunExecution,
         host: Arc<dyn ExecutionHost>,
         output: Option<SampleOutput>,
         caller: Caller,
@@ -120,7 +120,7 @@ pub trait Runnable: Send + Sync + 'static {
 
 /* === Implementations === */
 impl OperationDeclaration for Run<()> {
-    type Request = RunExecutionRequest;
+    type Request = RunExecution;
     type Response = SidecarExecutionOutcome;
     const ID: &'static str = "dokime.template.run";
     const POLICY: OperationPolicy = RUN_POLICY;
@@ -144,7 +144,7 @@ impl harmos::operations::WireOperation for Signal<()> {
 }
 
 impl<T: SidecarTemplate> OperationDeclaration for Run<T> {
-    type Request = RunExecutionRequest;
+    type Request = RunExecution;
     type Response = SidecarExecutionOutcome;
     const ID: &'static str = T::RUN;
     const DESCRIPTION: &'static str = "Runs one case of this template to its outcome.";
@@ -186,7 +186,7 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
     async fn run<'ctx>(
         &mut self,
         host: Self::Context<'ctx>,
-        request: &mut RunExecutionRequest,
+        request: &mut RunExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<SidecarExecutionOutcome>, Refusal> {
         let request = std::mem::take(request);
@@ -262,7 +262,7 @@ impl ExecutionHost for Supervisor {
 impl<T: SidecarTemplate> Workflow<T> {
     pub async fn execute(
         &self,
-        request: RunExecutionRequest,
+        request: RunExecution,
         host: Arc<dyn ExecutionHost>,
         output: Option<SampleOutput>,
         caller: Caller,
@@ -405,7 +405,7 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
 
     fn run(
         &self,
-        request: RunExecutionRequest,
+        request: RunExecution,
         host: Arc<dyn ExecutionHost>,
         output: Option<SampleOutput>,
         caller: Caller,

@@ -47,11 +47,7 @@ use super::{Access, Endpoint, FOLLOW, ORDINARY};
 // coalesce commits. Query cycle/catalog details after a frame as needed.
 // A different epoch or a future position is rejected; reconnect without a cursor
 // to explicitly resynchronize. Disconnect never cancels admitted execution.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct WatchRuntimeRequest {
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -87,11 +83,7 @@ pub struct OperationProgress {
     pub failure: Option<String>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct WatchExecutionProgressRequest {
-    pub test_execution_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -114,15 +106,7 @@ pub struct ExecutionProgressFrame {
     pub cleared: bool,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetRuntimeShellRequest {
-    // Zero selects the default page size (50); the maximum is 100.
-    #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
-    pub limit: u32,
-    pub after_cycle_id: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -150,29 +134,7 @@ pub struct EvidenceCounts {
     pub notes: u64,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetTraceabilityRequest {
-    // Absent selects all current traceability groups. A supplied scope selects
-    // that scope and its visible ancestors/global values.
-    #[row(
-        description = "Absent selects all current traceability groups. A supplied scope selects that scope and its visible ancestors/global values."
-    )]
-    pub scope: Option<EvidenceScope>,
-    // Zero selects the default page size (50); the maximum is 100.
-    #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
-    pub limit: u32,
-    // Continuations require the exact cursor returned by the preceding page.
-    #[row(description = "Continuations require the exact cursor returned by the preceding page.")]
-    pub after_traceability_id: String,
-    pub cursor: Option<Cursor>,
-    // Continuations must echo the host telemetry fingerprint returned by the
-    // preceding page; an empty-host fingerprint is still nonempty.
-    #[row(
-        description = "Continuations must echo the host telemetry fingerprint returned by the preceding page; an empty-host fingerprint is still nonempty."
-    )]
-    pub host_traceability_fingerprint: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

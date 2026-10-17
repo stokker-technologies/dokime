@@ -29,8 +29,8 @@ use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::SessionId;
-use dokime_runtime::domains::evidence::notes::CreateNoteRequest;
-use dokime_runtime::domains::evidence::notes::EditNoteRequest;
+use dokime_runtime::domains::evidence::notes::CreateNote;
+use dokime_runtime::domains::evidence::notes::EditNote;
 use dokime_runtime::domains::evidence::notes::NoteError;
 use dokime_domain::operations::notes as contract;
 
@@ -87,11 +87,11 @@ impl Operation for ListNotes {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ListAnnotationsRequest,
+        request: &mut contract::ListNotes,
         _: &mut (),
     ) -> Result<Response<contract::ListNotesResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(request, &snapshot, "notes")?;
+        let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "notes")?;
         let sets = snapshot
             .state()
             .annotation_sets(page.owner.as_ref(), page.context)
@@ -139,11 +139,11 @@ impl Operation for ListHealth {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ListAnnotationsRequest,
+        request: &mut contract::ListHealth,
         _: &mut (),
     ) -> Result<Response<contract::ListHealthResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(request, &snapshot, "health")?;
+        let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "health")?;
         let sets = snapshot
             .state()
             .annotation_sets(page.owner.as_ref(), page.context)
@@ -193,7 +193,7 @@ impl Operation for CreateNote {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut contract::CreateNoteRequest,
+        request: &mut contract::CreateNote,
         _: &mut (),
     ) -> Result<Response<contract::NoteReceipt>, Status> {
         let actor = context
@@ -205,7 +205,7 @@ impl Operation for CreateNote {
         let result = self
             .resources
             .runtime
-            .create_current_note(CreateNoteRequest {
+            .create_current_note(CreateNote {
                 epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                     .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
                 mutation_id: CommandId::from_uuid(std::mem::take(&mut request.mutation_id))
@@ -237,7 +237,7 @@ impl Operation for EditNote {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut contract::EditNoteRequest,
+        request: &mut contract::EditNote,
         _: &mut (),
     ) -> Result<Response<contract::EditNoteResponse>, Status> {
         let actor = context
@@ -249,7 +249,7 @@ impl Operation for EditNote {
         let note = self
             .resources
             .runtime
-            .edit_current_note(EditNoteRequest {
+            .edit_current_note(EditNote {
                 epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                     .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
                 note_id: NoteId::from_uuid(std::mem::take(&mut request.note_id))

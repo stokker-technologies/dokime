@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListPendingPromptsReply, ListPendingPromptsRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,18 @@ use super::{ListPendingPromptsReply, ListPendingPromptsRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListPendingPromptsRequest, response = ListPendingPromptsReply, id = "dokime.prompts.list_pending", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ListPendingPromptsReply, id = "dokime.prompts.list_pending", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "ListPending"))]
-pub struct ListPending;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListPending {
+    pub limit: u32,
+    pub after_prompt_id: String,
+    pub cursor: Option<Cursor>,
+    pub cycle_id: Option<String>,
+    pub execution_id: Option<String>,
+}
 
 /* === Enums === */
 

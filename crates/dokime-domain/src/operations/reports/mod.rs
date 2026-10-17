@@ -37,12 +37,7 @@ use super::{Access, Endpoint, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct MaterializeReportRequest {
-    pub subject: ReportSubject,
-    pub at: harmos::storage::StorageCursor,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -57,22 +52,9 @@ pub enum ReportSubject {
     Cycle(String),
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadCycleReportRequest {
-    // Canonical UUID of a saved cycle.
-    #[row(description = "Canonical UUID of a saved cycle.")]
-    pub cycle_id: String,
-    pub identifier: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadExecutionReportRequest {
-    // Canonical UUID of one execution, running or settled.
-    #[row(description = "Canonical UUID of one execution, running or settled.")]
-    pub execution_id: String,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

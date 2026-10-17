@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, StoragePolicyView, UpdateStoragePolicyRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{ORDINARY, StoragePolicyView, UpdateStoragePolicyRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = UpdateStoragePolicyRequest, response = StoragePolicyView, id = "dokime.settings.update_storage_policy", version = 1,
+#[harmos::message]
+#[harmos::operation(response = StoragePolicyView, id = "dokime.settings.update_storage_policy", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdateStoragePolicy"))]
-pub struct UpdateStoragePolicy;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateStoragePolicy {
+    pub expected_revision: u64,
+    pub policy: Option<StoragePolicy>,
+}
 
 /* === Enums === */
 

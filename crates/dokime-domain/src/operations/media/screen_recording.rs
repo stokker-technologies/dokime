@@ -12,13 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{FOLLOW, RecordingFrame, ScreenRecordingRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +26,19 @@ use super::{FOLLOW, RecordingFrame, ScreenRecordingRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ScreenRecordingRequest, response = (), output = RecordingFrame, id = "dokime.media.screen_recording", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = RecordingFrame, id = "dokime.media.screen_recording", version = 1,
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Media", method = "ScreenRecording"))]
-pub struct ScreenRecording;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScreenRecording {
+    pub scope: Option<ArtifactScope>,
+    pub display: Option<u32>,
+    // Absent records video only.
+    #[row(description = "Absent records video only.")]
+    pub audio: Option<RecordingAudio>,
+    pub maximum_seconds: Option<u32>,
+}
 
 /* === Enums === */
 

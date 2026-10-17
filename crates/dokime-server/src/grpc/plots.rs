@@ -167,7 +167,7 @@ impl Operation for Analyses {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ListAnalysesRequest,
+        request: &mut contract::ListAnalyses,
         _: &mut (),
     ) -> Result<Response<contract::ListAnalysesReply>, Status> {
         super::value::text(&request.after_id)?;
@@ -220,7 +220,7 @@ impl Operation for Snapshots {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::PlotSnapshotsRequest,
+        request: &mut contract::QuerySnapshots,
         _: &mut (),
     ) -> Result<Response<contract::PlotSnapshotsReply>, Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();
@@ -264,7 +264,7 @@ impl Operation for Watch {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::PlotWatchRequest,
+        request: &mut contract::Watch,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;

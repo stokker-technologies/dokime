@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ArtifactFrame, DownloadArtifactRequest, TRANSFER};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ArtifactFrame, DownloadArtifactRequest, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = DownloadArtifactRequest, response = (), output = ArtifactFrame, id = "dokime.content.download_artifact", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = ArtifactFrame, id = "dokime.content.download_artifact", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "DownloadArtifact"))]
-pub struct DownloadArtifact;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DownloadArtifact {
+    pub artifact_id: String,
+}
 
 /* === Enums === */
 

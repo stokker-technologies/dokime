@@ -83,7 +83,7 @@ impl Operation for Register {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::RegisterSelectionRequest,
+        request: &mut wire::RegisterSelection,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
@@ -133,7 +133,7 @@ impl Operation for Preview {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::PreviewSelectionRequest,
+        request: &mut wire::PreviewSelection,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();

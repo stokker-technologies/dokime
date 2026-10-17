@@ -38,7 +38,7 @@ use crate::traceability::{TraceabilityRow, TraceabilitySection};
 use crate::transport::{
     ArtifactChunk, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt,
     ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
-    RunExecutionRequest, SidecarCriterionOutcome, SidecarExecutionOutcome, StepAdmission,
+    RunExecution, SidecarCriterionOutcome, SidecarExecutionOutcome, StepAdmission,
     TransportFuture,
 };
 
@@ -313,7 +313,7 @@ impl Harness {
             .cloned()
             .collect::<Vec<_>>();
         let execution_id = crate::model::identity::new_id::<TestExecutionId>().to_string();
-        let start = RunExecutionRequest {
+        let start = RunExecution {
             mode: "automatic".into(),
             execution_token: execution_id.clone(),
             test_cycle_id: crate::model::identity::new_id::<TestCycleId>().to_string(),

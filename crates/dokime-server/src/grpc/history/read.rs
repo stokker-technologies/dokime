@@ -62,7 +62,7 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::DownloadCheckpointArtifactRequest,
+        request: &mut history::DownloadCheckpointArtifact,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.artifact_id)?;

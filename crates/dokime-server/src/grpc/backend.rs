@@ -53,7 +53,7 @@ impl Collector<'_> {
         let instance = self
             .runtime
             .operations()
-            .submit_as::<GetHealth>(dokime_domain::operations::runtime::Request {})
+            .submit_as::<GetHealth>(GetHealth {})
             .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         let health = harmos::grpc::response(instance)
             .await

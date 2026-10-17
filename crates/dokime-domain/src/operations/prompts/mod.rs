@@ -49,13 +49,7 @@ use super::{Access, Endpoint, ORDINARY};
 /* === Structs === */
 // Current definitions are ordered by prompt type; pending requests by prompt ID.
 // Subsequent pages require the same runtime epoch/revision and selection.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListPromptDefinitionsRequest {
-    pub limit: u32,
-    pub after_prompt_type: String,
-    pub cursor: Option<Cursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -73,21 +67,9 @@ pub struct PromptDefinitionIdentity {
     pub title: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetPromptDefinitionRequest {
-    pub prompt_type: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListPendingPromptsRequest {
-    pub limit: u32,
-    pub after_prompt_id: String,
-    pub cursor: Option<Cursor>,
-    pub cycle_id: Option<String>,
-    pub execution_id: Option<String>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -106,11 +88,7 @@ pub struct PendingPromptIdentity {
     pub created_at: Option<Timestamp>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetPromptRequest {
-    pub prompt_id: String,
-}
+
 
 // The admitted definition belongs to this request even if the current catalog
 // changes. A missing response means unanswered; it does not waive condition,
@@ -267,15 +245,7 @@ pub struct TelemetryMatchCondition {
 // Responder identity comes from the authenticated principal, never a request
 // label. This mutation follows MutationContext's no-automatic-retry contract.
 // After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RespondToPromptRequest {
-    pub prompt_id: String,
-    pub action: String,
-    pub values: Option<Value>,
-    pub accepted: bool,
-    pub context: Option<MutationContext>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

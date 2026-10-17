@@ -258,7 +258,6 @@ fn harmos_message(error: &harmos::Error) -> String {
             _ => return message,
         };
         for failure in failures {
-            use std::fmt::Write;
             let _ = write!(
                 message,
                 "; plugin `{}`: {}",

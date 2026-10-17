@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetPromptRequest, ORDINARY, PromptView};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{GetPromptRequest, ORDINARY, PromptView};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetPromptRequest, response = PromptView, id = "dokime.prompts.get_prompt", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PromptView, id = "dokime.prompts.get_prompt", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "GetPrompt"))]
-pub struct GetPrompt;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetPrompt {
+    pub prompt_id: String,
+}
 
 /* === Enums === */
 

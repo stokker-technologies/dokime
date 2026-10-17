@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{AppendPlannedCasesRequest, ControlReply, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,16 @@ use super::{AppendPlannedCasesRequest, ControlReply, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = AppendPlannedCasesRequest, response = ControlReply, id = "dokime.execution.append_planned_cases", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ControlReply, id = "dokime.execution.append_planned_cases", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "AppendPlannedCases"))]
-pub struct AppendPlannedCases;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppendPlannedCases {
+    pub cycle_id: String,
+    pub plan: Option<SelectionPlan>,
+    pub context: Option<MutationContext>,
+}
 
 /* === Enums === */
 

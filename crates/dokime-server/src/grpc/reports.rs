@@ -77,7 +77,7 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::DownloadCycleReportRequest,
+        request: &mut wire::DownloadCycleReport,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.cycle_id)?;
@@ -109,7 +109,7 @@ impl Operation for Execution {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::DownloadExecutionReportRequest,
+        request: &mut wire::DownloadExecutionReport,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.execution_id)?;

@@ -49,13 +49,14 @@ pub(super) struct Page {
 /* === Implementations === */
 impl Page {
     pub fn new(
-        request: &mut contract::ListAnnotationsRequest,
+        selection: Option<contract::AnnotationSelection>,
+        limit: u32,
+        after_id: String,
+        given_cursor: Option<Cursor>,
         snapshot: &RuntimeStateSnapshot,
         kind: &str,
     ) -> Result<Self, Status> {
-        let mut selection = request
-            .selection
-            .take()
+        let mut selection = selection
             .unwrap_or(contract::AnnotationSelection {
                 owner: None,
                 include_context: false,
@@ -81,26 +82,26 @@ impl Page {
             stream,
             position: snapshot.revision(),
         };
-        if request.limit > 100 {
+        if limit > 100 {
             return Err(Status::invalid_argument("page limit exceeds 100"));
         }
-        if request.after_id.len() > 64 {
+        if after_id.len() > 64 {
             return Err(Status::invalid_argument("invalid after_id"));
         }
-        if !request.after_id.is_empty() && request.cursor.is_none() {
+        if !after_id.is_empty() && given_cursor.is_none() {
             return Err(Status::invalid_argument("subsequent page requires cursor"));
         }
-        let after = if request.after_id.is_empty() {
+        let after = if after_id.is_empty() {
             String::new()
         } else {
-            let id = uuid::Uuid::parse_str(&request.after_id)
+            let id = uuid::Uuid::parse_str(&after_id)
                 .map_err(|_| Status::invalid_argument("invalid after_id UUID"))?;
             if id.is_nil() {
                 return Err(Status::invalid_argument("after_id must not be nil"));
             }
-            std::mem::take(&mut request.after_id)
+            after_id
         };
-        if let Some(given) = request.cursor.take() {
+        if let Some(given) = given_cursor {
             if given.epoch != cursor.epoch || given.stream != cursor.stream {
                 return Err(Status::failed_precondition(
                     "annotation epoch/selection changed; restart pagination",
@@ -140,10 +141,10 @@ impl Page {
         Ok(Self {
             owner,
             context: selection.include_context,
-            limit: if request.limit == 0 {
+            limit: if limit == 0 {
                 50
             } else {
-                request.limit as usize
+                limit as usize
             },
             after,
             cursor,

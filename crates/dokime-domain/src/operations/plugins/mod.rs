@@ -51,12 +51,7 @@ pub struct InstallationCursor {
     pub after_install_id: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListInstallationsRequest {
-    pub page_size: u32,
-    pub after: Option<InstallationCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -67,31 +62,13 @@ pub struct InstallationPage {
     pub manifest_sha256: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetInstallationRequest {
-    pub install_id: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ConsentPluginRequest {
-    pub install_id: String,
-    pub expected_sha256: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SetPluginEnabledRequest {
-    pub install_id: String,
-    pub enabled: bool,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RemovePluginRequest {
-    pub install_id: String,
-}
+
+
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -189,12 +166,7 @@ pub struct AdmittedPluginCursor {
     pub after_plugin_id: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListAdmittedPluginsRequest {
-    pub page_size: u32,
-    pub after: Option<AdmittedPluginCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

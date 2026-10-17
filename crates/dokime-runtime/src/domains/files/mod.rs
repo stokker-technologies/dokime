@@ -42,10 +42,10 @@ use crate::files::{FileMatcher, LineMatchers};
 use dokime_domain::model::artifacts::name;
 use dokime_domain::operations::files::FileRule;
 use dokime_domain::operations::files::FileRuleAction;
-use dokime_domain::operations::files::FileWatchRequest;
+use dokime_domain::operations::files::FileWatch;
 use dokime_domain::operations::files::FileWatchSource;
 use dokime_domain::operations::files::FileWatchSourcePayload;
-use dokime_domain::operations::files::WatchFileRequest;
+use dokime_domain::operations::files::WatchFile;
 use source::Source;
 
 /* === Constants === */
@@ -111,7 +111,7 @@ impl RuntimeHandle {
     // or to the calling step's execution; the two must agree when both exist.
     pub async fn open_file_watch(
         &self,
-        request: &FileWatchRequest,
+        request: &FileWatch,
         context_execution: Option<&str>,
     ) -> Result<FileWatch> {
         let settings = self.watch_settings(request, context_execution)?;
@@ -123,7 +123,7 @@ impl RuntimeHandle {
     // is the root and its name the only rule.
     pub async fn open_watch_file(
         &self,
-        request: &WatchFileRequest,
+        request: &WatchFile,
         context_execution: Option<&str>,
     ) -> Result<FileWatch> {
         let (source, file) = single_file(request.source.as_ref())?;
@@ -135,7 +135,7 @@ impl RuntimeHandle {
             ));
         }
         let mut settings = self.watch_settings(
-            &FileWatchRequest {
+            &FileWatch {
                 execution_id: request.execution_id.clone(),
                 source: None,
                 rules: vec![FileRule {
@@ -192,7 +192,7 @@ impl RuntimeHandle {
 
     fn watch_settings(
         &self,
-        request: &FileWatchRequest,
+        request: &FileWatch,
         context_execution: Option<&str>,
     ) -> Result<Settings> {
         // Resolve The Execution And Its Cycle

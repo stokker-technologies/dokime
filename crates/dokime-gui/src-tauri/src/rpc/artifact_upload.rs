@@ -508,7 +508,6 @@ impl RecordingSinks {
         recording.context.check()?;
         {
             let mut file = recording.file.lock().await;
-            use tokio::io::AsyncWriteExt;
             file.flush().await.map_err(|_| RpcError::InvalidRequest)?;
         }
         Ok(RecordingHandle {

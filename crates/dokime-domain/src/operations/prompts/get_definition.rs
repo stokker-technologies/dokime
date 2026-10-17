@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetPromptDefinitionRequest, ORDINARY, PromptDefinition};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{GetPromptDefinitionRequest, ORDINARY, PromptDefinition};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetPromptDefinitionRequest, response = PromptDefinition, id = "dokime.prompts.get_definition", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PromptDefinition, id = "dokime.prompts.get_definition", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Prompts", method = "GetDefinition"))]
-pub struct GetDefinition;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetDefinition {
+    pub prompt_type: String,
+}
 
 /* === Enums === */
 

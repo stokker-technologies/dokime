@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CaptureCurrentDocumentRequest, DocumentFrame, TRANSFER};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{CaptureCurrentDocumentRequest, DocumentFrame, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = CaptureCurrentDocumentRequest, response = (), output = DocumentFrame, id = "dokime.documents.capture_current_document", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = DocumentFrame, id = "dokime.documents.capture_current_document", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Documents", method = "CaptureCurrentDocument"))]
-pub struct CaptureCurrentDocument;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CaptureCurrentDocument {
+    pub scope: Option<DocumentScope>,
+    pub document_id: String,
+}
 
 /* === Enums === */
 

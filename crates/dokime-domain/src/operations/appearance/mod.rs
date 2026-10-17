@@ -30,9 +30,7 @@ use super::{Access, Endpoint, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetAppearanceRequest {}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

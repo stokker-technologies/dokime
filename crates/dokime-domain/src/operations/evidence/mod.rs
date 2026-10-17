@@ -53,27 +53,9 @@ pub struct CapturedRecordSelection {
     pub severities: Vec<Severity>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListRecordsRequest {
-    pub selection: Option<CapturedRecordSelection>,
-    // Both absent starts replay at zero through the current applied frontier.
-    // Continuations require BOTH cursors returned in the previous page.
-    #[row(
-        description = "Both absent starts replay at zero through the current applied frontier. Continuations require BOTH cursors returned in the previous page."
-    )]
-    pub after: Option<Cursor>,
-    pub through: Option<Cursor>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct WatchRecordsRequest {
-    pub selection: Option<CapturedRecordSelection>,
-    // Absent replays from zero, then follows; present resumes captured facts.
-    #[row(description = "Absent replays from zero, then follows; present resumes captured facts.")]
-    pub after: Option<Cursor>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -133,18 +115,7 @@ pub struct CapturedErrorCause {
     pub source: Option<String>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCapturedRecordSchemaRequest {
-    pub record_type: String,
-    pub schema_version: u32,
-    // Required process identity: a type/version from another process must not
-    // silently resolve to this process's potentially different admitted schema.
-    #[row(
-        description = "Required process identity: a type/version from another process must not silently resolve to this process's potentially different admitted schema."
-    )]
-    pub epoch: String,
-}
+
 
 /* === Enums === */
 

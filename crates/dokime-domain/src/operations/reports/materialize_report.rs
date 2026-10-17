@@ -9,16 +9,27 @@
 /* === Modules === */
 /* === Re-Exports === */
 /* === Imports === */
-use super::{MaterializeReportRequest, MaterializedReport, TRANSFER};
+// Standard Library Imports
+
+// Third Party Imports
+use serde::{Deserialize, Serialize};
+// Local Imports
+use super::*;
+
 /* === Constants === */
 /* === Macros === */
 /* === Type Aliases === */
 /* === Structs === */
-#[harmos::operation(request = MaterializeReportRequest, response = MaterializedReport,
+#[harmos::message]
+#[harmos::operation(response = MaterializedReport,
     id = "dokime.reports.materialize_report", version = 1, policy = TRANSFER,
     visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Reports", method = "MaterializeReport"))]
-pub struct MaterializeReport;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct MaterializeReport {
+    pub subject: ReportSubject,
+    pub at: harmos::storage::StorageCursor,
+}
 /* === Enums === */
 /* === Traits === */
 /* === Implementations === */

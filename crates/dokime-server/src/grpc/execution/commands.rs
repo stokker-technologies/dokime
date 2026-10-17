@@ -72,7 +72,7 @@ impl Operation for Submit {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::SubmitExecutionCommandRequest,
+        request: &mut wire::SubmitExecutionCommand,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
         submit(&self.resources, requests::principal(&context)?, request).await
@@ -94,7 +94,7 @@ impl Operation for Lookup {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::GetExecutionCommandRequest,
+        request: &mut wire::GetExecutionCommand,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
         get(&self.resources, requests::principal(&context)?, request).await
@@ -122,7 +122,7 @@ pub(super) fn register(
 async fn submit(
     resources: &super::Resources,
     principal: &Principal,
-    request: &wire::SubmitExecutionCommandRequest,
+    request: &wire::SubmitExecutionCommand,
 ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     if principal.role() < Role::Control {
@@ -152,7 +152,7 @@ async fn submit(
 async fn get(
     resources: &super::Resources,
     principal: &Principal,
-    request: &wire::GetExecutionCommandRequest,
+    request: &wire::GetExecutionCommand,
 ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;

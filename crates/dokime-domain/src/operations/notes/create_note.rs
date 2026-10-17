@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CreateNoteRequest, NoteReceipt, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,23 @@ use super::{CreateNoteRequest, NoteReceipt, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = CreateNoteRequest, response = NoteReceipt, id = "dokime.notes.create_note", version = 1,
+#[harmos::message]
+#[harmos::operation(response = NoteReceipt, id = "dokime.notes.create_note", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Notes", method = "CreateNote"))]
-pub struct CreateNote;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreateNote {
+    // Explicit process epoch from discovery. Retry identities expire at restart.
+    #[row(
+        description = "Explicit process epoch from discovery. Retry identities expire at restart."
+    )]
+    pub epoch: String,
+    pub mutation_id: String,
+    pub owner: Option<AnnotationOwner>,
+    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
+    #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
+    pub message: String,
+}
 
 /* === Enums === */
 

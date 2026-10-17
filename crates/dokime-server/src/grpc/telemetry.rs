@@ -69,7 +69,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListTelemetrySamplesRequest,
+        request: &mut wire::ListSamples,
         _: &mut (),
     ) -> Result<Response<wire::TelemetrySamplesReply>, Status> {
         let limit = bounded_limit(request.limit)?;

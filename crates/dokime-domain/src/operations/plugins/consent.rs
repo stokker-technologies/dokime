@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ConsentPluginRequest, ORDINARY, PluginInstallation};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{ConsentPluginRequest, ORDINARY, PluginInstallation};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ConsentPluginRequest, response = PluginInstallation, id = "dokime.plugins.consent", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PluginInstallation, id = "dokime.plugins.consent", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "Consent"))]
-pub struct Consent;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Consent {
+    pub install_id: String,
+    pub expected_sha256: String,
+}
 
 /* === Enums === */
 

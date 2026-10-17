@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, PreviewSelectionReply, PreviewSelectionRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{ORDINARY, PreviewSelectionReply, PreviewSelectionRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = PreviewSelectionRequest, response = PreviewSelectionReply, id = "dokime.planning.preview_selection", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PreviewSelectionReply, id = "dokime.planning.preview_selection", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Planning", method = "PreviewSelection"))]
-pub struct PreviewSelection;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewSelection {
+    pub plan: Option<SelectionPlan>,
+}
 
 /* === Enums === */
 

@@ -18,14 +18,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
-
 // Local Imports
-use super::FOLLOW;
+use super::*;
 
 /* === Constants === */
 // The grace a cancelled process gets between SIGTERM and the kill.
@@ -43,9 +41,26 @@ pub struct ProcessVariable {
     pub value: String,
 }
 
+
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RunProcessRequest {
+pub struct ProcessExit {
+    // Absent when a signal ended the process.
+    #[row(description = "Absent when a signal ended the process.")]
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+    // The instance was cancelled before the process exited by itself.
+    #[row(description = "The instance was cancelled before the process exited by itself.")]
+    pub cancelled: bool,
+}
+
+// Shared, so a template reaches it through `ctx.host()` without listing it.
+#[harmos::message]
+#[harmos::operation(response = ProcessExit, id = "dokime.process.run", version = 1,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Shared)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunProcess {
     pub program: String,
     pub args: Vec<String>,
     // Set over the plugin's own environment and the execution identity.
@@ -69,23 +84,6 @@ pub struct RunProcessRequest {
     pub grace_ms: Option<u32>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProcessExit {
-    // Absent when a signal ended the process.
-    #[row(description = "Absent when a signal ended the process.")]
-    pub exit_code: Option<i32>,
-    pub duration_ms: u64,
-    // The instance was cancelled before the process exited by itself.
-    #[row(description = "The instance was cancelled before the process exited by itself.")]
-    pub cancelled: bool,
-}
-
-// Shared, so a template reaches it through `ctx.host()` without listing it.
-#[harmos::operation(request = RunProcessRequest, response = ProcessExit, id = "dokime.process.run", version = 1,
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Shared)]
-pub struct RunProcess;
-
 /* === Enums === */
 // Where one output of the process goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,7 +95,7 @@ pub enum Output {
 /* === Traits === */
 
 /* === Implementations === */
-impl RunProcessRequest {
+impl RunProcess {
     pub fn new(program: impl Into<String>) -> Self {
         Self {
             program: program.into(),

@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::operations::planning::PreviewSelectionRequest;
+use dokime_domain::operations::planning::PreviewSelection;
 
 /* === Constants === */
 
@@ -53,7 +53,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let planned = match input.input_file.take() {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            let request = serde_json::from_slice::<PreviewSelectionRequest>(&bytes)
+            let request = serde_json::from_slice::<PreviewSelection>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
             super::input::Planned::canonical(request.plan)?
         }
@@ -66,7 +66,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let result = async {
         let plan = planned.resolve(&client).await?;
         let reply = client
-            .preview_selection(PreviewSelectionRequest { plan })
+            .preview_selection(PreviewSelection { plan })
             .await?;
         super::input::print(&client, &reply, args.json).await
     }

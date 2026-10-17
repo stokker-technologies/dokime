@@ -62,7 +62,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ReadExecutionFileRequest,
+        request: &mut wire::ReadExecutionFile,
         _: &mut (),
     ) -> Result<Response<wire::ExecutionFileWindow>, Status> {
         let runtime = &self.resources.runtime;

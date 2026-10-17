@@ -122,7 +122,7 @@ pub(crate) fn result(
 
 pub(super) fn get_case(
     service: &Resources,
-    request: &wire::GetCaseRequest,
+    request: &wire::GetCase,
 ) -> Result<wire::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
     super::value::text(&request.case_id)?;
@@ -164,7 +164,7 @@ pub(super) fn get_case(
 
 pub(super) fn get_execution(
     service: &Resources,
-    request: &wire::GetExecutionRequest,
+    request: &wire::GetExecution,
 ) -> Result<wire::ExecutionDetail, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -266,7 +266,7 @@ pub(super) fn get_execution(
 
 pub(super) fn list_execution_parameters(
     service: &Resources,
-    request: &wire::ListExecutionParametersRequest,
+    request: &wire::ListExecutionParameters,
 ) -> Result<wire::ListMaterializedParametersReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -345,7 +345,7 @@ pub(super) fn diagnostic(
 
 pub(super) fn list_case_parameters(
     service: &Resources,
-    request: &wire::ListCaseParametersRequest,
+    request: &wire::ListCaseParameters,
 ) -> Result<wire::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
     value::text(&request.case_id)?;

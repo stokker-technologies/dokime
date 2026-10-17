@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetSuiteRequest, ORDINARY, SuiteDefinition};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{GetSuiteRequest, ORDINARY, SuiteDefinition};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetSuiteRequest, response = SuiteDefinition, id = "dokime.catalog.get_suite", version = 1,
+#[harmos::message]
+#[harmos::operation(response = SuiteDefinition, id = "dokime.catalog.get_suite", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Catalog", method = "GetSuite"))]
-pub struct GetSuite;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetSuite {
+    pub suite_id: String,
+}
 
 /* === Enums === */
 

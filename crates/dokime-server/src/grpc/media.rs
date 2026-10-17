@@ -104,7 +104,7 @@ impl Operation for Screenshot {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ScreenshotRequest,
+        request: &mut contract::Screenshot,
         _: &mut (),
     ) -> Result<Response<ArtifactMetadata>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -135,7 +135,7 @@ impl Operation for Photo {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::PhotoRequest,
+        request: &mut contract::Photo,
         _: &mut (),
     ) -> Result<Response<ArtifactMetadata>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -169,7 +169,7 @@ impl Operation for AudioRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::AudioRecordingRequest,
+        request: &mut contract::AudioRecording,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -252,7 +252,7 @@ impl Operation for ScreenRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut contract::ScreenRecordingRequest,
+        _: &mut contract::ScreenRecording,
         _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         Err(Status::failed_precondition(NO_VIDEO_ENCODER))
@@ -273,7 +273,7 @@ impl Operation for CameraRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut contract::CameraRecordingRequest,
+        _: &mut contract::CameraRecording,
         _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         Err(Status::failed_precondition(NO_VIDEO_ENCODER))

@@ -122,7 +122,7 @@ impl Operation for GetCase {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetCaseRequest,
+        request: &mut wire::GetCase,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CaseDetail>, Status> {
         detail::get_case(&self.resources, request).map(Into::into)
@@ -144,7 +144,7 @@ impl Operation for GetExecution {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetExecutionRequest,
+        request: &mut wire::GetExecution,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ExecutionDetail>, Status> {
         detail::get_execution(&self.resources, request).map(Into::into)
@@ -166,7 +166,7 @@ impl Operation for ListCaseParameters {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListCaseParametersRequest,
+        request: &mut wire::ListCaseParameters,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListCaseParametersReply>, Status> {
         detail::list_case_parameters(&self.resources, request).map(Into::into)
@@ -188,7 +188,7 @@ impl Operation for ListExecutionParameters {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListExecutionParametersRequest,
+        request: &mut wire::ListExecutionParameters,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListMaterializedParametersReply>, Status> {
         detail::list_execution_parameters(&self.resources, request).map(Into::into)
@@ -210,7 +210,7 @@ impl Operation for ListExecutionSteps {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListExecutionStepsRequest,
+        request: &mut wire::ListExecutionSteps,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListExecutionStepsReply>, Status> {
         steps::list(&self.resources, request).map(Into::into)
@@ -232,7 +232,7 @@ impl Operation for ListStepCriteria {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListStepEvidenceRequest,
+        request: &mut wire::ListStepCriteria,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListStepCriteriaReply>, Status> {
         steps::criteria(&self.resources, request).map(Into::into)
@@ -254,7 +254,7 @@ impl Operation for GetCycle {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetCycleRequest,
+        request: &mut wire::GetCycle,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CycleSummary>, Status> {
         self.resources.get_cycle(request).map(Into::into)
@@ -276,7 +276,7 @@ impl Operation for ListCycles {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListCyclesRequest,
+        request: &mut wire::ListCycles,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListCyclesReply>, Status> {
         self.resources.list_cycles(request).map(Into::into)
@@ -298,7 +298,7 @@ impl Operation for ListCases {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListCasesRequest,
+        request: &mut wire::ListCases,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListCasesReply>, Status> {
         self.resources.list_cases(request).map(Into::into)
@@ -320,7 +320,7 @@ impl Operation for ListExecutions {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListExecutionsRequest,
+        request: &mut wire::ListExecutions,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::ListExecutionsReply>, Status> {
         self.resources.list_executions(request).map(Into::into)
@@ -328,7 +328,7 @@ impl Operation for ListExecutions {
 }
 
 impl Resources {
-    fn get_cycle(&self, request: &wire::GetCycleRequest) -> Result<wire::CycleSummary, Status> {
+    fn get_cycle(&self, request: &wire::GetCycle) -> Result<wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cycle = snapshot
@@ -348,7 +348,7 @@ impl Resources {
 
     fn list_cycles(
         &self,
-        request: &wire::ListCyclesRequest,
+        request: &wire::ListCycles,
     ) -> Result<wire::ListCyclesReply, Status> {
         let snapshot = self.runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
@@ -396,7 +396,7 @@ impl Resources {
         )
     }
 
-    fn list_cases(&self, request: &wire::ListCasesRequest) -> Result<wire::ListCasesReply, Status> {
+    fn list_cases(&self, request: &wire::ListCases) -> Result<wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
@@ -425,7 +425,7 @@ impl Resources {
 
     fn list_executions(
         &self,
-        request: &wire::ListExecutionsRequest,
+        request: &wire::ListExecutions,
     ) -> Result<wire::ListExecutionsReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();

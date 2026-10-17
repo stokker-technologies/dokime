@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ArchiveReply, ORDINARY, SetCycleArchivedRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,16 @@ use super::{ArchiveReply, ORDINARY, SetCycleArchivedRequest};
 
 /* === Structs === */
 // Archives or unarchives one terminal cycle, live or retired to history.
-#[harmos::operation(request = SetCycleArchivedRequest, response = ArchiveReply, id = "dokime.execution.set_cycle_archived", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ArchiveReply, id = "dokime.execution.set_cycle_archived", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SetCycleArchived"))]
-pub struct SetCycleArchived;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetCycleArchived {
+    pub cycle_id: String,
+    pub archived: bool,
+    pub context: Option<MutationContext>,
+}
 
 /* === Enums === */
 

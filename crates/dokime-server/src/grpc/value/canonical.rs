@@ -436,7 +436,6 @@ pub(in crate::grpc) fn value_type(value: &dokime_domain::model::values::ValueTyp
 }
 
 pub(in crate::grpc) fn value_format(value: &dokime_domain::model::values::ValueFormat) -> schema::ValueFormat {
-    use dokime_domain::model::values::ValueFormat;
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, ReorderStorageSourcesRequest, StorageSources};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ORDINARY, ReorderStorageSourcesRequest, StorageSources};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ReorderStorageSourcesRequest, response = StorageSources, id = "dokime.settings.reorder_storage_sources", version = 1,
+#[harmos::message]
+#[harmos::operation(response = StorageSources, id = "dokime.settings.reorder_storage_sources", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "ReorderStorageSources"))]
-pub struct ReorderStorageSources;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReorderStorageSources {
+    pub identifiers: Vec<String>,
+}
 
 /* === Enums === */
 

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ArtifactFrame, DownloadCheckpointArtifactRequest, TRANSFER};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,15 @@ use super::{ArtifactFrame, DownloadCheckpointArtifactRequest, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = DownloadCheckpointArtifactRequest, response = (), output = ArtifactFrame, id = "dokime.history.download_checkpoint_artifact", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = ArtifactFrame, id = "dokime.history.download_checkpoint_artifact", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "DownloadCheckpointArtifact"))]
-pub struct DownloadCheckpointArtifact;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DownloadCheckpointArtifact {
+    pub checkpoint: Option<ExecutionCheckpoint>,
+    pub artifact_id: String,
+}
 
 /* === Enums === */
 

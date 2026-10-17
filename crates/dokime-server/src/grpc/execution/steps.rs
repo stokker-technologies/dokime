@@ -45,7 +45,7 @@ struct Page {
 /* === Public Functions === */
 pub(super) fn list(
     service: &Resources,
-    request: &wire::ListExecutionStepsRequest,
+    request: &wire::ListExecutionSteps,
 ) -> Result<wire::ListExecutionStepsReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -108,7 +108,7 @@ pub(super) fn list(
 
 pub(super) fn criteria(
     service: &Resources,
-    request: &wire::ListStepEvidenceRequest,
+    request: &wire::ListStepCriteria,
 ) -> Result<wire::ListStepCriteriaReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;

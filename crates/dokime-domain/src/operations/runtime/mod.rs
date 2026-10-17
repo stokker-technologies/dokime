@@ -17,14 +17,16 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{
-    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, WireOperation,
-};
+use harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
 
 /* === Constants === */
+const POLICY: OperationPolicy = OperationPolicy {
+    timeout: Duration::from_secs(5), attempt_timeout: Duration::from_secs(5),
+    retries: RetryPolicy::Never, restart: RestartPolicy::Never,
+};
 pub const PACKAGE: &str = "dokime.v1";
 pub const SERVICE: &str = "Runtime";
 
@@ -34,13 +36,20 @@ pub const SERVICE: &str = "Runtime";
 
 /* === Structs === */
 #[harmos::message]
+#[harmos::operation(response = Health, id = "dokime.runtime.health", version = 1,
+    description = "Read the current runtime identity and admission readiness",
+    policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetHealth"))]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct Request {}
+pub struct GetHealth {}
 
-pub struct GetHealth;
-
-pub struct GetIdentity;
+#[harmos::message]
+#[harmos::operation(response = Identity, id = "dokime.runtime.identity", version = 1,
+    description = "Read the application identity and process epoch",
+    policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetIdentity"))]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GetIdentity {}
 
 #[harmos::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -78,71 +87,13 @@ pub enum Readiness {
 impl GetHealth {
     pub const PATH: &str = "/dokime.v1.Runtime/GetHealth";
 }
-
-impl OperationDeclaration for GetHealth {
-    type Request = Request;
-    type Response = Health;
-
-    const ID: &'static str = "dokime.runtime.health";
-    const DESCRIPTION: &'static str = "Read the current runtime identity and admission readiness";
-    const POLICY: OperationPolicy = OperationPolicy {
-        timeout: Duration::from_secs(5),
-        attempt_timeout: Duration::from_secs(5),
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    };
+impl GetIdentity {
+    pub const PATH: &str = "/dokime.v1.Runtime/GetIdentity";
 }
-
-impl WireOperation for GetHealth {
-    const VERSION: u32 = 1;
-    const GRPC: Option<harmos::operations::Grpc> =
-        Some(harmos::operations::Grpc::new(PACKAGE, SERVICE, "GetHealth"));
-
-    harmos::with_protobuf! {
-        fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
-            Some(visitor.unary::<Self>())
-        }
-    }
-}
-
 impl super::Endpoint for GetHealth {
     const PATH: &'static str = GetHealth::PATH;
     const ACCESS: super::Access = super::Access::Read;
 }
-
-impl GetIdentity {
-    pub const PATH: &str = "/dokime.v1.Runtime/GetIdentity";
-}
-
-impl OperationDeclaration for GetIdentity {
-    type Request = Request;
-    type Response = Identity;
-
-    const ID: &'static str = "dokime.runtime.identity";
-    const DESCRIPTION: &'static str = "Read the application identity and process epoch";
-    const POLICY: OperationPolicy = OperationPolicy {
-        timeout: Duration::from_secs(5),
-        attempt_timeout: Duration::from_secs(5),
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    };
-}
-
-impl WireOperation for GetIdentity {
-    const VERSION: u32 = 1;
-    const GRPC: Option<harmos::operations::Grpc> = Some(harmos::operations::Grpc::new(
-        PACKAGE,
-        SERVICE,
-        "GetIdentity",
-    ));
-
-    harmos::with_protobuf! {
-        fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
-            Some(visitor.unary::<Self>())
-        }
-    }
-}
-
 impl super::Endpoint for GetIdentity {
     const PATH: &'static str = GetIdentity::PATH;
     const ACCESS: super::Access = super::Access::Read;

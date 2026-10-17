@@ -65,7 +65,7 @@ impl Operation for Capture {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::CaptureCurrentDocumentRequest,
+        request: &mut contract::CaptureCurrentDocument,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = owner(request.scope.take())?;
@@ -121,7 +121,7 @@ impl Operation for UpdatePlotSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::UpdatePlotSettingsRequest,
+        request: &mut contract::UpdatePlotSettings,
         _: &mut (),
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = scope(request.scope.take())?;

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{AppearanceAssetFrame, DownloadAppearanceAssetRequest, TRANSFER};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{AppearanceAssetFrame, DownloadAppearanceAssetRequest, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = DownloadAppearanceAssetRequest, response = (), output = AppearanceAssetFrame, id = "dokime.content.download_appearance_asset", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = AppearanceAssetFrame, id = "dokime.content.download_appearance_asset", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "DownloadAppearanceAsset"))]
-pub struct DownloadAppearanceAsset;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DownloadAppearanceAsset {
+    pub reference: Option<AppearanceAssetReference>,
+}
 
 /* === Enums === */
 

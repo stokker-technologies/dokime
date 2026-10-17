@@ -71,7 +71,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetAppearanceRequest,
+        _: &mut wire::GetAppearance,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::AppearanceSnapshot>, Status> {
         let captured = self
@@ -121,7 +121,7 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut content::DownloadAppearanceAssetRequest,
+        request: &mut content::DownloadAppearanceAsset,
         output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
         assets::download(

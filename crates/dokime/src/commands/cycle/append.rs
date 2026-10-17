@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::operations::execution::AppendPlannedCasesRequest;
+use dokime_domain::operations::execution::AppendPlannedCases;
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let (cycle_id, planned) = match input.input_file.take() {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            let request = serde_json::from_slice::<AppendPlannedCasesRequest>(&bytes)
+            let request = serde_json::from_slice::<AppendPlannedCases>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid append input: {error}")))?;
             (
                 request.cycle_id,

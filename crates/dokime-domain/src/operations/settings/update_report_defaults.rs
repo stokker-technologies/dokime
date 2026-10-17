@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ApplicationSettings, ORDINARY, UpdateReportDefaultsRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ApplicationSettings, ORDINARY, UpdateReportDefaultsRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = UpdateReportDefaultsRequest, response = ApplicationSettings, id = "dokime.settings.update_report_defaults", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ApplicationSettings, id = "dokime.settings.update_report_defaults", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdateReportDefaults"))]
-pub struct UpdateReportDefaults;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateReportDefaults {
+    pub report: Option<ReportPreference>,
+}
 
 /* === Enums === */
 

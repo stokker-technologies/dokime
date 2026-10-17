@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetCapturedRecordSchemaRequest, ORDINARY, RecordSchema};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,21 @@ use super::{GetCapturedRecordSchemaRequest, ORDINARY, RecordSchema};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetCapturedRecordSchemaRequest, response = RecordSchema, id = "dokime.evidence.get_captured_record_schema", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RecordSchema, id = "dokime.evidence.get_captured_record_schema", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Evidence", method = "GetCapturedRecordSchema"))]
-pub struct GetCapturedRecordSchema;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetCapturedRecordSchema {
+    pub record_type: String,
+    pub schema_version: u32,
+    // Required process identity: a type/version from another process must not
+    // silently resolve to this process's potentially different admitted schema.
+    #[row(
+        description = "Required process identity: a type/version from another process must not silently resolve to this process's potentially different admitted schema."
+    )]
+    pub epoch: String,
+}
 
 /* === Enums === */
 

@@ -12,13 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ArtifactMetadata, ScreenshotRequest, TRANSFER};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +26,17 @@ use super::{ArtifactMetadata, ScreenshotRequest, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ScreenshotRequest, response = ArtifactMetadata, id = "dokime.media.screenshot", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ArtifactMetadata, id = "dokime.media.screenshot", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Media", method = "Screenshot"))]
-pub struct Screenshot;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Screenshot {
+    pub scope: Option<ArtifactScope>,
+    // Zero-based display index; absent selects the primary display.
+    #[row(description = "Zero-based display index; absent selects the primary display.")]
+    pub display: Option<u32>,
+}
 
 /* === Enums === */
 

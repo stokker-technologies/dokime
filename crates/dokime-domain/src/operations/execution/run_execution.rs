@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ORDINARY, RunExecutionRequest, RunReply};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,17 @@ use super::{ORDINARY, RunExecutionRequest, RunReply};
 
 /* === Structs === */
 // Admit one existing, unstarted execution. Never reopens a finished attempt.
-#[harmos::operation(request = RunExecutionRequest, response = RunReply, id = "dokime.execution.run_execution", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RunReply, id = "dokime.execution.run_execution", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RunExecution"))]
-pub struct RunExecution;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunExecution {
+    pub execution_id: String,
+    pub context: Option<MutationContext>,
+    pub idempotency_key: Option<String>,
+    pub mode: ExecutionMode,
+}
 
 /* === Enums === */
 

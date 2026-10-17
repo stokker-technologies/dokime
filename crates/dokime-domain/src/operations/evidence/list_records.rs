@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ListRecordsRequest, ORDINARY, RecordPage};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,21 @@ use super::{ListRecordsRequest, ORDINARY, RecordPage};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ListRecordsRequest, response = RecordPage, id = "dokime.evidence.list_records", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RecordPage, id = "dokime.evidence.list_records", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Evidence", method = "ListRecords"))]
-pub struct ListRecords;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListRecords {
+    pub selection: Option<CapturedRecordSelection>,
+    // Both absent starts replay at zero through the current applied frontier.
+    // Continuations require BOTH cursors returned in the previous page.
+    #[row(
+        description = "Both absent starts replay at zero through the current applied frontier. Continuations require BOTH cursors returned in the previous page."
+    )]
+    pub after: Option<Cursor>,
+    pub through: Option<Cursor>,
+}
 
 /* === Enums === */
 

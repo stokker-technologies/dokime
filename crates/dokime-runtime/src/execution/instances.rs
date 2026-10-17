@@ -37,9 +37,7 @@ use tokio::task::JoinHandle;
 use crate::host::StepHandleCancelled;
 use dokime_domain::operations::files::FileWatchSourcePayload;
 use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::files::WatchFileRequest;
 use dokime_domain::operations::process::RunProcess;
-use dokime_domain::operations::process::RunProcessRequest;
 
 /* === Constants === */
 // The JSON-RPC server error code of a refusal raised on the step side.
@@ -397,12 +395,12 @@ fn swept() -> Status {
 // artifact a watch fills, or the operation itself.
 fn label<O: Callable>(request: &[u8]) -> (&'static str, String) {
     if O::ID == <RunProcess as harmos::operations::OperationDeclaration>::ID
-        && let Ok(process) = RunProcessRequest::decode(request)
+        && let Ok(process) = RunProcess::decode(request)
     {
         return ("process", process.program);
     }
     if O::ID == <WatchFile as harmos::operations::OperationDeclaration>::ID
-        && let Ok(watch) = WatchFileRequest::decode(request)
+        && let Ok(watch) = WatchFile::decode(request)
     {
         let source = match watch.source.and_then(|source| source.payload) {
             Some(FileWatchSourcePayload::Local(local)) => local.root,

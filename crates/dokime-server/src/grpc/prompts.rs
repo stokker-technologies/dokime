@@ -84,7 +84,7 @@ impl Operation for ListDefinitions {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::ListPromptDefinitionsRequest,
+        request: &mut wire::ListDefinitions,
         _: &mut (),
     ) -> Result<Response<wire::ListPromptDefinitionsReply>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -135,7 +135,7 @@ impl Operation for GetDefinition {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::GetPromptDefinitionRequest,
+        request: &mut wire::GetDefinition,
         _: &mut (),
     ) -> Result<Response<wire::PromptDefinition>, Status> {
         value::text(&request.prompt_type)?;
@@ -164,7 +164,7 @@ impl Operation for ListPending {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::ListPendingPromptsRequest,
+        request: &mut wire::ListPending,
         _: &mut (),
     ) -> Result<Response<wire::ListPendingPromptsReply>, Status> {
         let cycle = request
@@ -269,7 +269,7 @@ impl Operation for GetPrompt {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::GetPromptRequest,
+        request: &mut wire::GetPrompt,
         _: &mut (),
     ) -> Result<Response<wire::PromptView>, Status> {
         let id = prompt_id(&request.prompt_id)?;
@@ -305,7 +305,7 @@ impl Operation for Respond {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RespondToPromptRequest,
+        request: &mut wire::Respond,
         _: &mut (),
     ) -> Result<Response<wire::PromptResponseReceipt>, Status> {
         let context = execution::command_context(&context, request.context.as_ref())?;

@@ -35,15 +35,7 @@ use super::{Access, Endpoint, ORDINARY};
 // clamped to it rather than rejected. `group_by` may be empty, which
 // aggregates the whole filtered selection into a single row. `aggregates` must
 // name at least one output.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AggregateRequest {
-    pub source: QuerySource,
-    pub filters: Vec<QueryFilter>,
-    pub group_by: Vec<String>,
-    pub aggregates: Vec<QueryAggregate>,
-    pub limit: u32,
-}
+
 
 // `values` carries exactly one value for EQ, NEQ, GT, GTE, LT and LTE, one or
 // more for IN, and none for IS_NULL. Values are compared against the column's

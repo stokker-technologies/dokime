@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{FOLLOW, RecordPage, WatchRecordsRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{FOLLOW, RecordPage, WatchRecordsRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = WatchRecordsRequest, response = (), output = RecordPage, id = "dokime.evidence.watch_records", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = RecordPage, id = "dokime.evidence.watch_records", version = 1,
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Evidence", method = "WatchRecords"))]
-pub struct WatchRecords;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchRecords {
+    pub selection: Option<CapturedRecordSelection>,
+    // Absent replays from zero, then follows; present resumes captured facts.
+    #[row(description = "Absent replays from zero, then follows; present resumes captured facts.")]
+    pub after: Option<Cursor>,
+}
 
 /* === Enums === */
 

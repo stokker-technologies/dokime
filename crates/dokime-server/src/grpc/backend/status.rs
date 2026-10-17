@@ -68,7 +68,7 @@ impl Operation for Identity {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetIdentityRequest,
+        _: &mut wire::GetIdentity,
         _: &mut (),
     ) -> Result<Response<wire::BackendIdentity>, Status> {
         Ok(self.resources.identity.clone())
@@ -89,14 +89,14 @@ impl Operation for Health {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetHealthRequest,
+        _: &mut wire::GetHealth,
         _: &mut (),
     ) -> Result<Response<wire::BackendHealth>, Status> {
         let instance = self
             .resources
             .runtime
             .operations()
-            .submit_as::<native::GetHealth>(native::Request {})
+            .submit_as::<native::GetHealth>(native::GetHealth {})
             .map_err(health_failure)?;
         let health = harmos::grpc::response(instance)
             .await
@@ -133,7 +133,7 @@ impl Operation for Availability {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        _: &mut wire::GetAvailabilityRequest,
+        _: &mut wire::GetAvailability,
         _: &mut (),
     ) -> Result<Response<wire::BackendAvailability>, Status> {
         use harmos::operations::host::{DiscoveredOperation, Operations, OperationsRequest};
@@ -232,7 +232,7 @@ impl Operation for Logs {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::WatchLogsRequest,
+        request: &mut wire::WatchLogs,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let min_level = match request.min_level {
@@ -265,7 +265,7 @@ impl Operation for Archive {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::CollectDiagnosticsRequest,
+        request: &mut wire::CollectDiagnostics,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         super::archive::deliver(
@@ -286,7 +286,7 @@ pub(in crate::grpc) async fn register(
 ) -> Result<(), crate::grpc::Error> {
     let instance = runtime
         .operations()
-        .submit_as::<native::GetIdentity>(native::Request {})?;
+        .submit_as::<native::GetIdentity>(native::GetIdentity {})?;
     let identity = harmos::grpc::response(instance).await?;
     let identity = produce(maximum, || wire::BackendIdentity {
         backend_id: identity.backend_id.clone(),

@@ -16,7 +16,7 @@ use crate::{
 };
 use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::ExecutionStatus;
-use crate::runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
+use crate::runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 /* === Constants === */
 /* === Macros === */
@@ -227,7 +227,7 @@ impl RuntimeHandle {
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
         self.operations
-            .call_as::<MaterializeReport>(MaterializeReportRequest {
+            .call_as::<MaterializeReport>(MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
                 at: at.clone(),
             })

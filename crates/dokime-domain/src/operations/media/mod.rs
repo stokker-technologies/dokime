@@ -42,37 +42,11 @@ use super::{Access, Endpoint, FOLLOW, TRANSFER};
 
 /* === Structs === */
 // Every capture needs a cycle and execution scope; storage keeps artifacts per execution.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ScreenshotRequest {
-    pub scope: Option<ArtifactScope>,
-    // Zero-based display index; absent selects the primary display.
-    #[row(description = "Zero-based display index; absent selects the primary display.")]
-    pub display: Option<u32>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PhotoRequest {
-    pub scope: Option<ArtifactScope>,
-    // Zero-based camera index; absent selects the first camera.
-    #[row(description = "Zero-based camera index; absent selects the first camera.")]
-    pub camera: Option<u32>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct AudioRecordingRequest {
-    pub scope: Option<ArtifactScope>,
-    // Zero-based input device index; absent selects the default input.
-    #[row(description = "Zero-based input device index; absent selects the default input.")]
-    pub input: Option<u32>,
-    // Recording stops and seals after this many seconds: default 600, maximum 3600.
-    #[row(
-        description = "Recording stops and seals after this many seconds: default 600, maximum 3600."
-    )]
-    pub maximum_seconds: Option<u32>,
-}
+
+
+
 
 // Which audio sources a video recording mixes into its soundtrack.
 #[harmos::message]
@@ -82,27 +56,9 @@ pub struct RecordingAudio {
     pub system: bool,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ScreenRecordingRequest {
-    pub scope: Option<ArtifactScope>,
-    pub display: Option<u32>,
-    // Absent records video only.
-    #[row(description = "Absent records video only.")]
-    pub audio: Option<RecordingAudio>,
-    pub maximum_seconds: Option<u32>,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CameraRecordingRequest {
-    pub scope: Option<ArtifactScope>,
-    pub camera: Option<u32>,
-    // Absent records video only.
-    #[row(description = "Absent records video only.")]
-    pub audio: Option<RecordingAudio>,
-    pub maximum_seconds: Option<u32>,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{CheckpointFileWindow, ORDINARY, ReadCheckpointOutputRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,17 @@ use super::{CheckpointFileWindow, ORDINARY, ReadCheckpointOutputRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = ReadCheckpointOutputRequest, response = CheckpointFileWindow, id = "dokime.history.read_checkpoint_output", version = 1,
+#[harmos::message]
+#[harmos::operation(response = CheckpointFileWindow, id = "dokime.history.read_checkpoint_output", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "ReadCheckpointOutput"))]
-pub struct ReadCheckpointOutput;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReadCheckpointOutput {
+    pub checkpoint: Option<ExecutionCheckpoint>,
+    pub relative_path: String,
+    pub offset: u64,
+    pub max_bytes: u32,
+}
 
 /* === Enums === */
 

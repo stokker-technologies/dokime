@@ -76,20 +76,11 @@ use super::{Access, Endpoint, ORDINARY, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetExecutionCheckpointRequest {
-    pub execution_identifier: String,
-}
+
 
 // Permanently delete one sealed historical execution. The caller supplies a
 // stable request identifier so a retry can identify the accepted deletion.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DeleteExecutionRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    pub request_identifier: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -132,14 +123,7 @@ pub struct ExecutionOrder {
 // `after_execution_id` must still be a member of the filtered result. A
 // changed selection, a changed order, or a continuation ID the filter excludes
 // is rejected rather than silently restarted.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct BrowseExecutionsRequest {
-    pub limit: u32,
-    pub after_execution_id: String,
-    pub filter: Option<ExecutionFilter>,
-    pub order: Option<ExecutionOrder>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -224,11 +208,7 @@ pub struct HistoryIssue {
     pub message: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCheckpointDocumentRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -402,12 +382,7 @@ pub struct HistoricalDocumentFilter {
     pub value: Option<Value>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCheckpointEvidenceRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    pub sections: Vec<EvidenceSection>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -426,14 +401,7 @@ pub struct CheckpointEvidence {
     pub telemetry_tables: Vec<CheckpointTelemetryTable>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadCheckpointOutputRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    pub relative_path: String,
-    pub offset: u64,
-    pub max_bytes: u32,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -442,20 +410,9 @@ pub struct CheckpointFileWindow {
     pub content: Option<ExecutionFileWindow>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadCheckpointArtifactRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    pub artifact_id: String,
-}
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListCheckpointRecordsRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    pub limit: u32,
-    pub after: String,
-}
+
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -475,16 +432,7 @@ pub struct SavedRecord {
     pub record: Option<CapturedRecord>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListCheckpointTelemetryRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-    // Original logical native stream identifier; never a Delta table name.
-    #[row(description = "Original logical native stream identifier; never a Delta table name.")]
-    pub table: String,
-    pub limit: u32,
-    pub after: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -506,11 +454,7 @@ pub struct SavedTelemetrySample {
     pub sample: Option<TelemetrySample>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCheckpointContextRequest {
-    pub checkpoint: Option<ExecutionCheckpoint>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

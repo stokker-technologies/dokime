@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetRuntimeShellRequest, ORDINARY, RuntimeShellSnapshot};
+use super::*;
 
 /* === Constants === */
 
@@ -27,10 +27,18 @@ use super::{GetRuntimeShellRequest, ORDINARY, RuntimeShellSnapshot};
 
 /* === Structs === */
 // Returns a bounded cycle page at one exact runtime revision.
-#[harmos::operation(request = GetRuntimeShellRequest, response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell", version = 1,
+#[harmos::message]
+#[harmos::operation(response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "GetRuntimeShell"))]
-pub struct GetRuntimeShell;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetRuntimeShell {
+    // Zero selects the default page size (50); the maximum is 100.
+    #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
+    pub limit: u32,
+    pub after_cycle_id: String,
+    pub cursor: Option<Cursor>,
+}
 
 /* === Enums === */
 

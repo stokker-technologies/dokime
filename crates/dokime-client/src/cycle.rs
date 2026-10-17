@@ -69,7 +69,7 @@ impl Client {
         let definition = self.suite(suite).await?;
         let (plan, default_label) = single_plan(&definition, template, parameters)?;
         let cycle = self
-            .create_cycle(contract::CreateCycleRequest {
+            .create_cycle(contract::CreateCycle {
                 metadata: Some(Metadata {
                     identifier: String::new(),
                     label: label.unwrap_or(default_label),
@@ -96,7 +96,7 @@ impl Client {
 
     pub async fn preview_selection(
         &self,
-        request: planning::PreviewSelectionRequest,
+        request: planning::PreviewSelection,
     ) -> Result<planning::PreviewSelectionReply> {
         self.verify(true).await?;
         let reply = self
@@ -114,7 +114,7 @@ impl Client {
 
     pub async fn register_selection(
         &self,
-        request: planning::RegisterSelectionRequest,
+        request: planning::RegisterSelection,
     ) -> Result<planning::PreviewSelectionReply> {
         dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
@@ -138,7 +138,7 @@ impl Client {
 
     pub async fn create_cycle(
         &self,
-        request: contract::CreateCycleRequest,
+        request: contract::CreateCycle,
     ) -> Result<TestCycleHandle> {
         self.verify(true).await?;
         let reply = self
@@ -259,15 +259,13 @@ impl TestCycleHandle {
     }
 
     pub async fn stop(&self) -> Result<dokime_domain::operations::execution::ControlReply> {
-        use dokime_domain::operations::Endpoint;
-        use dokime_domain::operations::execution::CycleControlRequest;
         use dokime_domain::operations::execution::StopCycle;
         self.client.verify(true).await?;
         let reply = self
             .client
             .unary::<StopCycle>(
                 StopCycle::PATH,
-                CycleControlRequest {
+                StopCycle {
                     cycle_id: self.id.to_string(),
                     context: None,
                 },
@@ -289,7 +287,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_run_cycle(contracts::execution::RunCycleRequest {
+            .execution_run_cycle(contracts::execution::RunCycle {
                 cycle_id: self.id.to_string(),
                 idempotency_key: Some(key.to_owned()),
                 context: None,
@@ -310,7 +308,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_schedule_case_rerun(contracts::execution::CaseControlRequest {
+            .execution_schedule_case_rerun(contracts::execution::ScheduleCaseRerun {
                 cycle_id: self.id.to_string(),
                 case_id: case_id.to_owned(),
                 context: None,
@@ -337,7 +335,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_run_case(contracts::execution::RunCaseRequest {
+            .execution_run_case(contracts::execution::RunCase {
                 cycle_id: self.id.to_string(),
                 case_id: case_id.to_owned(),
                 context: None,
@@ -351,7 +349,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let snapshot = self
             .client
-            .execution_get_cycle(contracts::execution::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycle {
                 cycle_id: self.id.to_string(),
             })
             .await?;
@@ -367,7 +365,7 @@ impl TestCycleHandle {
         self.client
             .guard(async {
                 self.snapshot().await?;
-                let mut request = contracts::execution::ListExecutionsRequest {
+                let mut request = contracts::execution::ListExecutions {
                     cycle_id: self.id.to_string(),
                     limit: 100,
                     after_execution_id: String::new(),
@@ -411,7 +409,7 @@ impl TestCycleHandle {
             .client
             .unary::<contract::AppendPlannedCases>(
                 contract::AppendPlannedCases::PATH,
-                contract::AppendPlannedCasesRequest {
+                contract::AppendPlannedCases {
                     cycle_id: self.id.to_string(),
                     plan: Some(plan),
                     context: None,
@@ -474,7 +472,7 @@ fn single_plan(
 
 fn execution_members(
     epoch: &str,
-    request: &contracts::execution::ListExecutionsRequest,
+    request: &contracts::execution::ListExecutions,
     page: &contracts::execution::ListExecutionsReply,
     first_ordinal: u64,
     seen: &mut HashSet<TestExecutionId>,

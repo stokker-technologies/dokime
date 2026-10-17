@@ -51,13 +51,7 @@ use super::{Access, Endpoint, FOLLOW, ORDINARY, TRANSFER};
 // Metadata-only inventory for operator views. Entries are ordered by artifact
 // ID. A continuation is valid only while the runtime epoch and complete
 // metadata fingerprint remain unchanged.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListArtifactsRequest {
-    pub limit: u32,
-    pub after_artifact_id: String,
-    pub cursor: Option<ArtifactCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -74,11 +68,7 @@ pub struct ListArtifactsReply {
     pub cursor: Option<ArtifactCursor>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadArtifactRequest {
-    pub artifact_id: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -161,14 +151,7 @@ pub struct UploadArtifactHeader {
 // select registered outputs; they never resolve arbitrary filesystem paths.
 // Listings are ordered by relative_path. A continuation binds to execution,
 // runtime epoch and metadata fingerprint; changed listings require a restart.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListExecutionFilesRequest {
-    pub execution_id: String,
-    pub limit: u32,
-    pub after_path: String,
-    pub cursor: Option<ExecutionFilesCursor>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -202,14 +185,7 @@ pub struct ExecutionFileMetadata {
 // reads. Each window reports its actual offset and observed length. An offset
 // past the current end is clamped to that end. max_bytes defaults to 64 KiB and
 // must not exceed 64 KiB. No EOF/finality is implied by an empty streaming window.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadExecutionFileRequest {
-    pub execution_id: String,
-    pub relative_path: String,
-    pub offset: u64,
-    pub max_bytes: u32,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -228,12 +204,7 @@ pub struct ExecutionFileWindow {
 // the observed prefix; producer rewrites may make that read fail. Each original
 // charged chunk is encoded before the next read. Completion describes bytes
 // actually delivered. Consumers verify offsets, size, digest and final OK status.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadExecutionFileRequest {
-    pub execution_id: String,
-    pub relative_path: String,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -255,17 +226,7 @@ pub struct ExecutionFileDownloadMetadata {
 // A nonzero offset requires the identity returned by the first metadata frame.
 // Reader cancellation never cancels the producer. Producer session generations
 // may change without changing this retained-content identity.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FollowExecutionFileRequest {
-    pub execution_id: String,
-    pub relative_path: String,
-    pub identity: Option<ExecutionFileIdentity>,
-    pub offset: u64,
-    // Defaults to 64 KiB; must not exceed 64 KiB.
-    #[row(description = "Defaults to 64 KiB; must not exceed 64 KiB.")]
-    pub max_bytes: u32,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -319,11 +280,7 @@ pub struct ExecutionFileSeal {
 // At most 8 MiB per registered appearance asset. Capture and verify before
 // streaming: one metadata frame, contiguous <=64 KiB chunks, completion and OK
 // final status. A changed/missing reference requires refreshing GetAppearance.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadAppearanceAssetRequest {
-    pub reference: Option<AppearanceAssetReference>,
-}
+
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

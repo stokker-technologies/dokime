@@ -51,7 +51,7 @@ pub(super) async fn discover(
         channel.clone(),
         authorization,
         backend::GetIdentity::PATH,
-        backend::GetIdentityRequest {},
+        backend::GetIdentity {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )
@@ -71,7 +71,7 @@ pub(super) async fn discover(
         channel.clone(),
         authorization,
         backend::GetHealth::PATH,
-        backend::GetHealthRequest {},
+        backend::GetHealth {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )
@@ -81,7 +81,7 @@ pub(super) async fn discover(
         channel,
         authorization,
         backend::GetAvailability::PATH,
-        backend::GetAvailabilityRequest {},
+        backend::GetAvailability {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )

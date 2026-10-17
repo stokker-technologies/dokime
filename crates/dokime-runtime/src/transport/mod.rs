@@ -24,7 +24,7 @@ pub use protocol::{
     ArtifactChunk, AskOperator, CommandExecutionReply, CommandExecutionRequest,
     DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal,
     LeaseAsk, LeaseResolution, LeaseStream, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES,
-    OperatorAnswer, OperatorQuestion, PushEvidence, RUN_BOUND, RunExecutionRequest, SIGNAL_BOUND,
+    OperatorAnswer, OperatorQuestion, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND,
     SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
     StepAdmission,
 };

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ExecutionDetail, GetExecutionRequest, ORDINARY};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ExecutionDetail, GetExecutionRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetExecutionRequest, response = ExecutionDetail, id = "dokime.execution.get_execution", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ExecutionDetail, id = "dokime.execution.get_execution", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "GetExecution"))]
-pub struct GetExecution;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetExecution {
+    pub execution_id: String,
+}
 
 /* === Enums === */
 

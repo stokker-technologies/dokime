@@ -139,7 +139,7 @@ pub(crate) async fn fetch_verified(
     let result = match source {
         ArtifactSource::Artifact { artifact_id } => client
             .download_artifact(
-                v1::DownloadArtifactRequest {
+                v1::DownloadArtifact {
                     artifact_id: artifact_id.clone(),
                 },
                 destination,
@@ -153,7 +153,7 @@ pub(crate) async fn fetch_verified(
             relative_path,
         } => client
             .download_execution_file(
-                v1::DownloadExecutionFileRequest {
+                v1::DownloadExecutionFile {
                     execution_id: execution_id.clone(),
                     relative_path: relative_path.clone(),
                 },

@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ApplicationSettings, ORDINARY, UpdateDataRootRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{ApplicationSettings, ORDINARY, UpdateDataRootRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = UpdateDataRootRequest, response = ApplicationSettings, id = "dokime.settings.update_data_root", version = 1,
+#[harmos::message]
+#[harmos::operation(response = ApplicationSettings, id = "dokime.settings.update_data_root", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdateDataRoot"))]
-pub struct UpdateDataRoot;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateDataRoot {
+    pub data_root: Option<String>,
+}
 
 /* === Enums === */
 

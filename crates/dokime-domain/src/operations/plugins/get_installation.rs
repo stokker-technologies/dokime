@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{GetInstallationRequest, ORDINARY, PluginInstallation};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,14 @@ use super::{GetInstallationRequest, ORDINARY, PluginInstallation};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = GetInstallationRequest, response = PluginInstallation, id = "dokime.plugins.get_installation", version = 1,
+#[harmos::message]
+#[harmos::operation(response = PluginInstallation, id = "dokime.plugins.get_installation", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "GetInstallation"))]
-pub struct GetInstallation;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GetInstallation {
+    pub install_id: String,
+}
 
 /* === Enums === */
 

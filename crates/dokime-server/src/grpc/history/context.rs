@@ -71,7 +71,7 @@ impl Operation for Get {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::GetCheckpointContextRequest,
+        request: &mut history::GetCheckpointContext,
         _: &mut (),
     ) -> Result<Response<history::CheckpointContext>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;

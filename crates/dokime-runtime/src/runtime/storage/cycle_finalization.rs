@@ -280,7 +280,7 @@ impl RuntimeHandle {
             runtime
                 .operations()
                 .call_as::<crate::runtime::operations::reports::MaterializeReport>(
-                    crate::runtime::operations::reports::MaterializeReportRequest {
+                    crate::runtime::operations::reports::MaterializeReport {
                         subject: crate::runtime::operations::reports::ReportSubject::Cycle(id.to_string()),
                         at,
                     },

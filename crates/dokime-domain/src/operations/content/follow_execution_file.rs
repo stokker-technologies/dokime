@@ -15,9 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-
+use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{ExecutionFileFollowFrame, FOLLOW, FollowExecutionFileRequest};
+use super::*;
 
 /* === Constants === */
 
@@ -26,10 +26,20 @@ use super::{ExecutionFileFollowFrame, FOLLOW, FollowExecutionFileRequest};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = FollowExecutionFileRequest, response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file", version = 1,
+#[harmos::message]
+#[harmos::operation(response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file", version = 1,
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "FollowExecutionFile"))]
-pub struct FollowExecutionFile;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct FollowExecutionFile {
+    pub execution_id: String,
+    pub relative_path: String,
+    pub identity: Option<ExecutionFileIdentity>,
+    pub offset: u64,
+    // Defaults to 64 KiB; must not exceed 64 KiB.
+    #[row(description = "Defaults to 64 KiB; must not exceed 64 KiB.")]
+    pub max_bytes: u32,
+}
 
 /* === Enums === */
 
