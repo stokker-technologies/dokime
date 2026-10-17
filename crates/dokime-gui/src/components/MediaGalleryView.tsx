@@ -28,12 +28,13 @@ import { artifactLabel } from "@/lib/dashboard";
 import { type MediaArtifactKind, mediaArtifactKind } from "@/lib/media";
 
 import {
+  isNativeArtifactSource,
+  type MediaArtifactCandidate,
   type MediaGalleryArtifact,
   type MediaGalleryProps,
-  type MediaArtifactCandidate,
-  type ResolvedMediaGalleryArtifact,
   type MediaPreviewState,
-  isNativeArtifactSource,
+  mediaBlobType,
+  type ResolvedMediaGalleryArtifact,
 } from "./media-gallery-model";
 
 // Local Imports
