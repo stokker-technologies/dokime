@@ -23,7 +23,7 @@ import {
   DocumentViewRenderer,
 } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
-import type { MediaGalleryArtifact } from "@/components/MediaGallery";
+import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
 import { updatePlotSettings } from "@/lib/api/native-documents";
 import { useReportDefaults } from "@/lib/application-settings";

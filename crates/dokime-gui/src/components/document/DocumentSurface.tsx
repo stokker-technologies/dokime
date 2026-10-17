@@ -28,7 +28,8 @@ import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/documen
 import { RecordTimeline } from "@/components/document/RecordTimeline";
 import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
-import { MediaGallery, type MediaGalleryArtifact } from "@/components/MediaGallery";
+import { MediaGallery } from "@/components/MediaGallery";
+import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
 import { Button } from "@/components/ui/button";
 import {
