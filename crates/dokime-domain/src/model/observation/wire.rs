@@ -20,12 +20,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+#[allow(unused_imports)]
+use crate::model::execution::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::execution::wire::*;
 
 /* === Types === */
 
@@ -130,7 +130,6 @@ pub struct TraceabilityPage {
     )]
     pub host_traceability_fingerprint: String,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -155,9 +155,7 @@ pub(super) fn frames(
                         dokime_domain::model::documents::wire::DocumentCardKind::Artifacts
                     }
                     Body::Media => dokime_domain::model::documents::wire::DocumentCardKind::Media,
-                    Body::Health => {
-                        dokime_domain::model::documents::wire::DocumentCardKind::Health
-                    }
+                    Body::Health => dokime_domain::model::documents::wire::DocumentCardKind::Health,
                     Body::TelemetryContext => {
                         dokime_domain::model::documents::wire::DocumentCardKind::TelemetryContext
                     }
@@ -498,15 +496,11 @@ fn density(
 
 fn rail(value: native::DocumentCardRail) -> dokime_domain::model::documents::wire::DocumentRail {
     match value {
-        native::DocumentCardRail::Main => {
-            dokime_domain::model::documents::wire::DocumentRail::Main
-        }
+        native::DocumentCardRail::Main => dokime_domain::model::documents::wire::DocumentRail::Main,
         native::DocumentCardRail::Right => {
             dokime_domain::model::documents::wire::DocumentRail::Right
         }
-        native::DocumentCardRail::Left => {
-            dokime_domain::model::documents::wire::DocumentRail::Left
-        }
+        native::DocumentCardRail::Left => dokime_domain::model::documents::wire::DocumentRail::Left,
     }
 }
 

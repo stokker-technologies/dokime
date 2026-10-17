@@ -20,14 +20,14 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::operations::query as wire;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::aggregate::{
     AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
 };
-use dokime_domain::operations::query as wire;
 
 /* === Constants === */
 
@@ -123,7 +123,9 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
             dokime_domain::model::query::wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
             dokime_domain::model::query::wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
             dokime_domain::model::query::wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
-            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
+            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => {
+                AggregateOperator::IsNull
+            }
             dokime_domain::model::query::wire::QueryFilterOperator::Unspecified => {
                 return Err(Status::invalid_argument(
                     "aggregate filter operator is unspecified",
@@ -173,8 +175,12 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
 
 fn status(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation {
+            message, ..
+        }) => Status::invalid_argument(message.clone()),
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
+            Status::not_found("aggregate source was not found")
+        }
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }

@@ -569,8 +569,10 @@ fn step_attempt_rewrites() {
     pending.check(&state).unwrap();
     pending.apply(&mut state);
     let execution = state.executions.get_mut(&id).unwrap();
-    execution.interrupt_step_attempt();
-    execution.interrupt_step_attempt();
+    // Interruption is idempotent: the second call finds no active attempt.
+    let detail = || model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted();
+    execution.interrupt_step_attempt(detail());
+    execution.interrupt_step_attempt(detail());
     assert!(execution.active_step_attempt.is_none());
     assert_eq!(execution.step_attempts.len(), 3);
     let lost = &execution.step_attempts[2];

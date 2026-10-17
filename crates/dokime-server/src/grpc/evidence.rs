@@ -23,10 +23,10 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::error::detailed;
-use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
+use dokime_domain::model::definition::wire::RecordSchema;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::evidence as v1;
-use dokime_domain::model::definition::wire::RecordSchema;
+use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
 
 use selection::Selection;
 
@@ -273,8 +273,10 @@ impl Operation for Schema {
             ));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
-            .map_err(|_| Status::invalid_argument("invalid record type"))?;
+        let kind = dokime_domain::model::identity::Identifier::new(std::mem::take(
+            &mut request.record_type,
+        ))
+        .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()
             .historical_record_contract(&kind, request.schema_version)

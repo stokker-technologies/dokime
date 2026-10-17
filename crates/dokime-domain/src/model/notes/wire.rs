@@ -20,12 +20,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+use crate::model::execution::wire_cursor::Cursor;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
 
 /* === Types === */
-
 
 // Current owners only. An execution owner never falls back to its cycle.
 #[harmos::message]
@@ -117,7 +116,6 @@ pub struct ListHealthResponse {
     pub cursor: Option<Cursor>,
     pub next_after_id: String,
 }
-
 
 // A committed note may have no existing persisted execution dataset. Confirmation
 // verifies this exact note in all captured targets; it does not promise future

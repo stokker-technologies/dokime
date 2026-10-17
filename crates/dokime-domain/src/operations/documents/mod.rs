@@ -24,18 +24,18 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+use super::Access;
+use super::Endpoint;
+use super::ORDINARY;
+use super::TRANSFER;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
-use super::Access;
-use super::Endpoint;
-use super::ORDINARY;
-use super::TRANSFER;
 
 use crate::model::documents::wire::*;
 
@@ -47,97 +47,7 @@ use crate::model::documents::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

@@ -61,9 +61,7 @@ pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] = &[
 
 /* === Macros === */
 
-
 /* === Type Aliases === */
-
 
 /* === Structs === */
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -111,9 +109,7 @@ pub struct TraceabilityEntry {
 
 /* === Enums === */
 
-
 /* === Traits === */
-
 
 /* === Implementations === */
 impl harmos::MemorySize for TraceabilitySection {
@@ -321,12 +317,9 @@ impl DerivedTraceabilityGroup {
 
 /* === Public Functions === */
 
-
 /* === Private Functions === */
 
-
 /* === Tests === */
-
 
 /* === Functions === */
 pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGroup> {
@@ -344,4 +337,3 @@ pub fn derived_traceability_group_named(identifier: &str) -> Option<DerivedTrace
         .copied()
         .find(|group| group.identifier() == identifier)
 }
-

@@ -20,14 +20,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
 use crate::model::values::wire::Value;
 
 /* === Types === */
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -112,7 +111,6 @@ pub struct PlannedCase {
     pub ordinal: u64,
     pub selection_index: u64,
 }
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

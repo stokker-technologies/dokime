@@ -18,8 +18,8 @@
 
 // Local Imports
 use super::limits::ParameterLimitError;
-use crate::model::values::Value;
 use crate::model::definition::ParameterExpr;
+use crate::model::values::Value;
 
 /* === Constants === */
 const MAX_SPACE: usize = 1000;

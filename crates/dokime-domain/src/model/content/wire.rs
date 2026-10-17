@@ -229,7 +229,6 @@ pub struct AppearanceAssetFrame {
     pub payload: Option<AppearanceAssetFramePayload>,
 }
 
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactState {

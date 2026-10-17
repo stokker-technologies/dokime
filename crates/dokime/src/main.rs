@@ -62,7 +62,9 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             // Preserve The Cause Chain In The Single Terminal Diagnostic.
-            terminal.failure(dokime_domain::model::diagnostics::Diagnostic::capture(&error));
+            terminal.failure(dokime_domain::model::diagnostics::Diagnostic::capture(
+                &error,
+            ));
             error.exit_code()
         }
     }

@@ -20,12 +20,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Types === */
@@ -257,7 +257,6 @@ pub struct TelemetrySchemaIdentity {
     pub schema_version: u32,
     pub metadata: Option<Metadata>,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

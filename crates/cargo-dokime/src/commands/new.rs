@@ -56,7 +56,6 @@ struct Workspace {
 
 /* === Enums === */
 
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -101,7 +100,8 @@ pub fn run(args: Args) -> Result<(), Error> {
             let path = target.join(path);
             fs::create_dir_all(path.parent().expect("template has a parent"))?;
             if template.text {
-                let contents = std::str::from_utf8(template.bytes).expect("the asset inventory identifies UTF-8 text");
+                let contents = std::str::from_utf8(template.bytes)
+                    .expect("the asset inventory identifies UTF-8 text");
                 let mut contents = contents
                     .replace("{{package}}", name)
                     .replace("{{crate}}", &crate_name)
@@ -161,7 +161,9 @@ pub fn run(args: Args) -> Result<(), Error> {
 fn finalize_managed(contents: String) -> String {
     let normalized = contents.replace("\r\n", "\n");
     let at = if normalized.starts_with("#!") {
-        normalized.find('\n').map_or(normalized.len(), |index| index + 1)
+        normalized
+            .find('\n')
+            .map_or(normalized.len(), |index| index + 1)
     } else if let Some(rest) = normalized.strip_prefix("---\n")
         && let Some(index) = rest.find("\n---\n")
     {
@@ -188,7 +190,11 @@ fn finalize_managed(contents: String) -> String {
     };
     let body = format!("{}{}", &normalized[..at], &normalized[end..]);
     let digest = Sha256::digest(body.as_bytes());
-    format!("{}{prefix}; sha256:{digest:x}{close}\n{}", &normalized[..at], &normalized[end..])
+    format!(
+        "{}{prefix}; sha256:{digest:x}{close}\n{}",
+        &normalized[..at],
+        &normalized[end..]
+    )
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {

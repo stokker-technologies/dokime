@@ -8,12 +8,12 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod case_materialization;
 pub mod conditions;
 pub mod parameters;
 pub mod registry;
 pub mod suite;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use case_materialization::CaseMaterializationError;

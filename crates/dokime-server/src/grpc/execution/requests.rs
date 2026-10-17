@@ -22,14 +22,14 @@ use harmos::operations::{Context, Operation};
 use super::loan;
 use super::*;
 use crate::grpc::access::{Principal, Role};
-use dokime_runtime::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::wire as common;
+use dokime_domain::operations::execution as wire;
 use dokime_runtime::domains::execution::requests::RunPhase;
 use dokime_runtime::domains::execution::requests::RunReceipt;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_domain::operations::execution as wire;
+use dokime_runtime::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
 
 /* === Constants === */
 
@@ -80,7 +80,8 @@ impl Operation for Cycle {
         context: Self::Context<'a>,
         request: &mut wire::RunCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status>
+    {
         let context = context_for_run(
             &context,
             request.context.as_ref(),
@@ -109,7 +110,8 @@ impl Operation for Case {
         context: Self::Context<'a>,
         request: &mut wire::RunCase,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status>
+    {
         let context = context_for_run(
             &context,
             request.context.as_ref(),
@@ -141,18 +143,25 @@ impl Operation for Execution {
         context: Self::Context<'a>,
         request: &mut wire::RunExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunReply>, Status>
+    {
         let context = context_for_run(
             &context,
             request.context.as_ref(),
             request.idempotency_key.as_deref(),
         )?;
         value::text(&request.execution_id)?;
-        let id = dokime_domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
+        let id = dokime_domain::model::identity::TestExecutionId::from_uuid(
+            request.execution_id.clone(),
+        )
+        .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let mode = match request.mode {
-            dokime_domain::model::execution::wire::ExecutionMode::Automatic => dokime_domain::model::execution::ExecutionMode::Automatic,
-            dokime_domain::model::execution::wire::ExecutionMode::Interactive => dokime_domain::model::execution::ExecutionMode::Interactive,
+            dokime_domain::model::execution::wire::ExecutionMode::Automatic => {
+                dokime_domain::model::execution::ExecutionMode::Automatic
+            }
+            dokime_domain::model::execution::wire::ExecutionMode::Interactive => {
+                dokime_domain::model::execution::ExecutionMode::Interactive
+            }
         };
         let result = self.runtime.run_execution(id, mode, context).await;
         receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
@@ -176,7 +185,10 @@ impl Operation for Lookup {
         context: Self::Context<'a>,
         request: &mut wire::GetRunRequest,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunRequestReceipt>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::execution::wire::RunRequestReceipt>,
+        Status,
+    > {
         get(&self.resources, principal(&context)?, request).await
     }
 }
@@ -208,7 +220,10 @@ async fn get(
     resources: &super::Resources,
     principal: &Principal,
     request: &wire::GetRunRequest,
-) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RunRequestReceipt>, Status> {
+) -> Result<
+    harmos::operations::Response<dokime_domain::model::execution::wire::RunRequestReceipt>,
+    Status,
+> {
     let runtime = &resources.runtime;
     value::text(&request.request_id)?;
     let id = CommandId::from_uuid(request.request_id.clone())
@@ -260,7 +275,10 @@ fn context_for_run(
     Ok(context)
 }
 
-fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime_domain::model::execution::wire::RunReply, Status> {
+fn receipt(
+    receipt: CommandReceipt,
+    epoch: String,
+) -> Result<dokime_domain::model::execution::wire::RunReply, Status> {
     let outcome = match receipt.status {
         CommandStatus::Rejected => {
             let detail = receipt
@@ -278,19 +296,21 @@ fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime_domain::mode
                 &time::format_description::well_known::Rfc3339,
             )
             .map_err(|_| Status::internal("invalid admission timestamp"))?;
-            dokime_domain::model::execution::wire::RunReplyOutcome::Accepted(dokime_domain::model::execution::wire::Admission {
-                command_id: receipt.command_id.to_string(),
-                job_id: receipt.job_id.map(|id| id.to_string()),
-                cursor: Some(Cursor {
-                    epoch,
-                    stream: crate::grpc::observation::STREAM.into(),
-                    position: receipt.runtime_revision,
-                }),
-                accepted_at: Some(common::Timestamp {
-                    seconds: at.unix_timestamp(),
-                    nanos: at.nanosecond() as i32,
-                }),
-            })
+            dokime_domain::model::execution::wire::RunReplyOutcome::Accepted(
+                dokime_domain::model::execution::wire::Admission {
+                    command_id: receipt.command_id.to_string(),
+                    job_id: receipt.job_id.map(|id| id.to_string()),
+                    cursor: Some(Cursor {
+                        epoch,
+                        stream: crate::grpc::observation::STREAM.into(),
+                        position: receipt.runtime_revision,
+                    }),
+                    accepted_at: Some(common::Timestamp {
+                        seconds: at.unix_timestamp(),
+                        nanos: at.nanosecond() as i32,
+                    }),
+                },
+            )
         }
     };
     Ok(dokime_domain::model::execution::wire::RunReply {
@@ -298,7 +318,9 @@ fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime_domain::mode
     })
 }
 
-fn project(receipt: &RunReceipt) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt, Status> {
+fn project(
+    receipt: &RunReceipt,
+) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt, Status> {
     let summary = &receipt.summary;
     if let Some(interruption) = &receipt.interruption {
         value::text(interruption)?;
@@ -306,20 +328,32 @@ fn project(receipt: &RunReceipt) -> Result<dokime_domain::model::execution::wire
     Ok(dokime_domain::model::execution::wire::RunRequestReceipt {
         request_id: summary.request_id.as_str().to_owned(),
         mode: match summary.mode {
-            dokime_domain::model::execution::ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
-            dokime_domain::model::execution::ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
+            dokime_domain::model::execution::ExecutionMode::Automatic => {
+                dokime_domain::model::execution::wire::ExecutionMode::Automatic
+            }
+            dokime_domain::model::execution::ExecutionMode::Interactive => {
+                dokime_domain::model::execution::wire::ExecutionMode::Interactive
+            }
         },
         node_id: receipt.node_id.as_str().to_owned(),
         cycle_id: summary.cycle_id.as_str().to_owned(),
         phase: match summary.phase {
             RunPhase::Queued => dokime_domain::model::execution::wire::RunRequestPhase::Queued,
-            RunPhase::Preparing => dokime_domain::model::execution::wire::RunRequestPhase::Preparing,
+            RunPhase::Preparing => {
+                dokime_domain::model::execution::wire::RunRequestPhase::Preparing
+            }
             RunPhase::Running => dokime_domain::model::execution::wire::RunRequestPhase::Running,
-            RunPhase::Finishing => dokime_domain::model::execution::wire::RunRequestPhase::Finishing,
-            RunPhase::Completed => dokime_domain::model::execution::wire::RunRequestPhase::Completed,
+            RunPhase::Finishing => {
+                dokime_domain::model::execution::wire::RunRequestPhase::Finishing
+            }
+            RunPhase::Completed => {
+                dokime_domain::model::execution::wire::RunRequestPhase::Completed
+            }
             RunPhase::Failed => dokime_domain::model::execution::wire::RunRequestPhase::Failed,
             RunPhase::Stopped => dokime_domain::model::execution::wire::RunRequestPhase::Stopped,
-            RunPhase::Interrupted => dokime_domain::model::execution::wire::RunRequestPhase::Interrupted,
+            RunPhase::Interrupted => {
+                dokime_domain::model::execution::wire::RunRequestPhase::Interrupted
+            }
         },
         paused: summary.paused,
         stop_requested: summary.stop_requested,
@@ -329,14 +363,13 @@ fn project(receipt: &RunReceipt) -> Result<dokime_domain::model::execution::wire
         unstarted_count: summary.unstarted,
         failed_count: summary.failed,
         claimed_count: receipt.claimed,
-        last_claim: receipt
-            .last_claim
-            .as_ref()
-            .map(|claim| dokime_domain::model::execution::wire::RunAttemptClaim {
+        last_claim: receipt.last_claim.as_ref().map(|claim| {
+            dokime_domain::model::execution::wire::RunAttemptClaim {
                 ordinal: claim.ordinal,
                 case_id: claim.case_id.as_str().to_owned(),
                 execution_id: claim.execution_id.as_str().to_owned(),
-            }),
+            }
+        }),
         accepted_at: Some(canonical::timestamp(&summary.accepted_at)?),
         provider_started_at: summary
             .provider_started_at

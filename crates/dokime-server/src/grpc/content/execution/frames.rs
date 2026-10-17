@@ -21,8 +21,8 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::super::files;
 use crate::grpc::value::projection;
-use dokime_runtime::ExecutionFileContent;
 use dokime_domain::operations::content as wire;
+use dokime_runtime::ExecutionFileContent;
 
 /* === Constants === */
 
@@ -44,19 +44,21 @@ pub(super) fn metadata(
     maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
     let frame = dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-        payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
-            dokime_domain::model::content::wire::ExecutionFileDownloadMetadata {
-                relative_path: projection::text(&content.relative_path)?,
-                content_type: content
-                    .content_type
-                    .as_deref()
-                    .map(projection::text)
-                    .transpose()?,
-                kind: files::kind(&content.content_kind),
-                state: files::state(&content.stream_state),
-                observed_size_bytes: content.size_bytes,
-            },
-        )),
+        payload: Some(
+            dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
+                dokime_domain::model::content::wire::ExecutionFileDownloadMetadata {
+                    relative_path: projection::text(&content.relative_path)?,
+                    content_type: content
+                        .content_type
+                        .as_deref()
+                        .map(projection::text)
+                        .transpose()?,
+                    kind: files::kind(&content.content_kind),
+                    state: files::state(&content.stream_state),
+                    observed_size_bytes: content.size_bytes,
+                },
+            ),
+        ),
     };
     checked(frame, maximum)
 }
@@ -68,12 +70,14 @@ pub(super) fn chunk(
     bytes.extend_from_slice(&content.bytes);
     checked(
         dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk {
-                    offset: content.offset,
-                    data: bytes,
-                },
-            )),
+            payload: Some(
+                dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
+                    dokime_domain::model::content::wire::ArtifactChunk {
+                        offset: content.offset,
+                        data: bytes,
+                    },
+                ),
+            ),
         },
         maximum,
     )
@@ -93,12 +97,14 @@ pub(super) fn complete(
     let sha256 = projection::text(std::str::from_utf8(&hex).expect("hexadecimal digest is ASCII"))?;
     checked(
         dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion {
-                    size_bytes: size,
-                    sha256,
-                },
-            )),
+            payload: Some(
+                dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Complete(
+                    dokime_domain::model::content::wire::ArtifactCompletion {
+                        size_bytes: size,
+                        sha256,
+                    },
+                ),
+            ),
         },
         maximum,
     )

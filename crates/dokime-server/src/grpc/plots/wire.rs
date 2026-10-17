@@ -713,8 +713,8 @@ fn plot_series_summary(
 fn plot_analysis(
     value: dokime_runtime::runtime::query::PlotAnalysis,
 ) -> Result<dokime_domain::model::plots::wire::PlotAnalysis, Status> {
-    use dokime_runtime::runtime::query::PlotAnalysis;
     use dokime_domain::model::plots::wire::PlotAnalysisResult as Analysis;
+    use dokime_runtime::runtime::query::PlotAnalysis;
 
     let count = |value| {
         u64::try_from(value).map_err(|_| Status::internal("analysis count does not fit wire"))

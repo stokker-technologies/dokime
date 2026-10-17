@@ -36,7 +36,9 @@ use dokime_domain::operations::catalog;
 
 /* === Implementations === */
 impl Client {
-    pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
+    pub fn suites(
+        &self,
+    ) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
@@ -99,7 +101,10 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn suite(&self, identifier: &str) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
+    pub async fn suite(
+        &self,
+        identifier: &str,
+    ) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
         self.verify(true).await?;
         match self
             .definition(catalog::GetSuite {
@@ -165,7 +170,10 @@ impl Client {
     pub async fn template(
         &self,
         identifier: &str,
-    ) -> Result<(dokime_domain::model::catalog::wire::SuiteDefinition, dokime_domain::model::catalog::wire::TemplateDefinition)> {
+    ) -> Result<(
+        dokime_domain::model::catalog::wire::SuiteDefinition,
+        dokime_domain::model::catalog::wire::TemplateDefinition,
+    )> {
         let suite = template_suite(identifier).ok_or_else(|| {
             Error::Rpc(tonic::Status::invalid_argument(
                 "a template is referenced as `<suite id>.<segment>`",
@@ -222,7 +230,10 @@ fn validate_listed_identity(
     Ok(())
 }
 
-fn validate_definition(id: &str, suite: &dokime_domain::model::catalog::wire::SuiteDefinition) -> Result<()> {
+fn validate_definition(
+    id: &str,
+    suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
+) -> Result<()> {
     let identity = suite
         .identity
         .as_ref()

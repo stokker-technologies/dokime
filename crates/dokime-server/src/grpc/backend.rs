@@ -25,10 +25,10 @@ use tonic::Status;
 // Local Imports
 use super::bundle;
 use crate::diagnostics_assembly::DiagnosticsSnapshot;
+use dokime_domain::model::identity::wire::Timestamp;
+use dokime_domain::operations::backend as wire;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-use dokime_domain::operations::backend as wire;
-use dokime_domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 
@@ -48,8 +48,8 @@ struct Collector<'a> {
 /* === Implementations === */
 impl Collector<'_> {
     async fn health(&self) -> Result<dokime_domain::model::backend::wire::BackendHealth, Status> {
-        use dokime_domain::operations::runtime::GetHealth;
         use dokime_domain::model::runtime::wire::Readiness;
+        use dokime_domain::operations::runtime::GetHealth;
         let instance = self
             .runtime
             .operations()

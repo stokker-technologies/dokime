@@ -26,10 +26,10 @@ use crate::grpc::{
     error::detailed,
     value,
 };
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::ArtifactId;
-use dokime_runtime::runtime::ArtifactReader;
 use dokime_domain::operations::content as content_wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::ArtifactReader;
 
 /* === Constants === */
 
@@ -126,9 +126,11 @@ pub(in crate::grpc) async fn deliver(
     output: &mut StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>,
 ) -> Result<(), Status> {
     let frame = dokime_domain::model::content::wire::ArtifactFrame {
-        payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(
-            super::metadata(reader.record())?,
-        )),
+        payload: Some(
+            dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(
+                reader.record(),
+            )?),
+        ),
     };
     if frame.encoded_len() > maximum {
         return Err(Status::resource_exhausted(

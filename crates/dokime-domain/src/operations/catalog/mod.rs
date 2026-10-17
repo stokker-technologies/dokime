@@ -32,16 +32,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::catalog::wire::*;
 
@@ -55,79 +55,11 @@ use crate::model::catalog::wire::*;
 // Pages are ordered by registered suite ID. A changed cursor requires restarting
 // pagination; pages are not pinned across runtime changes.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Current admitted schemas, ordered by type/stream ID. These catalogs exclude
 // retired definitions retained only for immutable historical evidence. A cursor
 // belongs to one runtime epoch/revision; restart pagination when it expires.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

@@ -25,14 +25,14 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::access::Principal;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::SessionId;
+use dokime_domain::operations::notes as contract;
+use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::evidence::notes::CreateNote;
 use dokime_runtime::domains::evidence::notes::EditNote;
 use dokime_runtime::domains::evidence::notes::NoteError;
-use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
 
@@ -91,7 +91,14 @@ impl Operation for ListNotes {
         _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::ListNotesResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "notes")?;
+        let page = selection::Page::new(
+            request.selection.take(),
+            request.limit,
+            std::mem::take(&mut request.after_id),
+            request.cursor.take(),
+            &snapshot,
+            "notes",
+        )?;
         let sets = snapshot
             .state()
             .annotation_sets(page.owner.as_ref(), page.context)
@@ -143,7 +150,14 @@ impl Operation for ListHealth {
         _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::ListHealthResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
-        let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "health")?;
+        let page = selection::Page::new(
+            request.selection.take(),
+            request.limit,
+            std::mem::take(&mut request.after_id),
+            request.cursor.take(),
+            &snapshot,
+            "health",
+        )?;
         let sets = snapshot
             .state()
             .annotation_sets(page.owner.as_ref(), page.context)

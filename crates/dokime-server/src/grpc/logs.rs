@@ -25,8 +25,8 @@ use serde_json::Value;
 use tonic::Status;
 // Local Imports
 use super::redaction;
-use dokime_domain::operations::backend as wire;
 use dokime_domain::model::identity::wire::Timestamp;
+use dokime_domain::operations::backend as wire;
 
 /* === Constants === */
 pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;
@@ -73,7 +73,10 @@ struct Follow {
 
 /* === Implementations === */
 impl Watch {
-    pub(super) async fn run(self, output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
+    pub(super) async fn run(
+        self,
+        output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>,
+    ) -> Result<(), Status> {
         let replay_lines = if self.replay_lines == 0 {
             DEFAULT_REPLAY_LINES
         } else {
@@ -100,7 +103,9 @@ impl Watch {
 }
 
 impl Follow {
-    async fn next(&mut self) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
+    async fn next(
+        &mut self,
+    ) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
         loop {
             if !self.replayed {
                 self.replay().await?;
@@ -227,7 +232,10 @@ impl Follow {
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
         self.pending.push_back(frame);
     }
-    fn frame(&self, line: &[u8]) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
+    fn frame(
+        &self,
+        line: &[u8],
+    ) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
@@ -287,7 +295,12 @@ impl Follow {
             message: redaction::text(message),
             fields: fields
                 .into_iter()
-                .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry { key, value })
+                .map(
+                    |(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry {
+                        key,
+                        value,
+                    },
+                )
                 .collect(),
             dropped: 0,
         })

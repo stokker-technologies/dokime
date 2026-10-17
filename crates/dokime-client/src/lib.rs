@@ -341,7 +341,10 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
+fn validate_observed_cursor(
+    epoch: &str,
+    cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
+) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }
 

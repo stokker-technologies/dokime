@@ -131,7 +131,6 @@ pub struct AppearanceFailure {
     pub kind: AppearanceFailureKind,
 }
 
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeModePolicy {

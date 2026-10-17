@@ -20,17 +20,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Types === */
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -355,7 +354,6 @@ pub struct DocumentCompletion {
 pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

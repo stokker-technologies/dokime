@@ -17,14 +17,14 @@ use std::{collections::BTreeMap, str::FromStr};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::Identifier;
 use crate::model::execution::RecordScope;
-use crate::model::time::Timestamp;
-use crate::model::values::Value;
+use crate::model::identity::Identifier;
 use crate::model::records::BuiltinRecordType;
-use crate::model::records::evidence::Record;
 use crate::model::records::RecordSeverity;
 use crate::model::records::error::RecordFailure;
+use crate::model::records::evidence::Record;
+use crate::model::time::Timestamp;
+use crate::model::values::Value;
 
 /* === Constants === */
 pub const PRODUCT_RECORD_SCHEMA_VERSION: u32 = 2;
@@ -417,7 +417,11 @@ impl ProductRecordDraft {
         self.scope = Some(scope);
         self
     }
-    pub fn into_record(self, record_id: crate::model::identity::RecordId, timestamp: Timestamp) -> Record {
+    pub fn into_record(
+        self,
+        record_id: crate::model::identity::RecordId,
+        timestamp: Timestamp,
+    ) -> Record {
         let mut record = Record::new(
             record_id,
             timestamp,

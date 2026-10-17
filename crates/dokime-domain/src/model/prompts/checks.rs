@@ -21,16 +21,16 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Local Imports
 use crate::model::diagnostics::ValidationIssue;
-use crate::model::values::Value;
-use crate::model::values::ValueType;
-use crate::model::values::numeric_cmp;
-use crate::model::values::value_matches_type;
 use crate::model::expressions::ExpressionContext;
 use crate::model::prompts::PromptArchetype;
 use crate::model::prompts::PromptDefinition;
 use crate::model::prompts::PromptField;
 use crate::model::prompts::PromptFieldKind;
 use crate::model::prompts::validate_rules;
+use crate::model::values::Value;
+use crate::model::values::ValueType;
+use crate::model::values::numeric_cmp;
+use crate::model::values::value_matches_type;
 
 /* === Constants === */
 
@@ -233,15 +233,18 @@ pub fn validate_answer_rules(
 }
 
 /// Collects the one definition for each prompt identity, ordered by prompt identity.
-pub fn collect_definitions<'a>(source: &str, definitions: impl IntoIterator<Item = &'a PromptDefinition>)
-    -> Result<Vec<&'a PromptDefinition>, String>
-{
+pub fn collect_definitions<'a>(
+    source: &str,
+    definitions: impl IntoIterator<Item = &'a PromptDefinition>,
+) -> Result<Vec<&'a PromptDefinition>, String> {
     let mut declarations = BTreeMap::new();
     for definition in definitions {
         let id = definition.prompt_type.as_str();
         if let Some(existing) = declarations.get(id) {
             if *existing != definition {
-                return Err(format!("conflicting definitions for prompt {id} in {source}"));
+                return Err(format!(
+                    "conflicting definitions for prompt {id} in {source}"
+                ));
             }
             continue;
         }

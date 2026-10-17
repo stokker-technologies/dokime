@@ -21,9 +21,9 @@ use tonic::Status;
 use tracing::Instrument;
 // Local Imports
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
-use dokime_runtime::RuntimeHandle;
-use dokime_domain::operations::backend as wire;
 use dokime_domain::model::identity::wire::Timestamp;
+use dokime_domain::operations::backend as wire;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 const DEFAULT_EVENTS: usize = 256;
@@ -200,9 +200,15 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 /* === Private Functions === */
 fn scope(scope: Option<&dokime_domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
     match scope {
-        None | Some(dokime_domain::model::backend::wire::TraceScope::Instance) => Ok(Scope::Instance),
-        Some(dokime_domain::model::backend::wire::TraceScope::Cycle(id)) => Ok(Scope::Cycle(scope_id(id)?)),
-        Some(dokime_domain::model::backend::wire::TraceScope::Execution(id)) => Ok(Scope::Execution(scope_id(id)?)),
+        None | Some(dokime_domain::model::backend::wire::TraceScope::Instance) => {
+            Ok(Scope::Instance)
+        }
+        Some(dokime_domain::model::backend::wire::TraceScope::Cycle(id)) => {
+            Ok(Scope::Cycle(scope_id(id)?))
+        }
+        Some(dokime_domain::model::backend::wire::TraceScope::Execution(id)) => {
+            Ok(Scope::Execution(scope_id(id)?))
+        }
     }
 }
 
@@ -244,10 +250,12 @@ fn event_wire(sequence: u64, event: &Event) -> dokime_domain::model::backend::wi
         fields: event
             .fields
             .iter()
-            .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry {
-                key: key.clone(),
-                value: value.clone(),
-            })
+            .map(
+                |(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry {
+                    key: key.clone(),
+                    value: value.clone(),
+                },
+            )
             .collect(),
     }
 }

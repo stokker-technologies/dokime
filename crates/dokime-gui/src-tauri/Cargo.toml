@@ -94,6 +94,7 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
+dokime = { path = "../../dokime" }
 dokime-runtime = { path = "../../dokime-runtime", features = ["host", "fft"] }
 dokime-server = { path = "../../dokime-server" }
 

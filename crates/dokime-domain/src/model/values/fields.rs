@@ -176,7 +176,8 @@ impl FieldValue for f64 {
         match value {
             Some(Value::Number(number)) => Ok(*number),
             Some(integer @ (Value::Integer(_) | Value::Unsigned(_))) => {
-                let number = crate::model::values::numeric_value(integer).expect("integer projection");
+                let number =
+                    crate::model::values::numeric_value(integer).expect("integer projection");
                 if crate::model::values::numeric_cmp(integer, &Value::Number(number))
                     == Some(std::cmp::Ordering::Equal)
                 {

@@ -18,17 +18,17 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::execution::result::CycleStatus;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::StepRecord;
-use dokime_domain::model::execution::result::StepStatus;
-use dokime_domain::model::execution::result::TestExecution;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
 };
 use crate::transactions::provider::request::RunPhase;
 use crate::transactions::records::draft::Drafts;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DokimeNodeIdentity;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -417,6 +417,14 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 }
 
 /* === Public Functions === */
+// A step attempt that ended without a completion receipt keeps this redacted detail.
+#[track_caller]
+pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
+    dokime_domain::model::diagnostics::Diagnostic::of(
+        "step runner ended without a completion receipt",
+    )
+    .redacted()
+}
 
 /* === Private Functions === */
 fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
@@ -428,7 +436,7 @@ fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
         return false;
     }
 
-    execution.interrupt_step_attempt();
+    execution.interrupt_step_attempt(interrupted_step_detail());
     execution.status = ExecutionStatus::Interrupted;
     execution.result = None;
     execution.finished_at = Some(at.clone());
@@ -464,7 +472,8 @@ mod tests {
             test_cycle_id: id.clone(),
             session_id: Some(state.session_id.clone()),
             metadata: Metadata {
-                identifier: dokime_domain::model::identity::Identifier::new("cycle.restart").unwrap(),
+                identifier: dokime_domain::model::identity::Identifier::new("cycle.restart")
+                    .unwrap(),
                 label: "Cycle Restart".into(),
                 description: None,
                 tags: vec![],

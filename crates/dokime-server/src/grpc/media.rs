@@ -26,19 +26,19 @@ use harmos::{
 use tonic::Status;
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
-use dokime_runtime::runtime::Error;
+use dokime_domain::model::content::wire::ArtifactMetadata;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::operations::media as contract;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::artifacts::ArtifactRecord;
-use dokime_domain::model::execution::RecordScope;
 use dokime_runtime::domains::media::AudioRecording as Recording;
 use dokime_runtime::domains::media::DEFAULT_RECORDING_SECONDS;
 use dokime_runtime::domains::media::MAXIMUM_RECORDING_SECONDS;
 use dokime_runtime::domains::media::NOT_COMPILED;
 use dokime_runtime::domains::media::UNAVAILABLE;
-use dokime_domain::model::content::wire::ArtifactMetadata;
-use dokime_domain::operations::media as contract;
+use dokime_runtime::runtime::Error;
 
 /* === Constants === */
 const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
@@ -195,11 +195,18 @@ impl Operation for AudioRecording {
                 size_bytes: recording.size_bytes(),
             };
             output
-                .send_with(std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>(), || {
-                    Ok(dokime_domain::model::media::wire::RecordingFrame {
-                        payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Progress(progress)),
-                    })
-                })
+                .send_with(
+                    std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>(),
+                    || {
+                        Ok(dokime_domain::model::media::wire::RecordingFrame {
+                            payload: Some(
+                                dokime_domain::model::media::wire::RecordingFramePayload::Progress(
+                                    progress,
+                                ),
+                            ),
+                        })
+                    },
+                )
                 .await
                 .map_err(stream_failure)?;
             tokio::select! {
@@ -217,9 +224,11 @@ impl Operation for AudioRecording {
         output
             .send_with(bytes, || {
                 Ok(dokime_domain::model::media::wire::RecordingFrame {
-                    payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Completed(Box::new(
-                        completed,
-                    ))),
+                    payload: Some(
+                        dokime_domain::model::media::wire::RecordingFramePayload::Completed(
+                            Box::new(completed),
+                        ),
+                    ),
                 })
             })
             .await
@@ -334,10 +343,14 @@ fn recording_limit(seconds: Option<u32>) -> Result<Duration, Status> {
 
 fn failure(error: Error) -> Status {
     match &error {
-        Error::Admission(AdmissionFailure::Unavailable { code, message }) if code == UNAVAILABLE || code == NOT_COMPILED => {
+        Error::Admission(AdmissionFailure::Unavailable { code, message })
+            if code == UNAVAILABLE || code == NOT_COMPILED =>
+        {
             Status::failed_precondition(message.clone())
         }
-        Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
+        Error::Admission(AdmissionFailure::Conflict { message, .. }) => {
+            Status::failed_precondition(message.clone())
+        }
         _ => content_failure(error),
     }
 }

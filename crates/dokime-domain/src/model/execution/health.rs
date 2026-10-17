@@ -17,8 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::HealthItemId;
 use crate::model::execution::RecordScope;
+use crate::model::identity::HealthItemId;
 use crate::model::time::Timestamp;
 
 /* === Constants === */

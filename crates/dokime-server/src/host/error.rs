@@ -104,7 +104,10 @@ impl Error {
         };
         Self::IncompatibleStorage { root, reason }
     }
-    pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime_runtime::runtime::Result<()>) -> Self {
+    pub(crate) fn startup(
+        server: crate::grpc::Error,
+        cleanup: dokime_runtime::runtime::Result<()>,
+    ) -> Self {
         match cleanup {
             Ok(()) => Self::Server(server),
             Err(runtime) => Self::Cleanup {
@@ -132,7 +135,9 @@ impl Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn storage_refusal(error: &dokime_runtime::runtime::Error) -> Option<&dokime_runtime::storage::sqlite::Error> {
+fn storage_refusal(
+    error: &dokime_runtime::runtime::Error,
+) -> Option<&dokime_runtime::storage::sqlite::Error> {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
         if let Some(storage) = cause.downcast_ref::<dokime_runtime::storage::sqlite::Error>() {

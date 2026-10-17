@@ -19,17 +19,17 @@ use harmos::Protobuf;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
-use dokime_runtime::OpenedReport;
-use dokime_runtime::ReportOrigin;
-use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::reports as wire;
+use dokime_runtime::OpenedReport;
+use dokime_runtime::ReportOrigin;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 const HTML_CHUNK_BYTES: usize = 64 * 1024;
@@ -143,18 +143,24 @@ impl chunked::Frames for HtmlFrames {
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
         dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(dokime_domain::model::reports::wire::ReportHtmlChunk {
-                offset,
-                data,
-            })),
+            payload: Some(
+                dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
+                    dokime_domain::model::reports::wire::ReportHtmlChunk { offset, data },
+                ),
+            ),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
         dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
-                dokime_domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
-            )),
+            payload: Some(
+                dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
+                    dokime_domain::model::reports::wire::ReportHtmlCompletion {
+                        size_bytes,
+                        sha256,
+                    },
+                ),
+            ),
         }
     }
 }
@@ -194,20 +200,26 @@ async fn deliver(
         html,
     } = report;
     let frame = dokime_domain::model::reports::wire::ReportHtmlFrame {
-        payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
-            dokime_domain::model::reports::wire::ReportMetadata {
-                test_cycle_id: test_cycle_id.to_string(),
-                test_execution_id: test_execution_id.map(|id| id.to_string()),
-                identifier: identifier.to_string(),
-                metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
-                generated_at: Some(canonical::timestamp(&generated_at)?),
-                origin: match origin {
-                    ReportOrigin::Sealed => dokime_domain::model::reports::wire::ReportOrigin::Sealed,
-                    ReportOrigin::Current => dokime_domain::model::reports::wire::ReportOrigin::Current,
+        payload: Some(
+            dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
+                dokime_domain::model::reports::wire::ReportMetadata {
+                    test_cycle_id: test_cycle_id.to_string(),
+                    test_execution_id: test_execution_id.map(|id| id.to_string()),
+                    identifier: identifier.to_string(),
+                    metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
+                    generated_at: Some(canonical::timestamp(&generated_at)?),
+                    origin: match origin {
+                        ReportOrigin::Sealed => {
+                            dokime_domain::model::reports::wire::ReportOrigin::Sealed
+                        }
+                        ReportOrigin::Current => {
+                            dokime_domain::model::reports::wire::ReportOrigin::Current
+                        }
+                    },
+                    warnings: Vec::new(),
                 },
-                warnings: Vec::new(),
-            },
-        ))),
+            )),
+        ),
     };
     if frame.encoded_len() > resources.max_message_bytes {
         return Err(Status::resource_exhausted(
@@ -231,7 +243,10 @@ async fn deliver(
 }
 
 fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
+    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound {
+        message, ..
+    }) = &error
+    {
         return Status::not_found(message.clone());
     }
     let status = if matches!(

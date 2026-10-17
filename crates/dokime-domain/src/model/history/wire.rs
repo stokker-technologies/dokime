@@ -25,12 +25,9 @@ use crate::model::appearance::wire::*;
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
 #[allow(unused_imports)]
-use crate::model::execution::wire_checkpoint::*;
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-#[allow(unused_imports)]
 use crate::model::content::wire::*;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
 #[allow(unused_imports)]
 use crate::model::documents::wire::*;
 #[allow(unused_imports)]
@@ -38,13 +35,16 @@ use crate::model::evidence::wire::*;
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
 #[allow(unused_imports)]
+use crate::model::execution::wire_checkpoint::*;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+#[allow(unused_imports)]
 use crate::model::notes::wire::*;
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
 #[allow(unused_imports)]
 use crate::model::prompts::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 #[allow(unused_imports)]
 use crate::model::telemetry::wire::*;
 use crate::model::values::wire::Value;
@@ -440,7 +440,6 @@ pub struct HistoricalCycle {
     pub cases: Vec<CaseSummary>,
     pub result: Option<ResultSummary>,
 }
-
 
 // The requested order key. Ordering is always total: the key, then the
 // execution ID ascending, so equal keys never permute between pages. An

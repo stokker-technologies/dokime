@@ -18,11 +18,11 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::NoteId;
-use crate::model::identity::RecordId;
 use crate::model::execution::RecordScope;
 use crate::model::execution::health::HealthItem;
 use crate::model::execution::notes::OperatorNote;
+use crate::model::identity::NoteId;
+use crate::model::identity::RecordId;
 
 /* === Constants === */
 

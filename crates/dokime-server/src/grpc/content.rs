@@ -57,21 +57,41 @@ pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
     };
     let overhead = [
         transfer_frame_memory(dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone())),
+            payload: Some(
+                dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone()),
+            ),
         }),
         transfer_frame_memory(dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
+            payload: Some(
+                dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
+                    chunk.clone(),
+                ),
+            ),
         }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
-                chunk.clone(),
-            )),
-        }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
-        }),
+        transfer_frame_memory(
+            dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
+                payload: Some(
+                    dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
+                        chunk.clone(),
+                    ),
+                ),
+            },
+        ),
+        transfer_frame_memory(
+            dokime_domain::model::content::wire::ExecutionFileFollowFrame {
+                payload: Some(
+                    dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
+                        chunk.clone(),
+                    ),
+                ),
+            },
+        ),
         transfer_frame_memory(dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+            payload: Some(
+                dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(
+                    chunk.clone(),
+                ),
+            ),
         }),
     ]
     .into_iter()

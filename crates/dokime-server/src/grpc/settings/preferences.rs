@@ -19,11 +19,11 @@ use harmos::{
 };
 use tonic::Status;
 // Local Imports
+use dokime_domain::operations::settings as wire;
 use dokime_runtime::{
     RuntimeHandle,
     config::{Density, ThemeMode},
 };
-use dokime_domain::operations::settings as wire;
 
 /* === Constants === */
 /* === Macros === */
@@ -168,12 +168,16 @@ impl Operation for UpdateAppearance {
         }
         let appearance = dokime_runtime::config::Appearance {
             theme_mode: match appearance.theme_mode {
-                dokime_domain::model::settings::wire::ThemeMode::Unspecified | dokime_domain::model::settings::wire::ThemeMode::System => ThemeMode::System,
+                dokime_domain::model::settings::wire::ThemeMode::Unspecified
+                | dokime_domain::model::settings::wire::ThemeMode::System => ThemeMode::System,
                 dokime_domain::model::settings::wire::ThemeMode::Light => ThemeMode::Light,
                 dokime_domain::model::settings::wire::ThemeMode::Dark => ThemeMode::Dark,
             },
             density: match appearance.density {
-                dokime_domain::model::settings::wire::Density::Unspecified | dokime_domain::model::settings::wire::Density::Comfortable => Density::Comfortable,
+                dokime_domain::model::settings::wire::Density::Unspecified
+                | dokime_domain::model::settings::wire::Density::Comfortable => {
+                    Density::Comfortable
+                }
                 dokime_domain::model::settings::wire::Density::Compact => Density::Compact,
                 dokime_domain::model::settings::wire::Density::Touch => Density::Touch,
             },
@@ -277,9 +281,11 @@ impl Resources {
         view: dokime_runtime::config::StoragePolicyView,
     ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
         self.produce(|| {
-            let encode = |p: dokime_runtime::config::StoragePolicy| dokime_domain::model::settings::wire::StoragePolicy {
-                compaction_interval_ms: p.compaction_interval_ms,
-                local_retention_ms: p.local_retention_ms,
+            let encode = |p: dokime_runtime::config::StoragePolicy| {
+                dokime_domain::model::settings::wire::StoragePolicy {
+                    compaction_interval_ms: p.compaction_interval_ms,
+                    local_retention_ms: p.local_retention_ms,
+                }
             };
             dokime_domain::model::settings::wire::StoragePolicyView {
                 revision: view.revision,
@@ -293,12 +299,14 @@ impl Resources {
         &self,
         view: dokime_runtime::config::ApplicationSettingsView,
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
-        let mut required = std::mem::size_of::<dokime_domain::model::settings::wire::ApplicationSettings>().saturating_add(
-            view.appearance
-                .theme_family
-                .as_ref()
-                .map_or(0, String::capacity),
-        );
+        let mut required =
+            std::mem::size_of::<dokime_domain::model::settings::wire::ApplicationSettings>()
+                .saturating_add(
+                    view.appearance
+                        .theme_family
+                        .as_ref()
+                        .map_or(0, String::capacity),
+                );
         for path in [
             Some(&view.application_root),
             view.configured_data_root.as_ref(),
@@ -319,12 +327,16 @@ impl Resources {
             dokime_domain::model::settings::wire::ApplicationSettings {
                 appearance: Some(dokime_domain::model::settings::wire::AppearancePreference {
                     theme_mode: match view.appearance.theme_mode {
-                        ThemeMode::System => dokime_domain::model::settings::wire::ThemeMode::System,
+                        ThemeMode::System => {
+                            dokime_domain::model::settings::wire::ThemeMode::System
+                        }
                         ThemeMode::Light => dokime_domain::model::settings::wire::ThemeMode::Light,
                         ThemeMode::Dark => dokime_domain::model::settings::wire::ThemeMode::Dark,
                     },
                     density: match view.appearance.density {
-                        Density::Comfortable => dokime_domain::model::settings::wire::Density::Comfortable,
+                        Density::Comfortable => {
+                            dokime_domain::model::settings::wire::Density::Comfortable
+                        }
                         Density::Compact => dokime_domain::model::settings::wire::Density::Compact,
                         Density::Touch => dokime_domain::model::settings::wire::Density::Touch,
                     },

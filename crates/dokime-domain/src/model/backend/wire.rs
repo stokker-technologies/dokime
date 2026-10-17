@@ -26,9 +26,7 @@ use crate::model::identity::wire::*;
 
 /* === Types === */
 
-
 pub const API_PACKAGE: &str = "dokime.v1";
-
 
 pub const API_VERSION: &str = "0.6.0";
 
@@ -364,7 +362,6 @@ pub struct LogFrame {
     pub dropped: u64,
 }
 
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Readiness {
@@ -465,7 +462,6 @@ pub enum DiagnosticsBundleFramePayload {
     Chunk(DiagnosticsBundleChunk),
     Complete(DiagnosticsBundleCompletion),
 }
-
 
 pub fn compatible_api(package: &str, version: &str) -> bool {
     fn release(version: &str) -> Option<(&str, &str)> {

@@ -27,14 +27,14 @@ use super::{
     value::{self, canonical as values},
 };
 use dokime_domain::model::execution::wire_cursor::Cursor as NativeCursor;
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::model::execution::wire_cursor::Error as CursorError;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
-use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::prompts as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 const STREAM: &str = "runtime.state";
@@ -86,7 +86,8 @@ impl Operation for ListDefinitions {
         _context: Self::Context<'a>,
         request: &mut wire::ListDefinitions,
         _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status>
+    {
         let snapshot = self.resources.runtime.watch_state().latest();
         let limit = page(
             request.limit,
@@ -112,11 +113,13 @@ impl Operation for ListDefinitions {
                 .next()
                 .is_some()
                 .then(|| definitions.last().unwrap().prompt_type.clone());
-            Ok(dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
-                definitions,
-                next_after_prompt_type,
-                cursor: Some(values::cursor(&snapshot)),
-            })
+            Ok(
+                dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
+                    definitions,
+                    next_after_prompt_type,
+                    cursor: Some(values::cursor(&snapshot)),
+                },
+            )
         })
     }
 }
@@ -166,7 +169,8 @@ impl Operation for ListPending {
         _context: Self::Context<'a>,
         request: &mut wire::ListPending,
         _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status>
+    {
         let cycle = request
             .cycle_id
             .take()
@@ -246,11 +250,13 @@ impl Operation for ListPending {
                 .then(|| prompts.last().unwrap().prompt_id.clone());
             let mut cursor = values::cursor(&snapshot);
             cursor.stream = selection;
-            Ok(dokime_domain::model::prompts::wire::ListPendingPromptsReply {
-                prompts,
-                next_after_prompt_id,
-                cursor: Some(cursor),
-            })
+            Ok(
+                dokime_domain::model::prompts::wire::ListPendingPromptsReply {
+                    prompts,
+                    next_after_prompt_id,
+                    cursor: Some(cursor),
+                },
+            )
         })
     }
 }

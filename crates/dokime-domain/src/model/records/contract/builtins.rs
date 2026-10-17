@@ -20,14 +20,14 @@ use std::sync::LazyLock;
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
-use crate::model::values::Value;
-use crate::model::values::ValueType;
 use crate::model::records::RecordContract;
 use crate::model::records::RecordDisplay;
 use crate::model::records::RecordField;
 use crate::model::records::RecordIconKey;
 use crate::model::records::RecordSeverity;
 use crate::model::records::RecordTone;
+use crate::model::values::Value;
+use crate::model::values::ValueType;
 
 /* === Constants === */
 pub const PRODUCT_CONNECTION_STATES: &[&str] = &["connected", "disconnected"];

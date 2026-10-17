@@ -21,12 +21,12 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 // Local Imports
 use super::value;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::documents as contract;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -193,7 +193,9 @@ fn owner(
     Ok((cycle, Some(execution)))
 }
 
-fn scope(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
+fn scope(
+    scope: Option<dokime_domain::model::documents::wire::DocumentScope>,
+) -> Result<(TestCycleId, TestExecutionId), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id)
         .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;

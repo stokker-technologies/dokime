@@ -17,16 +17,16 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
 use crate::model::identity::Identifier;
 use crate::model::identity::RecordId;
-use crate::model::execution::RecordScope;
 use crate::model::identity::TelemetrySampleId;
 use crate::model::identity::TelemetryStreamId;
+use crate::model::records::RecordSeverity;
+use crate::model::records::error::RecordErrorDetail;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-use crate::model::records::error::RecordErrorDetail;
-use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -153,15 +153,17 @@ impl Record {
         }
     }
 
-    pub fn detail<T: serde::de::DeserializeOwned>(&self, name: &str) -> Result<T, crate::model::records::error::RecordDetailError> {
-        let value = self
-            .details
-            .get(name)
-            .ok_or_else(|| crate::model::records::error::RecordDetailError {
+    pub fn detail<T: serde::de::DeserializeOwned>(
+        &self,
+        name: &str,
+    ) -> Result<T, crate::model::records::error::RecordDetailError> {
+        let value = self.details.get(name).ok_or_else(|| {
+            crate::model::records::error::RecordDetailError {
                 record: self.record_type.to_string(),
                 field: name.to_owned(),
                 reason: "no such detail is carried".to_owned(),
-            })?;
+            }
+        })?;
         value
             .to_plain_json()
             .map_err(|error| error.to_string())

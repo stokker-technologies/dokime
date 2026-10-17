@@ -36,15 +36,15 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::appearance::wire::*;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
+#[allow(unused_imports)]
+use crate::model::appearance::wire::*;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 use crate::model::content::wire::*;
 
@@ -59,38 +59,10 @@ use crate::model::content::wire::*;
 // ID. A continuation is valid only while the runtime epoch and complete
 // metadata fingerprint remain unchanged.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Files currently owned by an execution in this runtime. These logical names
 // select registered outputs; they never resolve arbitrary filesystem paths.
 // Listings are ordered by relative_path. A continuation binds to execution,
 // runtime epoch and metadata fingerprint; changed listings require a restart.
-
-
-
-
-
-
-
 
 // A bounded read for live previews/tailing, not an immutable full-file download.
 // A native producer may rewrite/truncate a streaming file between or during
@@ -98,60 +70,22 @@ use crate::model::content::wire::*;
 // past the current end is clamped to that end. max_bytes defaults to 64 KiB and
 // must not exceed 64 KiB. No EOF/finality is implied by an empty streaming window.
 
-
-
-
 // Opens one admitted output on its original saved view or active producer inode.
 // Saved reads verify the frozen descriptor length and digest. Live reads stop at
 // the observed prefix; producer rewrites may make that read fail. Each original
 // charged chunk is encoded before the next read. Completion describes bytes
 // actually delivered. Consumers verify offsets, size, digest and final OK status.
 
-
-
-
-
-
 // Follow the original registered production from a locally committed offset.
 // A nonzero offset requires the identity returned by the first metadata frame.
 // Reader cancellation never cancels the producer. Producer session generations
 // may change without changing this retained-content identity.
 
-
-
-
-
-
-
-
-
-
-
-
 // At most 8 MiB per registered appearance asset. Capture and verify before
 // streaming: one metadata frame, contiguous <=64 KiB chunks, completion and OK
 // final status. A changed/missing reference requires refreshing GetAppearance.
 
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

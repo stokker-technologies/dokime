@@ -19,15 +19,15 @@ use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
 use crate::model::identity::Identifier;
-use crate::model::values::MeasurementUnit;
 use crate::model::identity::Metadata;
 use crate::model::identity::SuiteId;
 use crate::model::identity::TemplateId;
+use crate::model::records::RecordSeverity;
 use crate::model::validation::ValidationMode;
+use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
-use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 

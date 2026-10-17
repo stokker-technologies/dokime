@@ -26,7 +26,6 @@ use crate::model::values::wire::Value;
 
 /* === Types === */
 
-
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {

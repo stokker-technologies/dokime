@@ -85,7 +85,6 @@ impl DokimeNodeIdentity {
             updated_at: timestamp,
         }
     }
-
 }
 
 impl DokimeActorIdentity {

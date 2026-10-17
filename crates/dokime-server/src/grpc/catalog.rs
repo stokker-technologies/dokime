@@ -23,11 +23,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use tonic::Status;
 // Local Imports
 use super::value::{self, Budget, canonical};
-use dokime_runtime::RuntimeHandle;
-use dokime_domain::operations::catalog as wire;
-use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::definition::wire as schema;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::values::wire as wire_value;
+use dokime_domain::operations::catalog as wire;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -90,7 +90,10 @@ impl Operation for ListSuites {
         _: Self::Context<'a>,
         request: &mut wire::ListSuites,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::catalog::wire::ListSuitesReply>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::catalog::wire::ListSuitesReply>,
+        Status,
+    > {
         list_suites(&self.resources, request).await.map(Into::into)
     }
 }
@@ -112,7 +115,10 @@ impl Operation for GetSuite {
         _: Self::Context<'a>,
         request: &mut wire::GetSuite,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::catalog::wire::SuiteDefinition>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::catalog::wire::SuiteDefinition>,
+        Status,
+    > {
         get_suite(&self.resources, request).await.map(Into::into)
     }
 }
@@ -134,7 +140,10 @@ impl Operation for ListRecordSchemas {
         _: Self::Context<'a>,
         request: &mut wire::ListRecordSchemas,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::catalog::wire::ListRecordSchemasReply>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::catalog::wire::ListRecordSchemasReply>,
+        Status,
+    > {
         list_record_schemas(&self.resources, request)
             .await
             .map(Into::into)
@@ -182,7 +191,12 @@ impl Operation for ListTelemetrySchemas {
         _: Self::Context<'a>,
         request: &mut wire::ListTelemetrySchemas,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::catalog::wire::ListTelemetrySchemasReply>, Status> {
+    ) -> Result<
+        harmos::operations::Response<
+            dokime_domain::model::catalog::wire::ListTelemetrySchemasReply,
+        >,
+        Status,
+    > {
         list_telemetry_schemas(&self.resources, request)
             .await
             .map(Into::into)
@@ -264,13 +278,17 @@ fn metadata_heap(metadata: &dokime_domain::model::identity::Metadata) -> Result<
     Ok(canonical::metadata_memory(metadata)? - std::mem::size_of::<common::Metadata>())
 }
 
-fn identity_memory(entry: &dokime_runtime::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
+fn identity_memory(
+    entry: &dokime_runtime::domains::execution::SuiteSnapshot,
+) -> Result<usize, Status> {
     value::text(&entry.suite_id)?;
     value::text(&entry.source)?;
-    Ok(std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteIdentity>()
-        + entry.suite_id.len()
-        + entry.source.len()
-        + metadata_heap(&entry.suite.metadata)?)
+    Ok(
+        std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteIdentity>()
+            + entry.suite_id.len()
+            + entry.source.len()
+            + metadata_heap(&entry.suite.metadata)?,
+    )
 }
 
 fn strings_memory(values: &[String]) -> Result<usize, Status> {
@@ -285,9 +303,9 @@ fn strings_memory(values: &[String]) -> Result<usize, Status> {
 
 fn groups_memory(values: &[dokime_runtime::definition::ParameterGroup]) -> Result<usize, Status> {
     value::collection(values.len())?;
-    let mut bytes = values
-        .len()
-        .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::ParameterGroupDefinition>());
+    let mut bytes = values.len().saturating_mul(std::mem::size_of::<
+        dokime_domain::model::catalog::wire::ParameterGroupDefinition,
+    >());
     for value in values {
         bytes = bytes
             .saturating_add(value.group_id.as_str().len())
@@ -296,50 +314,51 @@ fn groups_memory(values: &[dokime_runtime::definition::ParameterGroup]) -> Resul
     Ok(bytes)
 }
 
-fn suite_memory(entry: &dokime_runtime::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
+fn suite_memory(
+    entry: &dokime_runtime::domains::execution::SuiteSnapshot,
+) -> Result<usize, Status> {
     value::collection(entry.suite.test_case_templates.len())?;
-    let mut bytes = std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteDefinition>()
-        .saturating_add(identity_memory(entry)? - std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteIdentity>())
-        .saturating_add(suite_tags_memory(entry)?)
-        .saturating_add(groups_memory(&entry.suite.parameter_groups)?)
-        .saturating_add(
-            entry
-                .suite
-                .test_case_templates
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::TemplateDefinition>()),
-        );
+    let mut bytes =
+        std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteDefinition>()
+            .saturating_add(
+                identity_memory(entry)?
+                    - std::mem::size_of::<dokime_domain::model::catalog::wire::SuiteIdentity>(),
+            )
+            .saturating_add(suite_tags_memory(entry)?)
+            .saturating_add(groups_memory(&entry.suite.parameter_groups)?)
+            .saturating_add(entry.suite.test_case_templates.len().saturating_mul(
+                std::mem::size_of::<dokime_domain::model::catalog::wire::TemplateDefinition>(),
+            ));
     let mut budget = Budget::new();
     for template in &entry.suite.test_case_templates {
-        bytes = bytes
-            .saturating_add(template.test_case_template_id.as_str().len())
-            .saturating_add(metadata_heap(&template.metadata)?)
-            .saturating_add(
-                parameters_memory(&template.parameters, &mut budget).map_err(|_| {
-                    Status::resource_exhausted("canonical parameter construction exceeds budget")
-                })? - std::mem::size_of::<Vec<dokime_domain::model::catalog::wire::ParameterSchema>>(),
-            )
-            .saturating_add(strings_memory(&template.tags)?)
-            .saturating_add(groups_memory(&template.parameter_groups)?);
+        bytes =
+            bytes
+                .saturating_add(template.test_case_template_id.as_str().len())
+                .saturating_add(metadata_heap(&template.metadata)?)
+                .saturating_add(
+                    parameters_memory(&template.parameters, &mut budget).map_err(|_| {
+                        Status::resource_exhausted(
+                            "canonical parameter construction exceeds budget",
+                        )
+                    })? - std::mem::size_of::<
+                        Vec<dokime_domain::model::catalog::wire::ParameterSchema>,
+                    >(),
+                )
+                .saturating_add(strings_memory(&template.tags)?)
+                .saturating_add(groups_memory(&template.parameter_groups)?);
         value::collection(template.phases.len())?;
-        bytes = bytes.saturating_add(
-            template
-                .phases
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::StepDefinition>()),
-        );
+        bytes = bytes.saturating_add(template.phases.len().saturating_mul(std::mem::size_of::<
+            dokime_domain::model::catalog::wire::StepDefinition,
+        >()));
         for step in &template.phases {
             bytes = bytes
                 .saturating_add(step.step_id.as_str().len())
                 .saturating_add(metadata_heap(&step.metadata)?);
         }
         value::collection(template.files.len())?;
-        bytes = bytes.saturating_add(
-            template
-                .files
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::FileParameterDefinition>()),
-        );
+        bytes = bytes.saturating_add(template.files.len().saturating_mul(std::mem::size_of::<
+            dokime_domain::model::catalog::wire::FileParameterDefinition,
+        >()));
         for file in &template.files {
             if let Some(default) = &file.default {
                 value::text(default)?;
@@ -463,15 +482,18 @@ async fn list_record_schemas(
     let mut entries = contracts
         .values()
         .filter(|c| c.record_type.as_str() > request.after_record_type.as_str());
-    let mut bytes = std::mem::size_of::<dokime_domain::model::catalog::wire::ListRecordSchemasReply>()
-        + canonical::cursor(&snapshot).epoch.len()
-        + "runtime.state".len();
+    let mut bytes =
+        std::mem::size_of::<dokime_domain::model::catalog::wire::ListRecordSchemasReply>()
+            + canonical::cursor(&snapshot).epoch.len()
+            + "runtime.state".len();
     let rows: Vec<_> = entries.by_ref().take(limit).collect();
     let mut schemas = canonical::slots(rows.len())?;
     for entry in rows {
         value::text(entry.record_type.as_str())?;
         bytes = bytes
-            .saturating_add(std::mem::size_of::<dokime_domain::model::catalog::wire::RecordSchemaIdentity>())
+            .saturating_add(std::mem::size_of::<
+                dokime_domain::model::catalog::wire::RecordSchemaIdentity,
+            >())
             .saturating_add(entry.record_type.as_str().len())
             .saturating_add(
                 canonical::metadata_memory(&entry.metadata)?
@@ -491,11 +513,13 @@ async fn list_record_schemas(
     } else {
         None
     };
-    Ok(dokime_domain::model::catalog::wire::ListRecordSchemasReply {
-        schemas,
-        next_after_record_type,
-        cursor: Some(canonical::cursor(&snapshot)),
-    })
+    Ok(
+        dokime_domain::model::catalog::wire::ListRecordSchemasReply {
+            schemas,
+            next_after_record_type,
+            cursor: Some(canonical::cursor(&snapshot)),
+        },
+    )
 }
 
 async fn get_record_schema(
@@ -535,26 +559,31 @@ async fn list_telemetry_schemas(
     let mut entries = contracts
         .values()
         .filter(|c| c.stream.as_str() > request.after_stream.as_str());
-    let mut bytes = std::mem::size_of::<dokime_domain::model::catalog::wire::ListTelemetrySchemasReply>()
-        + canonical::cursor(&snapshot).epoch.len()
+    let mut bytes = std::mem::size_of::<
+        dokime_domain::model::catalog::wire::ListTelemetrySchemasReply,
+    >() + canonical::cursor(&snapshot).epoch.len()
         + "runtime.state".len();
     let rows: Vec<_> = entries.by_ref().take(limit).collect();
     let mut schemas = canonical::slots(rows.len())?;
     for entry in rows {
         value::text(entry.stream.as_str())?;
         bytes = bytes
-            .saturating_add(std::mem::size_of::<dokime_domain::model::catalog::wire::TelemetrySchemaIdentity>())
+            .saturating_add(std::mem::size_of::<
+                dokime_domain::model::catalog::wire::TelemetrySchemaIdentity,
+            >())
             .saturating_add(entry.stream.as_str().len())
             .saturating_add(
                 canonical::metadata_memory(&entry.metadata)?
                     - std::mem::size_of::<common::Metadata>(),
             );
         check(resources, bytes)?;
-        schemas.push(dokime_domain::model::catalog::wire::TelemetrySchemaIdentity {
-            stream: entry.stream.to_string(),
-            schema_version: entry.schema_version,
-            metadata: Some(canonical::metadata(&entry.metadata)?),
-        });
+        schemas.push(
+            dokime_domain::model::catalog::wire::TelemetrySchemaIdentity {
+                stream: entry.stream.to_string(),
+                schema_version: entry.schema_version,
+                metadata: Some(canonical::metadata(&entry.metadata)?),
+            },
+        );
     }
     let next_after_stream = if entries.next().is_some() {
         let id = &schemas.last().unwrap().stream;
@@ -563,11 +592,13 @@ async fn list_telemetry_schemas(
     } else {
         None
     };
-    Ok(dokime_domain::model::catalog::wire::ListTelemetrySchemasReply {
-        schemas,
-        next_after_stream,
-        cursor: Some(canonical::cursor(&snapshot)),
-    })
+    Ok(
+        dokime_domain::model::catalog::wire::ListTelemetrySchemasReply {
+            schemas,
+            next_after_stream,
+            cursor: Some(canonical::cursor(&snapshot)),
+        },
+    )
 }
 
 async fn get_telemetry_schema(
@@ -608,10 +639,12 @@ fn groups(
 ) -> Result<Vec<dokime_domain::model::catalog::wire::ParameterGroupDefinition>, Status> {
     value::collection(values.len())?;
     collect(values.iter().map(|group| {
-        Ok(dokime_domain::model::catalog::wire::ParameterGroupDefinition {
-            group_id: group.group_id.to_string(),
-            metadata: Some(canonical::metadata(&group.metadata)?),
-        })
+        Ok(
+            dokime_domain::model::catalog::wire::ParameterGroupDefinition {
+                group_id: group.group_id.to_string(),
+                metadata: Some(canonical::metadata(&group.metadata)?),
+            },
+        )
     }))
 }
 
@@ -639,13 +672,15 @@ fn files(
         }
         value::collection(file.attributes.len())?;
         let attributes = canonical::object(&file.attributes, budget)?;
-        Ok(dokime_domain::model::catalog::wire::FileParameterDefinition {
-            metadata: Some(canonical::metadata(&file.metadata)?),
-            default_value: file.default.clone(),
-            required: file.required,
-            media_types: strings(&file.media_types)?,
-            attributes: Some(attributes),
-        })
+        Ok(
+            dokime_domain::model::catalog::wire::FileParameterDefinition {
+                metadata: Some(canonical::metadata(&file.metadata)?),
+                default_value: file.default.clone(),
+                required: file.required,
+                media_types: strings(&file.media_types)?,
+                attributes: Some(attributes),
+            },
+        )
     }))
 }
 
@@ -659,7 +694,9 @@ fn suite_tags_memory(entry: &dokime_runtime::definition::SuiteSnapshot) -> Resul
     Ok(bytes)
 }
 
-fn tag_refs(entry: &dokime_runtime::definition::SuiteSnapshot) -> Result<BTreeSet<&String>, Status> {
+fn tag_refs(
+    entry: &dokime_runtime::definition::SuiteSnapshot,
+) -> Result<BTreeSet<&String>, Status> {
     value::collection(entry.tags.len())?;
     value::collection(entry.suite.tags.len())?;
     let tags: BTreeSet<_> = entry.tags.iter().chain(&entry.suite.tags).collect();

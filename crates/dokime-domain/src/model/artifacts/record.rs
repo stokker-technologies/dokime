@@ -18,10 +18,10 @@ use std::path::Path;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
-use crate::model::identity::ArtifactId;
 use crate::model::execution::RecordScope;
-use crate::model::time::Timestamp;
+use crate::model::identity::ArtifactId;
 use crate::model::identity::UploadId;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 

@@ -27,10 +27,8 @@ use serde::Serialize;
 
 /* === Types === */
 
-
 // The grace a cancelled process gets between SIGTERM and the kill.
 pub const DEFAULT_GRACE_MS: u32 = 2_000;
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,7 +49,6 @@ pub struct ProcessExit {
     pub cancelled: bool,
 }
 
-
 // Where one output of the process goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Output {
@@ -60,7 +57,7 @@ pub enum Output {
 }
 
 impl Output {
-    fn artifact(self) -> Option<String> {
+    pub(crate) fn artifact(self) -> Option<String> {
         match self {
             Self::Log => None,
             Self::Artifact(name) => Some(name),

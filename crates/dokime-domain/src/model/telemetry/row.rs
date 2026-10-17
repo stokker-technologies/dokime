@@ -18,9 +18,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::model::values::Value;
 use crate::model::telemetry::TelemetryColumn;
 use crate::model::values::FieldError;
+use crate::model::values::Value;
 
 /* === Constants === */
 

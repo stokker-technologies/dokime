@@ -21,8 +21,8 @@ use sha2::{Digest as _, Sha256};
 use std::num::NonZeroUsize;
 use tonic::Status;
 // Local Imports
-use dokime_runtime::runtime::ArtifactReader;
 use dokime_domain::operations::content as wire;
+use dokime_runtime::runtime::ArtifactReader;
 
 /* === Constants === */
 
@@ -31,7 +31,9 @@ use dokime_domain::operations::content as wire;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
+pub(super) struct ArtifactFrames(
+    pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>,
+);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -78,18 +80,21 @@ impl Frames for ArtifactFrames {
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
         dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(dokime_domain::model::content::wire::ArtifactChunk {
-                offset,
-                data,
-            })),
+            payload: Some(
+                dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(
+                    dokime_domain::model::content::wire::ArtifactChunk { offset, data },
+                ),
+            ),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
         dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
-            )),
+            payload: Some(
+                dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
+                    dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
+                ),
+            ),
         }
     }
 }
@@ -242,7 +247,9 @@ fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted(message)
         }
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => {
+            Status::unavailable(message)
+        }
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)

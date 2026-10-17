@@ -8,8 +8,8 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod card;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use card::HostCardBlock;

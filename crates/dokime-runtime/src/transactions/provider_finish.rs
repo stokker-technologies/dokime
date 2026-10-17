@@ -746,7 +746,7 @@ fn execution_from_outcome(
         }),
     };
     if execution.active_step_attempt.is_some() {
-        execution.interrupt_step_attempt();
+        execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail());
         execution.status = ExecutionStatus::Interrupted;
         execution.result = None;
     }
@@ -1217,7 +1217,7 @@ fn finish_execution(
     at: Timestamp,
 ) {
     let interrupted = execution.active_step_attempt.is_some();
-    execution.interrupt_step_attempt();
+    execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail());
     execution.status = if interrupted {
         ExecutionStatus::Interrupted
     } else {

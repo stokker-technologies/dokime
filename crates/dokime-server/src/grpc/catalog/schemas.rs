@@ -20,16 +20,16 @@ use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
 use super::{Budget, unit, unit_memory, value};
+use dokime_domain::model::definition::wire;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::validation::ValidationMode;
+use dokime_domain::model::values::wire as wire_value;
 use dokime_runtime::records::RecordContract;
 use dokime_runtime::records::RecordIconKey;
 use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::records::RecordTone;
 use dokime_runtime::telemetry::TelemetryContract;
 use dokime_runtime::telemetry::TelemetryRole;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::definition::wire as wire;
-use dokime_domain::model::values::wire as wire_value;
 
 /* === Constants === */
 
@@ -46,7 +46,9 @@ use dokime_domain::model::values::wire as wire_value;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn record(contract: &RecordContract) -> Result<dokime_domain::model::definition::wire::RecordSchema, Status> {
+pub(crate) fn record(
+    contract: &RecordContract,
+) -> Result<dokime_domain::model::definition::wire::RecordSchema, Status> {
     record_memory(contract)?;
     value::text(contract.record_type.as_str())?;
     if let Some(id) = &contract.template_id {
@@ -102,7 +104,9 @@ pub(crate) fn record(contract: &RecordContract) -> Result<dokime_domain::model::
     })
 }
 
-pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<dokime_domain::model::definition::wire::TelemetrySchema, Status> {
+pub(crate) fn telemetry(
+    contract: &TelemetryContract,
+) -> Result<dokime_domain::model::definition::wire::TelemetrySchema, Status> {
     telemetry_memory(contract)?;
     value::collection(contract.columns.len())?;
     value::text(contract.stream.as_str())?;
@@ -170,28 +174,25 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
                 .map_or(0, |id| id.as_str().len()),
         )
         .saturating_add(source.owner.as_ref().map_or(0, |id| id.as_str().len()))
-        .saturating_add(
-            source
-                .fields
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::definition::wire::RecordField>()),
-        );
+        .saturating_add(source.fields.len().saturating_mul(std::mem::size_of::<
+            dokime_domain::model::definition::wire::RecordField,
+        >()));
     let mut budget = Budget::new();
     for field in &source.fields {
         budget.node(0)?;
         value::collection(field.choices.len())?;
-        bytes = bytes
-            .saturating_add(metadata_heap(&field.metadata)?)
-            .saturating_add(
-                field
-                    .choices
-                    .len()
-                    .saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::Value>()),
-            )
-            .saturating_add(format_heap(field.format.as_ref()));
+        bytes =
+            bytes
+                .saturating_add(metadata_heap(&field.metadata)?)
+                .saturating_add(field.choices.len().saturating_mul(std::mem::size_of::<
+                    dokime_domain::model::values::wire::Value,
+                >()))
+                .saturating_add(format_heap(field.format.as_ref()));
         if let Some(unit) = &field.unit {
             bytes = bytes.saturating_add(
-                unit_memory(unit).map_err(failure)? - std::mem::size_of::<dokime_domain::model::definition::wire::MeasurementUnit>(),
+                unit_memory(unit).map_err(failure)?
+                    - std::mem::size_of::<dokime_domain::model::definition::wire::MeasurementUnit>(
+                    ),
             );
         }
         for choice in &field.choices {
@@ -230,12 +231,9 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
         )
         .saturating_add(source.owner.as_ref().map_or(0, |id| id.as_str().len()))
         .saturating_add(source.default_x.as_ref().map_or(0, String::len))
-        .saturating_add(
-            source
-                .columns
-                .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::definition::wire::TelemetryColumn>()),
-        );
+        .saturating_add(source.columns.len().saturating_mul(std::mem::size_of::<
+            dokime_domain::model::definition::wire::TelemetryColumn,
+        >()));
     let mut budget = Budget::new();
     for column in &source.columns {
         budget.node(0)?;
@@ -244,7 +242,9 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
             .saturating_add(format_heap(column.format.as_ref()));
         if let Some(unit) = &column.unit {
             bytes = bytes.saturating_add(
-                unit_memory(unit).map_err(failure)? - std::mem::size_of::<dokime_domain::model::definition::wire::MeasurementUnit>(),
+                unit_memory(unit).map_err(failure)?
+                    - std::mem::size_of::<dokime_domain::model::definition::wire::MeasurementUnit>(
+                    ),
             );
         }
         if let Some(unit) = &column.display_unit {
@@ -293,8 +293,12 @@ fn metadata(source: &dokime_domain::model::identity::Metadata) -> Result<common:
     canonical::metadata(source)
 }
 
-fn value_heap(source: &dokime_domain::model::values::Value, budget: &mut Budget) -> Result<usize, Status> {
-    Ok(canonical::memory(source, budget, 0)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
+fn value_heap(
+    source: &dokime_domain::model::values::Value,
+    budget: &mut Budget,
+) -> Result<usize, Status> {
+    Ok(canonical::memory(source, budget, 0)?
+        - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
 }
 
 fn project_value(
@@ -315,31 +319,45 @@ fn format_heap(source: Option<&dokime_domain::model::values::ValueFormat>) -> us
 fn validation(value: &ValidationMode) -> dokime_domain::model::definition::wire::ValidationMode {
     match value {
         ValidationMode::Strict => dokime_domain::model::definition::wire::ValidationMode::Strict,
-        ValidationMode::Prototype => dokime_domain::model::definition::wire::ValidationMode::Prototype,
+        ValidationMode::Prototype => {
+            dokime_domain::model::definition::wire::ValidationMode::Prototype
+        }
     }
 }
 
 fn icon(value: &RecordIconKey) -> dokime_domain::model::definition::wire::RecordIcon {
     match value {
         RecordIconKey::Activity => dokime_domain::model::definition::wire::RecordIcon::Activity,
-        RecordIconKey::AlertTriangle => dokime_domain::model::definition::wire::RecordIcon::AlertTriangle,
+        RecordIconKey::AlertTriangle => {
+            dokime_domain::model::definition::wire::RecordIcon::AlertTriangle
+        }
         RecordIconKey::Archive => dokime_domain::model::definition::wire::RecordIcon::Archive,
         RecordIconKey::Bell => dokime_domain::model::definition::wire::RecordIcon::Bell,
-        RecordIconKey::CheckCircle => dokime_domain::model::definition::wire::RecordIcon::CheckCircle,
-        RecordIconKey::CircleDashed => dokime_domain::model::definition::wire::RecordIcon::CircleDashed,
-        RecordIconKey::ClipboardCheck => dokime_domain::model::definition::wire::RecordIcon::ClipboardCheck,
+        RecordIconKey::CheckCircle => {
+            dokime_domain::model::definition::wire::RecordIcon::CheckCircle
+        }
+        RecordIconKey::CircleDashed => {
+            dokime_domain::model::definition::wire::RecordIcon::CircleDashed
+        }
+        RecordIconKey::ClipboardCheck => {
+            dokime_domain::model::definition::wire::RecordIcon::ClipboardCheck
+        }
         RecordIconKey::Cpu => dokime_domain::model::definition::wire::RecordIcon::Cpu,
         RecordIconKey::FileText => dokime_domain::model::definition::wire::RecordIcon::FileText,
         RecordIconKey::Flag => dokime_domain::model::definition::wire::RecordIcon::Flag,
         RecordIconKey::Gauge => dokime_domain::model::definition::wire::RecordIcon::Gauge,
         RecordIconKey::HeartPulse => dokime_domain::model::definition::wire::RecordIcon::HeartPulse,
         RecordIconKey::HelpCircle => dokime_domain::model::definition::wire::RecordIcon::HelpCircle,
-        RecordIconKey::MessageSquareText => dokime_domain::model::definition::wire::RecordIcon::MessageSquareText,
+        RecordIconKey::MessageSquareText => {
+            dokime_domain::model::definition::wire::RecordIcon::MessageSquareText
+        }
         RecordIconKey::Package => dokime_domain::model::definition::wire::RecordIcon::Package,
         RecordIconKey::Plug => dokime_domain::model::definition::wire::RecordIcon::Plug,
         RecordIconKey::RadioTower => dokime_domain::model::definition::wire::RecordIcon::RadioTower,
         RecordIconKey::RotateCcw => dokime_domain::model::definition::wire::RecordIcon::RotateCcw,
-        RecordIconKey::ShieldAlert => dokime_domain::model::definition::wire::RecordIcon::ShieldAlert,
+        RecordIconKey::ShieldAlert => {
+            dokime_domain::model::definition::wire::RecordIcon::ShieldAlert
+        }
         RecordIconKey::Target => dokime_domain::model::definition::wire::RecordIcon::Target,
         RecordIconKey::TimerReset => dokime_domain::model::definition::wire::RecordIcon::TimerReset,
         RecordIconKey::Wrench => dokime_domain::model::definition::wire::RecordIcon::Wrench,
@@ -367,7 +385,9 @@ fn role(value: &TelemetryRole) -> dokime_domain::model::definition::wire::Teleme
         TelemetryRole::State => dokime_domain::model::definition::wire::TelemetryRole::State,
         TelemetryRole::Distance => dokime_domain::model::definition::wire::TelemetryRole::Distance,
         TelemetryRole::Latency => dokime_domain::model::definition::wire::TelemetryRole::Latency,
-        TelemetryRole::Throughput => dokime_domain::model::definition::wire::TelemetryRole::Throughput,
+        TelemetryRole::Throughput => {
+            dokime_domain::model::definition::wire::TelemetryRole::Throughput
+        }
     }
 }
 

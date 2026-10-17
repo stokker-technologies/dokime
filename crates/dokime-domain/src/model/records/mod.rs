@@ -8,19 +8,14 @@
  */
 
 /* === Modules === */
-pub mod resources;
-pub mod evidence;
+pub mod contract;
 pub mod error;
+pub mod evidence;
 pub mod product;
 pub mod publication;
-pub mod contract;
+pub mod resources;
 
 /* === Re-Exports === */
-pub use resources::{ResourceRecord, ResourceLifecycle};
-pub use evidence::{Record, RecordEntry, RecordMarker};
-pub use error::{RecordErrorDetail, RecordFailure};
-pub use product::*;
-pub use publication::{PublishReceipt, PublishStatus, RecordPublishRequest};
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
 pub use contract::BuiltinRecordType;
@@ -40,6 +35,11 @@ pub use contract::RecordSeverity;
 pub use contract::RecordTone;
 pub use contract::builtin_record_contracts;
 pub use contract::builtin_record_types;
+pub use error::{RecordErrorDetail, RecordFailure};
+pub use evidence::{Record, RecordEntry, RecordMarker};
+pub use product::*;
+pub use publication::{PublishReceipt, PublishStatus, RecordPublishRequest};
+pub use resources::{ResourceLifecycle, ResourceRecord};
 
 /* === Imports === */
 // Standard Library Imports

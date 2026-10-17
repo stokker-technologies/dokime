@@ -20,8 +20,8 @@ use serde::Serialize;
 // Local Imports
 use super::PluginEntrypoint;
 use crate::model::identity::Metadata;
-use crate::model::values::Value;
 use crate::model::plugins::Permission;
+use crate::model::values::Value;
 
 /* === Constants === */
 

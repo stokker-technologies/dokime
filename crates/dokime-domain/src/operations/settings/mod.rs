@@ -46,10 +46,10 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+use crate::model::values::wire::Value;
 
 use crate::model::settings::wire::*;
 
@@ -61,121 +61,9 @@ use crate::model::settings::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
 // An absent data root restores the default beneath the application root.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

@@ -18,16 +18,16 @@
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::execution::notes::NoteOwner;
+use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
-use dokime_domain::model::execution::notes::NoteOwner;
-use dokime_domain::model::execution::health::HealthItem;
-use dokime_domain::model::execution::health::HealthSeverity;
-use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::notes as contract;
+use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
 
 /* === Constants === */
 
@@ -44,7 +44,9 @@ use dokime_domain::operations::notes as contract;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn owner(value: Option<dokime_domain::model::notes::wire::AnnotationOwner>) -> Result<NoteOwner, Status> {
+pub(super) fn owner(
+    value: Option<dokime_domain::model::notes::wire::AnnotationOwner>,
+) -> Result<NoteOwner, Status> {
     use dokime_domain::model::notes::wire::AnnotationOwnerOwner as Owner;
     match value
         .and_then(|value| value.owner)
@@ -72,7 +74,9 @@ pub(super) fn owner(value: Option<dokime_domain::model::notes::wire::AnnotationO
     }
 }
 
-pub(super) fn encode_owner(value: &NoteOwner) -> dokime_domain::model::notes::wire::AnnotationOwner {
+pub(super) fn encode_owner(
+    value: &NoteOwner,
+) -> dokime_domain::model::notes::wire::AnnotationOwner {
     use dokime_domain::model::notes::wire::AnnotationOwnerOwner as Owner;
     dokime_domain::model::notes::wire::AnnotationOwner {
         owner: Some(match value {
@@ -95,9 +99,15 @@ pub(super) fn encode_owner(value: &NoteOwner) -> dokime_domain::model::notes::wi
 }
 
 pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
-    bounded_text(&note.message, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(
+        &note.message,
+        dokime_domain::model::execution::notes::NOTE_TEXT_BYTES,
+    )?;
     if let Some(author) = &note.author {
-        bounded_text(author, dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES)?;
+        bounded_text(
+            author,
+            dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES,
+        )?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&note.scope)?)
@@ -106,9 +116,15 @@ pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
 }
 
 pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
-    bounded_text(&item.message, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(
+        &item.message,
+        dokime_domain::model::execution::notes::NOTE_TEXT_BYTES,
+    )?;
     if let Some(detail) = &item.detail {
-        bounded_text(detail, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
+        bounded_text(
+            detail,
+            dokime_domain::model::execution::notes::NOTE_TEXT_BYTES,
+        )?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&item.scope)?)
@@ -116,7 +132,9 @@ pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
         .saturating_add(item.detail.as_ref().map_or(0, String::len)))
 }
 
-pub(crate) fn note(note: &OperatorNote) -> Result<dokime_domain::model::notes::wire::OperatorNote, Status> {
+pub(crate) fn note(
+    note: &OperatorNote,
+) -> Result<dokime_domain::model::notes::wire::OperatorNote, Status> {
     note_size(note)?;
     Ok(dokime_domain::model::notes::wire::OperatorNote {
         note_id: note.note_id.as_str().to_owned(),
@@ -130,7 +148,9 @@ pub(crate) fn note(note: &OperatorNote) -> Result<dokime_domain::model::notes::w
     })
 }
 
-pub(crate) fn health(item: &HealthItem) -> Result<dokime_domain::model::notes::wire::HealthItem, Status> {
+pub(crate) fn health(
+    item: &HealthItem,
+) -> Result<dokime_domain::model::notes::wire::HealthItem, Status> {
     health_size(item)?;
     Ok(dokime_domain::model::notes::wire::HealthItem {
         health_item_id: item.health_item_id.as_str().to_owned(),
@@ -149,12 +169,18 @@ pub(crate) fn health(item: &HealthItem) -> Result<dokime_domain::model::notes::w
     })
 }
 
-pub(super) fn receipt(value: &NoteCreation) -> Result<dokime_domain::model::notes::wire::NoteReceipt, Status> {
+pub(super) fn receipt(
+    value: &NoteCreation,
+) -> Result<dokime_domain::model::notes::wire::NoteReceipt, Status> {
     let (publication, unconfirmed_targets) = match &value.publication {
-        NotePublication::NoExistingDatasets => {
-            (dokime_domain::model::notes::wire::NotePublication::NoExistingDatasets, Vec::new())
-        }
-        NotePublication::Confirmed => (dokime_domain::model::notes::wire::NotePublication::Confirmed, Vec::new()),
+        NotePublication::NoExistingDatasets => (
+            dokime_domain::model::notes::wire::NotePublication::NoExistingDatasets,
+            Vec::new(),
+        ),
+        NotePublication::Confirmed => (
+            dokime_domain::model::notes::wire::NotePublication::Confirmed,
+            Vec::new(),
+        ),
         NotePublication::Unconfirmed { targets } => (
             dokime_domain::model::notes::wire::NotePublication::Unconfirmed,
             targets.iter().map(ToString::to_string).collect(),

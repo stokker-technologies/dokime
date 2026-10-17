@@ -18,10 +18,10 @@
 use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_runtime::records::RecordSeverity;
 use dokime_domain::model::identity::wire::Severity;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::operations::evidence as wire;
+use dokime_runtime::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -71,12 +71,9 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
         {
             bytes = bytes.saturating_add(text.len());
         }
-        bytes = bytes.saturating_add(
-            error
-                .cause_chain
-                .len()
-                .saturating_mul(4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>()),
-        );
+        bytes = bytes.saturating_add(error.cause_chain.len().saturating_mul(
+            4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>(),
+        ));
         for cause in &error.cause_chain {
             bytes = bytes.saturating_add(cause.message.len());
             for text in [cause.code.as_ref(), cause.source.as_ref()]
@@ -105,7 +102,9 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
     Ok(bytes)
 }
 
-pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
+pub(crate) fn record(
+    entry: &RecordEntry,
+) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
     let record = &entry.record;
     memory(entry)?;
     let details = canonical::object(&record.details, &mut Budget::new())?;
@@ -121,11 +120,13 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::eviden
                 cause_chain: error
                     .cause_chain
                     .iter()
-                    .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
-                        message: cause.message.clone(),
-                        code: cause.code.clone(),
-                        source: cause.source.clone(),
-                    })
+                    .map(
+                        |cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
+                            message: cause.message.clone(),
+                            code: cause.code.clone(),
+                            source: cause.source.clone(),
+                        },
+                    )
                     .collect(),
                 stacktrace_attachment: error
                     .stacktrace_attachment

@@ -76,7 +76,6 @@ pub struct ReportHtmlCompletion {
     pub sha256: String,
 }
 
-
 // Where the delivered report came from.
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

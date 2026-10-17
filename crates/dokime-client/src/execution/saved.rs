@@ -137,12 +137,10 @@ impl TestExecutionHandle {
                 handle.client.verify(false).await?;
                 let inventory = handle
                     .client
-                    .history_get_checkpoint_evidence(
-                        contracts::history::GetCheckpointEvidence {
-                            checkpoint: Some(checkpoint.clone()),
-                            sections: vec![contracts::history::EvidenceSection::TelemetryTables],
-                        },
-                    )
+                    .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
+                        checkpoint: Some(checkpoint.clone()),
+                        sections: vec![contracts::history::EvidenceSection::TelemetryTables],
+                    })
                     .await?;
                 same_checkpoint(&checkpoint, inventory.checkpoint.as_ref())?;
                 let mut tables: Vec<_> = inventory

@@ -19,16 +19,18 @@ use tonic::Status;
 // Local Imports
 use super::value::canonical::timestamp;
 use super::value::{self, Budget, canonical, projection};
+use dokime_domain::model::definition::wire as schema;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
+use dokime_domain::model::values::wire as value_wire;
+use dokime_domain::operations::prompts as contract;
 use dokime_runtime::definition::RuntimeCondition;
 use dokime_runtime::domains::prompts;
-use dokime_runtime::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
+use dokime_runtime::expressions::{
+    Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp,
+};
 use dokime_runtime::telemetry::TelemetryConditionOperator;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::operations::prompts as contract;
-use dokime_domain::model::definition::wire as schema;
-use dokime_domain::model::values::wire as value_wire;
 
 /* === Constants === */
 
@@ -45,7 +47,9 @@ use dokime_domain::model::values::wire as value_wire;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
+pub(super) fn identity(
+    value: &prompts::PromptDefinition,
+) -> dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
     dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
         prompt_type: value.prompt_type.as_str().to_owned(),
         schema_version: value.schema_version,
@@ -69,11 +73,15 @@ pub(crate) fn instance(
         prompt_id: value.prompt_id.as_str().to_owned(),
         definition: Some(definition_with_budget(&value.definition, &mut budget)?),
         kind: match value.kind {
-            prompts::PromptKind::Confirmation => dokime_domain::model::prompts::wire::PromptKind::Confirmation,
+            prompts::PromptKind::Confirmation => {
+                dokime_domain::model::prompts::wire::PromptKind::Confirmation
+            }
             prompts::PromptKind::Form => dokime_domain::model::prompts::wire::PromptKind::Form,
             prompts::PromptKind::Choice => dokime_domain::model::prompts::wire::PromptKind::Choice,
             prompts::PromptKind::Status => dokime_domain::model::prompts::wire::PromptKind::Status,
-            prompts::PromptKind::Verification => dokime_domain::model::prompts::wire::PromptKind::Verification,
+            prompts::PromptKind::Verification => {
+                dokime_domain::model::prompts::wire::PromptKind::Verification
+            }
         },
         values: Some(object(&value.values, &mut budget, 0)?),
         scope: Some(canonical::scope(&value.scope)?),
@@ -126,10 +134,18 @@ fn definition_with_budget(
         prompt_type: value.prompt_type.as_str().to_owned(),
         schema_version: value.schema_version,
         archetype: match value.archetype {
-            prompts::PromptArchetype::ConfirmationPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Confirmation,
-            prompts::PromptArchetype::FormPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Form,
-            prompts::PromptArchetype::ChoicePrompt => dokime_domain::model::prompts::wire::PromptArchetype::Choice,
-            prompts::PromptArchetype::StatusPrompt => dokime_domain::model::prompts::wire::PromptArchetype::Status,
+            prompts::PromptArchetype::ConfirmationPrompt => {
+                dokime_domain::model::prompts::wire::PromptArchetype::Confirmation
+            }
+            prompts::PromptArchetype::FormPrompt => {
+                dokime_domain::model::prompts::wire::PromptArchetype::Form
+            }
+            prompts::PromptArchetype::ChoicePrompt => {
+                dokime_domain::model::prompts::wire::PromptArchetype::Choice
+            }
+            prompts::PromptArchetype::StatusPrompt => {
+                dokime_domain::model::prompts::wire::PromptArchetype::Status
+            }
         },
         title: value.title.clone(),
         message: value.message.clone(),
@@ -148,7 +164,9 @@ fn definition_with_budget(
                     prompts::PromptActionEmphasis::Secondary => {
                         dokime_domain::model::prompts::wire::PromptActionEmphasis::Secondary
                     }
-                    prompts::PromptActionEmphasis::Danger => dokime_domain::model::prompts::wire::PromptActionEmphasis::Danger,
+                    prompts::PromptActionEmphasis::Danger => {
+                        dokime_domain::model::prompts::wire::PromptActionEmphasis::Danger
+                    }
                 },
                 requires_condition: action.requires_condition,
             })
@@ -206,11 +224,21 @@ fn field_wire(
             ValueType::Array => schema::ValueType::Array,
         },
         kind: match field.kind {
-            prompts::PromptFieldKind::Text => dokime_domain::model::prompts::wire::PromptFieldKind::Text,
-            prompts::PromptFieldKind::Float => dokime_domain::model::prompts::wire::PromptFieldKind::Float,
-            prompts::PromptFieldKind::Int => dokime_domain::model::prompts::wire::PromptFieldKind::Int,
-            prompts::PromptFieldKind::Choice => dokime_domain::model::prompts::wire::PromptFieldKind::Choice,
-            prompts::PromptFieldKind::Boolean => dokime_domain::model::prompts::wire::PromptFieldKind::Boolean,
+            prompts::PromptFieldKind::Text => {
+                dokime_domain::model::prompts::wire::PromptFieldKind::Text
+            }
+            prompts::PromptFieldKind::Float => {
+                dokime_domain::model::prompts::wire::PromptFieldKind::Float
+            }
+            prompts::PromptFieldKind::Int => {
+                dokime_domain::model::prompts::wire::PromptFieldKind::Int
+            }
+            prompts::PromptFieldKind::Choice => {
+                dokime_domain::model::prompts::wire::PromptFieldKind::Choice
+            }
+            prompts::PromptFieldKind::Boolean => {
+                dokime_domain::model::prompts::wire::PromptFieldKind::Boolean
+            }
         },
         multiple: field.multiple,
         required: field.required,
@@ -280,17 +308,39 @@ fn push_predicate(
         ExpressionKind::Binary { op, left, right } => {
             Kind::Binary(dokime_domain::model::prompts::wire::AnswerBinaryPredicate {
                 op: match op {
-                    ExpressionBinaryOp::And => dokime_domain::model::prompts::wire::AnswerOperator::And,
-                    ExpressionBinaryOp::Or => dokime_domain::model::prompts::wire::AnswerOperator::Or,
-                    ExpressionBinaryOp::Eq => dokime_domain::model::prompts::wire::AnswerOperator::Eq,
-                    ExpressionBinaryOp::Ne => dokime_domain::model::prompts::wire::AnswerOperator::Ne,
-                    ExpressionBinaryOp::Gt => dokime_domain::model::prompts::wire::AnswerOperator::Gt,
-                    ExpressionBinaryOp::Gte => dokime_domain::model::prompts::wire::AnswerOperator::Gte,
-                    ExpressionBinaryOp::Lt => dokime_domain::model::prompts::wire::AnswerOperator::Lt,
-                    ExpressionBinaryOp::Lte => dokime_domain::model::prompts::wire::AnswerOperator::Lte,
-                    ExpressionBinaryOp::Contains => dokime_domain::model::prompts::wire::AnswerOperator::Contains,
-                    ExpressionBinaryOp::StartsWith => dokime_domain::model::prompts::wire::AnswerOperator::StartsWith,
-                    ExpressionBinaryOp::EndsWith => dokime_domain::model::prompts::wire::AnswerOperator::EndsWith,
+                    ExpressionBinaryOp::And => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::And
+                    }
+                    ExpressionBinaryOp::Or => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Or
+                    }
+                    ExpressionBinaryOp::Eq => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Eq
+                    }
+                    ExpressionBinaryOp::Ne => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Ne
+                    }
+                    ExpressionBinaryOp::Gt => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Gt
+                    }
+                    ExpressionBinaryOp::Gte => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Gte
+                    }
+                    ExpressionBinaryOp::Lt => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Lt
+                    }
+                    ExpressionBinaryOp::Lte => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Lte
+                    }
+                    ExpressionBinaryOp::Contains => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::Contains
+                    }
+                    ExpressionBinaryOp::StartsWith => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::StartsWith
+                    }
+                    ExpressionBinaryOp::EndsWith => {
+                        dokime_domain::model::prompts::wire::AnswerOperator::EndsWith
+                    }
                 },
                 left: push_predicate(left, budget, depth + 1, nodes)?,
                 right: push_predicate(right, budget, depth + 1, nodes)?,
@@ -326,34 +376,52 @@ fn push_condition(
         .map_err(|_| Status::resource_exhausted("prompt condition index overflow"))?;
     nodes.push(dokime_domain::model::prompts::wire::EvidenceConditionNode { kind: None });
     let kind = match condition {
-        RuntimeCondition::Record { condition } => Kind::Record(dokime_domain::model::prompts::wire::RecordMatchCondition {
-            record_type: condition.record_type.as_str().to_owned(),
-            match_fields: Some(object(&condition.match_fields, budget, depth + 1)?),
-        }),
+        RuntimeCondition::Record { condition } => {
+            Kind::Record(dokime_domain::model::prompts::wire::RecordMatchCondition {
+                record_type: condition.record_type.as_str().to_owned(),
+                match_fields: Some(object(&condition.match_fields, budget, depth + 1)?),
+            })
+        }
         RuntimeCondition::Telemetry { condition } => {
             value::text(&condition.field)?;
             if condition.tolerance.is_some_and(|v| !v.is_finite()) {
                 return Err(Status::internal("admitted prompt has nonfinite tolerance"));
             }
-            Kind::Telemetry(dokime_domain::model::prompts::wire::TelemetryMatchCondition {
-                stream: condition.stream.as_str().to_owned(),
-                field: condition.field.clone(),
-                op: match condition.operator {
-                    TelemetryConditionOperator::Exists => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Exists,
-                    TelemetryConditionOperator::Eq => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Eq,
-                    TelemetryConditionOperator::Gt => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gt,
-                    TelemetryConditionOperator::Gte => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gte,
-                    TelemetryConditionOperator::Lt => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lt,
-                    TelemetryConditionOperator::Lte => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lte,
-                    TelemetryConditionOperator::Within => dokime_domain::model::prompts::wire::TelemetryMatchOperator::Within,
+            Kind::Telemetry(
+                dokime_domain::model::prompts::wire::TelemetryMatchCondition {
+                    stream: condition.stream.as_str().to_owned(),
+                    field: condition.field.clone(),
+                    op: match condition.operator {
+                        TelemetryConditionOperator::Exists => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Exists
+                        }
+                        TelemetryConditionOperator::Eq => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Eq
+                        }
+                        TelemetryConditionOperator::Gt => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gt
+                        }
+                        TelemetryConditionOperator::Gte => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Gte
+                        }
+                        TelemetryConditionOperator::Lt => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lt
+                        }
+                        TelemetryConditionOperator::Lte => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Lte
+                        }
+                        TelemetryConditionOperator::Within => {
+                            dokime_domain::model::prompts::wire::TelemetryMatchOperator::Within
+                        }
+                    },
+                    target: condition
+                        .target
+                        .as_ref()
+                        .map(|v| project_value(v, budget, depth + 1))
+                        .transpose()?,
+                    tolerance: condition.tolerance,
                 },
-                target: condition
-                    .target
-                    .as_ref()
-                    .map(|v| project_value(v, budget, depth + 1))
-                    .transpose()?,
-                tolerance: condition.tolerance,
-            })
+            )
         }
         RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } => {
             value::collection(conditions.len())?;
@@ -361,7 +429,8 @@ fn push_condition(
             for child in conditions {
                 links.push(push_condition(child, budget, depth + 1, nodes)?);
             }
-            let group = dokime_domain::model::prompts::wire::EvidenceConditions { conditions: links };
+            let group =
+                dokime_domain::model::prompts::wire::EvidenceConditions { conditions: links };
             if matches!(condition, RuntimeCondition::All { .. }) {
                 Kind::All(group)
             } else {
@@ -435,7 +504,8 @@ fn object_heap(
 }
 
 fn value_heap(source: &Value, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
-    Ok(canonical::memory(source, budget, depth)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
+    Ok(canonical::memory(source, budget, depth)?
+        - std::mem::size_of::<dokime_domain::model::values::wire::Value>())
 }
 
 fn slots<T>(length: usize) -> usize {
@@ -473,10 +543,18 @@ fn definition_heap(
                 .as_ref()
                 .map_or(0, |id| id.as_str().len()),
         )
-        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptField>(source.fields.len()))
-        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptAction>(source.actions.len()))
-        .saturating_add(slots::<dokime_domain::model::prompts::wire::AnswerRule>(source.rules.len()))
-        .saturating_add(slots::<dokime_domain::model::values::wire::Value>(source.examples.len()));
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptField>(
+            source.fields.len(),
+        ))
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::PromptAction>(
+            source.actions.len(),
+        ))
+        .saturating_add(slots::<dokime_domain::model::prompts::wire::AnswerRule>(
+            source.rules.len(),
+        ))
+        .saturating_add(slots::<dokime_domain::model::values::wire::Value>(
+            source.examples.len(),
+        ));
     for field in &source.fields {
         budget.node(0)?;
         value::collection(field.choices.len())?;
@@ -548,7 +626,9 @@ fn predicate_heap(source: &Expression, budget: &mut Budget, depth: usize) -> Res
             ));
         }
     };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime_domain::model::prompts::wire::AnswerPredicateNode>()))
+    bounded(bytes.saturating_add(
+        4 * std::mem::size_of::<dokime_domain::model::prompts::wire::AnswerPredicateNode>(),
+    ))
 }
 
 fn condition_heap(
@@ -587,7 +667,9 @@ fn condition_heap(
             bytes
         }
     };
-    bounded(bytes.saturating_add(4 * std::mem::size_of::<dokime_domain::model::prompts::wire::EvidenceConditionNode>()))
+    bounded(bytes.saturating_add(
+        4 * std::mem::size_of::<dokime_domain::model::prompts::wire::EvidenceConditionNode>(),
+    ))
 }
 
 /* === Tests === */

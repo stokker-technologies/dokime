@@ -8,13 +8,13 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod contract;
 pub mod evidence;
 pub mod host;
 pub mod row;
 pub mod sampling;
 pub mod stream;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use crate::model::validation::CompatibilityStatus;

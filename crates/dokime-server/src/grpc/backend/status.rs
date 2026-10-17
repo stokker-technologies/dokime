@@ -20,10 +20,10 @@ use harmos::{
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_runtime::RuntimeHandle;
-use dokime_domain::operations::backend as wire;
 use dokime_domain::model::identity::wire::Timestamp;
+use dokime_domain::operations::backend as wire;
 use dokime_domain::operations::runtime as native;
+use dokime_runtime::RuntimeHandle;
 /* === Constants === */
 const DISCOVERY_PAGE_BYTES: u32 = 4 * 1024 * 1024;
 const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
@@ -101,20 +101,30 @@ impl Operation for Health {
         let health = harmos::grpc::response(instance)
             .await
             .map_err(health_failure)?;
-        produce(self.resources.maximum, || dokime_domain::model::backend::wire::BackendHealth {
-            backend_id: health.backend_id.clone(),
-            epoch: health.epoch.clone(),
-            readiness: match health.readiness {
-                dokime_domain::model::runtime::wire::Readiness::Starting => dokime_domain::model::backend::wire::Readiness::Starting,
-                dokime_domain::model::runtime::wire::Readiness::Ready => dokime_domain::model::backend::wire::Readiness::Ready,
-                dokime_domain::model::runtime::wire::Readiness::Degraded => dokime_domain::model::backend::wire::Readiness::Degraded,
-                dokime_domain::model::runtime::wire::Readiness::Stopping => dokime_domain::model::backend::wire::Readiness::Stopping,
-            },
-            observed_at: Some(Timestamp {
-                seconds: health.observed_at_seconds,
-                nanos: health.observed_at_nanoseconds as i32,
-            }),
-            message: health.message.clone(),
+        produce(self.resources.maximum, || {
+            dokime_domain::model::backend::wire::BackendHealth {
+                backend_id: health.backend_id.clone(),
+                epoch: health.epoch.clone(),
+                readiness: match health.readiness {
+                    dokime_domain::model::runtime::wire::Readiness::Starting => {
+                        dokime_domain::model::backend::wire::Readiness::Starting
+                    }
+                    dokime_domain::model::runtime::wire::Readiness::Ready => {
+                        dokime_domain::model::backend::wire::Readiness::Ready
+                    }
+                    dokime_domain::model::runtime::wire::Readiness::Degraded => {
+                        dokime_domain::model::backend::wire::Readiness::Degraded
+                    }
+                    dokime_domain::model::runtime::wire::Readiness::Stopping => {
+                        dokime_domain::model::backend::wire::Readiness::Stopping
+                    }
+                },
+                observed_at: Some(Timestamp {
+                    seconds: health.observed_at_seconds,
+                    nanos: health.observed_at_nanoseconds as i32,
+                }),
+                message: health.message.clone(),
+            }
         })
     }
 }
@@ -141,9 +151,10 @@ impl Operation for Availability {
         let mut methods = Vec::new();
         let mut after = None;
         let mut read_bytes = 0usize;
-        let mut required = std::mem::size_of::<dokime_domain::model::backend::wire::BackendAvailability>()
-            .saturating_add(self.resources.identity.backend_id.len())
-            .saturating_add(self.resources.identity.epoch.len());
+        let mut required =
+            std::mem::size_of::<dokime_domain::model::backend::wire::BackendAvailability>()
+                .saturating_add(self.resources.identity.backend_id.len())
+                .saturating_add(self.resources.identity.epoch.len());
         loop {
             let page = context
                 .call_as::<Operations>(OperationsRequest {
@@ -236,7 +247,9 @@ impl Operation for Logs {
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let min_level = match request.min_level {
-            dokime_domain::model::backend::wire::LogLevel::Unspecified => dokime_domain::model::backend::wire::LogLevel::Trace,
+            dokime_domain::model::backend::wire::LogLevel::Unspecified => {
+                dokime_domain::model::backend::wire::LogLevel::Trace
+            }
             level => level,
         };
         crate::grpc::logs::Watch {
@@ -288,20 +301,22 @@ pub(in crate::grpc) async fn register(
         .operations()
         .submit_as::<native::GetIdentity>(native::GetIdentity {})?;
     let identity = harmos::grpc::response(instance).await?;
-    let identity = produce(maximum, || dokime_domain::model::backend::wire::BackendIdentity {
-        backend_id: identity.backend_id.clone(),
-        epoch: identity.epoch.clone(),
-        api: Some(dokime_domain::model::backend::wire::ApiIdentity {
-            package: dokime_domain::model::backend::wire::API_PACKAGE.into(),
-            version: dokime_domain::model::backend::wire::API_VERSION.into(),
-            descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
-        }),
-        product_version: identity.product_version.clone(),
-        source_revision: None,
-        sdk_revision: None,
-        // Listener Start Time Is Not The Original Runtime's Boot Time.
-        started_at: None,
-        display_name: identity.display_name.clone(),
+    let identity = produce(maximum, || {
+        dokime_domain::model::backend::wire::BackendIdentity {
+            backend_id: identity.backend_id.clone(),
+            epoch: identity.epoch.clone(),
+            api: Some(dokime_domain::model::backend::wire::ApiIdentity {
+                package: dokime_domain::model::backend::wire::API_PACKAGE.into(),
+                version: dokime_domain::model::backend::wire::API_VERSION.into(),
+                descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
+            }),
+            product_version: identity.product_version.clone(),
+            source_revision: None,
+            sdk_revision: None,
+            // Listener Start Time Is Not The Original Runtime's Boot Time.
+            started_at: None,
+            display_name: identity.display_name.clone(),
+        }
     })
     .map_err(crate::grpc::Error::OperationService)?;
     let resources = Arc::new(Resources {

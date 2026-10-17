@@ -15,7 +15,14 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html"]
+include = [
+  "/src/**",
+  "/tests/**",
+  "/benches/**",
+  "/build.rs",
+  "/Cargo.toml",
+  "/dist-report/report.html",
+]
 
 [features]
 default = ["native", "derive"]
@@ -29,7 +36,15 @@ native = [
   "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
-storage = ["dep:base64", "dep:dokime-filesystem", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+storage = [
+  "dep:base64",
+  "dep:dokime-filesystem",
+  "dep:futures-util",
+  "dep:rusqlite",
+  "dep:sha2",
+  "dep:tempfile",
+  "dep:tokio",
+]
 host = [
   "native",
   "derive",
@@ -60,7 +75,16 @@ host = [
 ]
 fault-injection = ["host"]
 fft = ["host", "harmos/signal-fft"]
-media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
+media-native = [
+  "host",
+  "dep:ashpd",
+  "dep:cpal",
+  "dep:hound",
+  "dep:image",
+  "dep:nokhwa",
+  "dep:url",
+  "dep:xcap",
+]
 simulation = ["host", "harmos/simulation"]
 
 [dependencies]

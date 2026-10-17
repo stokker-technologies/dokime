@@ -27,15 +27,16 @@ use harmos::{
 use tonic::Status;
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::content::{content_failure, metadata};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::operations::files as contract;
 use dokime_runtime::{
-    runtime::Error, RuntimeHandle,
+    RuntimeHandle,
     domains::files::{
         CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent,
     },
+    runtime::Error,
 };
-use dokime_domain::operations::files as contract;
 
 /* === Constants === */
 
@@ -139,15 +140,17 @@ impl Operation for FileWatch {
         send_events(output, &mut events).await?;
         sealed.map_err(failure)?;
         let completed = dokime_domain::model::files::wire::FileWatchFrame {
-            payload: Some(dokime_domain::model::files::wire::FileWatchFramePayload::Completed(
-                dokime_domain::model::files::wire::FileWatchCompleted {
-                    artifacts: watch
-                        .sealed()
-                        .iter()
-                        .map(metadata)
-                        .collect::<Result<Vec<_>, _>>()?,
-                },
-            )),
+            payload: Some(
+                dokime_domain::model::files::wire::FileWatchFramePayload::Completed(
+                    dokime_domain::model::files::wire::FileWatchCompleted {
+                        artifacts: watch
+                            .sealed()
+                            .iter()
+                            .map(metadata)
+                            .collect::<Result<Vec<_>, _>>()?,
+                    },
+                ),
+            ),
         };
         self.watch = None;
         output
@@ -206,25 +209,31 @@ fn frame(event: WatchEvent) -> Result<dokime_domain::model::files::wire::FileWat
             path,
             offset,
             phase,
-        } => dokime_domain::model::files::wire::FileWatchFramePayload::Progress(dokime_domain::model::files::wire::FileWatchProgress {
-            path,
-            offset,
-            phase,
-        }),
+        } => dokime_domain::model::files::wire::FileWatchFramePayload::Progress(
+            dokime_domain::model::files::wire::FileWatchProgress {
+                path,
+                offset,
+                phase,
+            },
+        ),
         WatchEvent::Gap {
             path,
             offset,
             reason,
-        } => dokime_domain::model::files::wire::FileWatchFramePayload::Gap(dokime_domain::model::files::wire::FileWatchGap {
-            path,
-            offset,
-            reason,
-        }),
-        WatchEvent::Sealed { path, record } => {
-            dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(dokime_domain::model::files::wire::FileWatchSealed {
+        } => dokime_domain::model::files::wire::FileWatchFramePayload::Gap(
+            dokime_domain::model::files::wire::FileWatchGap {
                 path,
-                artifact: Some(metadata(&record)?),
-            }))
+                offset,
+                reason,
+            },
+        ),
+        WatchEvent::Sealed { path, record } => {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(
+                dokime_domain::model::files::wire::FileWatchSealed {
+                    path,
+                    artifact: Some(metadata(&record)?),
+                },
+            ))
         }
     };
     Ok(dokime_domain::model::files::wire::FileWatchFrame {
@@ -241,14 +250,20 @@ fn failure(error: Error) -> Status {
         Error::Admission(AdmissionFailure::Overload { message, .. }) if code == CAPPED => {
             Status::resource_exhausted(message.clone())
         }
-        Error::Admission(AdmissionFailure::Conflict { message, .. }) if code == UNTRUSTED || code == UNSUPPORTED => {
+        Error::Admission(AdmissionFailure::Conflict { message, .. })
+            if code == UNTRUSTED || code == UNSUPPORTED =>
+        {
             Status::failed_precondition(message.clone())
         }
         Error::Admission(AdmissionFailure::Unavailable { message, .. }) if code == UNREACHABLE => {
             Status::unavailable(message.clone())
         }
-        Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
-        Error::Admission(AdmissionFailure::NotFound { message, .. }) => Status::not_found(message.clone()),
+        Error::Admission(AdmissionFailure::Conflict { message, .. }) => {
+            Status::failed_precondition(message.clone())
+        }
+        Error::Admission(AdmissionFailure::NotFound { message, .. }) => {
+            Status::not_found(message.clone())
+        }
         _ => content_failure(error),
     }
 }

@@ -18,21 +18,21 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::model::definition::{MaterializedParameter, TestCase};
+use crate::model::diagnostics::Diagnostic;
+use crate::model::document::DocumentDefinition;
+use crate::model::execution::RecordScope;
 use crate::model::identity::CaseId;
 use crate::model::identity::CriterionId;
 use crate::model::identity::DocumentId;
-use crate::model::values::MeasurementUnit;
 use crate::model::identity::Metadata;
-use crate::model::execution::RecordScope;
 use crate::model::identity::SessionId;
 use crate::model::identity::StepId;
 use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
 use crate::model::time::Timestamp;
+use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
-use crate::model::definition::{MaterializedParameter, TestCase};
-use crate::model::diagnostics::Diagnostic;
-use crate::model::document::DocumentDefinition;
 use crate::state::records::set::TestRecordSet;
 
 /* === Constants === */
@@ -890,7 +890,8 @@ impl TestExecution {
         Ok(())
     }
 
-    pub fn interrupt_step_attempt(&mut self) {
+    // The runtime captures the interruption detail at its resource boundary.
+    pub fn interrupt_step_attempt(&mut self, detail: Diagnostic) {
         let Some(start) = self.active_step_attempt.take() else {
             return;
         };
@@ -900,9 +901,7 @@ impl TestExecution {
             started_at: start.started_at,
             finished_at: None,
             termination: super::TerminationReason::Interrupted,
-            detail: Some(
-                Diagnostic::of("step runner ended without a completion receipt").redacted(),
-            ),
+            detail: Some(detail),
         });
         self.refresh_step_records();
     }

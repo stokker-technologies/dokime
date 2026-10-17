@@ -34,12 +34,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
 use super::Access;
 use super::Endpoint;
 use super::INSTALLATION;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 use crate::model::plugins::wire::*;
 
@@ -51,55 +51,7 @@ use crate::model::plugins::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

@@ -17,8 +17,6 @@ use std::collections::BTreeSet;
 // Third Party Imports
 
 // Local Imports
-use crate::model::identity::Identifier;
-use crate::model::identity::Metadata;
 use crate::model::document::DocumentCard;
 use crate::model::document::DocumentCardBody;
 use crate::model::document::DocumentSection;
@@ -26,6 +24,8 @@ use crate::model::document::Plot;
 use crate::model::document::PlotDefinition;
 use crate::model::document::PlotStyle;
 use crate::model::document::PlotType;
+use crate::model::identity::Identifier;
+use crate::model::identity::Metadata;
 
 /* === Constants === */
 const HOST_SYSTEM: &str = "host.system";

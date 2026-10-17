@@ -8,11 +8,11 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod fields;
 pub mod format;
 pub mod unit;
 pub mod value;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use fields::*;

@@ -18,20 +18,20 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
+use crate::model::execution::RecordScope;
+use crate::model::expressions::DataExpression;
+use crate::model::expressions::DataSource;
+use crate::model::expressions::RecordMarker;
 use crate::model::identity::DocumentId;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
-use crate::model::execution::RecordScope;
+use crate::model::telemetry::TelemetryColumn;
+use crate::model::telemetry::TelemetryContract;
 use crate::model::values::Value;
 use crate::model::values::ValueFormat;
 use crate::model::values::ValueType;
 use crate::model::values::format::ValueFormatKind;
 use crate::model::values::validate_value_format;
-use crate::model::expressions::DataExpression;
-use crate::model::expressions::DataSource;
-use crate::model::expressions::RecordMarker;
-use crate::model::telemetry::TelemetryColumn;
-use crate::model::telemetry::TelemetryContract;
 
 /* === Constants === */
 pub const DEFAULT_PLOT_MAX_POINTS: usize = 2_000;
@@ -1390,7 +1390,8 @@ impl DocumentDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
         let identifier = identifier.as_ref();
         Self {
-            document_id: DocumentId::from_identifier(identifier).unwrap_or_default(),
+            document_id: DocumentId::from_identifier(identifier)
+                .unwrap_or_else(|_| DocumentId::from_seed(identifier)),
             metadata: metadata(identifier, label.into(), None),
             cards: Vec::new(),
             layout: DocumentLayout::default(),

@@ -28,12 +28,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+use crate::model::execution::wire_cursor::Cursor;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 use crate::model::notes::wire::*;
 
@@ -45,34 +45,9 @@ use crate::model::notes::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Replaces an unsealed note's message. Only its author may edit it.
 
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
 
 #[harmos::catalog]
 pub enum Operations {

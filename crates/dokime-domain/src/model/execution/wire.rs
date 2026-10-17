@@ -20,18 +20,17 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
 #[allow(unused_imports)]
 use crate::model::planning::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Types === */
-
 
 // Correlation is a caller label, never authenticated identity or an idempotency
 // key. Only the run-specific idempotency_key fields support safe retries. Other
@@ -500,7 +499,6 @@ pub struct StepCriterion {
     pub message: Option<String>,
     pub ordinal: u64,
 }
-
 
 // The requested order key. Ordering is always total: the key, then the cycle ID
 // ascending, so equal keys never permute between pages. An unspecified key is

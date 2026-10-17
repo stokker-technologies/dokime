@@ -102,19 +102,17 @@ pub(super) fn definition(
         outputs: definition
             .outputs
             .iter()
-            .map(
-                |output| dokime_domain::model::plots::wire::AnalysisOutput {
-                    key: output.key.clone(),
-                    label: output.label.clone(),
-                    unit: output.unit.clone(),
-                    axis: output.axis.as_ref().map(|axis| {
-                        dokime_domain::model::plots::wire::AnalysisAxis {
-                            key: axis.key.clone(),
-                            unit: axis.unit.clone(),
-                        }
-                    }),
-                },
-            )
+            .map(|output| dokime_domain::model::plots::wire::AnalysisOutput {
+                key: output.key.clone(),
+                label: output.label.clone(),
+                unit: output.unit.clone(),
+                axis: output.axis.as_ref().map(|axis| {
+                    dokime_domain::model::plots::wire::AnalysisAxis {
+                        key: axis.key.clone(),
+                        unit: axis.unit.clone(),
+                    }
+                }),
+            })
             .collect(),
         max_samples: definition.limits.max_samples,
         max_output_values: definition.limits.max_output_values,
@@ -156,35 +154,31 @@ pub(super) fn computation(
         series: computed
             .series
             .into_iter()
-            .map(
-                |series| dokime_domain::model::plots::wire::AnalysisSeries {
-                    key: series.key,
-                    label: series.label,
-                    origin: series.origin,
-                    input_samples: series.input_samples as u64,
-                    first_axis: series.first_axis,
-                    last_axis: series.last_axis,
-                    outputs: series
-                        .output
-                        .outputs
-                        .into_iter()
-                        .map(
-                            |output| dokime_domain::model::plots::wire::AnalysisValues {
-                                display_indices: series
-                                    .display_indices
-                                    .get(&output.key)
-                                    .cloned()
-                                    .unwrap_or_default(),
-                                key: output.key,
-                                unit: output.unit,
-                                axis_unit: output.axis_unit,
-                                axis: output.axis,
-                                values: output.values,
-                            },
-                        )
-                        .collect(),
-                },
-            )
+            .map(|series| dokime_domain::model::plots::wire::AnalysisSeries {
+                key: series.key,
+                label: series.label,
+                origin: series.origin,
+                input_samples: series.input_samples as u64,
+                first_axis: series.first_axis,
+                last_axis: series.last_axis,
+                outputs: series
+                    .output
+                    .outputs
+                    .into_iter()
+                    .map(|output| dokime_domain::model::plots::wire::AnalysisValues {
+                        display_indices: series
+                            .display_indices
+                            .get(&output.key)
+                            .cloned()
+                            .unwrap_or_default(),
+                        key: output.key,
+                        unit: output.unit,
+                        axis_unit: output.axis_unit,
+                        axis: output.axis,
+                        values: output.values,
+                    })
+                    .collect(),
+            })
             .collect(),
     })
 }

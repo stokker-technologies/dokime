@@ -17,11 +17,11 @@ use std::marker::PhantomData;
 // Third Party Imports
 
 // Local Imports
-use crate::model::values::Value;
 use crate::model::document::DocumentFilter;
 use crate::model::expressions::DataExpression;
 use crate::model::expressions::telemetry;
 use crate::model::telemetry::TelemetryStream;
+use crate::model::values::Value;
 
 /* === Constants === */
 

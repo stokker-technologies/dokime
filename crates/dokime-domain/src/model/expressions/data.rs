@@ -19,9 +19,9 @@ use harmos::Aggregate;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
-use crate::model::values::Value;
 use crate::model::expressions::Expression;
 use crate::model::expressions::ExpressionKind;
+use crate::model::values::Value;
 
 /* === Constants === */
 const FN_DATA_TELEMETRY: &str = "data.telemetry";

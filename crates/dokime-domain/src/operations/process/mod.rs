@@ -36,10 +36,6 @@ use crate::model::process::wire::*;
 
 /* === Structs === */
 
-
-
-
-
 // Shared, so a template reaches it through `ctx.host()` without listing it.
 #[harmos::message]
 #[harmos::operation(response = ProcessExit, id = "dokime.process.run", version = 1,
@@ -132,10 +128,6 @@ impl RunProcess {
         self
     }
 }
-
-
-
-
 
 /* === Public Functions === */
 

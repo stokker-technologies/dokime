@@ -18,8 +18,8 @@
 use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
-use dokime_runtime::telemetry::TelemetrySample;
 use dokime_domain::operations::telemetry as wire;
+use dokime_runtime::telemetry::TelemetrySample;
 
 /* === Constants === */
 
@@ -60,7 +60,9 @@ pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status>
     Ok(bytes)
 }
 
-pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
+pub(in crate::grpc) fn sample(
+    sample: &TelemetrySample,
+) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
     memory(sample)?;
     Ok(dokime_domain::model::telemetry::wire::TelemetrySample {
         sample_id: sample.sample_id.to_string(),

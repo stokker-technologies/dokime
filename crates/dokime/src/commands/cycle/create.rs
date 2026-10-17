@@ -21,8 +21,8 @@ use std::{io::Write, path::PathBuf, time::Duration};
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::wire::Metadata;
-use dokime_domain::operations::execution::CreateCycle;
 use dokime_domain::model::planning::wire::SelectionPlan;
+use dokime_domain::operations::execution::CreateCycle;
 
 /* === Constants === */
 
@@ -151,8 +151,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 output.flush()?;
             }
             if let Some(seconds) = args.wait_seconds {
-                let id = dokime_domain::model::identity::CommandId::from_uuid(&admission.command_id)
-                    .map_err(|error| crate::Error::Setup(error.to_string()))?;
+                let id =
+                    dokime_domain::model::identity::CommandId::from_uuid(&admission.command_id)
+                        .map_err(|error| crate::Error::Setup(error.to_string()))?;
                 let receipt = cycle
                     .request(id)
                     .wait(Some(Duration::from_secs(seconds)), None)

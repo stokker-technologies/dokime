@@ -22,10 +22,10 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+use crate::model::values::wire::Value;
 
 use crate::model::query::wire::*;
 
@@ -41,18 +41,7 @@ use crate::model::query::wire::*;
 // aggregates the whole filtered selection into a single row. `aggregates` must
 // name at least one output.
 
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
 
 #[harmos::catalog]
 pub enum Operations {

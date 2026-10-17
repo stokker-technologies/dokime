@@ -19,16 +19,16 @@
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
-use crate::model::time::Timestamp;
-use crate::model::values::Value;
-use crate::model::values::ValueType;
 use crate::model::telemetry::contract::TelemetryColumn;
 use crate::model::telemetry::contract::TelemetryContract;
 use crate::model::telemetry::contract::TelemetryRole;
 use crate::model::telemetry::host::HOST_STREAMS;
 use crate::model::telemetry::host::HostTelemetryStream;
+use crate::model::time::Timestamp;
 use crate::model::values::FieldError;
 use crate::model::values::FieldValue;
+use crate::model::values::Value;
+use crate::model::values::ValueType;
 use harmos::Message;
 use std::collections::BTreeMap;
 

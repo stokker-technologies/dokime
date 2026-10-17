@@ -30,18 +30,18 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::execution::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+#[allow(unused_imports)]
+use crate::model::execution::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::prompts::wire::*;
 
@@ -55,75 +55,11 @@ use crate::model::prompts::wire::*;
 // Current definitions are ordered by prompt type; pending requests by prompt ID.
 // Subsequent pages require the same runtime epoch/revision and selection.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Responder identity comes from the authenticated principal, never a request
 // label. This mutation follows MutationContext's no-automatic-retry contract.
 // After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
 
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

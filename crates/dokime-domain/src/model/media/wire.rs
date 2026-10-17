@@ -50,7 +50,6 @@ pub struct RecordingFrame {
     pub payload: Option<RecordingFramePayload>,
 }
 
-
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum RecordingFramePayload {
