@@ -772,10 +772,15 @@ impl TestExecution {
         )
     }
 
+    /// Present each template phase from its effective step attempt. Once an
+    /// execution records attempts, the attempt ledger alone decides every
+    /// template phase; an execution that reports phases without attempts keeps
+    /// each explicitly recorded outcome.
     pub fn refresh_step_records(&mut self) {
         let Some(template) = self.snapshot.template() else {
             return;
         };
+        let ledger = !self.step_attempts.is_empty() || self.active_step_attempt.is_some();
         let selected = self.effective_step_attempts();
         let mut steps = self.steps.clone();
         for phase in &template.phases {
@@ -804,6 +809,17 @@ impl TestExecution {
                     Some(attempt.started_at.clone()),
                     attempt.finished_at.clone(),
                     attempt.detail.clone(),
+                )
+            } else if let Some(row) = steps
+                .iter()
+                .find(|step| step.step_id == phase.step_id)
+                .filter(|row| !ledger && recorded_outcome(&row.status, self.finished_at.is_some()))
+            {
+                (
+                    row.status.clone(),
+                    row.started_at.clone(),
+                    row.finished_at.clone(),
+                    row.detail.clone(),
                 )
             } else {
                 let status = if self.finished_at.is_some() {
@@ -924,6 +940,16 @@ pub(crate) fn validate_invocation(
         return Err("step would invalidate an invoked non-repeatable downstream step");
     }
     Ok(())
+}
+
+// An Explicit Phase Outcome Survives Refresh: A Settled One Always, A Running
+// One Until Its Execution Finishes Without Settling It.
+fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
+    match status {
+        StepStatus::Pending => false,
+        StepStatus::Running => !finished,
+        _ => true,
+    }
 }
 
 pub(crate) fn effective_attempts<'a>(

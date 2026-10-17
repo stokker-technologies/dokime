@@ -81,33 +81,12 @@ impl ExecutionFixture for QueuedSamples {
             let receipt = context.publish_telemetry_batch(first).await.unwrap();
             assert_eq!(receipt.accepted, 1);
             // Record A Completed Phase Before Stop: Its Outcome Must Survive Evidence Truncation.
-            let step_id = execution
-                .steps
-                .iter()
-                .find(|step| step.metadata.identifier.as_str() == "fixture.phase")
-                .unwrap()
-                .step_id
-                .clone();
-            let start = dokime::execution::StepAttemptStart {
-                attempt_id: dokime::core::StepAttemptId::new(),
-                step_id,
-                started_at: Timestamp::now_utc(),
-            };
             context
-                .begin_step_attempt(execution.scope.clone(), start.clone())
-                .await
-                .unwrap();
-            context
-                .record_step_attempt(
+                .update_execution_phase(
                     execution.scope.clone(),
-                    dokime::execution::TestStepAttempt {
-                        attempt_id: start.attempt_id,
-                        step_id: start.step_id,
-                        started_at: start.started_at,
-                        finished_at: Some(Timestamp::now_utc()),
-                        termination: dokime::execution::TerminationReason::Completed,
-                        detail: None,
-                    },
+                    identifier("fixture.phase"),
+                    "Fixture Phase".into(),
+                    "passed".into(),
                 )
                 .await
                 .unwrap();

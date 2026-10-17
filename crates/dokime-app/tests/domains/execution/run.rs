@@ -59,9 +59,10 @@ pub(crate) async fn cycle_exposes_rows() {
     let streamed = streamed.expect("tracking sample was readable from the durable stream");
     assert_eq!(running.test_executions.len(), 1);
     assert_eq!(running.test_executions[0].status, ExecutionStatus::Running);
+    // The Provider's Explicit Running Phase Is Recorded On Its Template Step.
     assert_eq!(
         running.test_executions[0].steps[0].status,
-        StepStatus::Pending
+        StepStatus::Running
     );
     assert_eq!(streamed, 1);
     assert_eq!(running.test_executions[0].steps.len(), 1);
