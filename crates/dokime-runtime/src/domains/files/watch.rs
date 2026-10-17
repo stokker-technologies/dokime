@@ -31,6 +31,7 @@ use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::source::{Entry, Listing, ReadFailure, Source};
 use super::{GapReason, Phase, Policy, Settings, capped, invalid, unreachable_source};
 use crate::execution_runtime::outputs::media_type_for_path;
@@ -375,7 +376,7 @@ impl State {
             }
             match self.capture(path, *entry, events).await {
                 Ok(()) => {}
-                Err(source @ Error::Unavailable { .. }) => return self.failed_pass(source),
+                Err(source @ Error::Admission(AdmissionFailure::Unavailable { .. })) => return self.failed_pass(source),
                 Err(source) => return Err(source),
             }
         }

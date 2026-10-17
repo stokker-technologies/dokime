@@ -25,6 +25,7 @@
 // Third Party Imports
 use harmos::storage::ObjectVersion;
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::execution::ExecutionView;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use dokime_domain::model::identity::Metadata;
@@ -197,10 +198,10 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 fn not_found(code: &str, message: &str) -> Error {
-    Error::NotFound {
+    Error::Admission(AdmissionFailure::NotFound {
         code: code.into(),
         message: message.into(),
-    }
+    })
 }
 
 /* === Tests === */

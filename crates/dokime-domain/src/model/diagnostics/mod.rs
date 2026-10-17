@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod admission;
 pub mod capture;
 pub mod debug;
 pub mod error;

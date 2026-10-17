@@ -22,6 +22,7 @@ pub use dokime_domain::model::execution::request::StepCommandReceipt;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Constants === */
 
@@ -105,10 +106,10 @@ impl crate::RuntimeHandle {
 
 /* === Private Functions === */
 fn command_refused(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Conflict {
+    crate::runtime::Error::Admission(AdmissionFailure::Conflict {
         code: "execution_command_refused".into(),
         message: message.into(),
-    }
+    })
 }
 
 /* === Tests === */

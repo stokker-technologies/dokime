@@ -17,6 +17,7 @@
 // Third Party Imports
 use thiserror::Error as ThisError;
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::diagnostics::ValidationIssue;
 
 /* === Constants === */
@@ -31,28 +32,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /* === Enums === */
 #[derive(Debug, ThisError)]
 pub enum Error {
-    #[error("{message}")]
-    Validation {
-        code: String,
-        message: String,
-        issues: Vec<ValidationIssue>,
-    },
-    #[error("{message}")]
-    Conflict { code: String, message: String },
-    #[error("{message}")]
-    Overload { code: String, message: String },
-    #[error("{message}")]
-    Unavailable { code: String, message: String },
-    #[error("{message}")]
-    Forbidden { code: String, message: String },
-    #[error("{message}")]
-    NotFound { code: String, message: String },
-    #[error("{message}")]
-    Timeout { code: String, message: String },
-    #[error("{message}")]
-    Cancelled { code: String, message: String },
-    #[error("{message}")]
-    Internal { code: String, message: String },
+    #[error(transparent)]
+    Admission(#[from] AdmissionFailure),
 
     #[error(transparent)]
     Dokime(#[from] crate::Error),
@@ -148,85 +129,45 @@ impl From<dokime_filesystem::Error> for Error {
 impl Error {
     pub fn code(&self) -> Option<&str> {
         match self {
-            Self::Validation { code, .. }
-            | Self::Conflict { code, .. }
-            | Self::Overload { code, .. }
-            | Self::Unavailable { code, .. }
-            | Self::Forbidden { code, .. }
-            | Self::NotFound { code, .. }
-            | Self::Timeout { code, .. }
-            | Self::Cancelled { code, .. }
-            | Self::Internal { code, .. } => Some(code),
+            Self::Admission(failure) => Some(failure.code()),
             _ => None,
         }
     }
 
-    pub fn validation(
-        code: impl Into<String>,
-        message: impl Into<String>,
-        issues: Vec<ValidationIssue>,
-    ) -> Self {
-        Self::Validation {
-            code: code.into(),
-            message: message.into(),
-            issues,
-        }
+    pub fn validation(code: impl Into<String>, message: impl Into<String>, issues: Vec<ValidationIssue>) -> Self {
+        AdmissionFailure::validation(code, message, issues).into()
     }
 
     pub fn conflict(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Conflict {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::conflict(code, message).into()
     }
 
     pub fn overload(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Overload {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::overload(code, message).into()
     }
 
     pub fn unavailable(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Unavailable {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::unavailable(code, message).into()
     }
 
     pub fn forbidden(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Forbidden {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::forbidden(code, message).into()
     }
 
     pub fn not_found(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::NotFound {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::not_found(code, message).into()
     }
 
     pub fn timeout(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Timeout {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::timeout(code, message).into()
     }
 
     pub fn cancelled(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Cancelled {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::cancelled(code, message).into()
     }
 
     pub fn internal(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Internal {
-            code: code.into(),
-            message: message.into(),
-        }
+        AdmissionFailure::internal(code, message).into()
     }
 }
 

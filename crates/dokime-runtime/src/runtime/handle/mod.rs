@@ -23,6 +23,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::InstalledPlugin;
 use crate::app::{Dokime, HarmosRuntime};
 use crate::runtime::state::RuntimeState;
@@ -622,10 +623,10 @@ impl RuntimeHandle {
                 .get(source)
                 .is_some_and(|current| Arc::ptr_eq(current, expected))
             {
-                return Err(Error::Unavailable {
+                return Err(Error::Admission(AdmissionFailure::Unavailable {
                     code: "analysis_owner_changed".into(),
                     message: "analysis owner changed while its evidence was being selected".into(),
-                });
+                }));
             }
             // Admission Is Synchronous; Release The Registry Before Awaiting Work.
             expected.analyze(operation, request)

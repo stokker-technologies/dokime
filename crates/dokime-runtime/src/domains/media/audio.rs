@@ -33,6 +33,7 @@ use tempfile::TempPath;
 use tokio::sync::oneshot;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
@@ -216,10 +217,10 @@ impl Supervisor {
         let closed = self.recorder.close().await;
         let outcome = match closed {
             Err(source) => Err(source),
-            Ok(()) if !finish => Err(Error::Cancelled {
+            Ok(()) if !finish => Err(Error::Admission(AdmissionFailure::Cancelled {
                 code: "media_discarded".into(),
                 message: "audio recording discarded".into(),
-            }),
+            })),
             Ok(()) => {
                 self.runtime
                     .upload_artifact_file(
