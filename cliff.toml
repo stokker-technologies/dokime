@@ -1,49 +1,56 @@
-[changelog]
-header = """
-# Changelog
+# Rendered by stkr project update from templates/tools/cliff.toml; sha256:bfa3f241bb7d1e349ac14a499b3a6e23960d36347afbee7b5a5b60921f38ae99
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
 
-"""
+
+# === Changelog === #
+
+[changelog]
+header = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n"
 body = """
 {% if version %}\
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
-{% else %}\
-    ## [unreleased]
-{% endif %}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
 {% for group, commits in commits | group_by(attribute="group") %}
+
 ### {{ group | upper_first }}
 {% for commit in commits %}
-- {{ commit.message | upper_first }}\
+- {% if commit.breaking %}**Breaking:** {% endif %}{{ commit.message | upper_first }}{% if commit.breaking_description %}: {{ commit.breaking_description }}{% endif %}\
 {% endfor %}
-{% endfor %}
+{% endfor %}\n{% endif %}\
 """
 trim = true
-footer = ""
+
+# === Commit Parsing === #
 
 [git]
 conventional_commits = true
 filter_unconventional = true
+split_commits = false
 commit_parsers = [
-  { message = "^feat", group = "Features" },
-  { message = "^fix", group = "Bug Fixes" },
-  { message = "^docs", group = "Documentation" },
-  { message = "^perf", group = "Performance" },
-  { message = "^refactor", group = "Refactor" },
-  { message = "^chore: release|^chore\\(release\\): prepare for", skip = true },
-  { message = "^chore", group = "Chores" },
-  { message = "^style", group = "Style" },
-  { message = "^test", group = "Tests" },
-  { message = "^ci", group = "CI" },
+  { message = "^feat", group = "added" },
+  { message = "^fix", group = "fixed" },
+  { message = "^docs", group = "changed" },
+  { message = "^refactor", group = "changed" },
+  { message = "^perf", group = "changed" },
+  { message = "^style", group = "changed" },
+  { message = "^test", group = "changed" },
+  { message = "^build", group = "changed" },
+  { message = "^ci", group = "changed" },
+  { message = "^chore", group = "changed" },
+  { message = "^revert", group = "changed" },
 ]
+protect_breaking_commits = true
 filter_commits = false
-tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
-ignore_tags = ""
-topo_order = false
-sort_commits = "oldest"
+tag_pattern = "v[0-9]*"
+
+# === Version Planning === #
 
 [bump]
-# Patch-only (org decision 2026-08-14): every release bumps the patch
-# component regardless of commit types while the release cycle stays fast.
-bump_type = "patch"
-initial_tag = "v0.1.0"
 breaking_always_bump_major = false
 features_always_bump_minor = false
+bump_type = "patch"

@@ -67,6 +67,7 @@ run = [
 
 [tasks."prepare:report"]
 description = "Prepare The Embedded Report Viewer"
+depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.build.frontend report"
 
 # === Format === #
@@ -167,16 +168,19 @@ run = [
 
 [tasks."build:python"]
 description = "Build The Python Client Wheel"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
 description = "Build The Workspace Archive, Executables And Plugin Bundle"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run rust --profile {{usage.profile}}"
 
 [tasks."build:typescript"]
 description = "Build The GUI Bindings With protoc-gen-es And The Frontend"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run typescript --profile {{usage.profile}}"
 
@@ -221,7 +225,10 @@ run = [
 [tasks."test:integration:python"]
 description = "Test Integration Python"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime"
+run = [
+  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime",
+]
 
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
@@ -241,7 +248,10 @@ run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "
 [tasks."test:acceptance:python"]
 description = "Test Acceptance Python"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime"
+run = [
+  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime",
+]
 
 [tasks."test:acceptance:rust"]
 description = "Test Acceptance Rust"

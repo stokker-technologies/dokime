@@ -1,130 +1,92 @@
-name: Publish Release
-on:
-  pull_request:
-    branches: [main]
-    types: [closed]
+# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:401f151a3449f1fb1a6716db01d414c92d20cbd88ae161fde5ba83fb4a02d1ce
+name: Release
+"on":
+  push:
+    tags:
+    - v*
 permissions:
   contents: read
-  actions: read
-concurrency:
-  group: release-publication
-  cancel-in-progress: false
 env:
-  MISE_YES: '1'
-  MISE_LOCKED: '1'
-  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
-  MISE_GLOBAL_CONFIG_FILE: ${{ github.workspace }}/.cache/mise-global.toml
+  MISE_LOCKED: "1"
   MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
-  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
-  GITHUB_TOKEN: ${{ github.token }}
-
+  CARGO_TERM_COLOR: always
 jobs:
-  native:
-    name: Native (${{ matrix.os }})
-    if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository && (startsWith(github.event.pull_request.head.ref, 'release/') || startsWith(github.event.pull_request.head.ref, 'fix/'))
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux, windows]
-    uses: ./.github/workflows/platform.yml
-    with:
-      os: ${{ matrix.os }}
-      authorization: release
-    secrets:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-  ci_artifacts_catalog:
-    name: Ci Artifacts Catalog
-    env:
-      DOKIME_CI_ROLE: catalog
-    needs: native
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+  package:
+    name: Package / Release
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - &tools_restore
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          key: tools-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('mise.lock', 'mise.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            tools-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('mise.lock', 'mise.toml') }}-
-          path: .cache/mise/
-      - &sources_restore
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-
-          path: |
-            .cache/cargo/registry/cache/
-            .cache/cargo/registry/index/
-            .cache/cargo/git/db/
-            .cache/uv/
-      - name: Prepare Linux
-        run: . tools/ci/install.sh
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: validation-[lw]*
-          merge-multiple: true
-          path: dist/downloads/
-      - id: catalog
-        run: mise run --skip-tools ci:artifacts:catalog
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ steps.catalog.outputs.artifact_name }}
-          path: dist/validation/catalog.json
-          if-no-files-found: error
-          retention-days: 90
-
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: >-
+        gh run download "$(gh run list --branch "release/$GITHUB_REF_NAME" --workflow
+        ci.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+        --pattern 'evidence-*' --dir .cache/evidence
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.test.run collect .cache/evidence/*
+    - run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.test.run verify
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: package-${{ github.sha }}
+        path: target/package/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
   release_publish:
-    name: Release Publish
-    needs: ci_artifacts_catalog
-    environment: release
+    name: Release / Publish
+    needs:
+    - package
+    environment: Publish
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
-      actions: read
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      MISE_YES: '1'
-      MISE_LOCKED: '1'
-      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
-      MISE_GLOBAL_CONFIG_FILE: ${{ github.workspace }}/.cache/mise-global.toml
-      MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
-      CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-      UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
-      GITHUB_TOKEN: ${{ github.token }}
-      DOKIME_CI_ROLE: publish
+      id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - *tools_restore
-      - *sources_restore
-      - name: Prepare Linux
-        run: . tools/ci/install.sh
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: validation-[lw]*
-          merge-multiple: true
-          path: dist/downloads/
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: validation-catalog-*
-          merge-multiple: true
-          path: dist/validation/
-      - run: mise run --skip-tools release:publish
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: release-receipts-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .stkr/state/release/
-          include-hidden-files: true
-          if-no-files-found: ignore
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ github.sha }}
+        path: target/package/
+    - id: crates
+      uses: rust-lang/crates-io-auth-action@v1
+    - run: mise run release:publish
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.crates.outputs.token }}
+        GH_TOKEN: ${{ github.token }}
+    env:
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,git-cliff,gh,aqua:jedisct1/minisign

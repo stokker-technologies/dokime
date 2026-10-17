@@ -102,3 +102,7 @@ Thumbs.db
 # Hub Machine State
 /.stkr/tests/
 /.stkr/benchmarks/
+
+# BEGIN Stkr CI
+/.cache/
+# END Stkr CI
