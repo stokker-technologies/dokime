@@ -51,6 +51,8 @@ pub enum SavedEvidenceError {
     #[error(transparent)]
     Storage(#[from] harmos::Error),
     #[error(transparent)]
+    Domain(#[from] harmos::domain::Error),
+    #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
 }
 

@@ -19,11 +19,12 @@ version = { workspace = true }
 # Captures error chains, span traces and backtraces into a `Diagnostic`.
 diagnostics = ["dep:tracing-error"]
 # Projects the public operations into protobuf descriptors and readable sources.
-descriptors = ["harmos/grpc"]
+descriptors = ["harmos/grpc", "dep:harmos-packaging"]
 
 [dependencies]
 # Git
 harmos = { workspace = true }
+harmos-packaging = { workspace = true, optional = true, features = ["bindings-proto"] }
 
 # Error Handling
 thiserror = { workspace = true }

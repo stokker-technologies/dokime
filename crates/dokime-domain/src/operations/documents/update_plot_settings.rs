@@ -21,6 +21,7 @@ use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
 use super::*;
+use crate::model::document::DownsampleTechnique;
 
 /* === Constants === */
 

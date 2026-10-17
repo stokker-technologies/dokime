@@ -91,7 +91,7 @@ pub enum DescriptorError {
     #[error(transparent)]
     Contract(#[from] harmos::operations::ContractError),
     #[error(transparent)]
-    Export(#[from] harmos::grpc::ExportError),
+    Export(#[from] harmos_packaging::proto::ExportError),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -185,9 +185,9 @@ where
 /* === Public Functions === */
 // The descriptor set and readable `.proto` sources of every public operation.
 #[cfg(feature = "descriptors")]
-pub fn artifacts() -> Result<harmos::grpc::Artifacts, DescriptorError> {
+pub fn artifacts() -> Result<harmos_packaging::proto::Artifacts, DescriptorError> {
     let contracts = harmos::operations::Contracts::of::<Operations>()?;
-    Ok(harmos::grpc::Artifacts::new(&contracts)?)
+    Ok(harmos_packaging::proto::Artifacts::new(&contracts)?)
 }
 
 /* === Private Functions === */
