@@ -37,8 +37,6 @@ const SUITE: &str = "observer.checks";
 static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
-super::native::observer_control!(OwnerObserveControl, "observer-fixture");
-
 /* === Type Aliases === */
 type Publishing = Publisher<Owner>;
 
@@ -63,13 +61,15 @@ struct Probe {
 
 #[dokime_runtime::section(
     label = "Probe",
-    description = "The token a run names its registered [`Probe`] by, standing in for the live handle a setting cannot carry across the wire."
+    description = "The token a run names its registered [`Probe`] by, standing in for the live handle a setting cannot carry across \
+        the wire."
 )]
 pub struct Probes {
     #[setting(
         label = "Probe Token",
         default = "unregistered",
-        description = "Never read as its declared default: every run in this file names a real registered token, but a required text setting still has to declare a nonempty one to pass catalog validation."
+        description = "Never read as its declared default: every run in this file names a real registered token, but a required text \
+        setting still has to declare a nonempty one to pass catalog validation."
     )]
     pub token: String,
 }
@@ -112,11 +112,8 @@ struct Watch(Arc<Probe>);
 
 #[derive(Default)]
 struct StatelessWatch;
-
-struct GetCount(Arc<Shared>);
-
-struct GetProbe(Arc<Shared>);
-
+struct GetCountHandler(Arc<Shared>);
+struct GetProbeHandler(Arc<Shared>);
 struct Checks;
 
 struct AwaitEvent;
@@ -170,15 +167,15 @@ enum ObserveRecords {
 
 #[dokime_runtime::catalog]
 enum Implemented {
-    GetCount(GetCount),
-    GetProbe(GetProbe),
+    GetCount(GetCountHandler),
+    GetProbe(GetProbeHandler),
 }
 
 #[dokime_runtime::catalog]
 enum Operations {
     #[nested]
     Implemented(Implemented),
-    Observe(OwnerObserveControl),
+    Observe(harmos::operations::observers::Control),
 }
 
 #[dokime_runtime::catalog]
@@ -242,25 +239,29 @@ impl Probe {
         }
     }
 }
-
-#[dokime_runtime::operation(id = "observer-fixture.get_count", version = 1, policy = super::native::POLICY)]
-impl GetCount {
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "observer-fixture.get_count", version = 1, policy = super::native::POLICY, response = GetCountResponse)]
+#[derive(Clone, PartialEq)]
+struct GetCount {}
+#[dokime_runtime::operation]
+impl GetCountHandler {
     async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
         Self(shared)
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetCountResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut GetCount) -> Result<GetCountResponse, Refusal> {
         Ok(GetCountResponse { checks: self.0.probe.checks.load(Ordering::SeqCst) as u64 })
     }
 }
-
-#[dokime_runtime::operation(id = "observer-fixture.get_probe", version = 1, policy = super::native::POLICY)]
-impl GetProbe {
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "observer-fixture.get_probe", version = 1, policy = super::native::POLICY, response = GetProbeResponse)]
+#[derive(Clone, PartialEq)]
+struct GetProbe {}
+#[dokime_runtime::operation]
+impl GetProbeHandler {
     async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
         Self(shared)
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetProbeResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut GetProbe) -> Result<GetProbeResponse, Refusal> {
         Ok(GetProbeResponse { token: self.0.token.clone(), credentials: self.0.credentials })
     }
 }
@@ -280,7 +281,6 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for Owner {
         dokime_runtime::Settings<OwnerSettings>,
     ),
     observers = OwnerObservers,
-    observer_control = OwnerObserveControl,
     restart = "never", description = "Observer Lifecycle Fixture.")]
 impl dokime_runtime::Plugin for Owner {
     type Config = Configuration;
@@ -312,7 +312,7 @@ impl dokime_runtime::Plugin for Owner {
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<OwnerObserveControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
@@ -353,7 +353,7 @@ impl Watch {
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
         let host = ctx.host().supervisor();
-        let credentials = host.call_as::<GetProbeDeclaration>(()).await.map(|response| response.into_owned())?.credentials;
+        let credentials = host.call(GetProbe {}).await.map(|response| response.into_owned())?.credentials;
         self.0.credentials.store(credentials, Ordering::Release);
         self.0.bump(&self.0.credential_ticks);
         let index = ctx.tick().ordinal() - 1;
@@ -437,7 +437,7 @@ impl AwaitEvent {
     async fn hear(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         // An operation is the only road a step has to the plugin. Its type
         // belongs to the required catalog declared by this template.
-        let counted = ctx.call::<GetCount>(()).await?;
+        let counted = ctx.call(GetCount {}).await?;
         let _ = counted.checks;
         ctx.publish(Observed { index: 999 }).await;
         ctx.resources().0.notify_one();
@@ -459,10 +459,11 @@ impl AwaitEvent {
     #[dokime_runtime::criterion(
         id = "observer.checks.observed",
         label = "Event Recorded",
-        description = "A criterion calls too, which is what makes an operation reachable from every stage rather than from the ones that hold handles."
+        description = "A criterion calls too, which is what makes an operation reachable from every stage rather than from the ones \
+        that hold handles."
     )]
     async fn observed(ctx: &CriterionContext<'_>) -> dokime_runtime::Result<bool> {
-        let counted = ctx.call::<GetCount>(()).await?;
+        let counted = ctx.call(GetCount {}).await?;
         ctx.info(format!("the plugin has answered {} checks", counted.checks));
 
         Ok(ctx.records::<Observed>()?.iter().map(|record| record.index).collect::<Vec<_>>() == [999, 0, 777])
@@ -492,7 +493,7 @@ impl Drop for PendingGuard {
 )]
 impl Faults {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call::<GetProbe>(()).await?.token));
+        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }
@@ -547,7 +548,7 @@ impl Faults {
 )]
 impl Pending {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call::<GetProbe>(()).await?.token));
+        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }
@@ -586,9 +587,8 @@ fn registered(probe: &Arc<Probe>) -> String {
 fn probe(token: &str) -> Arc<Probe> {
     Arc::clone(PROBES.lock().expect("the probe registry is never poisoned").get(token).expect("a run names a probe this file registered"))
 }
-
-fn answered(token: String) -> impl Fn(()) -> GetProbeResponse + Send + Sync + 'static {
-    move |()| GetProbeResponse { token: token.clone(), credentials: true }
+fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Sync + 'static {
+    move |_| GetProbeResponse { token: token.clone(), credentials: true }
 }
 
 /* === Tests === */
@@ -635,7 +635,7 @@ async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
     let checks = Arc::clone(&probe);
     let report = Harness::template("observer.checks.await")
-        .answering::<GetCount, _>(move |()| GetCountResponse { checks: checks.checks.load(Ordering::SeqCst) as u64 })
+        .answering::<GetCount, _>(move |_| GetCountResponse { checks: checks.checks.load(Ordering::SeqCst) as u64 })
         .run::<OwnerSuites>()
         .await
         .unwrap();

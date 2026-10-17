@@ -151,11 +151,11 @@ def register(server, implementation) -> None:
         else:
             continue
         handlers.setdefault(service, {})[method] = handler
-    discovery = dokime.HOST_OPERATIONS
+    discovery = dokime.HOST_CATALOG
 
     async def catalog(request, context):
         # One Fixture Page; Production Paging Is Exercised By Discovery Tests.
-        return discovery.response(catalog=json.dumps(providers).encode())
+        return discovery.response(entries=json.dumps(providers).encode())
 
     service, method = discovery.grpc_path[1:].split("/")
     handlers.setdefault(service, {})[method] = grpc.unary_unary_rpc_method_handler(

@@ -19,8 +19,8 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
-use harmos::storage::operations::{Query, QueryStorage, QueryStorageRequest};
-use harmos::storage::query::{ObjectSelection, ObjectVersions, Query as QueryRequest, QueryOutput, RowSlice, Source};
+use harmos::storage::operations::{Query, StorageStatus};
+use harmos::storage::query::{ObjectSelection, ObjectVersions, QueryOutput, RowSlice, Source};
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -61,13 +61,13 @@ async fn storage_operations_view() {
     let receipt = handle.storage().write_object(&suite).await.unwrap();
     handle.storage().flush().await.unwrap();
 
-    let info = handle.operations().call_as::<QueryStorage>(QueryStorageRequest).await.unwrap();
+    let info = handle.operations().call(StorageStatus {}).await.unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());
 
     let (output, mut input) = stream::<QueryOutput>(StreamSettings { items: NonZeroUsize::MIN, bytes: budget }).unwrap();
-    let request = QueryRequest {
+    let request = Query {
         at: info.saved.clone(),
         source: Source::Objects(ObjectSelection {
             schema: Some(encoded.schema.clone()),
@@ -88,6 +88,7 @@ async fn storage_operations_view() {
         let QueryOutput::Batch(batch) = &*row else {
             panic!("expected an Arrow suite batch");
         };
+        let batch = harmos::storage::arrow::ArrowBatch::from_ipc(batch.bytes()).unwrap();
         assert_eq!(batch.as_record_batch().num_rows(), 1);
         assert!(batch.as_record_batch().column_by_name("payload").is_some());
         drop(row);

@@ -31,7 +31,12 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ReadVoltage;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY, response = ())]
+struct ReadVoltage {}
+
+struct ReadVoltageHandler;
 
 struct Probe;
 
@@ -61,31 +66,26 @@ enum NoOperations {}
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY)]
-impl ReadVoltage {
+#[sdk::operation]
+impl ReadVoltageHandler {
     pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut ReadVoltage) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 }
 
 #[sdk::template(id = "mismatched.checks.probe", label = "Probe", requires = ProbeRequired)]
 impl Probe {
-    async fn initialize(
-        _: &mut sdk::execution::InitializationContext<'_>,
-    ) -> Result<Self, std::convert::Infallible> {
+    async fn initialize(_: &mut sdk::execution::InitializationContext<'_>) -> Result<Self, std::convert::Infallible> {
         Ok(Self)
     }
 
     #[sdk::step(label = "Run")]
-    async fn run(
-        &mut self,
-        ctx: &mut sdk::execution::StepContext<'_>,
-    ) -> Result<(), std::convert::Infallible> {
-        let _ = ctx.call::<ReadVoltage>(()).await;
+    async fn run(&mut self, ctx: &mut sdk::execution::StepContext<'_>) -> Result<(), std::convert::Infallible> {
+        let _ = ctx.call(ReadVoltage {}).await;
 
         Ok(())
     }
@@ -125,8 +125,7 @@ impl sdk::Plugin for Plugin {
     }
 
     fn bind_operations(
-        &self,
-        table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         sdk::execution::serve::<Self, PluginSuites>(table)
     }

@@ -27,8 +27,8 @@ use harmos::sidecar::StreamDeclaration;
 use std::sync::Arc;
 use {dokime_runtime::InstalledPlugin, dokime_runtime::ValueType};
 use {
-    dokime_runtime::records::PublishRecord, dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField,
-    dokime_runtime::records::RecordPublication, dokime_runtime::records::RecordSeverity, model::records::publication::RecordPublishRequest,
+    dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField, dokime_runtime::records::RecordPublication,
+    dokime_runtime::records::RecordSeverity, model::records::publication::RecordPublishRequest,
 };
 
 /* === Constants === */
@@ -112,7 +112,7 @@ async fn native_publications_order() {
     // and refuses to the plugin, synchronously, what it cannot file: a forged
     // source, an undeclared record type and a payload that is no request.
     for (index, publication) in publications.into_iter().enumerate() {
-        let filed = caller.call_as::<PublishRecord>(publication).await;
+        let filed = caller.call(publication).await;
         assert_eq!(filed.is_ok(), matches!(index, 0 | 4), "publication {index}: {filed:?}");
     }
     let mut admitted = Vec::new();

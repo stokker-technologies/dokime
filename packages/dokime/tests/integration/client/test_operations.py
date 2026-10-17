@@ -51,8 +51,8 @@ def test_external_operation(mode: str) -> None:
         transmitted = []
 
         async def discovery(request, context):
-            return dokime.HOST_OPERATIONS.response(
-                catalog=json.dumps(
+            return dokime.HOST_CATALOG.response(
+                entries=json.dumps(
                     [
                         {
                             "owner": "external.fixture",
@@ -119,12 +119,12 @@ def test_external_operation(mode: str) -> None:
         )
         catalog_handler = grpc.unary_unary_rpc_method_handler(
             discovery,
-            request_deserializer=dokime.HOST_OPERATIONS.request.FromString,
+            request_deserializer=dokime.HOST_CATALOG.request.FromString,
             response_serializer=lambda result: result.SerializeToString(),
         )
         # Register The External Discovery Service Ahead Of The Standard Fixture Handler.
         server.add_generic_rpc_handlers([grpc.method_handlers_generic_handler("external.v1.Plugin", {"Invoke": handler})])
-        server.add_registered_method_handlers("harmos.host.v1.Host", {"Operations": catalog_handler})
+        server.add_registered_method_handlers("harmos.host.v1.Host", {"Catalog": catalog_handler})
         port = server.add_insecure_port("127.0.0.1:0")
         await server.start()
         client = DokimeClient(f"http://127.0.0.1:{port}")

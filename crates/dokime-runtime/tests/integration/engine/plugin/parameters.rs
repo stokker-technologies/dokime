@@ -168,7 +168,20 @@ fn overrides_and_sweeps() {
         .unwrap();
     let optional = Parameter::text("serial", "Serial").optional().try_into_definition().unwrap();
     let template = template(vec![required, dependent, optional]);
-    assert!(materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).is_err());
+    assert!(
+        materialize_template_cases(
+            "fixture.registration",
+            &template,
+            Default::default(),
+            dokime_runtime::definition::CaseMaterializationOptions {
+                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                force: false,
+                registration_id: dokime_runtime::model::identity::new_id(),
+                first_label_number: 1
+            }
+        )
+        .is_err()
+    );
     let selection = CaseMaterializationSelection {
         case_overrides: BTreeMap::from([("voltage".into(), vec![Value::from(12.0), Value::from(24.0)])]),
         ..Default::default()
@@ -196,7 +209,20 @@ fn overrides_and_sweeps() {
     for bad in [Value::Null, Value::from("invalid")] {
         let selection =
             CaseMaterializationSelection { case_overrides: BTreeMap::from([("voltage".into(), vec![bad])]), ..Default::default() };
-        assert!(materialize_template_cases("fixture.registration", &template, selection, Default::default()).is_err());
+        assert!(
+            materialize_template_cases(
+                "fixture.registration",
+                &template,
+                selection,
+                dokime_runtime::definition::CaseMaterializationOptions {
+                    max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                    force: false,
+                    registration_id: dokime_runtime::model::identity::new_id(),
+                    first_label_number: 1
+                }
+            )
+            .is_err()
+        );
     }
     let sweep = Parameter::integer("count", "Count")
         .optional()
@@ -225,12 +251,37 @@ fn optional_choices() {
         let template = template(vec![parameter.clone()]);
         let filter =
             CaseMaterializationSelection { case_filter: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
-        assert!(materialize_template_cases("fixture.registration", &template, filter, Default::default()).is_err());
+        assert!(
+            materialize_template_cases(
+                "fixture.registration",
+                &template,
+                filter,
+                dokime_runtime::definition::CaseMaterializationOptions {
+                    max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                    force: false,
+                    registration_id: dokime_runtime::model::identity::new_id(),
+                    first_label_number: 1
+                }
+            )
+            .is_err()
+        );
         let selection =
             CaseMaterializationSelection { case_overrides: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
         assert_eq!(
-            materialize_template_cases("fixture.registration", &template, selection, Default::default()).unwrap().test_cases[0].parameters
-                ["mode"],
+            materialize_template_cases(
+                "fixture.registration",
+                &template,
+                selection,
+                dokime_runtime::definition::CaseMaterializationOptions {
+                    max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                    force: false,
+                    registration_id: dokime_runtime::model::identity::new_id(),
+                    first_label_number: 1
+                }
+            )
+            .unwrap()
+            .test_cases[0]
+                .parameters["mode"],
             Value::Null
         );
     }
@@ -249,7 +300,18 @@ fn list_param_vec() {
     assert_eq!(definition.list, Some(ParameterList { element_type: ValueType::Integer, min_items: Some(1), max_items: Some(8) }));
 
     let template = template(vec![definition]);
-    let output = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).unwrap();
+    let output = materialize_template_cases(
+        "fixture.registration",
+        &template,
+        Default::default(),
+        dokime_runtime::definition::CaseMaterializationOptions {
+            max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+            force: false,
+            registration_id: dokime_runtime::model::identity::new_id(),
+            first_label_number: 1,
+        },
+    )
+    .unwrap();
     assert_eq!(output.case_count, 1);
 
     let parameters = output.test_cases[0].parameters.clone();
@@ -449,8 +511,18 @@ fn numeric_bounds_params() {
 #[test]
 fn macro_expansion_groups() {
     let definitions = ExpansionInputs::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap()).collect();
-    let output =
-        materialize_template_cases("fixture.registration", &template(definitions), Default::default(), Default::default()).unwrap();
+    let output = materialize_template_cases(
+        "fixture.registration",
+        &template(definitions),
+        Default::default(),
+        dokime_runtime::definition::CaseMaterializationOptions {
+            max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+            force: false,
+            registration_id: dokime_runtime::model::identity::new_id(),
+            first_label_number: 1,
+        },
+    )
+    .unwrap();
     assert_eq!(output.case_count, 8);
     for case in output.test_cases {
         let input = ExpansionInputs::from_parameters(&case.parameters).unwrap();

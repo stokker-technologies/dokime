@@ -71,11 +71,8 @@ mod bare_attributes {
     pub(crate) struct GetReadingResponse {
         pub(crate) reads: u64,
     }
-
-    struct GetStatus;
-
-    struct GetReading;
-
+    struct GetStatusHandler;
+    struct GetReadingHandler;
     #[settings]
     #[derive(Debug, Default, PartialEq)]
     struct BenchSettings {
@@ -93,28 +90,32 @@ mod bare_attributes {
 
     #[catalog]
     enum Operations {
-        GetReading(GetReading),
-        GetStatus(GetStatus),
+        GetReading(GetReadingHandler),
+        GetStatus(GetStatusHandler),
     }
-
-    #[operation(id = "prelude-bench.get_reading", version = 1, description = "Reads.", policy = POLICY)]
-    impl GetReading {
+    #[dokime_runtime::message]
+    #[operation(id = "prelude-bench.get_reading", version = 1, description = "Reads.", policy = POLICY, response = GetReadingResponse)]
+    #[derive(Clone, PartialEq)]
+    struct GetReading {}
+    #[operation]
+    impl GetReadingHandler {
         async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
             Self
         }
-
-        async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetReadingResponse, Refusal> {
+        async fn run(&mut self, _: &Supervisor, _: &mut GetReading) -> Result<GetReadingResponse, Refusal> {
             Ok(GetReadingResponse { reads: 1 })
         }
     }
-
-    #[operation(id = "prelude-bench.get_status", version = 1, description = "Reports.", policy = POLICY)]
-    impl GetStatus {
+    #[dokime_runtime::message]
+    #[operation(id = "prelude-bench.get_status", version = 1, description = "Reports.", policy = POLICY, response = StatusResponse)]
+    #[derive(Clone, PartialEq)]
+    struct GetStatus {}
+    #[operation]
+    impl GetStatusHandler {
         async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
             Self
         }
-
-        async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
+        async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
             Ok(StatusResponse::ready())
         }
     }

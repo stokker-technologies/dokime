@@ -241,7 +241,7 @@ class Transport:
         await self.connect()
         import dokime
 
-        discovery = dokime.HOST_OPERATIONS
+        discovery = dokime.HOST_CATALOG
         entries = []
         keys = set()
         cursors = set()
@@ -257,11 +257,11 @@ class Transport:
                         bytes=min(self._response_limit, 4 * 1024 * 1024),
                     ),
                 )
-                used += len(page.catalog)
+                used += len(page.entries)
                 if used > 16 * 1024 * 1024:
                     raise ProtocolError("operation catalog exceeds byte limit")
                 try:
-                    batch = json.loads(page.catalog, object_pairs_hook=_object)
+                    batch = json.loads(page.entries, object_pairs_hook=_object)
                 except (ValueError, UnicodeError) as error:
                     raise ProtocolError("invalid caller operation catalog") from error
                 if not isinstance(batch, list) or len(batch) > 64 or len(entries) + len(batch) > 4096:

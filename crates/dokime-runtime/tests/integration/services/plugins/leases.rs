@@ -109,26 +109,33 @@ enum FixtureLanes {
 }
 
 macro_rules! delivery_fixture {
-    ($operation:ident, $catalog:ident, $id:literal) => {
+    ($operation:ident, $handler:ident, $catalog:ident, $id:literal) => {
+        #[harmos::message]
+        #[derive(Clone, PartialEq)]
         struct $operation {
+            signal: ExecutionSignal,
+        }
+        struct $handler {
             sidecar: Arc<RecordingSidecar>,
         }
         impl harmos::operations::OperationDeclaration for $operation {
-            type Request = ExecutionSignal;
+            type Input = harmos::operations::NoStream;
+            type Output = harmos::operations::NoStream;
+            const VERSION: u32 = <Signal<()> as harmos::operations::OperationDeclaration>::VERSION;
             type Response = SignalReply;
             const ID: &'static str = $id;
             const VISIBILITY: harmos::operations::Visibility = <Signal<()> as harmos::operations::OperationDeclaration>::VISIBILITY;
             const POLICY: harmos::operations::OperationPolicy = <Signal<()> as harmos::operations::OperationDeclaration>::POLICY;
         }
-        impl harmos::operations::WireOperation for $operation {
-            const VERSION: u32 = <Signal<()> as harmos::operations::WireOperation>::VERSION;
-        }
         #[harmos::catalog]
         enum $catalog {
-            Deliver($operation),
+            Deliver($handler),
         }
-        impl harmos::operations::Operation for $operation {
-            type Declaration = Self;
+        impl harmos::operations::Declares for $handler {
+            type Declaration = $operation;
+        }
+        impl harmos::operations::Operation for $handler {
+            type Declaration = $operation;
             type Resources = RecordingSidecar;
             type Endpoints = ();
             type Error = harmos::Error;
@@ -137,17 +144,17 @@ macro_rules! delivery_fixture {
                 Ok(Self { sidecar })
             }
             async fn run<'ctx>(
-                &mut self, _: Self::Context<'ctx>, request: &mut ExecutionSignal, _: &mut (),
+                &mut self, _: Self::Context<'ctx>, request: &mut $operation, _: &mut (),
             ) -> harmos::Result<harmos::operations::Response<SignalReply>> {
-                self.sidecar.calls.lock().unwrap().push(($id.into(), request.encode_to_vec()));
+                self.sidecar.calls.lock().unwrap().push(($id.into(), request.signal.encode_to_vec()));
                 Ok(harmos::operations::Response::new(SignalReply::default()))
             }
         }
     };
 }
-delivery_fixture!(GatewayDelivery, GatewaySignals, "fixture.template.2.signal");
-delivery_fixture!(BenchDelivery, BenchSignals, "fixture.template.0.signal");
-delivery_fixture!(ProbeDelivery, ProbeSignals, "fixture.template.1.signal");
+delivery_fixture!(GatewayDelivery, GatewayDeliveryHandler, GatewaySignals, "fixture.template.2.signal");
+delivery_fixture!(BenchDelivery, BenchDeliveryHandler, BenchSignals, "fixture.template.0.signal");
+delivery_fixture!(ProbeDelivery, ProbeDeliveryHandler, ProbeSignals, "fixture.template.1.signal");
 
 fn register_sidecars(handle: &dokime_runtime::RuntimeHandle, sidecars: &[(&str, &Arc<RecordingSidecar>)]) {
     for (source, sidecar) in sidecars {

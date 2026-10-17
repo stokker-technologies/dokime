@@ -645,6 +645,7 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 mod tests {
     use super::delivery_scope;
     use dokime_domain::model::execution::EvidenceOrigin;
+    use dokime_domain::model::execution::RecordScope;
     use dokime_domain::model::identity::TestExecutionId;
 
     #[test]

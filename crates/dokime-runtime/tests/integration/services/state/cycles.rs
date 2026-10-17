@@ -18,13 +18,14 @@ use std::collections::BTreeMap;
 use harmos::state::Transaction;
 // Local Imports
 use dokime_domain::model;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, SuiteSet, TestCase, TestCaseTemplate, TestSuite};
 use dokime_runtime::domains::TestSuiteDefinition;
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{
     AppendCycle, InvalidateExecutions, MarkRuntimeStarted, RecoverInterruptedCycles, RunProvider, UpsertScopedParameter,
 };
-use dokime_runtime::{CaseId, CommandId, Identifier, Metadata, TemplateId, TestCycleId, Timestamp, Value};
+use dokime_runtime::{CaseId, Identifier, Metadata, TemplateId, TestCycleId, Timestamp, Value};
 use {
     dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::ExecutionStatus,
     dokime_domain::model::execution::result::ResultStatus, dokime_domain::model::execution::result::ResultSummary,
@@ -91,8 +92,11 @@ fn admitted() -> (RuntimeState, TestCycleId) {
     let template: TestCaseTemplate = serde_json::from_value(serde_json::json!({
         "test_case_template_id": TemplateId::from_seed("snapshot.template"),
         "metadata": metadata("snapshot.template"), "parameters": [],
-        "criteria": [{"criterion_id": dokime_runtime::CriterionId::from_seed("criterion"), "metadata": metadata("criterion"), "expected": Value::from(42_i64)}]
-    })).unwrap();
+        "criteria": [{"criterion_id": dokime_runtime::CriterionId::from_seed("criterion"),
+            "metadata": metadata("criterion"),
+            "expected": Value::from(42_i64)}]
+    }))
+    .unwrap();
     let suite = TestSuite {
         metadata: metadata("snapshot.suite"),
         tags: vec![],
@@ -204,9 +208,21 @@ fn dispatch_request(state: &mut RuntimeState, id: &CommandId) {
 fn provider_outcome(execution: &TestExecution) -> dokime_runtime::transport::ProviderCycleOutcome {
     serde_json::from_value(serde_json::json!({
         "status": "passed", "dependency_imports": [],
-        "provider": { "status": "ready", "domain_registration_count": 1, "test_suite_count": 1, "test_suite_identifiers": [], "error": null },
+        "provider": { "status": "ready",
+            "domain_registration_count": 1,
+            "test_suite_count": 1,
+            "test_suite_identifiers": [],
+            "error": null },
         "executions": [{ "case_id": execution.test_case_id, "test_execution_id": execution.test_execution_id,
-            "template_identifier": "snapshot.template", "label": "snapshot", "module": "fixture", "status": "passed", "phases": [], "records": [], "telemetry": [], "criteria": [], "failures": [] }],
+            "template_identifier": "snapshot.template",
+                "label": "snapshot",
+                "module": "fixture",
+                "status": "passed",
+                "phases": [],
+                "records": [],
+                "telemetry": [],
+                "criteria": [],
+                "failures": [] }],
         "failures": []
     }))
     .unwrap()

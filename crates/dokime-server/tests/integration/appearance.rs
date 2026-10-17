@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::support::wire::WireMessage;
 use prost::Message;
 use sha2::{Digest, Sha256};
 // Local Imports
@@ -51,7 +52,7 @@ fn failure(status: tonic::Status, code: Code, kind: model::appearance::wire::App
     assert_eq!(envelope.code, code as i32);
     assert_eq!(envelope.details[0].type_url, "type.googleapis.com/dokime.v1.AppearanceFailure");
     assert_eq!(
-        <model::appearance::wire::AppearanceFailure as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().kind,
+        <model::appearance::wire::AppearanceFailure as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().kind,
         kind
     );
 }

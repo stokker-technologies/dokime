@@ -18,7 +18,7 @@ mod upload;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::wire::WireMessage;
 use serde_json::json;
 use sha2::Digest;
 // Local Imports
@@ -156,7 +156,7 @@ fn stage_header(size_bytes: u64, sha256: String) -> Vec<u8> {
                 sha256,
             })),
         }
-        .encode_to_vec(),
+        .wire_bytes(),
     )
 }
 
@@ -179,7 +179,7 @@ fn stage(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
             })),
         };
         harness
-            .control("rpc_stream_send", generation, stream, &envelope(2, &chunk.encode_to_vec()), json!({}))
+            .control("rpc_stream_send", generation, stream, &envelope(2, &chunk.wire_bytes()), json!({}))
             .unwrap_or_else(|error| panic!("write {} failed: {error:?}", index + 1));
     }
 
@@ -254,7 +254,7 @@ async fn unary_call_bridges() {
     let reply = bridge::invoke(
         &harness.window,
         "rpc",
-        fenced(generation, &backend::GetIdentity {}.encode_to_vec()),
+        fenced(generation, &backend::GetIdentity {}.wire_bytes()),
         &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
     )
     .unwrap();
@@ -262,7 +262,7 @@ async fn unary_call_bridges() {
         panic!("a unary reply is raw bytes");
     };
     assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-    let identity = model::backend::wire::BackendIdentity::decode(&reply[8..]).unwrap();
+    let identity = model::backend::wire::BackendIdentity::from_wire(&reply[8..]).unwrap();
     assert_eq!(identity.backend_id, fixture.session.status().backend.unwrap().backend_id);
     // A typed backend status crosses unchanged.
     let missing = bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}))
@@ -296,7 +296,7 @@ fn stages_large_bundle() {
     assert_eq!(frames.len(), 2, "one reply, then the final status");
     assert_eq!(frames[0][8], FRAME_MESSAGE);
     assert_eq!(frames[1][8], FRAME_END);
-    let installation = model::plugins::wire::PluginInstallation::decode(&frames[0][9..]).expect("the reply is a PluginInstallation");
+    let installation = model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
     assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
     use tauri::Manager;
     harness.app.state::<Bridge>().cancel_owner("main");

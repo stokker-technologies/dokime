@@ -61,7 +61,7 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for DirectStreams {
 #[dokime_runtime::plugin(
     id = "sdk-streams",
     provides = (),
-    requires(dokime_runtime::harmos::operations::host::Publish),
+    requires(dokime_runtime::harmos::operations::streams::Publish),
     contributions(dokime_runtime::Evidence<Streams>),
     restart = "never", description = "Publishes through Harmos streams.")]
 impl dokime_runtime::Plugin for DirectStreams {

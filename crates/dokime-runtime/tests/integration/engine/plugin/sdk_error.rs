@@ -37,7 +37,8 @@ struct Checkpoint;
 #[dokime_runtime::record(
     id = "sdk_error.checks.observed",
     label = "Observed",
-    description = "One declared fact, published by a step and read back by a criterion — `ctx.records::<Observed>()` is the boundary this exercises."
+    description = "One declared fact, published by a step and read back by a criterion — `ctx.records::<Observed>()` is the boundary \
+        this exercises."
 )]
 #[derive(Clone, Debug)]
 struct Observed {
@@ -96,7 +97,8 @@ impl Boundary {
 
     #[dokime_runtime::step(
         label = "Read the secret and publish evidence",
-        description = "`ctx.secret` — the plugin's own `Sdk` reaches an unavailable or unknown secret exactly the way it reaches an unknown setting."
+        description = "`ctx.secret` — the plugin's own `Sdk` reaches an unavailable or unknown secret exactly the way it reaches an \
+        unknown setting."
     )]
     async fn secret(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let token = ctx.secret("token")?;
@@ -117,7 +119,9 @@ impl Boundary {
 
     #[dokime_runtime::step(
         label = "Write an empty artifact, then refuse a name that names no place",
-        description = "`ctx.artifacts().create` and the writer's `finish` — both answer `dokime_runtime::Error` directly. The empty name after it is the deliberate failure this test's diagnostic assertion reads, so this step runs before `deadline`: one terminal outcome means the run stops here and the bound below is never actually waited out."
+        description = "`ctx.artifacts().create` and the writer's `finish` — both answer `dokime_runtime::Error` directly. The empty \
+        name after it is the deliberate failure this test's diagnostic assertion reads, so this step runs before `deadline`: one \
+        terminal outcome means the run stops here and the bound below is never actually waited out."
     )]
     async fn artifact(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let writer = ctx.artifacts().create("evidence.txt")?;
@@ -128,7 +132,9 @@ impl Boundary {
 
     #[dokime_runtime::step(
         label = "Wait for a record nothing delivers",
-        description = "`.timeout(d)` answers a bare `Elapsed` per item, so reaching this plugin's `Sdk`-only error takes the same explicit step an author writes for any other type `dokime_runtime::Error` converts from with `?`. Unreached once `artifact` above has already failed the run; kept short in case that ever changes."
+        description = "`.timeout(d)` answers a bare `Elapsed` per item, so reaching this plugin's `Sdk`-only error takes the same \
+        explicit step an author writes for any other type `dokime_runtime::Error` converts from with `?`. Unreached once `artifact` \
+        above has already failed the run; kept short in case that ever changes."
     )]
     async fn deadline(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.listen::<Observed>().timeout(Duration::from_millis(50)).next().await.transpose()?;

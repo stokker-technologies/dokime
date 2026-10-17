@@ -137,7 +137,6 @@ async fn report_publication_reopens() {
                     at: storage.cursor_saved(),
                     selection: reports::selection(owner, report_id),
                     after: 0,
-                    filters: Vec::new(),
                 })
                 .await
                 .unwrap()

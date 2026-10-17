@@ -23,11 +23,12 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::storage::operations::Query;
 use harmos::storage::query::{
-    ObjectSelection, ObjectVersions, Query, QueryOutput, RecordSelection, RowSlice, Source, StreamSelection,
+    ObjectSelection, ObjectVersions, QueryArrow, RecordSelection, RowSlice, Source, StreamSelection,
     scalar::ScalarValue,
     transform::{
-        FieldPath, Transform,
+        FieldPath, FieldPathExecution, Transform,
         aggregate::{Aggregate, Measure},
         sort::{Sort, SortKey},
     },
@@ -37,11 +38,10 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::sqlite::storage::{declared, id, page, rows, write_batch};
-use dokime_domain::model;
 use dokime_runtime::storage::sqlite::Backend;
 use {
-    dokime_domain::model::telemetry::wire::TelemetrySample, dokime_runtime::SessionId, dokime_runtime::Timestamp, dokime_runtime::Value,
-    dokime_runtime::storage::telemetry::TelemetryEntry, dokime_runtime::storage::telemetry::TypedCodec,
+    dokime_domain::model::telemetry::evidence::TelemetrySample, dokime_runtime::SessionId, dokime_runtime::Timestamp,
+    dokime_runtime::Value, dokime_runtime::storage::telemetry::TelemetryEntry, dokime_runtime::storage::telemetry::TypedCodec,
 };
 
 /* === Constants === */
@@ -313,9 +313,8 @@ async fn nominal() {
     assert_eq!(decoded.sample.values.get("timestamp"), typed_entry.sample.values.get("timestamp"));
     assert_eq!(decoded.sample.storage_payload, typed_entry.sample.storage_payload);
     assert_eq!(decoded.sample.values.get("rms"), Some(&Value::Number(typed.rms)));
-    assert!(
-        matches!(decoded.sample.values.get("details"), Some(Value::Object(details)) if details.get("label") == Some(&Value::Text("meter-A".into())))
-    );
+    assert!(matches!(decoded.sample.values.get("details"), Some(Value::Object(details))
+            if details.get("label") == Some(&Value::Text("meter-A".into()))));
 
     let mut typed_query = storage
         .query(Query {
@@ -336,7 +335,7 @@ async fn nominal() {
         .unwrap();
     let mut typed_count = 0;
     while let Some(output) = typed_query.next().await.unwrap() {
-        if let QueryOutput::Batch(batch) = output {
+        if let QueryArrow::Batch(batch) = output {
             let entries = dokime_runtime::storage::telemetry::decode_batch(&codec, &batch).unwrap();
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].sample.storage_payload, typed_entry.sample.storage_payload);
@@ -378,12 +377,12 @@ async fn nominal() {
     let mut aggregates = 0;
     while let Some(output) = reader.next().await.unwrap() {
         match output {
-            QueryOutput::Schema(schema) => {
+            QueryArrow::Schema(schema) => {
                 assert!(!schema_seen);
                 assert_eq!(schema.as_schema().fields().len(), 3);
                 schema_seen = true;
             }
-            QueryOutput::Batch(batch) => {
+            QueryArrow::Batch(batch) => {
                 assert!(schema_seen);
                 assert_eq!(batch.as_record_batch().num_rows(), 1);
                 for phase in ["a", "b", "c"] {
@@ -427,7 +426,7 @@ async fn nominal() {
         .unwrap();
     let mut values = Vec::new();
     while let Some(output) = sorted.next().await.unwrap() {
-        if let QueryOutput::Batch(batch) = output {
+        if let QueryArrow::Batch(batch) = output {
             for row in 0..batch.as_record_batch().num_rows() {
                 match FieldPath::from("payload.a").value(batch.as_record_batch(), row).unwrap() {
                     ScalarValue::Float(value) => values.push(value),

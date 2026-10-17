@@ -243,8 +243,8 @@ async fn recording(
 async fn recording_refusal<O>(client: &WireClient, request: O) -> tonic::Status
 where
     O: contracts::Endpoint<Output = harmos::operations::Stream<model::media::wire::RecordingFrame>>,
-    O: harmos::Protobuf + Sync,
-    O::Response: harmos::Protobuf + harmos::MemorySize,
+    O: harmos::domain::Portable + Sync,
+    O::Response: harmos::domain::Portable + harmos::MemorySize,
 {
     match client.download::<O>(authenticated(request)).await {
         Err(status) => status,

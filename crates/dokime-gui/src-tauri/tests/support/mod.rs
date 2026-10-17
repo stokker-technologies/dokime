@@ -14,6 +14,7 @@
 pub mod artifact;
 pub mod bridge;
 pub mod server;
+pub mod wire;
 
 /* === Re-Exports === */
 

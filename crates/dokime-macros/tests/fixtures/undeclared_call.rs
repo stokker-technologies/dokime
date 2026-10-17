@@ -31,9 +31,19 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
-struct GetVoltage;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "undeclared.get_voltage", version = 1, description = "Reads.", policy = POLICY, response = ())]
+struct GetVoltage {}
 
-struct GetCurrent;
+struct GetVoltageHandler;
+
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "undeclared.get_current", version = 1, description = "Reads.", policy = POLICY, response = ())]
+struct GetCurrent {}
+
+struct GetCurrentHandler;
 
 struct Probe;
 
@@ -49,8 +59,8 @@ enum ProbeRequired {
 
 #[sdk::catalog]
 enum PluginOperations {
-    GetVoltage(GetVoltage),
-    GetCurrent(GetCurrent),
+    GetVoltage(GetVoltageHandler),
+    GetCurrent(GetCurrentHandler),
 }
 
 #[sdk::catalog]
@@ -66,45 +76,40 @@ enum PluginSuites {
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "undeclared.get_voltage", version = 1, description = "Reads.", policy = POLICY)]
-impl GetVoltage {
+#[sdk::operation]
+impl GetVoltageHandler {
     pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetVoltage) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 }
 
-#[sdk::operation(id = "undeclared.get_current", version = 1, description = "Reads.", policy = POLICY)]
-impl GetCurrent {
+#[sdk::operation]
+impl GetCurrentHandler {
     pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetCurrent) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 }
 
 #[sdk::template(id = "undeclared.checks.probe", label = "Probe", requires = ProbeRequired)]
 impl Probe {
-    async fn initialize(
-        _: &mut sdk::execution::InitializationContext<'_>,
-    ) -> Result<Self, std::convert::Infallible> {
+    async fn initialize(_: &mut sdk::execution::InitializationContext<'_>) -> Result<Self, std::convert::Infallible> {
         Ok(Self)
     }
 
     #[sdk::step(label = "Run")]
-    async fn run(
-        &mut self,
-        ctx: &mut sdk::execution::StepContext<'_>,
-    ) -> Result<(), std::convert::Infallible> {
-        let _ = ctx.call::<GetVoltage>(()).await;
+    async fn run(&mut self, ctx: &mut sdk::execution::StepContext<'_>) -> Result<(), std::convert::Infallible> {
+        let _ = ctx.call(GetVoltage {}).await;
         // Served by the plugin, and never declared here: the bound reads the
         // template's own `requires`, not the plugin's operation list.
-        let _ = ctx.call::<GetCurrent>(()).await;
+        let _ = ctx.call(GetCurrent {}).await;
 
         Ok(())
     }
@@ -144,8 +149,7 @@ impl sdk::Plugin for Plugin {
     }
 
     fn bind_operations(
-        &self,
-        table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         table.bind_operations::<PluginOperations, _>(self.resources())?;
         sdk::execution::serve::<Self, PluginSuites>(table)

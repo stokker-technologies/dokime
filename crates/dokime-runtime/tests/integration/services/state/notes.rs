@@ -19,9 +19,10 @@ use harmos::state::Transaction;
 // Local Imports
 use dokime_domain::model;
 use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{AddOperatorNote, CreateOperatorNote};
-use dokime_runtime::{CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_runtime::{CaseId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp};
 use model::execution::OperatorNote;
 use model::execution::notes::*;
 
@@ -51,17 +52,26 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
     .apply(&mut state);
     let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let case_id = dokime_runtime::model::identity::new_id::<CaseId>();
-    let cycle:CycleView=serde_json::from_value(serde_json::json!({
+    let cycle: CycleView = serde_json::from_value(serde_json::json!({
         "test_cycle_id":cycle_id,"metadata":{"identifier":"fixture.cycle","label":"Fixture"},
         "created_at":dokime_runtime::model::time::now_utc(),"updated_at":dokime_runtime::model::time::now_utc(),
         "test_executions":[{
-            "test_cycle_id": cycle_id, "test_execution_id": dokime_runtime::model::identity::new_id::<TestExecutionId>(), "test_case_id": case_id, "status":"skipped", "scope":{},
+            "test_cycle_id": cycle_id,
+                "test_execution_id": dokime_runtime::model::identity::new_id::<TestExecutionId>(),
+                "test_case_id": case_id,
+                "status":"skipped",
+                "scope":{},
             "snapshot":dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
-                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
+                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration",
+                    "test_case_id":case_id,
+                    "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),
+                    "metadata":{"identifier":"fixture.case",
+                    "label":"Case"}})).unwrap(),
                 None, Default::default(), None, Default::default(),
             ).unwrap()
         }]
-    })).unwrap();
+    }))
+    .unwrap();
     state.replace_cycle(cycle).expect("cycle projection has valid ownership");
     let owner = NoteOwner::Case { cycle_id, case_id };
     let mutation_id = dokime_runtime::model::identity::new_id::<CommandId>();

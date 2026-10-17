@@ -90,6 +90,7 @@ dokime-host = { path = "../dokime-host" }
 
 # Git
 harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 anyhow = { workspace = true }

@@ -97,8 +97,9 @@ impl Fixture {
 
     fn plan(
         &self, transforms: Vec<harmos::storage::query::transform::Transform>, slice: harmos::storage::query::RowSlice,
-    ) -> harmos::storage::query::Query {
-        use harmos::storage::query::{Query, Source, StreamSelection};
+    ) -> harmos::storage::operations::Query {
+        use harmos::storage::operations::Query;
+        use harmos::storage::query::{Source, StreamSelection};
         Query {
             at: self.storage.cursor_saved(),
             source: Source::Stream(StreamSelection {
@@ -115,13 +116,13 @@ impl Fixture {
         }
     }
 
-    async fn collect(&self, plan: harmos::storage::query::Query) -> (u64, Duration) {
-        use harmos::storage::query::QueryOutput;
+    async fn collect(&self, plan: harmos::storage::operations::Query) -> (u64, Duration) {
+        use harmos::storage::query::QueryArrow;
         let started = std::time::Instant::now();
         let mut reader = self.storage.query(plan).await.unwrap();
         let mut first = None;
         while let Some(output) = reader.next().await.unwrap() {
-            if matches!(output, QueryOutput::Batch(_)) && first.is_none() {
+            if matches!(output, QueryArrow::Batch(_)) && first.is_none() {
                 first = Some(started.elapsed());
             }
         }

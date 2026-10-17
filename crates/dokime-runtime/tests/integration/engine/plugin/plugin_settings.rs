@@ -45,8 +45,9 @@ pub struct BenchSettings {
     pub workspace: Workspace,
     pub credentials: Credentials,
 }
-
-#[dokime_runtime::section(label = "Workspace", status = GetStatus, description = "The section the card shows first, with the probe it reads beside it.")]
+#[dokime_runtime::section(label = "Workspace",
+    status = GetStatus,
+    description = "The section the card shows first, with the probe it reads beside it.")]
 pub struct Workspace {
     #[setting(label = "Workspace ID", description = "Bound For Sync.")]
     pub workspace_id: Option<String>,
@@ -62,8 +63,11 @@ pub struct Workspace {
 
     #[setting(label = "Port", discovered = DetectPort)]
     pub port: Option<String>,
-
-    #[setting(label = "Stream", discovered = DetectStream, description = "A discovered number, which is what says absence is a fact the host reports rather than one a value can be read off: the resolved values always carry a declared `0` here, so nothing about this field's value could tell a run whether anybody filled it in.")]
+    #[setting(label = "Stream",
+        discovered = DetectStream,
+        description = "A discovered number, which is what says absence is a fact the host reports rather than one a value can be \
+        read off: the resolved values always carry a declared `0` here, so nothing about this field's value could tell a run whether \
+        anybody filled it in.")]
     pub stream: Option<u32>,
 
     #[setting(label = "Archive", visible_when(upload_enabled = true))]
@@ -75,13 +79,6 @@ pub struct Credentials {
     #[setting(label = "Bearer Token", from_environment = "BENCH_TOKEN")]
     pub token: Option<Secret>,
 }
-
-#[dokime_runtime::message]
-#[derive(Clone, PartialEq)]
-pub struct GetVoltageRequest {
-    pub stream: u32,
-}
-
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct GetVoltageResponse {
@@ -108,11 +105,11 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for Bench {
 
 #[dokime_runtime::catalog]
 enum Operations {
-    GetStatus(GetStatus),
-    ListEnvironments(ListEnvironments),
-    DetectPort(DetectPort),
-    DetectStream(DetectStream),
-    GetVoltage(GetVoltage),
+    GetStatus(GetStatusHandler),
+    ListEnvironments(ListEnvironmentsHandler),
+    DetectPort(DetectPortHandler),
+    DetectStream(DetectStreamHandler),
+    GetVoltage(GetVoltageHandler),
 }
 
 #[dokime_runtime::plugin(
@@ -155,29 +152,35 @@ impl dokime_runtime::Plugin for Bench {
         Ok(())
     }
 }
-
-struct GetStatus;
-
-#[dokime_runtime::operation(id = "bench.get_status", version = 1, description = "Reports.", policy = POLICY)]
-impl GetStatus {
+struct GetStatusHandler;
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "bench.get_status", version = 1, description = "Reports.", policy = POLICY, response = StatusResponse)]
+#[derive(Clone, PartialEq)]
+struct GetStatus {}
+#[dokime_runtime::operation]
+impl GetStatusHandler {
     async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
         Ok(StatusResponse::ready())
     }
 }
-
-struct ListEnvironments;
-
-#[dokime_runtime::operation(id = "bench.list_environments", version = 1, description = "Offers.", policy = POLICY)]
-impl ListEnvironments {
+struct ListEnvironmentsHandler;
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "bench.list_environments",
+    version = 1,
+    description = "Offers.",
+    policy = POLICY,
+    response = OptionsResponse)]
+#[derive(Clone, PartialEq)]
+struct ListEnvironments {}
+#[dokime_runtime::operation]
+impl ListEnvironmentsHandler {
     async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<OptionsResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut ListEnvironments) -> Result<OptionsResponse, Refusal> {
         Ok(OptionsResponse::of([OptionProviderOption {
             value: "development".to_owned(),
             label: "Offered".to_owned(),
@@ -187,42 +190,47 @@ impl ListEnvironments {
         }]))
     }
 }
-
-struct DetectPort;
-
-#[dokime_runtime::operation(id = "bench.detect_port", version = 1, description = "Finds.", policy = POLICY)]
-impl DetectPort {
+struct DetectPortHandler;
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "bench.detect_port", version = 1, description = "Finds.", policy = POLICY, response = Discovered)]
+#[derive(Clone, PartialEq)]
+struct DetectPort {}
+#[dokime_runtime::operation]
+impl DetectPortHandler {
     async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Discovered, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut DetectPort) -> Result<Discovered, Refusal> {
         Ok(Discovered::of("/dev/bench0"))
     }
 }
-
-struct DetectStream;
-
-#[dokime_runtime::operation(id = "bench.detect_stream", version = 1, description = "Finds.", policy = POLICY)]
-impl DetectStream {
+struct DetectStreamHandler;
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "bench.detect_stream", version = 1, description = "Finds.", policy = POLICY, response = Discovered)]
+#[derive(Clone, PartialEq)]
+struct DetectStream {}
+#[dokime_runtime::operation]
+impl DetectStreamHandler {
     async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Discovered, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut DetectStream) -> Result<Discovered, Refusal> {
         Ok(Discovered::of(7_i64))
     }
 }
-
-struct GetVoltage;
-
-#[dokime_runtime::operation(id = "bench.get_voltage", version = 1, description = "Reads.", policy = POLICY)]
-impl GetVoltage {
+struct GetVoltageHandler;
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "bench.get_voltage", version = 1, description = "Reads.", policy = POLICY, response = GetVoltageResponse)]
+#[derive(Clone, PartialEq)]
+struct GetVoltage {
+    pub stream: u32,
+}
+#[dokime_runtime::operation]
+impl GetVoltageHandler {
     async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
-
-    async fn run(&mut self, _: &Supervisor, request: &GetVoltageRequest) -> Result<GetVoltageResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, request: &mut GetVoltage) -> Result<GetVoltageResponse, Refusal> {
         Ok(GetVoltageResponse { volts: f64::from(request.stream) })
     }
 }

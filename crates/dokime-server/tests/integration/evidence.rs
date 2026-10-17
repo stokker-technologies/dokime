@@ -17,6 +17,7 @@
 // Third Party Imports
 use tonic::Code;
 // Local Imports
+use crate::support::wire::WireMessage;
 use crate::{WireClient, contracts};
 use dokime_domain::model;
 use dokime_server::grpc::{Config, Server};
@@ -414,7 +415,7 @@ async fn oversized_delivery_evidence() {
         epoch: page.scanned.as_ref().unwrap().epoch.clone(),
     };
     let schema = client.unary::<contracts::evidence::GetCapturedRecordSchema>(schema_request.clone()).await.unwrap().into_inner();
-    let schema_limit = harmos::Protobuf::encoded_len(&schema) - 1;
+    let schema_limit = schema.wire_bytes().len() - 1;
     drop(client);
     normal.shutdown().await.unwrap();
     drop(handle);

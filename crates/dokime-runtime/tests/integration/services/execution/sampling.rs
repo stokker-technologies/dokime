@@ -25,11 +25,12 @@ use super::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SO
 use crate::service_support::prelude::*;
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 use dokime_runtime::runtime::progress::{LiveOperation, OperationOutcome};
 use dokime_runtime::runtime::query::RuntimeChange;
-use dokime_runtime::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
+use dokime_runtime::{Identifier, Metadata, TestCycleId, TestExecutionId};
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
 /* === Constants === */

@@ -177,19 +177,27 @@ async fn doc_example_context() -> Result<(), Box<dyn std::error::Error>> {
 fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
     use std::collections::BTreeMap;
 
-    use dokime_runtime::definition::{CaseMaterializationSelection, materialize_template_cases};
+    use dokime_runtime::definition::{
+        CaseMaterializationOptions, CaseMaterializationSelection, DEFAULT_MATERIALIZED_CASE_CAP, materialize_template_cases,
+    };
 
     let template = MatrixTemplate.to_test_case_template()?;
+    let options = || CaseMaterializationOptions {
+        max_cases: DEFAULT_MATERIALIZED_CASE_CAP,
+        force: false,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
+    };
 
     // voltage (2) × mode (2) = 4 cases, one per combination. Expansion is capped
     // at `DEFAULT_MATERIALIZED_CASE_CAP` (1000); a grid past the cap is refused
     // unless the cycle forces it.
-    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default())?;
+    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), options())?;
     assert_eq!(generated.case_count, 4);
     assert!(!generated.exceeds_default_cap);
 
     // A fresh admission creates new immutable cases, even for identical inputs.
-    let regenerated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default())?;
+    let regenerated = materialize_template_cases("fixture.registration", &template, Default::default(), options())?;
     let case_ids = |output: &dokime_runtime::definition::CaseMaterializationOutput| {
         output.test_cases.iter().map(|case| case.test_case_id.clone()).collect::<Vec<_>>()
     };
@@ -202,7 +210,7 @@ fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
         case_overrides: BTreeMap::from([("mode".to_owned(), vec!["fast".into()])]),
         ..CaseMaterializationSelection::default()
     };
-    let sliced = materialize_template_cases("fixture.registration", &template, selection, Default::default())?;
+    let sliced = materialize_template_cases("fixture.registration", &template, selection, options())?;
     assert_eq!(sliced.case_count, 2);
 
     Ok(())

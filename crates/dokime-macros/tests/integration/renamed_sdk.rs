@@ -92,27 +92,51 @@ struct RenamedSettings {
     chamber: Chamber,
 }
 
-struct GetEcho;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "renamed.get_echo", version = 1, description = "Echoes.", policy = POLICY, response = self::dokime::Payload)]
+struct GetEcho {
+    text: String,
+}
 
-struct GetStatus;
+struct GetEchoHandler;
 
-struct GetSpareEcho;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "renamed.get_status",
+    version = 1,
+    description = "Reports.",
+    policy = POLICY,
+    response = sdk::domains::StatusResponse)]
+struct GetStatus {}
 
-struct ObserverControl;
+struct GetStatusHandler;
+
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "renamed.get_spare_echo",
+    version = 1,
+    description = "Echoes too.",
+    policy = POLICY,
+    response = self::dokime::Ignored)]
+struct GetSpareEcho {
+    text: String,
+}
+
+struct GetSpareEchoHandler;
 
 /* === Enums === */
 #[sdk::catalog]
 enum Implemented {
-    GetEcho(GetEcho),
-    GetStatus(GetStatus),
-    GetSpareEcho(GetSpareEcho),
+    GetEcho(GetEchoHandler),
+    GetStatus(GetStatusHandler),
+    GetSpareEcho(GetSpareEchoHandler),
 }
 
 #[sdk::catalog]
 enum Operations {
     #[nested]
     Implemented(Implemented),
-    Observe(ObserverControl),
 }
 
 #[sdk::catalog]
@@ -134,60 +158,44 @@ pub enum Records {
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "renamed.get_echo", version = 1, description = "Echoes.", policy = POLICY)]
-impl GetEcho {
+#[sdk::operation]
+impl GetEchoHandler {
     pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(
-        &mut self, _: &sdk::Supervisor, request: &self::dokime_runtime::Payload,
-    ) -> Result<self::dokime_runtime::Payload, sdk::Refusal> {
-        Ok(self::dokime_runtime::reply(request.clone()))
+    async fn run(&mut self, _: &sdk::Supervisor, request: &mut GetEcho) -> Result<self::dokime::Payload, sdk::Refusal> {
+        Ok(self::dokime::reply(self::dokime::Payload { text: request.text.clone() }))
     }
 }
 
-#[sdk::operation(id = "renamed.get_status", version = 1, description = "Reports.", policy = POLICY)]
-impl GetStatus {
+#[sdk::operation]
+impl GetStatusHandler {
     pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<sdk::domains::StatusResponse, sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut GetStatus) -> Result<sdk::domains::StatusResponse, sdk::Refusal> {
         Ok(sdk::domains::StatusResponse::ready()
-            .field("Echo", self::dokime_runtime::reply(self::dokime_runtime::Payload { text: "author syntax survives".to_owned() }).text))
+            .field("Echo", self::dokime::reply(self::dokime::Payload { text: "author syntax survives".to_owned() }).text))
     }
 }
 
-#[sdk::operation(id = "renamed.get_spare_echo", version = 1, description = "Echoes too.", policy = POLICY)]
-impl GetSpareEcho {
+#[sdk::operation]
+impl GetSpareEchoHandler {
     pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(
-        &mut self, _: &sdk::Supervisor, request: &self::dokime_runtime::Ignored,
-    ) -> Result<self::dokime_runtime::Ignored, sdk::Refusal> {
-        Ok(request.clone())
+    async fn run(&mut self, _: &sdk::Supervisor, request: &mut GetSpareEcho) -> Result<self::dokime::Ignored, sdk::Refusal> {
+        Ok(self::dokime::Ignored { text: request.text.clone() })
     }
-}
-
-impl sdk::harmos::operations::OperationDeclaration for ObserverControl {
-    type Request = sdk::harmos::operations::observers::Control;
-    type Response = ();
-    const ID: &'static str = "renamed.observers.observe";
-    const VISIBILITY: sdk::harmos::operations::Visibility = sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = sdk::harmos::operations::observers::POLICY;
-}
-
-impl sdk::harmos::operations::WireOperation for ObserverControl {
-    const VERSION: u32 = 1;
 }
 
 #[sdk::observer(interval_ms = 10, streams(ObservationStream), activation = "demand")]
 impl Observations {
     async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<Renamed>>) -> Result<(), PublishError> {
-        let text = self::dokime_runtime::reply(self::dokime_runtime::Payload { text: "one".to_owned() });
+        let text = self::dokime::reply(self::dokime::Payload { text: "one".to_owned() });
 
         ctx.publish_on::<ObservationStream>(&Row { value: text.text.len() as i64 }).await
     }
@@ -208,7 +216,6 @@ impl sdk::harmos::operations::lifecycle::Policy for Renamed {
         sdk::Settings<RenamedSettings>
     ),
     observers = Observers,
-    observer_control = ObserverControl,
     restart = "never",
 )]
 impl sdk::Plugin for Renamed {
@@ -236,7 +243,7 @@ impl sdk::Plugin for Renamed {
 
     fn bind_operations(&self, table: &mut WireTable<sdk::Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<ObserverControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
@@ -291,10 +298,11 @@ fn alias_compiles_operations() {
     assert_eq!(<Renamed as Declared>::ID, "renamed");
     let mut served = operation_ids(<Renamed as Declared>::PROVIDES);
     served.sort_unstable();
-    assert_eq!(served, ["renamed.get_echo", "renamed.get_spare_echo", "renamed.get_status", "renamed.observers.observe",]);
+    assert_eq!(served, ["renamed.get_echo", "renamed.get_spare_echo", "renamed.get_status"]);
     let streams = <Renamed as Declared>::STREAMS.iter().map(|stream| stream.id).collect::<Vec<_>>();
     assert_eq!(streams, ["renamed.observations", "renamed.direct"]);
     assert_eq!(<Renamed as Declared>::OBSERVERS.len(), 1);
+    assert_eq!(sdk::harmos::operations::observers::contract().unwrap().operation().id.as_str(), "harmos.observe");
     let namespaces = <Renamed as Declared>::CONTRIBUTIONS.iter().map(|section| section.namespace.as_ref()).collect::<Vec<_>>();
     assert!(namespaces.contains(&"dokime.settings"), "{namespaces:?}");
 }

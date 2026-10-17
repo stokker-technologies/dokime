@@ -374,6 +374,7 @@ fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), 
 /* === Tests === */
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     fn settled_request(stopped: bool) -> (RuntimeState, CompleteRun) {
         let mut state = RuntimeState::new(crate::model::identity::new_id());

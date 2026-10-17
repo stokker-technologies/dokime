@@ -124,7 +124,7 @@ impl LeaveWatch {
         let path = ctx.parameters().path.clone();
         let watch = ctx
             .host()
-            .submit_as::<WatchFile>(WatchFile {
+            .submit(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource { payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })) }),
                 output: "logs".into(),

@@ -139,7 +139,8 @@ impl Probe {
 
     #[dokime_runtime::step(
         label = "Wait For The Observer",
-        description = "Waits until the observer has had its turn at the shared index.\nWithout it the run could end before any tick happened, and the claim this file makes about two tasks sharing one index would be asserted by a test that never exercised it."
+        description = "Waits until the observer has had its turn at the shared index.\nWithout it the run could end before any tick \
+        happened, and the claim this file makes about two tasks sharing one index would be asserted by a test that never exercised it."
     )]
     async fn settle(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         loop {

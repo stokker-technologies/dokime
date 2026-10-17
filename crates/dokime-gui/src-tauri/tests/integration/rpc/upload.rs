@@ -17,7 +17,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{MemorySize, Protobuf};
+use crate::wire::WireMessage;
+use harmos::MemorySize;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -255,7 +256,7 @@ async fn upload_sink_completes() {
     let (app, window) = app_and_window(&fixture.session);
     let generation_value = generation(&fixture.session);
 
-    let open_bytes = request_bytes(generation_value, &header(6, Some(fixture.scope.clone())).encode_to_vec());
+    let open_bytes = request_bytes(generation_value, &header(6, Some(fixture.scope.clone())).wire_bytes());
     let response = invoke(&window, "artifact_upload_open", open_bytes).expect("open admitted");
     let tauri::ipc::InvokeResponseBody::Raw(handle_bytes) = response else {
         panic!("open replies with a raw stream handle");
@@ -274,10 +275,14 @@ async fn upload_sink_completes() {
     };
     let payload = &metadata_bytes[8..];
     assert!(
-        model::content::wire::ArtifactMetadata::decoding_memory(payload).unwrap() <= MAX_FRAME_BYTES * 8,
+        <harmos::grpc::Transcoded as harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
+            harmos_sdk::grpc::DecodeInput::new(payload)
+        )
+        .unwrap()
+            <= MAX_FRAME_BYTES * 8,
         "the metadata decoding budget stays within the native transfer bound"
     );
-    let metadata = model::content::wire::ArtifactMetadata::decode(payload).unwrap();
+    let metadata = model::content::wire::ArtifactMetadata::from_wire(payload).unwrap();
     assert!(metadata.memory_size() <= MAX_FRAME_BYTES * 8, "the decoded metadata stays within the native transfer bound");
     assert_eq!(metadata.size_bytes, 6);
     assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
@@ -294,7 +299,7 @@ async fn upload_refuses_gap() {
     let (app, window) = app_and_window(&fixture.session);
     let generation_value = generation(&fixture.session);
 
-    let open_bytes = request_bytes(generation_value, &header(3, None).encode_to_vec());
+    let open_bytes = request_bytes(generation_value, &header(3, None).wire_bytes());
     let response = invoke(&window, "artifact_upload_open", open_bytes).expect("open admitted");
     let tauri::ipc::InvokeResponseBody::Raw(handle_bytes) = response else {
         panic!("open replies with a raw stream handle");
@@ -316,7 +321,7 @@ async fn upload_owner_cancels() {
     let (app, window) = app_and_window(&fixture.session);
     let generation_value = generation(&fixture.session);
 
-    let open_bytes = request_bytes(generation_value, &header(3, None).encode_to_vec());
+    let open_bytes = request_bytes(generation_value, &header(3, None).wire_bytes());
     let response = invoke(&window, "artifact_upload_open", open_bytes).expect("open admitted");
     let tauri::ipc::InvokeResponseBody::Raw(handle_bytes) = response else {
         panic!("open replies with a raw stream handle");
@@ -350,7 +355,7 @@ async fn recording_cancel_deletes() {
     };
     let before = recording_files(&recordings_dir);
 
-    invoke(&window, "recording_open", request_bytes(generation_value, &header(0, None).encode_to_vec())).expect("recording sink opens");
+    invoke(&window, "recording_open", request_bytes(generation_value, &header(0, None).wire_bytes())).expect("recording sink opens");
     invoke(&window, "recording_write", request_bytes(generation_value, b"fragment")).expect("write accepted");
 
     let mut created: Vec<_> = recording_files(&recordings_dir).difference(&before).cloned().collect();
@@ -374,7 +379,7 @@ fn upload_sink_opens() {
     let fixture = runtime.block_on(Fixture::new());
     let (app, window) = app_and_window(&fixture.session);
     let generation_value: u64 = fixture.session.status().generation.parse().unwrap();
-    let bytes = request_bytes(generation_value, &header(1, None).encode_to_vec());
+    let bytes = request_bytes(generation_value, &header(1, None).wire_bytes());
 
     let response = invoke(&window, "artifact_upload_open", bytes).expect("the upload sink opener admits the stream");
     let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {

@@ -78,13 +78,15 @@ struct StartRunResponse {
 
 #[dokime_runtime::section(
     label = "Observations",
-    description = "The token a run names its registered [`Observations`] double by, standing in for the live handle a setting cannot carry across the wire."
+    description = "The token a run names its registered [`Observations`] double by, standing in for the live handle a setting cannot \
+        carry across the wire."
 )]
 pub struct Double {
     #[setting(
         label = "Observations Token",
         default = "unregistered",
-        description = "Never read as its declared default: every run in this file names a real registered token, but a required text setting still has to declare a nonempty one to pass catalog validation."
+        description = "Never read as its declared default: every run in this file names a real registered token, but a required text \
+        setting still has to declare a nonempty one to pass catalog validation."
     )]
     pub token: String,
 }
@@ -97,11 +99,8 @@ pub struct OwnerSettings {
 struct Owner {
     device: Arc<Device>,
 }
-
-struct GetDevice(Arc<Device>);
-
-struct StartRun(Arc<Device>);
-
+struct GetDeviceHandler(Arc<Device>);
+struct StartRunHandler(Arc<Device>);
 struct Checks;
 
 struct Probe {
@@ -138,8 +137,8 @@ enum Error {
 
 #[dokime_runtime::catalog]
 enum Operations {
-    GetDevice(GetDevice),
-    StartRun(StartRun),
+    GetDevice(GetDeviceHandler),
+    StartRun(StartRunHandler),
 }
 
 #[dokime_runtime::catalog]
@@ -218,27 +217,31 @@ impl Drop for PartialInitialization {
         self.0.record("partial initialization dropped");
     }
 }
-
-#[dokime_runtime::operation(id = "resource-owner.get_device", version = 1, policy = super::native::POLICY)]
-impl GetDevice {
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "resource-owner.get_device", version = 1, policy = super::native::POLICY, response = GetDeviceResponse)]
+#[derive(Clone, PartialEq)]
+struct GetDevice {}
+#[dokime_runtime::operation]
+impl GetDeviceHandler {
     async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
         Self(device)
     }
-
-    async fn run(&mut self, ctx: &Supervisor, _: &()) -> Result<GetDeviceResponse, Refusal> {
+    async fn run(&mut self, ctx: &Supervisor, _: &mut GetDevice) -> Result<GetDeviceResponse, Refusal> {
         let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(ctx).map(|scope| scope.key().into_inner());
         self.0.observations.keys.lock().unwrap().push(key);
         Ok(self.0.describe())
     }
 }
-
-#[dokime_runtime::operation(id = "resource-owner.start_run", version = 1, policy = super::native::POLICY)]
-impl StartRun {
+#[dokime_runtime::message]
+#[dokime_runtime::operation(id = "resource-owner.start_run", version = 1, policy = super::native::POLICY, response = StartRunResponse)]
+#[derive(Clone, PartialEq)]
+struct StartRun {}
+#[dokime_runtime::operation]
+impl StartRunHandler {
     async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
         Self(device)
     }
-
-    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StartRunResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &mut StartRun) -> Result<StartRunResponse, Refusal> {
         Ok(self.0.start_run())
     }
 }
@@ -300,8 +303,8 @@ impl Checks {}
     parameters = ProbeParameters)]
 impl Probe {
     async fn initialize(parameters: &ProbeParameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        let device = ctx.call::<GetDevice>(()).await?;
-        if ctx.call::<GetDevice>(()).await?.identity != device.identity {
+        let device = ctx.call(GetDevice {}).await?;
+        if ctx.call(GetDevice {}).await?.identity != device.identity {
             return Err(Error::ResourceChanged);
         }
         let observations = double(&device.token);
@@ -316,14 +319,13 @@ impl Probe {
             std::future::pending::<()>().await;
             drop(partial);
         }
-        ctx.call::<StartRun>(()).await?;
-
+        ctx.call(StartRun {}).await?;
         Ok(Self { observations, identity: device.identity })
     }
 
     #[dokime_runtime::step(label = "Use device")]
     async fn use_device(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        if ctx.call::<GetDevice>(()).await?.identity != self.identity {
+        if ctx.call(GetDevice {}).await?.identity != self.identity {
             return Err(Error::ResourceChanged);
         }
         self.observations.record("step");
@@ -336,7 +338,8 @@ impl Probe {
 
     #[dokime_runtime::step(
         label = "Write evidence",
-        description = "Writes evidence the way a producer that never heard of Dokime does, and then rewrites it — which is the case the watch has to notice."
+        description = "Writes evidence the way a producer that never heard of Dokime does, and then rewrites it — which is the case \
+        the watch has to notice."
     )]
     async fn write_evidence(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         if !ctx.parameters().watch_directory {
@@ -352,7 +355,7 @@ impl Probe {
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        if ctx.call::<GetDevice>(()).await?.identity != self.identity {
+        if ctx.call(GetDevice {}).await?.identity != self.identity {
             return Err(Error::ResourceChanged);
         }
         tokio::task::yield_now().await;
@@ -438,8 +441,8 @@ fn answered(device: &Arc<Device>) -> Caller {
     let described = Arc::clone(device);
     let counted = Arc::clone(device);
     Caller::local(BTreeMap::from([
-        super::native::answering::<GetDevice, _>(move |()| described.describe()),
-        super::native::answering::<StartRun, _>(move |()| counted.start_run()),
+        super::native::answering::<GetDevice, _>(move |_| described.describe()),
+        super::native::answering::<StartRun, _>(move |_| counted.start_run()),
     ]))
 }
 
@@ -447,8 +450,8 @@ fn harnessed(device: &Arc<Device>) -> Harness {
     let described = Arc::clone(device);
     let counted = Arc::clone(device);
     Harness::template(TEMPLATE)
-        .answering::<GetDevice, _>(move |()| described.describe())
-        .answering::<StartRun, _>(move |()| counted.start_run())
+        .answering::<GetDevice, _>(move |_| described.describe())
+        .answering::<StartRun, _>(move |_| counted.start_run())
 }
 
 async fn opened(observations: &Arc<Observations>) -> super::native::Native<dokime_runtime::harmos::sidecar::PluginNative<Owner>> {
@@ -476,10 +479,12 @@ async fn shared_within_between() {
     let b = opened(&second).await;
     for token in ["one", "two"] {
         for native in [&a, &b] {
-            let outcome =
-                super::native::call_wire::<Run<Probe>>(&native.runtime.operations, start(token, resolved(false, false, false, false)))
-                    .await
-                    .unwrap();
+            let outcome = super::native::call_wire::<Run<Probe>>(
+                &native.runtime.operations,
+                Run::new(start(token, resolved(false, false, false, false))),
+            )
+            .await
+            .unwrap();
             assert!(outcome.passed, "{outcome:?}");
         }
     }
@@ -526,7 +531,7 @@ async fn execution_scope_calls() {
         .unwrap();
     let outcome = <dokime_runtime::transport::SidecarExecutionOutcome as harmos::Message>::decode(answer.as_slice()).unwrap();
     assert!(outcome.passed, "{outcome:?}");
-    super::native::call_wire::<GetDeviceDeclaration>(operations, ()).await.unwrap();
+    super::native::call_wire::<GetDevice>(operations, GetDevice {}).await.unwrap();
     native.retire().await;
 
     let keys = observations.keys.lock().unwrap().clone();
@@ -669,7 +674,7 @@ async fn harness_refuses_opening() {
     let device = Device::open(&registered(&observations));
     let described = Arc::clone(&device);
     let error = Harness::template("missing")
-        .answering::<GetDevice, _>(move |()| described.describe())
+        .answering::<GetDevice, _>(move |_| described.describe())
         .run::<OwnerSuites>()
         .await
         .expect_err("unknown template is refused");

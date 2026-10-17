@@ -18,8 +18,12 @@ pub(crate) mod observers {
         pub(super) value: i64,
         pub(super) index: i64,
     }
-
-    #[dokime_runtime::stream(id = "owned-stream.auxiliary", window = 64, row = Row, label = "Auxiliary", description = "One shape, two streams: each of them is a type, and neither of them is the shape, so each observer says which of them its rows are.")]
+    #[dokime_runtime::stream(id = "owned-stream.auxiliary",
+        window = 64,
+        row = Row,
+        label = "Auxiliary",
+        description = "One shape, two streams: each of them is a type, and neither of them is the shape, so each observer says which \
+        of them its rows are.")]
     pub(super) struct Auxiliary;
 
     #[dokime_runtime::stream(id = "owned-stream.measurement", window = 64, row = Row, label = "Measurement")]
@@ -137,8 +141,6 @@ static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLo
 const UNIT_NOTED: DemandKey = DemandKey::new("dokime.record", "owned.unit.noted");
 
 /* === Macros === */
-super::native::observer_control!(MeasuredObserveControl, "owned-stream");
-
 /* === Type Aliases === */
 type Publishing = Publisher<Measured>;
 
@@ -167,13 +169,15 @@ struct Resource(Arc<Probe>);
 
 #[dokime_runtime::section(
     label = "Probe",
-    description = "The token a run names its registered [`Probe`] by, and whether this attempt refuses to open — a setting travels as a serialized value, so the live handle crosses as a name and the flag crosses as itself."
+    description = "The token a run names its registered [`Probe`] by, and whether this attempt refuses to open — a setting travels \
+        as a serialized value, so the live handle crosses as a name and the flag crosses as itself."
 )]
 pub struct Probes {
     #[setting(
         label = "Probe Token",
         default = "unregistered",
-        description = "Never read as its declared default: every run in this file names a real registered token, but a required text setting still has to declare a nonempty one to pass catalog validation."
+        description = "Never read as its declared default: every run in this file names a real registered token, but a required text \
+        setting still has to declare a nonempty one to pass catalog validation."
     )]
     pub token: String,
 
@@ -261,7 +265,7 @@ enum MeasuredRecords {
 
 #[dokime_runtime::catalog]
 enum Operations {
-    Observe(MeasuredObserveControl),
+    Observe(harmos::operations::observers::Control),
 }
 
 /* === Traits === */
@@ -309,13 +313,12 @@ impl dokime_runtime::harmos::operations::lifecycle::Policy for Measured {
 #[dokime_runtime::plugin(
     id = "owned-stream",
     provides = Operations,
-    requires(dokime_runtime::harmos::operations::host::Publish),
+    requires(dokime_runtime::harmos::operations::streams::Publish),
     contributions(
         dokime_runtime::Records<MeasuredRecords, MeasuredListeners>,
         dokime_runtime::Settings<MeasuredSettings>,
     ),
     observers = MeasuredObservers,
-    observer_control = MeasuredObserveControl,
     restart = "never", description = "Owned stream fixture.")]
 impl dokime_runtime::Plugin for Measured {
     type Config = Configuration;
@@ -344,7 +347,7 @@ impl dokime_runtime::Plugin for Measured {
 
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<MeasuredListeners, _>(self.resources())?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<MeasuredObserveControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
@@ -565,7 +568,7 @@ async fn listener_publishes_asked() {
     let mut invocation = runtime
         .operations
         .submit_encoded(
-            <NotedDeclaration as dokime_runtime::harmos::operations::OperationDeclaration>::ID,
+            <dokime_runtime::plugin::Heard<Noted> as dokime_runtime::harmos::operations::OperationDeclaration>::ID,
             connected("STALL").encode_to_vec(),
         )
         .unwrap();
@@ -576,9 +579,8 @@ async fn listener_publishes_asked() {
     invocation.cancel();
     let cancelled = invocation.await;
     assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
-
-    super::native::call_wire::<NotedDeclaration>(&runtime.operations, connected("SN-7")).await.unwrap();
-    super::native::call_wire::<EchoedDeclaration>(&runtime.operations, connected("SN-7")).await.unwrap();
+    super::native::call_wire(&runtime.operations, dokime_runtime::plugin::Heard::<Noted>::new(connected("SN-7"))).await.unwrap();
+    super::native::call_wire(&runtime.operations, dokime_runtime::plugin::Heard::<Echoed>::new(connected("SN-7"))).await.unwrap();
     if let Some(refusal) = probe.refused.lock().unwrap().clone() {
         panic!("the listener could not publish: {refusal}");
     }

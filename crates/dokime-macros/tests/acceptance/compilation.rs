@@ -185,23 +185,12 @@ use conflicting::Conflicting;
 enum Observers { First(First), Second(Second) }
 
 #[sdk::catalog]
-enum Operations { Observe(ObserverControl) }
+enum Operations {}
 
 type Observing = ObserverAttachment<(), Publisher<Shared>>;
 
 struct Shared { observers: Option<Arc<Observing>> }
-struct ObserverControl;
 
-impl sdk::harmos::operations::OperationDeclaration for ObserverControl {
-    type Request = sdk::harmos::operations::observers::Control;
-    type Response = ();
-    const ID: &'static str = "shared.observers.observe";
-    const VISIBILITY: sdk::harmos::operations::Visibility = sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = sdk::harmos::operations::observers::POLICY;
-}
-impl sdk::harmos::operations::WireOperation for ObserverControl {
-    const VERSION: u32 = 1;
-}
 
 impl sdk::harmos::operations::lifecycle::Policy for Shared {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
@@ -214,7 +203,6 @@ impl sdk::harmos::operations::lifecycle::Policy for Shared {
     requires(),
     PLUGIN_ARGUMENTS
     observers = Observers,
-    observer_control = ObserverControl,
     restart = "never",
 )]
 impl sdk::Plugin for Shared {
@@ -243,7 +231,7 @@ impl sdk::Plugin for Shared {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<ObserverControl>(table)
+            .bind(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
@@ -328,9 +316,9 @@ fn alias_inventory_declared() {
             "renamed.get_echo",
             "renamed.get_status",
             "renamed.get_spare_echo",
-            "renamed.observers.observe",
         ]
     );
+    assert_eq!(declaration.observe_contract().expect("observers serve their built-in control").operation().id.as_str(), "harmos.observe");
     assert_eq!(declaration.observers.len(), 1);
     assert_eq!(declaration.observers[0].streams, ["renamed.observations"]);
     let namespaces = declaration.sections.iter().map(|section| section.namespace.to_string()).collect::<Vec<_>>();

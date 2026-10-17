@@ -90,7 +90,13 @@ matrix! {
             sequence: 0,
         },
     };
-    "/harmos.host.v1.Host/Operations", unary, harmos::operations::host::Operations;
+    "/harmos.host.v1.Host/Catalog", unary, harmos::operations::host::Catalog = harmos::operations::host::Catalog {
+        kind: harmos::operations::host::CatalogKind::Operations,
+        schema: None,
+        after: None,
+        rows: None,
+        bytes: None,
+    };
     "/dokime.v1.Content/FollowExecutionFile", download, contracts::content::FollowExecutionFile;
     "/dokime.v1.Appearance/GetAppearance", unary, contracts::appearance::GetAppearance;
     "/dokime.v1.Backend/CollectDiagnostics", download, contracts::backend::CollectDiagnostics;
@@ -294,13 +300,13 @@ fn cases() -> impl Iterator<Item = &'static Case> {
 
 fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
 where
-    O: harmos::operations::OperationDeclaration + harmos::Protobuf + Default,
-    O::Response: harmos::Protobuf + harmos::MemorySize,
+    O: harmos::operations::OperationDeclaration + harmos::domain::Portable + Default,
+    O::Response: harmos::domain::Portable + harmos::MemorySize,
 {
     Box::pin(async move {
         use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec = Codec::<O::Response, harmos::operations::Response<O>>::new(
+        let codec = Codec::<harmos::grpc::Transcoded, O::Response, harmos::operations::Response<O>>::new(
             DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
             EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
         )

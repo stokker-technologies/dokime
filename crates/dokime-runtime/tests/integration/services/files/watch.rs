@@ -24,6 +24,7 @@ use std::time::SystemTime;
 // Local Imports
 use super::*;
 use dokime_domain::model;
+use dokime_domain::operations::files::FileWatch;
 use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
@@ -396,7 +397,7 @@ async fn watch_file_matchers() {
         }],
         markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
     };
-    let watch = bench.handle.operations().submit_as::<WatchFile>(request).unwrap();
+    let watch = bench.handle.operations().submit(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
     // TODO(source-hook): the WatchFile operation signals no readiness once it tails the file; this sleep stands in for it.

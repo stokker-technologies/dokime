@@ -60,7 +60,6 @@ async fn kill_recovers_cycle() {
             at: runtime.storage().cursor_saved(),
             key: None,
             versions: harmos::storage::query::ObjectVersions::Latest,
-            filters: Vec::new(),
         })
         .await
         .unwrap()

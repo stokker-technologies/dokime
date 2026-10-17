@@ -19,8 +19,8 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::*;
+use dokime_domain::model::content::wire;
 use dokime_domain::model::execution::request::RunPhase;
-use dokime_domain::operations::content as wire;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::TestExecution};

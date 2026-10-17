@@ -292,8 +292,8 @@ impl FixtureUnary for runtime::GetHealth {
 impl<O> tonic::server::UnaryService<harmos::operations::StreamItem<O>> for Unary<O>
 where
     O: FixtureUnary,
-    O: harmos::Protobuf + harmos::MemorySize,
-    O::Response: harmos::Protobuf,
+    O: harmos::domain::Portable + harmos::MemorySize,
+    O::Response: harmos::domain::Portable,
 {
     type Response = harmos::operations::Response<O::Response>;
     type Future = FixtureFuture<Response<Self::Response>>;
@@ -476,10 +476,11 @@ impl tonic::codegen::Service<HttpRequest> for RuntimeService {
     }
 }
 
-fn wire_codec<D, E>() -> harmos::grpc::Codec<D, E>
+fn wire_codec<D, E>() -> harmos::grpc::Codec<harmos::grpc::Transcoded, D, E>
 where
-    D: harmos::Protobuf + harmos::MemorySize + 'static,
-    E: harmos::grpc::Encode,
+    harmos::grpc::Transcoded: harmos::grpc::Wire<D>,
+    D: harmos::MemorySize + Send + 'static,
+    E: harmos::grpc::Encode<harmos::grpc::Transcoded>,
 {
     let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
     harmos::grpc::Codec::new(
@@ -492,8 +493,8 @@ where
 async fn serve_unary<O>(service: Service, request: HttpRequest) -> HttpResponse
 where
     O: FixtureUnary,
-    O: harmos::Protobuf + harmos::MemorySize,
-    O::Response: harmos::Protobuf,
+    O: harmos::domain::Portable + harmos::MemorySize,
+    O::Response: harmos::domain::Portable,
 {
     wire_codec::<O, harmos::operations::Response<O::Response>>()
         .server()

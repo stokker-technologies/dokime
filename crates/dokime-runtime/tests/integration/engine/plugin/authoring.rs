@@ -472,9 +472,19 @@ fn template_declaration_declares() {
     // A template that declares no document contributes none.
     assert!(declaration.document.is_none());
     assert_eq!(
-        materialize_template_cases("fixture.registration", &declaration, Default::default(), Default::default())
-            .expect("the declaration generates cases")
-            .case_count,
+        materialize_template_cases(
+            "fixture.registration",
+            &declaration,
+            Default::default(),
+            dokime_runtime::definition::CaseMaterializationOptions {
+                max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+                force: false,
+                registration_id: dokime_runtime::model::identity::new_id(),
+                first_label_number: 1
+            }
+        )
+        .expect("the declaration generates cases")
+        .case_count,
         1
     );
 }

@@ -23,9 +23,9 @@
 use super::*;
 use criterion::{BenchmarkId, Throughput};
 use harmos::storage::query::{
-    QueryOutput, RowSlice,
+    QueryArrow, RowSlice,
     transform::{
-        FieldPath, Transform,
+        FieldPath, FieldPathExecution, Transform,
         aggregate::{Aggregate, Measure},
         downsample::{Algorithm, Downsample},
         histogram::Histogram,
@@ -98,7 +98,7 @@ async fn assert_rms(fixture: &Fixture) {
     let mut reader = fixture.storage.query(fixture.plan(vec![rms()], RowSlice::default())).await.unwrap();
     let mut actual = None;
     while let Some(output) = reader.next().await.unwrap() {
-        if let QueryOutput::Batch(batch) = output {
+        if let QueryArrow::Batch(batch) = output {
             actual = Some(FieldPath::from("rms").value(batch.as_record_batch(), 0).unwrap());
         }
     }

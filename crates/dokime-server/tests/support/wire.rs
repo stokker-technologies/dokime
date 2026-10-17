@@ -74,6 +74,25 @@ pub struct Gate {
 /* === Enums === */
 
 /* === Traits === */
+/// The protobuf form a typed message takes on the gRPC wire, for stories that
+/// build or read raw frames.
+pub trait WireMessage: Sized {
+    fn wire_bytes(&self) -> Vec<u8>;
+
+    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError>;
+}
+
+impl<T: harmos::domain::Portable> WireMessage for T {
+    fn wire_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(self, &mut bytes).expect("a story message transcodes");
+        bytes
+    }
+
+    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
+        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::decode(harmos_sdk::grpc::DecodeInput::new(bytes))
+    }
+}
 
 /* === Implementations === */
 impl WireClient {
@@ -96,10 +115,11 @@ impl WireClient {
         self
     }
 
-    pub fn codec<D, E>(&self) -> Result<harmos::grpc::Codec<D, harmos::operations::Response<E>>, tonic::Status>
+    pub fn codec<D, E>(&self) -> Result<harmos::grpc::Codec<harmos::grpc::Transcoded, D, harmos::operations::Response<E>>, tonic::Status>
     where
-        D: harmos::Protobuf + harmos::MemorySize + 'static,
-        E: harmos::Protobuf + Send + Sync + 'static,
+        harmos::grpc::Transcoded: harmos::grpc::Wire<D> + harmos::grpc::Wire<E>,
+        D: harmos::MemorySize + Send + 'static,
+        E: Send + Sync + 'static,
     {
         use std::num::NonZeroUsize;
         harmos::grpc::Codec::new(
@@ -125,8 +145,8 @@ impl WireClient {
     pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O>) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::Protobuf + Sync,
-        O::Response: harmos::Protobuf + harmos::MemorySize,
+        O: harmos::domain::Portable + Sync,
+        O::Response: harmos::domain::Portable + harmos::MemorySize,
     {
         let request = request.into_request().map(harmos::operations::Response::new);
         let codec = self.codec::<O::Response, O>()?;
@@ -142,8 +162,8 @@ impl WireClient {
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::Protobuf + harmos::schema::Described + Sync,
-        O::Response: harmos::Protobuf + harmos::MemorySize,
+        O: harmos::domain::Portable + harmos::schema::Described + Sync,
+        O::Response: harmos::domain::Portable + harmos::MemorySize,
         E: harmos::schema::Described,
     {
         use prost::encoding::{DecodeContext, WireType, decode_key, encode_key, encode_varint, skip_field};
@@ -153,7 +173,7 @@ impl WireClient {
             .expect("canonical request declares the enum field")
             .tag;
         let request = request.map(|message| {
-            let original = harmos::Protobuf::encode_to_vec(&message);
+            let original = message.wire_bytes();
             let mut remaining = original.as_slice();
             let mut bytes = Vec::new();
             // Replace The Entire Enum Field So No Valid Variant Masks The Refusal.
@@ -193,9 +213,9 @@ impl WireClient {
     ) -> Result<tonic::Response<WireStream<<O::Output as harmos::operations::Direction>::Item>>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::Protobuf + Sync,
-        O::Response: harmos::Protobuf + harmos::MemorySize,
-        <O::Output as harmos::operations::Direction>::Item: harmos::Protobuf + harmos::MemorySize,
+        O: harmos::domain::Portable + Sync,
+        O::Response: harmos::domain::Portable + harmos::MemorySize,
+        <O::Output as harmos::operations::Direction>::Item: harmos::domain::Portable + harmos::MemorySize,
     {
         use futures_util::StreamExt;
         use harmos::grpc::OutputEnvelope;
@@ -231,9 +251,9 @@ impl WireClient {
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::Protobuf + Sync + Default,
-        O::Response: harmos::Protobuf + harmos::MemorySize,
-        <O::Input as harmos::operations::Direction>::Item: harmos::Protobuf + Sync,
+        O: harmos::domain::Portable + Sync + Default,
+        O::Response: harmos::domain::Portable + harmos::MemorySize,
+        <O::Input as harmos::operations::Direction>::Item: harmos::domain::Portable + Sync,
     {
         use futures_util::StreamExt;
         use harmos::grpc::InputEnvelope;

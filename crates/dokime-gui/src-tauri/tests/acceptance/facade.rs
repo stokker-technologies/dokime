@@ -17,7 +17,7 @@
 // Standard Library Imports
 use std::process::{Command, Stdio};
 // Third Party Imports
-use harmos::Protobuf;
+use crate::support::wire::WireMessage;
 use serde_json::json;
 // Local Imports
 use crate::support::bridge::{Harness, Local};
@@ -80,7 +80,7 @@ async fn typescript_facade_bridge() {
             }
             // These fixtures exercise TS-generated message semantics against canonical Harmos types.
             "fixture_value" => {
-                let value = model::values::wire::Value::decode(bytes).unwrap();
+                let value = model::values::wire::Value::from_wire(bytes).unwrap();
                 assert_eq!(value.nodes.len(), 5);
                 let Some(model::values::wire::ValueKind::Object(fields)) = &value.nodes[0].kind else {
                     panic!("the fixture value has an object root");
@@ -93,14 +93,14 @@ async fn typescript_facade_bridge() {
                 assert!(matches!(value.nodes[2].kind, Some(model::values::wire::ValueKind::Integer(i64::MAX))));
                 assert!(matches!(value.nodes[3].kind, Some(model::values::wire::ValueKind::Null)));
                 assert!(value.nodes[4].kind.is_none());
-                Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))
+                Local::Reply(json!({ "bytes": base64(&value.wire_bytes()) }))
             }
             "fixture_admission" => {
-                let value = model::execution::wire::Admission::decode(bytes).unwrap();
+                let value = model::execution::wire::Admission::from_wire(bytes).unwrap();
                 assert_eq!(value.cursor.as_ref().unwrap().position, u64::MAX);
                 assert_eq!(value.accepted_at.as_ref().unwrap().seconds, -1);
                 assert_eq!(value.accepted_at.as_ref().unwrap().nanos, 999_999_999);
-                Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))
+                Local::Reply(json!({ "bytes": base64(&value.wire_bytes()) }))
             }
             _ => Local::Dispatch,
         },

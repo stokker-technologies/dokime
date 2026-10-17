@@ -29,8 +29,9 @@ use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::{CommandId, TestCycleId, TestExecutionId, Value};
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::{Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext, transactions::CycleDefinition};
+use dokime_runtime::{TestCycleId, TestExecutionId, Value};
 
 /* === Constants === */
 
@@ -114,7 +115,7 @@ async fn materialization(concurrency: usize, duration: f64) -> Duration {
     let at = runtime.storage().flush().await.unwrap();
     let materialize = MaterializeReport { subject: ReportSubject::Execution(execution.to_string()), at };
     let started = Instant::now();
-    let report = runtime.operations().call_as::<MaterializeReport>(materialize).await.unwrap();
+    let report = runtime.operations().call(materialize).await.unwrap();
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
     let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();

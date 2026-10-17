@@ -20,7 +20,6 @@ version = { workspace = true }
 [features]
 default = ["updater"]
 updater = ["dep:tauri-plugin-updater"]
-custom-protocol = ["tauri/custom-protocol"]
 # Keep a Windows console attached for `tauri dev`; installer builds of any
 # profile leave it off so the desktop never opens a terminal window.
 console = []

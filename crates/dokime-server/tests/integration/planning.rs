@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::support::wire::WireMessage;
 use prost::Message;
 // Local Imports
 use super::*;
@@ -88,7 +89,7 @@ async fn assert_no_cases(owner: &Runtime) {
 
 fn error_code(status: &tonic::Status) -> String {
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    <model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().code
+    <model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().code
 }
 
 #[tokio::test]

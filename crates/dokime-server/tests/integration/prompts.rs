@@ -15,6 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
+use crate::support::wire::WireMessage;
 use prost::Message;
 // Local Imports
 use super::*;
@@ -149,9 +150,7 @@ async fn prompt_answers_identity() {
     assert_eq!(bad.code(), Code::InvalidArgument);
     let envelope = tonic_types::Status::decode(bad.details()).unwrap();
     assert_eq!(envelope.details[0].type_url, "type.googleapis.com/dokime.v1.Rejection");
-    assert!(
-        !<model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().code.is_empty()
-    );
+    assert!(!<model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().code.is_empty());
     assert!(handle.prompt_response(&ids[0]).await.is_none());
     let receipt = client.unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX))).await.unwrap().into_inner();
     assert_eq!(receipt.prompt_id, ids[0].to_string());
@@ -256,7 +255,7 @@ async fn prompt_condition_commit() {
     assert_eq!(rejected.code(), Code::FailedPrecondition);
     let envelope = tonic_types::Status::decode(rejected.details()).unwrap();
     assert_eq!(
-        <model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().code,
+        <model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap().code,
         "prompt_condition_not_satisfied"
     );
     assert!(handle.prompt_response(&id).await.is_none());

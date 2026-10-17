@@ -30,6 +30,7 @@ pub(crate) mod documents_execution;
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
+use crate::support::wire::WireMessage;
 use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
@@ -765,7 +766,7 @@ async fn read_role_admit() {
     assert_eq!(envelope.message, failure.message());
     assert_eq!(envelope.details.len(), 1);
     assert_eq!(envelope.details[0].type_url, "type.googleapis.com/dokime.v1.Rejection");
-    let rejection = <model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap();
+    let rejection = <model::execution::wire::Rejection as WireMessage>::from_wire(envelope.details[0].value.as_slice()).unwrap();
     assert_eq!(rejection.code, "suite_not_found");
     assert_eq!(rejection.message, failure.message());
     assert!(

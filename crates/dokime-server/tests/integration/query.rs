@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::support::wire::WireMessage;
 
 // Local Imports
 use super::*;
@@ -175,7 +176,7 @@ async fn detailed_status_directory() {
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
     let detail = envelope.details.first().expect("the mapper includes a detailed error");
     assert_eq!(detail.type_url, "type.googleapis.com/dokime.v1.CapturedRecordError");
-    let detail = <model::evidence::wire::CapturedRecordError as harmos::Protobuf>::decode(detail.value.as_slice()).unwrap();
+    let detail = <model::evidence::wire::CapturedRecordError as WireMessage>::from_wire(detail.value.as_slice()).unwrap();
     assert!(detail.message.contains("evidence"));
     assert!(!detail.message.contains(&home), "a wire diagnostic is redacted: {}", detail.message);
     drop(client);

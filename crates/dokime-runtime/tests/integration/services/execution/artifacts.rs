@@ -87,7 +87,7 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
     }
 
     fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
-        self.workflow.signal(signal)
+        Box::pin(async move { self.workflow.signal(signal) })
     }
 
     fn take_local_samples(&self, token: &str) -> Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> {

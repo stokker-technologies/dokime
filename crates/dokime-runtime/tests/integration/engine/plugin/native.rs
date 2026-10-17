@@ -27,13 +27,9 @@ use harmos::sidecar::{Attach, Notice, Supervised};
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::transport::{
-    AskOperator, EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence,
-    StepAdmission,
+    EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, StepAdmission,
 };
-use {
-    dokime_runtime::records::PublishRecord, dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest,
-};
-
+use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
 /* === Constants === */
 const BOUND: Duration = Duration::from_secs(5);
 const SDK_BYTES: usize = 4096;
@@ -48,26 +44,6 @@ pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operation
 };
 
 /* === Macros === */
-macro_rules! observer_control {
-    ($observe:ident, $owner:literal) => {
-        struct $observe;
-
-        impl dokime_runtime::harmos::operations::OperationDeclaration for $observe {
-            type Request = dokime_runtime::harmos::operations::observers::Control;
-            type Response = ();
-            const ID: &'static str = concat!($owner, ".observers.observe");
-            const VISIBILITY: dokime_runtime::harmos::operations::Visibility = dokime_runtime::harmos::operations::Visibility::Host;
-            const REPLAY: dokime_runtime::harmos::operations::ReplaySafety = dokime_runtime::harmos::operations::ReplaySafety::Idempotent;
-            const POLICY: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::observers::POLICY;
-        }
-
-        impl dokime_runtime::harmos::operations::WireOperation for $observe {
-            const VERSION: u32 = 1;
-        }
-    };
-}
-pub(super) use observer_control;
-
 /* === Type Aliases === */
 type PreparedCall<'a> = std::pin::Pin<Box<dyn Future<Output = harmos::Result<Box<dyn PublicationCall>>> + Send + 'a>>;
 
@@ -155,7 +131,6 @@ impl<A: Attach> Native<A> {
             lifecycle: attach.sdk_lifecycle().unwrap(),
             streams: attach.publications(),
             observers: attach.observers(),
-            observer_control: attach.observer_control().unwrap(),
             listeners: attach.listener_declarations().unwrap().unwrap_or_default(),
             ..Default::default()
         };
@@ -319,7 +294,7 @@ trait PublicationResident: Send + Sync {
 
 trait PublicationCall: Send {
     fn run<'a>(
-        &'a mut self, context: harmos::operations::Context<'a>, request: &'a mut harmos::operations::host::Publication,
+        &'a mut self, context: harmos::operations::Context<'a>, request: &'a mut harmos::operations::streams::Publish,
     ) -> std::pin::Pin<Box<dyn Future<Output = harmos::Result<()>> + Send + 'a>>;
 }
 
@@ -329,11 +304,11 @@ where
             Context<'a> = harmos::operations::Context<'a>,
             Endpoints = (),
             Error = harmos::Error,
-            Declaration = harmos::operations::host::Publish,
+            Declaration = harmos::operations::streams::Publish,
         >,
 {
     fn run<'a>(
-        &'a mut self, context: harmos::operations::Context<'a>, request: &'a mut harmos::operations::host::Publication,
+        &'a mut self, context: harmos::operations::Context<'a>, request: &'a mut harmos::operations::streams::Publish,
     ) -> std::pin::Pin<Box<dyn Future<Output = harmos::Result<()>> + Send + 'a>> {
         Box::pin(async move { harmos::operations::Operation::run(self, context, request, &mut ()).await.map(|_| ()) })
     }
@@ -376,11 +351,11 @@ struct PublicationInvocation {
 }
 
 impl harmos::operations::Declares for PublicationInvocation {
-    type Declaration = harmos::operations::host::Publish;
+    type Declaration = harmos::operations::streams::Publish;
 }
 
 impl harmos::operations::Operation for PublicationInvocation {
-    type Declaration = harmos::operations::host::Publish;
+    type Declaration = harmos::operations::streams::Publish;
     type Resources = Publications;
     type Error = harmos::Error;
     type Context<'a> = harmos::operations::Context<'a>;
@@ -391,7 +366,7 @@ impl harmos::operations::Operation for PublicationInvocation {
     }
 
     async fn run<'ctx>(
-        &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::host::Publication, _: &mut (),
+        &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         let scope = context
             .caller_scope()
@@ -445,11 +420,11 @@ impl HostLog {
 }
 
 impl harmos::operations::Declares for Filing {
-    type Declaration = PublishRecord;
+    type Declaration = RecordPublication;
 }
 
 impl harmos::operations::Operation for Filing {
-    type Declaration = PublishRecord;
+    type Declaration = RecordPublication;
     type Resources = HostLog;
     type Error = harmos::Error;
     type Context<'a> = harmos::operations::Context<'a>;
@@ -474,11 +449,11 @@ impl harmos::operations::Operation for Filing {
 }
 
 impl harmos::operations::Declares for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
 }
 
 impl harmos::operations::Operation for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
     type Resources = HostLog;
     type Error = harmos::Error;
     type Context<'a> = harmos::operations::Context<'a>;
@@ -509,11 +484,11 @@ impl harmos::operations::Operation for Evidence {
 }
 
 impl harmos::operations::Declares for Question {
-    type Declaration = AskOperator;
+    type Declaration = OperatorQuestion;
 }
 
 impl harmos::operations::Operation for Question {
-    type Declaration = AskOperator;
+    type Declaration = OperatorQuestion;
     type Resources = ();
     type Error = harmos::Error;
     type Context<'a> = harmos::operations::Context<'a>;
@@ -531,11 +506,11 @@ impl harmos::operations::Operation for Question {
 }
 
 impl harmos::operations::Declares for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
 }
 
 impl harmos::operations::Operation for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
     type Resources = ();
     type Error = harmos::Error;
     type Context<'a> = harmos::operations::Context<'a>;
@@ -577,11 +552,10 @@ where
 {
     harmos::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
 }
-
-pub(super) async fn call_wire<O>(operations: &harmos::operations::OperationManager, request: O::Request) -> harmos::Result<O::Response>
+pub(super) async fn call_wire<O>(operations: &harmos::operations::OperationManager, request: O) -> harmos::Result<O::Response>
 where
-    O: harmos::operations::WireOperation,
-    O::Request: harmos::Message,
+    O: harmos::operations::OperationDeclaration,
+    O: harmos::Message,
     O::Response: harmos::Message,
 {
     let payload = operations.call_encoded(O::ID, harmos::Message::encode_to_vec(&request)).await?;
@@ -592,14 +566,9 @@ where
 pub(super) fn answering<O, F>(answer: F) -> (String, dokime_runtime::execution::Answering)
 where
     O: harmos::operations::Declares,
-    <O::Declaration as harmos::operations::OperationDeclaration>::Request: harmos::Message,
+    O::Declaration: harmos::Message,
     <O::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
-    F: Fn(
-            <O::Declaration as harmos::operations::OperationDeclaration>::Request,
-        ) -> <O::Declaration as harmos::operations::OperationDeclaration>::Response
-        + Send
-        + Sync
-        + 'static,
+    F: Fn(O::Declaration) -> <O::Declaration as harmos::operations::OperationDeclaration>::Response + Send + Sync + 'static,
 {
     let answer = Arc::new(answer);
     let answering: dokime_runtime::execution::Answering = Arc::new(move |payload: Vec<u8>| {

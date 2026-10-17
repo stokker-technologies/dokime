@@ -119,7 +119,7 @@ run = ["{{vars.python}} ruff check packages/dokime", "{{vars.python}} ruff check
 [tasks."lint:rust"]
 description = "Lint Rust"
 depends = ["prepare:report"]
-run = "cargo clippy --locked --workspace --all-targets -- -D warnings"
+run = "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
@@ -142,8 +142,8 @@ description = "Check Rust"
 depends = ["prepare:report"]
 run = [
   'python -c "from pathlib import Path; Path(\"target/contracts\").mkdir(parents=True, exist_ok=True)"',
-  "cargo check --locked --workspace --all-targets --message-format json-render-diagnostics > target/contracts/check.jsonl",
-  "cargo check --locked -p dokime-gui --lib --no-default-features",
+  "cargo check --locked --workspace --all-targets --all-features --message-format json-render-diagnostics > target/contracts/check.jsonl",
+  "cargo check --locked --workspace --lib --bins --no-default-features",
   "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
   "{{vars.tools}} dokime_tools.prepare.bindings --build-json target/contracts/check.jsonl --check",
   "node crates/dokime-gui/tools/bindings.mjs target/contracts/check.jsonl --check",

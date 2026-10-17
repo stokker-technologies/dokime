@@ -2175,6 +2175,7 @@ dependencies = [
  "futures-util",
  "harmos",
  "harmos-packaging",
+ "harmos-sdk",
  "prost",
  "prost-types",
  "rcgen",
