@@ -80,7 +80,7 @@ impl RuntimeHandle {
         self.owned_provider(
             test_cycle_id,
             None,
-            crate::execution::ExecutionMode::Automatic,
+            dokime_domain::model::execution::ExecutionMode::Automatic,
             context,
         )
         .await
@@ -119,7 +119,7 @@ impl RuntimeHandle {
                 .owned_provider(
                     test_cycle_id,
                     Some(execution_id),
-                    crate::execution::ExecutionMode::Automatic,
+                    dokime_domain::model::execution::ExecutionMode::Automatic,
                     context,
                 )
                 .await;
@@ -138,7 +138,7 @@ impl RuntimeHandle {
                     state.cycles.get(&test_cycle_id).and_then(|cycle| {
                         state.executions_for_cycle(cycle).find(|execution| {
                             execution.test_case_id == test_case_id
-                                && execution.status == crate::execution::ExecutionStatus::Skipped
+                                && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
                                 && execution.started_at.is_none()
                                 && execution.finished_at.is_none()
                         })
@@ -159,7 +159,7 @@ impl RuntimeHandle {
         };
         self.run_execution(
             execution_id,
-            crate::execution::ExecutionMode::Automatic,
+            dokime_domain::model::execution::ExecutionMode::Automatic,
             context,
         )
         .await
@@ -168,7 +168,7 @@ impl RuntimeHandle {
     pub async fn run_execution(
         &self,
         test_execution_id: TestExecutionId,
-        mode: crate::execution::ExecutionMode,
+        mode: dokime_domain::model::execution::ExecutionMode,
         context: CommandContext,
     ) -> CommandReceipt {
         let cycle_id = self
@@ -213,7 +213,7 @@ impl RuntimeHandle {
         &self,
         cycle: TestCycleId,
         execution: Option<TestExecutionId>,
-        mode: crate::execution::ExecutionMode,
+        mode: dokime_domain::model::execution::ExecutionMode,
         context: CommandContext,
     ) -> CommandReceipt {
         if self.is_shutting_down() {
@@ -264,7 +264,7 @@ impl RuntimeHandle {
         &self,
         test_cycle_id: TestCycleId,
         test_execution_id: Option<TestExecutionId>,
-        mode: crate::execution::ExecutionMode,
+        mode: dokime_domain::model::execution::ExecutionMode,
         context: CommandContext,
     ) -> CommandReceipt {
         let _plugin_admission = self.plugin_admission.lock().await;

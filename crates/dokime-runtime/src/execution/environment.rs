@@ -23,7 +23,7 @@ use super::context::{
     Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext,
 };
 use super::document::DocumentIndex;
-use super::error::TerminationReason;
+use dokime_domain::model::execution::termination::TerminationReason;
 use super::evidence::ExecutionEvidence;
 use super::{CleanupContext, Context, InitializationContext, StepContext};
 use crate::artifacts::Artifacts;

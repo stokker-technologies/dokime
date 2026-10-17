@@ -24,7 +24,8 @@ use harmos::{
 // Local Imports
 use super::{native::source::Source, source::CapturedSource};
 use crate::{runtime::Error, runtime::Result};
-use crate::{execution::TestExecution, storage::Manager};
+use dokime_domain::model::execution::result::TestExecution;
+use crate::storage::Manager;
 
 /* === Constants === */
 

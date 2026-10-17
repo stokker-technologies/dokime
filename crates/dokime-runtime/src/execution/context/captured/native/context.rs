@@ -21,14 +21,16 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::appearance::Appearance;
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
-use crate::traceability::{TraceabilityEntry, TraceabilitySnapshot};
+use dokime_domain::model::traceability::TraceabilityEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::identity::TraceabilityId;
-use crate::execution::{CycleView, TestCycle};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestCycle;
 use crate::storage::objects::{case::Case, cycle::Cycle, presentation as native};
 
 /* === Constants === */

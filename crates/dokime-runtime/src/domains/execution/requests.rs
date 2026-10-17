@@ -12,7 +12,9 @@
 /* === Re-Exports === */
 pub use crate::runtime::storage::requests::{AttemptClaim, RunReceipt};
 pub use crate::transactions::provider::request::{RunPhase, RunSummary};
-pub use crate::execution::request::{StepCommand, StepCommandPhase, StepCommandReceipt};
+pub use dokime_domain::model::execution::request::StepCommand;
+pub use dokime_domain::model::execution::request::StepCommandPhase;
+pub use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Imports === */
 // Standard Library Imports
@@ -40,8 +42,8 @@ impl crate::RuntimeHandle {
         request_id: &dokime_domain::model::identity::CommandId,
         command_id: dokime_domain::model::identity::CommandId,
         execution_id: dokime_domain::model::identity::TestExecutionId,
-        action: crate::execution::request::StepCommand,
-    ) -> crate::runtime::Result<crate::execution::request::StepCommandReceipt> {
+        action: dokime_domain::model::execution::request::StepCommand,
+    ) -> crate::runtime::Result<dokime_domain::model::execution::request::StepCommandReceipt> {
         let at = crate::model::time::now_utc();
         let saved = self
             .run_request(request_id)
@@ -56,7 +58,7 @@ impl crate::RuntimeHandle {
         if self.is_shutting_down() {
             return Err(command_refused("runtime is shutting down"));
         }
-        if let crate::execution::request::StepCommand::RunStep { step_id } = &action {
+        if let dokime_domain::model::execution::request::StepCommand::RunStep { step_id } = &action {
             let state = self.state_read();
             let execution = state
                 .executions

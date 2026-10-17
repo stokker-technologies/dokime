@@ -18,7 +18,11 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus, TestExecution};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
@@ -85,13 +89,13 @@ pub struct CaptureReportLifecycle {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
     pub id: uuid::Uuid,
-    pub execution: crate::execution::saved::ExecutionRevision,
+    pub execution: dokime_domain::model::execution::saved::ExecutionRevision,
 }
 
 /// The Frozen Cycle Header And Durable Member Boundary Used By Every Retry.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportFinalization {
-    pub source: crate::execution::TestCycle,
+    pub source: dokime_domain::model::execution::result::TestCycle,
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
@@ -109,8 +113,8 @@ pub struct RequestCycleReportFinalization {
 #[harmos::transaction(id = "dokime.cycle.seal", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
-    pub sealed_cycle: crate::execution::TestCycle,
-    pub sealed_executions: Vec<crate::execution::saved::ExecutionSeal>,
+    pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
+    pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
 }
 
 /* === Enums === */
@@ -455,7 +459,7 @@ mod tests {
         let mut state = RuntimeState::new(crate::model::identity::new_id());
         let id = crate::model::identity::new_id::<TestCycleId>();
         let at = crate::model::time::now_utc();
-        let source = crate::execution::TestCycle {
+        let source = dokime_domain::model::execution::result::TestCycle {
             saved: None,
             test_cycle_id: id.clone(),
             session_id: Some(state.session_id.clone()),

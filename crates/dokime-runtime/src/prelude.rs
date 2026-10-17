@@ -21,7 +21,8 @@ pub use crate::execution::{ExecutionScope, Tick};
 pub use crate::host;
 pub use crate::plugin::settings::{Discovered, NoSettings};
 pub use crate::plugin::{Configuration, Publisher, Secret};
-pub use crate::traceability::{TraceabilityRow, TraceabilitySection};
+pub use dokime_domain::model::traceability::TraceabilityRow;
+pub use dokime_domain::model::traceability::TraceabilitySection;
 pub use crate::{Plugin, Refusal, Supervisor};
 // The traits whose associated items authored code names: a record's
 // `RECORD_TYPE` in a document expression, a template's `declaration()` in a

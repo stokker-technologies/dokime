@@ -17,7 +17,8 @@ use std::cmp::Ordering;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleStatus, TestCycle};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::TestCycle;
 use crate::state::RuntimeState;
 use dokime_domain::model::time::Timestamp;
 

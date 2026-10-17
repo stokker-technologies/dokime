@@ -919,8 +919,8 @@ impl Runtime {
                 execution.finished_at.is_none()
                     && matches!(
                         execution.status,
-                        crate::execution::ExecutionStatus::Pending
-                            | crate::execution::ExecutionStatus::Running
+                        dokime_domain::model::execution::result::ExecutionStatus::Pending
+                            | dokime_domain::model::execution::result::ExecutionStatus::Running
                     )
             })
             .filter_map(|execution| execution.snapshot.plugin().cloned())

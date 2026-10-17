@@ -32,7 +32,7 @@ use crate::{
     runtime::{progress::Operation, storage::execution::ExecutionView},
 };
 use dokime_domain::model::identity::DocumentId;
-use crate::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use crate::storage::Manager;
 
 /* === Constants === */
@@ -56,7 +56,7 @@ pub(crate) async fn sealed_member(
     ctx: &Context<'_>,
     storage: &Manager,
     settings: &crate::config::StorageSettings,
-    seal: &crate::execution::saved::ExecutionSeal,
+    seal: &dokime_domain::model::execution::saved::ExecutionSeal,
     operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
     let mut source =
@@ -170,7 +170,7 @@ async fn context_telemetry(
     ctx: &Context<'_>,
     settings: &crate::config::StorageSettings,
     captured: &CapturedSource,
-    execution: &crate::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
     needs_rows: bool,
 ) -> Result<Vec<crate::telemetry::TelemetrySample>> {
     let mut telemetry = Vec::new();
@@ -212,7 +212,7 @@ async fn plots(
     ctx: &Context<'_>,
     settings: &crate::config::StorageSettings,
     captured: &CapturedSource,
-    execution: &crate::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
     records: &[dokime_domain::model::records::evidence::RecordEntry],
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
 ) -> Result<BTreeMap<String, super::value::Value>> {
@@ -263,7 +263,7 @@ async fn plots(
 fn assemble(
     final_report: bool,
     captured: &CapturedSource,
-    execution: &crate::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
     documents: BTreeMap<DocumentId, crate::document::capture::Capture>,
     plots: BTreeMap<String, super::value::Value>,
     records: Vec<dokime_domain::model::records::evidence::RecordEntry>,

@@ -23,8 +23,11 @@ use crate::grpc::{
     value::{self, canonical},
 };
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCase};
-use dokime_runtime::execution::result::ExecutionInvalidation;
-use dokime_runtime::execution::{ExecutionSnapshot, ExecutionStatus, StepStatus, TestExecution};
+use dokime_domain::model::execution::result::ExecutionInvalidation;
+use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::wire as common_wire;
 use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history as history_wire;
@@ -71,10 +74,10 @@ fn test_execution(value: TestExecution) -> Result<dokime_domain::model::history:
     Ok(dokime_domain::model::history::wire::HistoricalTestExecution {
         execution_id: value.test_execution_id.as_str().to_owned(),
         mode: match value.mode {
-            dokime_runtime::execution::ExecutionMode::Automatic => {
+            dokime_domain::model::execution::ExecutionMode::Automatic => {
                 dokime_domain::model::execution::wire::ExecutionMode::Automatic
             }
-            dokime_runtime::execution::ExecutionMode::Interactive => {
+            dokime_domain::model::execution::ExecutionMode::Interactive => {
                 dokime_domain::model::execution::wire::ExecutionMode::Interactive
             }
         },
@@ -116,7 +119,7 @@ fn test_execution(value: TestExecution) -> Result<dokime_domain::model::history:
 }
 
 fn step_attempt(
-    attempt: &dokime_runtime::execution::TestStepAttempt,
+    attempt: &dokime_domain::model::execution::result::TestStepAttempt,
 ) -> Result<dokime_domain::model::history::wire::HistoricalStepAttempt, Status> {
     let detail = attempt
         .detail
@@ -150,16 +153,16 @@ fn step_attempt(
             .map(canonical::timestamp)
             .transpose()?,
         termination: match attempt.termination {
-            dokime_runtime::execution::TerminationReason::Completed => {
+            dokime_domain::model::execution::termination::TerminationReason::Completed => {
                 dokime_domain::model::history::wire::StepTermination::Completed
             }
-            dokime_runtime::execution::TerminationReason::Failed => {
+            dokime_domain::model::execution::termination::TerminationReason::Failed => {
                 dokime_domain::model::history::wire::StepTermination::Failed
             }
-            dokime_runtime::execution::TerminationReason::Cancelled => {
+            dokime_domain::model::execution::termination::TerminationReason::Cancelled => {
                 dokime_domain::model::history::wire::StepTermination::Cancelled
             }
-            dokime_runtime::execution::TerminationReason::Interrupted => {
+            dokime_domain::model::execution::termination::TerminationReason::Interrupted => {
                 dokime_domain::model::history::wire::StepTermination::Interrupted
             }
         },
@@ -269,7 +272,7 @@ fn parameter_source(value: &ParameterSource) -> dokime_domain::model::execution:
     }
 }
 
-fn step(value: &dokime_runtime::execution::StepRecord) -> Result<dokime_domain::model::history::wire::HistoricalStep, Status> {
+fn step(value: &dokime_domain::model::execution::result::StepRecord) -> Result<dokime_domain::model::history::wire::HistoricalStep, Status> {
     let measurements = collect(value.measurements.iter().enumerate().map(
         |(ordinal, measurement)| {
             Ok(dokime_domain::model::execution::wire::StepMeasurement {
@@ -294,19 +297,19 @@ fn step(value: &dokime_runtime::execution::StepRecord) -> Result<dokime_domain::
                     criterion_id: criterion.criterion_id.as_str().to_owned(),
                     metadata: Some(canonical_metadata(&criterion.metadata)?),
                     status: match criterion.status {
-                        dokime_runtime::execution::CriterionStatus::Pending => {
+                        dokime_domain::model::execution::result::CriterionStatus::Pending => {
                             dokime_domain::model::execution::wire::CriterionStatus::Pending
                         }
-                        dokime_runtime::execution::CriterionStatus::Passed => {
+                        dokime_domain::model::execution::result::CriterionStatus::Passed => {
                             dokime_domain::model::execution::wire::CriterionStatus::Passed
                         }
-                        dokime_runtime::execution::CriterionStatus::Failed => {
+                        dokime_domain::model::execution::result::CriterionStatus::Failed => {
                             dokime_domain::model::execution::wire::CriterionStatus::Failed
                         }
-                        dokime_runtime::execution::CriterionStatus::Indeterminate => {
+                        dokime_domain::model::execution::result::CriterionStatus::Indeterminate => {
                             dokime_domain::model::execution::wire::CriterionStatus::Indeterminate
                         }
-                        dokime_runtime::execution::CriterionStatus::Skipped => {
+                        dokime_domain::model::execution::result::CriterionStatus::Skipped => {
                             dokime_domain::model::execution::wire::CriterionStatus::Skipped
                         }
                     },

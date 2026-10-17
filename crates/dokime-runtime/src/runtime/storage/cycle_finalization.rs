@@ -19,12 +19,16 @@ use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
-use crate::{runtime::Error, runtime::Result, RuntimeHandle, execution::CycleView, runtime::progress::Operation};
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::RuntimeHandle;
+use dokime_domain::model::execution::result::CycleView;
+use crate::runtime::progress::Operation;
 use dokime_domain::model::identity::TestCycleId;
-use crate::execution::TestCycle;
-use crate::execution::saved::CycleSeal;
-use crate::execution::saved::ExecutionRevision;
-use crate::execution::saved::ExecutionSeal;
+use dokime_domain::model::execution::result::TestCycle;
+use dokime_domain::model::execution::saved::CycleSeal;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionSeal;
 use crate::storage::objects::cycle::Cycle;
 use crate::storage::reports;
 
@@ -302,7 +306,7 @@ impl RuntimeHandle {
     // One Chosen After Every Member Seal Is Durable.
     async fn cycle_intent(
         &self,
-        frozen: crate::execution::TestCycle,
+        frozen: dokime_domain::model::execution::result::TestCycle,
     ) -> Result<crate::transactions::CycleReportFinalization> {
         if let Some(intent) = self
             .execution_storage

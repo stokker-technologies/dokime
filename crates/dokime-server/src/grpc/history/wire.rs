@@ -20,7 +20,7 @@ use tonic::Status;
 // Local Imports
 use super::super::error::detailed;
 use super::super::{execution, value};
-use dokime_runtime::execution::ResultStatus;
+use dokime_domain::model::execution::result::ResultStatus;
 use dokime_runtime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle,
     ExecutionCheckpoint,
@@ -280,7 +280,7 @@ fn cursor_wire_ref(value: &StorageCursor) -> dokime_domain::model::execution::wi
 }
 
 pub(crate) fn traceability_memory(
-    source: &dokime_runtime::traceability::TraceabilitySnapshot,
+    source: &dokime_domain::model::traceability::TraceabilitySnapshot,
 ) -> Result<usize, Status> {
     use super::super::value::canonical;
     use dokime_domain::model::identity::wire as common;
@@ -315,7 +315,7 @@ pub(crate) fn traceability_memory(
 }
 
 pub(crate) fn traceability(
-    source: &dokime_runtime::traceability::TraceabilitySnapshot,
+    source: &dokime_domain::model::traceability::TraceabilitySnapshot,
 ) -> Result<dokime_domain::model::identity::wire::TraceabilitySnapshot, Status> {
     use super::super::value::canonical;
     use dokime_domain::model::identity::wire as common;

@@ -25,8 +25,8 @@ use crate::{runtime::Error, runtime::Result};
 use crate::artifacts::ArtifactRecord;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::Metadata;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
 
 /* === Constants === */
 

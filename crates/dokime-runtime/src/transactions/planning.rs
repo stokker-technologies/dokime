@@ -21,7 +21,8 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCase;
-use crate::execution::{CycleStatus, CycleView};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use dokime_domain::state::records::set::TestRecordSet;
@@ -267,7 +268,7 @@ fn materialize_cycle_executions(
                 .cloned()
                 .unwrap_or_default(),
         )?;
-        execution.status = crate::execution::ExecutionStatus::Skipped;
+        execution.status = dokime_domain::model::execution::result::ExecutionStatus::Skipped;
         cycle.test_executions.push(execution);
     }
     Ok(())

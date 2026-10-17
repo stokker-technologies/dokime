@@ -35,7 +35,7 @@ use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
 use crate::records::RecordContract;
 use dokime_domain::model::records::evidence::RecordEntry;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use crate::artifacts::ArtifactRecord;
 use crate::prompts::PromptInstance;
 use crate::telemetry::{TelemetryContract, TelemetrySample};

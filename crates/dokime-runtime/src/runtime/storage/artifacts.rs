@@ -38,10 +38,10 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::identity::UploadId;
-use crate::execution::saved::ExecutionCheckpoint as Checkpoint;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionOutputContent;
-use crate::execution::saved::SavedStreamState;
+use dokime_domain::model::execution::saved::ExecutionCheckpoint as Checkpoint;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::SavedStreamState;
 
 /* === Constants === */
 const CHUNK_BYTES: usize = 1024 * 1024;

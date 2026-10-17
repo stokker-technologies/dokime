@@ -36,7 +36,8 @@ use crate::records::DeclaredRecord;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{TelemetryRow, TelemetrySample, TelemetryStream};
-use crate::traceability::{TraceabilityRow, TraceabilitySection};
+use dokime_domain::model::traceability::TraceabilityRow;
+use dokime_domain::model::traceability::TraceabilitySection;
 use crate::transport::{
     ArtifactChunk, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt,
     ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
@@ -534,7 +535,7 @@ impl ExecutionHost for Host {
             .step_begins
             .iter()
             .filter_map(|encoded| {
-                serde_json::from_str::<crate::execution::StepAttemptStart>(encoded).ok()
+                serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
             })
             .map(|start| StepAdmission {
                 attempt_id: start.attempt_id.to_string(),

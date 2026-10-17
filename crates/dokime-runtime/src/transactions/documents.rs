@@ -152,8 +152,8 @@ impl UpdatePlotSettings {
             || settling
             || !matches!(
                 execution.status,
-                crate::execution::ExecutionStatus::Pending
-                    | crate::execution::ExecutionStatus::Running
+                dokime_domain::model::execution::result::ExecutionStatus::Pending
+                    | dokime_domain::model::execution::result::ExecutionStatus::Running
             )
         {
             return Err(Error::conflict(

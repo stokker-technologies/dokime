@@ -27,11 +27,10 @@ use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
 };
-use dokime_runtime::{
-    RuntimeHandle,
-    execution::{CycleStatus, CycleView},
-    runtime::query::execution_history::ExecutionCheckpointContext,
-};
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_runtime::runtime::query::execution_history::ExecutionCheckpointContext;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history;

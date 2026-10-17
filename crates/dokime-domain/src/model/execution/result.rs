@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_domain::model::execution::ExecutionMode;
+pub use crate::model::execution::ExecutionMode;
 
 /* === Imports === */
 // Standard Library Imports
@@ -18,22 +18,22 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::CriterionId;
-use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::values::MeasurementUnit;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::identity::StepId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
-use crate::definition::{MaterializedParameter, TestCase};
-use crate::diagnostics::Diagnostic;
-use crate::document::DocumentDefinition;
-use dokime_domain::state::records::set::TestRecordSet;
+use crate::model::identity::CaseId;
+use crate::model::identity::CriterionId;
+use crate::model::identity::DocumentId;
+use crate::model::values::MeasurementUnit;
+use crate::model::identity::Metadata;
+use crate::model::execution::RecordScope;
+use crate::model::identity::SessionId;
+use crate::model::identity::StepId;
+use crate::model::identity::TestCycleId;
+use crate::model::identity::TestExecutionId;
+use crate::model::time::Timestamp;
+use crate::model::values::Value;
+use crate::model::definition::{MaterializedParameter, TestCase};
+use crate::model::diagnostics::Diagnostic;
+use crate::model::document::DocumentDefinition;
+use crate::state::records::set::TestRecordSet;
 
 /* === Constants === */
 
@@ -98,7 +98,7 @@ pub struct TestExecution {
     #[serde(default)]
     pub suite: Option<Metadata>,
     pub status: ExecutionStatus,
-    pub snapshot: crate::execution::ExecutionSnapshot,
+    pub snapshot: crate::model::execution::snapshot::ExecutionSnapshot,
     #[serde(default)]
     pub invalidation: Option<ExecutionInvalidation>,
     pub scope: RecordScope,
@@ -117,16 +117,16 @@ pub struct TestExecution {
     #[serde(default)]
     pub active_step_attempt: Option<StepAttemptStart>,
     #[serde(default)]
-    pub capture_phase: dokime_domain::model::execution::CapturePhase,
+    pub capture_phase: crate::model::execution::CapturePhase,
     #[serde(default)]
-    pub traceability: Vec<crate::traceability::TraceabilitySection>,
+    pub traceability: Vec<crate::model::traceability::TraceabilitySection>,
     pub result: Option<ResultSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StepAttemptStart {
-    pub attempt_id: dokime_domain::model::identity::StepAttemptId,
+    pub attempt_id: crate::model::identity::StepAttemptId,
     pub step_id: StepId,
     pub started_at: Timestamp,
 }
@@ -134,7 +134,7 @@ pub struct StepAttemptStart {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestStepAttempt {
-    pub attempt_id: dokime_domain::model::identity::StepAttemptId,
+    pub attempt_id: crate::model::identity::StepAttemptId,
     pub step_id: StepId,
     pub started_at: Timestamp,
     pub finished_at: Option<Timestamp>,
@@ -190,8 +190,8 @@ pub struct IllegalCycleTransition {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionInvalidation {
-    pub previous: crate::execution::ExecutionPluginIdentity,
-    pub current: Option<crate::execution::ExecutionPluginIdentity>,
+    pub previous: crate::model::execution::snapshot::ExecutionPluginIdentity,
+    pub current: Option<crate::model::execution::snapshot::ExecutionPluginIdentity>,
 }
 
 /* === Enums === */
@@ -667,10 +667,6 @@ impl CycleView {
         })
     }
 
-    pub fn touch(&mut self) {
-        self.updated_at = crate::model::time::now_utc();
-    }
-
     pub fn touch_at(&mut self, at: Timestamp) {
         self.updated_at = at;
     }
@@ -731,7 +727,7 @@ impl TestExecution {
             .map(|start| start.step_id.clone());
         scope.origin = self.active_step_attempt.as_ref().map_or_else(
             || self.capture_phase.into(),
-            |start| dokime_domain::model::execution::EvidenceOrigin::Step {
+            |start| crate::model::execution::EvidenceOrigin::Step {
                 attempt_id: start.attempt_id.clone(),
             },
         );
@@ -921,8 +917,8 @@ impl TestExecution {
 /* === Public Functions === */
 
 /* === Private Functions === */
-pub(crate) fn validate_invocation(
-    template: &crate::definition::TestCaseTemplate,
+pub fn validate_invocation(
+    template: &crate::model::definition::TestCaseTemplate,
     attempts: &[TestStepAttempt],
     step_id: &StepId,
 ) -> Result<(), &'static str> {
@@ -960,8 +956,8 @@ fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
     }
 }
 
-pub(crate) fn effective_attempts<'a>(
-    template: &crate::definition::TestCaseTemplate,
+pub fn effective_attempts<'a>(
+    template: &crate::model::definition::TestCaseTemplate,
     attempts: &'a [TestStepAttempt],
     active: Option<&StepAttemptStart>,
 ) -> BTreeMap<StepId, &'a TestStepAttempt> {

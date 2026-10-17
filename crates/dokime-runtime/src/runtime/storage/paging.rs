@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub(super) use crate::execution::saved::PageCursor as Cursor;
+pub(super) use dokime_domain::model::execution::saved::PageCursor as Cursor;
 
 /* === Imports === */
 // Standard Library Imports

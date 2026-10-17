@@ -146,8 +146,8 @@ async fn execution(
         && member.active_step_attempt.is_none()
         && !matches!(
             member.status,
-            crate::execution::ExecutionStatus::Pending
-                | crate::execution::ExecutionStatus::Running
+            dokime_domain::model::execution::result::ExecutionStatus::Pending
+                | dokime_domain::model::execution::result::ExecutionStatus::Running
         );
     if final_report {
         if let Some(reason) = resources.providers.final_report_refusal(member) {

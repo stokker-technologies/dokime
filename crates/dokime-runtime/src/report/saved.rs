@@ -35,10 +35,13 @@ use crate::{
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::saved::{
-    ExecutionOutput, ExecutionRevision, ExecutionSeal, ExecutionSource, validate_outputs,
-};
-use crate::execution::{ExecutionStatus, TestExecution};
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionSeal;
+use dokime_domain::model::execution::saved::ExecutionSource;
+use dokime_domain::model::execution::saved::validate_outputs;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::records::RecordContract;
 use crate::storage::Manager;
 use crate::telemetry::contract::TelemetryContract;

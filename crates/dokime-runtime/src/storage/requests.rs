@@ -32,10 +32,13 @@ use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::request::{
-    AttemptClaim, RunPhase, RunReceipt, RunSummary, StepCommand, StepCommandPhase,
-    StepCommandReceipt,
-};
+use dokime_domain::model::execution::request::AttemptClaim;
+use dokime_domain::model::execution::request::RunPhase;
+use dokime_domain::model::execution::request::RunReceipt;
+use dokime_domain::model::execution::request::RunSummary;
+use dokime_domain::model::execution::request::StepCommand;
+use dokime_domain::model::execution::request::StepCommandPhase;
+use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Constants === */
 
@@ -452,8 +455,8 @@ impl TryFrom<Request> for RunReceipt {
             node_id: NodeId::from_uuid(row.node_id)?,
             summary: RunSummary {
                 mode: match row.mode.as_str() {
-                    "automatic" => crate::execution::ExecutionMode::Automatic,
-                    "interactive" => crate::execution::ExecutionMode::Interactive,
+                    "automatic" => dokime_domain::model::execution::ExecutionMode::Automatic,
+                    "interactive" => dokime_domain::model::execution::ExecutionMode::Interactive,
                     _ => return Err(Error::Invalid("unknown stored execution mode")),
                 },
                 request_id: CommandId::from_uuid(row.request_id)?,

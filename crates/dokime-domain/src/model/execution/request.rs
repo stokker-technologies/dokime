@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_domain::model::execution::StepCommand;
+pub use crate::model::execution::StepCommand;
 
 /* === Imports === */
 
@@ -21,13 +21,13 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::identity::StepAttemptId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
+use crate::model::identity::CaseId;
+use crate::model::identity::CommandId;
+use crate::model::identity::NodeId;
+use crate::model::identity::StepAttemptId;
+use crate::model::identity::TestCycleId;
+use crate::model::identity::TestExecutionId;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 

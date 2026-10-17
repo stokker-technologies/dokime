@@ -144,7 +144,7 @@ fn sections(
 
 fn checkpoint_outputs(
     checkpoint: &ExecutionCheckpoint,
-    outputs: &[dokime_runtime::execution::saved::ExecutionOutput],
+    outputs: &[dokime_domain::model::execution::saved::ExecutionOutput],
     sections: &[dokime_domain::model::history::wire::EvidenceSection],
 ) -> Result<dokime_domain::model::history::wire::CheckpointEvidence, Status> {
     let files = if sections.contains(&dokime_domain::model::history::wire::EvidenceSection::Outputs) {
@@ -162,10 +162,10 @@ fn checkpoint_outputs(
                 ),
                 kind: content::files::kind(&kind),
                 state: match output.stream_state {
-                    Some(dokime_runtime::execution::saved::SavedStreamState::Finalized) => {
+                    Some(dokime_domain::model::execution::saved::SavedStreamState::Finalized) => {
                         dokime_domain::model::content::wire::ExecutionFileState::Finalized
                     }
-                    Some(dokime_runtime::execution::saved::SavedStreamState::Interrupted) => {
+                    Some(dokime_domain::model::execution::saved::SavedStreamState::Interrupted) => {
                         dokime_domain::model::content::wire::ExecutionFileState::Interrupted
                     }
                     None => dokime_domain::model::content::wire::ExecutionFileState::Streaming,
@@ -183,7 +183,7 @@ fn checkpoint_outputs(
             .filter(|output| {
                 matches!(
                     output.content,
-                    dokime_runtime::execution::saved::ExecutionOutputContent::Artifact { .. }
+                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { .. }
                 )
             })
             .count()
@@ -193,7 +193,7 @@ fn checkpoint_outputs(
     let mut artifacts = value::projection::slots(count).map_err(status_failure)?;
     if count != 0 {
         for output in outputs {
-            let dokime_runtime::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
+            let dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
                 &output.content
             else {
                 continue;

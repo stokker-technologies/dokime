@@ -254,3 +254,9 @@ impl From<std::io::Error> for Error {
 /* === Private Functions === */
 
 /* === Tests === */
+
+impl From<dokime_domain::model::execution::snapshot::SnapshotError> for Error {
+    fn from(source: dokime_domain::model::execution::snapshot::SnapshotError) -> Self {
+        Self::Parameter { name: source.name, reason: source.reason }
+    }
+}

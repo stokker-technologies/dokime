@@ -29,10 +29,10 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::CycleStatus;
-use crate::execution::ExecutionStatus;
-use crate::execution::ResultStatus;
-use crate::execution::ResultSummary;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
 
 /* === Constants === */
 

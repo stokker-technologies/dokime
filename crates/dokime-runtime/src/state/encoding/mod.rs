@@ -57,9 +57,9 @@ struct Encoded<'a> {
     record_definitions: BTreeMap<&'a Identifier, u32>,
     record_history: BTreeMap<&'a Identifier, BTreeMap<u32, u32>>,
     telemetry_definitions: BTreeMap<&'a Identifier, u32>,
-    cycles: &'a BTreeMap<TestCycleId, crate::execution::TestCycle>,
+    cycles: &'a BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     #[serde(serialize_with = "executions::serialize")]
-    executions: &'a BTreeMap<TestExecutionId, crate::execution::TestExecution>,
+    executions: &'a BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     run_requests: &'a BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     cycle_report_finalizations:
         &'a BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
@@ -92,9 +92,9 @@ struct Decoded {
     record_definitions: BTreeMap<Identifier, u32>,
     record_history: BTreeMap<Identifier, BTreeMap<u32, u32>>,
     telemetry_definitions: BTreeMap<Identifier, u32>,
-    cycles: BTreeMap<TestCycleId, crate::execution::TestCycle>,
+    cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     #[serde(deserialize_with = "executions::deserialize")]
-    executions: BTreeMap<TestExecutionId, crate::execution::TestExecution>,
+    executions: BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     #[serde(default)]
     run_requests: BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,

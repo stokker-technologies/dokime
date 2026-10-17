@@ -20,7 +20,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::records::evidence::RecordEntry;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use crate::{
     evidence_runtime::{EvidenceSnapshot, EvidenceSummaries},
     execution_runtime::SuiteSnapshot,
@@ -193,7 +193,7 @@ impl RuntimeHandle {
         self.projected_evidence_snapshot(&snapshot).await
     }
 
-    pub async fn cycles(&self) -> Vec<crate::execution::CycleView> {
+    pub async fn cycles(&self) -> Vec<dokime_domain::model::execution::result::CycleView> {
         self.state_read().cycle_views().collect()
     }
 

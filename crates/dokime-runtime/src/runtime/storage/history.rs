@@ -21,10 +21,9 @@ use harmos::storage::{ObjectRead, ObjectRevision, query::ObjectVersions};
 // Local Imports
 use super::execution::check_seal_position;
 use crate::runtime::Result;
-use crate::{
-    execution::TestExecution,
-    storage::{Manager, objects::execution::Execution},
-};
+use dokime_domain::model::execution::result::TestExecution;
+use crate::storage::Manager;
+use crate::storage::objects::execution::Execution;
 
 /* === Constants === */
 

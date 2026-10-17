@@ -30,7 +30,7 @@ use crate::{
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
 };
 use dokime_domain::model::identity::TestCycleId;
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::reports::wire::MaterializedReport;
 
 /* === Constants === */

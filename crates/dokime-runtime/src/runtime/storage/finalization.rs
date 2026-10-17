@@ -10,12 +10,13 @@
 /* === Modules === */
 /* === Re-Exports === */
 /* === Imports === */
-use crate::{
-    runtime::Error, runtime::Result, RuntimeHandle,
-    execution::{CycleView, TestExecution},
-};
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::RuntimeHandle;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 /* === Constants === */

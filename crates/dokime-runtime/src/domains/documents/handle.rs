@@ -21,7 +21,7 @@ use std::num::NonZeroUsize;
 use super::ExecutionFileStream;
 use super::saved::SavedOutputs;
 use crate::document::{DocumentPayload, DocumentSelection};
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::handle::RuntimeHandle;
 use crate::{
     runtime::Result,

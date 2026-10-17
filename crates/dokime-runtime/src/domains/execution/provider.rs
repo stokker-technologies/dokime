@@ -19,13 +19,16 @@ use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use crate::{
-    evidence_runtime::{ArtifactUploadInput, PublishReceipt, RecordPublishRequest},
-    execution::{CycleStatus, CycleView, TestExecution},
-    execution_runtime::authoring::{ExecutionFileTarget, SidecarStepContext},
-    handle::RuntimeHandle,
-    state::RuntimeState,
-};
+use crate::evidence_runtime::ArtifactUploadInput;
+use crate::evidence_runtime::PublishReceipt;
+use crate::evidence_runtime::RecordPublishRequest;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
+use crate::execution_runtime::authoring::ExecutionFileTarget;
+use crate::execution_runtime::authoring::SidecarStepContext;
+use crate::handle::RuntimeHandle;
+use crate::state::RuntimeState;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::execution::RecordScope;
@@ -246,7 +249,7 @@ impl ExecutionFixtureContext {
     pub async fn begin_step_attempt(
         &self,
         scope: RecordScope,
-        start: crate::execution::StepAttemptStart,
+        start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> crate::runtime::Result<()> {
         let _order = self.runtime.telemetry_admission.lock().await;
         self.runtime
@@ -260,7 +263,7 @@ impl ExecutionFixtureContext {
     pub async fn record_step_attempt(
         &self,
         scope: RecordScope,
-        attempt: crate::execution::TestStepAttempt,
+        attempt: dokime_domain::model::execution::result::TestStepAttempt,
     ) -> crate::runtime::Result<()> {
         let _order = self.runtime.telemetry_admission.lock().await;
         self.runtime
@@ -400,7 +403,7 @@ pub(crate) fn provider_targets_for_cycle(
     let resolved = state
         .executions_for_cycle(cycle)
         .filter(|execution| {
-            execution.status == crate::execution::ExecutionStatus::Skipped
+            execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
                 && execution.started_at.is_none()
                 && execution.finished_at.is_none()
                 && selected_execution_id.is_none_or(|id| &execution.test_execution_id == id)

@@ -18,7 +18,9 @@ use std::io::{self, Write};
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleStatus, CycleView, ExecutionStatus};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::records::BuiltinRecordType;
 use dokime_domain::state::records::set::TestRecordSet;
 use crate::state::RuntimeState;

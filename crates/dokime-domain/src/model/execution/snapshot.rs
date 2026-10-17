@@ -17,16 +17,16 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::TemplateId;
-use dokime_domain::model::values::Value;
-use crate::definition::{
+use crate::model::identity::DocumentId;
+use crate::model::identity::Identifier;
+use crate::model::identity::Metadata;
+use crate::model::identity::TemplateId;
+use crate::model::values::Value;
+use crate::model::definition::{
     MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate,
     TestSuite,
 };
-use crate::document::DocumentDefinition;
+use crate::model::document::DocumentDefinition;
 
 /* === Constants === */
 
@@ -35,6 +35,13 @@ use crate::document::DocumentDefinition;
 /* === Type Aliases === */
 
 /* === Structs === */
+#[derive(Debug, PartialEq, thiserror::Error)]
+#[error("parameter {name:?}: {reason}")]
+pub struct SnapshotError {
+    pub name: String,
+    pub reason: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ExecutionPluginIdentity {
     pub source: String,
@@ -162,7 +169,6 @@ impl ExecutionPluginIdentity {
 impl ExecutionSnapshot {
     /// Reassembles a snapshot from parts captured earlier without materializing
     /// them again; they were validated when the snapshot was first built.
-    #[cfg(feature = "storage")]
     pub fn from_captured(
         case: TestCase,
         template: Option<TestCaseTemplate>,
@@ -189,9 +195,9 @@ impl ExecutionSnapshot {
         documents: BTreeMap<DocumentId, DocumentDefinition>,
         plugin: Option<ExecutionPluginIdentity>,
         settings: BTreeMap<String, Value>,
-    ) -> crate::Result<Self> {
+    ) -> Result<Self, SnapshotError> {
         if case.suite_id.trim().is_empty() {
-            return Err(crate::Error::Parameter {
+            return Err(SnapshotError {
                 name: "suite_id".into(),
                 reason: "suite registration ID is required".into(),
             });
@@ -214,7 +220,7 @@ impl ExecutionSnapshot {
             .collect::<Vec<_>>();
         let mut parameters = BTreeMap::new();
         for (key, value) in &case.parameters {
-            let identifier = Identifier::new(key).map_err(|error| crate::Error::Parameter {
+            let identifier = Identifier::new(key).map_err(|error| SnapshotError {
                 name: key.clone(),
                 reason: error.to_string(),
             })?;
@@ -222,7 +228,7 @@ impl ExecutionSnapshot {
                 .iter()
                 .find(|definition| definition.metadata.identifier.as_str() == key)
                 .and_then(|definition| {
-                    crate::definition::materialized_parameter(
+                    crate::model::definition::materialized_parameter(
                         definition,
                         ParameterSource::Definition,
                         value.clone(),
@@ -246,13 +252,13 @@ impl ExecutionSnapshot {
                 .or_insert_with(|| MaterializedParameter {
                     metadata: definition.metadata.clone(),
                     group_id: definition.group_id.clone(),
-                    source: crate::definition::ParameterSource::Definition,
+                    source: crate::model::definition::ParameterSource::Definition,
                     value: Value::Null,
                     unit: definition.unit.clone(),
                 });
             // Preserve invalid raw case inputs for admission to reject rather
             // than hiding them behind a declaration default.
-            if let Ok(resolved) = crate::definition::materialized_parameter(
+            if let Ok(resolved) = crate::model::definition::materialized_parameter(
                 definition,
                 parameter.source.clone(),
                 parameter.value.clone(),
@@ -262,12 +268,12 @@ impl ExecutionSnapshot {
         }
         for (key, value) in settings {
             if parameters.contains_key(&key) {
-                return Err(crate::Error::Parameter {
+                return Err(SnapshotError {
                     name: key,
                     reason: "plugin setting collides with a case parameter".into(),
                 });
             }
-            let identifier = Identifier::new(&key).map_err(|error| crate::Error::Parameter {
+            let identifier = Identifier::new(&key).map_err(|error| SnapshotError {
                 name: key.clone(),
                 reason: error.to_string(),
             })?;

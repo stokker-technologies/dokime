@@ -277,9 +277,9 @@ pub(in crate::grpc) fn decoded_scope(
 }
 
 pub(in crate::grpc) fn execution_plugin_memory(
-    value: &dokime_runtime::execution::ExecutionPluginIdentity,
+    value: &dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
 ) -> Result<usize, Status> {
-    use dokime_runtime::execution::ExecutionImplementation;
+    use dokime_domain::model::execution::snapshot::ExecutionImplementation;
     text(&value.source)?;
     if let Some(version) = &value.version {
         text(version)?;
@@ -298,9 +298,9 @@ pub(in crate::grpc) fn execution_plugin_memory(
 }
 
 pub(in crate::grpc) fn execution_plugin(
-    value: &dokime_runtime::execution::ExecutionPluginIdentity,
+    value: &dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
 ) -> Result<dokime_domain::model::execution::wire::ExecutionPluginIdentity, Status> {
-    use dokime_runtime::execution::ExecutionImplementation;
+    use dokime_domain::model::execution::snapshot::ExecutionImplementation;
     use dokime_domain::model::execution::wire::ExecutionPluginIdentity;
     use dokime_domain::model::execution::wire::ExecutionPluginIdentityImplementation as Implementation;
     text(&value.source)?;

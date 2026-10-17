@@ -22,7 +22,7 @@ use harmos::operations::{
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::app::Lanes;
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::{
     execution_runtime::provider::{
         ExecutionFixtureContext, ExecutionFixtureFuture, ProviderExecutorRegistry,

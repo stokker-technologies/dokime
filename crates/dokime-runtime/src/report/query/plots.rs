@@ -25,15 +25,15 @@ use harmos::{
 };
 // Local Imports
 use super::{invalid, statistics, telemetry};
-use crate::{
-    runtime::Result,
-    document::PlotType,
-    execution::TestExecution,
-    execution::context::captured::source::CapturedSource,
-    plot::{
-        DownsampleTechnique, PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest,
-    },
-};
+use crate::runtime::Result;
+use crate::document::PlotType;
+use dokime_domain::model::execution::result::TestExecution;
+use crate::execution::context::captured::source::CapturedSource;
+use crate::plot::DownsampleTechnique;
+use crate::plot::PlotAnalysis;
+use crate::plot::PlotPayload;
+use crate::plot::PlotPayloadContext;
+use crate::plot::PlotPayloadRequest;
 use dokime_domain::model::identity::Identifier;
 use crate::expressions::DataSource;
 use dokime_domain::model::records::evidence::RecordEntry;

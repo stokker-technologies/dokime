@@ -36,13 +36,12 @@ use crate::document::{
     DocumentDefinition, DocumentPayload, DocumentResolveInput, DocumentSection, DocumentSelection,
     resolve_document_plot_axes,
 };
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::records::evidence::RecordEntry;
-use crate::{
-    error::{Error, Result},
-    execution::CycleView,
-    execution_runtime::registry::SuiteRegistry,
-};
+use crate::error::Error;
+use crate::error::Result;
+use dokime_domain::model::execution::result::CycleView;
+use crate::execution_runtime::registry::SuiteRegistry;
 use crate::artifacts::ArtifactRecord;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;

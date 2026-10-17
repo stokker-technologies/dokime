@@ -18,9 +18,12 @@ use std::collections::BTreeSet;
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
 use crate::records::BuiltinRecordType;
-use crate::traceability::derived_traceability_group_named;
+use dokime_domain::model::traceability::derived_traceability_group_named;
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::identity::Identifier;
@@ -28,7 +31,7 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::StepId;
 use dokime_domain::model::time::Timestamp;
-use crate::traceability::TraceabilitySection;
+use dokime_domain::model::traceability::TraceabilitySection;
 
 /* === Constants === */
 
@@ -59,14 +62,14 @@ pub struct SetCapturePhase {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BeginStepAttempt {
     pub scope: RecordScope,
-    pub start: crate::execution::StepAttemptStart,
+    pub start: dokime_domain::model::execution::result::StepAttemptStart,
 }
 
 #[harmos::transaction(id = "dokime.execution.step.attempt.record", version = 2, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordStepAttempt {
     pub scope: RecordScope,
-    pub attempt: crate::execution::TestStepAttempt,
+    pub attempt: dokime_domain::model::execution::result::TestStepAttempt,
 }
 
 #[harmos::transaction(id = "dokime.traceability.template.record", version = 1, irreversible)]

@@ -33,7 +33,7 @@ use super::{
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionRevision;
 
 /* === Constants === */
 
@@ -66,8 +66,8 @@ pub struct Input<'a> {
     pub executions: &'a [ExecutionRevision],
     pub inputs: &'a [FileReference],
     pub file: &'a FileReference,
-    pub cycle: Option<&'a crate::execution::TestCycle>,
-    pub execution: Option<&'a crate::execution::saved::ExecutionSeal>,
+    pub cycle: Option<&'a dokime_domain::model::execution::result::TestCycle>,
+    pub execution: Option<&'a dokime_domain::model::execution::saved::ExecutionSeal>,
 }
 
 pub struct Prepared {
@@ -298,7 +298,7 @@ impl Publication {
                 || !saved.covers(&input.position)?
                 || input.metadata.scope.as_ref().map(Identifier::as_str) != Some(execution)
                 || input.metadata.media_type
-                    != crate::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
+                    != dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
             {
                 return Err(Error::Invalid("report captured input differs from source"));
             }
@@ -401,7 +401,7 @@ fn validate(input: &Input<'_>) -> Result<()> {
             || !input.dependencies_saved.covers(&captured.position)?
             || captured.metadata.scope.as_ref().map(Identifier::as_str)
                 != Some(source.execution_id.as_str())
-            || captured.metadata.media_type != crate::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
+            || captured.metadata.media_type != dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
         {
             return Err(Error::Invalid(
                 "report source differs from saved evidence cut",

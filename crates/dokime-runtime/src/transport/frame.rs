@@ -508,7 +508,7 @@ impl ExecutionTransport for FrameTransport {
         })
     }
 
-    fn traceability(&mut self, sections: Vec<crate::traceability::TraceabilitySection>) {
+    fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>) {
         for section in sections {
             match serde_json::to_string(&section) {
                 Ok(encoded) => self.push(BufferedFrame::traceability(encoded)),
@@ -523,7 +523,7 @@ impl ExecutionTransport for FrameTransport {
         }
     }
 
-    fn finish_step(&mut self, attempt: crate::execution::TestStepAttempt) {
+    fn finish_step(&mut self, attempt: dokime_domain::model::execution::result::TestStepAttempt) {
         match serde_json::to_string(&attempt) {
             Ok(encoded) => self.push(BufferedFrame::step_attempt(encoded)),
             Err(error) => self.push(BufferedFrame::log(
@@ -542,7 +542,7 @@ impl ExecutionTransport for FrameTransport {
     fn begin_step<'a>(
         &'a mut self,
         step: Identifier,
-        start: crate::execution::StepAttemptStart,
+        start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> TransportFuture<'a, Result<(), crate::diagnostics::Diagnostic>> {
         let executions = Arc::clone(&self.executions);
         let token = self.token.clone();

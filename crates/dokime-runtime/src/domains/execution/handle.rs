@@ -17,7 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{RuntimeHandle, execution::CycleStatus};
+use crate::RuntimeHandle;
+use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestCycleId;

@@ -24,12 +24,12 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 use crate::definition::TestCase;
-use crate::execution::CycleStatus;
-use crate::execution::ExecutionStatus;
-use crate::execution::StepRecord;
-use crate::execution::StepStatus;
-use crate::execution::TestCycle;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestCycle;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::records::evidence::RecordEntry;
 use crate::records::RecordSeverity;
 

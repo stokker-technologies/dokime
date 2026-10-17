@@ -33,8 +33,8 @@ use crate::transactions::records::draft::BuiltinDraft;
 pub struct CompleteRun {
     pub request_id: CommandId,
     pub at: Timestamp,
-    pub sealed_cycle: Option<crate::execution::TestCycle>,
-    pub sealed_executions: Vec<crate::execution::saved::ExecutionSeal>,
+    pub sealed_cycle: Option<dokime_domain::model::execution::result::TestCycle>,
+    pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
     /// A final report that could not be produced. The run settles Failed with
     /// its cause instead of a seal; nothing claims a report that does not exist.
     #[serde(default)]
@@ -502,7 +502,7 @@ mod tests {
         let at = crate::model::time::now_utc();
         state.cycles.insert(
             cycle_id.clone(),
-            crate::execution::TestCycle {
+            dokime_domain::model::execution::result::TestCycle {
                 saved: None,
                 test_cycle_id: cycle_id.clone(),
                 session_id: None,

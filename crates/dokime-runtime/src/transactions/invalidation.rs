@@ -18,8 +18,11 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::result::ExecutionInvalidation;
-use crate::execution::{ExecutionPluginIdentity, ExecutionStatus, StepStatus, TestExecution};
+use dokime_domain::model::execution::result::ExecutionInvalidation;
+use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,

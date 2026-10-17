@@ -27,12 +27,12 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::document::DocumentDefinition;
-use crate::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::installed_plugins::RuntimeAppearanceFrame;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::execution::RecordScope;

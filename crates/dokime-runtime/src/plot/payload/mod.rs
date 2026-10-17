@@ -34,11 +34,11 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 // Local Imports
 use crate::definition::MaterializedParameter;
 use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
-use crate::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use crate::plot::record_telemetry::record_telemetry_series;
 use crate::plot::record_timing::{RECORD_CONTEXT_STREAM, record_timing_series};
 use dokime_domain::model::records::evidence::RecordEntry;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use cartesian::cartesian_frame;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;

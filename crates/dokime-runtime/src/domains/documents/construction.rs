@@ -25,7 +25,7 @@ use crate::document::{
     DocumentCard, DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentNode,
     DocumentSection, DocumentSectionNode,
 };
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::execution_runtime::registry::SuiteRegistry;
 use dokime_domain::model::identity::DocumentId;
 use crate::telemetry::{TelemetryColumn, TelemetryContract};

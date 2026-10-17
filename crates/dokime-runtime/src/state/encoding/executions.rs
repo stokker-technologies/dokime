@@ -21,7 +21,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use super::{intern, position, resolve};
 use crate::definition::{ParameterDefinition, TestCaseTemplate};
 use crate::document::DocumentDefinition;
-use crate::execution::{ExecutionSnapshot, TestExecution};
+use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::TestExecutionId;
 

@@ -23,7 +23,9 @@ use tracing::Instrument;
 // Local Imports
 use super::template::SidecarTemplate;
 use super::unwind::caught;
-use super::{Environment, ExecutionEvidence, TerminationReason};
+use super::Environment;
+use super::ExecutionEvidence;
+use dokime_domain::model::execution::termination::TerminationReason;
 use crate::artifacts::Artifacts;
 use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
@@ -584,7 +586,7 @@ async fn walk<T: SidecarTemplate>(
                 .find(|step| &step.metadata.identifier == identifier),
             Some(Action::Next) => {
                 let selected =
-                    super::result::effective_attempts(declaration, &evidence.attempts, None);
+                    dokime_domain::model::execution::result::effective_attempts(declaration, &evidence.attempts, None);
                 declaration
                     .phases
                     .iter()
@@ -608,7 +610,7 @@ async fn walk<T: SidecarTemplate>(
             return Ended::Completed;
         };
         if let Err(message) =
-            super::result::validate_invocation(declaration, &evidence.attempts, &declared.step_id)
+            dokime_domain::model::execution::result::validate_invocation(declaration, &evidence.attempts, &declared.step_id)
         {
             if let Some(command) = &command {
                 controls.complete(&command.id, None, Some(message.into()));
@@ -625,7 +627,7 @@ async fn walk<T: SidecarTemplate>(
         // template makes about itself.
         let attempt_id = crate::model::identity::new_id::<dokime_domain::model::identity::StepAttemptId>();
         let started_at = crate::model::time::now_utc();
-        let start = super::StepAttemptStart {
+        let start = dokime_domain::model::execution::result::StepAttemptStart {
             attempt_id: attempt_id.clone(),
             step_id: declared.step_id.clone(),
             started_at: started_at.clone(),
@@ -690,7 +692,7 @@ async fn walk<T: SidecarTemplate>(
             Some(Err(diagnostic)) => (TerminationReason::Failed, Some(diagnostic.redacted())),
             Some(Ok(())) => (TerminationReason::Completed, None),
         };
-        let attempt = super::TestStepAttempt {
+        let attempt = dokime_domain::model::execution::result::TestStepAttempt {
             attempt_id: attempt_id.clone(),
             step_id: declared.step_id.clone(),
             started_at,
@@ -750,7 +752,7 @@ async fn conclude<T: SidecarTemplate>(
 ) -> SidecarExecutionOutcome {
     let initialized = environment.is_some();
     let selected_attempts = Arc::new(
-        super::result::effective_attempts(declaration, &evidence.attempts, None)
+        dokime_domain::model::execution::result::effective_attempts(declaration, &evidence.attempts, None)
             .into_values()
             .map(|attempt| attempt.attempt_id.clone())
             .collect(),

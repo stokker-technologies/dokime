@@ -18,10 +18,13 @@ use std::collections::BTreeMap;
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{
-    CriterionStatus, CycleStatus, CycleView, ExecutionStatus, ResultStatus, ResultSummary,
-    StepStatus,
-};
+use dokime_domain::model::execution::result::CriterionStatus;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::StepStatus;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::transactions::prompts::{

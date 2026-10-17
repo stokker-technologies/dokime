@@ -23,7 +23,7 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
-use dokime_runtime::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::wire::Diagnostic;
 
 /* === Constants === */
@@ -75,7 +75,7 @@ pub(super) fn execution<'a>(
     id: &str,
 ) -> Result<
     (
-        &'a dokime_runtime::execution::TestCycle,
+        &'a dokime_domain::model::execution::result::TestCycle,
         usize,
         &'a TestExecution,
     ),
@@ -100,9 +100,9 @@ pub(super) fn execution<'a>(
 }
 
 pub(crate) fn result(
-    value: &dokime_runtime::execution::ResultSummary,
+    value: &dokime_domain::model::execution::result::ResultSummary,
 ) -> dokime_domain::model::execution::wire::ResultSummary {
-    use dokime_runtime::execution::ResultStatus;
+    use dokime_domain::model::execution::result::ResultStatus;
     dokime_domain::model::execution::wire::ResultSummary {
         status: match value.status {
             ResultStatus::Pending => dokime_domain::model::execution::wire::ResultStatus::Pending,
@@ -244,10 +244,10 @@ pub(super) fn get_execution(
             .map(|controls| wire::ExecutionControls {
                 request_id: controls.request_id.to_string(),
                 mode: match controls.mode {
-                    dokime_runtime::execution::ExecutionMode::Automatic => {
+                    dokime_domain::model::execution::ExecutionMode::Automatic => {
                         wire::ExecutionMode::Automatic
                     }
-                    dokime_runtime::execution::ExecutionMode::Interactive => {
+                    dokime_domain::model::execution::ExecutionMode::Interactive => {
                         wire::ExecutionMode::Interactive
                     }
                 },

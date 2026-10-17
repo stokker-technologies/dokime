@@ -78,8 +78,8 @@ pub struct RuntimeState {
     pub record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
     record_history: record_history::RecordHistory,
     pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
-    pub cycles: BTreeMap<TestCycleId, crate::execution::TestCycle>,
-    pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::execution::TestExecution>,
+    pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
+    pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     /// Pending report boundaries survive restart independently of later stop metadata.
     pub cycle_report_finalizations:
         BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
@@ -168,8 +168,8 @@ impl RuntimeState {
 
     pub fn executions_for_cycle<'a>(
         &'a self,
-        cycle: &'a crate::execution::TestCycle,
-    ) -> impl ExactSizeIterator<Item = &'a crate::execution::TestExecution> + Clone {
+        cycle: &'a dokime_domain::model::execution::result::TestCycle,
+    ) -> impl ExactSizeIterator<Item = &'a dokime_domain::model::execution::result::TestExecution> + Clone {
         cycle.execution_ids.iter().map(|id| {
             self.executions
                 .get(id)
@@ -179,7 +179,7 @@ impl RuntimeState {
 
     pub fn cases_for_cycle<'a>(
         &'a self,
-        cycle: &'a crate::execution::TestCycle,
+        cycle: &'a dokime_domain::model::execution::result::TestCycle,
     ) -> impl Iterator<Item = &'a crate::definition::TestCase> {
         let mut seen = std::collections::BTreeSet::new();
         self.executions_for_cycle(cycle)
@@ -189,20 +189,20 @@ impl RuntimeState {
             })
     }
 
-    pub fn cycle_views(&self) -> impl Iterator<Item = crate::execution::CycleView> + '_ {
+    pub fn cycle_views(&self) -> impl Iterator<Item = dokime_domain::model::execution::result::CycleView> + '_ {
         self.cycles.keys().map(|id| {
             self.cycle_view(id)
                 .expect("canonical cycle membership is valid")
         })
     }
 
-    pub fn cycle_view(&self, id: &TestCycleId) -> Option<crate::execution::CycleView> {
+    pub fn cycle_view(&self, id: &TestCycleId) -> Option<dokime_domain::model::execution::result::CycleView> {
         let cycle = self.cycles.get(id)?;
         let mut test_executions = Vec::with_capacity(cycle.execution_ids.len());
         for id in &cycle.execution_ids {
             test_executions.push(self.executions.get(id)?.clone());
         }
-        Some(crate::execution::CycleView {
+        Some(dokime_domain::model::execution::result::CycleView {
             saved: cycle.saved.clone(),
             test_cycle_id: cycle.test_cycle_id.clone(),
             session_id: cycle.session_id.clone(),
@@ -243,7 +243,7 @@ impl RuntimeState {
         }
     }
 
-    pub fn validate_cycle_view(&self, view: &crate::execution::CycleView) -> Result<(), String> {
+    pub fn validate_cycle_view(&self, view: &dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
         if self
             .cycles
             .get(&view.test_cycle_id)
@@ -251,7 +251,7 @@ impl RuntimeState {
                 existing.saved.is_some()
                     && existing.saved != view.saved
                     && (view.saved.is_some()
-                        || view.lifecycle != crate::execution::CycleStatus::Ready)
+                        || view.lifecycle != dokime_domain::model::execution::result::CycleStatus::Ready)
             })
         {
             return Err("saved cycle closure cannot be changed".into());
@@ -280,7 +280,7 @@ impl RuntimeState {
         Ok(())
     }
 
-    pub fn replace_cycle(&mut self, view: crate::execution::CycleView) -> Result<(), String> {
+    pub fn replace_cycle(&mut self, view: dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
         self.validate_cycle_view(&view)?;
         let ids: std::collections::BTreeSet<_> = view
             .test_executions
@@ -305,7 +305,7 @@ impl RuntimeState {
         }
         self.cycles.insert(
             view.test_cycle_id.clone(),
-            crate::execution::TestCycle {
+            dokime_domain::model::execution::result::TestCycle {
                 saved: view.saved,
                 test_cycle_id: view.test_cycle_id,
                 session_id: view.session_id,
@@ -773,8 +773,8 @@ impl RuntimeState {
                 execution.finished_at.is_none()
                     && matches!(
                         execution.status,
-                        crate::execution::ExecutionStatus::Pending
-                            | crate::execution::ExecutionStatus::Running
+                        dokime_domain::model::execution::result::ExecutionStatus::Pending
+                            | dokime_domain::model::execution::result::ExecutionStatus::Running
                     )
             });
         }
@@ -933,7 +933,7 @@ impl RuntimeState {
 
             if (own || subscribed)
                 && !execution.records.record_subscriptions_closed()
-                && execution.status == crate::execution::ExecutionStatus::Running
+                && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
             {
                 let scope = execution.capture_scope();
                 execution

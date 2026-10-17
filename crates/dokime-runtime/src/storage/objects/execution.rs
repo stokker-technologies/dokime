@@ -27,7 +27,7 @@ use harmos::{
 // Local Imports
 use super::{annotations, artifacts, case, cycle, metadata, templates};
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::storage::{Error, Manager, Result, records::ScopeRow};
 
 /* === Constants === */
@@ -707,7 +707,7 @@ impl TryFrom<Documents> for BTreeMap<dokime_domain::model::identity::DocumentId,
 }
 
 impl Snapshot {
-    fn encoding_memory(value: &crate::execution::ExecutionSnapshot) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::snapshot::ExecutionSnapshot) -> Result<usize> {
         let fields = [
             case::Case::encoding_memory(value.case())?,
             value
@@ -733,9 +733,9 @@ impl Snapshot {
     }
 }
 
-impl TryFrom<&crate::execution::ExecutionSnapshot> for Snapshot {
+impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionSnapshot> for Snapshot {
     type Error = Error;
-    fn try_from(value: &crate::execution::ExecutionSnapshot) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::snapshot::ExecutionSnapshot) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("snapshot encoding memory overflows"));
         }
@@ -780,7 +780,7 @@ impl Snapshot {
             .map(Plugin::projection_memory)
             .transpose()?
             .unwrap_or(0);
-        let mut bytes = std::mem::size_of::<crate::execution::ExecutionSnapshot>()
+        let mut bytes = std::mem::size_of::<dokime_domain::model::execution::snapshot::ExecutionSnapshot>()
             .saturating_add(case)
             .saturating_add(template)
             .saturating_add(plugin)
@@ -794,7 +794,7 @@ impl Snapshot {
     }
 }
 
-impl TryFrom<Snapshot> for crate::execution::ExecutionSnapshot {
+impl TryFrom<Snapshot> for dokime_domain::model::execution::snapshot::ExecutionSnapshot {
     type Error = Error;
 
     fn try_from(row: Snapshot) -> Result<Self> {
@@ -831,7 +831,7 @@ impl TryFrom<Snapshot> for crate::execution::ExecutionSnapshot {
 }
 
 impl AttemptStart {
-    fn encoding_memory(value: &crate::execution::StepAttemptStart) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::StepAttemptStart) -> Result<usize> {
         value.started_at.to_datetime()?;
         Ok(std::mem::size_of::<Self>()
             .saturating_add(value.attempt_id.as_str().len())
@@ -840,17 +840,17 @@ impl AttemptStart {
     }
 
     fn projection_memory(&self) -> usize {
-        std::mem::size_of::<crate::execution::StepAttemptStart>()
+        std::mem::size_of::<dokime_domain::model::execution::result::StepAttemptStart>()
             .saturating_add(self.attempt_id.capacity())
             .saturating_add(self.step_id.capacity())
             .saturating_add(self.started_at.capacity())
     }
 }
 
-impl TryFrom<&crate::execution::StepAttemptStart> for AttemptStart {
+impl TryFrom<&dokime_domain::model::execution::result::StepAttemptStart> for AttemptStart {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::StepAttemptStart) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::StepAttemptStart) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("step admission encoding memory overflows"));
         }
@@ -862,7 +862,7 @@ impl TryFrom<&crate::execution::StepAttemptStart> for AttemptStart {
     }
 }
 
-impl TryFrom<AttemptStart> for crate::execution::StepAttemptStart {
+impl TryFrom<AttemptStart> for dokime_domain::model::execution::result::StepAttemptStart {
     type Error = Error;
     fn try_from(row: AttemptStart) -> Result<Self> {
         if row.projection_memory() == usize::MAX {
@@ -879,7 +879,7 @@ impl TryFrom<AttemptStart> for crate::execution::StepAttemptStart {
 }
 
 impl Attempt {
-    fn encoding_memory(value: &crate::execution::TestStepAttempt) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::TestStepAttempt) -> Result<usize> {
         value.started_at.to_datetime()?;
         if let Some(finished) = &value.finished_at {
             finished.to_datetime()?;
@@ -915,16 +915,16 @@ impl Attempt {
             detail.saturating_sub(std::mem::size_of::<crate::diagnostics::Diagnostic>()),
         ];
         fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::TestStepAttempt>(),
+            std::mem::size_of::<dokime_domain::model::execution::result::TestStepAttempt>(),
             usize::saturating_add,
         )
     }
 }
 
-impl TryFrom<&crate::execution::TestStepAttempt> for Attempt {
+impl TryFrom<&dokime_domain::model::execution::result::TestStepAttempt> for Attempt {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::TestStepAttempt) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::TestStepAttempt) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("step result encoding memory overflows"));
         }
@@ -943,10 +943,10 @@ impl TryFrom<&crate::execution::TestStepAttempt> for Attempt {
     }
 }
 
-impl TryFrom<Attempt> for crate::execution::TestStepAttempt {
+impl TryFrom<Attempt> for dokime_domain::model::execution::result::TestStepAttempt {
     type Error = Error;
     fn try_from(row: Attempt) -> Result<Self> {
-        use crate::execution::TerminationReason;
+        use dokime_domain::model::execution::termination::TerminationReason;
         if row.projection_memory() == usize::MAX {
             return Err(Error::Invalid("step result projection memory overflows"));
         }
@@ -975,7 +975,7 @@ impl TryFrom<Attempt> for crate::execution::TestStepAttempt {
 }
 
 impl TraceabilityRow {
-    fn encoding_memory(value: &crate::traceability::TraceabilityRow) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::traceability::TraceabilityRow) -> Result<usize> {
         let scalar = templates::Value::encoding_memory(&value.value)?;
         if scalar == usize::MAX {
             return Ok(usize::MAX);
@@ -1009,16 +1009,16 @@ impl TraceabilityRow {
             value.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
         ];
         Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::traceability::TraceabilityRow>(),
+            std::mem::size_of::<dokime_domain::model::traceability::TraceabilityRow>(),
             usize::saturating_add,
         ))
     }
 }
 
-impl TryFrom<&crate::traceability::TraceabilityRow> for TraceabilityRow {
+impl TryFrom<&dokime_domain::model::traceability::TraceabilityRow> for TraceabilityRow {
     type Error = Error;
 
-    fn try_from(value: &crate::traceability::TraceabilityRow) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::traceability::TraceabilityRow) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("traceability row encoding memory overflows"));
         }
@@ -1032,7 +1032,7 @@ impl TryFrom<&crate::traceability::TraceabilityRow> for TraceabilityRow {
     }
 }
 
-impl TryFrom<TraceabilityRow> for crate::traceability::TraceabilityRow {
+impl TryFrom<TraceabilityRow> for dokime_domain::model::traceability::TraceabilityRow {
     type Error = Error;
     fn try_from(row: TraceabilityRow) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -1054,7 +1054,7 @@ impl TryFrom<TraceabilityRow> for crate::traceability::TraceabilityRow {
 }
 
 impl Traceability {
-    fn encoding_memory(value: &crate::traceability::TraceabilitySection) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::traceability::TraceabilitySection) -> Result<usize> {
         let mut bytes = std::mem::size_of::<Self>()
             .saturating_add(value.identifier.as_str().len())
             .saturating_add(value.label.len())
@@ -1076,13 +1076,13 @@ impl Traceability {
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<crate::traceability::TraceabilitySection>()
+        let mut bytes = std::mem::size_of::<dokime_domain::model::traceability::TraceabilitySection>()
             .saturating_add(self.identifier.capacity())
             .saturating_add(self.label.capacity())
             .saturating_add(
                 self.rows
                     .len()
-                    .saturating_mul(std::mem::size_of::<crate::traceability::TraceabilityRow>()),
+                    .saturating_mul(std::mem::size_of::<dokime_domain::model::traceability::TraceabilityRow>()),
             );
         for row in &self.rows {
             let memory = row.projection_memory()?;
@@ -1090,17 +1090,17 @@ impl Traceability {
                 return Ok(usize::MAX);
             }
             bytes = bytes.saturating_add(
-                memory.saturating_sub(std::mem::size_of::<crate::traceability::TraceabilityRow>()),
+                memory.saturating_sub(std::mem::size_of::<dokime_domain::model::traceability::TraceabilityRow>()),
             );
         }
         Ok(bytes)
     }
 }
 
-impl TryFrom<&crate::traceability::TraceabilitySection> for Traceability {
+impl TryFrom<&dokime_domain::model::traceability::TraceabilitySection> for Traceability {
     type Error = Error;
 
-    fn try_from(value: &crate::traceability::TraceabilitySection) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::traceability::TraceabilitySection) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid(
                 "traceability section encoding memory overflows",
@@ -1120,7 +1120,7 @@ impl TryFrom<&crate::traceability::TraceabilitySection> for Traceability {
     }
 }
 
-impl TryFrom<Traceability> for crate::traceability::TraceabilitySection {
+impl TryFrom<Traceability> for dokime_domain::model::traceability::TraceabilitySection {
     type Error = Error;
     fn try_from(row: Traceability) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -1234,8 +1234,8 @@ impl TryFrom<Parameters> for BTreeMap<String, crate::definition::MaterializedPar
 }
 
 impl Implementation {
-    fn encoding_memory(value: &crate::execution::ExecutionImplementation) -> usize {
-        use crate::execution::ExecutionImplementation;
+    fn encoding_memory(value: &dokime_domain::model::execution::snapshot::ExecutionImplementation) -> usize {
+        use dokime_domain::model::execution::snapshot::ExecutionImplementation;
         let (kind, identity) = match value {
             ExecutionImplementation::Bundle { content_digest } => ("bundle", content_digest),
             ExecutionImplementation::Embedded { generation } => ("embedded", generation),
@@ -1246,11 +1246,11 @@ impl Implementation {
     }
 }
 
-impl TryFrom<&crate::execution::ExecutionImplementation> for Implementation {
+impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionImplementation> for Implementation {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::ExecutionImplementation) -> Result<Self> {
-        use crate::execution::ExecutionImplementation;
+    fn try_from(value: &dokime_domain::model::execution::snapshot::ExecutionImplementation) -> Result<Self> {
+        use dokime_domain::model::execution::snapshot::ExecutionImplementation;
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("implementation encoding memory overflows"));
         }
@@ -1269,7 +1269,7 @@ impl TryFrom<&crate::execution::ExecutionImplementation> for Implementation {
     }
 }
 
-impl TryFrom<Implementation> for crate::execution::ExecutionImplementation {
+impl TryFrom<Implementation> for dokime_domain::model::execution::snapshot::ExecutionImplementation {
     type Error = Error;
     fn try_from(row: Implementation) -> Result<Self> {
         match (row.kind.as_str(), row.content_digest, row.generation) {
@@ -1281,7 +1281,7 @@ impl TryFrom<Implementation> for crate::execution::ExecutionImplementation {
 }
 
 impl Plugin {
-    fn encoding_memory(value: &crate::execution::ExecutionPluginIdentity) -> usize {
+    fn encoding_memory(value: &dokime_domain::model::execution::snapshot::ExecutionPluginIdentity) -> usize {
         let implementation = Implementation::encoding_memory(&value.implementation);
         if implementation == usize::MAX {
             return usize::MAX;
@@ -1298,7 +1298,7 @@ impl Plugin {
             .as_ref()
             .ok_or(Error::Invalid("execution implementation is missing"))?;
         Ok(
-            std::mem::size_of::<crate::execution::ExecutionPluginIdentity>()
+            std::mem::size_of::<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity>()
                 .saturating_add(self.source.capacity())
                 .saturating_add(self.version.as_ref().map_or(0, String::capacity))
                 .saturating_add(
@@ -1317,10 +1317,10 @@ impl Plugin {
     }
 }
 
-impl TryFrom<&crate::execution::ExecutionPluginIdentity> for Plugin {
+impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> for Plugin {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::ExecutionPluginIdentity) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::snapshot::ExecutionPluginIdentity) -> Result<Self> {
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("execution plugin encoding memory overflows"));
         }
@@ -1332,7 +1332,7 @@ impl TryFrom<&crate::execution::ExecutionPluginIdentity> for Plugin {
     }
 }
 
-impl TryFrom<Plugin> for crate::execution::ExecutionPluginIdentity {
+impl TryFrom<Plugin> for dokime_domain::model::execution::snapshot::ExecutionPluginIdentity {
     type Error = Error;
     fn try_from(row: Plugin) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -1352,7 +1352,7 @@ impl TryFrom<Plugin> for crate::execution::ExecutionPluginIdentity {
 }
 
 impl Invalidation {
-    fn encoding_memory(value: &crate::execution::result::ExecutionInvalidation) -> usize {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::ExecutionInvalidation) -> usize {
         let previous = Plugin::encoding_memory(&value.previous);
         let current = value.current.as_ref().map_or(0, Plugin::encoding_memory);
         if [previous, current].contains(&usize::MAX) {
@@ -1381,21 +1381,21 @@ impl Invalidation {
             return Ok(usize::MAX);
         }
         Ok(
-            std::mem::size_of::<crate::execution::result::ExecutionInvalidation>()
+            std::mem::size_of::<dokime_domain::model::execution::result::ExecutionInvalidation>()
                 .saturating_add(previous.saturating_sub(std::mem::size_of::<
-                    crate::execution::ExecutionPluginIdentity,
+                    dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
                 >()))
                 .saturating_add(current.saturating_sub(std::mem::size_of::<
-                    crate::execution::ExecutionPluginIdentity,
+                    dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
                 >())),
         )
     }
 }
 
-impl TryFrom<&crate::execution::result::ExecutionInvalidation> for Invalidation {
+impl TryFrom<&dokime_domain::model::execution::result::ExecutionInvalidation> for Invalidation {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::result::ExecutionInvalidation) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::ExecutionInvalidation) -> Result<Self> {
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("invalidation encoding memory overflows"));
         }
@@ -1406,7 +1406,7 @@ impl TryFrom<&crate::execution::result::ExecutionInvalidation> for Invalidation 
     }
 }
 
-impl TryFrom<Invalidation> for crate::execution::result::ExecutionInvalidation {
+impl TryFrom<Invalidation> for dokime_domain::model::execution::result::ExecutionInvalidation {
     type Error = Error;
     fn try_from(row: Invalidation) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -1478,7 +1478,7 @@ impl From<Diagnostic> for crate::diagnostics::Diagnostic {
 }
 
 impl Measurement {
-    fn encoding_memory(value: &crate::execution::MeasurementRecord) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::MeasurementRecord) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
         let scalar = templates::Value::encoding_memory(&value.value)?;
         let unit = value
@@ -1497,10 +1497,10 @@ impl Measurement {
     }
 }
 
-impl TryFrom<&crate::execution::MeasurementRecord> for Measurement {
+impl TryFrom<&dokime_domain::model::execution::result::MeasurementRecord> for Measurement {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::MeasurementRecord) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::MeasurementRecord) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("measurement encoding memory overflow"));
         }
@@ -1543,13 +1543,13 @@ impl Measurement {
             unit.saturating_sub(std::mem::size_of::<dokime_domain::model::values::MeasurementUnit>()),
         ];
         Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::MeasurementRecord>(),
+            std::mem::size_of::<dokime_domain::model::execution::result::MeasurementRecord>(),
             usize::saturating_add,
         ))
     }
 }
 
-impl TryFrom<Measurement> for crate::execution::MeasurementRecord {
+impl TryFrom<Measurement> for dokime_domain::model::execution::result::MeasurementRecord {
     type Error = Error;
     fn try_from(row: Measurement) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -1570,7 +1570,7 @@ impl TryFrom<Measurement> for crate::execution::MeasurementRecord {
 }
 
 impl Criterion {
-    fn encoding_memory(value: &crate::execution::CriterionResult) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::CriterionResult) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
         let observed = value
             .observed
@@ -1594,10 +1594,10 @@ impl Criterion {
     }
 }
 
-impl TryFrom<&crate::execution::CriterionResult> for Criterion {
+impl TryFrom<&dokime_domain::model::execution::result::CriterionResult> for Criterion {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::CriterionResult) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::CriterionResult) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("criterion encoding memory overflow"));
         }
@@ -1638,16 +1638,16 @@ impl Criterion {
             observed.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
         ];
         Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::CriterionResult>(),
+            std::mem::size_of::<dokime_domain::model::execution::result::CriterionResult>(),
             usize::saturating_add,
         ))
     }
 }
 
-impl TryFrom<Criterion> for crate::execution::CriterionResult {
+impl TryFrom<Criterion> for dokime_domain::model::execution::result::CriterionResult {
     type Error = Error;
     fn try_from(row: Criterion) -> Result<Self> {
-        use crate::execution::CriterionStatus;
+        use dokime_domain::model::execution::result::CriterionStatus;
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("criterion projection memory overflows"));
         }
@@ -1673,7 +1673,7 @@ impl TryFrom<Criterion> for crate::execution::CriterionResult {
 }
 
 impl Step {
-    fn encoding_memory(value: &crate::execution::StepRecord) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::result::StepRecord) -> Result<usize> {
         for time in value.started_at.iter().chain(&value.finished_at) {
             time.to_datetime()?;
         }
@@ -1717,10 +1717,10 @@ impl Step {
     }
 }
 
-impl TryFrom<&crate::execution::StepRecord> for Step {
+impl TryFrom<&dokime_domain::model::execution::result::StepRecord> for Step {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::StepRecord) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::result::StepRecord) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("step encoding memory overflow"));
         }
@@ -1781,13 +1781,13 @@ impl Step {
             detail.saturating_sub(std::mem::size_of::<crate::diagnostics::Diagnostic>()),
             self.measurements
                 .len()
-                .saturating_mul(std::mem::size_of::<crate::execution::MeasurementRecord>()),
+                .saturating_mul(std::mem::size_of::<dokime_domain::model::execution::result::MeasurementRecord>()),
             self.criteria
                 .len()
-                .saturating_mul(std::mem::size_of::<crate::execution::CriterionResult>()),
+                .saturating_mul(std::mem::size_of::<dokime_domain::model::execution::result::CriterionResult>()),
         ];
         let mut bytes = fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::StepRecord>(),
+            std::mem::size_of::<dokime_domain::model::execution::result::StepRecord>(),
             usize::saturating_add,
         );
         for measurement in &self.measurements {
@@ -1796,7 +1796,7 @@ impl Step {
                 return Ok(usize::MAX);
             }
             bytes = bytes.saturating_add(
-                memory.saturating_sub(std::mem::size_of::<crate::execution::MeasurementRecord>()),
+                memory.saturating_sub(std::mem::size_of::<dokime_domain::model::execution::result::MeasurementRecord>()),
             );
         }
         for criterion in &self.criteria {
@@ -1805,19 +1805,19 @@ impl Step {
                 return Ok(usize::MAX);
             }
             bytes = bytes.saturating_add(
-                memory.saturating_sub(std::mem::size_of::<crate::execution::CriterionResult>()),
+                memory.saturating_sub(std::mem::size_of::<dokime_domain::model::execution::result::CriterionResult>()),
             );
         }
         Ok(bytes)
     }
 }
 
-impl TryFrom<Step> for crate::execution::StepRecord {
+impl TryFrom<Step> for dokime_domain::model::execution::result::StepRecord {
     type Error = Error;
     fn try_from(row: Step) -> Result<Self> {
         use dokime_domain::model::identity::StepId;
         use dokime_domain::model::time::Timestamp;
-        use crate::execution::StepStatus;
+        use dokime_domain::model::execution::result::StepStatus;
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("step projection memory overflows"));
         }
@@ -1975,8 +1975,8 @@ impl TryFrom<Parameter> for crate::definition::MaterializedParameter {
 }
 
 impl Output {
-    fn encoding_memory(value: &crate::execution::saved::ExecutionOutput) -> Result<usize> {
-        crate::execution::saved::validate_output_path(&value.relative_path)?;
+    fn encoding_memory(value: &dokime_domain::model::execution::saved::ExecutionOutput) -> Result<usize> {
+        dokime_domain::model::execution::saved::validate_output_path(&value.relative_path)?;
         value.created_at.to_datetime()?;
         let file = value.file.memory_size();
         let content = artifacts::Content::encoding_memory(&value.content)?;
@@ -1992,10 +1992,10 @@ impl Output {
     }
 }
 
-impl TryFrom<&crate::execution::saved::ExecutionOutput> for Output {
+impl TryFrom<&dokime_domain::model::execution::saved::ExecutionOutput> for Output {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::saved::ExecutionOutput) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::saved::ExecutionOutput) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("execution output encoding memory overflow"));
         }
@@ -2030,21 +2030,22 @@ impl Output {
             return Ok(usize::MAX);
         }
         Ok(
-            std::mem::size_of::<crate::execution::saved::ExecutionOutput>()
+            std::mem::size_of::<dokime_domain::model::execution::saved::ExecutionOutput>()
                 .saturating_add(self.relative_path.capacity())
                 .saturating_add(self.created_at.capacity())
                 .saturating_add(memory.saturating_sub(std::mem::size_of_val(file)))
                 .saturating_add(content.saturating_sub(std::mem::size_of::<
-                    crate::execution::saved::ExecutionOutputContent,
+                    dokime_domain::model::execution::saved::ExecutionOutputContent,
                 >())),
         )
     }
 }
 
-impl TryFrom<Output> for crate::execution::saved::ExecutionOutput {
+impl TryFrom<Output> for dokime_domain::model::execution::saved::ExecutionOutput {
     type Error = Error;
     fn try_from(row: Output) -> Result<Self> {
-        use crate::execution::saved::{SavedStreamState, validate_output_path};
+        use dokime_domain::model::execution::saved::SavedStreamState;
+        use dokime_domain::model::execution::saved::validate_output_path;
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid(
                 "execution output projection memory overflows",
@@ -2073,7 +2074,7 @@ impl TryFrom<Output> for crate::execution::saved::ExecutionOutput {
 }
 
 impl Source {
-    fn encoding_memory(value: &crate::execution::saved::ExecutionSource) -> Result<usize> {
+    fn encoding_memory(value: &dokime_domain::model::execution::saved::ExecutionSource) -> Result<usize> {
         let evidence = value.evidence_through.memory_size();
         let revision = Revision::encoding_memory(&value.execution)?;
         let context = value.context.memory_size();
@@ -2085,7 +2086,7 @@ impl Source {
             evidence.saturating_sub(std::mem::size_of::<StorageCursor>()),
             revision.saturating_sub(std::mem::size_of::<Revision>()),
             context.saturating_sub(std::mem::size_of::<FileReference>()),
-            crate::execution::saved::output_validation_memory(&value.outputs),
+            dokime_domain::model::execution::saved::output_validation_memory(&value.outputs),
         ];
         let mut bytes = fields
             .into_iter()
@@ -2101,10 +2102,10 @@ impl Source {
     }
 }
 
-impl TryFrom<&crate::execution::saved::ExecutionSource> for Source {
+impl TryFrom<&dokime_domain::model::execution::saved::ExecutionSource> for Source {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::saved::ExecutionSource) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::saved::ExecutionSource) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("execution source encoding memory overflow"));
         }
@@ -2128,7 +2129,9 @@ impl TryFrom<&crate::execution::saved::ExecutionSource> for Source {
 
 impl Source {
     fn projection_memory(&self) -> Result<usize> {
-        use crate::execution::saved::{ExecutionOutput, ExecutionRevision, ExecutionSource};
+        use dokime_domain::model::execution::saved::ExecutionOutput;
+        use dokime_domain::model::execution::saved::ExecutionRevision;
+        use dokime_domain::model::execution::saved::ExecutionSource;
         use harmos::MemorySize;
         let evidence = self.evidence_through.as_ref().ok_or(Error::Invalid(
             "execution source evidence frontier is missing",
@@ -2187,7 +2190,7 @@ impl Source {
     }
 }
 
-impl TryFrom<Source> for crate::execution::saved::ExecutionSource {
+impl TryFrom<Source> for dokime_domain::model::execution::saved::ExecutionSource {
     type Error = Error;
     fn try_from(row: Source) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -2245,7 +2248,7 @@ impl Seal {
         Ok(())
     }
 
-    pub(crate) fn encoding_memory(value: &crate::execution::saved::ExecutionSeal) -> Result<usize> {
+    pub(crate) fn encoding_memory(value: &dokime_domain::model::execution::saved::ExecutionSeal) -> Result<usize> {
         value.sealed_at.to_datetime()?;
         let source = Source::encoding_memory(&value.source)?;
         let report = value.report.memory_size();
@@ -2261,10 +2264,10 @@ impl Seal {
     }
 }
 
-impl TryFrom<&crate::execution::saved::ExecutionSeal> for Seal {
+impl TryFrom<&dokime_domain::model::execution::saved::ExecutionSeal> for Seal {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::saved::ExecutionSeal) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::saved::ExecutionSeal) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("execution seal encoding memory overflow"));
         }
@@ -2297,7 +2300,7 @@ impl Seal {
             return Ok(usize::MAX);
         }
         let fields = [
-            source.saturating_sub(std::mem::size_of::<crate::execution::saved::ExecutionSource>()),
+            source.saturating_sub(std::mem::size_of::<dokime_domain::model::execution::saved::ExecutionSource>()),
             report
                 .memory_size()
                 .saturating_sub(std::mem::size_of_val(report)),
@@ -2307,13 +2310,13 @@ impl Seal {
             self.sealed_at.capacity(),
         ];
         Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::saved::ExecutionSeal>(),
+            std::mem::size_of::<dokime_domain::model::execution::saved::ExecutionSeal>(),
             usize::saturating_add,
         ))
     }
 }
 
-impl TryFrom<Seal> for crate::execution::saved::ExecutionSeal {
+impl TryFrom<Seal> for dokime_domain::model::execution::saved::ExecutionSeal {
     type Error = Error;
     fn try_from(row: Seal) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
@@ -2338,7 +2341,7 @@ impl TryFrom<Seal> for crate::execution::saved::ExecutionSeal {
 }
 
 impl Revision {
-    pub fn encoding_memory(value: &crate::execution::saved::ExecutionRevision) -> Result<usize> {
+    pub fn encoding_memory(value: &dokime_domain::model::execution::saved::ExecutionRevision) -> Result<usize> {
         value.version.check_position(&value.position)?;
         let position = value.position.memory_size();
         let version = value.version.memory_size();
@@ -2352,10 +2355,10 @@ impl Revision {
     }
 }
 
-impl TryFrom<&crate::execution::saved::ExecutionRevision> for Revision {
+impl TryFrom<&dokime_domain::model::execution::saved::ExecutionRevision> for Revision {
     type Error = Error;
 
-    fn try_from(value: &crate::execution::saved::ExecutionRevision) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::execution::saved::ExecutionRevision) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid(
                 "execution revision encoding memory overflow",
@@ -2427,13 +2430,13 @@ impl Revision {
                 .saturating_sub(std::mem::size_of_val(version)),
         ];
         Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::execution::saved::ExecutionRevision>(),
+            std::mem::size_of::<dokime_domain::model::execution::saved::ExecutionRevision>(),
             usize::saturating_add,
         ))
     }
 }
 
-impl TryFrom<Revision> for crate::execution::saved::ExecutionRevision {
+impl TryFrom<Revision> for dokime_domain::model::execution::saved::ExecutionRevision {
     type Error = Error;
 
     fn try_from(row: Revision) -> Result<Self> {
@@ -2534,7 +2537,7 @@ fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str 
     }
 }
 
-fn termination_reason(value: &crate::execution::TerminationReason) -> &'static str {
+fn termination_reason(value: &dokime_domain::model::execution::termination::TerminationReason) -> &'static str {
     match value {
         TerminationReason::Completed => "completed",
         TerminationReason::Failed => "failed",
@@ -2543,22 +2546,22 @@ fn termination_reason(value: &crate::execution::TerminationReason) -> &'static s
     }
 }
 
-fn execution_status_text(value: &crate::execution::ExecutionStatus) -> &'static str {
+fn execution_status_text(value: &dokime_domain::model::execution::result::ExecutionStatus) -> &'static str {
     match value {
-        crate::execution::ExecutionStatus::Skipped => "skipped",
-        crate::execution::ExecutionStatus::Invalidated => "invalidated",
-        crate::execution::ExecutionStatus::Pending => "pending",
-        crate::execution::ExecutionStatus::Running => "running",
-        crate::execution::ExecutionStatus::Passed => "passed",
-        crate::execution::ExecutionStatus::Failed => "failed",
-        crate::execution::ExecutionStatus::Blocked => "blocked",
-        crate::execution::ExecutionStatus::Cancelled => "cancelled",
-        crate::execution::ExecutionStatus::Interrupted => "interrupted",
+        dokime_domain::model::execution::result::ExecutionStatus::Skipped => "skipped",
+        dokime_domain::model::execution::result::ExecutionStatus::Invalidated => "invalidated",
+        dokime_domain::model::execution::result::ExecutionStatus::Pending => "pending",
+        dokime_domain::model::execution::result::ExecutionStatus::Running => "running",
+        dokime_domain::model::execution::result::ExecutionStatus::Passed => "passed",
+        dokime_domain::model::execution::result::ExecutionStatus::Failed => "failed",
+        dokime_domain::model::execution::result::ExecutionStatus::Blocked => "blocked",
+        dokime_domain::model::execution::result::ExecutionStatus::Cancelled => "cancelled",
+        dokime_domain::model::execution::result::ExecutionStatus::Interrupted => "interrupted",
     }
 }
 
-fn execution_status(value: &str) -> Result<crate::execution::ExecutionStatus> {
-    use crate::execution::ExecutionStatus;
+fn execution_status(value: &str) -> Result<dokime_domain::model::execution::result::ExecutionStatus> {
+    use dokime_domain::model::execution::result::ExecutionStatus;
     match value {
         "skipped" => Ok(ExecutionStatus::Skipped),
         "invalidated" => Ok(ExecutionStatus::Invalidated),
@@ -2573,15 +2576,15 @@ fn execution_status(value: &str) -> Result<crate::execution::ExecutionStatus> {
     }
 }
 
-fn execution_mode_text(value: &crate::execution::ExecutionMode) -> &'static str {
+fn execution_mode_text(value: &dokime_domain::model::execution::ExecutionMode) -> &'static str {
     match value {
-        crate::execution::ExecutionMode::Automatic => "automatic",
-        crate::execution::ExecutionMode::Interactive => "interactive",
+        dokime_domain::model::execution::ExecutionMode::Automatic => "automatic",
+        dokime_domain::model::execution::ExecutionMode::Interactive => "interactive",
     }
 }
 
-fn execution_mode(value: &str) -> Result<crate::execution::ExecutionMode> {
-    use crate::execution::ExecutionMode;
+fn execution_mode(value: &str) -> Result<dokime_domain::model::execution::ExecutionMode> {
+    use dokime_domain::model::execution::ExecutionMode;
     match value {
         "automatic" => Ok(ExecutionMode::Automatic),
         "interactive" => Ok(ExecutionMode::Interactive),
@@ -2616,7 +2619,7 @@ fn copied_strings(values: &[String]) -> Result<Vec<String>> {
     Ok(copied)
 }
 
-fn step_status_text(value: &crate::execution::StepStatus) -> &'static str {
+fn step_status_text(value: &dokime_domain::model::execution::result::StepStatus) -> &'static str {
     match value {
         StepStatus::Pending => "pending",
         StepStatus::Running => "running",
@@ -2627,7 +2630,7 @@ fn step_status_text(value: &crate::execution::StepStatus) -> &'static str {
     }
 }
 
-fn criterion_status_text(value: &crate::execution::CriterionStatus) -> &'static str {
+fn criterion_status_text(value: &dokime_domain::model::execution::result::CriterionStatus) -> &'static str {
     match value {
         CriterionStatus::Pending => "pending",
         CriterionStatus::Passed => "passed",
@@ -2638,9 +2641,9 @@ fn criterion_status_text(value: &crate::execution::CriterionStatus) -> &'static 
 }
 
 fn saved_stream_state(
-    value: Option<crate::execution::saved::SavedStreamState>,
+    value: Option<dokime_domain::model::execution::saved::SavedStreamState>,
 ) -> Option<&'static str> {
-    use crate::execution::saved::SavedStreamState;
+    use dokime_domain::model::execution::saved::SavedStreamState;
     match value {
         None => None,
         Some(SavedStreamState::Finalized) => Some("finalized"),
@@ -2655,7 +2658,7 @@ fn validate_owner(source: &TestExecution) -> Result<()> {
     }
     if let Some(saved) = &source.saved {
         for output in &saved.source.outputs {
-            if let crate::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
+            if let dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
                 &output.content
                 && (record
                     .scope
@@ -2714,7 +2717,7 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
             .map_err(Error::Invalid)?;
     }
     if let Some(start) = &source.active_step_attempt {
-        if source.status != crate::execution::ExecutionStatus::Running
+        if source.status != dokime_domain::model::execution::result::ExecutionStatus::Running
             || source.finished_at.is_some()
         {
             return Err(Error::Invalid(

@@ -24,9 +24,9 @@ use crate::{runtime::Error, runtime::Result, installed_plugins::RuntimeAppearanc
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::TestCycle;
-use crate::execution::saved::ExecutionRevision;
-use crate::execution::saved::validate_cycle_revisions;
+use dokime_domain::model::execution::result::TestCycle;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::validate_cycle_revisions;
 
 /* === Constants === */
 

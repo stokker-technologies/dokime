@@ -91,17 +91,17 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn journal(&self) -> std::sync::Arc<dyn Journal>;
 
-    fn traceability(&mut self, sections: Vec<crate::traceability::TraceabilitySection>);
+    fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>);
 
     fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase);
 
     fn begin_step<'a>(
         &'a mut self,
         step: Identifier,
-        start: crate::execution::StepAttemptStart,
+        start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> TransportFuture<'a, Result<(), crate::diagnostics::Diagnostic>>;
 
-    fn finish_step(&mut self, attempt: crate::execution::TestStepAttempt);
+    fn finish_step(&mut self, attempt: dokime_domain::model::execution::result::TestStepAttempt);
 
     fn document(&self, addition: crate::document::DocumentAddition);
 }

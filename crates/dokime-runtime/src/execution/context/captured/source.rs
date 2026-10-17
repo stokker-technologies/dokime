@@ -24,8 +24,8 @@ use super::ExecutionContext;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::NodeId;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionRevision;
 use crate::records::RecordContract;
 use crate::telemetry::contract::TelemetryContract;
 
@@ -44,7 +44,7 @@ pub(crate) struct CapturedSource {
     pub execution_id: dokime_domain::model::identity::TestExecutionId,
     pub execution: Option<ExecutionRevision>,
     pub lifecycle_id: String,
-    pub lifecycle: crate::execution::TestExecution,
+    pub lifecycle: dokime_domain::model::execution::result::TestExecution,
     pub evidence_through: StorageCursor,
     pub outputs: Vec<ExecutionOutput>,
     pub context: ExecutionContext,

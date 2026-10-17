@@ -34,7 +34,9 @@ use super::value::canonical;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_runtime::definition::TestCase;
-use dokime_runtime::execution::{CycleStatus, CycleView, ExecutionStatus};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_runtime::runtime::RuntimeState;
 use dokime_runtime::runtime::query::{
     CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError,
@@ -512,7 +514,7 @@ pub(super) fn status(error: Error) -> Status {
 
 pub(super) fn summary(
     state: &RuntimeState,
-    cycle: &dokime_runtime::execution::TestCycle,
+    cycle: &dokime_domain::model::execution::result::TestCycle,
     cursor: Cursor,
     bounds: &mut detail::Bounds,
 ) -> Result<dokime_domain::model::execution::wire::CycleSummary, Status> {
@@ -807,7 +809,7 @@ fn case_page(
 
 fn execution_page<'a>(
     state: &RuntimeState,
-    members: impl ExactSizeIterator<Item = &'a dokime_runtime::execution::TestExecution> + Clone,
+    members: impl ExactSizeIterator<Item = &'a dokime_domain::model::execution::result::TestExecution> + Clone,
     after: &str,
     limit: usize,
     cursor: Cursor,
@@ -848,7 +850,7 @@ fn execution_page<'a>(
 
 pub(super) fn execution_summary(
     state: &RuntimeState,
-    execution: &dokime_runtime::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
     ordinal: usize,
 ) -> dokime_domain::model::execution::wire::ExecutionSummary {
     dokime_domain::model::execution::wire::ExecutionSummary {

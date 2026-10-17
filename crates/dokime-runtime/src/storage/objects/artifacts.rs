@@ -24,7 +24,7 @@ use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::identity::UploadId;
-use crate::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use crate::storage::{Error, Result, records::ScopeRow};
 
 /* === Constants === */
