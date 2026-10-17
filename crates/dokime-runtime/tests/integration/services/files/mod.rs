@@ -33,7 +33,6 @@ use {
     model::files::wire::FileRule,
     model::files::wire::FileRuleAction,
     model::files::wire::FileWatchPolicy,
-    dokime_domain::operations::files::FileWatch,
     model::files::wire::FileWatchSource,
     model::files::wire::FileWatchSourcePayload,
     model::files::wire::LocalWatchSource,
@@ -92,8 +91,8 @@ pub(crate) fn request(
     source: FileWatchSourcePayload,
     rules: Vec<FileRule>,
     policy: FileWatchPolicy,
-) -> FileWatch {
-    FileWatch {
+) -> dokime_domain::operations::files::FileWatch {
+    dokime_domain::operations::files::FileWatch {
         execution_id: Some(execution.to_owned()),
         source: Some(FileWatchSource {
             payload: Some(source),
