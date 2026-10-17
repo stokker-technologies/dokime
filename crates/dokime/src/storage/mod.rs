@@ -32,7 +32,7 @@ pub use sqlite as local;
 
 /* === Constants === */
 /// Encoded runtime-state snapshot payload, including its embedded journal tail.
-pub const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
+const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
 // Integrity envelope, positions and histories around one encoded state record.
 const STATE_ENVELOPE_BYTES: usize = 64 * 1024;
 // One recovery entry may take at most this share of a checkpoint: what it
@@ -77,11 +77,27 @@ pub enum Error {
 /* === Implementations === */
 
 /* === Public Functions === */
+/// Runtime snapshot policy shared by state assembly and its encoded storage limits.
+pub fn snapshot_policy() -> harmos::state::SnapshotPolicy {
+    harmos::state::SnapshotPolicy {
+        schema: harmos::storage::SchemaKey {
+            payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
+            id: harmos::Identifier::new("dokime.runtime.state").unwrap(),
+            version: 1.try_into().unwrap(),
+        },
+        every: 1024.try_into().unwrap(),
+        max_bytes: STATE_SNAPSHOT_BYTES.try_into().unwrap(),
+    }
+}
+
 /// Durable state limits, derived from the state policy alone: one checkpoint
 /// holds the runtime-state snapshot base64 encoded inside its envelope, and
 /// one recovery entry is a fixed share of that checkpoint.
 pub fn state_settings() -> harmos::config::StorageStateSettings {
-    let checkpoint = STATE_SNAPSHOT_BYTES
+    let policy = snapshot_policy();
+    let checkpoint = policy
+        .max_bytes
+        .get()
         .div_ceil(3)
         .saturating_mul(4)
         .saturating_add(STATE_ENVELOPE_BYTES);
