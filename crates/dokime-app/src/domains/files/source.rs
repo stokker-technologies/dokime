@@ -65,6 +65,14 @@ impl Source {
         Ok(Self::Local(LocalSource::open(root).await?))
     }
 
+    /// The source watching one named file reads only its parent's own entries.
+    pub(super) fn single_file(self) -> Self {
+        match self {
+            Self::Local(local) => Self::Local(local.top_level()),
+            ftp @ Self::Ftp(_) => ftp,
+        }
+    }
+
     pub(super) async fn ftp(url: &str, password: Option<String>, trusted: bool) -> Result<Self> {
         Ok(Self::Ftp(Box::new(
             FtpSource::open(url, password, trusted).await?,

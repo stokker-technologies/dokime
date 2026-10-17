@@ -104,6 +104,9 @@ class Transport:
         self.backend: Backend | None = None
         self._request_limit = _MAX_MESSAGE_BYTES
         self._response_limit = _DISCOVERY_BYTES
+        # Installed contracts verified against this backend's live catalog,
+        # once each: the backend is fixed for the transport's lifetime.
+        self._verified: dict[str, Operation] = {}
 
     async def connect(self) -> Backend:
         async with self._lock:
@@ -372,6 +375,10 @@ class Transport:
     async def _select(
         self, operation: Operation | str, *, owner: str | None = None
     ) -> Operation:
+        if isinstance(operation, Operation) and owner is None:
+            verified = self._verified.get(operation.id)
+            if verified is not None and verified.contract == operation.contract:
+                return operation
         selected = await self.show(
             operation if isinstance(operation, str) else operation.id, owner=owner
         )
@@ -384,6 +391,8 @@ class Transport:
                 raise ProtocolError(
                     "installed operation contract differs from the live provider"
                 )
+            if owner is None:
+                self._verified[operation.id] = operation
             return operation
         return selected.operation
 

@@ -123,6 +123,19 @@ impl Drop for Process {
 /* === Public Functions === */
 
 /* === Private Functions === */
+// The exact prepared server mise selects; the `dokime` CLI is not a host.
+fn prepared_host() -> std::path::PathBuf {
+    let backend = std::path::PathBuf::from(
+        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
+    );
+    assert!(
+        backend.is_file(),
+        "test:plugin-dev requires mise's prepared server artifact ({})",
+        backend.display()
+    );
+    backend
+}
+
 async fn wait_for(mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(180);
     while !condition() {
@@ -176,14 +189,7 @@ development-support = {{ path = {dependency_path:?} }}
     .unwrap();
     let source = root.path().join("plugin/src/main.rs");
     let target = super::support::target_directory().canonicalize().unwrap();
-    let backend = std::path::PathBuf::from(
-        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
-    );
-    assert!(
-        backend.is_file(),
-        "test:plugin-dev requires mise's prepared server artifact ({})",
-        backend.display()
-    );
+    let backend = prepared_host();
     let installation = tempfile::tempdir().unwrap();
     let host = installation
         .path()
@@ -563,11 +569,7 @@ async fn stdin_quit_and_unrequested_eof() {
     std::fs::write(root.path().join("Cargo.toml"), "invalid manifest").unwrap();
     let state = tempfile::tempdir().unwrap();
     let diagnostics = state.path().join("diagnostics.log");
-    let backend = super::support::target_directory()
-        .join("debug")
-        .join(format!("dokime{}", std::env::consts::EXE_SUFFIX))
-        .canonicalize()
-        .expect("test:plugin-dev requires mise's prepared server artifact");
+    let backend = prepared_host();
     for quit in [true, false] {
         let mut dev = Process(
             Command::new(super::support::tool())

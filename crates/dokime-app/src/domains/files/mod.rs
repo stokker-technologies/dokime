@@ -167,7 +167,8 @@ impl RuntimeHandle {
         if !settings.lines.is_empty() && settings.policy != Policy::Stream {
             return Err(invalid("line matchers and markers need the Stream policy"));
         }
-        let source = self.watch_source(Some(&source)).await?;
+        // The named file sits in its parent: no deeper entry can match it.
+        let source = self.watch_source(Some(&source)).await?.single_file();
         FileWatch::open(self.clone(), settings, source).await
     }
 

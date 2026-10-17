@@ -37,6 +37,8 @@ use dokime_contract::operations::files::FileMatcher;
 /* === Structs === */
 pub(in crate::domains::files) struct LocalSource {
     root: PathBuf,
+    /// How deep a scan descends below the root; a single-file watch reads one level.
+    depth: usize,
 }
 
 /* === Enums === */
@@ -60,13 +62,23 @@ impl LocalSource {
         {
             return Err(invalid("a local watch root must be a directory"));
         }
-        Ok(Self { root })
+        Ok(Self {
+            root,
+            depth: usize::MAX,
+        })
+    }
+
+    /// Scan only the root's own entries, as a watch over one named file does.
+    pub(super) fn top_level(mut self) -> Self {
+        self.depth = 1;
+        self
     }
 
     pub(super) async fn scan(&self, matcher: &FileMatcher) -> Result<Listing> {
         let root = self.root.clone();
         let matcher = matcher.clone();
-        tokio::task::spawn_blocking(move || walk(&root, &matcher)).await?
+        let depth = self.depth;
+        tokio::task::spawn_blocking(move || walk(&root, depth, &matcher)).await?
     }
 
     pub(super) async fn read_range(
@@ -93,10 +105,14 @@ impl LocalSource {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn walk(root: &Path, matcher: &FileMatcher) -> Result<Listing> {
+fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
     let mut listing = Listing::new();
     let mut visited = 0_usize;
-    for entry in walkdir::WalkDir::new(root).follow_links(false).min_depth(1) {
+    for entry in walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .min_depth(1)
+        .max_depth(depth)
+    {
         visited += 1;
         if visited > SCAN_ENTRIES {
             return Err(capped(format!(
