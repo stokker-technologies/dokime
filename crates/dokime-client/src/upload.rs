@@ -102,8 +102,10 @@ async fn feed<F: Future<Output = super::Result<()>>>(
         }
         let data = buffer[..count].to_vec();
         digest.update(&data);
-        send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Chunk(dokime_domain::model::content::wire::ArtifactChunk { offset, data })) })
-            .await?;
+        send(dokime_domain::model::content::wire::UploadArtifactFrame {
+            payload: Some(Payload::Chunk(dokime_domain::model::content::wire::ArtifactChunk { offset, data })),
+        })
+        .await?;
         offset = next;
     }
     if offset != expected {

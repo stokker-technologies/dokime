@@ -1961,7 +1961,6 @@ name = "dokime-client"
 version = "0.1.0"
 dependencies = [
  "dokime-domain",
- "dokime-filesystem",
  "futures-util",
  "harmos",
  "keyring",
@@ -1986,24 +1985,12 @@ version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "harmos",
- "harmos-packaging",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "time",
  "tracing-error",
-]
-
-[[package]]
-name = "dokime-filesystem"
-version = "0.1.0"
-dependencies = [
- "tempfile",
- "thiserror 2.0.21",
- "tracing",
- "uuid",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2034,6 +2021,7 @@ dependencies = [
  "dotenvy",
  "harmos",
  "harmos-packaging",
+ "harmos-sdk",
  "keyring",
  "rand",
  "rcgen",
@@ -2129,7 +2117,6 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime-domain",
- "dokime-filesystem",
  "dokime-host",
  "dokime-macros",
  "futures-util",

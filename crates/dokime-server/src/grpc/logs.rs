@@ -17,8 +17,10 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Response, StreamOutput},
 };
 use serde_json::Value;
@@ -104,7 +106,7 @@ impl Follow {
             }
             if let Some(mut frame) = self.pop() {
                 frame.dropped = self.dropped;
-                if frame.encoded_len() > self.message_limit {
+                if frame.wire_len()? > self.message_limit {
                     return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
                 }
                 return Ok(Some(frame.into()));
@@ -216,7 +218,7 @@ impl Follow {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
-        if frame.memory_size() > self.message_limit || frame.encoded_len() > self.message_limit {
+        if frame.memory_size() > self.message_limit || frame.wire_len()? > self.message_limit {
             return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
         }
         Ok(Some(frame))

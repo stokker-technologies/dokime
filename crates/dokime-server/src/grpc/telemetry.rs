@@ -16,10 +16,9 @@ pub(super) mod projection;
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::value::{self, canonical};
@@ -103,7 +102,7 @@ impl Operation for List {
                 .collect(),
             complete: !clamped && request_is_complete(request.latest, selected, limit),
         };
-        if reply.encoded_len() > self.resources.max_message_bytes {
+        if reply.wire_len()? > self.resources.max_message_bytes {
             return Err(Status::resource_exhausted("telemetry sample response exceeds transport limit"));
         }
         Ok(reply.into())

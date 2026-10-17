@@ -17,9 +17,10 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use futures_util::{StreamExt, stream};
-use harmos::grpc::{Codec, DecodeSettings, EncodeSettings, InputEnvelope, OutputEnvelope};
+use harmos::MemorySize;
+use harmos::domain::Portable;
+use harmos::grpc::{Codec, DecodeSettings, EncodeSettings, InputEnvelope, OutputEnvelope, Transcoded, Wire};
 use harmos::operations::{Direction, OperationDeclaration, Response, StreamItem};
-use harmos::{MemorySize, Protobuf};
 use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::Channel,
@@ -45,9 +46,9 @@ impl Client {
     pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
         O: OperationDeclaration,
-        O: Protobuf + Sync,
-        O::Response: Protobuf + MemorySize,
-        <O::Output as Direction>::Item: Protobuf + MemorySize,
+        O: Portable + Sync,
+        O::Response: Portable + MemorySize,
+        <O::Output as Direction>::Item: Portable + MemorySize,
     {
         self.require(path)?;
         let codec = codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, O>(self.response_limit(), self.request_limit())?;
@@ -92,9 +93,9 @@ impl Client {
     pub(super) async fn upload<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
-        O: Protobuf + Sync,
-        O::Response: Protobuf + MemorySize,
-        <O::Input as Direction>::Item: Protobuf + Sync,
+        O: Portable + Sync,
+        O::Response: Portable + MemorySize,
+        <O::Input as Direction>::Item: Portable + Sync,
         S: tokio_stream::Stream<Item = <O::Input as Direction>::Item> + Send + 'static,
     {
         self.require(path)?;
@@ -128,10 +129,11 @@ pub(super) fn value<T>(reply: StreamItem<T>) -> Result<T> {
     reply.into_request().map(|(value, _claims)| value).map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
 }
 
-pub(super) fn codec<D, E>(response_bytes: usize, request_bytes: usize) -> Result<Codec<D, Response<E>>>
+pub(super) fn codec<D, E>(response_bytes: usize, request_bytes: usize) -> Result<Codec<Transcoded, D, Response<E>>>
 where
-    D: Protobuf + MemorySize + 'static,
-    E: Protobuf + Send + Sync + 'static,
+    Transcoded: Wire<D> + Wire<E>,
+    D: MemorySize + Send + 'static,
+    E: Send + Sync + 'static,
 {
     let response_bytes = NonZeroUsize::new(response_bytes).ok_or(Error::IncompatibleApi)?;
     let request_bytes = NonZeroUsize::new(request_bytes).ok_or(Error::IncompatibleApi)?;
@@ -147,8 +149,8 @@ pub(super) async fn unary<R, Q>(
     request_bytes: usize,
 ) -> Result<StreamItem<R>>
 where
-    R: Protobuf + MemorySize + 'static,
-    Q: Protobuf + Send + Sync + 'static,
+    R: Portable + MemorySize + 'static,
+    Q: Portable + Send + Sync + 'static,
 {
     let codec = codec::<R, Q>(response_bytes, request_bytes)?;
     let mut client = tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);

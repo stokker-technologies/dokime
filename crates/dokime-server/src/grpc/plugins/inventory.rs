@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
 
 // Local Imports
 use super::*;
@@ -112,7 +113,7 @@ pub(super) fn page(
         epoch,
         revision: snapshot.revision(),
     };
-    if reply.encoded_len() > limit {
+    if reply.wire_len()? > limit {
         return Err(Status::resource_exhausted("plugin inventory exceeds wire budget"));
     }
     Ok(reply.into())

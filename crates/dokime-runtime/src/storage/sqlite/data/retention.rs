@@ -13,8 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::result::Result;
 use std::num::NonZeroUsize;
+use std::result::Result;
 // Third Party Imports
 use harmos::{catalog::Projection, storage::*};
 use rusqlite::params;

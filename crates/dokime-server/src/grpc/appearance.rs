@@ -18,6 +18,7 @@ mod convert;
 use std::sync::Arc;
 
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, StreamOutput};
 use prost::Message;
 use tonic::Status;
@@ -84,7 +85,7 @@ impl Operation for Read {
         };
         let frame = convert::appearance(captured.frame, logo)
             .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-        if harmos::Protobuf::encoded_len(&frame) > self.resources.max_message_bytes {
+        if frame.wire_len()? > self.resources.max_message_bytes {
             return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
         }
         Ok((frame).into())
@@ -142,10 +143,12 @@ fn failure(kind: dokime_domain::model::appearance::wire::AppearanceFailureKind) 
     let envelope = tonic_types::Status {
         code: code as i32,
         message: message.into(),
-        details: vec![prost_types::Any {
-            type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(),
-            value: harmos::Protobuf::encode_to_vec(&dokime_domain::model::appearance::wire::AppearanceFailure { kind }),
-        }],
+        // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
+        details: crate::grpc::transcode::Transcode::wire_bytes(&dokime_domain::model::appearance::wire::AppearanceFailure { kind })
+            .ok()
+            .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(), value })
+            .into_iter()
+            .collect(),
     };
     Status::with_details(code, message, envelope.encode_to_vec().into())
 }

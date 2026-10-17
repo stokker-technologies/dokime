@@ -16,10 +16,9 @@ mod selection;
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
 use super::error::detailed;
@@ -96,7 +95,7 @@ impl Reader {
         };
         // Reserve the maximum cursor varint and final boolean before accepting
         // records. A rejected candidate is never acknowledged by scanned.
-        let overhead = page.encoded_len() + 32;
+        let overhead = page.wire_len()? + 32;
         if overhead > self.bytes {
             return Err(Status::resource_exhausted("record page envelope exceeds transport limit"));
         }
@@ -109,7 +108,7 @@ impl Reader {
             };
             if self.selection.matches(&record) {
                 let encoded = canonical::record(&record)?;
-                let size = encoded.encoded_len().saturating_add(10);
+                let size = encoded.wire_len()?.saturating_add(10);
                 if bytes.saturating_add(size) > self.bytes {
                     if page.records.is_empty() {
                         return Err(Status::resource_exhausted("captured record exceeds page limit; cursor has not advanced"));
@@ -216,7 +215,7 @@ impl Operation for Schema {
             .historical_record_contract(&kind, request.schema_version)
             .ok_or_else(|| Status::not_found("exact admitted record schema is unavailable"))?;
         let schema = super::catalog::schemas::record(contract)?;
-        if schema.encoded_len() > self.resources.max_message_bytes {
+        if schema.wire_len()? > self.resources.max_message_bytes {
             return Err(Status::resource_exhausted("record schema exceeds transport response budget"));
         }
         Ok(schema.into())

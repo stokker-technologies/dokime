@@ -18,13 +18,10 @@ version = { workspace = true }
 [features]
 # Captures error chains, span traces and backtraces into a `Diagnostic`.
 diagnostics = ["dep:tracing-error"]
-# Projects the public operations into protobuf descriptors and readable sources.
-descriptors = ["harmos/grpc", "dep:harmos-packaging"]
 
 [dependencies]
 # Git
 harmos = { workspace = true }
-harmos-packaging = { workspace = true, optional = true, features = ["bindings-proto"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -41,10 +38,3 @@ base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-[[bin]]
-name = "dokime-domain-export"
-path = "src/bin/export.rs"
-required-features = ["descriptors"]
-test = false
-bench = false
-doc = false

@@ -16,10 +16,9 @@ mod wire;
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use dokime_domain::operations::history;
@@ -65,7 +64,7 @@ impl Operation for Get {
                 document: Some(wire::execution_document(document.document).map_err(original_error)?),
                 acquisition_finished: document.acquisition_finished,
             };
-            if response.encoded_len() > self.resources.maximum {
+            if response.wire_len()? > self.resources.maximum {
                 return Err(exhausted());
             }
             Ok(response)

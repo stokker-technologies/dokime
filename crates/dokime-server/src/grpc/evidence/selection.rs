@@ -15,7 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
@@ -98,7 +99,7 @@ impl Selection {
         }
         let stream = format!(
             "evidence.records:{}",
-            Sha256::digest(value.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            Sha256::digest(harmos::Message::encode_to_vec(&value)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         Ok(Self { value, stream })
     }

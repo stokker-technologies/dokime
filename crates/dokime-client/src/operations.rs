@@ -17,9 +17,10 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::operations::host::{DiscoveredOperation, Operations as HostOperations};
+use harmos::MemorySize;
+use harmos::domain::Portable;
+use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
 use harmos::operations::{OperationDeclaration, StreamItem};
-use harmos::{MemorySize, Protobuf};
 
 // Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
@@ -32,8 +33,8 @@ use dokime_domain::operations::runtime::GetIdentity;
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CATALOG_ROWS: usize = 4096;
-const CATALOG_PAGE_BYTES: u32 = 4 * 1024 * 1024;
-const CATALOG_PATH: &str = "/harmos.host.v1.Host/Operations";
+const CATALOG_PAGE_BYTES: usize = 4 * 1024 * 1024;
+const CATALOG_PATH: &str = "/harmos.host.v1.Host/Catalog";
 
 /* === Macros === */
 
@@ -74,19 +75,21 @@ impl Client {
         let mut after = None;
         let mut bytes = 0usize;
         loop {
-            let request =
-                self.unary::<HostOperations>(CATALOG_PATH, HostOperations { after, rows: Some(64), bytes: Some(CATALOG_PAGE_BYTES) });
+            let request = self.unary::<Catalog>(
+                CATALOG_PATH,
+                Catalog { kind: CatalogKind::Operations, schema: None, after, rows: Some(64), bytes: Some(CATALOG_PAGE_BYTES) },
+            );
             let page = match deadline {
                 Some(deadline) => tokio::time::timeout_at(deadline, request)
                     .await
                     .map_err(|_| ClientError::Rpc(tonic::Status::deadline_exceeded("catalog deadline exceeded")))??,
                 None => request.await?,
             };
-            bytes = bytes.checked_add(page.catalog.len()).ok_or(Error::CatalogTooLarge)?;
+            bytes = bytes.checked_add(page.entries.len()).ok_or(Error::CatalogTooLarge)?;
             if bytes > MAX_CATALOG_BYTES {
                 return Err(Error::CatalogTooLarge);
             }
-            let batch: Vec<DiscoveredOperation> = serde_json::from_slice(&page.catalog).map_err(|_| Error::Catalog)?;
+            let batch: Vec<DiscoveredOperation> = serde_json::from_slice(&page.entries).map_err(|_| Error::Catalog)?;
             if batch.len() > 64 || entries.len() + batch.len() > MAX_CATALOG_ROWS {
                 return Err(Error::CatalogTooLarge);
             }
@@ -102,7 +105,7 @@ impl Client {
             }
             match &page.next {
                 None => return Ok(entries),
-                Some(cursor) if cursor.is_empty() || cursor.len() > CATALOG_PAGE_BYTES as usize => {
+                Some(cursor) if cursor.is_empty() || cursor.len() > CATALOG_PAGE_BYTES => {
                     return Err(Error::Catalog);
                 }
                 Some(cursor) => {
@@ -131,8 +134,8 @@ impl Client {
     pub(super) async fn unary<O>(&self, path: &'static str, message: O) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
-        O: Protobuf + Sync,
-        O::Response: Protobuf + MemorySize,
+        O: Portable + Sync,
+        O::Response: Portable + MemorySize,
     {
         self.require(path)?;
         self.execute(async {

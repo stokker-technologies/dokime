@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
@@ -116,7 +117,7 @@ fn project(
     let mut digest = Sha256::new();
     for (index, record) in records.iter().enumerate() {
         let artifact = metadata(record)?;
-        let encoded = artifact.encode_to_vec();
+        let encoded = artifact.wire_bytes()?;
         let mut prefix = Vec::with_capacity(10);
         prost::encoding::encode_varint(encoded.len() as u64, &mut prefix);
         digest.update(&prefix);
@@ -149,7 +150,7 @@ fn project(
         next_after_artifact_id,
         cursor: Some(dokime_domain::model::content::wire::ArtifactCursor { epoch: epoch.to_owned(), metadata_sha256: fingerprint }),
     };
-    if reply.encoded_len() > maximum {
+    if reply.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact page exceeds configured message limit"));
     }
     Ok(reply)

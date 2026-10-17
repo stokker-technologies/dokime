@@ -14,7 +14,7 @@
 /* === Imports === */
 // Standard Library Imports
 // Third Party Imports
-use harmos::Protobuf;
+use harmos::domain::Portable;
 use tonic::Status as TonicStatus;
 // Local Imports
 use super::super::{
@@ -410,7 +410,7 @@ fn checked_identifier(value: &Identifier, field: &str) -> Result<String, TonicSt
     Ok(value.as_str().to_owned())
 }
 
-fn ensure_size<M: Protobuf>(message: &M, max_message_bytes: usize, name: &str) -> Result<(), TonicStatus> {
+fn ensure_size<M: Portable>(message: &M, max_message_bytes: usize, name: &str) -> Result<(), TonicStatus> {
     if message.encoded_len() > max_message_bytes {
         return Err(TonicStatus::resource_exhausted(format!("{name} exceeds the native message budget")));
     }

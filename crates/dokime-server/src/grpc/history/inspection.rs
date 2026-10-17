@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
@@ -130,7 +131,7 @@ pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::R
         }
         harmos::Error::backend("project inspected execution checkpoint", harmos::BackendFailure::Corrupt, source)
     })?;
-    if Protobuf::encoded_len(&value) > maximum {
+    if value.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(value)

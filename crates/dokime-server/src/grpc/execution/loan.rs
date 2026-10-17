@@ -35,8 +35,8 @@ use tonic::Status;
 
 /* === Public Functions === */
 
-pub(super) fn response_limit(value: &impl harmos::Protobuf, maximum: usize) -> Result<(), Status> {
-    if harmos::Protobuf::encoded_len(value) > maximum {
+pub(super) fn response_limit(value: &impl harmos::domain::Portable, maximum: usize) -> Result<(), Status> {
+    if crate::grpc::transcode::Transcode::wire_len(value)? > maximum {
         return Err(Status::resource_exhausted("receipt exceeds response budget"));
     }
     Ok(())

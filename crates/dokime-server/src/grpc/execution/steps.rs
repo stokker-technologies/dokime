@@ -176,7 +176,7 @@ fn page(
     })
 }
 
-fn reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Result<T, Status> {
+fn reply<T: harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
         return Err(Status::resource_exhausted("step evidence exceeds response budget"));
     }

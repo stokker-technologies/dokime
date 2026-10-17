@@ -13,8 +13,10 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
 use sha2::{Digest, Sha256};
@@ -25,7 +27,7 @@ use dokime_domain::operations::backend as wire;
 use dokime_domain::operations::runtime as native;
 use dokime_runtime::RuntimeHandle;
 /* === Constants === */
-const DISCOVERY_PAGE_BYTES: u32 = 4 * 1024 * 1024;
+const DISCOVERY_PAGE_BYTES: usize = 4 * 1024 * 1024;
 const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
 /* === Macros === */
 /* === Type Aliases === */
@@ -108,7 +110,7 @@ impl Operation for Availability {
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, _: &mut wire::GetAvailability, _: &mut (),
     ) -> Result<Response<dokime_domain::model::backend::wire::BackendAvailability>, Status> {
-        use harmos::operations::host::{DiscoveredOperation, Operations};
+        use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
         let maximum = self.resources.maximum;
         let mut methods = Vec::new();
         let mut after = None;
@@ -118,15 +120,21 @@ impl Operation for Availability {
             .saturating_add(self.resources.identity.epoch.len());
         loop {
             let page = context
-                .call(Operations { after: after.clone(), rows: Some(64), bytes: Some(DISCOVERY_PAGE_BYTES) })
+                .call(Catalog {
+                    kind: CatalogKind::Operations,
+                    schema: None,
+                    after: after.clone(),
+                    rows: Some(64),
+                    bytes: Some(DISCOVERY_PAGE_BYTES),
+                })
                 .await
                 .map_err(discovery_failure)?;
-            read_bytes = read_bytes.saturating_add(page.catalog.len());
+            read_bytes = read_bytes.saturating_add(page.entries.len());
             if read_bytes > DISCOVERY_WORK_BYTES {
                 return Err(Status::resource_exhausted("availability discovery exceeds configured work budget"));
             }
             let entries: Vec<DiscoveredOperation> =
-                serde_json::from_slice(&page.catalog).map_err(|_| Status::data_loss("invalid shared operation discovery metadata"))?;
+                serde_json::from_slice(&page.entries).map_err(|_| Status::data_loss("invalid shared operation discovery metadata"))?;
             if entries.len() > 64 {
                 return Err(Status::data_loss("shared discovery exceeds requested page size"));
             }
@@ -167,7 +175,7 @@ impl Operation for Availability {
                 max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(maximum) as u32),
             }),
         };
-        if output.encoded_len() > maximum {
+        if output.wire_len()? > maximum {
             return Err(Status::resource_exhausted("availability exceeds configured message budget"));
         }
         Ok(output.into())
@@ -255,10 +263,10 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     Ok(())
 }
 /* === Private Functions === */
-fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
+fn produce<T: MemorySize + Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
     produce_result(maximum, || Ok(build()))
 }
-pub(super) fn produce_result<T: MemorySize + Protobuf + Send + Sync + 'static>(
+pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
     maximum: usize, build: impl FnOnce() -> Result<T, Status>,
 ) -> Result<Response<T>, Status> {
     let output = build()?;

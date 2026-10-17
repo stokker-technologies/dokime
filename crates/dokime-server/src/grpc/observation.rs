@@ -15,8 +15,10 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, StreamOutput},
 };
 use tonic::Status;
@@ -120,7 +122,7 @@ impl Operation for Shell {
             observed_cursor: Some(observed),
             next_after_cycle_id,
         };
-        if Protobuf::encoded_len(&response) > response_limit {
+        if response.wire_len()? > response_limit {
             return Err(Status::resource_exhausted("runtime shell page exceeds response budget; lower limit and retry"));
         }
         Ok((response).into())
@@ -283,7 +285,7 @@ impl Operation for Traceability {
             complete: !has_more,
             host_traceability_fingerprint,
         };
-        if Protobuf::encoded_len(&response) > response_limit {
+        if response.wire_len()? > response_limit {
             return Err(Status::resource_exhausted("traceability page exceeds response budget; lower limit and retry"));
         }
         Ok((response).into())

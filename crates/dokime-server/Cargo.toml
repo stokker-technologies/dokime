@@ -77,7 +77,7 @@ tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["descriptors"] }
+dokime-domain = { path = "../dokime-domain" }
 
 # Git
 harmos = { workspace = true }

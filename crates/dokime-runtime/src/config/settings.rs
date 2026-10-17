@@ -252,14 +252,14 @@ fn create(path: &Path) -> std::io::Result<SettingsDocument> {
         plugins: BTreeMap::new(),
     };
     let root = path.parent().expect("settings file has a parent");
-    dokime_filesystem::publication::create_dir_all(root)?;
+    harmos::filesystem::publication::create_dir_all(root)?;
     let mut temporary = tempfile::NamedTempFile::new_in(root)?;
     std::io::Write::write_all(&mut temporary, &encode(&document)?)?;
     temporary.as_file().sync_all()?;
-    match dokime_filesystem::publication::install(temporary.path(), path) {
+    match harmos::filesystem::publication::install(temporary.path(), path) {
         Ok(()) => Ok(document),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            dokime_filesystem::publication::confirm(path)?;
+            harmos::filesystem::publication::confirm(path)?;
             read(path)?.ok_or_else(|| invalid("settings file vanished during creation"))
         }
         Err(error) => Err(error.into()),
@@ -268,7 +268,7 @@ fn create(path: &Path) -> std::io::Result<SettingsDocument> {
 
 fn write(path: &Path, document: &SettingsDocument) -> std::io::Result<()> {
     document.validate()?;
-    dokime_filesystem::publication::write(path, &encode(document)?).map_err(Into::into)
+    harmos::filesystem::publication::write(path, &encode(document)?).map_err(Into::into)
 }
 
 fn encode(document: &SettingsDocument) -> std::io::Result<Vec<u8>> {

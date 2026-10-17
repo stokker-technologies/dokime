@@ -15,10 +15,9 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::wire;
@@ -82,7 +81,7 @@ impl Operation for Get {
             let evidence = runtime.execution_checkpoint_evidence(checkpoint).await.map_err(wire::checkpoint_failure)?;
             checkpoint_evidence(evidence, &sections)?
         };
-        if response.encoded_len() > maximum {
+        if response.wire_len()? > maximum {
             return Err(status_failure(exhausted()));
         }
         Ok(response.into())

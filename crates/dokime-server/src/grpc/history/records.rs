@@ -17,10 +17,9 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::{Code, Status};
 
 // Local Imports
@@ -105,7 +104,7 @@ fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime_
         issues,
         issues_truncated: page.issues_truncated,
     };
-    if wire.encoded_len() > maximum {
+    if wire.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(wire)

@@ -172,10 +172,7 @@ impl Harness {
             std::sync::Arc::new(move |payload: Vec<u8>| {
                 let answer = std::sync::Arc::clone(&answer);
                 Box::pin(async move {
-                    let request = <O as harmos::Message>::decode(
-                        payload.as_slice(),
-                    )
-                    .map_err(|error| error.to_string())?;
+                    let request = <O as harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
                     Ok(harmos::Message::encode_to_vec(&answer(request)))
                 }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
             }),

@@ -102,8 +102,7 @@ impl Caller {
                 let answer =
                     operations.get(operation).ok_or_else(|| refused("the harness registered no answer for this operation".into()))?;
                 let bytes = answer(Message::encode_to_vec(&request)).await.map_err(refused)?;
-                <O::Response as Message>::decode(bytes.as_slice())
-                    .map_err(|error| refused(error.to_string()))
+                <O::Response as Message>::decode(bytes.as_slice()).map_err(|error| refused(error.to_string()))
             }
         }
     }

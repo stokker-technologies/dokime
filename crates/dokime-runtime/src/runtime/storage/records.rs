@@ -132,9 +132,14 @@ fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool
         return false;
     }
     field(|scope| &scope.test_cycle_id) == Some(execution.test_cycle_id.as_str())
-        || [field(|scope| &scope.test_cycle_id), field(|scope| &scope.test_case_id), field(|scope| &scope.step_id), field(|scope| &scope.criterion_id)]
-            .iter()
-            .all(Option::is_none)
+        || [
+            field(|scope| &scope.test_cycle_id),
+            field(|scope| &scope.test_case_id),
+            field(|scope| &scope.step_id),
+            field(|scope| &scope.criterion_id),
+        ]
+        .iter()
+        .all(Option::is_none)
 }
 
 fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {

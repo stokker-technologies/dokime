@@ -26,7 +26,6 @@ version.workspace = true
 [dependencies]
 # Local
 dokime-domain = { path = "../dokime-domain" }
-dokime-filesystem = { path = "../dokime-filesystem" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }

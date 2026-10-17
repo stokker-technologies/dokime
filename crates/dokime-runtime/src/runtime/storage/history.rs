@@ -44,11 +44,7 @@ use dokime_domain::model::execution::result::TestExecution;
 pub(crate) async fn executions(storage: &Manager) -> Result<Vec<ObjectRevision<TestExecution>>> {
     let mut selected = Vec::new();
     let rows = storage
-        .read_objects::<Execution>(ObjectRead {
-            at: storage.cursor_saved(),
-            key: None,
-            versions: ObjectVersions::Latest,
-        })
+        .read_objects::<Execution>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest })
         .await?
         .collect()
         .await?;

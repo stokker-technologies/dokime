@@ -15,8 +15,10 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
+use harmos::MemorySize;
+use harmos::domain::Portable;
 use harmos::operations::StreamOutput;
-use harmos::{MemorySize, Protobuf};
 use sha2::{Digest as _, Sha256};
 use std::num::NonZeroUsize;
 use tonic::Status;
@@ -51,7 +53,7 @@ pub(super) enum Source {
 
 /* === Traits === */
 pub(super) trait Frames: Send + 'static {
-    type Frame: Protobuf + MemorySize + Send + Sync + 'static;
+    type Frame: Portable + MemorySize + Send + Sync + 'static;
 
     fn metadata(&self) -> Self::Frame;
     fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
@@ -145,7 +147,7 @@ impl<F: Frames> Download<F> {
                                 .map_err(|_| harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
                             payload.extend_from_slice(bytes);
                             let frame = frames.chunk(offset, payload);
-                            if frame.encoded_len() > limit {
+                            if frame.wire_len()? > limit {
                                 return Err(harmos::Error::ResourceExhausted { resource: "file frame encoding" });
                             }
                             Ok(frame)
@@ -182,7 +184,7 @@ impl<F: Frames> Download<F> {
     }
 
     fn check(&self, frame: &F::Frame) -> Result<(), Status> {
-        if frame.encoded_len() > self.message_limit {
+        if frame.wire_len()? > self.message_limit {
             return Err(self.too_large());
         }
         Ok(())

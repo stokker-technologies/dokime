@@ -22,14 +22,13 @@ default = ["native", "derive"]
 native = [
   "harmos/plugin-sidecar",
   "dep:globset",
-  "dep:regex",
   "dep:tokio",
   "dep:tokio-stream",
   "dep:tracing-subscriber",
   "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
-storage = ["dep:base64", "dep:dokime-filesystem", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
   "native",
   "derive",
@@ -39,11 +38,9 @@ host = [
   "dep:base64",
   "dep:blake2",
   "dep:cssparser",
-  "dep:dokime-filesystem",
   "dep:dokime-host",
   "dep:futures-util",
   "dep:keyring",
-  "dep:regex",
   "dep:rustls-platform-verifier",
   "dep:serde_arrow",
   "dep:sha2",
@@ -66,7 +63,6 @@ simulation = ["host", "harmos/simulation"]
 [dependencies]
 # Local
 dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-filesystem = { path = "../dokime-filesystem", optional = true }
 dokime-host = { path = "../dokime-host", optional = true }
 dokime-macros = { path = "../dokime-macros", optional = true }
 
@@ -85,7 +81,7 @@ tracing-subscriber = { workspace = true, optional = true }
 # Utilities
 blake2 = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
-regex = { workspace = true, optional = true }
+regex = { workspace = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
 uuid = { workspace = true, features = ["js"] }

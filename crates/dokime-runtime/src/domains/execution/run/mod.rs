@@ -1282,8 +1282,8 @@ async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
     contract: &crate::telemetry::TelemetryContract, replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
-    use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
     use harmos::storage::operations::Query;
+    use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
     let samples_failure = |error: harmos::storage::Error| failure("sidecar_samples", error.to_string());
     let scope =
         harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(|error| failure("sidecar_samples", error.to_string()))?;

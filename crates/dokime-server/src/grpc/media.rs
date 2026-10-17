@@ -19,10 +19,9 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -239,7 +238,7 @@ impl Operation for CameraRecording {
 impl Resources {
     fn respond(&self, record: &ArtifactRecord) -> Result<Response<ArtifactMetadata>, Status> {
         let output = metadata(record)?;
-        if output.encoded_len() > self.maximum {
+        if output.wire_len()? > self.maximum {
             return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
         }
         Ok(output.into())

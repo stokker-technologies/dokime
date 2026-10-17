@@ -18,8 +18,9 @@ pub(in crate::grpc) use wire::{health, note};
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -223,7 +224,7 @@ impl Operation for EditNote {
 }
 
 impl Resources {
-    fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
+    fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;

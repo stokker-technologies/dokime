@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
@@ -107,7 +108,7 @@ fn project(
     }
     let mut hash = Sha256::new();
     for file in &files {
-        let encoded = file.encode_to_vec();
+        let encoded = file.wire_bytes()?;
         let mut prefix = Vec::with_capacity(10);
         prost::encoding::encode_varint(encoded.len() as u64, &mut prefix);
         hash.update(&prefix);
@@ -132,7 +133,7 @@ fn project(
             metadata_sha256,
         }),
     };
-    if page.encoded_len() > maximum {
+    if page.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(page)

@@ -176,8 +176,10 @@ impl Operation for ProviderState {
         let after = invocation.after;
         let cancelled = self.work.cancelled.clone();
         let finalization = invocation.finalization.clone();
-        let outcome =
-            self.work.run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await })).await;
+        let outcome = self
+            .work
+            .run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await }))
+            .await;
         *slot.lock().expect("provider outcome lock poisoned") = Some(outcome);
         Ok(().into())
     }
@@ -275,18 +277,14 @@ impl ProviderCycleRequest {
             tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
             match outcome {
                 Ok(_) => {
-                    let settled = settlement.lock().expect("provider outcome lock poisoned").take().unwrap_or_else(|| {
-                        Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome"))
-                    });
+                    let settled = settlement
+                        .lock()
+                        .expect("provider outcome lock poisoned")
+                        .take()
+                        .unwrap_or_else(|| Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome")));
                     let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
                     let started = started_execution_ids_for(&runtime, &cycle);
-                    submit_finish_provider_cycle(
-                        &runtime,
-                        &self,
-                        settled,
-                        started,
-                    )
-                    .await;
+                    submit_finish_provider_cycle(&runtime, &self, settled, started).await;
                 }
                 Err(error) if finalization.pending().await => {
                     tracing::error!(%error, "provider cleanup is unresolved; terminal publication remains blocked");

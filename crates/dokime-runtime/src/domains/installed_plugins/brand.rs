@@ -154,7 +154,7 @@ impl ResolvedBrand {
         };
         let path = directory.join(&logo.file);
         if std::fs::read(&path).ok().as_deref() != Some(logo.bytes) {
-            dokime_filesystem::publication::write(&path, logo.bytes)?;
+            harmos::filesystem::publication::write(&path, logo.bytes)?;
         }
         self.customization.logo_assets = vec![AppLogoAsset {
             asset_id: Identifier::new(BRAND_LOGO_ASSET_ID).expect("valid asset identifier"),

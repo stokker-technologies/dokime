@@ -199,7 +199,7 @@ impl<T> Drop for Response<T> {
     }
 }
 
-impl<T: harmos::Protobuf + Send + 'static, R: Send + 'static> RequestStream<T, R> {
+impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStream<T, R> {
     pub(super) fn new<F, Fut>(client: &Client, operation: F) -> Result<Self>
     where
         F: FnOnce(tokio_stream::wrappers::ReceiverStream<T>) -> Fut + Send + 'static,
@@ -232,7 +232,10 @@ impl<T: harmos::Protobuf + Send + 'static, R: Send + 'static> RequestStream<T, R
     }
 
     pub async fn send(&self, frame: T) -> Result<()> {
-        if frame.encoded_len() > self.inner.max_frame_bytes {
+        let mut encoded = Vec::new();
+        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(&frame, &mut encoded)
+            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+        if encoded.len() > self.inner.max_frame_bytes {
             return Err(Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit")));
         }
 

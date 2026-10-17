@@ -27,7 +27,7 @@ console = []
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../../dokime-domain", features = ["descriptors"] }
+dokime-domain = { path = "../../dokime-domain" }
 
 # Git
 harmos = { workspace = true }
@@ -48,6 +48,7 @@ dokime-domain = { path = "../../dokime-domain", features = ["diagnostics"] }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 anyhow = { workspace = true }

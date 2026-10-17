@@ -18,7 +18,6 @@ members = [
   "crates/dokime-host",
   "crates/dokime-macros",
   "crates/dokime-server",
-  "crates/dokime-filesystem",
   "plugins/obc-plugin",
   "crates/dokime-runtime/tests/fixtures",
   "plugins/obc-plugin/runtime",
@@ -38,6 +37,7 @@ repository = "https://github.com/stokker-technologies/dokime"
 # Git
 harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
 harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -162,6 +162,7 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 [patch."https://github.com/stokker-technologies/harmos.git"]
 harmos = { path = "../../harmos.wt/conventions/crates/harmos" }
 harmos-packaging = { path = "../../harmos.wt/conventions/crates/harmos-packaging" }
+harmos-sdk = { path = "../../harmos.wt/conventions/crates/harmos-sdk" }
 
 [profile.dev]
 debug = "line-tables-only"

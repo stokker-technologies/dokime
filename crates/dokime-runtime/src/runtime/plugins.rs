@@ -887,7 +887,7 @@ fn persist_extraction(
     std::fs::rename(staged.path(), target)?;
     let stat = std::fs::metadata(bundle_path)?;
     let marker = ExtractionMarker { sha256: content_digest.to_owned(), size: stat.len(), mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0) };
-    dokime_filesystem::publication::write(
+    harmos::filesystem::publication::write(
         &target.join(EXTRACTION_MARKER_FILE),
         &serde_json::to_vec(&marker).map_err(std::io::Error::other)?,
     )

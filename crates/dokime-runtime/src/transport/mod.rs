@@ -24,8 +24,8 @@ pub(crate) use protocol::templated;
 pub use protocol::{
     ArtifactChunk, CommandExecutionReply, CommandExecutionRequest, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch,
     EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, OperatorAnswer,
-    OperatorQuestion, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus,
-    SidecarExecutionOutcome, SignalReply, StepAdmission,
+    OperatorQuestion, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome,
+    SignalReply, StepAdmission,
 };
 pub use provider::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe, ProviderExecutionErrorDetail, ProviderExecutionFailure,

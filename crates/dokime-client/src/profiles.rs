@@ -86,7 +86,7 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Filesystem(#[from] dokime_filesystem::Error),
+    Filesystem(#[from] harmos::filesystem::Error),
     #[error(transparent)]
     Credentials(#[from] super::credentials::Error),
 }
@@ -223,7 +223,7 @@ impl Store {
 
     pub fn load(&self) -> Result<Document, Error> {
         self.parent()?;
-        match dokime_filesystem::input::read(&self.path, MAX_BYTES) {
+        match harmos::filesystem::input::read(&self.path, MAX_BYTES) {
             Ok(bytes) => Document::decode(&bytes),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Document::default()),
             Err(error) => Err(error.into()),
@@ -253,7 +253,7 @@ impl Store {
     // on contention; never unlink the lock file or hold a lock during network IO.
     pub fn update<T>(&self, edit: impl FnOnce(&mut Document) -> Result<T, Error>) -> Result<T, Error> {
         let parent = self.parent()?;
-        dokime_filesystem::publication::create_dir_all(parent)?;
+        harmos::filesystem::publication::create_dir_all(parent)?;
         let mut lock_path = self.path.as_os_str().to_os_string();
         lock_path.push(".lock");
         let lock = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(PathBuf::from(lock_path))?;
@@ -265,7 +265,7 @@ impl Store {
         let mut document = self.load()?;
         let result = edit(&mut document)?;
         let bytes = document.encode()?;
-        dokime_filesystem::publication::write(&self.path, &bytes)?;
+        harmos::filesystem::publication::write(&self.path, &bytes)?;
         Ok(result)
     }
 }

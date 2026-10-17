@@ -15,7 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -93,7 +94,7 @@ pub(super) fn complete(
 fn checked(
     frame: dokime_domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
-    if frame.encoded_len() > maximum {
+    if frame.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(frame)

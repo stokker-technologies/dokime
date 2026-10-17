@@ -17,7 +17,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
 use tonic::Status;
 
@@ -115,7 +116,7 @@ impl Operation for Upload {
         let record = sealed.map_err(content_failure)?;
         self.upload = None;
         let output = metadata(&record)?;
-        if output.encoded_len() > self.resources.maximum {
+        if output.wire_len()? > self.resources.maximum {
             return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
         }
         Ok(output.into())

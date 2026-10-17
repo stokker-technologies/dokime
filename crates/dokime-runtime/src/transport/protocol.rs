@@ -70,22 +70,6 @@ macro_rules! templated {
             }
         }
 
-        harmos::__private::with_protobuf! {
-            impl<T> harmos::domain::Protobuf for $name<T> {
-                fn encode_to_vec(&self) -> Vec<u8> {
-                    harmos::domain::Protobuf::encode_to_vec(&self.0)
-                }
-
-                fn encoded_len(&self) -> usize {
-                    harmos::domain::Protobuf::encoded_len(&self.0)
-                }
-
-                fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
-                    <$inner as harmos::domain::Protobuf>::decode(bytes).map(Self::new)
-                }
-            }
-        }
-
         impl<T> harmos::MemorySize for $name<T> {
             fn memory_size(&self) -> usize {
                 harmos::MemorySize::memory_size(&self.0)
@@ -105,7 +89,6 @@ macro_rules! templated {
 }
 
 pub(crate) use templated;
-
 
 /* === Type Aliases === */
 
@@ -402,6 +385,5 @@ impl ArtifactChunk {
 const fn bounded(timeout: Duration) -> OperationPolicy {
     OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
 }
-
 
 /* === Tests === */

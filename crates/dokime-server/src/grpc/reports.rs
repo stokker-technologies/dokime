@@ -15,7 +15,8 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
@@ -166,7 +167,7 @@ async fn deliver(
             },
         ))),
     };
-    if frame.encoded_len() > resources.max_message_bytes {
+    if frame.wire_len()? > resources.max_message_bytes {
         return Err(Status::resource_exhausted("report metadata exceeds the message limit"));
     }
     let size_bytes = html.len() as u64;

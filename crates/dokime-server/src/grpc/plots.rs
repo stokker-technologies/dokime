@@ -20,8 +20,9 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 use std::{sync::Arc, time::Duration};
 // Third Party Imports
 use futures_util::{StreamExt, stream};
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
 use tokio::time::Instant;
@@ -70,7 +71,7 @@ struct Watch {
 
 /* === Implementations === */
 impl Resources {
-    fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
+    fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;

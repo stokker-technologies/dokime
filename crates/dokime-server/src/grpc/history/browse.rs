@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
@@ -99,7 +100,7 @@ fn project(page: &ExecutionBrowsePage, maximum: usize) -> harmos::Result<dokime_
         }
         harmos::Error::backend("project historical execution page", harmos::BackendFailure::Corrupt, source)
     })?;
-    if Protobuf::encoded_len(&projected) > maximum {
+    if projected.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(projected)

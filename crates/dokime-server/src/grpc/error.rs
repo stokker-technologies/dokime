@@ -46,10 +46,12 @@ pub(super) fn detailed(status: Status, error: &HostError) -> Status {
     let envelope = tonic_types::Status {
         code: code as i32,
         message: message.clone(),
-        details: vec![prost_types::Any {
-            type_url: DETAIL_TYPE_URL.to_owned(),
-            value: harmos::Protobuf::encode_to_vec(&captured(&diagnostic)),
-        }],
+        // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
+        details: crate::grpc::transcode::Transcode::wire_bytes(&captured(&diagnostic))
+            .ok()
+            .map(|value| prost_types::Any { type_url: DETAIL_TYPE_URL.to_owned(), value })
+            .into_iter()
+            .collect(),
     };
 
     Status::with_details(code, message, envelope.encode_to_vec().into())

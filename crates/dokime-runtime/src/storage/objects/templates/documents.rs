@@ -17,11 +17,11 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::values::ValueFormat;
 use super::{Map, Value, layout};
 use crate::expressions::{DataExpression, DataSource as DomainSource, DataTransform};
 use crate::storage::objects::metadata;
 use crate::storage::{Error, Result};
+use dokime_domain::model::values::ValueFormat;
 
 /* === Constants === */
 

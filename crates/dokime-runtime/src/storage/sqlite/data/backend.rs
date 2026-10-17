@@ -92,7 +92,9 @@ impl<C: ObjectCatalog> Backend<C> {
         C::validate()?;
         let state = State::open(&root).await.map_err(|error| failure("open SQLite", error))?;
         let cut = state.data_open(None).await.map_err(|error| failure("initialize SQLite", error))?;
-        let root = root.canonicalize().map_err(|error| harmos::storage::Error::backend("resolve SQLite root", BackendFailure::Permanent, error))?;
+        let root = root
+            .canonicalize()
+            .map_err(|error| harmos::storage::Error::backend("resolve SQLite root", BackendFailure::Permanent, error))?;
         Ok(Self {
             catalog: std::marker::PhantomData,
             root,

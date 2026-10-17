@@ -191,7 +191,8 @@ impl Pages {
 
 /* === Private Functions === */
 fn same_checkpoint(
-    expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
+    expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
 ) -> Result<()> {
     if actual != Some(expected) {
         return Err(invalid("history returned a different checkpoint"));

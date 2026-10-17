@@ -105,8 +105,7 @@ pub(crate) fn view_filter<'a>(
         _ => (BTreeSet::new(), BTreeSet::new()),
     };
     move |record| {
-        let native =
-            selected.is_none_or(|scope| native_match(record.scope.as_ref(), scope)) && !replaced.contains(&record.record_id);
+        let native = selected.is_none_or(|scope| native_match(record.scope.as_ref(), scope)) && !replaced.contains(&record.record_id);
         let context = record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.is_none() && scope.test_execution_id.is_none());
         (native && (visible.contains(&record.record_id) || context)) || overrides.contains(&record.record_id)
     }

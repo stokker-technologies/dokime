@@ -123,9 +123,9 @@ impl State {
                 // Persist the verified intent before changing file visibility.
                 connection
                     .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
-                dokime_filesystem::publication::create_dir_all(destination.parent().expect("immutable file parent"))?;
+                harmos::filesystem::publication::create_dir_all(destination.parent().expect("immutable file parent"))?;
                 if !present {
-                    dokime_filesystem::publication::install(&source, &destination)?;
+                    harmos::filesystem::publication::install(&source, &destination)?;
                 }
                 // A failed commit leaves an addressable immutable file. The same
                 // identity/length/hash retry verifies it and installs the reference.
@@ -271,7 +271,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     let (_, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("file staging disappeared"))?;
     if finished.is_none() && finish_intent(connection, &staging.id)?.is_none() {
         let path = staging_path(connection, root, &staging.id)?;
-        dokime_filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
+        harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
         regular(&path)?;
         OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
         if production {
@@ -282,7 +282,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
-    Ok(dokime_filesystem::publication::confirm(path)?)
+    Ok(harmos::filesystem::publication::confirm(path)?)
 }
 
 pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference) -> Result<(), Error> {

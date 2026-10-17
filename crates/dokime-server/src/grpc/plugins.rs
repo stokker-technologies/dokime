@@ -20,8 +20,9 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response, StreamInput, StreamItem},
 };
 use sha2::{Digest, Sha256};
@@ -78,7 +79,7 @@ impl Resources {
 }
 
 impl Resources {
-    fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
+    fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;

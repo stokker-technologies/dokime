@@ -16,7 +16,7 @@
 use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
 // Third Party Imports
 use harmos::{
-    Protobuf,
+    Message,
     operations::Host,
     storage::{FileMetadata, FileProducer, FileReference, MutationId, StorageCursor},
 };

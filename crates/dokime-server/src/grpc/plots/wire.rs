@@ -15,7 +15,9 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::{MemorySize, Protobuf};
+use crate::grpc::transcode::Transcode;
+use harmos::MemorySize;
+use harmos::domain::Portable;
 use serde_json::Value as JsonValue;
 use tonic::Status;
 // Local Imports
@@ -110,7 +112,7 @@ fn optional_format(
     value.map(canonical::format)
 }
 
-pub(super) fn ensure_message_budget<M: Protobuf>(value: &M, limit: usize, label: &str) -> Result<(), Status> {
+pub(super) fn ensure_message_budget<M: Portable>(value: &M, limit: usize, label: &str) -> Result<(), Status> {
     if value.encoded_len() > limit {
         return Err(Status::resource_exhausted(format!("{label} exceeds transport limit")));
     }
@@ -125,7 +127,7 @@ pub(super) fn ensure_message_budget<M: Protobuf>(value: &M, limit: usize, label:
 fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), Status> {
     let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
     let decoded_budget = super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);
-    let encoded = envelope.encoded_len();
+    let encoded = envelope.wire_len()?;
     let decoded = envelope.memory_size();
     if encoded <= encoded_budget && decoded <= decoded_budget {
         return Ok(());
@@ -156,7 +158,7 @@ fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit
         })
     };
     let (Some(by_encoding), Some(by_decoding)) =
-        (fits(encoded, bare.encoded_len(), encoded_budget), fits(decoded, bare.memory_size(), decoded_budget))
+        (fits(encoded, bare.wire_len()?, encoded_budget), fits(decoded, bare.memory_size(), decoded_budget))
     else {
         return Err(exhausted());
     };

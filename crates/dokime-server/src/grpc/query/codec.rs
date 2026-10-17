@@ -16,7 +16,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 
 // Local Imports
 use super::super::value::{Budget, canonical};
@@ -55,7 +56,7 @@ pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Res
         rows.push(dokime_domain::model::query::wire::QueryRow { values });
     }
     let result = dokime_domain::model::query::wire::AggregateReply { columns, rows, complete: outcome.complete };
-    if result.encoded_len() > maximum {
+    if result.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(result)

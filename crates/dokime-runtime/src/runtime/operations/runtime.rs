@@ -117,7 +117,7 @@ pub(crate) fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
         state: runtime.state_watch.subscribe(),
     };
     runtime.operations.register_wire_operations::<Operations, Resources>("dokime", Lanes::Open, Arc::new(resources))?;
-    runtime.operations.register_wire_operation::<harmos::operations::discovery::Discovery>("dokime", Lanes::Open, Arc::new(()))?;
+    harmos::operations::listing::register::<crate::storage::objects::Objects>(&runtime.operations, "dokime", Lanes::Open, None)?;
     Ok(())
 }
 

@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use harmos::{
-    Protobuf,
+    Message,
     storage::{FileReference, ObjectRevision},
 };
 
@@ -76,7 +76,7 @@ pub(crate) async fn read_file(storage: &Manager, file: &FileReference) -> Result
 }
 
 /* === Private Functions === */
-pub(super) async fn read_native<T: Protobuf>(storage: &Manager, file: &FileReference, media_type: &str) -> Result<T> {
+pub(super) async fn read_native<T: Message>(storage: &Manager, file: &FileReference, media_type: &str) -> Result<T> {
     if file.metadata.media_type != media_type {
         return Err(invalid("sealed capture has a different native media type"));
     }

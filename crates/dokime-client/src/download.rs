@@ -52,7 +52,7 @@ pub enum Error {
     #[error("download filesystem: {0}")]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    Publication(#[from] dokime_filesystem::Error),
+    Publication(#[from] harmos::filesystem::Error),
     #[error("download publication task: {0}")]
     Task(#[from] tokio::task::JoinError),
 }
@@ -285,7 +285,7 @@ async fn consume<T, M, F: std::future::Future<Output = super::Result<Option<T>>>
 }
 
 fn publish(source: &Path, destination: &Path) -> Result<(), Error> {
-    dokime_filesystem::publication::replace(source, destination)?;
+    harmos::filesystem::publication::replace(source, destination)?;
     Ok(())
 }
 

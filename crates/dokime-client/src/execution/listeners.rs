@@ -92,8 +92,8 @@ pub(crate) fn sample_interval(page_size: u32, interval: Option<Duration>) -> Res
 }
 
 pub(crate) async fn read_samples<F, Fut>(
-    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, streams: Vec<String>, page_size: u32, interval: Duration, mut completion: F,
-    sender: &mpsc::Sender<Result<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>>,
+    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, streams: Vec<String>, page_size: u32, interval: Duration,
+    mut completion: F, sender: &mpsc::Sender<Result<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>>,
 ) -> Result<()>
 where
     F: FnMut() -> Fut + Send,

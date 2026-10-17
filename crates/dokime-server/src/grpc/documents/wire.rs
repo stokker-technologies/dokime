@@ -15,8 +15,9 @@
 // Standard Library Imports
 use std::collections::VecDeque;
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::documents::wire::DocumentFrameFrame as Frame;
-use harmos::Protobuf;
+use harmos::domain::Portable;
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
@@ -43,7 +44,7 @@ struct Frames {
 impl Frames {
     fn push(&mut self, frame: Frame) -> Result<(), Status> {
         let frame = dokime_domain::model::documents::wire::DocumentFrame { frame: Some(frame) };
-        let bytes = frame.encoded_len();
+        let bytes = frame.wire_len()?;
         if bytes > self.limit || self.bytes.saturating_add(bytes) > 32 * 1024 * 1024 || self.frames.len() >= 20_000 {
             return Err(Status::resource_exhausted("document response budget exceeded"));
         }

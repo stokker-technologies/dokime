@@ -176,7 +176,9 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_identity(identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile) -> Result<(), Error> {
+fn validate_identity(
+    identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile,
+) -> Result<(), Error> {
     let history = identity.history.as_ref().ok_or(Error::Invalid("follow identity has no history"))?;
     if identity.execution_id != request.execution_id
         || identity.relative_path != request.relative_path
@@ -233,7 +235,8 @@ async fn commit(output: &mut tokio::fs::File, digest: &Sha256, position: u64, re
 }
 
 fn validate_terminal(
-    terminal: &dokime_domain::model::content::wire::ExecutionFileFollowTerminal, identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, position: u64, digest: &Sha256,
+    terminal: &dokime_domain::model::content::wire::ExecutionFileFollowTerminal,
+    identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, position: u64, digest: &Sha256,
 ) -> Result<(), Error> {
     if terminal.length != position {
         return Err(Error::Invalid("follow terminal length differs"));

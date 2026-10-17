@@ -15,10 +15,9 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::document::canonical::wire as document_wire;
@@ -69,7 +68,7 @@ impl Operation for Get {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         self.resources.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure).and_then(|context| {
             match checkpoint_context(context, self.resources.maximum).map_err(original_error) {
-                Ok(response) if response.encoded_len() <= self.resources.maximum => Ok(response.into()),
+                Ok(response) if response.wire_len()? <= self.resources.maximum => Ok(response.into()),
                 Ok(_) => Err(wire::checkpoint_failure(exhausted().into())),
                 Err(source) => Err(wire::checkpoint_failure(source.into())),
             }

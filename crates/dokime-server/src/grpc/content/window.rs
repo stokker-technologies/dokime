@@ -16,7 +16,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 
 // Local Imports
 use super::files;
@@ -48,7 +49,7 @@ pub(super) fn project(
         observed_size_bytes: content.size_bytes,
         data: bytes(&content.bytes)?,
     };
-    if wire.encoded_len() > maximum {
+    if wire.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(wire)
@@ -66,7 +67,7 @@ pub(in crate::grpc) fn owned(
         observed_size_bytes: content.size_bytes,
         data: content.bytes,
     };
-    if response.encoded_len() > maximum {
+    if response.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(response)

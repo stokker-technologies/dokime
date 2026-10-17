@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
@@ -107,7 +108,7 @@ pub(in crate::grpc) async fn deliver(
     let frame = dokime_domain::model::content::wire::ArtifactFrame {
         payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
     };
-    if frame.encoded_len() > maximum {
+    if frame.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact metadata exceeds the message limit"));
     }
     let size_bytes = reader.record().size_bytes;

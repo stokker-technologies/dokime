@@ -15,13 +15,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
 
 // Local Imports
 use super::super::value::canonical;
 use super::value;
 use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-use harmos::Protobuf;
+use harmos::domain::Portable;
 use tonic::Status;
 
 /* === Constants === */
@@ -88,7 +89,7 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
         restart_required: entry.restart_required,
         boot_error: entry.boot_error,
     };
-    if result.encoded_len() > limit {
+    if result.wire_len()? > limit {
         return Err(Status::resource_exhausted("plugin metadata exceeds response budget"));
     }
     Ok(result)

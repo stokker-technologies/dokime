@@ -31,9 +31,9 @@ use crate::transactions::Transactions;
 use crate::{
     config::RuntimeConfig,
     credentials::CredentialStore,
-    runtime::error::{Error, Result},
     execution_runtime::provider::{ExecutionFixture, ProviderExecutorRegistry},
     installed_plugins::module_preferences::PluginPreferences,
+    runtime::error::{Error, Result},
     telemetry_runtime::Sampling,
 };
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -221,7 +221,7 @@ impl RuntimeHandle {
         let boot_started = std::time::Instant::now();
         let installed_plugins = check_boot_config(&config, boot_started)?;
         config.storage.validate()?;
-        dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
+        harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend = Arc::new(crate::storage::Backend::primary(config.storage_root.clone()).await?);
         let local_state = backend.local_state();
         let (config, application_settings, storage_policy) = tokio::task::spawn_blocking(move || {

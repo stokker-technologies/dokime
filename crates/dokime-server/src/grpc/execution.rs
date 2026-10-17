@@ -370,10 +370,12 @@ pub(super) fn status(error: Error) -> Status {
     let envelope = tonic_types::Status {
         code: grpc_code as i32,
         message: detail.message.clone(),
-        details: vec![prost_types::Any {
-            type_url: "type.googleapis.com/dokime.v1.Rejection".into(),
-            value: harmos::Protobuf::encode_to_vec(&detail),
-        }],
+        // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
+        details: crate::grpc::transcode::Transcode::wire_bytes(&detail)
+            .ok()
+            .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.Rejection".into(), value })
+            .into_iter()
+            .collect(),
     };
     Status::with_details(grpc_code, detail.message, envelope.encode_to_vec().into())
 }
@@ -458,7 +460,7 @@ pub(super) fn historical_case_summary(
 }
 
 /* === Private Functions === */
-fn inspection_reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Result<T, Status> {
+fn inspection_reply<T: harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
     }

@@ -13,8 +13,10 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
 use tonic::Status;
@@ -115,7 +117,7 @@ impl Watch {
                     dropped,
                     next_sequence: after,
                 };
-                if batch.encoded_len() > bytes || batch.memory_size() > bytes {
+                if batch.wire_len()? > bytes || batch.memory_size() > bytes {
                     return Err(Status::resource_exhausted("trace batch exceeds configured budget"));
                 }
                 let response = batch.into();

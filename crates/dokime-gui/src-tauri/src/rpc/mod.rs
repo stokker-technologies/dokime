@@ -27,7 +27,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 // Third Party Imports
-use harmos::{MemorySize, Protobuf};
+use harmos::MemorySize;
+use harmos::domain::Portable;
+use harmos::grpc::{Transcoded, Wire};
+use harmos_sdk::grpc::DecodeInput;
 use sha2::{Digest, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -151,14 +154,15 @@ impl Context {
         Ok(())
     }
 
-    fn reply(&self, message: impl Protobuf) -> Result<tauri::ipc::Response, RpcError> {
+    fn reply<M: Portable>(&self, message: M) -> Result<tauri::ipc::Response, RpcError> {
         self.check()?;
-        if message.encoded_len() > MAX_FRAME_BYTES {
-            return Err(RpcError::LimitExceeded);
-        }
-        let mut bytes = self.generation.to_le_bytes().to_vec();
-        message.encode_into(&mut bytes);
-        Ok(tauri::ipc::Response::new(bytes))
+        let mut payload = Vec::new();
+        <Transcoded as Wire<M>>::encode(&message, &mut payload).map_err(|error| RpcError::Grpc {
+            code: tonic::Code::Internal as i32,
+            message: format!("message encoding failed: {error}"),
+            details: Vec::new(),
+        })?;
+        self.reply_bytes(&payload)
     }
 
     fn reply_bytes(&self, payload: &[u8]) -> Result<tauri::ipc::Response, RpcError> {
@@ -203,7 +207,7 @@ impl Bridge {
         Arc::clone(budget).try_acquire_owned().map_err(|_| RpcError::Busy)
     }
 
-    fn prepare<M: Protobuf + MemorySize>(
+    fn prepare<M: Portable + MemorySize>(
         &self, session: &ConnectionSession, owner: &str, body: &tauri::ipc::InvokeBody,
     ) -> Result<(Context, M), RpcError> {
         let (generation, payload) = request(body)?;
@@ -267,11 +271,13 @@ fn read_u64(bytes: &[u8]) -> Result<u64, RpcError> {
 }
 
 /// Native Transfer Input Is Bounded Before Any Message Allocation.
-fn decode<M: Protobuf + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
-    if bytes.len() > MAX_FRAME_BYTES || M::decoding_memory(bytes).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8 {
+fn decode<M: Portable + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
+    if bytes.len() > MAX_FRAME_BYTES
+        || <Transcoded as Wire<M>>::decoding_memory(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8
+    {
         return Err(RpcError::LimitExceeded);
     }
-    M::decode(bytes).map_err(|_| RpcError::InvalidRequest)
+    <Transcoded as Wire<M>>::decode(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)
 }
 
 /* === Tests === */

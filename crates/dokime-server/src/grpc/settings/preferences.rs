@@ -13,8 +13,9 @@
 // Standard Library Imports
 use std::{fmt::Write, sync::Arc};
 // Third Party Imports
+use harmos::domain::Portable;
 use harmos::{
-    MemorySize, Protobuf,
+    MemorySize,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -196,12 +197,12 @@ impl Operation for UpdateReportDefaults {
     }
 }
 impl Resources {
-    pub(super) fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
+    pub(super) fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> T,
     ) -> Result<Response<T>, Status> {
         self.produce_result(|| Ok(build()))
     }
-    pub(super) fn produce_result<T: MemorySize + Protobuf + Send + Sync + 'static>(
+    pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;

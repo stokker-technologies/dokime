@@ -48,7 +48,6 @@ pub struct RecordPublication {
     pub produced_at: String,
 }
 
-
 /* === Enums === */
 
 /* === Traits === */

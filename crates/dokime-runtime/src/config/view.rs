@@ -125,9 +125,9 @@ impl crate::RuntimeHandle {
 
 /* === Private Functions === */
 fn preflight(root: &std::path::Path) -> std::io::Result<()> {
-    dokime_filesystem::publication::create_dir_all(root)?;
+    harmos::filesystem::publication::create_dir_all(root)?;
     let probe = root.join(format!(".dokime-probe-{}", std::process::id()));
-    dokime_filesystem::publication::write(&probe, b"dokime storage probe")?;
+    harmos::filesystem::publication::write(&probe, b"dokime storage probe")?;
     std::fs::remove_file(&probe)
 }
 

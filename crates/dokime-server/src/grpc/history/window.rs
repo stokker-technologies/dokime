@@ -15,10 +15,9 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::{inspection, wire};
@@ -125,7 +124,7 @@ fn project(
     let checkpoint = inspection::project(checkpoint, maximum)?;
     let content = window::owned(content, maximum)?;
     let response = dokime_domain::model::history::wire::CheckpointFileWindow { checkpoint: Some(checkpoint), content: Some(content) };
-    if response.encoded_len() > maximum {
+    if response.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(response)

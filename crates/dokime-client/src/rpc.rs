@@ -47,12 +47,16 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn backend_get_identity(&self, message: contracts::backend::GetIdentity) -> Result<dokime_domain::model::backend::wire::BackendIdentity> {
+    pub async fn backend_get_identity(
+        &self, message: contracts::backend::GetIdentity,
+    ) -> Result<dokime_domain::model::backend::wire::BackendIdentity> {
         let reply = self.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn backend_get_health(&self, message: contracts::backend::GetHealth) -> Result<dokime_domain::model::backend::wire::BackendHealth> {
+    pub async fn backend_get_health(
+        &self, message: contracts::backend::GetHealth,
+    ) -> Result<dokime_domain::model::backend::wire::BackendHealth> {
         let reply = self.unary::<contracts::backend::GetHealth>(contracts::backend::GetHealth::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -77,16 +81,22 @@ impl Client {
         self.download::<contracts::backend::CollectDiagnostics>(contracts::backend::CollectDiagnostics::PATH, message).await
     }
 
-    pub async fn backend_watch_logs(&self, message: contracts::backend::WatchLogs) -> Result<ResponseStream<dokime_domain::model::backend::wire::LogFrame>> {
+    pub async fn backend_watch_logs(
+        &self, message: contracts::backend::WatchLogs,
+    ) -> Result<ResponseStream<dokime_domain::model::backend::wire::LogFrame>> {
         self.download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs::PATH, message).await
     }
 
-    pub async fn catalog_list_suites(&self, message: contracts::catalog::ListSuites) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
+    pub async fn catalog_list_suites(
+        &self, message: contracts::catalog::ListSuites,
+    ) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
         let reply = self.unary::<contracts::catalog::ListSuites>(contracts::catalog::ListSuites::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn catalog_get_suite(&self, message: contracts::catalog::GetSuite) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
+    pub async fn catalog_get_suite(
+        &self, message: contracts::catalog::GetSuite,
+    ) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
         let reply = self.unary::<contracts::catalog::GetSuite>(contracts::catalog::GetSuite::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -98,7 +108,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn catalog_get_record_schema(&self, message: contracts::catalog::GetRecordSchema) -> Result<dokime_domain::model::definition::wire::RecordSchema> {
+    pub async fn catalog_get_record_schema(
+        &self, message: contracts::catalog::GetRecordSchema,
+    ) -> Result<dokime_domain::model::definition::wire::RecordSchema> {
         let reply = self.unary::<contracts::catalog::GetRecordSchema>(contracts::catalog::GetRecordSchema::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -169,7 +181,9 @@ impl Client {
 
     pub fn content_upload_artifact_open(
         &self,
-    ) -> Result<RequestStream<dokime_domain::model::content::wire::UploadArtifactFrame, dokime_domain::model::content::wire::ArtifactMetadata>> {
+    ) -> Result<
+        RequestStream<dokime_domain::model::content::wire::UploadArtifactFrame, dokime_domain::model::content::wire::ArtifactMetadata>,
+    > {
         self.require(contracts::content::UploadArtifact::PATH)?;
         let client = self.clone();
         RequestStream::new(self, move |stream| async move { client.content_upload_artifact(stream).await })
@@ -181,7 +195,9 @@ impl Client {
         self.download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument::PATH, message).await
     }
 
-    pub async fn evidence_list_records(&self, message: contracts::evidence::ListRecords) -> Result<dokime_domain::model::evidence::wire::RecordPage> {
+    pub async fn evidence_list_records(
+        &self, message: contracts::evidence::ListRecords,
+    ) -> Result<dokime_domain::model::evidence::wire::RecordPage> {
         let reply = self.unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -214,7 +230,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_copy_cycle(&self, message: contracts::execution::CopyCycle) -> Result<dokime_domain::model::execution::wire::CreateCycleReply> {
+    pub async fn execution_copy_cycle(
+        &self, message: contracts::execution::CopyCycle,
+    ) -> Result<dokime_domain::model::execution::wire::CreateCycleReply> {
         let reply = self.unary::<contracts::execution::CopyCycle>(contracts::execution::CopyCycle::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -226,12 +244,16 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_get_cycle(&self, message: contracts::execution::GetCycle) -> Result<dokime_domain::model::execution::wire::CycleSummary> {
+    pub async fn execution_get_cycle(
+        &self, message: contracts::execution::GetCycle,
+    ) -> Result<dokime_domain::model::execution::wire::CycleSummary> {
         let reply = self.unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_get_case(&self, message: contracts::execution::GetCase) -> Result<dokime_domain::model::execution::wire::CaseDetail> {
+    pub async fn execution_get_case(
+        &self, message: contracts::execution::GetCase,
+    ) -> Result<dokime_domain::model::execution::wire::CaseDetail> {
         let reply = self.unary::<contracts::execution::GetCase>(contracts::execution::GetCase::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -259,12 +281,16 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_list_cycles(&self, message: contracts::execution::ListCycles) -> Result<dokime_domain::model::execution::wire::ListCyclesReply> {
+    pub async fn execution_list_cycles(
+        &self, message: contracts::execution::ListCycles,
+    ) -> Result<dokime_domain::model::execution::wire::ListCyclesReply> {
         let reply = self.unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_list_cases(&self, message: contracts::execution::ListCases) -> Result<dokime_domain::model::execution::wire::ListCasesReply> {
+    pub async fn execution_list_cases(
+        &self, message: contracts::execution::ListCases,
+    ) -> Result<dokime_domain::model::execution::wire::ListCasesReply> {
         let reply = self.unary::<contracts::execution::ListCases>(contracts::execution::ListCases::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -283,17 +309,23 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_run_cycle(&self, message: contracts::execution::RunCycle) -> Result<dokime_domain::model::execution::wire::RunReply> {
+    pub async fn execution_run_cycle(
+        &self, message: contracts::execution::RunCycle,
+    ) -> Result<dokime_domain::model::execution::wire::RunReply> {
         let reply = self.unary::<contracts::execution::RunCycle>(contracts::execution::RunCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_run_case(&self, message: contracts::execution::RunCase) -> Result<dokime_domain::model::execution::wire::RunReply> {
+    pub async fn execution_run_case(
+        &self, message: contracts::execution::RunCase,
+    ) -> Result<dokime_domain::model::execution::wire::RunReply> {
         let reply = self.unary::<contracts::execution::RunCase>(contracts::execution::RunCase::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_run_execution(&self, message: contracts::execution::RunExecution) -> Result<dokime_domain::model::execution::wire::RunReply> {
+    pub async fn execution_run_execution(
+        &self, message: contracts::execution::RunExecution,
+    ) -> Result<dokime_domain::model::execution::wire::RunReply> {
         let reply = self.unary::<contracts::execution::RunExecution>(contracts::execution::RunExecution::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -342,22 +374,30 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_pause_cycle(&self, message: contracts::execution::PauseCycle) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    pub async fn execution_pause_cycle(
+        &self, message: contracts::execution::PauseCycle,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         let reply = self.unary::<contracts::execution::PauseCycle>(contracts::execution::PauseCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_resume_cycle(&self, message: contracts::execution::ResumeCycle) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    pub async fn execution_resume_cycle(
+        &self, message: contracts::execution::ResumeCycle,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         let reply = self.unary::<contracts::execution::ResumeCycle>(contracts::execution::ResumeCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_stop_cycle(&self, message: contracts::execution::StopCycle) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    pub async fn execution_stop_cycle(
+        &self, message: contracts::execution::StopCycle,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         let reply = self.unary::<contracts::execution::StopCycle>(contracts::execution::StopCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_delete_case(&self, message: contracts::execution::DeleteCase) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    pub async fn execution_delete_case(
+        &self, message: contracts::execution::DeleteCase,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         let reply = self.unary::<contracts::execution::DeleteCase>(contracts::execution::DeleteCase::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -384,7 +424,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_rename_cycle(&self, message: contracts::execution::RenameCycle) -> Result<dokime_domain::model::execution::wire::RenameReply> {
+    pub async fn execution_rename_cycle(
+        &self, message: contracts::execution::RenameCycle,
+    ) -> Result<dokime_domain::model::execution::wire::RenameReply> {
         let reply = self.unary::<contracts::execution::RenameCycle>(contracts::execution::RenameCycle::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -477,7 +519,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn notes_list_notes(&self, message: contracts::notes::ListNotes) -> Result<dokime_domain::model::notes::wire::ListNotesResponse> {
+    pub async fn notes_list_notes(
+        &self, message: contracts::notes::ListNotes,
+    ) -> Result<dokime_domain::model::notes::wire::ListNotesResponse> {
         let reply = self.unary::<contracts::notes::ListNotes>(contracts::notes::ListNotes::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -487,12 +531,16 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn notes_edit_note(&self, message: contracts::notes::EditNote) -> Result<dokime_domain::model::notes::wire::EditNoteResponse> {
+    pub async fn notes_edit_note(
+        &self, message: contracts::notes::EditNote,
+    ) -> Result<dokime_domain::model::notes::wire::EditNoteResponse> {
         let reply = self.unary::<contracts::notes::EditNote>(contracts::notes::EditNote::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn health_list_health(&self, message: contracts::notes::ListHealth) -> Result<dokime_domain::model::notes::wire::ListHealthResponse> {
+    pub async fn health_list_health(
+        &self, message: contracts::notes::ListHealth,
+    ) -> Result<dokime_domain::model::notes::wire::ListHealthResponse> {
         let reply = self.unary::<contracts::notes::ListHealth>(contracts::notes::ListHealth::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -537,17 +585,23 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn plots_list_analyses(&self, message: contracts::plots::ListAnalyses) -> Result<dokime_domain::model::plots::wire::ListAnalysesReply> {
+    pub async fn plots_list_analyses(
+        &self, message: contracts::plots::ListAnalyses,
+    ) -> Result<dokime_domain::model::plots::wire::ListAnalysesReply> {
         let reply = self.unary::<contracts::plots::ListAnalyses>(contracts::plots::ListAnalyses::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn plots_query_snapshots(&self, message: contracts::plots::QuerySnapshots) -> Result<dokime_domain::model::plots::wire::PlotSnapshotsReply> {
+    pub async fn plots_query_snapshots(
+        &self, message: contracts::plots::QuerySnapshots,
+    ) -> Result<dokime_domain::model::plots::wire::PlotSnapshotsReply> {
         let reply = self.unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn plots_watch(&self, message: contracts::plots::Watch) -> Result<ResponseStream<dokime_domain::model::plots::wire::PlotStreamFrame>> {
+    pub async fn plots_watch(
+        &self, message: contracts::plots::Watch,
+    ) -> Result<ResponseStream<dokime_domain::model::plots::wire::PlotStreamFrame>> {
         self.download::<contracts::plots::Watch>(contracts::plots::Watch::PATH, message).await
     }
 
@@ -573,23 +627,30 @@ impl Client {
 
     pub fn plugins_stage_open(
         &self,
-    ) -> Result<RequestStream<dokime_domain::model::plugins::wire::StagePluginFrame, dokime_domain::model::plugins::wire::PluginInstallation>> {
+    ) -> Result<RequestStream<dokime_domain::model::plugins::wire::StagePluginFrame, dokime_domain::model::plugins::wire::PluginInstallation>>
+    {
         self.require(contracts::plugins::Stage::PATH)?;
         let client = self.clone();
         RequestStream::new(self, move |stream| async move { client.plugins_stage(stream).await })
     }
 
-    pub async fn plugins_consent(&self, message: contracts::plugins::Consent) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
+    pub async fn plugins_consent(
+        &self, message: contracts::plugins::Consent,
+    ) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
         let reply = self.unary::<contracts::plugins::Consent>(contracts::plugins::Consent::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn plugins_set_enabled(&self, message: contracts::plugins::SetEnabled) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
+    pub async fn plugins_set_enabled(
+        &self, message: contracts::plugins::SetEnabled,
+    ) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
         let reply = self.unary::<contracts::plugins::SetEnabled>(contracts::plugins::SetEnabled::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn plugins_remove(&self, message: contracts::plugins::Remove) -> Result<dokime_domain::model::plugins::wire::RemovePluginReply> {
+    pub async fn plugins_remove(
+        &self, message: contracts::plugins::Remove,
+    ) -> Result<dokime_domain::model::plugins::wire::RemovePluginReply> {
         let reply = self.unary::<contracts::plugins::Remove>(contracts::plugins::Remove::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -608,7 +669,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn prompts_get_definition(&self, message: contracts::prompts::GetDefinition) -> Result<dokime_domain::model::prompts::wire::PromptDefinition> {
+    pub async fn prompts_get_definition(
+        &self, message: contracts::prompts::GetDefinition,
+    ) -> Result<dokime_domain::model::prompts::wire::PromptDefinition> {
         let reply = self.unary::<contracts::prompts::GetDefinition>(contracts::prompts::GetDefinition::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -620,12 +683,16 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn prompts_get_prompt(&self, message: contracts::prompts::GetPrompt) -> Result<dokime_domain::model::prompts::wire::PromptView> {
+    pub async fn prompts_get_prompt(
+        &self, message: contracts::prompts::GetPrompt,
+    ) -> Result<dokime_domain::model::prompts::wire::PromptView> {
         let reply = self.unary::<contracts::prompts::GetPrompt>(contracts::prompts::GetPrompt::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn prompts_respond(&self, message: contracts::prompts::Respond) -> Result<dokime_domain::model::prompts::wire::PromptResponseReceipt> {
+    pub async fn prompts_respond(
+        &self, message: contracts::prompts::Respond,
+    ) -> Result<dokime_domain::model::prompts::wire::PromptResponseReceipt> {
         let reply = self.unary::<contracts::prompts::Respond>(contracts::prompts::Respond::PATH, message).await?;
         super::transport::value(reply)
     }
@@ -661,7 +728,9 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn settings_get_settings(&self, message: contracts::settings::GetSettings) -> Result<dokime_domain::model::settings::wire::SettingsFrame> {
+    pub async fn settings_get_settings(
+        &self, message: contracts::settings::GetSettings,
+    ) -> Result<dokime_domain::model::settings::wire::SettingsFrame> {
         let reply = self.unary::<contracts::settings::GetSettings>(contracts::settings::GetSettings::PATH, message).await?;
         super::transport::value(reply)
     }

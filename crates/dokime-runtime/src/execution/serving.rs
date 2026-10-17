@@ -25,10 +25,11 @@ use harmos::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
-use crate::transport::templated;
 use crate::transport::buffer::lock;
+use crate::transport::templated;
 use crate::transport::{
-    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
+    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RUN_BOUND, RunExecution,
+    SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
 };
 
 /* === Constants === */
@@ -177,21 +178,15 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(async move {
-            self.call(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
-        })
+        Box::pin(async move { self.call(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        Box::pin(async move {
-            self.call(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
-        })
+        Box::pin(async move { self.call(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        Box::pin(
-            async move { self.call(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
-        )
+        Box::pin(async move { self.call(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
     }
 }
 

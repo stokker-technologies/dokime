@@ -92,7 +92,9 @@ impl ExecutionRequestHandle {
         &self.id
     }
 
-    pub fn updates(&self, interval: Option<std::time::Duration>) -> Result<ResponseStream<dokime_domain::model::execution::wire::RunRequestReceipt>> {
+    pub fn updates(
+        &self, interval: Option<std::time::Duration>,
+    ) -> Result<ResponseStream<dokime_domain::model::execution::wire::RunRequestReceipt>> {
         let interval = poll_interval(interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -252,7 +254,9 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let (action, step_id) = match command {
             StepCommand::Next => (dokime_domain::model::execution::wire::ExecutionCommandAction::Next, None),
-            StepCommand::RunStep { step_id } => (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id.to_string())),
+            StepCommand::RunStep { step_id } => {
+                (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id.to_string()))
+            }
             StepCommand::Finish => (dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None),
         };
         let request = contracts::execution::SubmitExecutionCommand {
@@ -302,7 +306,9 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
-pub(super) fn admission(epoch: &str, reply: dokime_domain::model::execution::wire::RunReply) -> Result<dokime_domain::model::execution::wire::Admission> {
+pub(super) fn admission(
+    epoch: &str, reply: dokime_domain::model::execution::wire::RunReply,
+) -> Result<dokime_domain::model::execution::wire::Admission> {
     match reply.outcome {
         Some(dokime_domain::model::execution::wire::RunReplyOutcome::Accepted(admission)) => {
             validate_admission(epoch, &admission)?;
@@ -371,7 +377,9 @@ fn validate_checkpoint(
     Ok(original)
 }
 
-fn checkpoint_cursor(cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<harmos::storage::StorageCursor> {
+fn checkpoint_cursor(
+    cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>,
+) -> Result<harmos::storage::StorageCursor> {
     let cursor = cursor.ok_or_else(|| invalid("saved checkpoint cursor is missing"))?;
     let history = cursor.history.as_ref().ok_or_else(|| invalid("saved checkpoint history is missing"))?;
     if history.store.len() > 4096 || history.epoch.len() > 4096 {
@@ -408,7 +416,8 @@ fn validate_admission(epoch: &str, admission: &dokime_domain::model::execution::
 }
 
 fn validate_command_receipt(
-    execution_id: &TestExecutionId, request_id: &CommandId, command_id: &CommandId, receipt: &dokime_domain::model::execution::wire::ExecutionCommandReceipt,
+    execution_id: &TestExecutionId, request_id: &CommandId, command_id: &CommandId,
+    receipt: &dokime_domain::model::execution::wire::ExecutionCommandReceipt,
 ) -> Result<()> {
     if receipt.execution_id != execution_id.as_str()
         || receipt.request_id != request_id.as_str()
@@ -417,7 +426,11 @@ fn validate_command_receipt(
         return Err(invalid("command receipt identity differs"));
     }
     match (receipt.action, &receipt.step_id) {
-        (dokime_domain::model::execution::wire::ExecutionCommandAction::Next | dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None) => {}
+        (
+            dokime_domain::model::execution::wire::ExecutionCommandAction::Next
+            | dokime_domain::model::execution::wire::ExecutionCommandAction::Finish,
+            None,
+        ) => {}
         (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id)) => {
             StepId::from_uuid(step_id).map_err(|_| invalid("command receipt has an invalid step identity"))?;
         }
@@ -448,7 +461,8 @@ fn validate_snapshot(id: &TestExecutionId, detail: &dokime_domain::model::execut
 }
 
 fn validate_outcome(
-    id: &TestExecutionId, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, outcome: &dokime_domain::model::history::wire::CheckpointDocument,
+    id: &TestExecutionId, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    outcome: &dokime_domain::model::history::wire::CheckpointDocument,
 ) -> Result<()> {
     if outcome.checkpoint.as_ref() != Some(checkpoint) || !outcome.acquisition_finished {
         return Err(invalid("execution outcome differs from the persisted seal"));

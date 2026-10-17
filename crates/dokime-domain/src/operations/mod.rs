@@ -85,15 +85,6 @@ pub struct Declaration {
 }
 
 /* === Enums === */
-#[cfg(feature = "descriptors")]
-#[derive(Debug, thiserror::Error)]
-pub enum DescriptorError {
-    #[error(transparent)]
-    Contract(#[from] harmos::operations::ContractError),
-    #[error(transparent)]
-    Export(#[from] harmos_packaging::proto::ExportError),
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Access {
@@ -104,7 +95,7 @@ pub enum Access {
 
 #[harmos::catalog]
 pub enum Operations {
-    Host(harmos::operations::host::Operations),
+    Host(harmos::operations::host::Catalog),
     Health(runtime::GetHealth),
     Identity(runtime::GetIdentity),
     #[nested]
@@ -159,8 +150,8 @@ pub trait Endpoint: OperationDeclaration {
 }
 
 /* === Implementations === */
-impl Endpoint for harmos::operations::host::Operations {
-    const PATH: &'static str = "/harmos.host.v1.Host/Operations";
+impl Endpoint for harmos::operations::host::Catalog {
+    const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
     const ACCESS: Access = Access::Read;
 }
 
@@ -183,13 +174,6 @@ where
 }
 
 /* === Public Functions === */
-// The descriptor set and readable `.proto` sources of every public operation.
-#[cfg(feature = "descriptors")]
-pub fn artifacts() -> Result<harmos_packaging::proto::Artifacts, DescriptorError> {
-    let contracts = harmos::operations::Contracts::of::<Operations>()?;
-    Ok(harmos_packaging::proto::Artifacts::new(&contracts)?)
-}
-
 /* === Private Functions === */
 const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }

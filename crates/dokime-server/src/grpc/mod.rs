@@ -39,6 +39,7 @@ mod server;
 mod settings;
 mod telemetry;
 mod trace;
+mod transcode;
 mod value;
 
 /* === Re-Exports === */

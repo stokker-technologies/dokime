@@ -15,7 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
@@ -249,7 +250,7 @@ fn histogram_options(value: dokime_domain::model::plots::wire::PlotHistogramOpti
 fn selection_key_wire(request: &dokime_domain::model::plots::wire::PlotRequest) -> String {
     let mut request = request.clone();
     request.cursor = None;
-    Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+    Sha256::digest(harmos::Message::encode_to_vec(&request)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
 }
 
 fn plot_filter(filter: dokime_domain::model::plots::wire::PlotFilter) -> Result<DocumentFilter, Status> {

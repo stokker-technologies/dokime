@@ -30,7 +30,7 @@ use crate::model::identity::TestExecutionId;
 use crate::model::time::Timestamp;
 
 /* === Constants === */
-pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+protobuf";
+pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+postcard";
 pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
 
 /* === Macros === */

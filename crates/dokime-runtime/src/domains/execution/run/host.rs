@@ -20,9 +20,7 @@ use harmos::operations::{Context, Operation, OperationManager};
 // Local Imports
 use super::session::Session;
 use crate::execution::ExecutionScope;
-use crate::transport::{
-    EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture,
-};
+use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture};
 
 /* === Constants === */
 const OWNER: &str = "dokime.execution";

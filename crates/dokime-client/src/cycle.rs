@@ -338,8 +338,8 @@ fn single_plan(
 }
 
 fn execution_members(
-    epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply, first_ordinal: u64,
-    seen: &mut HashSet<TestExecutionId>,
+    epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply,
+    first_ordinal: u64, seen: &mut HashSet<TestExecutionId>,
 ) -> Result<Vec<TestExecutionId>> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;
     if request.cursor.is_some() && request.cursor != page.cursor {

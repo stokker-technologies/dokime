@@ -58,7 +58,7 @@ pub enum Error {
     #[error(transparent)]
     HarmosDomain(#[from] harmos::domain::Error),
     #[error(transparent)]
-    Publication(#[from] dokime_filesystem::Error),
+    Publication(#[from] harmos::filesystem::Error),
 }
 
 /* === Traits === */

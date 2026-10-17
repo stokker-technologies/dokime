@@ -110,7 +110,7 @@ impl PluginStore {
         let sha256 = digest(bytes);
 
         // Publish The Verified Bundle File
-        dokime_filesystem::publication::create_dir_all(&self.root).map_err(std::io::Error::from)?;
+        harmos::filesystem::publication::create_dir_all(&self.root).map_err(std::io::Error::from)?;
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
         temporary.write_all(bytes)?;
         temporary.as_file().sync_all()?;
@@ -119,7 +119,7 @@ impl PluginStore {
             return Err(PluginError::Invalid("written bundle differs from the inspected bytes".into()));
         }
         executable(temporary.as_file())?;
-        dokime_filesystem::publication::install(temporary.path(), &self.path(install_id)).map_err(std::io::Error::from)?;
+        harmos::filesystem::publication::install(temporary.path(), &self.path(install_id)).map_err(std::io::Error::from)?;
 
         // Authorize It
         // An unreferenced file grants nothing; the boot sweep reclaims it
@@ -262,7 +262,9 @@ impl PluginStore {
         })
     }
 
-    pub(crate) fn verified(&self, id: Uuid, plugin: &PluginSettings) -> Result<(harmos_packaging::bundle::Bundle, PluginMetadata), PluginError> {
+    pub(crate) fn verified(
+        &self, id: Uuid, plugin: &PluginSettings,
+    ) -> Result<(harmos_packaging::bundle::Bundle, PluginMetadata), PluginError> {
         let bytes = read_bounded(&self.path(id), harmos_packaging::bundle::Limits::default().archive_bytes)?;
         if digest(&bytes) != plugin.digest {
             return Err(PluginError::Changed(id));

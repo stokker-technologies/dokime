@@ -126,8 +126,8 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
-impl From<dokime_filesystem::Error> for Error {
-    fn from(error: dokime_filesystem::Error) -> Self {
+impl From<harmos::filesystem::Error> for Error {
+    fn from(error: harmos::filesystem::Error) -> Self {
         std::io::Error::from(error).into()
     }
 }

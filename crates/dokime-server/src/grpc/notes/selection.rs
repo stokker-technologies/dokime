@@ -15,7 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Protobuf;
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
@@ -58,8 +59,10 @@ impl Page {
         if owner.is_none() {
             selection.include_context = false;
         }
-        let stream =
-            format!("{kind}:{}", Sha256::digest(selection.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+        let stream = format!(
+            "{kind}:{}",
+            Sha256::digest(harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+        );
         let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
         if limit > 100 {
             return Err(Status::invalid_argument("page limit exceeds 100"));

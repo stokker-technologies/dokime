@@ -155,7 +155,7 @@ impl State {
                 for value in &checkpoints {
                     let path = files::staging_path(connection, &root, &value.session.id)?;
                     if !files::regular(&path)? && value.length == 0 {
-                        dokime_filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
+                        harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
                         OpenOptions::new().write(true).create_new(true).open(&path)?.sync_all()?;
                         files::confirm_durability(&path)?;
                     }

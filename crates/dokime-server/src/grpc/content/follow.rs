@@ -15,10 +15,9 @@
 // Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
 // Third Party Imports
-use harmos::{
-    Protobuf,
-    operations::{Context, Operation, Response, StreamOutput},
-};
+use crate::grpc::transcode::Transcode;
+use harmos::domain::Portable;
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
 use crate::grpc::{error::detailed, value};
@@ -117,7 +116,7 @@ async fn send(
     output: &mut StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>,
     frame: dokime_domain::model::content::wire::ExecutionFileFollowFrame, maximum: usize,
 ) -> Result<(), Status> {
-    if frame.encoded_len() > maximum {
+    if frame.wire_len()? > maximum {
         return Err(Status::resource_exhausted("follow frame exceeds listener message limit"));
     }
     output.send_owned(frame.into()).await.map_err(|error| failure(error.into()))
