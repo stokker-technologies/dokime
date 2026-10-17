@@ -212,6 +212,7 @@ async fn create_cycle(
     execution: &mut Client,
     plan: contracts::planning::SelectionPlan,
     identifier: &str,
+    expected_cases: usize,
 ) -> String {
     let preview = planning
         .planning_preview_selection(contracts::planning::PreviewSelectionRequest {
@@ -219,7 +220,7 @@ async fn create_cycle(
         })
         .await
         .unwrap();
-    assert_eq!(preview.cases.len(), 1);
+    assert_eq!(preview.cases.len(), expected_cases);
     let cycle_id = execution
         .execution_create_cycle(contracts::execution::CreateCycleRequest {
             metadata: Some(contracts::common::Metadata {
@@ -402,6 +403,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         &mut execution,
         plan,
         "obc.charger.steady.sweep",
+        1,
     )
     .await;
     run_cycle(&mut execution, &cycle_id).await;
@@ -890,6 +892,98 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     );
 }
 
+/// Scene: Every Execution In The Nine-Case Steady Sweep Seals Its Report.
+async fn steady_reports(client: &Client, changes: &mut Changes) {
+    let mut catalog = client.clone();
+    let steady = suite(&mut catalog, STEADY_SUITE).await;
+    let template = steady
+        .templates
+        .iter()
+        .find(|template| {
+            template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STEADY_TEMPLATE)
+        })
+        .expect("steady template is registered");
+    let mut plan = selection(
+        STEADY_SUITE,
+        &template.template_id,
+        [
+            ("ac_voltage_v", number(230.0)),
+            ("load_ohm", number(100.0)),
+            ("frequency_hz", number(1.0)),
+            ("duration_s", number(0.2)),
+            ("sample_interval_s", number(0.1)),
+        ],
+    );
+    for parameter in &mut plan.selections[0].parameters {
+        let values = match parameter.key.as_str() {
+            "ac_voltage_v" => vec![number(220.0), number(230.0), number(240.0)],
+            "load_ohm" => vec![number(50.0), number(100.0), number(200.0)],
+            _ => continue,
+        };
+        parameter.value.as_mut().unwrap().values = values;
+    }
+    let mut planning = client.clone();
+    let mut execution = client.clone();
+    let cycle_id = create_cycle(
+        &mut planning,
+        &mut execution,
+        plan,
+        "obc.charger.steady.reports",
+        9,
+    )
+    .await;
+    run_cycle(&mut execution, &cycle_id).await;
+
+    // Answer Every Case, Then Observe The Durable Cycle Seal.
+    let prompts = client.clone();
+    on_change(changes, async || {
+        let pending = prompts
+            .prompts_list_pending(contracts::prompts::ListPendingPromptsRequest {
+                cycle_id: Some(cycle_id.clone()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        for prompt in pending.prompts {
+            prompts
+                .prompts_respond(contracts::prompts::RespondToPromptRequest {
+                    prompt_id: prompt.prompt_id,
+                    action: "submit".into(),
+                    values: Some(value_object([
+                        ("operator_note", text("steady-report-sweep")),
+                        ("accepted", boolean(true)),
+                    ])),
+                    accepted: true,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
+        let cycle = execution
+            .execution_get_cycle(contracts::execution::GetCycleRequest {
+                cycle_id: cycle_id.clone(),
+            })
+            .await
+            .unwrap();
+        assert_ne!(cycle.status, contracts::execution::CycleStatus::Failed);
+        cycle.sealed.then_some(())
+    })
+    .await;
+    let executions = execution
+        .execution_list_executions(contracts::execution::ListExecutionsRequest {
+            cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .executions;
+    assert_eq!(executions.len(), 9);
+    assert!(
+        executions.iter().all(|execution| execution.sealed),
+        "all nine execution reports seal before the cycle report: {executions:?}"
+    );
+}
+
 /* === Tests === */
 // The Plugin-And-Host Walkthrough Over The Built Bundle, One Scene At A Time:
 // a configured bundle serves without an installation, reloads keep or refuse
@@ -959,6 +1053,7 @@ async fn plugin_host_walkthrough() {
         &mut execution,
         plan,
         "native.charger.startup",
+        1,
     )
     .await;
     run_cycle(&mut execution, &cycle_id).await;
@@ -1132,6 +1227,7 @@ async fn plugin_host_walkthrough() {
     assert!(!html.is_empty());
 
     steady_sweep(&client, &mut changes).await;
+    steady_reports(&client, &mut changes).await;
 
     // Scene: The Host Stops Cleanly With Its Watch Still Open
     drop(report);

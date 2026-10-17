@@ -2695,7 +2695,7 @@ async function writeJunit() {
     else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
   }
   const failed = cases.filter((result) => result.failure);
-  const skipped = cases.length > 0 && cases.every((result) => result.skipped);
+  const skipped = failed.length === 0 && (cases.length === 0 || cases.some((result) => result.skipped));
   const seconds = cases.reduce((total, result) => total + result.seconds, 0);
   const detail = cases
     .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)

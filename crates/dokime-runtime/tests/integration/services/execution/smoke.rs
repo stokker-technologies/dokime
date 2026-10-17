@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::sync::Arc;
+use std::io::Write;
 
 // Third Party Imports
 use async_trait::async_trait;
@@ -26,6 +27,7 @@ use dokime_runtime::schema::Described;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::runtime::Result;
+use super::artifacts::Observed;
 
 /* === Constants === */
 /// The plugin source and suite the smoke check registers under.
@@ -55,6 +57,9 @@ pub(crate) struct Behaviour {
     spectrum_rows: u32,
     hold: bool,
     released: tokio::sync::watch::Sender<bool>,
+    artifacts: bool,
+    abandoned: bool,
+    watched: tokio::sync::watch::Sender<bool>,
 }
 
 /// Serves the smoke suite in process, as the plugin fixture used to over its sidecar.
@@ -129,7 +134,16 @@ impl Behaviour {
             spectrum_rows,
             hold,
             released: tokio::sync::watch::Sender::new(false),
+            artifacts: false,
+            abandoned: false,
+            watched: tokio::sync::watch::Sender::new(false),
         }
+    }
+
+    pub(crate) fn artifacts(mut self, abandoned: bool) -> Self {
+        self.artifacts = !abandoned;
+        self.abandoned = abandoned;
+        self
     }
 
     /// Lets A Held Step Finish.
@@ -221,6 +235,30 @@ impl Check {
         })
         .await;
 
+        // Stream Artifacts Through The Same Host Bridge As A Sidecar.
+        if behaviour.artifacts {
+            let mut evidence = ctx.artifacts().create("evidence/pulse.csv")?;
+            evidence.write_all(b"sample,value\n")?;
+            for index in 0..262_144 {
+                writeln!(evidence, "{index:08},{:03}", index % 251)?;
+            }
+            evidence.finish()?;
+            let directory = ctx.artifacts().directory("capture")?;
+            std::fs::write(directory.join("chamber.log"), vec![b'.'; 262_144])?;
+            // The Wrapper Acknowledges The First Version After The Real Host Admits It.
+            let mut watched = behaviour.watched.subscribe();
+            watched.wait_for(|seen| *seen).await.map_err(std::io::Error::other)?;
+            std::fs::write(directory.join("chamber.log"), b"the chamber log, rewritten in place\n")?;
+        }
+        if behaviour.abandoned {
+            for index in 0..17 {
+                let mut partial = ctx.artifacts().create(format!("evidence/partial-{index}.bin"))?;
+                partial.write_all(&vec![0xA5; dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 1])?;
+                partial.abandon();
+            }
+            ctx.artifacts().write("evidence/settled.txt", b"produced after the abandoned transfers\n")?;
+        }
+
         // Hold Until The Story Releases The Step
         if behaviour.hold {
             let mut released = behaviour.released.subscribe();
@@ -272,8 +310,10 @@ impl EmbeddedProvider for Smoke {
     async fn start(&self) -> Result<Vec<Arc<dyn Runnable>>> {
         let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(self.behaviour());
         Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<Check>::new(SUITE, SOURCE).bound(binding))
-                as Arc<dyn Runnable>,
+            Arc::new(Observed {
+                workflow: dokime_runtime::execution::Workflow::<Check>::new(SUITE, SOURCE).bound(binding),
+                watched: self.behaviour.watched.clone(),
+            }) as Arc<dyn Runnable>,
         ])
     }
 

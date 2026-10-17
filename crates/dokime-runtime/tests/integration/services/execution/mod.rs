@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod artifacts;
 pub(crate) mod authoring;
 pub(crate) mod definition;
 pub(crate) mod diagnostics;
