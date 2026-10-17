@@ -56,7 +56,7 @@ DOKIME_CLIENT_NATIVE_BUNDLE = "{{config_root}}/dist/build/{% if os() == 'windows
 # own dev-dependency, or a fixture binary. The build is idempotent, so a fresh
 # one is a no-op; the dependency exists so a clean checkout compiles at all.
 
-# === === Tasks | Set-Up === === #
+# === Tasks | Set-Up === #
 
 [tasks.sync]
 depends = ["prepare:tools"]
@@ -78,7 +78,7 @@ depends = ["prepare:tools"]
 description = "Prepare The Exact Pinned Harmos CLI For Contract Generation"
 run = "uv run --no-sync python -m dokime_tools.ci.bootstrap --harmos-tools"
 
-# === === Tasks | Linting === === #
+# === Tasks | Linting === #
 
 [tasks."check:rust"]
 description = "Check / Rust"
@@ -180,7 +180,7 @@ depends = ["prepare:tools"]
 description = "Reject Tracked Plugin Bundles"
 run = "uv run --no-sync python -m dokime_tools.check.bundles"
 
-# === === Tasks | Formatting === === #
+# === Tasks | Formatting === #
 
 [tasks."format:toml"]
 description = "Format Maintained TOML"
@@ -201,7 +201,7 @@ run = [
   "pnpm --dir crates/dokime-gui exec biome format --write ../../",
 ]
 
-# === === Tasks | Versioning === === #
+# === Tasks | Versioning === #
 
 [tasks."version:check"]
 depends = ["prepare:tools"]
@@ -246,7 +246,7 @@ depends = ["prepare:tools"]
 description = "Verify GUI Contracts Against Selected Cargo Outputs"
 run = "uv run --no-sync python -m dokime_tools.bindings --language typescript --check"
 
-# === === Tasks | Development === === #
+# === Tasks | Development === #
 
 [tasks."dev:desktop:dev"]
 description = "Start the Native Tauri Cycle Workspace with an Owned Local Backend."
@@ -257,7 +257,7 @@ depends = ["bindings:generate", "build:cli:dev", "build:plugins:dev"]
 env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = "pnpm --dir crates/dokime-gui run tauri:dev"
 
-# === === Tasks | Build === === #
+# === Tasks | Build === #
 
 [tasks."prepare:report"]
 depends = ["prepare:tools"]
@@ -319,7 +319,7 @@ run = [
   { task = "ci:artifacts:build" },
 ]
 
-# === === Tasks | Screenshots === === #
+# === Tasks | Screenshots === #
 
 [tasks."screenshots:build"]
 description = "Build the Backend, Desktop Shell and Mini Charger Plugin Bundle the Screenshot Capture Drives."
@@ -338,7 +338,7 @@ description = "Capture the Published Product Screenshots from the Running Deskto
 run = "node tools/node/gui/capture-screenshots.mjs"
 
 
-# === === Tasks | Tests === === #
+# === Tasks | Tests === #
 
 [tasks.test]
 env.UV_NO_SYNC = "1"
@@ -418,7 +418,7 @@ run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence r
 description = "Drive Native Desktop Installation And Workflows"
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run system typescript"
 
-# === === Tasks | Performance Benches === === #
+# === Tasks | Performance Benches === #
 
 [tasks.bench]
 description = "Run Rust Performance Benchmarks"
@@ -429,13 +429,13 @@ description = "Measure Runtime, Storage, Host Collection, And Shutdown"
 depends = ["prepare:tools", "prepare:report"]
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence bench rust"
 
-# === === Tasks | Stats === === #
+# === Tasks | Stats === #
 
 [tasks.stats]
 description = "Project Statistics"
 run = "scc --include-ext rs --avg-wage 100000 --cocomo-project-type semi-detached"
 
-# === === Tasks | Product === === #
+# === Tasks | Product === #
 
 [tasks."installer:check"]
 depends = ["prepare:tools"]
@@ -569,7 +569,7 @@ hide = true
 description = "Stage Desktop Branding and the Companion CLI for a Dev-profile Installer Build."
 run = "uv run --no-sync python -m dokime_tools.installer resources --profile dev"
 
-# === === Tasks | CI === === #
+# === Tasks | CI === #
 
 [tasks."ci:bootstrap"]
 description = "Prepare Native Platform Prerequisites"
