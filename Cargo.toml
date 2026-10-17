@@ -36,8 +36,8 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "deadcc224907829a9f52f15a3ca995c4ca99fefa" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "deadcc224907829a9f52f15a3ca995c4ca99fefa" }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "cbbb461f3800ed08045153a3b3ad299e2fddf7b2" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
