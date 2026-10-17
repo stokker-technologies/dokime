@@ -121,6 +121,8 @@ mod services;
 pub mod state;
 #[cfg(feature = "host")]
 pub mod streams;
+#[cfg(feature = "host")]
+pub mod transactions;
 
 #[cfg(feature = "host")]
 pub mod brand {
