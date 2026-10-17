@@ -50,7 +50,16 @@ use dokime::storage::objects::{Objects, suite::Suite};
 
 pub(crate) async fn storage_operations_view() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = booted(root.path()).await;
+    let config = config(root.path());
+    // An in-process storage client claims the runtime's read budget, as report
+    // queries do: one nested object schema expands into far more Arrow fields
+    // than any single message-sized budget holds.
+    let budget = config
+        .storage
+        .budget
+        .read_memory_bytes
+        .min(NonZeroUsize::new(u32::MAX as usize).unwrap());
+    let (mut runtime, handle) = started(config).await;
     let maximum = NonZeroUsize::new(64 * 1024).unwrap();
     let suite = Suite::new("fixture.storage.operations", &empty_suite()).unwrap();
     let encoded = Objects::encode(&suite, maximum).unwrap();
@@ -68,7 +77,7 @@ pub(crate) async fn storage_operations_view() {
 
     let (output, mut input) = stream::<QueryOutput>(StreamSettings {
         items: NonZeroUsize::MIN,
-        bytes: maximum,
+        bytes: budget,
     })
     .unwrap();
     let request = QueryRequest {
