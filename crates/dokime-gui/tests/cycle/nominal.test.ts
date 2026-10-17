@@ -109,8 +109,8 @@ test("Node Menus", () => {
   // A Saved Report Is Named After Its Cycle Or Execution
   assert.equal(reportFilename("Charger Soak"), "Charger Soak.html");
   assert.equal(
-    reportFilename("Execution 1 · HCL / Reconnection"),
-    "Execution 1 · HCL - Reconnection.html",
+    reportFilename("Execution 1 · OBC / Reconnection"),
+    "Execution 1 · OBC - Reconnection.html",
   );
   assert.equal(reportFilename(' a:b*c? "d" '), "a-b-c- -d.html");
   assert.equal(reportFilename("..."), "report.html");

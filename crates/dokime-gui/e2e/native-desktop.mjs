@@ -6,7 +6,7 @@
 //
 // ***
 
-// Real Native WebView Gate For The Installed Windows And Linux Shell. No HTTP facade,
+// Real Native WebView Gate For Development And Installed Release Shells. No HTTP facade,
 // no mocked domain IPC, no browser fixtures.
 //
 // The gate starts a throwaway backend with the OBC charger testbench plugin,
@@ -29,8 +29,9 @@
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
-// Windows Requires An Interactive Disposable Account, WebView2 And A Version-
-// Matched Microsoft Edge Driver. DOKIME_E2E_INSTALLER Selects The Native NSIS
+// Windows Requires An Interactive Account, WebView2 And A Version-
+// Matched Microsoft Edge Driver. --release Requires A Disposable Account And
+// DOKIME_E2E_INSTALLER Selects The Native NSIS
 // Artifact; DOKIME_E2E_{INSTALLER,SHELL,BACKEND,CLI}_SHA256 Bind Its Installed
 // Executables To The Candidate. DOKIME_E2E_PLUGIN And DOKIME_E2E_PLUGIN_SHA256
 // Select And Verify Its Prepared OBC Fixture.
@@ -67,7 +68,7 @@ import http from "node:http";
 
 import net from "node:net";
 
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -87,13 +88,12 @@ const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 
-/** The dev-built binaries and the bundle the gate drives, all overridable. */
-let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime-server");
-
-let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
-
-const pluginBundle =
-  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
+/** The Single Build Stages The Development Candidates Together. */
+const built = join(workspace, "dist/build", process.platform === "win32" ? "windows" : "linux");
+const executableSuffix = process.platform === "win32" ? ".exe" : "";
+let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
+let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
 
 /** A shell built without `tauri/custom-protocol` loads this origin. */
 const configuredOrigin = process.env.DOKIME_E2E_DEV_URL;
@@ -155,7 +155,10 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
-const { values: options } = parseArgs({ options: { junit: { type: "string" } } });
+const { values: options } = parseArgs({
+  options: { junit: { type: "string" }, release: { type: "boolean", default: false } },
+});
+const releaseValidation = options.release;
 const windows = process.platform === "win32";
 const results = [];
 const failures = [];
@@ -182,6 +185,7 @@ let evidence;
 let installation;
 
 let installerAttempted = false;
+let frontendServer;
 
 /* === Types === */
 
@@ -2616,13 +2620,13 @@ async function ownedStartupJourney() {
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  assert.equal(status.ownership, "owned_local", "the installed shell owns its companion backend");
+  assert.equal(status.ownership, "owned_local", "the native shell owns its companion backend");
   assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
-  assert.ok(await listening(status.connection.endpoint), "the installed companion is listening");
-  await session.screenshot("installed-owned-startup");
+  assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
+  await session.screenshot("owned-startup");
   await closeSession();
   await until(
-    "installed owned backend drains on window close",
+    "owned backend drains on window close",
     async () => !(await listening(status.connection.endpoint)),
     30000,
   );
@@ -2642,7 +2646,7 @@ async function restartJourney() {
   await closeSession();
   assert.ok(
     await listening(endpoint),
-    "closing the attached installed shell leaves its backend alive",
+    "closing the attached shell leaves its backend alive",
   );
   await stopBackend();
   backend = await startBackend(work, evidence, endpoint, "backend-restart");
@@ -2659,7 +2663,7 @@ async function restartJourney() {
   assert.notEqual(
     current.connection.backend.epoch,
     previous.connection.backend.epoch,
-    "the relaunched installed shell establishes the restarted backend epoch",
+    "the relaunched shell establishes the restarted backend epoch",
   );
   assert.equal(current.ownership, "attached");
   await session.goto("/history");
@@ -2711,11 +2715,42 @@ async function writeJunit() {
   );
 }
 
+/** Serve Only The Built Frontend; The Native Shell Still Owns Every IPC Call. */
+async function serveDevelopmentAssets() {
+  const root = join(built, "frontend");
+  assert.ok(existsSync(join(root, "index.html")), "the development artifact supplies verified static frontend assets");
+  const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
+  assert.equal(origin.protocol, "http:");
+  assert.equal(origin.hostname, "127.0.0.1", "the development frontend stays on loopback");
+  const types = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
+  frontendServer = http.createServer(async (request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
+      let file = resolve(root, `.${pathname}`);
+      if (file !== root && !file.startsWith(`${root}${sep}`)) {
+        response.writeHead(403).end();
+        return;
+      }
+      if (!existsSync(file) || file === root || !extname(file)) file = join(root, "index.html");
+      const bytes = await readFile(file);
+      const suffix = extname(file);
+      response.writeHead(200, { "content-type": types[suffix] ?? "application/octet-stream" });
+      response.end(bytes);
+    } catch (error) {
+      response.writeHead(500).end(String(error));
+    }
+  });
+  await new Promise((ready, reject) => {
+    frontendServer.once("error", reject);
+    frontendServer.listen(Number(origin.port || 80), origin.hostname, ready);
+  });
+}
+
 async function main() {
   if (!windows && process.platform !== "linux")
     throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
-  if (windows && selectedJourneys.size)
-    throw new Error("Installed Windows acceptance requires every maintained journey.");
+  if (releaseValidation && selectedJourneys.size)
+    throw new Error("Installed release validation requires every maintained journey.");
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
@@ -2723,7 +2758,9 @@ async function main() {
   evidence = await mkdtemp(join(targetRoot, "native-desktop-e2e-"));
   work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
-  if (windows) {
+  if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
+  if (!releaseValidation) await serveDevelopmentAssets();
+  if (releaseValidation) {
     const installed = await journey("installation", installWindowsCandidate);
     if (!installed.ok) throw new Error("Windows installer acceptance failed");
   }
@@ -2738,7 +2775,7 @@ async function main() {
 
   if (windows) {
     const owned = await journey("owned-startup", ownedStartupJourney);
-    if (!owned.ok) throw new Error("Installed Windows ownership acceptance failed");
+    if (!owned.ok) throw new Error("Windows ownership acceptance failed");
   }
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
@@ -2814,6 +2851,9 @@ try {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
     ["backend shutdown", stopBackend],
+    ["frontend shutdown", async () => {
+      if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
+    }],
   ]) {
     try {
       await cleanup();
