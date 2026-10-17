@@ -15,7 +15,8 @@ pub mod row;
 pub mod stream;
 
 /* === Re-Exports === */
-pub use crate::core::{CompatibilityStatus, ValidationMode};
+pub use dokime_domain::model::validation::CompatibilityStatus;
+pub use dokime_domain::model::validation::ValidationMode;
 pub use crate::values::field;
 pub use capture::capture_payload;
 pub use contract::{
@@ -23,11 +24,16 @@ pub use contract::{
     TelemetryContract, TelemetryFilter, TelemetryRole, evaluate_telemetry_condition,
     validate_normalized_telemetry_sample, validate_telemetry_sample,
 };
-pub use dokime_contract::telemetry::{
-    SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySample, TelemetrySampleKey,
-    TelemetrySamplingRequest, TelemetrySourceDescriptor, TelemetrySourceKind,
-};
-pub use dokime_contract::telemetry::{evidence, sampling};
+pub use dokime_domain::model::telemetry::SamplingScope;
+pub use dokime_domain::model::telemetry::TelemetryBatch;
+pub use dokime_domain::model::telemetry::TelemetryCaptureLease;
+pub use dokime_domain::model::telemetry::TelemetrySample;
+pub use dokime_domain::model::telemetry::TelemetrySampleKey;
+pub use dokime_domain::model::telemetry::TelemetrySamplingRequest;
+pub use dokime_domain::model::telemetry::TelemetrySourceDescriptor;
+pub use dokime_domain::model::telemetry::TelemetrySourceKind;
+pub use dokime_domain::model::telemetry::evidence;
+pub use dokime_domain::model::telemetry::sampling;
 pub use lease::{LeaseGap, LeaseRequest};
 pub use row::{FieldError, FieldValue, TelemetryRow};
 pub use stream::{OwnedStream, Pushing, SampleSink, StreamSelection, Streams, TelemetryStream};

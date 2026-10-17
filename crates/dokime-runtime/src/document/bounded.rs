@@ -318,15 +318,15 @@ pub(crate) fn capture_memory(
     // Construction Bounds Captured Strings, Filters, Results And Declaration.
     // Explicit Registries Include Unplaced Sources And Pruned Repeat Selections.
     let registries =
-        harmos::btree_map_memory::<crate::core::Identifier, crate::core::Identifier>(
+        harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, dokime_domain::model::identity::Identifier>(
             count.saturating_add(declared),
         )
         .saturating_add(harmos::btree_map_memory::<
-            crate::core::Identifier,
+            dokime_domain::model::identity::Identifier,
             Vec<crate::document::capture::RepeatInstance>,
         >(count))
         .saturating_add(harmos::btree_map_memory::<
-            crate::core::Identifier,
+            dokime_domain::model::identity::Identifier,
             super::capture::SectionBinding,
         >(count))
         .saturating_add(
@@ -418,7 +418,7 @@ fn preflight_input(
         .flat_map(|sample| sample.values.values())
         .map(MemorySize::memory_size)
         .max()
-        .unwrap_or(std::mem::size_of::<crate::core::Value>())
+        .unwrap_or(std::mem::size_of::<dokime_domain::model::values::Value>())
         .max(input.data.context.largest_value())
         .max(
             input
@@ -430,7 +430,7 @@ fn preflight_input(
                         .entry
                         .details
                         .memory_size()
-                        .saturating_add(std::mem::size_of::<crate::core::Value>())
+                        .saturating_add(std::mem::size_of::<dokime_domain::model::values::Value>())
                 })
                 .max()
                 .unwrap_or(0),
@@ -443,7 +443,7 @@ fn preflight_input(
                 .map(|artifact| {
                     artifact
                         .memory_size()
-                        .saturating_add(std::mem::size_of::<crate::core::Value>())
+                        .saturating_add(std::mem::size_of::<dokime_domain::model::values::Value>())
                 })
                 .max()
                 .unwrap_or(0),
@@ -482,8 +482,8 @@ fn preflight_input(
         });
     // Both Registries Retain At Most One Entry Per Constructed Card.
     let registries =
-        harmos::btree_map_memory::<crate::core::Identifier, super::DocumentCardDefinition>(count)
-            .checked_add(harmos::btree_map_memory::<crate::core::Identifier, usize>(
+        harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, super::DocumentCardDefinition>(count)
+            .checked_add(harmos::btree_map_memory::<dokime_domain::model::identity::Identifier, usize>(
                 count,
             ))
             .ok_or(super::DocumentFailure::Limit)?;

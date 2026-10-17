@@ -18,9 +18,13 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::records::{RecordEntry, RecordFilter, RecordSeverity};
-use crate::core::{
-    CaseId, Identifier, RecordScope, TemplateId, TestCycleId, TestExecutionId, Timestamp,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::{TelemetryFilter, TelemetrySample};
 
 /* === Constants === */
@@ -224,8 +228,8 @@ pub(crate) fn scopes_correlate(left: Option<&RecordScope>, right: Option<&Record
 
     let attempts_agree = match (&left.origin, &right.origin) {
         (
-            crate::core::EvidenceOrigin::Step { attempt_id: left },
-            crate::core::EvidenceOrigin::Step { attempt_id: right },
+            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id: left },
+            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id: right },
         ) => left == right,
         _ => true,
     };

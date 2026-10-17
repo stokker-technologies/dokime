@@ -22,7 +22,8 @@ use tracing::Instrument;
 // Local Imports
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::{backend as wire, common::Timestamp};
+use dokime_domain::operations::backend as wire;
+use dokime_domain::operations::common::Timestamp;
 
 /* === Constants === */
 const DEFAULT_EVENTS: usize = 256;
@@ -63,7 +64,7 @@ impl Operation for Watch {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::WatchTraceRequest,
+        request: &mut wire::WatchTrace,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         self.follow(request, output)
@@ -76,7 +77,7 @@ impl Operation for Watch {
 impl Watch {
     async fn follow(
         &self,
-        request: &wire::WatchTraceRequest,
+        request: &wire::WatchTrace,
         output: &mut StreamOutput<wire::TraceBatch>,
     ) -> Result<(), Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();

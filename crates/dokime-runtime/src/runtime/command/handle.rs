@@ -22,7 +22,10 @@ use crate::{
     commands::accepted_receipt, execution_runtime::provider::admission::RunProvider,
     internal_rejection, rejected_receipt, unavailable_rejection,
 };
-use crate::core::{CaseId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

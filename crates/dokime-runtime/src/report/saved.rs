@@ -32,7 +32,9 @@ use crate::{
     },
     runtime::storage::execution::ExecutionView,
 };
-use crate::core::{Identifier, NodeId, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::saved::{
     ExecutionOutput, ExecutionRevision, ExecutionSeal, ExecutionSource, validate_outputs,
 };
@@ -53,7 +55,7 @@ use crate::telemetry::contract::TelemetryContract;
 pub struct CapturedExecutionReportInput {
     pub final_report: bool,
     pub owner_node_id: NodeId,
-    pub execution_id: crate::core::TestExecutionId,
+    pub execution_id: dokime_domain::model::identity::TestExecutionId,
     pub execution: Option<ExecutionRevision>,
     pub lifecycle_id: String,
     pub evidence_through: StorageCursor,
@@ -93,7 +95,7 @@ impl RuntimeHandle {
     // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
     pub async fn render_saved_execution_report(
         &self,
-        execution: &crate::core::TestExecutionId,
+        execution: &dokime_domain::model::identity::TestExecutionId,
     ) -> Result<Vec<u8>> {
         let inspection = ExecutionView::open(
             self.storage(),

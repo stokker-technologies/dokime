@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use tonic::Status;
 // Local Imports
 use super::rejection;
-use dokime_runtime::core::{Metadata, Value};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
 use dokime_runtime::definition::parameters::limits;
 use dokime_runtime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
 

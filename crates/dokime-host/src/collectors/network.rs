@@ -24,7 +24,8 @@ use crate::{
     DEFAULT_NETWORK_LINK_INTERVAL, HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
-use dokime_contract::core::{DurationMillis, Value};
+use dokime_domain::model::time::DurationMillis;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;

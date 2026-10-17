@@ -19,7 +19,7 @@ use harmos::state::Transaction;
 // Local Imports
 use crate::transactions::CopyCycle;
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId};
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 

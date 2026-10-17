@@ -31,7 +31,9 @@ use crate::{
     handle::RuntimeHandle,
     parameter_runtime::ScopedParameterUpdate,
 };
-use crate::core::{Identifier, RecordScope, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::telemetry::{SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest};
 
 /* === Constants === */
@@ -334,7 +336,7 @@ impl SidecarStepContext {
     fn execution_id(
         &self,
         accessor: &'static str,
-    ) -> Result<crate::core::TestExecutionId, StepContextError> {
+    ) -> Result<dokime_domain::model::identity::TestExecutionId, StepContextError> {
         self.scope
             .test_execution_id
             .clone()

@@ -25,7 +25,10 @@ use crate::execution::notes::{
     NoteOwner, note_identity,
 };
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
-use crate::core::{CommandId, NoteId, SessionId, TestExecutionId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -35,7 +38,7 @@ use crate::core::{CommandId, NoteId, SessionId, TestExecutionId};
 
 /* === Structs === */
 #[derive(Clone, Debug)]
-pub struct CreateNoteRequest {
+pub struct CreateNote {
     pub epoch: SessionId,
     pub mutation_id: CommandId,
     pub owner: NoteOwner,
@@ -44,7 +47,7 @@ pub struct CreateNoteRequest {
 }
 
 #[derive(Clone, Debug)]
-pub struct EditNoteRequest {
+pub struct EditNote {
     pub epoch: SessionId,
     pub note_id: NoteId,
     pub actor: String,
@@ -94,7 +97,7 @@ pub enum NoteError {
 impl RuntimeHandle {
     pub async fn create_current_note(
         &self,
-        request: CreateNoteRequest,
+        request: CreateNote,
     ) -> Result<NoteCreation, NoteError> {
         if request.actor.is_empty()
             || request.actor.len() > NOTE_ACTOR_BYTES
@@ -126,7 +129,7 @@ impl RuntimeHandle {
 
     async fn create_note_owned(
         &self,
-        request: CreateNoteRequest,
+        request: CreateNote,
     ) -> Result<NoteCreation, NoteError> {
         // A sealed owner refuses before anything is written; a retry still answers.
         {
@@ -227,7 +230,7 @@ impl RuntimeHandle {
 
     pub async fn edit_current_note(
         &self,
-        request: EditNoteRequest,
+        request: EditNote,
     ) -> Result<OperatorNote, NoteError> {
         if request.message.trim().is_empty() || request.message.len() > NOTE_TEXT_BYTES {
             return Err(NoteError::Invalid(
@@ -246,7 +249,7 @@ impl RuntimeHandle {
         .map_err(|error| NoteError::Unavailable(error.to_string()))?
     }
 
-    async fn edit_note_owned(&self, request: EditNoteRequest) -> Result<OperatorNote, NoteError> {
+    async fn edit_note_owned(&self, request: EditNote) -> Result<OperatorNote, NoteError> {
         let scope = {
             let state = self.state_read();
             if state.process_epoch() != &request.epoch {

@@ -20,7 +20,8 @@
 // Local Imports
 use super::{TestExecutionHandle, invalid, validate_checkpoint};
 use crate::{ResponseStream, Result, contracts};
-use dokime_contract::execution::{ExecutionCheckpoint, PageCursor};
+use dokime_domain::model::execution::ExecutionCheckpoint;
+use dokime_domain::model::execution::PageCursor;
 
 /* === Constants === */
 const PAGE_SIZE: u32 = 100;
@@ -50,7 +51,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let context = self
             .client
-            .history_get_checkpoint_context(contracts::history::GetCheckpointContextRequest {
+            .history_get_checkpoint_context(contracts::history::GetCheckpointContext {
                 checkpoint: Some(checkpoint.clone()),
             })
             .await?;
@@ -66,7 +67,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let evidence = self
             .client
-            .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidenceRequest {
+            .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
                 sections: vec![
                     contracts::history::EvidenceSection::Artifacts,
@@ -97,7 +98,7 @@ impl TestExecutionHandle {
                     let page = handle
                         .client
                         .history_list_checkpoint_records(
-                            contracts::history::ListCheckpointRecordsRequest {
+                            contracts::history::ListCheckpointRecords {
                                 checkpoint: Some(checkpoint.clone()),
                                 limit: PAGE_SIZE,
                                 after: pages.after.clone(),
@@ -137,7 +138,7 @@ impl TestExecutionHandle {
                 let inventory = handle
                     .client
                     .history_get_checkpoint_evidence(
-                        contracts::history::GetCheckpointEvidenceRequest {
+                        contracts::history::GetCheckpointEvidence {
                             checkpoint: Some(checkpoint.clone()),
                             sections: vec![contracts::history::EvidenceSection::TelemetryTables],
                         },
@@ -169,7 +170,7 @@ impl TestExecutionHandle {
                         let page = handle
                             .client
                             .history_list_checkpoint_telemetry(
-                                contracts::history::ListCheckpointTelemetryRequest {
+                                contracts::history::ListCheckpointTelemetry {
                                     checkpoint: Some(checkpoint.clone()),
                                     table: table.clone(),
                                     limit: PAGE_SIZE,

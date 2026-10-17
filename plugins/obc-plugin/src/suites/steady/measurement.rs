@@ -27,7 +27,7 @@ use crate::suites::common::measurement::InputMeasurement;
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{readiness, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime_runtime::core::TemplateId;
+use dokime_domain::model::identity::TemplateId;
 use dokime_runtime::definition::ParameterDefault;
 use dokime_runtime::document::{PlotDefinition, PlotStyle};
 use dokime_runtime::expressions::telemetry;

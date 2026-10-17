@@ -22,7 +22,10 @@ use crate::runtime::Error;
 use crate::execution::{HealthItem, HealthSeverity};
 use crate::records::{RecordPublishRequest, ValidationMode, validate_record};
 use crate::state::RuntimeState;
-use crate::core::{HealthItemId, RecordScope, Timestamp, ValidationIssue};
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::diagnostics::ValidationIssue;
 
 /* === Constants === */
 
@@ -49,8 +52,8 @@ pub struct RecordHealth {
 )]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
-    pub test_cycle_id: crate::core::TestCycleId,
-    pub test_execution_id: crate::core::TestExecutionId,
+    pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
+    pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
 #[harmos::transaction(id = "dokime.evidence.event.publish", version = 2, irreversible)]

@@ -21,7 +21,8 @@ use harmos::Message;
 use super::BackgroundTask;
 use crate::RuntimeHandle;
 use crate::records::{RecordPublication, RecordPublishRequest};
-use crate::core::{Identifier, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
 use crate::transport::{DeliverRecordRequest, ExecutionSignal};
 
 /* === Constants === */

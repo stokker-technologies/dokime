@@ -24,7 +24,9 @@ use tonic::Status;
 // Local Imports
 use super::error::detailed;
 use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
-use dokime_contract::operations::{cursor::Cursor, evidence as v1, schema::RecordSchema};
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::evidence as v1;
+use dokime_domain::operations::schema::RecordSchema;
 
 use selection::Selection;
 
@@ -182,7 +184,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::ListRecordsRequest,
+        request: &mut v1::ListRecords,
         _: &mut (),
     ) -> Result<Response<v1::RecordPage>, Status> {
         if request.after.is_some() != request.through.is_some() {
@@ -215,7 +217,7 @@ impl Operation for Watch {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::WatchRecordsRequest,
+        request: &mut v1::WatchRecords,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let mut reader = Reader::new(
@@ -261,7 +263,7 @@ impl Operation for Schema {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut v1::GetCapturedRecordSchemaRequest,
+        request: &mut v1::GetCapturedRecordSchema,
         _: &mut (),
     ) -> Result<Response<RecordSchema>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -271,7 +273,7 @@ impl Operation for Schema {
             ));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_runtime::core::Identifier::new(std::mem::take(&mut request.record_type))
+        let kind = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()

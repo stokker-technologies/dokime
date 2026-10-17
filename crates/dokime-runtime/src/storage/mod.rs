@@ -69,7 +69,7 @@ pub enum Error {
     #[error(transparent)]
     Identifier(#[from] harmos::IdentifierError),
     #[error(transparent)]
-    Contract(#[from] dokime_contract::Error),
+    Contract(#[from] dokime_domain::Error),
 }
 
 /* === Traits === */

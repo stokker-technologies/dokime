@@ -18,7 +18,11 @@
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::artifacts::ArtifactStatus;
-use crate::core::{DocumentId, Identifier, Metadata, RecordScope, Value};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::document::{
     definition::PlotDescriptor,
     definition::{

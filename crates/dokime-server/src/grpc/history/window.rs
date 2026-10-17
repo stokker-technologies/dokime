@@ -26,7 +26,7 @@ use crate::grpc::{content::window, value};
 use dokime_runtime::{
     ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint,
 };
-use dokime_contract::operations::history;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 
@@ -63,7 +63,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::ReadCheckpointOutputRequest,
+        request: &mut history::ReadCheckpointOutput,
         _: &mut (),
     ) -> Result<Response<history::CheckpointFileWindow>, Status> {
         value::text(&request.relative_path)?;

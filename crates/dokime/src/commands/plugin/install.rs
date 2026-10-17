@@ -266,7 +266,7 @@ async fn complete(
 ) -> Result<()> {
     let client = client.clone().with_timeout(CONSENT_DEADLINE);
     if !consent {
-        let request = plugins::RemovePluginRequest {
+        let request = plugins::Remove {
             install_id: id.into(),
         };
         let removed = client.plugins_remove(request).await;
@@ -280,7 +280,7 @@ async fn complete(
     }
 
     // Once consent is attempted, never delete or blindly retry an uncertain result.
-    let request = plugins::ConsentPluginRequest {
+    let request = plugins::Consent {
         install_id: id.into(),
         expected_sha256: digest.into(),
     };

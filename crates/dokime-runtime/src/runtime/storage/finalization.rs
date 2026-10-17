@@ -14,9 +14,9 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     execution::{CycleView, TestExecution},
 };
-use crate::core::{TestExecutionId};
+use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::ExecutionStatus;
-use crate::runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
+use crate::runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 /* === Constants === */
 /* === Macros === */
@@ -28,7 +28,7 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 impl RuntimeHandle {
     /// Seal a terminal cycle no running request will finish: from its durable
     /// report intent when one exists, otherwise from its persisted members now.
-    pub(crate) async fn seal_settled_cycle(&self, id: &crate::core::TestCycleId) -> Result<()> {
+    pub(crate) async fn seal_settled_cycle(&self, id: &dokime_domain::model::identity::TestCycleId) -> Result<()> {
         let (cycle, completion) = {
             let state = self.state_read();
             let cycle = state
@@ -227,7 +227,7 @@ impl RuntimeHandle {
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
         self.operations
-            .call_as::<MaterializeReport>(MaterializeReportRequest {
+            .call_as::<MaterializeReport>(MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
                 at: at.clone(),
             })

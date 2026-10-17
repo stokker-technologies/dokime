@@ -25,7 +25,7 @@ use std::{
 // Third Party Imports
 use tokio::io::{AsyncRead, AsyncReadExt};
 // Local Imports
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

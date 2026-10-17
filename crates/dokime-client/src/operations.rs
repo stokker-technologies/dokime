@@ -18,16 +18,17 @@ use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::operations::host::{
-    DiscoveredOperation, Operations as HostOperations, OperationsRequest,
+    DiscoveredOperation, Operations as HostOperations,
 };
 use harmos::operations::{OperationDeclaration, StreamItem};
 use harmos::{MemorySize, Protobuf};
 
 // Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
-use dokime_contract::operations::runtime::{
-    GetHealth, GetIdentity, Health, Identity, Request as RuntimeRequest,
-};
+use dokime_domain::operations::runtime::GetHealth;
+use dokime_domain::operations::runtime::GetIdentity;
+use dokime_domain::operations::runtime::Health;
+use dokime_domain::operations::runtime::Identity;
 
 /* === Constants === */
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
@@ -79,7 +80,7 @@ impl Client {
         loop {
             let request = self.unary::<HostOperations>(
                 CATALOG_PATH,
-                OperationsRequest {
+                HostOperations {
                     after,
                     rows: Some(64),
                     bytes: Some(CATALOG_PAGE_BYTES),
@@ -144,28 +145,28 @@ impl Client {
     }
 
     pub async fn health(&self) -> ClientResult<StreamItem<Health>> {
-        self.unary::<GetHealth>(GetHealth::PATH, RuntimeRequest {})
+        self.unary::<GetHealth>(GetHealth::PATH, GetHealth {})
             .await
     }
 
     pub async fn identity(&self) -> ClientResult<StreamItem<Identity>> {
-        self.unary::<GetIdentity>(GetIdentity::PATH, RuntimeRequest {})
+        self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {})
             .await
     }
 
     pub(super) async fn unary<O>(
         &self,
         path: &'static str,
-        message: O::Request,
+        message: O,
     ) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
-        O::Request: Protobuf + Sync,
+        O: Protobuf + Sync,
         O::Response: Protobuf + MemorySize,
     {
         self.require(path)?;
         self.execute(async {
-            super::transport::unary::<O::Response, O::Request>(
+            super::transport::unary::<O::Response, O>(
                 self.channel()
                     .map_err(|error| tonic::Status::cancelled(error.to_string()))?,
                 self.inner.authorization.as_ref(),

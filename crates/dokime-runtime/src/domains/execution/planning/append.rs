@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::AppendCycle as Append;
 // Local Imports
 use crate::definition::TestCase;
 use crate::{CommandContext, runtime::Error, RuntimeHandle};
-use crate::core::{TestCycleId};
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 
@@ -55,8 +55,8 @@ impl RuntimeHandle {
             .idempotency_key
             .as_deref()
             .filter(|key| !key.is_empty())
-            .map_or_else(crate::core::CommandId::new, |key| {
-                crate::core::CommandId::from_seed(format!(
+            .map_or_else(dokime_domain::model::identity::CommandId::new, |key| {
+                dokime_domain::model::identity::CommandId::from_seed(format!(
                     "cycle-append:{}:{test_cycle_id}:{key}",
                     self.state_read().identity.node.node_id
                 ))

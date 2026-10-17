@@ -24,7 +24,8 @@ use keyring::{Entry, Error as KeyringError};
 use thiserror::Error;
 // Local Imports
 use crate::config::RuntimeCredentialConfig;
-use crate::core::{CredentialBackendKind, RedactedCredentialBinding};
+use dokime_domain::model::credentials::CredentialBackendKind;
+use dokime_domain::model::credentials::RedactedCredentialBinding;
 
 /* === Constants === */
 const KEYRING_SERVICE: &str = "dokime";

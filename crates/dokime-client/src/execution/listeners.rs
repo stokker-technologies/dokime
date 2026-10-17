@@ -24,7 +24,7 @@ use super::{
     Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, invalid, poll_interval,
     validate_observed_cursor,
 };
-use dokime_contract::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -143,7 +143,7 @@ where
         }
         client.verify(true).await?;
         let page = client
-            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListSamples {
                 scope: Some(scope.clone()),
                 streams: streams.clone(),
                 limit: page_size,
@@ -205,7 +205,7 @@ where
     let mut after = None;
     if let Some(completion) = completion {
         let reader = client
-            .evidence_watch_records(contracts::evidence::WatchRecordsRequest {
+            .evidence_watch_records(contracts::evidence::WatchRecords {
                 selection: Some(selection.clone()),
                 after: None,
             })
@@ -239,7 +239,7 @@ where
 
     // Freeze The Final Live Frontier; Saved Storage Positions Are Separate.
     client.verify(true).await?;
-    let mut request = contracts::evidence::ListRecordsRequest {
+    let mut request = contracts::evidence::ListRecords {
         selection: Some(selection),
         after: None,
         through: None,

@@ -21,14 +21,14 @@ use super::*;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime_runtime::core::TemplateId;
+use dokime_domain::model::identity::TemplateId;
 use dokime_runtime::document::{self, PlotDefinition, PlotStyle};
 use dokime_runtime::expressions::telemetry;
 use dokime_runtime::harmos::operations::Host;
 use dokime_runtime::host::ToolConnectionAcquired;
 use dokime_runtime::operations::files::{
     FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMatcher, LocalWatchSource,
-    WatchFile, WatchFileRequest,
+    WatchFile, WatchFile,
 };
 use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Power};
@@ -319,7 +319,7 @@ impl Startup {
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let watch = ctx
             .host()
-            .submit_as::<WatchFile>(WatchFileRequest {
+            .submit_as::<WatchFile>(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {

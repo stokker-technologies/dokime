@@ -18,7 +18,8 @@
 
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow};
-use crate::core::{DurationMillis, Timestamp};
+use dokime_domain::model::time::DurationMillis;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

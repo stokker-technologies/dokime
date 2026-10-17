@@ -43,7 +43,7 @@ fn main() {
     println!("cargo:rustc-env=DOKIME_BUNDLE_NAME={bundle}");
 
     let artifacts =
-        dokime_contract::operations::artifacts().expect("canonical desktop transfer contracts");
+        dokime_domain::operations::artifacts().expect("canonical desktop transfer contracts");
     artifacts
         .export_build("operations")
         .expect("desktop transfer descriptors");

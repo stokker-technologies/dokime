@@ -17,7 +17,9 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{HostCardBody, Identifier, Metadata};
+use dokime_domain::model::appearance::HostCardBody;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 

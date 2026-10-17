@@ -24,13 +24,14 @@ use tonic::Status;
 // Local Imports
 use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
 use crate::grpc::{error::detailed, value};
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{CaseId, RecordScope, TestCycleId, TestExecutionId},
-    domains::evidence::ArtifactUploadInput,
-    runtime::ArtifactUpload,
-};
-use dokime_contract::operations::content as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_runtime::domains::evidence::ArtifactUploadInput;
+use dokime_runtime::runtime::ArtifactUpload;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 const IDLE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);

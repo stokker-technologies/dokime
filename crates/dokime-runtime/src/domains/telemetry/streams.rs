@@ -26,7 +26,11 @@ use crate::evidence_runtime::{
 use crate::runtime::handle::RuntimeHandle;
 use crate::streams::{CycleTrack, ExecutionTrack, TelemetryRow};
 use crate::unavailable_rejection;
-use crate::core::{Identifier, RecordScope, Timestamp, Value, scope_visible_in};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::execution::scope_visible_in;
 use crate::telemetry::{
     TelemetryBatch, TelemetrySample, ValidationMode, validate_normalized_telemetry_sample,
 };
@@ -48,8 +52,8 @@ pub(crate) struct SampleAdmission {
     execution: crate::runtime::storage::telemetry::TelemetryAdmission,
     accepted: Vec<PreparedSample>,
     supplied: Vec<(
-        Option<crate::core::TestExecutionId>,
-        crate::core::TelemetrySampleId,
+        Option<dokime_domain::model::identity::TestExecutionId>,
+        dokime_domain::model::identity::TelemetrySampleId,
     )>,
     rows: Vec<TelemetryRow>,
     delivery: super::leases::LeasedRows,
@@ -559,7 +563,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn telemetry_aggregate_outputs(
         &self,
-        scope: &crate::core::RecordScope,
+        scope: &dokime_domain::model::execution::RecordScope,
     ) -> crate::runtime::Result<Vec<crate::telemetry_runtime::output::AggregateOutput>> {
         let state = self.settled_evidence_state().await;
         let contracts = state.telemetry_contracts();
@@ -582,7 +586,7 @@ impl RuntimeHandle {
     pub(crate) async fn enrich_host_traceability(
         &self,
         snapshots: &mut Vec<crate::traceability::TraceabilitySnapshot>,
-        scope: Option<&crate::core::RecordScope>,
+        scope: Option<&dokime_domain::model::execution::RecordScope>,
     ) {
         let mut host = self
             .collect_telemetry(&TelemetrySelection {
@@ -607,7 +611,7 @@ impl RuntimeHandle {
     pub(crate) async fn enrich_lease_traceability(
         &self,
         snapshots: &mut Vec<crate::traceability::TraceabilitySnapshot>,
-        scope: Option<&crate::core::RecordScope>,
+        scope: Option<&dokime_domain::model::execution::RecordScope>,
     ) {
         let selected = scope.cloned().unwrap_or_default();
         let leases = self.stream_leases().facts_for(&selected);
@@ -652,7 +656,7 @@ impl RuntimeHandle {
 
 /* === Public Functions === */
 pub fn telemetry_stream_id(
-    scope: Option<&crate::core::RecordScope>,
+    scope: Option<&dokime_domain::model::execution::RecordScope>,
     stream: &Identifier,
 ) -> String {
     let (cycle, execution) = telemetry_track(scope);
@@ -675,7 +679,7 @@ fn normalize_batch(
             && let Ok(host) = crate::host::HostTelemetryStream::try_from(contract.stream.as_str())
         {
             sample.storage_payload = Some(
-                dokime_contract::telemetry::host::host_telemetry_payload(host, &sample.values)
+                dokime_domain::model::telemetry::host::host_telemetry_payload(host, &sample.values)
                     .map_err(|error| {
                         validation_rejection(error.to_string(), "telemetry.payload", None)
                     })?,
@@ -737,7 +741,7 @@ fn sample_from_row(row: TelemetryRow) -> crate::runtime::Result<TelemetrySample>
     Ok(sample)
 }
 
-fn telemetry_track(scope: Option<&crate::core::RecordScope>) -> (CycleTrack, ExecutionTrack) {
+fn telemetry_track(scope: Option<&dokime_domain::model::execution::RecordScope>) -> (CycleTrack, ExecutionTrack) {
     (
         CycleTrack::from_id(scope.and_then(|scope| scope.test_cycle_id.clone())),
         ExecutionTrack::from_id(scope.and_then(|scope| scope.test_execution_id.clone())),
@@ -746,7 +750,7 @@ fn telemetry_track(scope: Option<&crate::core::RecordScope>) -> (CycleTrack, Exe
 
 fn telemetry_read_plan(
     selection: &TelemetrySelection,
-    resolved_cycle: Option<crate::core::TestCycleId>,
+    resolved_cycle: Option<dokime_domain::model::identity::TestCycleId>,
 ) -> TelemetryRead {
     let cycle = resolved_cycle.map(|cycle| CycleTrack::from_id(Some(cycle)));
     let execution = selection
@@ -853,7 +857,7 @@ fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String
 
 fn retain_open_execution_samples(
     batch: &mut TelemetryBatch,
-    closing_executions: &BTreeSet<crate::core::TestExecutionId>,
+    closing_executions: &BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 ) -> u64 {
     let before = batch.samples.len();
     batch.samples.retain(|sample| {

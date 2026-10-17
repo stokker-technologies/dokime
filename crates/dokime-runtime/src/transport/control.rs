@@ -20,7 +20,9 @@ use harmos::sidecar::Refusal;
 use tokio::sync::Notify;
 // Local Imports
 use super::{CommandExecutionReply, CommandExecutionRequest};
-use crate::core::{CommandId, Identifier, StepAttemptId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::StepAttemptId;
 
 /* === Constants === */
 const MAX_COMMANDS: usize = 4096;

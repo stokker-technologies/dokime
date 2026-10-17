@@ -22,10 +22,10 @@ use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 // Local Imports
-use crate::core::PromptId;
+use dokime_domain::model::identity::PromptId;
 use crate::prompts::PromptResponse;
 use crate::transport::{
-    ArtifactChunk, EvidenceBatch, RunExecutionRequest, SidecarExecutionOutcome,
+    ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome,
 };
 
 /* === Constants === */
@@ -49,11 +49,11 @@ pub(crate) type Tasks = Arc<Mutex<Vec<JoinHandle<()>>>>;
 /* === Structs === */
 pub(crate) struct ExecutionState {
     pub(crate) local_inputs: bool,
-    local_scope: crate::core::RecordScope,
+    local_scope: dokime_domain::model::execution::RecordScope,
     local_admitted: u64,
     pub(crate) callbacks: crate::execution::Callbacks,
     pub(crate) listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
-    pub(crate) request: RunExecutionRequest,
+    pub(crate) request: RunExecution,
     pub(crate) controls: Arc<super::control::Controls>,
     pub(crate) cancel: watch::Sender<bool>,
     pub(crate) changed: Arc<tokio::sync::Notify>,
@@ -64,16 +64,16 @@ pub(crate) struct ExecutionState {
     acknowledged_cursor: u64,
     artifact_condvar: Arc<Condvar>,
     phase: String,
-    step_admission: Option<(crate::core::StepAttemptId, Option<Result<(), String>>)>,
+    step_admission: Option<(dokime_domain::model::identity::StepAttemptId, Option<Result<(), String>>)>,
     terminal: bool,
     prompt: Option<PromptExchange>,
     stream_rows: Vec<crate::telemetry::TelemetrySample>,
-    sample_positions: BTreeMap<crate::core::TelemetrySampleId, usize>,
+    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, usize>,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
     produced: BTreeMap<String, u64>,
     delivered: Vec<crate::records::Record>,
-    subscriptions: Vec<crate::core::Identifier>,
+    subscriptions: Vec<dokime_domain::model::identity::Identifier>,
     captured_records: Vec<crate::records::Record>,
     subscriptions_settling: bool,
     subscriptions_settled: bool,
@@ -86,7 +86,7 @@ pub(crate) struct ExecutionState {
 pub(crate) struct BufferedFrame {
     cursor: u64,
     phase: String,
-    local_scope: Option<crate::core::RecordScope>,
+    local_scope: Option<dokime_domain::model::execution::RecordScope>,
     step_attempt: Option<String>,
     step_begin: Option<String>,
     capture_phase: Option<String>,
@@ -142,7 +142,7 @@ impl ExecutionState {
                 })?;
                 sample.values.insert(
                     "timestamp".to_owned(),
-                    crate::core::Value::Number(timestamp as f64 / 1_000.0),
+                    dokime_domain::model::values::Value::Number(timestamp as f64 / 1_000.0),
                 );
             }
             if !self.receive(sample.clone())? {
@@ -157,17 +157,17 @@ impl ExecutionState {
         std::mem::take(&mut self.local_samples)
     }
 
-    pub(crate) fn new(request: RunExecutionRequest, cancel: watch::Sender<bool>) -> Self {
+    pub(crate) fn new(request: RunExecution, cancel: watch::Sender<bool>) -> Self {
         Self {
             local_inputs: false,
-            local_scope: crate::core::RecordScope {
-                test_cycle_id: crate::core::TestCycleId::from_uuid(request.test_cycle_id.clone())
+            local_scope: dokime_domain::model::execution::RecordScope {
+                test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(request.test_cycle_id.clone())
                     .ok(),
-                test_execution_id: crate::core::TestExecutionId::from_uuid(
+                test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
                     request.test_execution_id.clone(),
                 )
                 .ok(),
-                origin: crate::core::EvidenceOrigin::Initialization,
+                origin: dokime_domain::model::execution::EvidenceOrigin::Initialization,
                 ..Default::default()
             },
             local_admitted: 0,
@@ -328,7 +328,7 @@ impl ExecutionState {
         &mut self,
         record: &crate::records::Record,
         owner: &str,
-        capture: Option<&crate::core::RecordScope>,
+        capture: Option<&dokime_domain::model::execution::RecordScope>,
     ) -> bool {
         let own = record.source == owner
             && record
@@ -379,15 +379,15 @@ impl ExecutionState {
         // cannot redirect evidence to another execution or broaden it globally.
         request.scope = None;
         let mut record = request.clone().into_record(
-            crate::model::identity::new_id::<crate::core::RecordId>(),
+            crate::model::identity::new_id::<dokime_domain::model::identity::RecordId>(),
             schema_version,
             crate::model::time::now_utc(),
             source,
         );
-        record.scope = Some(crate::core::RecordScope {
-            test_cycle_id: crate::core::TestCycleId::from_uuid(self.request.test_cycle_id.clone())
+        record.scope = Some(dokime_domain::model::execution::RecordScope {
+            test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(self.request.test_cycle_id.clone())
                 .ok(),
-            test_execution_id: crate::core::TestExecutionId::from_uuid(
+            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
                 self.request.test_execution_id.clone(),
             )
             .ok(),
@@ -424,11 +424,11 @@ impl ExecutionState {
         Some(record)
     }
 
-    pub(crate) fn addressed_by(&self, scope: Option<&crate::core::RecordScope>) -> bool {
+    pub(crate) fn addressed_by(&self, scope: Option<&dokime_domain::model::execution::RecordScope>) -> bool {
         self.addressed(scope)
     }
 
-    fn addressed(&self, scope: Option<&crate::core::RecordScope>) -> bool {
+    fn addressed(&self, scope: Option<&dokime_domain::model::execution::RecordScope>) -> bool {
         let Some(scope) = scope else {
             return true;
         };
@@ -483,7 +483,7 @@ impl ExecutionState {
         start: &crate::execution::StepAttemptStart,
         encoded: String,
     ) {
-        self.local_scope.origin = crate::core::EvidenceOrigin::Step {
+        self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Step {
             attempt_id: start.attempt_id.clone(),
         };
         self.step_admission = Some((start.attempt_id.clone(), None));
@@ -516,12 +516,12 @@ impl ExecutionState {
     pub(crate) fn push(&mut self, mut frame: BufferedFrame) {
         if self.local_inputs {
             if let Some(encoded) = &frame.capture_phase {
-                let phase: crate::core::CapturePhase =
+                let phase: dokime_domain::model::execution::CapturePhase =
                     serde_json::from_str(encoded).expect("runner capture phase serializes");
                 self.local_scope.origin = phase.into();
             }
             if frame.step_attempt.is_some() {
-                self.local_scope.origin = crate::core::EvidenceOrigin::Default;
+                self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Default;
             }
             if frame.record.is_some() {
                 frame.local_scope = Some(self.local_scope.clone());
@@ -622,7 +622,7 @@ impl ExecutionState {
         through: u64,
         source: &str,
         contracts: &[crate::records::RecordContract],
-        admitted_at: &crate::core::Timestamp,
+        admitted_at: &dokime_domain::model::time::Timestamp,
     ) -> Result<(), Refusal> {
         if !self.local_inputs {
             return Ok(());
@@ -662,7 +662,7 @@ impl ExecutionState {
             let version = contract.map_or(1, |contract| contract.schema_version);
             request.scope = scope.clone();
             let mut record = request.into_record(
-                crate::core::RecordId::from_seed(format!(
+                dokime_domain::model::identity::RecordId::from_seed(format!(
                     "{}:local:{cursor}",
                     self.request.execution_token
                 )),
@@ -673,7 +673,7 @@ impl ExecutionState {
             record.details = crate::records::validate_record(
                 contract,
                 &record,
-                crate::core::ValidationMode::Strict,
+                dokime_domain::model::validation::ValidationMode::Strict,
             )
             .map_err(|error| Refusal::of(error.to_string()))?;
             admitted.push((record, scope));
@@ -689,7 +689,7 @@ impl ExecutionState {
         &mut self,
         source: &str,
         contracts: &[crate::records::RecordContract],
-        admitted_at: &crate::core::Timestamp,
+        admitted_at: &dokime_domain::model::time::Timestamp,
     ) -> Result<(), Refusal> {
         self.admit_local_inputs(
             self.next_cursor.saturating_sub(1),
@@ -1018,16 +1018,16 @@ fn sample_difference(
 // A typed sample's absent optional field and its null are the same datum: the
 // live sample omits it, its stored projection names it null.
 fn values_equivalent(
-    left: &BTreeMap<String, crate::core::Value>,
-    right: &BTreeMap<String, crate::core::Value>,
+    left: &BTreeMap<String, dokime_domain::model::values::Value>,
+    right: &BTreeMap<String, dokime_domain::model::values::Value>,
 ) -> bool {
     left.keys()
         .chain(right.keys())
         .all(|key| value_equivalent(left.get(key), right.get(key)))
 }
 
-fn value_equivalent(left: Option<&crate::core::Value>, right: Option<&crate::core::Value>) -> bool {
-    use crate::core::Value;
+fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: Option<&dokime_domain::model::values::Value>) -> bool {
+    use dokime_domain::model::values::Value;
     match (left, right) {
         (None | Some(Value::Null), None | Some(Value::Null)) => true,
         (Some(Value::Object(left)), Some(Value::Object(right))) => values_equivalent(left, right),
@@ -1053,7 +1053,11 @@ fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
 #[cfg(test)]
 mod tests {
     use super::sample_difference;
-    use crate::core::{Identifier, RecordScope, TestExecutionId, Timestamp, Value};
+    use dokime_domain::model::identity::Identifier;
+    use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::TestExecutionId;
+    use dokime_domain::model::time::Timestamp;
+    use dokime_domain::model::values::Value;
     use crate::telemetry::TelemetrySample;
 
     #[test]
@@ -1075,7 +1079,7 @@ mod tests {
         assert!(sample_difference(&original, &wire, false).is_none());
         let mut admitted = wire.clone();
         admitted.received_at = Timestamp::new("2000-01-01T00:00:00Z");
-        admitted.scope.as_mut().unwrap().session_id = Some(crate::model::identity::new_id::<crate::core::SessionId>());
+        admitted.scope.as_mut().unwrap().session_id = Some(crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>());
         assert!(sample_difference(&original, &admitted, true).is_none());
         assert!(sample_difference(&original, &admitted, false).is_some());
         let mut changed = wire.clone();
@@ -1098,9 +1102,9 @@ mod tests {
 
     #[test]
     fn local_sample_replay_keeps_automatic_timestamp() {
-        let request = crate::transport::protocol::RunExecutionRequest {
+        let request = crate::transport::protocol::RunExecution {
             execution_token: "fixture".into(),
-            test_cycle_id: crate::model::identity::new_id::<crate::core::TestCycleId>().to_string(),
+            test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
             test_execution_id: crate::model::identity::new_id::<TestExecutionId>().to_string(),
             template_identifier: "fixture".into(),
             workflow: "fixture".into(),

@@ -25,10 +25,14 @@ use crate::{
     RuntimeHandle, evidence_runtime::EvidenceCounts, execution::CycleView, queries::RuntimeCursor,
     state::RuntimeState,
 };
-use crate::core::{
-    CaseId, DokimeIdentity, Metadata, RecordScope, SessionId, TestCycleId, TestExecutionId,
-    Timestamp,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::DokimeIdentity;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

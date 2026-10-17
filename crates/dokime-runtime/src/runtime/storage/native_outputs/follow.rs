@@ -27,11 +27,11 @@ use crate::{
     runtime::Result,
     runtime::storage::executions::{Acquisition, ExecutionStorage},
 };
-use crate::{
-    core::TestExecutionId,
-    execution::saved::{ExecutionOutput, ExecutionOutputContent, SavedStreamState},
-    storage::Manager,
-};
+use dokime_domain::model::identity::TestExecutionId;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
+use crate::execution::saved::SavedStreamState;
+use crate::storage::Manager;
 
 /* === Constants === */
 

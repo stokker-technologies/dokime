@@ -23,12 +23,12 @@ use harmos::sidecar::Refusal;
 use tokio::sync::watch;
 // Local Imports
 use super::template::SidecarTemplate;
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
 use crate::prompts::PromptResponse;
 use crate::transport::buffer::{ExecutionState, Executions, Tasks, lock};
 use crate::transport::{
-    CommandExecutionReply, CommandExecutionRequest, EvidenceBatch, RunExecutionRequest,
+    CommandExecutionReply, CommandExecutionRequest, EvidenceBatch, RunExecution,
     StepAdmission,
 };
 
@@ -69,7 +69,7 @@ pub trait EmbeddedPublisher: Send + Sync {
     fn publish(
         &self,
         execution: &str,
-        stream: &crate::core::Identifier,
+        stream: &dokime_domain::model::identity::Identifier,
         values: BTreeMap<String, Value>,
         storage_payload: Vec<u8>,
     ) -> Result<(), String>;
@@ -129,11 +129,11 @@ impl<T: SidecarTemplate> Workflow<T> {
         self
     }
 
-    pub fn start(&self, request: RunExecutionRequest) -> Result<(), Refusal> {
+    pub fn start(&self, request: RunExecution) -> Result<(), Refusal> {
         self.start_on(request, None, super::Caller::default())
     }
 
-    fn accepts(&self, request: &RunExecutionRequest) -> Result<(), Refusal> {
+    fn accepts(&self, request: &RunExecution) -> Result<(), Refusal> {
         if request.workflow != self.workflow {
             return Err(Refusal::of(format!(
                 "unsupported sidecar execution workflow {:?}",
@@ -176,7 +176,7 @@ impl<T: SidecarTemplate> Workflow<T> {
 
     pub fn start_on(
         &self,
-        request: RunExecutionRequest,
+        request: RunExecution,
         host: Option<SampleOutput>,
         caller: super::Caller,
     ) -> Result<(), Refusal> {
@@ -335,7 +335,7 @@ impl<T: SidecarTemplate> Workflow<T> {
         &self,
         record: &crate::records::Record,
         owner: &str,
-        scopes: &[crate::core::RecordScope],
+        scopes: &[dokime_domain::model::execution::RecordScope],
     ) -> usize {
         let mut taken = 0;
         for state in lock(&self.executions).values_mut() {
@@ -354,7 +354,7 @@ impl<T: SidecarTemplate> Workflow<T> {
 
     pub fn deliver_samples(
         &self,
-        scope: &crate::core::RecordScope,
+        scope: &dokime_domain::model::execution::RecordScope,
         samples: &[crate::telemetry::TelemetrySample],
         gaps: &[crate::telemetry::LeaseGap],
     ) -> Result<usize, Refusal> {

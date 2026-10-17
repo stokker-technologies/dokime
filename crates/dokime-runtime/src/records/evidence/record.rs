@@ -17,10 +17,14 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{
-    ArtifactId, Identifier, RecordId, RecordScope, TelemetrySampleId, TelemetryStreamId, Timestamp,
-    Value,
-};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TelemetrySampleId;
+use dokime_domain::model::identity::TelemetryStreamId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::records::{RecordErrorDetail, RecordSeverity};
 
 /* === Constants === */

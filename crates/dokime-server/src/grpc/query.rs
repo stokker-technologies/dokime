@@ -26,7 +26,7 @@ use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::aggregate::{
     AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
 };
-use dokime_contract::operations::query as wire;
+use dokime_domain::operations::query as wire;
 
 /* === Constants === */
 
@@ -64,7 +64,7 @@ impl Operation for Aggregate {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::AggregateRequest,
+        request: &mut wire::Aggregate,
         _: &mut (),
     ) -> Result<Response<wire::AggregateReply>, Status> {
         let query = decode(request)?;
@@ -95,7 +95,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
-fn decode(request: &mut wire::AggregateRequest) -> Result<AggregateQuery, Status> {
+fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new();
     value::collection(request.filters.len())?;
     value::collection(request.group_by.len())?;

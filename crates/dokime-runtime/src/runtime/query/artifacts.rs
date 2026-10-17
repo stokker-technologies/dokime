@@ -12,7 +12,7 @@ mod read;
 
 /* === Re-Exports === */
 pub use crate::execution_runtime::outputs::{ExecutionFileContentKind, ExecutionFileStreamState};
-pub use crate::core::RecordScope;
+pub use dokime_domain::model::execution::RecordScope;
 pub use read::RuntimeExecutionFileRead;
 pub(crate) use read::execution_file_frame;
 
@@ -24,7 +24,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use crate::artifacts::ArtifactRecord;
-use crate::core::{RecordScope as DomainRecordScope, Timestamp};
+use dokime_domain::model::execution::RecordScope as DomainRecordScope;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

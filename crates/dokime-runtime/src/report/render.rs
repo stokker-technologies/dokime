@@ -43,7 +43,12 @@ use crate::report::{
 };
 use crate::traceability::{TraceabilityEntry, TraceabilitySnapshot, derived_traceability_group};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{CaseId, DocumentId, Metadata, RecordScope, Timestamp, Value};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use header::Header;
 
 /* === Constants === */
@@ -796,7 +801,7 @@ fn traceability_groups<'a>(
         {
             continue;
         }
-        if scope.is_some_and(|scope| !crate::core::scope_visible_in(Some(&item.scope), scope)) {
+        if scope.is_some_and(|scope| !dokime_domain::model::execution::scope_visible_in(Some(&item.scope), scope)) {
             continue;
         }
         let rank = traceability_group_rank(item);

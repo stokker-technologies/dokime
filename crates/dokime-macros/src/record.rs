@@ -128,7 +128,7 @@ pub(crate) fn implementation(
 
             fn into_details(self) -> ::std::collections::BTreeMap<
                 ::std::string::String,
-                #sdk::core::Value,
+                #sdk::Value,
             > {
                 let mut details = ::std::collections::BTreeMap::new();
                 #(#details)*
@@ -156,7 +156,7 @@ pub(crate) fn implementation(
             }
 
             fn from_details(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> ::std::result::Result<Self, #sdk::FieldError> {
                 ::std::result::Result::Ok(Self { #(#reads),* })
             }
@@ -321,8 +321,8 @@ fn contract_field(field: &RecordFieldDeclaration) -> TokenStream {
     let described = &field.described;
     let declaration = quote! {
         #sdk::records::RecordField::new(
-            #sdk::core::Metadata::new(
-                #sdk::core::Identifier::declared(#identifier, "record field"),
+            #sdk::Metadata::new(
+                #sdk::Identifier::declared(#identifier, "record field"),
                 #label,
                 #described,
             ),

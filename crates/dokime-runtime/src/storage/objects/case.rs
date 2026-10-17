@@ -23,7 +23,8 @@ use harmos::{
 
 // Local Imports
 use super::metadata;
-use crate::core::{CaseId, TemplateId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TemplateId;
 use crate::definition::TestCase;
 use crate::storage::{Error, Manager, Result, values};
 
@@ -192,10 +193,10 @@ impl Case {
             self.suite_id.capacity(),
             self.case_id.capacity(),
             self.template_id.capacity(),
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
-            suite.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
+            suite.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             parameters.saturating_sub(std::mem::size_of::<
-                std::collections::BTreeMap<String, crate::core::Value>,
+                std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
             >()),
         ];
         Ok(fields

@@ -29,7 +29,7 @@ use uuid::Uuid;
 use super::model::{Installation, PluginSettings};
 use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState, inspect};
 use crate::config::Settings;
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 const BUNDLE_EXTENSION: &str = "dokime";

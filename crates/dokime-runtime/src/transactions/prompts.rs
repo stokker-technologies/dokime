@@ -22,9 +22,13 @@ use crate::runtime::Error;
 use crate::records::{BuiltinRecordType, Record, RecordSeverity, ValidationMode, validate_record};
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::Drafts;
-use crate::core::{
-    CommandId, PromptId, RecordScope, Timestamp, ValidationIssue, Value, ValueType,
-};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueType;
 use crate::prompts::{
     PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind,
     PromptInstance, PromptKind, PromptRequest, PromptResponse,
@@ -286,7 +290,7 @@ fn prepare_request(
     }
     let prompt = PromptInstance {
         prompt_id: invocation.prompt_id.clone(),
-        contract_id: crate::core::ContractId::from_seed(invocation.prompt_id.as_str()),
+        contract_id: dokime_domain::model::identity::ContractId::from_seed(invocation.prompt_id.as_str()),
         kind: definition.kind(),
         definition,
         allow_timeout: false,

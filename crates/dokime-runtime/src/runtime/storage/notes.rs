@@ -22,7 +22,9 @@ use super::executions::{Acquisition, ExecutionStorage};
 use crate::execution::notes::{NOTE_CHECKPOINT_LIMIT, NOTE_SCAN_LIMIT};
 use crate::execution::{CycleView, OperatorNote};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{RecordScope, SessionId, TestExecutionId};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

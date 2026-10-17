@@ -17,10 +17,18 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{
-    CriterionId, Identifier, MeasurementUnit, Metadata, ParameterId, StepId, TemplateId,
-    UnitFamily, Value, ValueFormat, ValueType, validate_value_format,
-};
+use dokime_domain::model::identity::CriterionId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::ParameterId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::values::UnitFamily;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
+use dokime_domain::model::values::ValueType;
+use dokime_domain::model::values::validate_value_format;
 use crate::definition::{
     CriterionDefinition, DynamicDefaultKey, ExecutionPhaseDefinition, ParameterDefinition,
     ParameterExpr, ParameterGroup, ParameterGroupId, ParameterList, ParameterSelection,
@@ -120,7 +128,7 @@ pub enum TemplateAuthoringError {
     InvalidIdentifier {
         field: &'static str,
         value: String,
-        reason: dokime_contract::Error,
+        reason: dokime_domain::Error,
     },
 }
 

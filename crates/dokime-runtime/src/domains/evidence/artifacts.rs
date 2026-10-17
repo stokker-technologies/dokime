@@ -19,7 +19,9 @@
 // Local Imports
 use crate::execution::{HealthSeverity, OperatorNote};
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, exports::cycle::ArtifactContent};
-use crate::core::{ArtifactId, HealthItemId, RecordScope};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 
@@ -60,7 +62,7 @@ impl RuntimeHandle {
         request: crate::evidence_runtime::OperatorNoteRequest,
     ) -> Result<OperatorNote> {
         let note = OperatorNote {
-            note_id: crate::model::identity::new_id::<crate::core::NoteId>(),
+            note_id: crate::model::identity::new_id::<dokime_domain::model::identity::NoteId>(),
             scope: self
                 .state_read()
                 .canonical_note_scope(&request.scope.unwrap_or_default())

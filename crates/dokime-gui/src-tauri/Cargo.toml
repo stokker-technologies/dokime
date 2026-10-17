@@ -27,7 +27,7 @@ console = []
 
 [build-dependencies]
 # Local
-dokime-contract = { path = "../../dokime-contract", features = ["descriptors"] }
+dokime-domain = { path = "../../dokime-domain", features = ["descriptors"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -41,7 +41,7 @@ dokime-client = { path = "../../dokime-client" }
 # Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
 dokime-runtime = { path = "../../dokime-runtime", default-features = false, features = ["native"] }
 dokime-filesystem = { path = "../../dokime-filesystem" }
-dokime-contract = { path = "../../dokime-contract", features = ["diagnostics"] }
+dokime-domain = { path = "../../dokime-domain", features = ["diagnostics"] }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }

@@ -23,7 +23,7 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_contract::operations::content as wire;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 
@@ -60,7 +60,7 @@ impl Operation for Follow {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::FollowExecutionFileRequest,
+        request: &mut wire::FollowExecutionFile,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;

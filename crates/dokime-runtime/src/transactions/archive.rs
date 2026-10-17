@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, ExecutionStatus};
 use crate::state::RuntimeState;
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

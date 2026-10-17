@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{HostTelemetryConfig, HostTelemetryStream};
-use dokime_contract::core::DurationMillis;
+use dokime_domain::model::time::DurationMillis;
 
 /* === Constants === */
 

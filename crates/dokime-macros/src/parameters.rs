@@ -131,7 +131,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             }
 
             fn from_parameters(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> #sdk::Result<Self> {
                 ::core::result::Result::Ok(Self { #(#reads),* })
             }
@@ -235,7 +235,7 @@ fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
                         }
                         written.expanded = true;
                         quote!(#sdk::definition::ParameterExpansion::Zip {
-                            group: #sdk::core::Identifier::new(#group).expect("valid zip group identifier")
+                            group: #sdk::Identifier::new(#group).expect("valid zip group identifier")
                         })
                     }
                     _ => {
@@ -430,7 +430,7 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
     let encoded = variants.iter().map(|variant| {
         let variant_name = &variant.name;
         let identifier = &variant.identifier;
-        quote!(Self::#variant_name => #sdk::core::Value::Text(::std::string::String::from(#identifier)),)
+        quote!(Self::#variant_name => #sdk::Value::Text(::std::string::String::from(#identifier)),)
     });
     let admitted = variants
         .iter()
@@ -475,17 +475,17 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
 
         #[automatically_derived]
         impl #generics #sdk::values::FieldValue for #name #types #predicates {
-            const VALUE_TYPE: #sdk::core::ValueType = #sdk::core::ValueType::Text;
+            const VALUE_TYPE: #sdk::ValueType = #sdk::ValueType::Text;
 
-            fn into_value(self) -> #sdk::core::Value {
+            fn into_value(self) -> #sdk::Value {
                 match self { #(#encoded)* }
             }
 
-            fn from_value(value: ::core::option::Option<&#sdk::core::Value>) -> ::core::result::Result<Self, #sdk::values::FieldError> {
+            fn from_value(value: ::core::option::Option<&#sdk::Value>) -> ::core::result::Result<Self, #sdk::values::FieldError> {
                 let base = <::std::string::String as #sdk::values::FieldValue>::from_value(value)?;
                 <Self as #sdk::parameters::ParameterValue>::refine(base).map_err(|reason| #sdk::values::FieldError {
                     field: ::std::string::String::new(),
-                    declared: #sdk::core::ValueType::Text,
+                    declared: #sdk::ValueType::Text,
                     found: ::core::option::Option::Some(reason),
                 })
             }

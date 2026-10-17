@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 // Local Imports
 use super::ReportValues;
-use crate::core::{Metadata, Timestamp};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

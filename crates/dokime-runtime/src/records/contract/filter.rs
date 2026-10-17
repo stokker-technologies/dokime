@@ -17,7 +17,11 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{ArtifactId, Identifier, RecordScope, TelemetryStreamId, Timestamp};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TelemetryStreamId;
+use dokime_domain::model::time::Timestamp;
 use crate::records::{RecordEntry, RecordPattern, RecordSeverity};
 
 /* === Constants === */

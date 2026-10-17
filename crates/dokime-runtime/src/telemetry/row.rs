@@ -11,14 +11,14 @@
 
 /* === Re-Exports === */
 pub use crate::values::{FieldError, FieldValue};
-pub use dokime_contract::telemetry::TelemetryRow;
+pub use dokime_domain::model::telemetry::TelemetryRow;
 
 /* === Imports === */
 // Standard Library Imports
 // Third Party Imports
 
 // Local Imports
-use crate::core::ValueType;
+use dokime_domain::model::values::ValueType;
 use crate::telemetry::contract::{TelemetryColumn, TelemetryRole};
 
 /* === Constants === */

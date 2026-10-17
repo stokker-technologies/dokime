@@ -25,7 +25,7 @@ use crate::plot::{
     record_samples::RecordSampleLookup, retain_window, sample_matches_scope, sample_value,
 };
 use crate::records::RecordEntry;
-use crate::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 use crate::expressions::{DataExpression, DataSource, DataTransform, RecordTimingRecord};
 use crate::telemetry::TelemetrySample;
 

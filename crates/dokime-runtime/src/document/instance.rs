@@ -17,7 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{DocumentId, Timestamp};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::time::Timestamp;
 use crate::document::{DocumentDefinition, DocumentPayload};
 
 /* === Constants === */

@@ -25,7 +25,7 @@ version.workspace = true
 
 [dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract" }
+dokime-domain = { path = "../dokime-domain" }
 dokime-filesystem = { path = "../dokime-filesystem" }
 
 # Git

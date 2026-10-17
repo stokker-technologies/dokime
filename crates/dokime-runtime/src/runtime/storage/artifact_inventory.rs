@@ -21,11 +21,12 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::executions::ExecutionStorage;
 use crate::runtime::Result;
-use crate::{
-    artifacts::{ArtifactRecord, ArtifactStatus},
-    core::{ArtifactId, TestExecutionId},
-    execution::saved::{ExecutionOutput, ExecutionOutputContent},
-};
+use crate::artifacts::ArtifactRecord;
+use crate::artifacts::ArtifactStatus;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::TestExecutionId;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
 
 /* === Constants === */
 const UUID_BYTES: usize = 36;

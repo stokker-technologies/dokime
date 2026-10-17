@@ -37,7 +37,9 @@ use crate::execution_runtime::{
     },
 };
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{Identifier, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::saved::{ExecutionOutput, ExecutionOutputContent, SavedStreamState};
 use crate::storage::Manager;
 

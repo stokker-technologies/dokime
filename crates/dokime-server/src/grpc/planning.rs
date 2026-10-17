@@ -24,14 +24,17 @@ use super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_runtime::core::{CaseId, CommandId, TemplateId, TestCycleId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::identity::TestCycleId;
 use dokime_runtime::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase,
     materialize_template_cases,
 };
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_contract::operations::planning as wire;
+use dokime_domain::operations::planning as wire;
 
 /* === Constants === */
 
@@ -80,10 +83,10 @@ impl Operation for Register {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::RegisterSelectionRequest,
+        request: &mut wire::RegisterSelection,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
-        dokime_contract::core::command::validate_idempotency_key(&request.idempotency_key)
+        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request
             .plan
@@ -130,7 +133,7 @@ impl Operation for Preview {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::PreviewSelectionRequest,
+        request: &mut wire::PreviewSelection,
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();

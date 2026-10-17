@@ -18,7 +18,7 @@ use std::{collections::BTreeMap, io::Write};
 use serde::{Deserialize, Serialize, ser::SerializeMap};
 // Local Imports
 use crate::records::RecordContract;
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 const MAX_CONTRACTS: usize = 4096;

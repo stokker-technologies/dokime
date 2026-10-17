@@ -27,7 +27,7 @@ use super::error::TerminationReason;
 use super::evidence::ExecutionEvidence;
 use super::{CleanupContext, Context, InitializationContext, StepContext};
 use crate::artifacts::Artifacts;
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::records::Deliveries;
 use crate::telemetry::Streams;
 use crate::transport::ExecutionTransport;

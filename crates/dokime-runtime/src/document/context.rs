@@ -22,7 +22,9 @@ use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
 // Local Imports
-use crate::core::{RecordScope, TestExecutionId, Value};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::values::Value;
 use crate::definition::MaterializedParameter;
 use crate::execution::TestExecution;
 use crate::expressions::DataSource;

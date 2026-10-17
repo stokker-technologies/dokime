@@ -39,7 +39,8 @@ use std::{collections::BTreeMap, num::NonZeroUsize};
 
 // Local Imports
 use super::{Error, Result};
-use crate::core::{Timestamp, Value};
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const MAX_DEPTH: usize = 64;

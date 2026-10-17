@@ -37,7 +37,7 @@
 /* === Private Functions === */
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rerun-if-changed=build.rs");
-    let artifacts = dokime_contract::operations::artifacts()?;
+    let artifacts = dokime_domain::operations::artifacts()?;
     artifacts.export_build("operations")?;
     Ok(())
 }

@@ -66,8 +66,8 @@ impl RuntimeHandle {
 
     pub(crate) fn resolve_evidence_scope(
         &self,
-        scope: &crate::core::RecordScope,
-    ) -> RuntimeResult<crate::core::RecordScope> {
+        scope: &dokime_domain::model::execution::RecordScope,
+    ) -> RuntimeResult<dokime_domain::model::execution::RecordScope> {
         if (scope.step_id.is_some() || scope.criterion_id.is_some())
             && scope.test_execution_id.is_none()
         {
@@ -113,7 +113,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn checkpoint_evidence_scope(
         &self,
-        scope: &crate::core::RecordScope,
+        scope: &dokime_domain::model::execution::RecordScope,
     ) -> RuntimeResult<()> {
         let owners = {
             let snapshot = self.state_read();

@@ -25,7 +25,7 @@ use tonic::Status;
 use super::metadata;
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
-use dokime_contract::operations::content as wire;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 
@@ -62,7 +62,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListArtifactsRequest,
+        request: &mut wire::ListArtifacts,
         _: &mut (),
     ) -> Result<Response<wire::ListArtifactsReply>, Status> {
         if request.limit > 100 {
@@ -139,7 +139,7 @@ fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
 
 fn project(
     records: &[ArtifactRecord],
-    request: &wire::ListArtifactsRequest,
+    request: &wire::ListArtifacts,
     epoch: &str,
     start: usize,
     count: usize,

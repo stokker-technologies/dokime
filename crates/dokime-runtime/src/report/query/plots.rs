@@ -34,9 +34,10 @@ use crate::{
         DownsampleTechnique, PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest,
     },
 };
-use crate::{
-    core::Identifier, expressions::DataSource, records::RecordEntry, telemetry::TelemetryContract,
-};
+use dokime_domain::model::identity::Identifier;
+use crate::expressions::DataSource;
+use crate::records::RecordEntry;
+use crate::telemetry::TelemetryContract;
 
 /* === Constants === */
 

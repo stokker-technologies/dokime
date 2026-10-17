@@ -24,7 +24,7 @@ use dokime_runtime::{
         PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings,
     },
 };
-use dokime_contract::operations::settings as wire;
+use dokime_domain::operations::settings as wire;
 /* === Constants === */
 /* === Macros === */
 /* === Type Aliases === */
@@ -59,7 +59,7 @@ impl Operation for GetSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut wire::GetSettingsRequest,
+        _: &mut wire::GetSettings,
         _: &mut (),
     ) -> Result<Response<wire::SettingsFrame>, Status> {
         let frame = self.resources.runtime.settings_frame().await;
@@ -82,7 +82,7 @@ impl Operation for GetPluginSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::GetPluginSettingsRequest,
+        request: &mut wire::GetPluginSettings,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
@@ -110,14 +110,14 @@ impl Operation for UpdatePluginSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginSettingsRequest,
+        request: &mut wire::UpdatePluginSettings,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
         let values = match request.values.take() {
             None => Default::default(),
             Some(value) => match canonical::decode(value, &mut Budget::new(), 0)? {
-                dokime_runtime::core::Value::Object(values) => values,
+                dokime_domain::model::values::Value::Object(values) => values,
                 _ => {
                     return Err(Status::invalid_argument(
                         "plugin settings values must be an object",
@@ -149,7 +149,7 @@ impl Operation for UpdatePluginCredential {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginCredentialRequest,
+        request: &mut wire::UpdatePluginCredential,
         _: &mut (),
     ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
@@ -206,7 +206,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     Ok(())
 }
 /* === Private Functions === */
-fn plugin_id(id: &str) -> Result<dokime_runtime::core::Identifier, Status> {
+fn plugin_id(id: &str) -> Result<dokime_domain::model::identity::Identifier, Status> {
     value::text(id)?;
     projection::identifier(id.to_owned(), "plugin_id")
 }

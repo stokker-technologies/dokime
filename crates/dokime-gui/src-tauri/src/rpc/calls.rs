@@ -479,7 +479,6 @@ fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
 /* === Tests === */
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     fn headers(pairs: &[(&'static str, &'static str)]) -> tauri::http::HeaderMap {
         pairs

@@ -21,7 +21,8 @@ use harmos::{Message, storage::SchemaKey};
 
 // Local Imports
 use super::{Error, Result, values};
-use crate::core::{Identifier, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
 use crate::records::{Record, RecordEntry};
 
 /* === Constants === */
@@ -72,9 +73,9 @@ pub(crate) struct OriginRow {
     attempt_id: Option<String>,
 }
 
-impl From<&crate::core::RecordScope> for ScopeRow {
-    fn from(scope: &crate::core::RecordScope) -> Self {
-        use crate::core::EvidenceOrigin;
+impl From<&dokime_domain::model::execution::RecordScope> for ScopeRow {
+    fn from(scope: &dokime_domain::model::execution::RecordScope) -> Self {
+        use dokime_domain::model::execution::EvidenceOrigin;
         let (phase, attempt_id) = match &scope.origin {
             EvidenceOrigin::Default => (0, None),
             EvidenceOrigin::Initialization => (1, None),
@@ -101,14 +102,18 @@ impl From<&crate::core::RecordScope> for ScopeRow {
     }
 }
 
-impl TryFrom<ScopeRow> for crate::core::RecordScope {
+impl TryFrom<ScopeRow> for dokime_domain::model::execution::RecordScope {
     type Error = Error;
 
     fn try_from(row: ScopeRow) -> Result<Self> {
-        use crate::core::{
-            CaseId, CriterionId, SessionId, StepId, SuiteId, TemplateId, TestCycleId,
-            TestExecutionId,
-        };
+        use dokime_domain::model::identity::CaseId;
+        use dokime_domain::model::identity::CriterionId;
+        use dokime_domain::model::identity::SessionId;
+        use dokime_domain::model::identity::StepId;
+        use dokime_domain::model::identity::SuiteId;
+        use dokime_domain::model::identity::TemplateId;
+        use dokime_domain::model::identity::TestCycleId;
+        use dokime_domain::model::identity::TestExecutionId;
 
         for id in [&row.test_cycle_id, &row.test_execution_id]
             .into_iter()
@@ -138,7 +143,7 @@ impl TryFrom<ScopeRow> for crate::core::RecordScope {
 }
 
 impl ScopeRow {
-    pub fn encoding_memory(scope: &crate::core::RecordScope) -> usize {
+    pub fn encoding_memory(scope: &dokime_domain::model::execution::RecordScope) -> usize {
         let fields = [
             scope.session_id.as_ref().map(|id| id.as_str()),
             scope.test_cycle_id.as_ref().map(|id| id.as_str()),
@@ -149,7 +154,7 @@ impl ScopeRow {
             scope.template_id.as_ref().map(|id| id.as_str()),
             scope.suite_id.as_ref().map(|id| id.as_str()),
             match &scope.origin {
-                crate::core::EvidenceOrigin::Step { attempt_id } => Some(attempt_id.as_str()),
+                dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => Some(attempt_id.as_str()),
                 _ => None,
             },
         ];
@@ -174,17 +179,17 @@ impl ScopeRow {
             &self.origin.attempt_id,
         ];
         fields.into_iter().fold(
-            std::mem::size_of::<crate::core::RecordScope>(),
+            std::mem::size_of::<dokime_domain::model::execution::RecordScope>(),
             |bytes, field| bytes.saturating_add(field.as_ref().map_or(0, String::capacity)),
         )
     }
 }
 
-impl TryFrom<OriginRow> for crate::core::EvidenceOrigin {
+impl TryFrom<OriginRow> for dokime_domain::model::execution::EvidenceOrigin {
     type Error = Error;
 
     fn try_from(row: OriginRow) -> Result<Self> {
-        use crate::core::StepAttemptId;
+        use dokime_domain::model::identity::StepAttemptId;
         match (row.phase, row.attempt_id) {
             (0, None) => Ok(Self::Default),
             (1, None) => Ok(Self::Initialization),
@@ -202,7 +207,8 @@ impl serde::Serialize for OriginRow {
         &self,
         serializer: S,
     ) -> std::result::Result<S::Ok, S::Error> {
-        use crate::core::{EvidenceOrigin, StepAttemptId};
+        use dokime_domain::model::execution::EvidenceOrigin;
+        use dokime_domain::model::identity::StepAttemptId;
         let origin = match (self.phase, self.attempt_id.as_deref()) {
             (0, None) => EvidenceOrigin::Default,
             (1, None) => EvidenceOrigin::Initialization,
@@ -219,7 +225,7 @@ impl<'de> serde::Deserialize<'de> for OriginRow {
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> std::result::Result<Self, D::Error> {
-        use crate::core::EvidenceOrigin;
+        use dokime_domain::model::execution::EvidenceOrigin;
         let (phase, attempt_id) =
             match <EvidenceOrigin as serde::Deserialize>::deserialize(deserializer)? {
                 EvidenceOrigin::Default => (0, None),
@@ -411,7 +417,7 @@ impl RecordRow {
             return Ok(usize::MAX);
         }
         bytes = bytes.saturating_add(details.saturating_sub(std::mem::size_of::<
-            std::collections::BTreeMap<String, crate::core::Value>,
+            std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
         >()));
         if let Some(error) = &self.error {
             bytes = bytes.saturating_add(
@@ -424,14 +430,17 @@ impl RecordRow {
             bytes = bytes.saturating_add(
                 scope
                     .projection_memory()
-                    .saturating_sub(std::mem::size_of::<crate::core::RecordScope>()),
+                    .saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
             );
         }
         Ok(bytes)
     }
 
     pub fn into_entry(self, allowance: NonZeroUsize) -> Result<RecordEntry> {
-        use crate::core::{ArtifactId, RecordId, TelemetrySampleId, TelemetryStreamId};
+        use dokime_domain::model::identity::ArtifactId;
+        use dokime_domain::model::identity::RecordId;
+        use dokime_domain::model::identity::TelemetrySampleId;
+        use dokime_domain::model::identity::TelemetryStreamId;
         use crate::records::RecordSeverity;
         let bound = self.projection_memory()?;
         if bound == usize::MAX || bound > allowance.get() {
@@ -548,7 +557,7 @@ impl ErrorRow {
             .saturating_add(
                 self.cause_chain
                     .len()
-                    .saturating_mul(std::mem::size_of::<crate::core::ErrorCause>()),
+                    .saturating_mul(std::mem::size_of::<dokime_domain::model::diagnostics::ErrorCause>()),
             );
         for value in [
             &self.code,
@@ -573,7 +582,10 @@ impl TryFrom<ErrorRow> for crate::records::RecordErrorDetail {
     type Error = Error;
 
     fn try_from(row: ErrorRow) -> Result<Self> {
-        use crate::core::{ArtifactId, CorrelationId, ErrorCause, TraceId};
+        use dokime_domain::model::identity::ArtifactId;
+        use dokime_domain::model::identity::CorrelationId;
+        use dokime_domain::model::diagnostics::ErrorCause;
+        use dokime_domain::model::identity::TraceId;
         let mut cause_chain = exact_slots(row.cause_chain.len())?;
         for cause in row.cause_chain {
             cause_chain.push(ErrorCause {
@@ -630,7 +642,6 @@ fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     }
 }
 fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
-    use crate::records::RecordSeverity;
     match value {
         RecordSeverity::Debug => "debug",
         RecordSeverity::Info => "info",

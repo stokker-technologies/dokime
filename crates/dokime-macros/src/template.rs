@@ -277,7 +277,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     );
     let template_id = match arguments.value("template_id") {
         Some(declared) => quote!(#declared),
-        None => quote!(#sdk::core::TemplateId::from_seed(#identifier)),
+        None => quote!(#sdk::TemplateId::from_seed(#identifier)),
     };
 
     let parameters = parameters(&block, arguments.value("parameters"))?;
@@ -370,7 +370,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         .map(|(key, value)| {
             let key = key.to_string();
 
-            quote!(ctx.set_attribute(#key, #sdk::core::Value::from(#value));)
+            quote!(ctx.set_attribute(#key, #sdk::Value::from(#value));)
         })
         .collect::<Vec<_>>();
 
@@ -397,7 +397,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #template {
-                                    pub fn template_id() -> #sdk::core::TemplateId {
+                                    pub fn template_id() -> #sdk::TemplateId {
                 #template_id
             }
 
@@ -429,7 +429,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         impl #sdk::definition::DeclaredTemplate for #template {
             const IDENTIFIER: &'static str = #identifier;
 
-            fn template_id() -> #sdk::core::TemplateId {
+            fn template_id() -> #sdk::TemplateId {
                 <Self>::template_id()
             }
 
@@ -653,7 +653,7 @@ fn criteria(block: &ItemImpl) -> Result<Vec<DeclaredCriterion>, Error> {
                     quote!(#sdk::definition::authored_criterion(
                         #identifier,
                         #label,
-                        ::core::option::Option::Some(#sdk::core::Value::from(true)),
+                        ::core::option::Option::Some(#sdk::Value::from(true)),
                     )),
                     arguments.value("description"),
                     &function.attrs,
@@ -1021,12 +1021,12 @@ fn engine(
             fn cancellation_is_completion(
                 parameters: &::std::collections::BTreeMap<
                     ::std::string::String,
-                    #sdk::core::Value,
+                    #sdk::Value,
                 >,
             ) -> bool {
                 matches!(
                     parameters.get(#parameter),
-                    ::core::option::Option::Some(#sdk::core::Value::Bool(true))
+                    ::core::option::Option::Some(#sdk::Value::Bool(true))
                 )
             }
         }
@@ -1133,7 +1133,7 @@ fn engine(
             fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::Declared>(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
-                stream: &'a #sdk::core::Identifier,
+                stream: &'a #sdk::Identifier,
                 rows: &'a [#sdk::execution::StampedRow],
             ) -> #sdk::transport::TransportFuture<'a, ::core::result::Result<(), ::std::string::String>> {
                 ::std::boxed::Box::pin(async move {

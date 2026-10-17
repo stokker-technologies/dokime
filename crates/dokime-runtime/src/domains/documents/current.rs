@@ -23,7 +23,10 @@ use crate::document::{
     bounded::{DocumentLimits, capture_document_borrowed, document_size},
 };
 use crate::{RuntimeHandle, queries::RuntimeStateSnapshot};
-use crate::core::{DocumentId, RecordScope, TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

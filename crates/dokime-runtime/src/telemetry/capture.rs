@@ -21,7 +21,7 @@ use arrow_array::{
 };
 use arrow_schema::Field;
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use harmos::schema::{
     Cardinality,
     graph::{Kind, Schema},

@@ -24,7 +24,7 @@ media-native = ["dokime-runtime/media-native"]
 [dependencies]
 # Local
 dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
-dokime-contract = { path = "../dokime-contract", features = ["diagnostics"] }
+dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
 dokime-filesystem = { path = "../dokime-filesystem" }
 dokime = { path = "../dokime" }
 
@@ -78,7 +78,7 @@ tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract", features = ["descriptors"] }
+dokime-domain = { path = "../dokime-domain", features = ["descriptors"] }
 
 [dev-dependencies]
 # Local

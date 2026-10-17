@@ -23,8 +23,9 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::super::value;
-use dokime_runtime::{RuntimeHandle, core::TestExecutionId};
-use dokime_contract::operations::content as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 
@@ -61,7 +62,7 @@ impl Operation for Read {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ReadExecutionFileRequest,
+        request: &mut wire::ReadExecutionFile,
         _: &mut (),
     ) -> Result<Response<wire::ExecutionFileWindow>, Status> {
         let runtime = &self.resources.runtime;

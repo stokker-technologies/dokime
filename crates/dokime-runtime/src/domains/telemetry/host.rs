@@ -25,7 +25,7 @@ use std::{
 use super::{Sampler, SamplerSession, SettlementError};
 use crate::runtime::handle::RuntimeHandle;
 use crate::{runtime::Error, runtime::Result};
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::{
     SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySamplingRequest,
 };

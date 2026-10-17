@@ -27,7 +27,8 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt};
 // Local Imports
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::records::{DeclaredRecord, Deliveries, Record, RecordSource};
 use crate::telemetry::{Streams, TelemetryStream};
 

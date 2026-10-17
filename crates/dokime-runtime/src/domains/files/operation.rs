@@ -28,9 +28,11 @@ use harmos::operations::{Context, Operation, OperationManager, Response};
 // Local Imports
 use super::{FileWatch, WatchEvent};
 use crate::{runtime::Error, RuntimeHandle};
-use dokime_contract::operations::files::{
-    FileWatchGap, WatchFile as Declaration, WatchFileOutcome, WatchFileRequest, WatchedArtifact,
-};
+use dokime_domain::operations::files::FileWatchGap;
+use dokime_domain::operations::files::WatchFile as Declaration;
+use dokime_domain::operations::files::WatchFileOutcome;
+use dokime_domain::operations::files::WatchFile;
+use dokime_domain::operations::files::WatchedArtifact;
 
 /* === Constants === */
 // The owner the step built-ins are registered under.
@@ -76,7 +78,7 @@ impl Operation for WatchFile {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut WatchFileRequest,
+        request: &mut WatchFile,
         _: &mut (),
     ) -> crate::runtime::Result<Response<WatchFileOutcome>> {
         // A Step's Call Carries Its Execution

@@ -79,8 +79,8 @@ impl FileResume {
         &self,
         execution_id: String,
         relative_path: String,
-    ) -> content::FollowExecutionFileRequest {
-        content::FollowExecutionFileRequest {
+    ) -> content::FollowExecutionFile {
+        content::FollowExecutionFile {
             execution_id,
             relative_path,
             identity: self.identity.clone(),
@@ -99,7 +99,7 @@ impl Client {
     // seal. Finished output is accepted only after its full hash and final status.
     pub async fn follow_execution_file(
         &self,
-        request: content::FollowExecutionFileRequest,
+        request: content::FollowExecutionFile,
         resume: &mut FileResume,
     ) -> Result<content::ExecutionFileFollowTerminal, Error> {
         self.follow_execution_file_with_commit(request, resume, |_| async {
@@ -115,7 +115,7 @@ impl Client {
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(
         &self,
-        request: content::FollowExecutionFileRequest,
+        request: content::FollowExecutionFile,
         resume: &mut FileResume,
         mut committed: F,
     ) -> Result<content::ExecutionFileFollowTerminal, Error>
@@ -226,7 +226,7 @@ impl Client {
 /* === Private Functions === */
 fn validate_identity(
     identity: &content::ExecutionFileIdentity,
-    request: &content::FollowExecutionFileRequest,
+    request: &content::FollowExecutionFile,
 ) -> Result<(), Error> {
     let history = identity
         .history

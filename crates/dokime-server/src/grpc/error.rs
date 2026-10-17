@@ -21,7 +21,7 @@ use tonic::Status;
 // Local Imports
 use dokime_runtime::runtime::Error as HostError;
 use dokime_runtime::plugin::Diagnostic;
-use dokime_contract::operations::evidence as v1;
+use dokime_domain::operations::evidence as v1;
 
 /* === Constants === */
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";

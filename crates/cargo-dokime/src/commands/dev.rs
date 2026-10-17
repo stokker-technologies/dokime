@@ -443,7 +443,7 @@ async fn readiness_line(
         return Ok(ReadinessLine::Phase);
     }
     if value["event"] != "ready"
-        || value["protocol"] != dokime_contract::READINESS_PROTOCOL
+        || value["protocol"] != dokime_domain::READINESS_PROTOCOL
         || value["transport"] != "grpc"
     {
         return Err(Error::Invalid(
@@ -877,11 +877,11 @@ async fn inspect(cli: &Path) -> Result<Identity, Error> {
             "the Dokime server returned invalid version information: {error}; update Dokime"
         ))
     })?;
-    if identity.dev_protocol != dokime_contract::DEV_PROTOCOL {
+    if identity.dev_protocol != dokime_domain::DEV_PROTOCOL {
         return Err(Error::Invalid(format!(
             "the Dokime server uses development protocol {}; this cargo-dokime requires {}. Update Dokime and the Cargo extension together",
             identity.dev_protocol,
-            dokime_contract::DEV_PROTOCOL
+            dokime_domain::DEV_PROTOCOL
         )));
     }
     compatible(

@@ -27,7 +27,8 @@ use crate::{
     runtime::handle::RuntimeHandle,
 };
 use crate::artifacts::ArtifactRecord;
-use crate::core::{Metadata, SessionId};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::SessionId;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
@@ -155,7 +156,7 @@ impl RuntimeHandle {
         self.config().hub_metadata.clone()
     }
 
-    pub fn identity(&self) -> crate::core::DokimeIdentity {
+    pub fn identity(&self) -> dokime_domain::model::identity::DokimeIdentity {
         self.state_read().identity.clone()
     }
 
@@ -339,7 +340,7 @@ impl RuntimeHandle {
     pub async fn traceability_snapshots_page_at(
         &self,
         snapshot: &RuntimeStateSnapshot,
-        scope: Option<&crate::core::RecordScope>,
+        scope: Option<&dokime_domain::model::execution::RecordScope>,
         after: &str,
         limit: usize,
         max_entries: usize,

@@ -44,7 +44,11 @@ use crate::{
     execution_runtime::registry::SuiteRegistry,
 };
 use crate::artifacts::ArtifactRecord;
-use crate::core::{CaseId, DocumentId, Identifier, Metadata, RecordScope};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
 use crate::telemetry::{TelemetryContract, TelemetrySample};
 
 /* === Constants === */
@@ -319,7 +323,7 @@ fn normalize_execution_selection(cycle: &CycleView, scope: &mut RecordScope) -> 
 
 fn selected_execution_case_id(
     cycle: &CycleView,
-    test_execution_id: &crate::core::TestExecutionId,
+    test_execution_id: &dokime_domain::model::identity::TestExecutionId,
 ) -> Result<CaseId> {
     Ok(selected_execution(cycle, test_execution_id)?
         .test_case_id
@@ -328,7 +332,7 @@ fn selected_execution_case_id(
 
 fn selected_execution<'a>(
     cycle: &'a CycleView,
-    test_execution_id: &crate::core::TestExecutionId,
+    test_execution_id: &dokime_domain::model::identity::TestExecutionId,
 ) -> Result<&'a TestExecution> {
     cycle
         .test_executions

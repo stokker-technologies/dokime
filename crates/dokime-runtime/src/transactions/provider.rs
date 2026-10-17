@@ -27,10 +27,17 @@ use crate::execution::{
 };
 use crate::records::TestRecordSet;
 use crate::{runtime::Error, state::RuntimeState};
-use crate::core::{
-    CaseId, CommandContext, CommandId, Identifier, Metadata, RecordScope, StepId, TestCycleId,
-    TestExecutionId, Timestamp, Value,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::execution::CommandContext;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::domains::ExecutionProviderTarget;
 
 /* === Constants === */
@@ -427,9 +434,9 @@ fn scheduled_steps(
 fn execution_documents(
     case: &TestCase,
     template: Option<&TestCaseTemplate>,
-) -> BTreeMap<crate::core::DocumentId, DocumentDefinition> {
+) -> BTreeMap<dokime_domain::model::identity::DocumentId, DocumentDefinition> {
     let id =
-        crate::core::DocumentId::from_identifier("default").expect("default document id is valid");
+        dokime_domain::model::identity::DocumentId::from_identifier("default").expect("default document id is valid");
     let mut document = DocumentDefinition::new(
         "default",
         template

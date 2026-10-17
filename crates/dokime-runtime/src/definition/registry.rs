@@ -19,7 +19,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{SuiteSet, SuiteSnapshot, TestCase};
 use crate::records::RecordContract;
-use crate::core::{CaseId, CommandId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
 use crate::domains::{
     ExecutionProviderTarget, SidecarExecutionBinding, TestSuiteDefinition, resolve_suite_plot_axes,
 };

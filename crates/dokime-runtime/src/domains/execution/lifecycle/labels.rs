@@ -19,7 +19,8 @@
 // Local Imports
 use crate::transactions::labels::{LabelSubject, RenameLabel};
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

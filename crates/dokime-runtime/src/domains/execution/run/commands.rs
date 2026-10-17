@@ -17,7 +17,8 @@
 // Third Party Imports
 // Local Imports
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
-use crate::core::{CommandId, StepAttemptId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::StepAttemptId;
 use crate::execution::TerminationReason;
 use crate::execution::request::{StepCommand, StepCommandPhase, StepCommandReceipt};
 use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};

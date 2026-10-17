@@ -20,7 +20,9 @@
 // Local Imports
 use super::{TestCycleHandle, invalid};
 use crate::{Error, ResponseStream, Result, contracts, validate_observed_cursor};
-use dokime_contract::core::{CommandId, PromptId, TestCycleId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 const PAGE_SIZE: u32 = 100;
@@ -41,7 +43,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let view = self
             .client
-            .prompts_get_prompt(contracts::prompts::GetPromptRequest {
+            .prompts_get_prompt(contracts::prompts::GetPrompt {
                 prompt_id: id.to_string(),
             })
             .await?;
@@ -64,14 +66,14 @@ impl TestCycleHandle {
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let read = async {
-                let mut request = contracts::prompts::ListPendingPromptsRequest {
+                let mut request = contracts::prompts::ListPending {
                     cycle_id: Some(handle.id.to_string()),
                     limit: PAGE_SIZE,
                     after_prompt_id: String::new(),
                     cursor: None,
                     execution_id: None,
                 };
-                let selection = dokime_contract::prompts::pending_stream(Some(&handle.id), None);
+                let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), None);
                 loop {
                     handle.client.verify(true).await?;
                     let page = handle.client.prompts_list_pending(request.clone()).await?;
@@ -127,7 +129,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let receipt = self
             .client
-            .prompts_respond(contracts::prompts::RespondToPromptRequest {
+            .prompts_respond(contracts::prompts::Respond {
                 prompt_id: id.to_string(),
                 action,
                 values: Some(values),
@@ -168,7 +170,7 @@ fn validate_page(
     epoch: &str,
     cycle: &TestCycleId,
     selection: &str,
-    request: &contracts::prompts::ListPendingPromptsRequest,
+    request: &contracts::prompts::ListPending,
     page: &contracts::prompts::ListPendingPromptsReply,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;

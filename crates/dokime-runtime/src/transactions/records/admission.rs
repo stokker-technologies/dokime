@@ -19,7 +19,7 @@
 // Local Imports
 use crate::state::PluginOwner;
 use crate::state::RuntimeState;
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 

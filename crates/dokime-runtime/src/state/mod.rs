@@ -29,13 +29,19 @@ use crate::execution::{HealthItem, HealthSeverity, OperatorNote};
 use crate::records::EvidenceRecords;
 use crate::records::RecordContract;
 use crate::records::{ResourceRecord, ResourceRegistry, TestRecordSet};
-use crate::core::{
-    DokimeIdentity, DokimeNodeIdentity, HealthItemId, NodeId, PromptId, RecordScope, SessionId,
-    TestCycleId, Timestamp,
-};
+use dokime_domain::model::identity::DokimeIdentity;
+use dokime_domain::model::identity::DokimeNodeIdentity;
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::time::Timestamp;
 use crate::prompts::{PromptDefinition, PromptInstance, PromptResponse};
 use crate::telemetry::TelemetryContract;
-use dokime_contract::domains::{InstalledPlugin, InstalledPluginErrorRecord};
+use dokime_domain::model::plugins::InstalledPlugin;
+use dokime_domain::model::plugins::InstalledPluginErrorRecord;
 use foreign_streams::{admit_foreign_view, declares_foreign_view};
 
 /* === Constants === */
@@ -65,19 +71,19 @@ pub struct RuntimeState {
     pub installed_plugins: BTreeMap<String, InstalledPlugin>,
     pub plugin_owners: BTreeMap<String, PluginOwner>,
     pub suites: SuiteRegistry,
-    pub record_definitions: BTreeMap<crate::core::Identifier, RecordContract>,
+    pub record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
     record_history: record_history::RecordHistory,
-    pub telemetry_definitions: BTreeMap<crate::core::Identifier, TelemetryContract>,
+    pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, crate::execution::TestCycle>,
-    pub executions: BTreeMap<crate::core::TestExecutionId, crate::execution::TestExecution>,
+    pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::execution::TestExecution>,
     /// Pending report boundaries survive restart independently of later stop metadata.
     pub cycle_report_finalizations:
         BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     pub report_finalizations:
-        BTreeMap<crate::core::TestExecutionId, crate::transactions::ReportFinalization>,
+        BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests:
-        BTreeMap<crate::core::CommandId, crate::transactions::provider::request::RunRequest>,
-    pub note_admissions: BTreeMap<crate::core::NoteId, crate::execution::notes::NoteAdmission>,
+        BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
+    pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, crate::execution::notes::NoteAdmission>,
     pub records: EvidenceRecords,
     pub resources: ResourceRegistry,
     pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,
@@ -91,17 +97,17 @@ pub struct RuntimeState {
     /// sealed cycle, live or retired to native history, is never rewritten.
     pub archived_cycles: std::collections::BTreeSet<TestCycleId>,
     /// Terminal executions an operator archived, live or retired.
-    pub archived_executions: std::collections::BTreeSet<crate::core::TestExecutionId>,
+    pub archived_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStateInstallError {
-    DuplicateRecord(crate::core::Identifier),
+    DuplicateRecord(dokime_domain::model::identity::Identifier),
     RecordHistory(String),
-    DuplicateTelemetry(crate::core::Identifier),
+    DuplicateTelemetry(dokime_domain::model::identity::Identifier),
     ForeignTelemetryColumn {
-        stream: crate::core::Identifier,
+        stream: dokime_domain::model::identity::Identifier,
         column: String,
         detail: String,
     },
@@ -690,7 +696,7 @@ impl RuntimeState {
     }
 
     /// Whether a plugin other than `source` declares `stream` as its own.
-    fn owned_elsewhere(&self, source: &str, stream: &crate::core::Identifier) -> bool {
+    fn owned_elsewhere(&self, source: &str, stream: &dokime_domain::model::identity::Identifier) -> bool {
         let suites = self
             .suites
             .suites()
@@ -709,13 +715,13 @@ impl RuntimeState {
 
     pub(crate) fn historical_record_contracts(
         &self,
-    ) -> &BTreeMap<crate::core::Identifier, BTreeMap<u32, RecordContract>> {
+    ) -> &BTreeMap<dokime_domain::model::identity::Identifier, BTreeMap<u32, RecordContract>> {
         self.record_history.contracts()
     }
 
     pub fn historical_record_contract(
         &self,
-        kind: &crate::core::Identifier,
+        kind: &dokime_domain::model::identity::Identifier,
         version: u32,
     ) -> Option<&RecordContract> {
         self.record_history.get(kind, version)
@@ -874,8 +880,8 @@ impl RuntimeState {
         }
     }
 
-    pub fn next_record_id(&self) -> crate::core::RecordId {
-        crate::core::RecordId::from_seed(format!(
+    pub fn next_record_id(&self) -> dokime_domain::model::identity::RecordId {
+        dokime_domain::model::identity::RecordId::from_seed(format!(
             "dokime-record:{}:{}",
             self.record_namespace, self.record_count
         ))
@@ -884,7 +890,7 @@ impl RuntimeState {
     pub(crate) fn capture_scope(&self, supplied: &RecordScope) -> Result<RecordScope, String> {
         let Some(id) = supplied.test_execution_id.as_ref() else {
             let mut scope = supplied.clone();
-            scope.origin = crate::core::EvidenceOrigin::Default;
+            scope.origin = dokime_domain::model::execution::EvidenceOrigin::Default;
             scope.step_id = None;
             return Ok(scope);
         };
@@ -961,8 +967,8 @@ fn unestablished_node_identity() -> DokimeNodeIdentity {
     )
 }
 
-fn is_host_stream(stream: &crate::core::Identifier) -> bool {
-    dokime_contract::telemetry::HOST_STREAMS
+fn is_host_stream(stream: &dokime_domain::model::identity::Identifier) -> bool {
+    dokime_domain::model::telemetry::HOST_STREAMS
         .iter()
         .any(|host| host.as_str() == stream.as_str())
 }

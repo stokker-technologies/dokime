@@ -19,7 +19,10 @@
 // Local Imports
 use crate::execution::{ExecutionStatus, StepStatus};
 use crate::{execution::CycleStatus, runtime::state::RuntimeState};
-use crate::core::{CaseId, RecordScope, TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::telemetry::SamplingScope;
 
 /* === Constants === */

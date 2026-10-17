@@ -24,7 +24,10 @@ use super::buffer::{
     PromptOutcome, lock,
 };
 use crate::artifacts::ArtifactSink;
-use crate::core::{Identifier, PromptId, RecordScope, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
 use crate::prompts::{PromptRequest, PromptResponse};
@@ -530,7 +533,7 @@ impl ExecutionTransport for FrameTransport {
         }
     }
 
-    fn capture_phase(&mut self, phase: crate::core::CapturePhase) {
+    fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase) {
         self.push(BufferedFrame::capture_phase(
             serde_json::to_string(&phase).expect("capture phase serializes"),
         ));

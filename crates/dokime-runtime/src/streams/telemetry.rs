@@ -17,7 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 const UNSCOPED_TRACK_LABEL: &str = "-";

@@ -19,7 +19,9 @@ use std::num::NonZeroUsize;
 use harmos::MemorySize;
 
 // Local Imports
-use crate::core::{Identifier, Metadata, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::time::Timestamp;
 use crate::storage::{Error, Result, values};
 
 /* === Constants === */
@@ -161,7 +163,7 @@ impl Row {
                 .memory_size()
                 .saturating_sub(std::mem::size_of_val(&self.tags)),
             attributes.saturating_sub(std::mem::size_of::<
-                std::collections::BTreeMap<String, crate::core::Value>,
+                std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
             >()),
             self.tags.len().saturating_mul(std::mem::size_of::<&str>()),
         ];

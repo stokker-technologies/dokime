@@ -27,16 +27,17 @@ use tonic::Status;
 
 // Local Imports
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
-use dokime_runtime::{
-    runtime::Error, RuntimeHandle,
-    artifacts::ArtifactRecord,
-    core::RecordScope,
-    domains::media::{
-        AudioRecording as Recording, DEFAULT_RECORDING_SECONDS, MAXIMUM_RECORDING_SECONDS,
-        NOT_COMPILED, UNAVAILABLE,
-    },
-};
-use dokime_contract::operations::{content::ArtifactMetadata, media as contract};
+use dokime_runtime::runtime::Error;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::artifacts::ArtifactRecord;
+use dokime_domain::model::execution::RecordScope;
+use dokime_runtime::domains::media::AudioRecording as Recording;
+use dokime_runtime::domains::media::DEFAULT_RECORDING_SECONDS;
+use dokime_runtime::domains::media::MAXIMUM_RECORDING_SECONDS;
+use dokime_runtime::domains::media::NOT_COMPILED;
+use dokime_runtime::domains::media::UNAVAILABLE;
+use dokime_domain::operations::content::ArtifactMetadata;
+use dokime_domain::operations::media as contract;
 
 /* === Constants === */
 const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
@@ -103,7 +104,7 @@ impl Operation for Screenshot {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ScreenshotRequest,
+        request: &mut contract::Screenshot,
         _: &mut (),
     ) -> Result<Response<ArtifactMetadata>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -134,7 +135,7 @@ impl Operation for Photo {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::PhotoRequest,
+        request: &mut contract::Photo,
         _: &mut (),
     ) -> Result<Response<ArtifactMetadata>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -168,7 +169,7 @@ impl Operation for AudioRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::AudioRecordingRequest,
+        request: &mut contract::AudioRecording,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let scope = capture_scope(request.scope.as_ref())?;
@@ -251,7 +252,7 @@ impl Operation for ScreenRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut contract::ScreenRecordingRequest,
+        _: &mut contract::ScreenRecording,
         _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         Err(Status::failed_precondition(NO_VIDEO_ENCODER))
@@ -272,7 +273,7 @@ impl Operation for CameraRecording {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        _: &mut contract::CameraRecordingRequest,
+        _: &mut contract::CameraRecording,
         _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         Err(Status::failed_precondition(NO_VIDEO_ENCODER))
@@ -309,7 +310,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 fn capture_scope(
-    scope: Option<&dokime_contract::operations::content::ArtifactScope>,
+    scope: Option<&dokime_domain::operations::content::ArtifactScope>,
 ) -> Result<RecordScope, Status> {
     let scope = artifact_scope(scope)?;
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {

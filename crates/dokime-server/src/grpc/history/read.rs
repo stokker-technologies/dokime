@@ -23,8 +23,9 @@ use tonic::Status;
 use super::super::{content, value};
 use super::wire;
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::core::ArtifactId;
-use dokime_contract::operations::{content as content_wire, history};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::operations::content as content_wire;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 
@@ -61,7 +62,7 @@ impl Operation for Download {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::DownloadCheckpointArtifactRequest,
+        request: &mut history::DownloadCheckpointArtifact,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.artifact_id)?;

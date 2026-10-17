@@ -25,7 +25,8 @@ use serde_json::Value;
 use tonic::Status;
 // Local Imports
 use super::redaction;
-use dokime_contract::operations::{backend as wire, common::Timestamp};
+use dokime_domain::operations::backend as wire;
+use dokime_domain::operations::common::Timestamp;
 
 /* === Constants === */
 pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;

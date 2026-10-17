@@ -41,7 +41,7 @@ pub(crate) mod traceability;
 pub use dispatch::{
     ActionDispatcher, ActionDispatcherFuture, DispatchContext, OptionsResponse, StatusResponse,
 };
-pub use dokime_contract::domains::*;
+pub use dokime_domain::model::plugins::*;
 
 /* === Imports === */
 // Standard Library Imports

@@ -23,7 +23,11 @@ use crate::records::BuiltinRecordType;
 use crate::traceability::derived_traceability_group_named;
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::{runtime::Error, state::RuntimeState};
-use crate::core::{Identifier, Metadata, RecordScope, StepId, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::time::Timestamp;
 use crate::traceability::TraceabilitySection;
 
 /* === Constants === */
@@ -47,7 +51,7 @@ pub struct UpdateExecutionPhase {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetCapturePhase {
     pub scope: RecordScope,
-    pub phase: crate::core::CapturePhase,
+    pub phase: dokime_domain::model::execution::CapturePhase,
     pub occurred_at: Timestamp,
 }
 
@@ -215,16 +219,16 @@ fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Resu
     if execution.active_step_attempt.is_some() {
         return Err(conflict("capture phase cannot close an active step"));
     }
-    if update.phase == crate::core::CapturePhase::Initialization
+    if update.phase == dokime_domain::model::execution::CapturePhase::Initialization
         && (!execution.step_attempts.is_empty()
-            || execution.capture_phase == crate::core::CapturePhase::Cleanup)
+            || execution.capture_phase == dokime_domain::model::execution::CapturePhase::Cleanup)
     {
         return Err(conflict(
             "initialization cannot resume after a step attempt",
         ));
     }
     execution.capture_phase = update.phase;
-    if update.phase == crate::core::CapturePhase::Initialization {
+    if update.phase == dokime_domain::model::execution::CapturePhase::Initialization {
         execution.status = ExecutionStatus::Running;
         execution
             .started_at
@@ -265,7 +269,7 @@ fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Re
             "step admission scope differs from its execution owner",
         ));
     }
-    if execution.capture_phase == crate::core::CapturePhase::Cleanup {
+    if execution.capture_phase == dokime_domain::model::execution::CapturePhase::Cleanup {
         return Err(conflict("step admission cannot interrupt cleanup"));
     }
     execution
@@ -293,7 +297,7 @@ fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Re
     execution
         .validate_step_invocation(&update.start)
         .map_err(conflict)?;
-    execution.capture_phase = crate::core::CapturePhase::Default;
+    execution.capture_phase = dokime_domain::model::execution::CapturePhase::Default;
     execution.active_step_attempt = Some(update.start.clone());
     execution.refresh_step_records();
     Ok(())

@@ -32,7 +32,9 @@ use dokime_runtime::{
     execution::{CycleStatus, CycleView},
     runtime::query::execution_history::ExecutionCheckpointContext,
 };
-use dokime_contract::operations::{common, execution as execution_wire, history};
+use dokime_domain::operations::common;
+use dokime_domain::operations::execution as execution_wire;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 
@@ -69,7 +71,7 @@ impl Operation for Get {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut history::GetCheckpointContextRequest,
+        request: &mut history::GetCheckpointContext,
         _: &mut (),
     ) -> Result<Response<history::CheckpointContext>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
@@ -194,7 +196,7 @@ fn cycle_status(value: CycleStatus) -> execution_wire::CycleStatus {
     }
 }
 
-fn canonical_metadata(value: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
+fn canonical_metadata(value: &dokime_domain::model::identity::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(value)
 }
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

@@ -22,7 +22,8 @@ use crate::document::{
     DocumentDefinition, DocumentFilter, DocumentSelection, DocumentWarning, PlotDescriptor,
     TelemetrySummaryGroupPayload,
 };
-use crate::core::{Identifier, Metadata};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 

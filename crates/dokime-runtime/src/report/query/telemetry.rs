@@ -24,11 +24,12 @@ use harmos::{
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
-use crate::{
-    core::Identifier,
-    storage::telemetry::{TypedCodec, codec, encode_batch},
-    telemetry::{TelemetryContract, TelemetrySample},
-};
+use dokime_domain::model::identity::Identifier;
+use crate::storage::telemetry::TypedCodec;
+use crate::storage::telemetry::codec;
+use crate::storage::telemetry::encode_batch;
+use crate::telemetry::TelemetryContract;
+use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
 

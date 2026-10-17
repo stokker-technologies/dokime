@@ -26,13 +26,15 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime_contract::operations::cursor::{Cursor as NativeCursor, Error as CursorError};
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{PromptId, TestCycleId, TestExecutionId},
-    runtime::query::RuntimeStateSnapshot,
-};
-use dokime_contract::operations::{cursor::Cursor, prompts as wire};
+use dokime_domain::operations::cursor::Cursor as NativeCursor;
+use dokime_domain::operations::cursor::Error as CursorError;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::prompts as wire;
 
 /* === Constants === */
 const STREAM: &str = "runtime.state";
@@ -82,7 +84,7 @@ impl Operation for ListDefinitions {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::ListPromptDefinitionsRequest,
+        request: &mut wire::ListDefinitions,
         _: &mut (),
     ) -> Result<Response<wire::ListPromptDefinitionsReply>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -133,7 +135,7 @@ impl Operation for GetDefinition {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::GetPromptDefinitionRequest,
+        request: &mut wire::GetDefinition,
         _: &mut (),
     ) -> Result<Response<wire::PromptDefinition>, Status> {
         value::text(&request.prompt_type)?;
@@ -162,7 +164,7 @@ impl Operation for ListPending {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::ListPendingPromptsRequest,
+        request: &mut wire::ListPending,
         _: &mut (),
     ) -> Result<Response<wire::ListPendingPromptsReply>, Status> {
         let cycle = request
@@ -267,7 +269,7 @@ impl Operation for GetPrompt {
     async fn run<'a>(
         &mut self,
         _context: Self::Context<'a>,
-        request: &mut wire::GetPromptRequest,
+        request: &mut wire::GetPrompt,
         _: &mut (),
     ) -> Result<Response<wire::PromptView>, Status> {
         let id = prompt_id(&request.prompt_id)?;
@@ -303,7 +305,7 @@ impl Operation for Respond {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::RespondToPromptRequest,
+        request: &mut wire::Respond,
         _: &mut (),
     ) -> Result<Response<wire::PromptResponseReceipt>, Status> {
         let context = execution::command_context(&context, request.context.as_ref())?;
@@ -321,7 +323,7 @@ impl Operation for Respond {
             .transpose()?;
         let values = match decoded {
             None => Default::default(),
-            Some(dokime_runtime::core::Value::Object(fields)) => fields,
+            Some(dokime_domain::model::values::Value::Object(fields)) => fields,
             Some(_) => return Err(Status::invalid_argument("prompt values must be an object")),
         };
         let receipt = self

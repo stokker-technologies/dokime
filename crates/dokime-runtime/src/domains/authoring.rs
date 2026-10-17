@@ -17,7 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Metadata};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 use crate::domains::Permission;
 
 /* === Constants === */

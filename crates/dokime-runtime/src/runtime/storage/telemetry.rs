@@ -260,7 +260,7 @@ impl TelemetryAdmission {
 impl super::executions::ExecutionStorage {
     pub(crate) async fn telemetry_scopes(
         &self,
-    ) -> Result<std::collections::BTreeMap<crate::core::TestExecutionId, crate::core::RecordScope>>
+    ) -> Result<std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::RecordScope>>
     {
         let ids = self.active_ids()?;
         let mut scopes = std::collections::BTreeMap::new();
@@ -521,7 +521,7 @@ mod admission_tests {
             .write_schema(codec.schema(), codec.graph())
             .await
             .unwrap();
-        let execution = crate::core::TestExecutionId::from_seed("partial.scope");
+        let execution = dokime_domain::model::identity::TestExecutionId::from_seed("partial.scope");
         let mut rows = Vec::new();
         for (index, value) in ["first".to_owned(), "x".repeat(256 * 1024)]
             .into_iter()
@@ -532,16 +532,16 @@ mod admission_tests {
                 crate::model::identity::new_id(),
                 contract.stream.clone(),
                 index as u64,
-                crate::core::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
+                dokime_domain::model::time::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
                 "partial.fixture",
             )
             .typed(&row);
-            sample.scope = Some(crate::core::RecordScope {
+            sample.scope = Some(dokime_domain::model::execution::RecordScope {
                 test_execution_id: Some(execution.clone()),
                 ..Default::default()
             });
             let entry = TelemetryEntry {
-                epoch: crate::core::SessionId::from_seed("partial.epoch"),
+                epoch: dokime_domain::model::identity::SessionId::from_seed("partial.epoch"),
                 ordinal: index as u64,
                 sample,
             };

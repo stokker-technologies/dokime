@@ -23,8 +23,13 @@ use std::sync::{Arc, OnceLock};
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result, contracts, validate_observed_cursor};
-use dokime_contract::core::{CommandId, StepAttemptId, StepId, TestCycleId, TestExecutionId};
-use dokime_contract::execution::{ExecutionMode, StepCommand};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::StepAttemptId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::execution::ExecutionMode;
+use dokime_domain::model::execution::StepCommand;
 
 /* === Constants === */
 const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
@@ -134,7 +139,7 @@ impl ExecutionRequestHandle {
         self.client.verify(false).await?;
         let receipt = self
             .client
-            .execution_get_run_request(contracts::execution::GetRunRequestRequest {
+            .execution_get_run_request(contracts::execution::GetRunRequest {
                 request_id: self.id.to_string(),
             })
             .await?;
@@ -175,7 +180,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let detail = self
             .client
-            .execution_get_execution(contracts::execution::GetExecutionRequest {
+            .execution_get_execution(contracts::execution::GetExecution {
                 execution_id: self.id.to_string(),
             })
             .await?;
@@ -191,7 +196,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpointRequest {
+            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
                 execution_identifier: self.id.to_string(),
             })
             .await?;
@@ -207,7 +212,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let document = self
             .client
-            .history_get_checkpoint_document(contracts::history::GetCheckpointDocumentRequest {
+            .history_get_checkpoint_document(contracts::history::GetCheckpointDocument {
                 checkpoint: Some(checkpoint.clone()),
             })
             .await?;
@@ -250,7 +255,7 @@ impl TestExecutionHandle {
         key: &str,
         mode: ExecutionMode,
     ) -> Result<contracts::execution::Admission> {
-        dokime_contract::core::command::validate_idempotency_key(key)
+        dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
         let mode = match mode {
@@ -259,7 +264,7 @@ impl TestExecutionHandle {
         };
         let reply = self
             .client
-            .execution_run_execution(contracts::execution::RunExecutionRequest {
+            .execution_run_execution(contracts::execution::RunExecution {
                 execution_id: self.id.to_string(),
                 context: None,
                 idempotency_key: Some(key.to_owned()),
@@ -277,7 +282,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let receipt = self
             .client
-            .execution_get_execution_command(contracts::execution::GetExecutionCommandRequest {
+            .execution_get_execution_command(contracts::execution::GetExecutionCommand {
                 request_id: request_id.to_string(),
                 command_id: command_id.to_string(),
             })
@@ -301,7 +306,7 @@ impl TestExecutionHandle {
             ),
             StepCommand::Finish => (contracts::execution::ExecutionCommandAction::Finish, None),
         };
-        let request = contracts::execution::SubmitExecutionCommandRequest {
+        let request = contracts::execution::SubmitExecutionCommand {
             request_id: request_id.to_string(),
             command_id: command_id.to_string(),
             execution_id: self.id.to_string(),
@@ -323,7 +328,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::ExecutionControlRequest {
+            .execution_pause_execution(contracts::execution::PauseExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -336,7 +341,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ExecutionControlRequest {
+            .execution_resume_execution(contracts::execution::ResumeExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -349,7 +354,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::ExecutionControlRequest {
+            .execution_stop_execution(contracts::execution::StopExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -416,7 +421,7 @@ fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Dur
 fn validate_checkpoint(
     id: &TestExecutionId,
     checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-) -> Result<dokime_contract::execution::ExecutionCheckpoint> {
+) -> Result<dokime_domain::model::execution::ExecutionCheckpoint> {
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
 
@@ -434,7 +439,7 @@ fn validate_checkpoint(
     if canonical != checkpoint.version {
         return Err(invalid("saved checkpoint version is noncanonical"));
     }
-    let original = dokime_contract::execution::ExecutionCheckpoint {
+    let original = dokime_domain::model::execution::ExecutionCheckpoint {
         execution_id: id.clone(),
         position: checkpoint_cursor(checkpoint.position.as_ref())?,
         version,
@@ -459,9 +464,9 @@ fn checkpoint_cursor(
     }
     Ok(harmos::storage::StorageCursor {
         history: harmos::storage::StoreHistory {
-            store: dokime_contract::core::Identifier::new(&history.store)
+            store: dokime_domain::model::identity::Identifier::new(&history.store)
                 .map_err(|_| invalid("saved checkpoint store is invalid"))?,
-            epoch: dokime_contract::core::Identifier::new(&history.epoch)
+            epoch: dokime_domain::model::identity::Identifier::new(&history.epoch)
                 .map_err(|_| invalid("saved checkpoint epoch is invalid"))?,
         },
         sequence: cursor.sequence,

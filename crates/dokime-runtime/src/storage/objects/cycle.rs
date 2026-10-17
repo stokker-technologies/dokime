@@ -25,7 +25,11 @@ use harmos::{
 
 // Local Imports
 use super::{annotations, metadata};
-use crate::core::{NodeId, SessionId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::saved::{CycleSeal, ExecutionRevision};
 use crate::execution::{CycleStatus, CycleView, ResultStatus, ResultSummary, TestCycle};
 use crate::storage::{Error, Manager, Result};
@@ -81,7 +85,7 @@ struct Input<'a> {
     saved: &'a Option<CycleSeal>,
     test_cycle_id: &'a TestCycleId,
     session_id: &'a Option<SessionId>,
-    metadata: &'a crate::core::Metadata,
+    metadata: &'a dokime_domain::model::identity::Metadata,
     lifecycle: CycleStatus,
     created_at: &'a Timestamp,
     started_at: &'a Option<Timestamp>,
@@ -607,7 +611,7 @@ impl Cycle {
             self.created_at.capacity(),
             self.updated_at.capacity(),
             self.started_at.as_ref().map_or(0, String::capacity),
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             records.saturating_sub(std::mem::size_of::<crate::records::TestRecordSet>()),
             seal.saturating_sub(std::mem::size_of::<CycleSeal>()),
             self.execution_ids

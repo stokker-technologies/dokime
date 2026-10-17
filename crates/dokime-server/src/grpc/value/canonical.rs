@@ -23,8 +23,14 @@ use tonic::Status;
 
 // Local Imports
 use super::{Budget, collection, text};
-use dokime_runtime::core::{ElapsedUnit, Metadata, Value, ValueFormat};
-use dokime_contract::operations::{common, cursor::Cursor, schema, value as wire};
+use dokime_domain::model::values::ElapsedUnit;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
+use dokime_domain::operations::common;
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::schema;
+use dokime_domain::operations::value as wire;
 
 /* === Constants === */
 
@@ -134,7 +140,7 @@ pub(in crate::grpc) fn cursor(
 }
 
 pub(in crate::grpc) fn timestamp(
-    value: &dokime_runtime::core::Timestamp,
+    value: &dokime_domain::model::time::Timestamp,
 ) -> Result<common::Timestamp, Status> {
     let at = value
         .to_datetime()
@@ -147,28 +153,28 @@ pub(in crate::grpc) fn timestamp(
 
 pub(in crate::grpc) fn decoded_timestamp(
     value: common::Timestamp,
-) -> Result<dokime_runtime::core::Timestamp, Status> {
+) -> Result<dokime_domain::model::time::Timestamp, Status> {
     let at = value
         .to_datetime()
         .map_err(|_| Status::invalid_argument("invalid timestamp"))?;
-    Ok(dokime_runtime::core::Timestamp::from_datetime(at))
+    Ok(dokime_domain::model::time::Timestamp::from_datetime(at))
 }
 
 pub(in crate::grpc) fn scope(
-    value: &dokime_runtime::core::RecordScope,
+    value: &dokime_domain::model::execution::RecordScope,
 ) -> Result<common::EvidenceScope, Status> {
     scope_memory(value)?;
     let ids = scope_ids(value);
     let origin = match &value.origin {
-        dokime_runtime::core::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
-        dokime_runtime::core::EvidenceOrigin::Initialization => {
+        dokime_domain::model::execution::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
+        dokime_domain::model::execution::EvidenceOrigin::Initialization => {
             common::EvidenceOriginKind::Initialization(true)
         }
-        dokime_runtime::core::EvidenceOrigin::Step { attempt_id } => {
+        dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => {
             text(attempt_id.as_str())?;
             common::EvidenceOriginKind::StepAttemptId(attempt_id.to_string())
         }
-        dokime_runtime::core::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
+        dokime_domain::model::execution::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
     };
     Ok(common::EvidenceScope {
         session_id: ids[0].map(str::to_owned),
@@ -184,14 +190,14 @@ pub(in crate::grpc) fn scope(
 }
 
 pub(in crate::grpc) fn scope_memory(
-    value: &dokime_runtime::core::RecordScope,
+    value: &dokime_domain::model::execution::RecordScope,
 ) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<common::EvidenceScope>();
     for id in scope_ids(value).into_iter().flatten() {
         text(id)?;
         bytes = bytes.saturating_add(id.len());
     }
-    if let dokime_runtime::core::EvidenceOrigin::Step { attempt_id } = &value.origin {
+    if let dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } = &value.origin {
         text(attempt_id.as_str())?;
         bytes = bytes.saturating_add(attempt_id.as_str().len());
     }
@@ -200,11 +206,18 @@ pub(in crate::grpc) fn scope_memory(
 
 pub(in crate::grpc) fn decoded_scope(
     scope: &common::EvidenceScope,
-) -> Result<dokime_runtime::core::RecordScope, Status> {
-    use dokime_runtime::core::{
-        CaseId, CriterionId, EvidenceOrigin, RecordScope, SessionId, StepAttemptId, StepId,
-        SuiteId, TemplateId, TestCycleId, TestExecutionId,
-    };
+) -> Result<dokime_domain::model::execution::RecordScope, Status> {
+    use dokime_domain::model::identity::CaseId;
+    use dokime_domain::model::identity::CriterionId;
+    use dokime_domain::model::execution::EvidenceOrigin;
+    use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::SessionId;
+    use dokime_domain::model::identity::StepAttemptId;
+    use dokime_domain::model::identity::StepId;
+    use dokime_domain::model::identity::SuiteId;
+    use dokime_domain::model::identity::TemplateId;
+    use dokime_domain::model::identity::TestCycleId;
+    use dokime_domain::model::identity::TestExecutionId;
     let origin = match scope
         .origin
         .as_ref()
@@ -277,7 +290,7 @@ pub(in crate::grpc) fn execution_plugin_memory(
     };
     text(implementation)?;
     bounded(
-        std::mem::size_of::<dokime_contract::operations::execution::ExecutionPluginIdentity>()
+        std::mem::size_of::<dokime_domain::operations::execution::ExecutionPluginIdentity>()
             .saturating_add(value.source.len())
             .saturating_add(value.version.as_ref().map_or(0, String::len))
             .saturating_add(implementation.len()),
@@ -286,11 +299,10 @@ pub(in crate::grpc) fn execution_plugin_memory(
 
 pub(in crate::grpc) fn execution_plugin(
     value: &dokime_runtime::execution::ExecutionPluginIdentity,
-) -> Result<dokime_contract::operations::execution::ExecutionPluginIdentity, Status> {
+) -> Result<dokime_domain::operations::execution::ExecutionPluginIdentity, Status> {
     use dokime_runtime::execution::ExecutionImplementation;
-    use dokime_contract::operations::execution::{
-        ExecutionPluginIdentity, ExecutionPluginIdentityImplementation as Implementation,
-    };
+    use dokime_domain::operations::execution::ExecutionPluginIdentity;
+    use dokime_domain::operations::execution::ExecutionPluginIdentityImplementation as Implementation;
     text(&value.source)?;
     if let Some(version) = &value.version {
         text(version)?;
@@ -409,8 +421,8 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> Result<Vec<T>, Status> {
     Ok(values)
 }
 
-pub(in crate::grpc) fn value_type(value: &dokime_runtime::core::ValueType) -> schema::ValueType {
-    use dokime_runtime::core::ValueType;
+pub(in crate::grpc) fn value_type(value: &dokime_domain::model::values::ValueType) -> schema::ValueType {
+    use dokime_domain::model::values::ValueType;
     match value {
         ValueType::Boolean => schema::ValueType::Boolean,
         ValueType::Integer => schema::ValueType::Integer,
@@ -423,8 +435,7 @@ pub(in crate::grpc) fn value_type(value: &dokime_runtime::core::ValueType) -> sc
     }
 }
 
-pub(in crate::grpc) fn value_format(value: &dokime_runtime::core::ValueFormat) -> schema::ValueFormat {
-    use dokime_runtime::core::ValueFormat;
+pub(in crate::grpc) fn value_format(value: &dokime_domain::model::values::ValueFormat) -> schema::ValueFormat {
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
@@ -468,8 +479,8 @@ pub(in crate::grpc) fn value_format(value: &dokime_runtime::core::ValueFormat) -
     }
 }
 
-pub(in crate::grpc) fn cursor_failure(error: dokime_contract::operations::cursor::Error) -> Status {
-    use dokime_contract::operations::cursor::Error;
+pub(in crate::grpc) fn cursor_failure(error: dokime_domain::operations::cursor::Error) -> Status {
+    use dokime_domain::operations::cursor::Error;
     let code = match error {
         Error::Selection => tonic::Code::FailedPrecondition,
         Error::Ahead => tonic::Code::OutOfRange,
@@ -553,7 +564,7 @@ fn scope_id<T>(
         .map_err(|error| Status::invalid_argument(format!("invalid {label}: {error}")))
 }
 
-fn scope_ids(value: &dokime_runtime::core::RecordScope) -> [Option<&str>; 8] {
+fn scope_ids(value: &dokime_domain::model::execution::RecordScope) -> [Option<&str>; 8] {
     [
         value.session_id.as_ref().map(|id| id.as_str()),
         value.test_cycle_id.as_ref().map(|id| id.as_str()),

@@ -18,7 +18,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // Third-Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{Identifier, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 static NEXT_LEASE: AtomicU64 = AtomicU64::new(0);

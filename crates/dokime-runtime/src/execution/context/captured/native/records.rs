@@ -21,7 +21,12 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::telemetry::{validation_mode, validation_mode_code, value_type, value_type_code};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{Identifier, MeasurementUnit, SuiteId, TemplateId, Value, ValueFormat};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::identity::SuiteId;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
 use crate::records::{
     RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordSeverity, RecordTone,
 };

@@ -295,7 +295,7 @@ fn consume_node(
                 children.push(consume_node(nodes, depth + 1)?);
             }
             let section = DocumentSectionNode {
-                node_id: crate::core::Identifier::new(section.node_id)?,
+                node_id: dokime_domain::model::identity::Identifier::new(section.node_id)?,
                 metadata: section
                     .metadata
                     .ok_or(Error::Invalid("document section metadata is missing"))?

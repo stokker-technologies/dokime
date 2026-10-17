@@ -23,7 +23,8 @@ use tonic::Status;
 use super::super::chunked;
 use super::{failure, source_budget};
 use dokime_runtime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
-use dokime_contract::operations::{appearance as wire, content};
+use dokime_domain::operations::appearance as wire;
+use dokime_domain::operations::content;
 
 /* === Constants === */
 const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
@@ -131,7 +132,7 @@ pub(super) async fn capture(
 
 pub(crate) async fn download(
     runtime: &RuntimeHandle,
-    request: content::DownloadAppearanceAssetRequest,
+    request: content::DownloadAppearanceAsset,
     max_message_bytes: usize,
     output: &mut StreamOutput<content::AppearanceAssetFrame>,
 ) -> Result<(), Status> {
@@ -140,8 +141,8 @@ pub(crate) async fn download(
         .ok_or_else(|| failure(wire::AppearanceFailureKind::InvalidReference))?;
     if reference.plugin_id.len() > 256
         || reference.asset_id.len() > 256
-        || dokime_runtime::core::Identifier::new(&reference.plugin_id).is_err()
-        || dokime_runtime::core::Identifier::new(&reference.asset_id).is_err()
+        || dokime_domain::model::identity::Identifier::new(&reference.plugin_id).is_err()
+        || dokime_domain::model::identity::Identifier::new(&reference.asset_id).is_err()
         || reference.sha256.len() != 64
         || !reference
             .sha256

@@ -19,7 +19,8 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_runtime::records::{RecordEntry, RecordSeverity};
-use dokime_contract::operations::{common::Severity, evidence as wire};
+use dokime_domain::operations::common::Severity;
+use dokime_domain::operations::evidence as wire;
 
 /* === Constants === */
 

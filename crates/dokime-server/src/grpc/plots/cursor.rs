@@ -21,15 +21,23 @@ use tonic::Status;
 // Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
-use dokime_runtime::{
-    core::{Identifier, RecordScope},
-    document::{
-        AxisScale, DocumentFilter, FftDetrend, FftOptions, FftWindow, FrequencyLevelUnit,
-        HistogramOptions, SigmaIntervalOptions,
-    },
-    expressions::{DataExpression, DataSource, DataTransform},
-    runtime::query::{DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest, PlotWindow},
-};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_runtime::document::AxisScale;
+use dokime_runtime::document::DocumentFilter;
+use dokime_runtime::document::FftDetrend;
+use dokime_runtime::document::FftOptions;
+use dokime_runtime::document::FftWindow;
+use dokime_runtime::document::FrequencyLevelUnit;
+use dokime_runtime::document::HistogramOptions;
+use dokime_runtime::document::SigmaIntervalOptions;
+use dokime_runtime::expressions::DataExpression;
+use dokime_runtime::expressions::DataSource;
+use dokime_runtime::expressions::DataTransform;
+use dokime_runtime::runtime::query::DownsampleTechnique;
+use dokime_runtime::runtime::query::PlotPayloadCursor;
+use dokime_runtime::runtime::query::PlotPayloadRequest;
+use dokime_runtime::runtime::query::PlotWindow;
 
 /* === Constants === */
 const MAX_PLOT_REQUESTS: usize = 32;
@@ -55,7 +63,7 @@ pub(super) fn bounded_text(value: String) -> Result<String, Status> {
 }
 
 pub(super) fn decode_plot_requests(
-    requests: Vec<dokime_contract::operations::plots::PlotRequest>,
+    requests: Vec<dokime_domain::operations::plots::PlotRequest>,
     epoch: &str,
 ) -> Result<(Vec<PlotPayloadRequest>, Vec<String>), Status> {
     if requests.len() > MAX_PLOT_REQUESTS {
@@ -91,13 +99,13 @@ pub(super) fn expression_stream(value: String) -> Result<String, Status> {
 }
 
 pub(crate) fn record_scope(
-    scope: dokime_contract::operations::common::EvidenceScope,
+    scope: dokime_domain::operations::common::EvidenceScope,
 ) -> Result<RecordScope, Status> {
     canonical::decoded_scope(&scope)
 }
 
 /* === Private Functions === */
-fn plot_cursor(cursor: dokime_contract::operations::plots::PlotCursor) -> PlotPayloadCursor {
+fn plot_cursor(cursor: dokime_domain::operations::plots::PlotCursor) -> PlotPayloadCursor {
     PlotPayloadCursor {
         telemetry_streams: cursor
             .telemetry_streams
@@ -109,7 +117,7 @@ fn plot_cursor(cursor: dokime_contract::operations::plots::PlotCursor) -> PlotPa
 }
 
 fn plot_request(
-    request: dokime_contract::operations::plots::PlotRequest,
+    request: dokime_domain::operations::plots::PlotRequest,
     epoch: &str,
     selection: &str,
 ) -> Result<PlotPayloadRequest, Status> {
@@ -257,7 +265,7 @@ fn nonnegative(value: f64, label: &str) -> Result<f64, Status> {
 }
 
 fn fft_options(
-    value: dokime_contract::operations::plots::PlotFftOptions,
+    value: dokime_domain::operations::plots::PlotFftOptions,
 ) -> Result<FftOptions, Status> {
     let defaults = FftOptions::default();
     Ok(FftOptions {
@@ -266,25 +274,25 @@ fn fft_options(
             .map(|v| nonnegative(v, "FFT sample rate"))
             .transpose()?,
         window: match value.window {
-            dokime_contract::operations::plots::FftWindow::Unspecified => defaults.window,
-            dokime_contract::operations::plots::FftWindow::Hann => FftWindow::Hann,
-            dokime_contract::operations::plots::FftWindow::Rectangular => FftWindow::Rectangular,
+            dokime_domain::operations::plots::FftWindow::Unspecified => defaults.window,
+            dokime_domain::operations::plots::FftWindow::Hann => FftWindow::Hann,
+            dokime_domain::operations::plots::FftWindow::Rectangular => FftWindow::Rectangular,
         },
         detrend: match value.detrend {
-            dokime_contract::operations::plots::FftDetrend::Unspecified => defaults.detrend,
-            dokime_contract::operations::plots::FftDetrend::None => FftDetrend::None,
-            dokime_contract::operations::plots::FftDetrend::Mean => FftDetrend::Mean,
+            dokime_domain::operations::plots::FftDetrend::Unspecified => defaults.detrend,
+            dokime_domain::operations::plots::FftDetrend::None => FftDetrend::None,
+            dokime_domain::operations::plots::FftDetrend::Mean => FftDetrend::Mean,
         },
         level_unit: match value.level_unit {
-            dokime_contract::operations::plots::FrequencyLevelUnit::Unspecified => {
+            dokime_domain::operations::plots::FrequencyLevelUnit::Unspecified => {
                 defaults.level_unit
             }
-            dokime_contract::operations::plots::FrequencyLevelUnit::Linear => {
+            dokime_domain::operations::plots::FrequencyLevelUnit::Linear => {
                 FrequencyLevelUnit::Linear
             }
-            dokime_contract::operations::plots::FrequencyLevelUnit::Db => FrequencyLevelUnit::Db,
-            dokime_contract::operations::plots::FrequencyLevelUnit::Dbu => FrequencyLevelUnit::Dbu,
-            dokime_contract::operations::plots::FrequencyLevelUnit::Dbm => FrequencyLevelUnit::Dbm,
+            dokime_domain::operations::plots::FrequencyLevelUnit::Db => FrequencyLevelUnit::Db,
+            dokime_domain::operations::plots::FrequencyLevelUnit::Dbu => FrequencyLevelUnit::Dbu,
+            dokime_domain::operations::plots::FrequencyLevelUnit::Dbm => FrequencyLevelUnit::Dbm,
         },
         include_dc: value.include_dc,
         min_frequency_hz: value
@@ -299,7 +307,7 @@ fn fft_options(
 }
 
 fn interval_options(
-    value: dokime_contract::operations::plots::PlotIntervalOptions,
+    value: dokime_domain::operations::plots::PlotIntervalOptions,
 ) -> Result<SigmaIntervalOptions, Status> {
     Ok(SigmaIntervalOptions {
         bin_width: nonnegative(value.bin_width, "interval bin width")?,
@@ -309,7 +317,7 @@ fn interval_options(
 }
 
 fn histogram_options(
-    value: dokime_contract::operations::plots::PlotHistogramOptions,
+    value: dokime_domain::operations::plots::PlotHistogramOptions,
 ) -> Result<HistogramOptions, Status> {
     if value.bins > MAX_PLOT_POINTS {
         return Err(Status::resource_exhausted("histogram bins exceeds 100000"));
@@ -322,7 +330,7 @@ fn histogram_options(
     })
 }
 
-fn selection_key_wire(request: &dokime_contract::operations::plots::PlotRequest) -> String {
+fn selection_key_wire(request: &dokime_domain::operations::plots::PlotRequest) -> String {
     let mut request = request.clone();
     request.cursor = None;
     Sha256::digest(request.encode_to_vec())
@@ -332,7 +340,7 @@ fn selection_key_wire(request: &dokime_contract::operations::plots::PlotRequest)
 }
 
 fn plot_filter(
-    filter: dokime_contract::operations::plots::PlotFilter,
+    filter: dokime_domain::operations::plots::PlotFilter,
 ) -> Result<DocumentFilter, Status> {
     let expression = filter
         .expression
@@ -352,7 +360,7 @@ fn plot_filter(
 }
 
 fn data_expression(
-    expression: dokime_contract::operations::plots::DataExpression,
+    expression: dokime_domain::operations::plots::DataExpression,
 ) -> Result<DataExpression, Status> {
     if expression.transforms.len() > MAX_PLOT_TRANSFORMS {
         return Err(Status::resource_exhausted(
@@ -363,28 +371,28 @@ fn data_expression(
         .source
         .ok_or_else(|| Status::invalid_argument("data expression source is required"))?
     {
-        dokime_contract::operations::plots::DataExpressionSource::Telemetry(source) => {
+        dokime_domain::operations::plots::DataExpressionSource::Telemetry(source) => {
             DataSource::Telemetry {
                 stream: expression_stream(source.stream)?,
                 field: bounded_text(source.field)?,
             }
         }
-        dokime_contract::operations::plots::DataExpressionSource::Parameter(source) => {
+        dokime_domain::operations::plots::DataExpressionSource::Parameter(source) => {
             DataSource::Parameter {
                 name: bounded_text(source.name)?,
             }
         }
-        dokime_contract::operations::plots::DataExpressionSource::Dimension(source) => {
+        dokime_domain::operations::plots::DataExpressionSource::Dimension(source) => {
             DataSource::Dimension {
                 name: bounded_text(source.name)?,
             }
         }
-        dokime_contract::operations::plots::DataExpressionSource::Record(source) => {
+        dokime_domain::operations::plots::DataExpressionSource::Record(source) => {
             DataSource::Record {
                 record_type: bounded_text(source.record_type)?,
             }
         }
-        dokime_contract::operations::plots::DataExpressionSource::Artifact(source) => {
+        dokime_domain::operations::plots::DataExpressionSource::Artifact(source) => {
             DataSource::Artifact {
                 artifact: bounded_text(source.artifact)?,
             }
@@ -403,13 +411,13 @@ fn data_expression(
 }
 
 fn data_transform(
-    transform: dokime_contract::operations::plots::DataTransform,
+    transform: dokime_domain::operations::plots::DataTransform,
 ) -> Result<DataTransform, Status> {
     let kind = transform
         .kind
         .ok_or_else(|| Status::invalid_argument("data transform kind is required"))?;
     Ok(match kind {
-        dokime_contract::operations::plots::DataTransformKind::Aggregate(value) => {
+        dokime_domain::operations::plots::DataTransformKind::Aggregate(value) => {
             if !value.aggregate.answerable() {
                 return Err(Status::invalid_argument(
                     "data transform aggregate percentile rank exceeds 100",
@@ -417,23 +425,23 @@ fn data_transform(
             }
             DataTransform::Aggregate(value.aggregate)
         }
-        dokime_contract::operations::plots::DataTransformKind::TimeBetween(value) => {
+        dokime_domain::operations::plots::DataTransformKind::TimeBetween(value) => {
             DataTransform::TimeBetween {
                 previous_record_type: bounded_text(value.previous_record_type)?,
             }
         }
-        dokime_contract::operations::plots::DataTransformKind::TelemetryAtOrBefore(value) => {
+        dokime_domain::operations::plots::DataTransformKind::TelemetryAtOrBefore(value) => {
             DataTransform::TelemetryAtOrBefore {
                 stream: expression_stream(value.stream)?,
                 field: bounded_text(value.field)?,
             }
         }
-        dokime_contract::operations::plots::DataTransformKind::Detail(value) => {
+        dokime_domain::operations::plots::DataTransformKind::Detail(value) => {
             DataTransform::Detail {
                 name: bounded_text(value.name)?,
             }
         }
-        dokime_contract::operations::plots::DataTransformKind::PerCase(_) => DataTransform::PerCase,
+        dokime_domain::operations::plots::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })
 }
 

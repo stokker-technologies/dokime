@@ -22,7 +22,9 @@ use tonic::{
 
 // Local Imports
 use super::{Backend, Error, Limits, Result, transport};
-use dokime_contract::operations::{Endpoint, backend, runtime};
+use dokime_domain::operations::Endpoint;
+use dokime_domain::operations::backend;
+use dokime_domain::operations::runtime;
 
 /* === Constants === */
 const DISCOVERY_BYTES: usize = 1024 * 1024;
@@ -49,7 +51,7 @@ pub(super) async fn discover(
         channel.clone(),
         authorization,
         backend::GetIdentity::PATH,
-        backend::GetIdentityRequest {},
+        backend::GetIdentity {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )
@@ -69,7 +71,7 @@ pub(super) async fn discover(
         channel.clone(),
         authorization,
         backend::GetHealth::PATH,
-        backend::GetHealthRequest {},
+        backend::GetHealth {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )
@@ -79,7 +81,7 @@ pub(super) async fn discover(
         channel,
         authorization,
         backend::GetAvailability::PATH,
-        backend::GetAvailabilityRequest {},
+        backend::GetAvailability {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )

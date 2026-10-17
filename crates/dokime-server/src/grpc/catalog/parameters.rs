@@ -21,11 +21,15 @@ use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
 use super::super::value::{self, Budget};
-use dokime_runtime::core::{MeasurementUnit, UnitFamily};
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::values::UnitFamily;
 use dokime_runtime::definition::{
     DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr,
 };
-use dokime_contract::operations::{catalog as wire, common, schema, value as wire_value};
+use dokime_domain::operations::catalog as wire;
+use dokime_domain::operations::common;
+use dokime_domain::operations::schema;
+use dokime_domain::operations::value as wire_value;
 
 /* === Constants === */
 
@@ -350,12 +354,12 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 
-fn metadata(source: &dokime_runtime::core::Metadata, _: bool) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_domain::model::identity::Metadata, _: bool) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
 fn project_value(
-    source: &dokime_runtime::core::Value,
+    source: &dokime_domain::model::values::Value,
     budget: &mut Budget,
     depth: usize,
 ) -> Result<wire_value::Value, Status> {

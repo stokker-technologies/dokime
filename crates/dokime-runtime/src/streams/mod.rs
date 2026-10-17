@@ -19,7 +19,8 @@ pub use telemetry::{CycleTrack, ExecutionTrack, TelemetryRow};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{Metadata, Value};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

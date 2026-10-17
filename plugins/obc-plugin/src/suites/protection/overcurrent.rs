@@ -102,10 +102,10 @@ pub struct Parameters {
         min = 0.1,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
-            dokime_runtime::core::Value::Number(100.0),
-            dokime_runtime::core::Value::Number(50.0),
-            dokime_runtime::core::Value::Number(10.0),
+        default = ParameterDefault::literal(dokime_domain::model::values::Value::Array(::std::vec![
+            dokime_domain::model::values::Value::Number(100.0),
+            dokime_domain::model::values::Value::Number(50.0),
+            dokime_domain::model::values::Value::Number(10.0),
         ])), description = "The impedances the procedure applies in order, starting from the one the Charger was energized at. Declared in ohms like the load it replaces.")]
     pub load_steps: Vec<f64>,
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]

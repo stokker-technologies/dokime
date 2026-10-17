@@ -19,7 +19,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{runtime::Error, runtime::Result, execution_runtime::authoring::FileRegexMatch};
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 const REGEX_SCAN_LIMIT_BYTES: usize = 2 * 1024 * 1024;

@@ -65,7 +65,7 @@ simulation = ["host", "harmos/simulation"]
 
 [dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract", features = ["diagnostics"] }
+dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
 dokime-filesystem = { path = "../dokime-filesystem", optional = true }
 dokime-host = { path = "../dokime-host", optional = true }
 dokime-macros = { path = "../dokime-macros", optional = true }

@@ -19,7 +19,9 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
-use crate::core::{CredentialBackendKind, Metadata, SessionId};
+use dokime_domain::model::credentials::CredentialBackendKind;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::SessionId;
 use crate::domains::ActionDispatcher;
 use harmos::storage::StorageSettings;
 
@@ -57,7 +59,7 @@ pub struct RuntimeConfig {
     #[serde(default)]
     pub plugin_lookup: Option<PathBuf>,
     #[serde(skip)]
-    pub(crate) action_dispatchers: BTreeMap<crate::core::Identifier, Arc<dyn ActionDispatcher>>,
+    pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
     #[serde(skip)]
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
@@ -161,7 +163,7 @@ impl RuntimeConfig {
 
     pub fn with_action_dispatcher(
         mut self,
-        plugin_id: crate::core::Identifier,
+        plugin_id: dokime_domain::model::identity::Identifier,
         dispatcher: Arc<dyn ActionDispatcher>,
     ) -> Self {
         self.action_dispatchers.insert(plugin_id, dispatcher);

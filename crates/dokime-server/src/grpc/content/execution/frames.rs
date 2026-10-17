@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use super::super::files;
 use crate::grpc::value::projection;
 use dokime_runtime::ExecutionFileContent;
-use dokime_contract::operations::content as wire;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 

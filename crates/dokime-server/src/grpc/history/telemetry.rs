@@ -31,7 +31,7 @@ use super::super::{
 use super::wire;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
-use dokime_contract::operations::history as contract;
+use dokime_domain::operations::history as contract;
 
 /* === Constants === */
 
@@ -69,12 +69,12 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::ListCheckpointTelemetryRequest,
+        request: &mut contract::ListCheckpointTelemetry,
         _: &mut (),
     ) -> Result<Response<contract::CheckpointTelemetryPage>, Status> {
         value::text(&request.table)?;
         value::text(&request.after)?;
-        let stream = dokime_runtime::core::Identifier::new(std::mem::take(&mut request.table))
+        let stream = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
             .map_err(|_| {
                 Status::invalid_argument("native telemetry stream identifier is required")
             })?;

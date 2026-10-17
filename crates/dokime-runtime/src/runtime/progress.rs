@@ -31,7 +31,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 /// How long a settled operation stays visible before it retires.

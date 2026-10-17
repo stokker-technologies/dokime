@@ -127,7 +127,7 @@ pub(super) async fn acquire(
         }
         // Borrow Frozen Ownership And Keep Original Charged Pages Through Evaluation.
         charge(scopes.memory_size())?;
-        charge(harmos::btree_map_memory::<&crate::core::RecordId, ()>(
+        charge(harmos::btree_map_memory::<&dokime_domain::model::identity::RecordId, ()>(
             scopes.len(),
         ))?;
         let mut missing: BTreeSet<_> = scopes.keys().collect();

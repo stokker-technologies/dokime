@@ -18,7 +18,7 @@ use std::fmt::Display;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::definition::Parameter;
 use crate::expressions::DataExpression;
 use crate::values::FieldValue;

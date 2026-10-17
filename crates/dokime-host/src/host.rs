@@ -28,8 +28,8 @@ use crate::{
     },
     sample::default_source,
 };
-use dokime_contract::core::Value;
-use dokime_contract::telemetry::TelemetryBatch;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::telemetry::TelemetryBatch;
 
 /* === Constants === */
 
@@ -132,7 +132,7 @@ impl Host {
             .into_iter()
             .map(|sample| {
                 let timestamp = sample.timestamp.clone();
-                let mut telemetry_sample = dokime_contract::telemetry::TelemetrySample::new(
+                let mut telemetry_sample = dokime_domain::model::telemetry::TelemetrySample::new(
                     crate::new_id(),
                     stream_id.clone(),
                     0,

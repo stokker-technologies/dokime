@@ -28,7 +28,7 @@ use harmos::{
 use super::fields::{self, Row};
 use crate::runtime::query::aggregate::{AggregateOperator, AggregateOutcome, AggregateQuery};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const MAX_COLUMNS: usize = 32;

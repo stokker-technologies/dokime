@@ -19,7 +19,8 @@ use std::path::Path;
 use serde::Deserialize;
 use thiserror::Error;
 // Local Imports
-use crate::core::{Identifier, Metadata};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 use crate::domains::{
     AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity,
     ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy,
@@ -134,7 +135,7 @@ pub enum BrandLoadError {
     #[error("could not parse brand.toml: {0}")]
     Parse(Box<toml::de::Error>),
     #[error("brand identifier is invalid: {0}")]
-    Identifier(#[from] dokime_contract::Error),
+    Identifier(#[from] dokime_domain::Error),
     #[error("invalid authored brand CSS: {0}")]
     ThemeCss(#[from] ThemeCssError),
 }
@@ -172,7 +173,7 @@ impl ResolvedBrand {
 
 impl BrandManifest {
     fn into_resolved(self, source: &impl Source) -> Result<ResolvedBrand, BrandLoadError> {
-        let theme_id = Identifier::new(BRAND_THEME_ID).map_err(dokime_contract::Error::from)?;
+        let theme_id = Identifier::new(BRAND_THEME_ID).map_err(dokime_domain::Error::from)?;
         let theme = self
             .theme
             .as_ref()
@@ -205,7 +206,7 @@ impl BrandManifest {
 
         let customization = AppCustomizationContribution {
             metadata: Metadata::new(
-                Identifier::new(BRAND_CUSTOMIZATION_ID).map_err(dokime_contract::Error::from)?,
+                Identifier::new(BRAND_CUSTOMIZATION_ID).map_err(dokime_domain::Error::from)?,
                 &self.app.label,
                 Some(format!("Repo brand identity for {}.", self.app.label)),
             ),
@@ -275,7 +276,7 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
         if path.is_file() {
             brand.customization.logo_assets = vec![AppLogoAsset {
                 asset_id: Identifier::new(BRAND_LOGO_ASSET_ID)
-                    .map_err(dokime_contract::Error::from)?,
+                    .map_err(dokime_domain::Error::from)?,
                 path: path.to_string_lossy().into_owned(),
                 mime_type: logo.mime_type,
                 alt: logo.alt,

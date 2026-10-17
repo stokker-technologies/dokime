@@ -22,7 +22,8 @@ use harmos::sidecar::StreamDeclaration;
 use super::{RuntimeHandle, native_telemetry};
 use crate::state::ProviderCatalog;
 use crate::{runtime::Error, InstalledPlugin, runtime::Result};
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
 use crate::schema::graph::Schema;
 
@@ -311,7 +312,7 @@ impl harmos::operations::Operation for EmbeddedRun {
     async fn run<'ctx>(
         &mut self,
         _: Self::Context<'ctx>,
-        request: &mut crate::transport::RunExecutionRequest,
+        request: &mut crate::transport::RunExecution,
         _: &mut (),
     ) -> std::result::Result<
         harmos::operations::Response<crate::transport::SidecarExecutionOutcome>,

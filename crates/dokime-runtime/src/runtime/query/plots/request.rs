@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 // Local Imports
 use crate::evidence_runtime::ScopeSelection;
 use crate::plot::PlotPayloadRequest;
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 
 /* === Constants === */

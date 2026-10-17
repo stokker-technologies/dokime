@@ -314,8 +314,8 @@ impl RuntimeHandle {
     }
     async fn advance_to_next_group(
         &self,
-        request_id: &crate::core::CommandId,
-        cycle_id: &crate::core::TestCycleId,
+        request_id: &dokime_domain::model::identity::CommandId,
+        cycle_id: &dokime_domain::model::identity::TestCycleId,
     ) -> bool {
         {
             let state = self.state_read();

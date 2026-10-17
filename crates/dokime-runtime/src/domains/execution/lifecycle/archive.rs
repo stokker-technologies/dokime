@@ -20,7 +20,8 @@ use harmos::state::Transaction;
 use crate::runtime::storage::execution::ExecutionView;
 use crate::transactions::{ArchiveSubject, SetArchived};
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{HOST_STREAMS, HostTelemetryStream};
-use dokime_contract::core::DurationMillis;
+use dokime_domain::model::time::DurationMillis;
 
 /* === Constants === */
 pub const DEFAULT_HOST_INTERVAL: DurationMillis = DurationMillis(1_000);

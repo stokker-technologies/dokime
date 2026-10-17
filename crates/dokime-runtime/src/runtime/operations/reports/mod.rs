@@ -15,9 +15,10 @@ use crate::{
     app::{Dokime, Lanes},
     runtime::storage::executions::ExecutionStorage,
 };
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::operations::reports::{
-    MaterializeReport, MaterializeReportRequest, MaterializedReport, ReportSubject,
+    MaterializeReport, MaterializeReport, MaterializedReport, ReportSubject,
 };
 use harmos::operations::{Context, Operation};
 use std::sync::Arc;
@@ -51,7 +52,7 @@ impl Operation for Handler {
     async fn run<'a>(
         &mut self,
         ctx: Self::Context<'a>,
-        request: &mut MaterializeReportRequest,
+        request: &mut MaterializeReport,
         _: &mut (),
     ) -> Result<harmos::operations::Response<MaterializedReport>> {
         let storage = ctx

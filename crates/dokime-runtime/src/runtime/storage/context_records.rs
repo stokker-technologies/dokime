@@ -20,7 +20,7 @@ use harmos::MemorySize;
 
 // Local Imports
 use crate::records::RecordEntry;
-use crate::core::SessionId;
+use dokime_domain::model::identity::SessionId;
 
 /* === Constants === */
 

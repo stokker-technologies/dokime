@@ -30,7 +30,9 @@ use tokio::sync::watch;
 use super::Binding;
 use crate::execution::log::Level;
 use crate::host::ProcessExited;
-use dokime_contract::operations::process::{DEFAULT_GRACE_MS, ProcessExit, RunProcessRequest};
+use dokime_domain::operations::process::DEFAULT_GRACE_MS;
+use dokime_domain::operations::process::ProcessExit;
+use dokime_domain::operations::process::RunProcess;
 use crate::records::DeclaredRecord;
 
 /* === Constants === */
@@ -55,7 +57,7 @@ const READ_BYTES: usize = 64 * 1024;
 /* === Public Functions === */
 pub(super) async fn run(
     binding: Binding,
-    request: RunProcessRequest,
+    request: RunProcess,
     mut cancel: watch::Receiver<bool>,
 ) -> Result<ProcessExit, String> {
     if request.program.is_empty() {

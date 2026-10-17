@@ -19,7 +19,8 @@ use std::{fmt, path::PathBuf, sync::Arc};
 // Local Imports
 use crate::RuntimeCredentialConfig;
 use crate::config::RuntimeConfig;
-use crate::core::{Identifier, Metadata};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::plugins::PluginBundle;
 

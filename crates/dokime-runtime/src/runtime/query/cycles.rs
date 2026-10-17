@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, TestCycle};
 use crate::state::RuntimeState;
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

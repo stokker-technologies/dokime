@@ -36,7 +36,8 @@ use std::{
 
 // Local Imports
 use dokime_runtime::config::ApplicationOptions;
-use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
+use dokime_domain::DEV_PROTOCOL;
+use dokime_domain::READINESS_PROTOCOL;
 
 /* === Constants === */
 
@@ -281,7 +282,6 @@ fn emit_phase(dev_control: bool, name: &str) {
     if !dev_control {
         return;
     }
-    use std::io::Write;
     let phase = serde_json::json!({ "event": "phase", "name": name });
     let _ = writeln!(std::io::stdout().lock(), "{phase}");
 }

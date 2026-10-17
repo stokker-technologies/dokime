@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 
 // Local Imports
 use crate::{HostStreamSample, HostTelemetryStream};
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 pub const HOST_FIXTURE_SOURCE: &str = "host.fixture";

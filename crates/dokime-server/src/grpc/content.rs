@@ -49,7 +49,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
-    use dokime_contract::operations::content as wire;
+    use dokime_domain::operations::content as wire;
     // Reserve Both The Wire Envelope And The Retained Stream Frame.
     let chunk = wire::ArtifactChunk {
         offset: u64::MAX,
@@ -84,7 +84,7 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
     if record.status == ArtifactStatus::Staged {
         return Err(Status::data_loss("invalid stored artifact metadata"));
     }
-    let mut bytes = std::mem::size_of::<dokime_contract::operations::content::ArtifactMetadata>()
+    let mut bytes = std::mem::size_of::<dokime_domain::operations::content::ArtifactMetadata>()
         .saturating_add(record.artifact_id.as_str().len())
         .saturating_add(record.upload_id.as_str().len())
         .saturating_add(record.filename.len())
@@ -114,7 +114,7 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
 
 pub(super) fn metadata(
     record: &ArtifactRecord,
-) -> Result<dokime_contract::operations::content::ArtifactMetadata, Status> {
+) -> Result<dokime_domain::operations::content::ArtifactMetadata, Status> {
     metadata_memory(record)?;
     let invalid = || Status::data_loss("invalid stored artifact metadata");
     let sha256 = artifact_digest(record)?.to_owned();
@@ -123,10 +123,10 @@ pub(super) fn metadata(
         &time::format_description::well_known::Rfc3339,
     )
     .map_err(|_| invalid())?;
-    Ok(dokime_contract::operations::content::ArtifactMetadata {
+    Ok(dokime_domain::operations::content::ArtifactMetadata {
         artifact_id: record.artifact_id.as_str().to_owned(),
         upload_id: record.upload_id.as_str().to_owned(),
-        scope: Some(dokime_contract::operations::content::ArtifactScope {
+        scope: Some(dokime_domain::operations::content::ArtifactScope {
             cycle_id: record
                 .scope
                 .test_cycle_id
@@ -149,17 +149,17 @@ pub(super) fn metadata(
         sha256,
         state: match record.status {
             ArtifactStatus::Complete => {
-                dokime_contract::operations::content::ArtifactState::Complete
+                dokime_domain::operations::content::ArtifactState::Complete
             }
             ArtifactStatus::Cancelled => {
-                dokime_contract::operations::content::ArtifactState::Cancelled
+                dokime_domain::operations::content::ArtifactState::Cancelled
             }
             ArtifactStatus::Rejected => {
-                dokime_contract::operations::content::ArtifactState::Rejected
+                dokime_domain::operations::content::ArtifactState::Rejected
             }
             ArtifactStatus::Staged => return Err(invalid()),
         },
-        created_at: Some(dokime_contract::operations::common::Timestamp {
+        created_at: Some(dokime_domain::operations::common::Timestamp {
             seconds: created.unix_timestamp(),
             nanos: created.nanosecond() as i32,
         }),

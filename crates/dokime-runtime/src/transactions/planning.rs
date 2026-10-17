@@ -27,7 +27,12 @@ use crate::records::RecordSeverity;
 use crate::records::TestRecordSet;
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::{runtime::Error, state::RuntimeState};
-use crate::core::{CommandId, Metadata, RecordScope, TestCycleId, Timestamp, Value};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -61,7 +66,7 @@ pub struct CreateCycle {
 #[harmos::transaction(id = "dokime.execution.cycle.append", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppendCycle {
-    pub admission_identifier: crate::core::CommandId,
+    pub admission_identifier: dokime_domain::model::identity::CommandId,
     pub test_cycle_id: TestCycleId,
     pub cases: Vec<TestCase>,
     pub occurred_at: Timestamp,
@@ -247,7 +252,7 @@ fn materialize_cycle_executions(
             .suite_for_case(case)
             .map(|suite| suite.source.as_str());
         let plugin = source.and_then(|source| state.execution_identity(source));
-        let id = crate::core::TestExecutionId::from_seed(format!(
+        let id = dokime_domain::model::identity::TestExecutionId::from_seed(format!(
             "cycle:{}:case:{}:admission:{}:ordinal:{ordinal}",
             cycle.test_cycle_id, case.test_case_id, admission_identifier
         ));
@@ -270,7 +275,7 @@ fn materialize_cycle_executions(
 
 fn empty_cycle(
     test_cycle_id: TestCycleId,
-    session_id: crate::core::SessionId,
+    session_id: dokime_domain::model::identity::SessionId,
     definition: CycleDefinition,
     at: Timestamp,
 ) -> CycleView {

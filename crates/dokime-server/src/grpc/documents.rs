@@ -21,11 +21,12 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 // Local Imports
 use super::value;
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{DocumentId, Identifier, TestCycleId, TestExecutionId},
-};
-use dokime_contract::operations::documents as contract;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::documents as contract;
 
 /* === Constants === */
 
@@ -64,7 +65,7 @@ impl Operation for Capture {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::CaptureCurrentDocumentRequest,
+        request: &mut contract::CaptureCurrentDocument,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = owner(request.scope.take())?;
@@ -120,7 +121,7 @@ impl Operation for UpdatePlotSettings {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut contract::UpdatePlotSettingsRequest,
+        request: &mut contract::UpdatePlotSettings,
         _: &mut (),
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = scope(request.scope.take())?;

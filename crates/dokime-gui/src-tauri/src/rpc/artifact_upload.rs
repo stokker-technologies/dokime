@@ -19,7 +19,7 @@ use tokio::sync::{Notify, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 // Local Imports
 use super::*;
-use dokime_contract::operations::content as v1;
+use dokime_domain::operations::content as v1;
 
 /* === Constants === */
 const MAX_ACTIVE_UPLOADS: usize = 2;
@@ -508,7 +508,6 @@ impl RecordingSinks {
         recording.context.check()?;
         {
             let mut file = recording.file.lock().await;
-            use tokio::io::AsyncWriteExt;
             file.flush().await.map_err(|_| RpcError::InvalidRequest)?;
         }
         Ok(RecordingHandle {

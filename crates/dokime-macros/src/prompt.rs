@@ -404,7 +404,7 @@ fn declaration(field: &FieldDeclaration) -> TokenStream {
         quote_spanned!(default.span()=>
             field.default = ::core::option::Option::Some(
                 #sdk::prompts::declared_default::<#ty>(#default)
-            ).filter(|value| !matches!(value, #sdk::core::Value::Null));
+            ).filter(|value| !matches!(value, #sdk::Value::Null));
         )
     });
     // A bound is a value of the field's own type, so an integer field's bound

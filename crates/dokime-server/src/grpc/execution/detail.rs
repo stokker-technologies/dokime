@@ -19,10 +19,12 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use dokime_runtime::core::{Metadata, TestExecutionId, Value};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
 use dokime_runtime::execution::TestExecution;
-use dokime_contract::operations::common::Diagnostic;
+use dokime_domain::operations::common::Diagnostic;
 
 /* === Constants === */
 const MAX_DIAGNOSTIC_TEXT: usize = 4096;
@@ -99,16 +101,16 @@ pub(super) fn execution<'a>(
 
 pub(crate) fn result(
     value: &dokime_runtime::execution::ResultSummary,
-) -> dokime_contract::operations::execution::ResultSummary {
+) -> dokime_domain::operations::execution::ResultSummary {
     use dokime_runtime::execution::ResultStatus;
-    dokime_contract::operations::execution::ResultSummary {
+    dokime_domain::operations::execution::ResultSummary {
         status: match value.status {
-            ResultStatus::Pending => dokime_contract::operations::execution::ResultStatus::Pending,
-            ResultStatus::Passed => dokime_contract::operations::execution::ResultStatus::Passed,
-            ResultStatus::Failed => dokime_contract::operations::execution::ResultStatus::Failed,
-            ResultStatus::Blocked => dokime_contract::operations::execution::ResultStatus::Blocked,
+            ResultStatus::Pending => dokime_domain::operations::execution::ResultStatus::Pending,
+            ResultStatus::Passed => dokime_domain::operations::execution::ResultStatus::Passed,
+            ResultStatus::Failed => dokime_domain::operations::execution::ResultStatus::Failed,
+            ResultStatus::Blocked => dokime_domain::operations::execution::ResultStatus::Blocked,
             ResultStatus::Cancelled => {
-                dokime_contract::operations::execution::ResultStatus::Cancelled
+                dokime_domain::operations::execution::ResultStatus::Cancelled
             }
         },
         passed: value.passed,
@@ -120,7 +122,7 @@ pub(crate) fn result(
 
 pub(super) fn get_case(
     service: &Resources,
-    request: &wire::GetCaseRequest,
+    request: &wire::GetCase,
 ) -> Result<wire::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
     super::value::text(&request.case_id)?;
@@ -162,7 +164,7 @@ pub(super) fn get_case(
 
 pub(super) fn get_execution(
     service: &Resources,
-    request: &wire::GetExecutionRequest,
+    request: &wire::GetExecution,
 ) -> Result<wire::ExecutionDetail, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -264,7 +266,7 @@ pub(super) fn get_execution(
 
 pub(super) fn list_execution_parameters(
     service: &Resources,
-    request: &wire::ListExecutionParametersRequest,
+    request: &wire::ListExecutionParameters,
 ) -> Result<wire::ListMaterializedParametersReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -343,7 +345,7 @@ pub(super) fn diagnostic(
 
 pub(super) fn list_case_parameters(
     service: &Resources,
-    request: &wire::ListCaseParametersRequest,
+    request: &wire::ListCaseParameters,
 ) -> Result<wire::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
     value::text(&request.case_id)?;

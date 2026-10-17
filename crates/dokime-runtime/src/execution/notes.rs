@@ -19,7 +19,9 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{NoteId, RecordScope, Timestamp};
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 pub const NOTE_TEXT_BYTES: usize = 16 * 1024;
@@ -56,10 +58,10 @@ pub struct OperatorNoteRequest {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteAdmission {
-    pub mutation_id: crate::core::CommandId,
+    pub mutation_id: dokime_domain::model::identity::CommandId,
     pub owner: NoteOwner,
     pub note: crate::execution::OperatorNote,
-    pub checkpoint_targets: Vec<crate::core::TestExecutionId>,
+    pub checkpoint_targets: Vec<dokime_domain::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -67,15 +69,15 @@ pub struct NoteAdmission {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
     Cycle {
-        cycle_id: crate::core::TestCycleId,
+        cycle_id: dokime_domain::model::identity::TestCycleId,
     },
     Case {
-        cycle_id: crate::core::TestCycleId,
-        case_id: crate::core::CaseId,
+        cycle_id: dokime_domain::model::identity::TestCycleId,
+        case_id: dokime_domain::model::identity::CaseId,
     },
     Execution {
-        cycle_id: crate::core::TestCycleId,
-        execution_id: crate::core::TestExecutionId,
+        cycle_id: dokime_domain::model::identity::TestCycleId,
+        execution_id: dokime_domain::model::identity::TestExecutionId,
     },
 }
 
@@ -119,7 +121,7 @@ impl harmos::MemorySize for OperatorNote {
     }
 }
 impl NoteOwner {
-    pub fn cycle_id(&self) -> &crate::core::TestCycleId {
+    pub fn cycle_id(&self) -> &dokime_domain::model::identity::TestCycleId {
         match self {
             Self::Cycle { cycle_id }
             | Self::Case { cycle_id, .. }
@@ -130,9 +132,9 @@ impl NoteOwner {
 
 /* === Public Functions === */
 pub fn note_identity(
-    epoch: &crate::core::SessionId,
+    epoch: &dokime_domain::model::identity::SessionId,
     actor: &str,
-    mutation: &crate::core::CommandId,
+    mutation: &dokime_domain::model::identity::CommandId,
 ) -> NoteId {
     NoteId::from_seed(format!(
         "note:{}:{}:{}:{}",

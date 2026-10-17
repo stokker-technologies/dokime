@@ -25,7 +25,7 @@ use super::template::SidecarTemplate;
 use super::unwind::caught;
 use super::{Environment, ExecutionEvidence, TerminationReason};
 use crate::artifacts::Artifacts;
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
 use crate::diagnostics::Diagnostic;
 use crate::parameters::FromParameters;
@@ -152,7 +152,7 @@ async fn execute<T: SidecarTemplate>(
     let watched = artifacts.clone();
     let scanning = super::scanning::start(artifacts.clone(), &executions, &token, &observer_tasks);
     let mut evidence = ExecutionEvidence::new();
-    transport.capture_phase(crate::core::CapturePhase::Initialization);
+    transport.capture_phase(dokime_domain::model::execution::CapturePhase::Initialization);
     // The inputs are decoded once, here, before anything runs against them: a
     // case whose values are not what the template declared is refused by the
     // field that does not fit, rather than run until whichever step reads it
@@ -364,9 +364,9 @@ async fn execute<T: SidecarTemplate>(
         Ended::Failed { .. } => TerminationReason::Failed,
         Ended::Cancelled { .. } => TerminationReason::Cancelled,
     };
-    transport.capture_phase(crate::core::CapturePhase::Cleanup);
+    transport.capture_phase(dokime_domain::model::execution::CapturePhase::Cleanup);
     let cleanup_error = clean_up(&mut template, &environment, &mut transport, reason).await;
-    transport.capture_phase(crate::core::CapturePhase::Default);
+    transport.capture_phase(dokime_domain::model::execution::CapturePhase::Default);
     let callback_error = settle_callbacks(&environment, &transport).await;
     let cleanup_error = cleanup_error.or(callback_error);
     // Whatever cleanup pushed reaches the host before the run reports.
@@ -553,7 +553,7 @@ async fn walk<T: SidecarTemplate>(
     let interactive = controls.interactive();
     let mut automatic = 0;
     loop {
-        transport.capture_phase(crate::core::CapturePhase::Default);
+        transport.capture_phase(dokime_domain::model::execution::CapturePhase::Default);
         let command = if interactive {
             loop {
                 if *cancel.borrow() {
@@ -623,7 +623,7 @@ async fn walk<T: SidecarTemplate>(
         // Progress is recorded here, before the step's own code can run, so a
         // step that started is a fact about the run rather than a claim the
         // template makes about itself.
-        let attempt_id = crate::model::identity::new_id::<crate::core::StepAttemptId>();
+        let attempt_id = crate::model::identity::new_id::<dokime_domain::model::identity::StepAttemptId>();
         let started_at = crate::model::time::now_utc();
         let start = super::StepAttemptStart {
             attempt_id: attempt_id.clone(),

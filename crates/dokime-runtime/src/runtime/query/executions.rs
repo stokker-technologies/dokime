@@ -21,7 +21,9 @@ use crate::execution::ExecutionStatus;
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
 use crate::transactions::{ControlExecution, CycleControlAction};
-use crate::core::{CommandId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

@@ -18,7 +18,8 @@ use std::{collections::BTreeMap, sync::Mutex};
 
 // Local Imports
 use crate::execution::ExecutionProgress;
-use crate::core::{Identifier, TestExecutionId};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

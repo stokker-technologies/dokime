@@ -81,7 +81,7 @@ pub(crate) struct Process {
 /* === Implementations === */
 impl Source {
     pub(crate) fn new(
-        epoch: &crate::core::SessionId,
+        epoch: &dokime_domain::model::identity::SessionId,
         storage: crate::storage::Manager,
     ) -> Result<Self> {
         Ok(Self {

@@ -23,7 +23,12 @@ use crate::document::capture::Capture;
 use crate::execution::CycleView;
 use crate::records::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
-use crate::core::{CaseId, DocumentId, RecordScope, SessionId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

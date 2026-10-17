@@ -23,12 +23,13 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::value::{self, canonical};
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{Identifier, Timestamp},
-    domains::evidence::{ScopeSelection, TelemetrySelection},
-};
-use dokime_contract::operations::{common, telemetry as wire};
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
+use dokime_runtime::domains::evidence::ScopeSelection;
+use dokime_runtime::domains::evidence::TelemetrySelection;
+use dokime_domain::operations::common;
+use dokime_domain::operations::telemetry as wire;
 
 /* === Constants === */
 const DEFAULT_LIMIT: usize = 500;
@@ -68,7 +69,7 @@ impl Operation for List {
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::ListTelemetrySamplesRequest,
+        request: &mut wire::ListSamples,
         _: &mut (),
     ) -> Result<Response<wire::TelemetrySamplesReply>, Status> {
         let limit = bounded_limit(request.limit)?;

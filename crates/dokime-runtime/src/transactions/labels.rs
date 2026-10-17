@@ -21,7 +21,11 @@ use serde::{Deserialize, Serialize};
 use crate::records::{BuiltinRecordType, RecordSeverity};
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::{BuiltinDraft, Drafts};
-use crate::core::{RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

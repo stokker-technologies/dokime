@@ -92,7 +92,7 @@ host_operation!(
 /* === Structs === */
 #[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq)]
-pub struct RunExecutionRequest {
+pub struct RunExecution {
     pub execution_token: String,
     pub test_cycle_id: String,
     pub test_execution_id: String,
@@ -342,9 +342,9 @@ pub enum SidecarCriterionStatus {
 /* === Traits === */
 
 /* === Implementations === */
-impl std::fmt::Debug for RunExecutionRequest {
+impl std::fmt::Debug for RunExecution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RunExecutionRequest")
+        f.debug_struct("RunExecution")
             .field("execution_token", &self.execution_token)
             .field("test_execution_id", &self.test_execution_id)
             .field("template_identifier", &self.template_identifier)

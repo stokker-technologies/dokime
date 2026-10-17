@@ -25,9 +25,9 @@ use dokime_runtime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle,
     ExecutionCheckpoint,
 };
-use dokime_contract::operations::{
-    checkpoint as checkpoint_wire, execution as execution_wire, history as history_wire,
-};
+use dokime_domain::operations::checkpoint as checkpoint_wire;
+use dokime_domain::operations::execution as execution_wire;
+use dokime_domain::operations::history as history_wire;
 
 /* === Constants === */
 const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
@@ -93,7 +93,7 @@ pub(crate) fn checkpoint(
 ) -> Result<ExecutionCheckpoint, Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("checkpoint is required"))?;
     value::text(&value.execution_identifier)?;
-    let execution_id = dokime_runtime::core::TestExecutionId::from_uuid(value.execution_identifier)
+    let execution_id = dokime_domain::model::identity::TestExecutionId::from_uuid(value.execution_identifier)
         .map_err(|_| Status::invalid_argument("invalid checkpoint execution identifier"))?;
     if value.version.len() > MAX_CHECKPOINT_TOKEN_BYTES {
         return Err(Status::resource_exhausted(
@@ -259,9 +259,9 @@ fn cursor(value: Option<checkpoint_wire::StorageCursor>) -> Result<StorageCursor
         .ok_or_else(|| Status::invalid_argument("checkpoint history is required"))?;
     value::text(&history.store)?;
     value::text(&history.epoch)?;
-    let store = dokime_runtime::core::Identifier::new(history.store)
+    let store = dokime_domain::model::identity::Identifier::new(history.store)
         .map_err(|_| Status::invalid_argument("invalid checkpoint store identifier"))?;
-    let epoch = dokime_runtime::core::Identifier::new(history.epoch)
+    let epoch = dokime_domain::model::identity::Identifier::new(history.epoch)
         .map_err(|_| Status::invalid_argument("invalid checkpoint history epoch"))?;
     Ok(StorageCursor {
         history: StoreHistory { store, epoch },
@@ -283,7 +283,7 @@ pub(crate) fn traceability_memory(
     source: &dokime_runtime::traceability::TraceabilitySnapshot,
 ) -> Result<usize, Status> {
     use super::super::value::canonical;
-    use dokime_contract::operations::common;
+    use dokime_domain::operations::common;
     value::text(source.traceability_id.as_str())?;
     value::collection(source.entries.len())?;
     let mut bytes = std::mem::size_of::<common::TraceabilitySnapshot>()
@@ -316,9 +316,9 @@ pub(crate) fn traceability_memory(
 
 pub(crate) fn traceability(
     source: &dokime_runtime::traceability::TraceabilitySnapshot,
-) -> Result<dokime_contract::operations::common::TraceabilitySnapshot, Status> {
+) -> Result<dokime_domain::operations::common::TraceabilitySnapshot, Status> {
     use super::super::value::canonical;
-    use dokime_contract::operations::common;
+    use dokime_domain::operations::common;
     traceability_memory(source)?;
     let mut budget = value::Budget::new();
     let mut entries = canonical::slots(source.entries.len())?;

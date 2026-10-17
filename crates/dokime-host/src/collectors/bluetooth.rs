@@ -29,7 +29,8 @@ use crate::{
     DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, HostOptions, HostStreamSample, HostTelemetryStream,
     Result, collectors::maybe_insert,
 };
-use dokime_contract::core::{DurationMillis, Value};
+use dokime_domain::model::time::DurationMillis;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

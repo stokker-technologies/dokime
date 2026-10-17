@@ -34,7 +34,7 @@ use dokime_runtime::{
         CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent,
     },
 };
-use dokime_contract::operations::files as contract;
+use dokime_domain::operations::files as contract;
 
 /* === Constants === */
 
@@ -81,7 +81,7 @@ impl Operation for FileWatch {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut contract::FileWatchRequest,
+        request: &mut contract::FileWatch,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         // A Step's Call Carries Its Execution; A Listener Call Names It

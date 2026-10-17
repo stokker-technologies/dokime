@@ -20,14 +20,13 @@ use tokio::sync::Mutex;
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, execution::CycleView, runtime::progress::Operation};
-use crate::{
-    core::TestCycleId,
-    execution::{
-        TestCycle,
-        saved::{CycleSeal, ExecutionRevision, ExecutionSeal},
-    },
-    storage::{objects::cycle::Cycle, reports},
-};
+use dokime_domain::model::identity::TestCycleId;
+use crate::execution::TestCycle;
+use crate::execution::saved::CycleSeal;
+use crate::execution::saved::ExecutionRevision;
+use crate::execution::saved::ExecutionSeal;
+use crate::storage::objects::cycle::Cycle;
+use crate::storage::reports;
 
 /* === Constants === */
 
@@ -281,7 +280,7 @@ impl RuntimeHandle {
             runtime
                 .operations()
                 .call_as::<crate::runtime::operations::reports::MaterializeReport>(
-                    crate::runtime::operations::reports::MaterializeReportRequest {
+                    crate::runtime::operations::reports::MaterializeReport {
                         subject: crate::runtime::operations::reports::ReportSubject::Cycle(id.to_string()),
                         at,
                     },

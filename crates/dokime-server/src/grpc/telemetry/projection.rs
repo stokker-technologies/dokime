@@ -19,7 +19,7 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_runtime::telemetry::TelemetrySample;
-use dokime_contract::operations::telemetry as wire;
+use dokime_domain::operations::telemetry as wire;
 
 /* === Constants === */
 

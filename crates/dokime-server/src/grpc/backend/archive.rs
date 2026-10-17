@@ -17,7 +17,7 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::{bundle, chunked, value::canonical};
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::backend as wire;
+use dokime_domain::operations::backend as wire;
 /* === Constants === */
 const CHUNK_BYTES: usize = 64 * 1024;
 /* === Macros === */

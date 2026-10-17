@@ -25,7 +25,10 @@ use crate::transactions::prompts::{
 };
 use crate::transactions::provider::request::RunPhase;
 use crate::transactions::records::draft::Drafts;
-use crate::core::{DokimeNodeIdentity, SessionId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::DokimeNodeIdentity;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -444,7 +447,8 @@ fn interrupt_step(step: &mut StepRecord, at: &Timestamp) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{Metadata, TestCycleId};
+    use dokime_domain::model::identity::Metadata;
+    use dokime_domain::model::identity::TestCycleId;
 
     #[test]
     fn cycle_intent_survives_state_encoding_and_refuses_a_new_cursor() {
@@ -456,7 +460,7 @@ mod tests {
             test_cycle_id: id.clone(),
             session_id: Some(state.session_id.clone()),
             metadata: Metadata {
-                identifier: crate::core::Identifier::new("cycle.restart").unwrap(),
+                identifier: dokime_domain::model::identity::Identifier::new("cycle.restart").unwrap(),
                 label: "Cycle Restart".into(),
                 description: None,
                 tags: vec![],

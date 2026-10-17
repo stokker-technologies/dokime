@@ -46,7 +46,8 @@ use crate::{
     handle::RuntimeHandle,
 };
 use context::RuntimePlotEnvelopeContext;
-use crate::core::{Identifier, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::{TelemetryColumn, TelemetryContract, TelemetrySample};
 use request::{
     canonical_plot_request, request_record_types, scope_selection, telemetry_read_groups,

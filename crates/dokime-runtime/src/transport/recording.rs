@@ -21,7 +21,8 @@ use std::sync::{Arc, Mutex};
 use super::protocol::ArtifactChunk;
 use super::{ExecutionTransport, Journal, TransportFuture};
 use crate::artifacts::ArtifactSink;
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::log::Level;
 use crate::execution::{ExecutionProgress, ProgressSink};
@@ -255,7 +256,7 @@ impl ExecutionTransport for RecordingTransport {
         self.step_attempts.push(attempt);
     }
 
-    fn capture_phase(&mut self, _phase: crate::core::CapturePhase) {}
+    fn capture_phase(&mut self, _phase: dokime_domain::model::execution::CapturePhase) {}
 
     fn begin_step<'a>(
         &'a mut self,

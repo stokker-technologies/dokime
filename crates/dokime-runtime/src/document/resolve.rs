@@ -19,7 +19,9 @@ use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
 // Local Imports
 use super::binding::{self, Evidence, Row, row as expression_value};
 use crate::artifacts::media_kind_for;
-use crate::core::{Identifier, Metadata, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
 use crate::document::capture::{
     Capture, CardBinding, CardBindingResult, RepeatInstance, SectionBinding,
 };
@@ -42,7 +44,7 @@ use crate::document::{
     plot_inputs::{plot_descriptor_for_definition, plot_input_for_definition},
 };
 use crate::expressions::{DataExpression, DataSource};
-use dokime_contract::document::validation::validate_normalized_parts;
+use dokime_domain::model::document::validation::validate_normalized_parts;
 
 /* === Constants === */
 const VALUE_PLACEHOLDER: &str = "{value}";
@@ -947,7 +949,7 @@ fn value_matches_operator(
 }
 
 fn values_equal(actual: &Value, expected: &Value) -> bool {
-    if let Some(ordering) = crate::core::numeric_cmp(actual, expected) {
+    if let Some(ordering) = dokime_domain::model::values::numeric_cmp(actual, expected) {
         return ordering == Ordering::Equal;
     }
     actual == expected
@@ -956,7 +958,7 @@ fn values_equal(actual: &Value, expected: &Value) -> bool {
 fn compare_values(actual: Option<&Value>, expected: Option<&Value>) -> Option<Ordering> {
     let actual = actual?;
     let expected = expected?;
-    crate::core::numeric_cmp(actual, expected)
+    dokime_domain::model::values::numeric_cmp(actual, expected)
         .or_else(|| Some(value_label(actual).cmp(&value_label(expected))))
 }
 

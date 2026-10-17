@@ -185,7 +185,7 @@ impl Executable {
 impl ActivePackage {
     pub(super) fn release_dispatchers(&mut self, handle: &super::RuntimeHandle) {
         for live in &self.running {
-            if let Ok(id) = crate::core::Identifier::new(&live.source) {
+            if let Ok(id) = dokime_domain::model::identity::Identifier::new(&live.source) {
                 handle.remove_action_dispatcher(&id);
             }
         }
@@ -1105,7 +1105,7 @@ async fn prepare(
             &declaration.description,
             &declaration.operations,
         );
-        crate::core::Identifier::new(id).map_err(operation)?;
+        dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
         let registrations = file
             .executable
             .as_ref()

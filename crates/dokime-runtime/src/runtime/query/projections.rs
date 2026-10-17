@@ -21,8 +21,8 @@ use crate::execution::{HealthItem, OperatorNote};
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use crate::records::ResourceRecord;
 use crate::traceability::TraceabilitySnapshot;
-use crate::core::RecordScope;
-use crate::core::Timestamp;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 use crate::prompts::PromptInstance;
 
 /* === Constants === */

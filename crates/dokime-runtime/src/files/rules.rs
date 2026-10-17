@@ -22,7 +22,8 @@
 use globset::{GlobBuilder, GlobMatcher};
 
 // Local Imports
-use dokime_contract::operations::files::{FileRule, FileRuleAction};
+use dokime_domain::operations::files::FileRule;
+use dokime_domain::operations::files::FileRuleAction;
 
 /* === Constants === */
 // The most rules one watch may carry.

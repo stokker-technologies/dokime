@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::operations::planning::RegisterSelectionRequest;
+use dokime_domain::operations::planning::RegisterSelection;
 
 /* === Constants === */
 
@@ -60,7 +60,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let (planned, idempotency_key) = match input.input_file.take() {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            let request = serde_json::from_slice::<RegisterSelectionRequest>(&bytes)
+            let request = serde_json::from_slice::<RegisterSelection>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
             (
                 super::input::Planned::canonical(request.plan)?,
@@ -73,7 +73,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
         ),
     };
-    dokime_contract::core::command::validate_idempotency_key(&idempotency_key)
+    dokime_domain::model::execution::command::validate_idempotency_key(&idempotency_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
 
     // === Resolve And Register === //
@@ -82,7 +82,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let result = async {
         let plan = planned.resolve(&client).await?;
         let reply = client
-            .register_selection(RegisterSelectionRequest {
+            .register_selection(RegisterSelection {
                 plan,
                 idempotency_key,
             })

@@ -24,7 +24,12 @@ use std::marker::PhantomData;
 use serde::de::DeserializeOwned;
 // Local Imports
 use super::*;
-use crate::core::{Identifier, Metadata, PromptId, RecordScope, Value, ValueType};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueType;
 use crate::records::RecordSeverity;
 
 /* === Constants === */
@@ -163,7 +168,7 @@ impl<T: DeserializeOwned> Prompt for FormPrompt<T> {
 
     fn decode(&self, response: PromptResponse) -> Result<T, crate::Error> {
         validate_response(&self.definition, &response)?;
-        let value = crate::core::Value::Object(response.values)
+        let value = dokime_domain::model::values::Value::Object(response.values)
             .to_plain_json()
             .map_err(refused)?;
         let answer = serde_json::from_value(value).map_err(refused)?;

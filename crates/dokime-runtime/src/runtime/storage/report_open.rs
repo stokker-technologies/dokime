@@ -27,7 +27,10 @@ use harmos::storage::ObjectVersion;
 // Local Imports
 use super::execution::ExecutionView;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
-use crate::core::{Metadata, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 /* === Macros === */
@@ -97,7 +100,7 @@ impl RuntimeHandle {
             let materialized = self
                 .operations()
                 .call_as::<crate::runtime::operations::reports::MaterializeReport>(
-                    crate::runtime::operations::reports::MaterializeReportRequest {
+                    crate::runtime::operations::reports::MaterializeReport {
                         subject: crate::runtime::operations::reports::ReportSubject::Execution(
                             id.to_string(),
                         ),
@@ -150,7 +153,7 @@ impl RuntimeHandle {
         let materialized = self
             .operations()
             .call_as::<crate::runtime::operations::reports::MaterializeReport>(
-                crate::runtime::operations::reports::MaterializeReportRequest {
+                crate::runtime::operations::reports::MaterializeReport {
                     subject: crate::runtime::operations::reports::ReportSubject::Cycle(id.to_string()),
                     at,
                 },

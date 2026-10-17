@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::telemetry::TelemetryContract;
 
 /* === Constants === */

@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_contract::telemetry::TelemetryStream;
+pub use dokime_domain::model::telemetry::TelemetryStream;
 
 /* === Imports === */
 // Standard Library Imports
@@ -20,7 +20,8 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::telemetry::TelemetryRow;
 
 /* === Constants === */

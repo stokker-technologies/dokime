@@ -33,15 +33,15 @@ pub type Result<T> = crate::Result<T>;
 pub enum DocumentFailure {
     Limit,
     Evaluation { message: &'static str },
-    InvalidIdentifier { source: dokime_contract::Error },
+    InvalidIdentifier { source: dokime_domain::Error },
     InvalidDefinition { issues: Vec<String> },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
-impl From<dokime_contract::Error> for DocumentFailure {
-    fn from(source: dokime_contract::Error) -> Self {
+impl From<dokime_domain::Error> for DocumentFailure {
+    fn from(source: dokime_domain::Error) -> Self {
         Self::InvalidIdentifier { source }
     }
 }

@@ -17,7 +17,7 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::StructuredErrorDetail;
+use dokime_domain::model::diagnostics::StructuredErrorDetail;
 use crate::records::RecordSeverity;
 
 /* === Constants === */
@@ -45,10 +45,10 @@ pub struct RecordErrorDetail {
     pub message: String,
     pub code: Option<String>,
     pub source: Option<String>,
-    pub cause_chain: Vec<crate::core::ErrorCause>,
-    pub stacktrace_attachment: Option<crate::core::ArtifactId>,
-    pub trace_id: Option<crate::core::TraceId>,
-    pub correlation_id: Option<crate::core::CorrelationId>,
+    pub cause_chain: Vec<dokime_domain::model::diagnostics::ErrorCause>,
+    pub stacktrace_attachment: Option<dokime_domain::model::identity::ArtifactId>,
+    pub trace_id: Option<dokime_domain::model::identity::TraceId>,
+    pub correlation_id: Option<dokime_domain::model::identity::CorrelationId>,
 }
 
 /* === Enums === */

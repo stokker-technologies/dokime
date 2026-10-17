@@ -34,11 +34,14 @@ use harmos::{
 
 // Local Imports
 use super::{Sample, TelemetryEntry, sample};
-use crate::{
-    core::{Identifier, SessionId, Value},
-    storage::{Error, Result, records::ScopeRow, values},
-    telemetry::TelemetryContract,
-};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::values::Value;
+use crate::storage::Error;
+use crate::storage::Result;
+use crate::storage::records::ScopeRow;
+use crate::storage::values;
+use crate::telemetry::TelemetryContract;
 
 /* === Constants === */
 
@@ -357,10 +360,10 @@ pub fn decode_stream_values(
     bytes: &[u8],
 ) -> Result<BTreeMap<String, Value>> {
     let mut values = decode_values(validator, bytes)?;
-    if let Ok(host) = dokime_contract::telemetry::HostTelemetryStream::try_from(stream)
+    if let Ok(host) = dokime_domain::model::telemetry::HostTelemetryStream::try_from(stream)
         && host.as_str() == stream
     {
-        dokime_contract::telemetry::host::contracts::project_host_values(host, &mut values)
+        dokime_domain::model::telemetry::host::contracts::project_host_values(host, &mut values)
             .map_err(|_| Error::Invalid("host telemetry values are invalid"))?;
     }
     Ok(values)
@@ -377,7 +380,7 @@ fn same_timestamp(payload: &Value, stored: &Value) -> bool {
     match (payload, stored) {
         (Value::Text(text), Value::Datetime(instant))
         | (Value::Datetime(instant), Value::Text(text)) => {
-            crate::core::Timestamp::new(text.as_str())
+            dokime_domain::model::time::Timestamp::new(text.as_str())
                 .to_datetime()
                 .is_ok_and(|parsed| parsed == *instant)
         }

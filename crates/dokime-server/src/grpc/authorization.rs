@@ -26,7 +26,8 @@ use harmos::operations::authorization::{Authorizer, Provider, Required};
 // Local Imports
 use super::access::{Principal, Role};
 use super::{Config, Error};
-use dokime_contract::operations::{Endpoints, Operations};
+use dokime_domain::operations::Endpoints;
+use dokime_domain::operations::Operations;
 
 /* === Constants === */
 

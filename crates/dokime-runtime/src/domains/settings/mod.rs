@@ -26,7 +26,11 @@ use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::RuntimeHandle;
-use crate::core::{HostCardBlock, HostCardBody, HostCardTone, Identifier, Value};
+use dokime_domain::model::appearance::HostCardBlock;
+use dokime_domain::model::appearance::HostCardBody;
+use dokime_domain::model::appearance::HostCardTone;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::domains::{DispatchContext, StatusResponse};
 use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
@@ -166,7 +170,7 @@ fn presentation(
 ) {
     let section_id = Identifier::new(&module.source).expect("valid installed source");
     let metadata = || {
-        crate::core::Metadata::new(
+        dokime_domain::model::identity::Metadata::new(
             section_id.clone(),
             module.source.clone(),
             Some(module.description.clone()),
@@ -311,7 +315,7 @@ fn apply_live_status(
                     *items = status
                         .fields
                         .iter()
-                        .map(|(label, value)| crate::core::HostCardKeyValue {
+                        .map(|(label, value)| dokime_domain::model::appearance::HostCardKeyValue {
                             label: label.clone(),
                             value: display_value(value),
                             detail: None,
@@ -377,7 +381,7 @@ fn display_value(value: &Value) -> String {
         Value::Unsigned(value) => value.to_string(),
         Value::Number(value) => value.to_string(),
         Value::Text(value) => value.clone(),
-        Value::Datetime(timestamp) => crate::core::datetime_text(*timestamp),
+        Value::Datetime(timestamp) => dokime_domain::model::time::datetime_text(*timestamp),
         Value::Array(_) | Value::Object(_) => {
             serde_json::to_string(value).unwrap_or_else(|_| "Unavailable".to_owned())
         }

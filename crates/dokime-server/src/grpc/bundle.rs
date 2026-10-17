@@ -22,7 +22,7 @@ use tonic::Status;
 use zip::{ZipWriter, write::SimpleFileOptions};
 // Local Imports
 use super::redaction;
-use dokime_runtime::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 pub(super) const MAX_BUNDLE_BYTES: usize = 16 * 1024 * 1024;

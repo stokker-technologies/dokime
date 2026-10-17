@@ -37,9 +37,9 @@ pub use crate::execution::request::{StepCommand, StepCommandPhase, StepCommandRe
 impl crate::RuntimeHandle {
     pub async fn admit_execution_command(
         &self,
-        request_id: &crate::core::CommandId,
-        command_id: crate::core::CommandId,
-        execution_id: crate::core::TestExecutionId,
+        request_id: &dokime_domain::model::identity::CommandId,
+        command_id: dokime_domain::model::identity::CommandId,
+        execution_id: dokime_domain::model::identity::TestExecutionId,
         action: crate::execution::request::StepCommand,
     ) -> crate::runtime::Result<crate::execution::request::StepCommandReceipt> {
         let at = crate::model::time::now_utc();
@@ -93,7 +93,7 @@ impl crate::RuntimeHandle {
 
     pub async fn run_request(
         &self,
-        id: &crate::core::CommandId,
+        id: &dokime_domain::model::identity::CommandId,
     ) -> crate::runtime::Result<Option<std::sync::Arc<RunReceipt>>> {
         self.request_storage.get(id).await
     }

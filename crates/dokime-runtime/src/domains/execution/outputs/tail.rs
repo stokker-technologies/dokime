@@ -21,7 +21,7 @@ use tokio::io::{AsyncReadExt, AsyncSeek, AsyncSeekExt};
 // Local Imports
 use crate::runtime::storage::executions::ExecutionStorage;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
-use crate::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 const LOG_BUFFER_BYTES: usize = 64 * 1024;

@@ -20,7 +20,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::plugin::settings::PluginSettings;
 
 /* === Constants === */

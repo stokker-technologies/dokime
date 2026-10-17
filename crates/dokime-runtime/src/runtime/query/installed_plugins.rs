@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::state::PluginOwner;
 use crate::{InstalledPlugin, RuntimeState};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 

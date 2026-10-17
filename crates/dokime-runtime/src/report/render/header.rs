@@ -24,10 +24,15 @@ use crate::{
     report::{input::CycleReportInput, value::Value},
     runtime::storage::cycle::CycleSnapshot,
 };
-use crate::{
-    core::{DocumentId, Metadata, SessionId, TestCycleId, Timestamp},
-    execution::{CycleStatus, ExecutionStatus, ResultStatus, ResultSummary},
-};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::time::Timestamp;
+use crate::execution::CycleStatus;
+use crate::execution::ExecutionStatus;
+use crate::execution::ResultStatus;
+use crate::execution::ResultSummary;
 
 /* === Constants === */
 

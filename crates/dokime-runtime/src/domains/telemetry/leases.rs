@@ -23,7 +23,9 @@ use std::{
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry_runtime::sampling::record_scope_from_sampling_scope;
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{Identifier, RecordScope, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::{
     SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest, TelemetrySourceKind,
 };
@@ -537,8 +539,8 @@ impl RuntimeHandle {
         &self,
         delivery: LeasedRows,
         accepted: &[(
-            Option<crate::core::TestExecutionId>,
-            crate::core::TelemetrySampleId,
+            Option<dokime_domain::model::identity::TestExecutionId>,
+            dokime_domain::model::identity::TelemetrySampleId,
         )],
     ) {
         for (stream, holders) in delivery.holders {
@@ -775,7 +777,7 @@ impl RuntimeHandle {
                 source_id: requester.to_owned(),
                 stream: stream.to_string(),
                 // The owner's, read off the contract when the lease was taken.
-                interval: Some(crate::core::DurationMillis(
+                interval: Some(dokime_domain::model::time::DurationMillis(
                     interval.as_millis().min(u128::from(u64::MAX)) as u64,
                 )),
                 min_interval: None,
@@ -835,7 +837,8 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 #[cfg(test)]
 mod tests {
     use super::delivery_scope;
-    use crate::core::{EvidenceOrigin, RecordScope, TestExecutionId};
+    use dokime_domain::model::execution::EvidenceOrigin;
+    use dokime_domain::model::identity::TestExecutionId;
 
     #[test]
     fn delivery_preserves_producer_origin_for_its_execution() {

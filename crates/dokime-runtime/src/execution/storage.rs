@@ -19,7 +19,11 @@ use harmos::MemorySize;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleView, ExecutionStatus, ResultSummary, TestExecution};
-use crate::core::{CaseId, Metadata, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";

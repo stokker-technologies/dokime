@@ -20,10 +20,15 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{
-    DurationMillis, Identifier, MeasurementUnit, SuiteId, TemplateId, ValidationMode, Value,
-    ValueFormat, ValueType,
-};
+use dokime_domain::model::time::DurationMillis;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::identity::SuiteId;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::validation::ValidationMode;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
+use dokime_domain::model::values::ValueType;
 use crate::storage::objects::presentation as native;
 use crate::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
 

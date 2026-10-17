@@ -25,7 +25,8 @@ use harmos::storage::StorageCursor;
 use super::{context::Context, records::Contracts as RecordContracts, telemetry::Contracts};
 use crate::execution::context::captured::source::CapturedSource;
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{NodeId, Timestamp};
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
 use crate::storage::objects::presentation as native;
 
@@ -74,7 +75,7 @@ impl Source {
             owner_node_id: NodeId::from_uuid(self.owner_node_id)
                 .map_err(crate::storage::Error::from)?,
             execution: self.execution.map(TryInto::try_into).transpose()?,
-            execution_id: crate::core::TestExecutionId::from_uuid(self.execution_id)
+            execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(self.execution_id)
                 .map_err(crate::storage::Error::from)?,
             lifecycle_id: self.lifecycle_id,
             lifecycle: take(self.lifecycle)?.try_into()?,

@@ -20,7 +20,7 @@ use time::OffsetDateTime;
 // Local Imports
 use crate::document::frame::{Lookup, Side, Strategy};
 use crate::plot::{parse_timestamp, sample_matches_scope, stream_matches_alias};
-use crate::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
@@ -139,7 +139,7 @@ fn probe(side: &Side<'_>) -> Probe {
             .and_then(|scope| scope.test_execution_id.as_ref())
             .map(|id| id.as_str().to_owned()),
         scope.and_then(|scope| match &scope.origin {
-            crate::core::EvidenceOrigin::Step { attempt_id } => {
+            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => {
                 Some(attempt_id.as_str().to_owned())
             }
             _ => None,

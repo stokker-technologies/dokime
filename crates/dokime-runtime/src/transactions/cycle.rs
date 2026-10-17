@@ -30,7 +30,12 @@ use crate::transactions::prompts::{
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use crate::{runtime::Error, state::RuntimeState};
-use crate::core::{CaseId, RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

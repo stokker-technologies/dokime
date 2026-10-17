@@ -27,7 +27,8 @@ use super::bundle;
 use crate::diagnostics_assembly::DiagnosticsSnapshot;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-use dokime_contract::operations::{backend as wire, common::Timestamp};
+use dokime_domain::operations::backend as wire;
+use dokime_domain::operations::common::Timestamp;
 
 /* === Constants === */
 
@@ -47,11 +48,12 @@ struct Collector<'a> {
 /* === Implementations === */
 impl Collector<'_> {
     async fn health(&self) -> Result<wire::BackendHealth, Status> {
-        use dokime_contract::operations::runtime::{GetHealth, Readiness};
+        use dokime_domain::operations::runtime::GetHealth;
+        use dokime_domain::operations::runtime::Readiness;
         let instance = self
             .runtime
             .operations()
-            .submit_as::<GetHealth>(dokime_contract::operations::runtime::Request {})
+            .submit_as::<GetHealth>(GetHealth {})
             .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         let health = harmos::grpc::response(instance)
             .await
@@ -152,14 +154,14 @@ impl Collector<'_> {
         )
     }
 
-    fn artifact_ids(&self) -> Vec<dokime_runtime::core::Identifier> {
+    fn artifact_ids(&self) -> Vec<dokime_domain::model::identity::Identifier> {
         self.runtime
             .watch_state()
             .latest()
             .state()
             .installed_plugins
             .keys()
-            .filter_map(|id| dokime_runtime::core::Identifier::new(id.as_str()).ok())
+            .filter_map(|id| dokime_domain::model::identity::Identifier::new(id.as_str()).ok())
             .collect()
     }
 }
@@ -218,7 +220,7 @@ fn health_json(health: &wire::BackendHealth) -> Json {
     })
 }
 
-fn process_json(process: &dokime_contract::operations::backend::ProcessDiagnostics) -> Json {
+fn process_json(process: &dokime_domain::operations::backend::ProcessDiagnostics) -> Json {
     json!({
         "pid": process.pid,
         "cpu_percent": process.cpu_percent,

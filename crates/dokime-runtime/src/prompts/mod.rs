@@ -18,7 +18,7 @@ pub use authoring::{
     PromptNumber, TextPrompt,
 };
 pub use declared::{DeclaredPrompt, PromptFieldValue};
-pub use dokime_contract::prompts::*;
+pub use dokime_domain::model::prompts::*;
 pub use validation::{validate_answers, validate_definition, validate_fields};
 
 pub use declared::{

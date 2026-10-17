@@ -53,11 +53,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime_contract::core::TestCycleId::from_uuid(&args.cycle_id)
+    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&args.cycle_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
-    dokime_contract::core::CaseId::from_wire(&args.case_id)
+    dokime_domain::model::identity::CaseId::from_wire(&args.case_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
-    dokime_contract::core::command::validate_idempotency_key(&args.key)
+    dokime_domain::model::execution::command::validate_idempotency_key(&args.key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let cycle = client.cycle(id);

@@ -22,7 +22,11 @@ use crate::{
     RuntimeHandle,
     transactions::parameters::{UpsertScopedParameter, apply_upsert_scoped_parameter},
 };
-use crate::core::{Identifier, MeasurementUnit, Metadata, RecordScope, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

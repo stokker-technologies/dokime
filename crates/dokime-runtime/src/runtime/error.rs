@@ -17,7 +17,7 @@
 // Third Party Imports
 use thiserror::Error as ThisError;
 // Local Imports
-use crate::core::ValidationIssue;
+use dokime_domain::model::diagnostics::ValidationIssue;
 
 /* === Constants === */
 
@@ -109,7 +109,7 @@ pub enum Error {
 
     #[error("provider request `{request_id}` terminal publication failed: {source}")]
     ProviderCompletion {
-        request_id: crate::core::CommandId,
+        request_id: dokime_domain::model::identity::CommandId,
         #[source]
         source: std::sync::Arc<Error>,
     },
@@ -258,7 +258,6 @@ fn harmos_message(error: &harmos::Error) -> String {
             _ => return message,
         };
         for failure in failures {
-            use std::fmt::Write;
             let _ = write!(
                 message,
                 "; plugin `{}`: {}",

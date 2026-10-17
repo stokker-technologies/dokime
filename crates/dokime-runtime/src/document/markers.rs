@@ -19,7 +19,7 @@ use std::mem::{size_of, size_of_val};
 use harmos::MemorySize;
 
 // Local Imports
-use crate::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 use crate::document::{
     DocumentFailure,
     input::{DocumentSelection, Records},

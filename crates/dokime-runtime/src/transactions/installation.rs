@@ -19,7 +19,7 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::state::RuntimeState;
-use dokime_contract::domains::InstalledPlugin;
+use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Constants === */
 

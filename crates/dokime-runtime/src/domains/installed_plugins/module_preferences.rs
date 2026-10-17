@@ -26,7 +26,7 @@ use crate::{
     installed_plugins::{PluginRuntimeCredentialBindings, RuntimePluginManagementError},
     plugins::ProgramValues,
 };
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::settings::{SecretReference, SettingValues, Settings};
 
 /* === Constants === */

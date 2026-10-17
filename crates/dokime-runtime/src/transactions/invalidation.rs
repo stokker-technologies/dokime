@@ -25,7 +25,7 @@ use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
 };
 use crate::transactions::records::draft::Drafts;
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

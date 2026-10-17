@@ -12,9 +12,13 @@
 mod serving;
 
 /* === Re-Exports === */
-pub use dokime_contract::analysis::{
-    Axis, Definition, Limits, MAX_PARAMETER_BYTES, MAX_SAMPLES, Output, Selection,
-};
+pub use dokime_domain::model::analysis::Axis;
+pub use dokime_domain::model::analysis::Definition;
+pub use dokime_domain::model::analysis::Limits;
+pub use dokime_domain::model::analysis::MAX_PARAMETER_BYTES;
+pub use dokime_domain::model::analysis::MAX_SAMPLES;
+pub use dokime_domain::model::analysis::Output;
+pub use dokime_domain::model::analysis::Selection;
 #[cfg(feature = "native")]
 pub use serving::{Handler, Served};
 
@@ -29,7 +33,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::parameters::FromParameters;
 
 /* === Constants === */
