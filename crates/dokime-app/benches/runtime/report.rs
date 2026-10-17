@@ -65,7 +65,7 @@ pub fn benchmark(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("saved_report_rendering");
     group.throughput(Throughput::Elements(executions.len() as u64));
     group.bench_with_input(
-        BenchmarkId::new("mini_steady_cycle", executions.len()),
+        BenchmarkId::new("obc_steady_cycle", executions.len()),
         &executions,
         |bencher, executions| {
             bencher.iter(|| {
@@ -94,7 +94,7 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
     group.throughput(Throughput::Elements(1));
     for duration in [0.5, 2.0] {
         for concurrency in [1, 2, 4] {
-            group.bench_function(BenchmarkId::new(format!("mini_steady/{duration}s"), concurrency), |bencher| {
+            group.bench_function(BenchmarkId::new(format!("obc_steady/{duration}s"), concurrency), |bencher| {
                 bencher.iter_custom(|iterations| {
                     executor.block_on(async {
                         let mut elapsed = Duration::ZERO;
@@ -213,9 +213,9 @@ async fn started_cycle(
     concurrency: usize,
     duration: f64,
 ) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
-    let bundle = root.join("mini-sidecar.dokime");
+    let bundle = root.join("obc-plugin.dokime");
     let prepared = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/fixtures/mini-sidecar/mini-sidecar.dokime");
+        .join("../../target/fixtures/obc-plugin/obc-plugin.dokime");
     std::fs::copy(&prepared, &bundle).unwrap_or_else(|error| {
         panic!(
             "run mise run fixtures:prepare to prepare {}: {error}",
@@ -238,8 +238,8 @@ async fn started_cycle(
         .test_suites()
         .await
         .into_iter()
-        .find(|suite| suite.source == "mini-sidecar" && suite.suite_id == STEADY_SUITE)
-        .expect("Mini's steady suite is registered");
+        .find(|suite| suite.source == "obc-plugin" && suite.suite_id == STEADY_SUITE)
+        .expect("OBC's steady suite is registered");
     let options = dokime::definition::CaseMaterializationOptions {
         force: true,
         ..Default::default()

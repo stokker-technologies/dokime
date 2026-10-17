@@ -11,7 +11,7 @@ https://github.com/stokker-technologies/dokime/raw/refs/heads/main/screenshots/<
 ```
 
 Every image is captured from the real desktop application driving a real backend
-with the `mini-sidecar` AC testbench plugin loaded, in
+with the `obc-plugin` AC testbench plugin loaded, in
 the application's own default theme, with no operating-system window
 chrome. The backend runs under a placeholder identity (`dokime-bench` /
 `Bench Operator`, no git configuration), so the captured traceability panels
@@ -43,7 +43,7 @@ mise run screenshots:build
 mise run screenshots:capture
 ```
 
-`screenshots:build` builds the `dokime` backend, the Mini charger plugin bundle, and
+`screenshots:build` builds the `dokime` backend, the OBC charger plugin bundle, and
 the desktop shell with `tauri/custom-protocol` so the shell runs without a Vite
 development server beside it. `screenshots:capture`
 (`tools/node/gui/capture-screenshots.mjs`) starts a backend with the plugin

@@ -4519,33 +4519,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
-name = "mini-runtime"
-version = "0.1.0"
-dependencies = [
- "harmos",
- "serde",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mini-sidecar"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "harmos",
- "mini-runtime",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "sysinfo",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4996,6 +4969,33 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "obc-plugin"
+version = "0.1.0"
+dependencies = [
+ "dokime",
+ "harmos",
+ "obc-runtime",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sysinfo",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "obc-runtime"
+version = "0.1.0"
+dependencies = [
+ "harmos",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

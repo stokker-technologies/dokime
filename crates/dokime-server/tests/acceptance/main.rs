@@ -112,7 +112,7 @@ impl NativeHub {
         // compositions these scenarios exercise; nothing loads them implicitly.
         let bundles = fixtures::prepared_directory();
         fixtures::require_current(&bundles, fixtures::PREPARE);
-        config.explicit_plugins = ["mini-sidecar", "dokime-route-plugin"]
+        config.explicit_plugins = ["obc-plugin", "dokime-route-plugin"]
             .into_iter()
             .map(|package| bundles.join(package).join(format!("{package}.dokime")))
             .collect();
@@ -1147,7 +1147,7 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         artifact_ids,
-        std::collections::BTreeSet::from(["host", "route-fixture", "mini-sidecar",])
+        std::collections::BTreeSet::from(["host", "route-fixture", "obc-plugin",])
     );
     assert!(installed.plugins.iter().all(|artifact| artifact.enabled));
 

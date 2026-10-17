@@ -9,7 +9,7 @@
 // Real Native WebView Gate For The Installed Windows And Linux Shell. No HTTP facade,
 // no mocked domain IPC, no browser fixtures.
 //
-// The gate starts a throwaway backend with the Mini charger testbench plugin,
+// The gate starts a throwaway backend with the OBC charger testbench plugin,
 // attaches the desktop shell to it with `--endpoint`, and drives the redesigned
 // routes -- `/cycles`, `/library`, `/cycles/$cycleId`, `/history`, `/settings`
 // -- through the application itself. Elements are addressed by accessible name,
@@ -33,7 +33,7 @@
 // Matched Microsoft Edge Driver. DOKIME_E2E_INSTALLER Selects The Native NSIS
 // Artifact; DOKIME_E2E_{INSTALLER,SHELL,BACKEND,CLI}_SHA256 Bind Its Installed
 // Executables To The Candidate. DOKIME_E2E_PLUGIN And DOKIME_E2E_PLUGIN_SHA256
-// Select And Verify Its Prepared Mini Fixture.
+// Select And Verify Its Prepared OBC Fixture.
 // The Optional --junit Path Is Supplied By The Repository Evidence Runner.
 //
 // Two deliberate substitutions, both of the operating system rather than of the
@@ -93,7 +93,7 @@ let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/do
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
 
 const pluginBundle =
-  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/mini-sidecar.dokime");
+  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 
 /** A shell built without `tauri/custom-protocol` loads this origin. */
 const configuredOrigin = process.env.DOKIME_E2E_DEV_URL;
@@ -103,7 +103,7 @@ const densities = {
   touch: { density: "touch", height: 1200, width: 1920 },
 };
 
-/** The suites and templates the Mini charger plugin registers, by rendered label. */
+/** The suites and templates the OBC charger plugin registers, by rendered label. */
 const PROTECTION_SUITE = "Overcurrent Protection";
 
 const PROTECTION_TEMPLATE = "Overcurrent Protection";
@@ -120,7 +120,7 @@ const NUMBER_PARAMETER = "frequency_hz";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
 
-/** The startup template's question, which the mini plugin raises to Warning. */
+/** The startup template's question, which the OBC plugin raises to Warning. */
 const STARTUP_PROMPT = "Inspect Powered Charger";
 
 /** The WebDriver code points for the named keys this gate presses. */
@@ -1549,7 +1549,7 @@ async function cycleJourney(session, cycleId) {
   assert.equal(
     startupCard.level,
     "warning",
-    "The mini plugin's startup prompt must render at its declared Warning level",
+    "The OBC plugin's startup prompt must render at its declared Warning level",
   );
   /* The cycle cockpit offers a card with its kind and Respond; the execution
      page prints the prompt open, under its own "Run Paused" line. */
@@ -2529,7 +2529,7 @@ async function installWindowsCandidate() {
     !/^[a-f0-9]{64}$/.test(process.env.DOKIME_E2E_PLUGIN_SHA256 ?? "")
   ) {
     throw new Error(
-      "Windows acceptance requires the candidate Mini fixture path and DOKIME_E2E_PLUGIN_SHA256.",
+      "Windows acceptance requires the candidate OBC fixture path and DOKIME_E2E_PLUGIN_SHA256.",
     );
   }
   assert.equal(
@@ -2729,7 +2729,7 @@ async function main() {
   for (const [label, path] of [
     ["the backend", backendBinary],
     ["the desktop shell", shellBinary],
-    ["the Mini charger plugin bundle", pluginBundle],
+    ["the OBC charger plugin bundle", pluginBundle],
   ]) {
     if (!existsSync(path))
       throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);

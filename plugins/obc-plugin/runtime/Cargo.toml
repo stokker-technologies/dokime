@@ -1,0 +1,29 @@
+[package]
+name = "obc-runtime"
+edition.workspace = true
+rust-version.workspace = true
+description = "Deterministic onboard charger and testbench runtime for the OBC demo."
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[features]
+# Deterministic whole-app simulation, forwarded to the library that owns it.
+sim = ["harmos/simulation"]
+
+[dependencies]
+# Git
+harmos = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+
+[dev-dependencies]
+# Async
+tokio = { workspace = true }

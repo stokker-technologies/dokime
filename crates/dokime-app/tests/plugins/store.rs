@@ -114,7 +114,7 @@ pub(crate) async fn explicit_bundle_installation() {
     use dokime_app::plugins::PluginBundle;
 
     let root = tempfile::tempdir().unwrap();
-    let bundles = [crate::support::plugins::prepared_bundle("mini-sidecar")];
+    let bundles = [crate::support::plugins::prepared_bundle("obc-plugin")];
     let config = crate::support::config(root.path())
         .with_plugins(bundles.into_iter().map(PluginBundle::new));
     let mut runtime = dokime_app::Runtime::start(config).await.unwrap();
@@ -122,7 +122,7 @@ pub(crate) async fn explicit_bundle_installation() {
 
     let suites = handle.test_suites().await;
     assert!(!suites.is_empty());
-    assert!(suites.iter().all(|suite| suite.source == "mini-sidecar"));
+    assert!(suites.iter().all(|suite| suite.source == "obc-plugin"));
     assert!(handle.plugin_store().list().unwrap().is_empty());
 
     drop(handle);
@@ -529,7 +529,7 @@ pub(crate) async fn startup_reclaims_staging() {
 pub(crate) async fn unchanged_installed_mismatch() {
     let root = tempfile::tempdir().unwrap();
     let store = crate::support::plugins::plugin_store(root.path());
-    let bytes = fs::read(crate::support::plugins::prepared_bundle("mini-sidecar")).unwrap();
+    let bytes = fs::read(crate::support::plugins::prepared_bundle("obc-plugin")).unwrap();
     let id = store.stage(&bytes).unwrap().installation.install_id;
     store.consent(id, &[], &BTreeSet::new()).unwrap();
     let config = crate::support::config(root.path());
@@ -578,11 +578,11 @@ pub(crate) async fn installed_program_upgrades() {
 
     let root = tempfile::tempdir().unwrap();
     let store = crate::support::plugins::plugin_store(root.path());
-    let bytes = fs::read(crate::support::plugins::prepared_bundle("mini-sidecar")).unwrap();
+    let bytes = fs::read(crate::support::plugins::prepared_bundle("obc-plugin")).unwrap();
     let id = store.stage(&bytes).unwrap().installation.install_id;
     store.consent(id, &[], &BTreeSet::new()).unwrap();
     let config = crate::support::config(root.path());
-    let program = Identifier::new("mini-sidecar").unwrap();
+    let program = Identifier::new("obc-plugin").unwrap();
 
     // Discovered Values Are Kept But Not Used
     let mut runtime = dokime_app::Runtime::start(config.clone()).await.unwrap();
@@ -600,7 +600,7 @@ pub(crate) async fn installed_program_upgrades() {
     assert_eq!(resolved.values, declared.values);
     assert_eq!(resolved.discovered[&setting], "/discovered".into());
     let saved = settings_json(&config.application_root);
-    let stored = &saved["plugins"][id.to_string()]["programs"]["mini-sidecar"];
+    let stored = &saved["plugins"][id.to_string()]["programs"]["obc-plugin"];
     assert_eq!(stored["saved"], serde_json::json!([]));
 
     // Saved Values Survive A Restart
@@ -627,7 +627,7 @@ pub(crate) async fn installed_program_upgrades() {
     store.consent(upgrade, &[], &BTreeSet::new()).unwrap();
     let saved = settings_json(&config.application_root);
     assert_eq!(
-        saved["plugins"][upgrade.to_string()]["programs"]["mini-sidecar"]["saved"],
+        saved["plugins"][upgrade.to_string()]["programs"]["obc-plugin"]["saved"],
         serde_json::json!([setting])
     );
     assert_eq!(

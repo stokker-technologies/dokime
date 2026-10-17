@@ -36,7 +36,7 @@ struct Plugin;
 struct Ping;
 #[dokime::catalog]
 enum Operations { Ping(Ping) }
-#[dokime::operation(id = "mini-sidecar.ping", version = 1, description = "Answers.", policy = POLICY)]
+#[dokime::operation(id = "obc-plugin.ping", version = 1, description = "Answers.", policy = POLICY)]
 impl Ping {
     async fn initialize(_: std::sync::Arc<()>, _: &dokime::Supervisor) -> Self { Self }
     async fn run(&mut self, _: &dokime::Supervisor, _: &()) -> Result<(), dokime::Refusal> { Ok(()) }
@@ -45,7 +45,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: dokime::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: dokime::harmos::operations::OperationPolicy = POLICY;
 }
-#[dokime::plugin(id = "mini-sidecar", description = "A plugin whose whole purpose is to say when it opened and when it closed.", provides = Operations, requires(), restart = "never")]
+#[dokime::plugin(id = "obc-plugin", description = "A plugin whose whole purpose is to say when it opened and when it closed.", provides = Operations, requires(), restart = "never")]
 impl dokime::Plugin for Plugin {
     type Config = dokime::plugin::Configuration;
     type Error = dokime::Refusal;
@@ -342,7 +342,7 @@ development-support = {{ path = {dependency_path:?} }}
             if inventory
                 .plugins
                 .iter()
-                .any(|entry| entry.plugin_id == "mini-sidecar")
+                .any(|entry| entry.plugin_id == "obc-plugin")
             {
                 break inventory;
             }
@@ -357,7 +357,7 @@ development-support = {{ path = {dependency_path:?} }}
         .iter()
         .map(|entry| entry.plugin_id.as_str())
         .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(owners, ["host", "mini-sidecar"].into_iter().collect());
+    assert_eq!(owners, ["host", "obc-plugin"].into_iter().collect());
     std::fs::write(&source, "invalid Rust source").unwrap();
     wait_for(|| text(&diagnostics).contains("Previous plugin build is still running")).await;
     assert_eq!(
@@ -557,7 +557,7 @@ development-support = {{ path = {dependency_path:?} }}
     );
     assert_eq!(
         entries.installations[0].metadata.as_ref().unwrap().owners,
-        ["mini-sidecar"]
+        ["obc-plugin"]
     );
     drop(host.stdin.take());
     wait_for(|| host.try_wait().unwrap().is_some()).await;

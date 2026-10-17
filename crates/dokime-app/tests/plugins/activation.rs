@@ -217,13 +217,13 @@ pub(crate) async fn mismatched_unknown_initialize() {
     );
 }
 
-// independently built mini bundle installs without a host import.
+// independently built OBC bundle installs without a host import.
 
 pub(crate) async fn independently_built_import() {
     let root = tempdir().unwrap();
-    let bundle = crate::support::plugins::prepared_bundle("mini-sidecar");
+    let bundle = crate::support::plugins::prepared_bundle("obc-plugin");
     let bytes = std::fs::read(bundle)
-        .expect("mise run build:plugins:dev builds the independent Mini bundle");
+        .expect("mise run build:plugins:dev builds the independent OBC bundle");
     let store = crate::support::plugins::plugin_store(root.path());
     let staged = store.stage(&bytes).unwrap();
     let id = staged.installation.install_id;
@@ -236,7 +236,7 @@ pub(crate) async fn independently_built_import() {
             .test_suites()
             .await
             .iter()
-            .any(|suite| suite.source == "mini-sidecar")
+            .any(|suite| suite.source == "obc-plugin")
     );
     assert!(matches!(
         store.list().unwrap()[0].installation.last_boot,
@@ -256,7 +256,7 @@ pub(crate) async fn independently_built_import() {
             .test_suites()
             .await
             .iter()
-            .any(|suite| suite.source == "mini-sidecar")
+            .any(|suite| suite.source == "obc-plugin")
     );
     runtime.shutdown().await.unwrap();
     // An installed bundle's extraction is kept at a stable, install-id-keyed
@@ -278,7 +278,7 @@ pub(crate) async fn independently_built_import() {
             .test_suites()
             .await
             .iter()
-            .any(|suite| suite.source == "mini-sidecar")
+            .any(|suite| suite.source == "obc-plugin")
     );
     assert!(store.list().unwrap().is_empty());
     assert!(!store.path(id).exists());
