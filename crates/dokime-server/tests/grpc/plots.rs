@@ -83,6 +83,16 @@ pub(crate) async fn plot_points_admission() {
         (10_000..100_000).contains(&maximum),
         "the refusal names a maximum between the window and the cap: {message}"
     );
+    // The bound is measured on the plot's payload, so the unary query names
+    // the same maximum over the same rows.
+    let unary = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::PlotSnapshotsRequest {
+            requests: vec![request(100_000)],
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(unary.code(), Code::InvalidArgument, "{unary:?}");
+    assert_eq!(maximum_points(unary.message()), maximum);
     // A refused plot leaves the watch: a later row reaches it as nothing, not
     // as an append that would hide the missing window.
     publish(&handle, &id, ROWS, 1).await;
@@ -93,14 +103,6 @@ pub(crate) async fn plot_points_admission() {
         "a refused plot is not served appends"
     );
     drop(watch);
-    let unary = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::PlotSnapshotsRequest {
-            requests: vec![request(100_000)],
-        })
-        .await
-        .unwrap_err();
-    assert_eq!(unary.code(), Code::InvalidArgument, "{unary:?}");
-    assert_eq!(maximum_points(unary.message()), maximum);
 
     let largest = first_frame(&client, maximum as u64).await;
     assert_eq!(

@@ -40,6 +40,8 @@ use dokime_app::{
 const MESSAGE_HEADROOM_BYTES: usize = 64;
 /// What the output stream adds around a decoded frame.
 const DECODED_HEADROOM_BYTES: usize = 1024;
+/// The longest generation time a payload names: RFC 3339 with nanoseconds.
+const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
 
 /* === Macros === */
 
@@ -163,13 +165,17 @@ fn fit_message(
         .map(|series| series.points.len())
         .sum::<usize>();
     // Points and the cartesian frame aligned with them grow together; the
-    // rest of the envelope is the same whatever the points.
+    // rest of the envelope is the same whatever the points. Its generation
+    // time is charged at its longest, so every delivery of this plot names
+    // the same bound however its trailing zeros fall.
     let mut bare = envelope.clone();
     if let Some(payload) = &mut bare.payload {
         payload.cartesian = None;
         for series in &mut payload.series {
             series.points = Vec::new();
         }
+        let generated = payload.generated_at.len().max(GENERATED_AT_BYTES);
+        payload.generated_at = "0".repeat(generated);
     }
     let series = payload.series.len().max(1);
     let fits = |total: usize, fixed: usize, budget: usize| {
