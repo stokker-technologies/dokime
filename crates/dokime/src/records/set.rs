@@ -114,8 +114,17 @@ impl TestRecordSet {
         &self.health
     }
 
+    // One Health Subject Per Identity: A Later Observation Replaces It In Place.
     pub fn push_health(&mut self, health: HealthItem) {
-        self.health.push(health);
+        match self
+            .health
+            .iter_mut()
+            .find(|item| item.health_item_id == health.health_item_id)
+        {
+            Some(item) if item.observed_at <= health.observed_at => *item = health,
+            Some(_) => {}
+            None => self.health.push(health),
+        }
     }
 
     pub fn notes(&self) -> &[OperatorNote] {

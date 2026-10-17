@@ -287,6 +287,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::report_payloads::latest_member_annotations");
+        run_scenario(
+            documents::report_payloads::latest_member_annotations,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::report_payloads::telemetry_index_endpoints");
         run_scenario(
             documents::report_payloads::telemetry_index_endpoints,

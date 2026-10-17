@@ -1373,6 +1373,109 @@ pub(crate) async fn normalised_report_rows() {
     assert!(steps.iter().all(|row| row["test_execution_id"] == owner));
 }
 
+// Members repeat cycle annotations in their own frozen contexts. The first
+// member is captured after a cycle health item is observed again and the
+// second before, so only the latest observation, not member order, keeps the
+// newer row; a cycle note both members hold appears once.
+pub(crate) async fn latest_member_annotations() {
+    use dokime::core::CommandId;
+    use dokime::execution::{HealthItem, HealthSeverity};
+    use dokime_app::domains::evidence::notes::CreateNoteRequest;
+    use dokime_app::execution::notes::NoteOwner;
+
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let members = cycle_snapshot(&runtime, &cycle_id)
+        .await
+        .test_executions
+        .iter()
+        .map(|member| member.test_execution_id.clone())
+        .collect::<Vec<_>>();
+    let note = runtime
+        .create_current_note(CreateNoteRequest {
+            epoch: runtime.process_epoch(),
+            mutation_id: CommandId::new(),
+            owner: NoteOwner::Cycle {
+                cycle_id: cycle_id.clone(),
+            },
+            actor: "operator".into(),
+            message: "Bench ambient 23 °C.".into(),
+        })
+        .await
+        .unwrap()
+        .admission
+        .note;
+    let health_id = dokime::core::HealthItemId::new();
+    let health = |message: &str, at: &str| HealthItem {
+        health_item_id: health_id.clone(),
+        scope: RecordScope::default().with_cycle(cycle_id.clone()),
+        severity: HealthSeverity::Warning,
+        message: message.into(),
+        detail: None,
+        observed_at: Timestamp::new(at),
+    };
+    // Each Run Settles With Its Member's Seal Before The Next Observation
+    let run = async |member: &dokime::core::TestExecutionId| {
+        let receipt = runtime
+            .run_execution(
+                member.clone(),
+                dokime_app::execution::ExecutionMode::Automatic,
+                CommandContext::default(),
+            )
+            .await;
+        assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+        let checkpoint = crate::support::native::checkpoint(&runtime, member).await;
+        let view = crate::support::native::open(&runtime, &checkpoint).await;
+        assert!(view.execution().saved.is_some(), "{member} is sealed");
+        let captured = view.snapshot().await.unwrap();
+        captured
+            .context()
+            .unwrap()
+            .health
+            .iter()
+            .filter(|item| item.health_item_id == health_id)
+            .map(|item| item.message.clone())
+            .collect::<Vec<_>>()
+    };
+    runtime
+        .record_health_item(health("Degraded", "2026-01-01T00:00:03Z"))
+        .await
+        .unwrap();
+    assert_eq!(run(&members[1]).await, ["Degraded"]);
+    runtime
+        .record_health_item(health("Recovered", "2026-01-01T00:00:04Z"))
+        .await
+        .unwrap();
+    assert_eq!(run(&members[0]).await, ["Recovered"]);
+
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    let payload = parse(std::str::from_utf8(&report.html).unwrap());
+    let health = payload["snapshot"]["health"].as_array().unwrap();
+    assert_eq!(
+        health
+            .iter()
+            .filter(|row| row["health_id"] == health_id.as_str())
+            .map(|row| row["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["Recovered"],
+        "the cycle keeps the latest observation once: {health:?}"
+    );
+    let notes = payload["snapshot"]["notes"].as_array().unwrap();
+    assert_eq!(
+        notes
+            .iter()
+            .filter(|row| row["note_id"] == note.note_id.as_str())
+            .count(),
+        1,
+        "a repeated cycle note appears once: {notes:?}"
+    );
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 pub(crate) async fn telemetry_index_endpoints() {
     use dokime::telemetry::TelemetrySample;
 
