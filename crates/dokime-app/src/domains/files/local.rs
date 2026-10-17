@@ -26,7 +26,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use super::source::{Entry, Listing};
 use super::{SCAN_ENTRIES, capped, invalid, unreachable_source};
 use crate::Result;
-use dokime_contract::operations::files::FileMatcher;
+use dokime::files::FileMatcher;
 
 /* === Constants === */
 

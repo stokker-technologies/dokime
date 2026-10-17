@@ -37,10 +37,11 @@ use std::time::Duration;
 // Local Imports
 use crate::{Error, Result, RuntimeHandle};
 use dokime::core::{RecordScope, TestExecutionId};
+use dokime::files::{FileMatcher, LineMatchers};
 use dokime_contract::artifacts::name;
 use dokime_contract::operations::files::{
-    FileMatcher, FileRule, FileRuleAction, FileWatchRequest, FileWatchSource,
-    FileWatchSourcePayload, LineMatchers, WatchFileRequest,
+    FileRule, FileRuleAction, FileWatchRequest, FileWatchSource, FileWatchSourcePayload,
+    WatchFileRequest,
 };
 use source::Source;
 

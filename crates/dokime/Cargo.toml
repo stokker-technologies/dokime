@@ -19,6 +19,8 @@ version = { workspace = true }
 default = ["native", "derive"]
 native = [
   "harmos/plugin-sidecar",
+  "dep:globset",
+  "dep:regex",
   "dep:tokio",
   "dep:tokio-stream",
   "dep:tracing-subscriber",
@@ -58,6 +60,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
+regex = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }
 uuid = { workspace = true, optional = true }
@@ -71,6 +74,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 
 # Filesystem
+globset = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 
 # Async

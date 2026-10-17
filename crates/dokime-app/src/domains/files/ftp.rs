@@ -37,7 +37,7 @@ use tokio::io::AsyncReadExt;
 use super::source::{Entry, Listing, ReadFailure};
 use super::{SCAN_ENTRIES, UNSUPPORTED, UNTRUSTED, capped, invalid, unreachable_source};
 use crate::{Error, Result};
-use dokime_contract::operations::files::FileMatcher;
+use dokime::files::FileMatcher;
 
 /* === Constants === */
 // Bounds one FTP command, including a data transfer's setup.

@@ -30,6 +30,9 @@ pub mod evidence;
 
 pub mod execution;
 
+#[cfg(feature = "native")]
+pub mod files;
+
 pub mod paths;
 
 pub mod host;
