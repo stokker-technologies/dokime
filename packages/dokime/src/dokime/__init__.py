@@ -146,7 +146,7 @@ import dokime._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2
 import dokime._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_128
 import dokime._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_129
 import dokime._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_130
-import dokime._wire.harmos.host.v1.HostMessages.Operations.messages_pb2 as _wire_131
+import dokime._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_131
 
 # Local Imports
 from .operation import Invoker as Invoker
@@ -166,10 +166,7 @@ DokimeAppearanceGetAppearanceRequest = _wire_0.Row1
 DokimeAppearanceGetAppearanceResponse = _wire_0.Row2
 
 DOKIME_APPEARANCE_GET_APPEARANCE: Operation[
-    DokimeAppearanceGetAppearanceRequest,
-    DokimeAppearanceGetAppearanceResponse,
-    Message,
-    Message,
+    DokimeAppearanceGetAppearanceRequest, DokimeAppearanceGetAppearanceResponse, Message, Message
 ] = Operation(
     id="dokime.appearance.get_appearance",
     version=1,
@@ -191,10 +188,7 @@ DokimeBackendCollectDiagnosticsResponse = _wire_1.Row2
 DokimeBackendCollectDiagnosticsOutput = _wire_1.Row3
 
 DOKIME_BACKEND_COLLECT_DIAGNOSTICS: Operation[
-    DokimeBackendCollectDiagnosticsRequest,
-    DokimeBackendCollectDiagnosticsResponse,
-    Message,
-    DokimeBackendCollectDiagnosticsOutput,
+    DokimeBackendCollectDiagnosticsRequest, DokimeBackendCollectDiagnosticsResponse, Message, DokimeBackendCollectDiagnosticsOutput
 ] = Operation(
     id="dokime.backend.collect_diagnostics",
     version=1,
@@ -214,49 +208,43 @@ DOKIME_BACKEND_COLLECT_DIAGNOSTICS: Operation[
 DokimeBackendGetAvailabilityRequest = _wire_3.Row1
 DokimeBackendGetAvailabilityResponse = _wire_3.Row2
 
-DOKIME_BACKEND_GET_AVAILABILITY: Operation[
-    DokimeBackendGetAvailabilityRequest,
-    DokimeBackendGetAvailabilityResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.backend.get_availability",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeBackendGetAvailabilityRequest,
-    response=DokimeBackendGetAvailabilityResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Backend/GetAvailability",
-    rpc_request=_wire_3.Row1,
-    rpc_response=_wire_3.Row2,
-    contract='{"operation":{"id":"dokime.backend.get_availability","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[],[{"name":"backend_id","tag":314216639,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"methods","tag":35937729,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limits","tag":360978048,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"max_request_bytes","tag":21738781,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_response_bytes","tag":332916061,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_content_bytes","tag":283002951,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_chunk_bytes","tag":462379006,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_page_items","tag":18265974,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_stream_buffer_items","tag":84285475,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetAvailability"}}',
-    fingerprint="cbeeb83ece5254ef63a7db5071cd49f40c5896f8dc210d6cd8a923316e5a499d",
+DOKIME_BACKEND_GET_AVAILABILITY: Operation[DokimeBackendGetAvailabilityRequest, DokimeBackendGetAvailabilityResponse, Message, Message] = (
+    Operation(
+        id="dokime.backend.get_availability",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeBackendGetAvailabilityRequest,
+        response=DokimeBackendGetAvailabilityResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Backend/GetAvailability",
+        rpc_request=_wire_3.Row1,
+        rpc_response=_wire_3.Row2,
+        contract='{"operation":{"id":"dokime.backend.get_availability","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[],[{"name":"backend_id","tag":314216639,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"methods","tag":35937729,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limits","tag":360978048,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"max_request_bytes","tag":21738781,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_response_bytes","tag":332916061,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_content_bytes","tag":283002951,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_chunk_bytes","tag":462379006,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_page_items","tag":18265974,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_stream_buffer_items","tag":84285475,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetAvailability"}}',
+        fingerprint="cbeeb83ece5254ef63a7db5071cd49f40c5896f8dc210d6cd8a923316e5a499d",
+    )
 )
 
 DokimeBackendGetDiagnosticsRequest = _wire_4.Row1
 DokimeBackendGetDiagnosticsResponse = _wire_4.Row2
 
-DOKIME_BACKEND_GET_DIAGNOSTICS: Operation[
-    DokimeBackendGetDiagnosticsRequest,
-    DokimeBackendGetDiagnosticsResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.backend.get_diagnostics",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeBackendGetDiagnosticsRequest,
-    response=DokimeBackendGetDiagnosticsResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Backend/GetDiagnostics",
-    rpc_request=_wire_4.Row1,
-    rpc_response=_wire_4.Row2,
-    contract='{"operation":{"id":"dokime.backend.get_diagnostics","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":83,"definitions":[[],[{"name":"server","tag":11291021,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"runtime","tag":79709414,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"required"},{"name":"process","tag":485056775,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"captured_at","tag":47444430,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"required"},{"name":"identity","tag":155536401,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"revision","tag":395715982,"kind":{"type":"u64"},"cardinality":"required"},{"name":"shutting_down","tag":261423652,"kind":{"type":"bool"},"cardinality":"required"},{"name":"storage_root","tag":276596096,"kind":{"type":"string"},"cardinality":"required"},{"name":"hub_metadata","tag":110284779,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"startup_doctor","tag":387782868,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"path_conventions","tag":21097195,"kind":{"type":"message","definition":9},"cardinality":"repeated"},{"name":"counts","tag":436193088,"kind":{"type":"message","definition":10},"cardinality":"optional"},{"name":"installed_plugin_errors","tag":509736410,"kind":{"type":"message","definition":11},"cardinality":"repeated"}],[{"name":"pid","tag":155258054,"kind":{"type":"u32"},"cardinality":"required"},{"name":"cpu_percent","tag":78048992,"kind":{"type":"f32"},"cardinality":"optional"},{"name":"memory_bytes","tag":487279070,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"virtual_memory_bytes","tag":87068596,"kind":{"type":"u64"},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"node","tag":297887107,"kind":{"type":"message","definition":12},"cardinality":"optional"},{"name":"actor","tag":244112291,"kind":{"type":"message","definition":13},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":14},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"checked_at","tag":455813746,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"checks","tag":252673362,"kind":{"type":"message","definition":16},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"message","definition":17},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":18},"cardinality":"required"},{"name":"format","tag":429759688,"kind":{"type":"message","definition":19},"cardinality":"required"},{"name":"relative_path","tag":145305526,"kind":{"type":"string"},"cardinality":"required"},{"name":"absolute_path","tag":256002173,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"test_suites","tag":326926845,"kind":{"type":"u64"},"cardinality":"required"},{"name":"cycles","tag":357209418,"kind":{"type":"u64"},"cardinality":"required"},{"name":"installed_plugin_errors","tag":509736410,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_cycles","tag":37394594,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_executions_total","tag":52350085,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_record_count","tag":488708995,"kind":{"type":"u64"},"cardinality":"required"},{"name":"telemetry_cursor_entries","tag":280852001,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"plugin_id","tag":419043117,"kind":{"type":"string"},"cardinality":"required"},{"name":"contribution_id","tag":10467190,"kind":{"type":"string"},"cardinality":"optional"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":20},"cardinality":"required"},{"name":"level","tag":463076202,"kind":{"type":"message","definition":21},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cause_chain","tag":262381574,"kind":{"type":"message","definition":22},"cardinality":"repeated"},{"name":"stacktrace_attachment","tag":432951406,"kind":{"type":"string"},"cardinality":"optional"},{"name":"trace_id","tag":270709271,"kind":{"type":"string"},"cardinality":"optional"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":23},"cardinality":"optional"},{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"test_cycle_id","tag":353281408,"kind":{"type":"string"},"cardinality":"optional"},{"name":"test_execution_id","tag":313019265,"kind":{"type":"string"},"cardinality":"optional"},{"name":"recorded_at","tag":519878818,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"node_id","tag":169146145,"kind":{"type":"string"},"cardinality":"required"},{"name":"hostname_label","tag":315061020,"kind":{"type":"string"},"cardinality":"optional"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"actor_id","tag":418544168,"kind":{"type":"string"},"cardinality":"required"},{"name":"display_name","tag":22437482,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":24},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Ok","tag":98866547,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Warning","tag":398787681,"kind":{"type":"message","definition":27},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":28},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"message","definition":29},"cardinality":"required"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"detail","tag":3434552,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"HubLog","tag":85367593,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"StartupDoctor","tag":143206200,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"DiagnosticsSnapshot","tag":367429240,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"CollectBundle","tag":493634591,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"CycleLogPattern","tag":149152944,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"ExecutionLogPattern","tag":153985000,"kind":{"type":"message","definition":36},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Root","tag":19493339,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"CyclePattern","tag":366995964,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"ExecutionPattern","tag":374849743,"kind":{"type":"message","definition":40},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Json","tag":495116272,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"Jsonl","tag":65486726,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Zip","tag":235736893,"kind":{"type":"message","definition":44},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Entrypoint","tag":211473082,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Action","tag":175615240,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Sidecar","tag":355002504,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"Provider","tag":363368622,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"Initialize","tag":486741752,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Run","tag":223869431,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Finalize","tag":103445141,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"Interrupt","tag":143152742,"kind":{"type":"message","definition":53},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":56},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":59},"cardinality":"variant"}],[{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":60},"cardinality":"optional"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":61},"cardinality":"repeated"}],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"StorageRoot","tag":422818088,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"ShutdownState","tag":264905396,"kind":{"type":"message","definition":64},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":65},"cardinality":"optional"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":66},"cardinality":"optional"}],[],[],[],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":68},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":69},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":70},"cardinality":"variant"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":71},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":72},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":73},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":74},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":75},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":76},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":77},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":78},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":79},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":80},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":81},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":82},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetDiagnostics"}}',
-    fingerprint="079d75d4633cf4ec979df755680138db7f84e4b5eabfced79e2b54648fb95f2e",
+DOKIME_BACKEND_GET_DIAGNOSTICS: Operation[DokimeBackendGetDiagnosticsRequest, DokimeBackendGetDiagnosticsResponse, Message, Message] = (
+    Operation(
+        id="dokime.backend.get_diagnostics",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeBackendGetDiagnosticsRequest,
+        response=DokimeBackendGetDiagnosticsResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Backend/GetDiagnostics",
+        rpc_request=_wire_4.Row1,
+        rpc_response=_wire_4.Row2,
+        contract='{"operation":{"id":"dokime.backend.get_diagnostics","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":83,"definitions":[[],[{"name":"server","tag":11291021,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"runtime","tag":79709414,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"required"},{"name":"process","tag":485056775,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"captured_at","tag":47444430,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"required"},{"name":"identity","tag":155536401,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"revision","tag":395715982,"kind":{"type":"u64"},"cardinality":"required"},{"name":"shutting_down","tag":261423652,"kind":{"type":"bool"},"cardinality":"required"},{"name":"storage_root","tag":276596096,"kind":{"type":"string"},"cardinality":"required"},{"name":"hub_metadata","tag":110284779,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"startup_doctor","tag":387782868,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"path_conventions","tag":21097195,"kind":{"type":"message","definition":9},"cardinality":"repeated"},{"name":"counts","tag":436193088,"kind":{"type":"message","definition":10},"cardinality":"optional"},{"name":"installed_plugin_errors","tag":509736410,"kind":{"type":"message","definition":11},"cardinality":"repeated"}],[{"name":"pid","tag":155258054,"kind":{"type":"u32"},"cardinality":"required"},{"name":"cpu_percent","tag":78048992,"kind":{"type":"f32"},"cardinality":"optional"},{"name":"memory_bytes","tag":487279070,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"virtual_memory_bytes","tag":87068596,"kind":{"type":"u64"},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"node","tag":297887107,"kind":{"type":"message","definition":12},"cardinality":"optional"},{"name":"actor","tag":244112291,"kind":{"type":"message","definition":13},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":14},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"checked_at","tag":455813746,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"checks","tag":252673362,"kind":{"type":"message","definition":16},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"message","definition":17},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":18},"cardinality":"required"},{"name":"format","tag":429759688,"kind":{"type":"message","definition":19},"cardinality":"required"},{"name":"relative_path","tag":145305526,"kind":{"type":"string"},"cardinality":"required"},{"name":"absolute_path","tag":256002173,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"test_suites","tag":326926845,"kind":{"type":"u64"},"cardinality":"required"},{"name":"cycles","tag":357209418,"kind":{"type":"u64"},"cardinality":"required"},{"name":"installed_plugin_errors","tag":509736410,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_cycles","tag":37394594,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_executions_total","tag":52350085,"kind":{"type":"u64"},"cardinality":"required"},{"name":"state_record_count","tag":488708995,"kind":{"type":"u64"},"cardinality":"required"},{"name":"telemetry_cursor_entries","tag":280852001,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"plugin_id","tag":419043117,"kind":{"type":"string"},"cardinality":"required"},{"name":"contribution_id","tag":10467190,"kind":{"type":"string"},"cardinality":"optional"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":20},"cardinality":"required"},{"name":"level","tag":463076202,"kind":{"type":"message","definition":21},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cause_chain","tag":262381574,"kind":{"type":"message","definition":22},"cardinality":"repeated"},{"name":"stacktrace_attachment","tag":432951406,"kind":{"type":"string"},"cardinality":"optional"},{"name":"trace_id","tag":270709271,"kind":{"type":"string"},"cardinality":"optional"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":23},"cardinality":"optional"},{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"test_cycle_id","tag":353281408,"kind":{"type":"string"},"cardinality":"optional"},{"name":"test_execution_id","tag":313019265,"kind":{"type":"string"},"cardinality":"optional"},{"name":"recorded_at","tag":519878818,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"node_id","tag":169146145,"kind":{"type":"string"},"cardinality":"required"},{"name":"hostname_label","tag":315061020,"kind":{"type":"string"},"cardinality":"optional"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"actor_id","tag":418544168,"kind":{"type":"string"},"cardinality":"required"},{"name":"display_name","tag":22437482,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":24},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Ok","tag":98866547,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Warning","tag":398787681,"kind":{"type":"message","definition":27},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":28},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"message","definition":29},"cardinality":"required"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"detail","tag":3434552,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"HubLog","tag":85367593,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"StartupDoctor","tag":143206200,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"DiagnosticsSnapshot","tag":367429240,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"CollectBundle","tag":493634591,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"CycleLogPattern","tag":149152944,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"ExecutionLogPattern","tag":153985000,"kind":{"type":"message","definition":36},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Root","tag":19493339,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"CyclePattern","tag":366995964,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"ExecutionPattern","tag":374849743,"kind":{"type":"message","definition":40},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Json","tag":495116272,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"Jsonl","tag":65486726,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Zip","tag":235736893,"kind":{"type":"message","definition":44},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Entrypoint","tag":211473082,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Action","tag":175615240,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Sidecar","tag":355002504,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"Provider","tag":363368622,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"Initialize","tag":486741752,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Run","tag":223869431,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Finalize","tag":103445141,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"Interrupt","tag":143152742,"kind":{"type":"message","definition":53},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":56},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":59},"cardinality":"variant"}],[{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":60},"cardinality":"optional"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":61},"cardinality":"repeated"}],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"StorageRoot","tag":422818088,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"ShutdownState","tag":264905396,"kind":{"type":"message","definition":64},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":65},"cardinality":"optional"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":66},"cardinality":"optional"}],[],[],[],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":68},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":69},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":70},"cardinality":"variant"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":71},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":72},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":73},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":74},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":75},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":76},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":77},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":78},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":79},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":80},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":81},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":82},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetDiagnostics"}}',
+        fingerprint="079d75d4633cf4ec979df755680138db7f84e4b5eabfced79e2b54648fb95f2e",
+    )
 )
 
 DokimeBackendGetHealthRequest = _wire_5.Row1
@@ -302,10 +290,7 @@ DokimeBackendWatchLogsResponse = _wire_7.Row2
 DokimeBackendWatchLogsOutput = _wire_7.Row3
 
 DOKIME_BACKEND_WATCH_LOGS: Operation[
-    DokimeBackendWatchLogsRequest,
-    DokimeBackendWatchLogsResponse,
-    Message,
-    DokimeBackendWatchLogsOutput,
+    DokimeBackendWatchLogsRequest, DokimeBackendWatchLogsResponse, Message, DokimeBackendWatchLogsOutput
 ] = Operation(
     id="dokime.backend.watch_logs",
     version=1,
@@ -327,10 +312,7 @@ DokimeBackendWatchTraceResponse = _wire_8.Row2
 DokimeBackendWatchTraceOutput = _wire_8.Row3
 
 DOKIME_BACKEND_WATCH_TRACE: Operation[
-    DokimeBackendWatchTraceRequest,
-    DokimeBackendWatchTraceResponse,
-    Message,
-    DokimeBackendWatchTraceOutput,
+    DokimeBackendWatchTraceRequest, DokimeBackendWatchTraceResponse, Message, DokimeBackendWatchTraceOutput
 ] = Operation(
     id="dokime.backend.watch_trace",
     version=1,
@@ -350,25 +332,22 @@ DOKIME_BACKEND_WATCH_TRACE: Operation[
 DokimeCatalogGetRecordSchemaRequest = _wire_9.Row1
 DokimeCatalogGetRecordSchemaResponse = _wire_9.Row2
 
-DOKIME_CATALOG_GET_RECORD_SCHEMA: Operation[
-    DokimeCatalogGetRecordSchemaRequest,
-    DokimeCatalogGetRecordSchemaResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.catalog.get_record_schema",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeCatalogGetRecordSchemaRequest,
-    response=DokimeCatalogGetRecordSchemaResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Catalog/GetRecordSchema",
-    rpc_request=_wire_9.Row1,
-    rpc_response=_wire_9.Row2,
-    contract='{"operation":{"id":"dokime.catalog.get_record_schema","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":112,"definitions":[[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"template_identifier","tag":107005934,"kind":{"type":"string"},"cardinality":"optional"},{"name":"owner_suite_id","tag":369734122,"kind":{"type":"string"},"cardinality":"optional"},{"name":"default_severity","tag":74111064,"kind":{"type":"message","definition":3},"cardinality":"required"},{"name":"fields","tag":104884581,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"validation_mode","tag":470453788,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"allow_extra_fields","tag":221950232,"kind":{"type":"bool"},"cardinality":"required"},{"name":"display","tag":90833616,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":7},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":8},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"value_type","tag":460104777,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"required","tag":76323245,"kind":{"type":"bool"},"cardinality":"required"},{"name":"nullable","tag":476985335,"kind":{"type":"bool"},"cardinality":"required"},{"name":"unit","tag":146094415,"kind":{"type":"message","definition":16},"cardinality":"optional"},{"name":"choices","tag":395773831,"kind":{"type":"message","definition":17},"cardinality":"repeated"},{"name":"default_value","tag":304977848,"kind":{"type":"message","definition":17},"cardinality":"optional"},{"name":"format","tag":429759688,"kind":{"type":"message","definition":18},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Strict","tag":223750200,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Prototype","tag":506496267,"kind":{"type":"message","definition":21},"cardinality":"variant"}],[{"name":"icon","tag":104871224,"kind":{"type":"message","definition":22},"cardinality":"required"},{"name":"tone","tag":477190716,"kind":{"type":"message","definition":23},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":17},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":27},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":28},"cardinality":"variant"},{"name":"File","tag":186138165,"kind":{"type":"message","definition":29},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":32},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"family","tag":303894500,"kind":{"type":"message","definition":33},"cardinality":"required"},{"name":"symbol","tag":335245593,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":34},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":35},"cardinality":"optional"}],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Activity","tag":511027097,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"AlertTriangle","tag":116786928,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"Archive","tag":325655305,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Bell","tag":156093600,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"CheckCircle","tag":467891045,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"CircleDashed","tag":91818938,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"ClipboardCheck","tag":3222309,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Cpu","tag":466984164,"kind":{"type":"message","definition":44},"cardinality":"variant"},{"name":"FileText","tag":319102879,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Flag","tag":504822985,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Gauge","tag":118462808,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"HeartPulse","tag":361977598,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"HelpCircle","tag":118022518,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"MessageSquareText","tag":362479514,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Package","tag":512715491,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Plug","tag":395133442,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"RadioTower","tag":383619711,"kind":{"type":"message","definition":53},"cardinality":"variant"},{"name":"RotateCcw","tag":423043544,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"ShieldAlert","tag":384314354,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Target","tag":191366389,"kind":{"type":"message","definition":56},"cardinality":"variant"},{"name":"TimerReset","tag":14841342,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Wrench","tag":141273692,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Zap","tag":505452836,"kind":{"type":"message","definition":59},"cardinality":"variant"},{"name":"Clock","tag":459249779,"kind":{"type":"message","definition":60},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":61},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"Success","tag":226693972,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"Warning","tag":398787681,"kind":{"type":"message","definition":64},"cardinality":"variant"},{"name":"Danger","tag":250888887,"kind":{"type":"message","definition":65},"cardinality":"variant"},{"name":"Accent","tag":477223058,"kind":{"type":"message","definition":66},"cardinality":"variant"},{"name":"Muted","tag":354058639,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Neutral","tag":154347200,"kind":{"type":"message","definition":68},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":69},"cardinality":"variant"},{"name":"Count","tag":31971292,"kind":{"type":"message","definition":70},"cardinality":"variant"},{"name":"Distance","tag":333020129,"kind":{"type":"message","definition":71},"cardinality":"variant"},{"name":"Duration","tag":348611724,"kind":{"type":"message","definition":72},"cardinality":"variant"},{"name":"Frequency","tag":227678766,"kind":{"type":"message","definition":73},"cardinality":"variant"},{"name":"Power","tag":122274117,"kind":{"type":"message","definition":74},"cardinality":"variant"},{"name":"Temperature","tag":265692189,"kind":{"type":"message","definition":75},"cardinality":"variant"},{"name":"Voltage","tag":305938158,"kind":{"type":"message","definition":76},"cardinality":"variant"},{"name":"Ratio","tag":114139080,"kind":{"type":"message","definition":77},"cardinality":"variant"},{"name":"Custom","tag":354798363,"kind":{"type":"message","definition":78},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":79},"cardinality":"optional"}],[{"name":"Normal","tag":417215277,"kind":{"type":"message","definition":80},"cardinality":"variant"},{"name":"Fixed","tag":472597076,"kind":{"type":"message","definition":81},"cardinality":"variant"},{"name":"Scientific","tag":44374160,"kind":{"type":"message","definition":82},"cardinality":"variant"},{"name":"Engineering","tag":525559028,"kind":{"type":"message","definition":83},"cardinality":"variant"},{"name":"SiPrefix","tag":361504064,"kind":{"type":"message","definition":84},"cardinality":"variant"},{"name":"AbsoluteTime","tag":526423800,"kind":{"type":"message","definition":85},"cardinality":"variant"},{"name":"ElapsedSinceRun","tag":511662848,"kind":{"type":"message","definition":86},"cardinality":"variant"},{"name":"ElapsedSinceCycle","tag":391496928,"kind":{"type":"message","definition":87},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":88},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":89},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":90},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":91},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":92},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":93},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":94},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":95},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":96},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":97},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":98},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":99},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":100},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":101},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":102},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":103},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":103},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":104},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":105},"cardinality":"required"}],[{"name":"max_fraction_digits","tag":171183621,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"decimals","tag":427187734,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"pattern","tag":121443510,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"unit","tag":146094415,"kind":{"type":"message","definition":106},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":107},"cardinality":"repeated"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":108},"cardinality":"variant"},{"name":"Seconds","tag":504562734,"kind":{"type":"message","definition":109},"cardinality":"variant"},{"name":"Milliseconds","tag":146668657,"kind":{"type":"message","definition":110},"cardinality":"variant"},{"name":"Minutes","tag":383360608,"kind":{"type":"message","definition":111},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Catalog","method":"GetRecordSchema"}}',
-    fingerprint="d981da4329177d9e037ca235bb50c8e157da2a1e5a0df4002608dedba55c3f5a",
+DOKIME_CATALOG_GET_RECORD_SCHEMA: Operation[DokimeCatalogGetRecordSchemaRequest, DokimeCatalogGetRecordSchemaResponse, Message, Message] = (
+    Operation(
+        id="dokime.catalog.get_record_schema",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeCatalogGetRecordSchemaRequest,
+        response=DokimeCatalogGetRecordSchemaResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Catalog/GetRecordSchema",
+        rpc_request=_wire_9.Row1,
+        rpc_response=_wire_9.Row2,
+        contract='{"operation":{"id":"dokime.catalog.get_record_schema","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":112,"definitions":[[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"template_identifier","tag":107005934,"kind":{"type":"string"},"cardinality":"optional"},{"name":"owner_suite_id","tag":369734122,"kind":{"type":"string"},"cardinality":"optional"},{"name":"default_severity","tag":74111064,"kind":{"type":"message","definition":3},"cardinality":"required"},{"name":"fields","tag":104884581,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"validation_mode","tag":470453788,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"allow_extra_fields","tag":221950232,"kind":{"type":"bool"},"cardinality":"required"},{"name":"display","tag":90833616,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":7},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":8},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"value_type","tag":460104777,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"required","tag":76323245,"kind":{"type":"bool"},"cardinality":"required"},{"name":"nullable","tag":476985335,"kind":{"type":"bool"},"cardinality":"required"},{"name":"unit","tag":146094415,"kind":{"type":"message","definition":16},"cardinality":"optional"},{"name":"choices","tag":395773831,"kind":{"type":"message","definition":17},"cardinality":"repeated"},{"name":"default_value","tag":304977848,"kind":{"type":"message","definition":17},"cardinality":"optional"},{"name":"format","tag":429759688,"kind":{"type":"message","definition":18},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Strict","tag":223750200,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Prototype","tag":506496267,"kind":{"type":"message","definition":21},"cardinality":"variant"}],[{"name":"icon","tag":104871224,"kind":{"type":"message","definition":22},"cardinality":"required"},{"name":"tone","tag":477190716,"kind":{"type":"message","definition":23},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":17},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":27},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":28},"cardinality":"variant"},{"name":"File","tag":186138165,"kind":{"type":"message","definition":29},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":32},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"family","tag":303894500,"kind":{"type":"message","definition":33},"cardinality":"required"},{"name":"symbol","tag":335245593,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":34},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":35},"cardinality":"optional"}],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Activity","tag":511027097,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"AlertTriangle","tag":116786928,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"Archive","tag":325655305,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Bell","tag":156093600,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"CheckCircle","tag":467891045,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"CircleDashed","tag":91818938,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"ClipboardCheck","tag":3222309,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Cpu","tag":466984164,"kind":{"type":"message","definition":44},"cardinality":"variant"},{"name":"FileText","tag":319102879,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Flag","tag":504822985,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Gauge","tag":118462808,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"HeartPulse","tag":361977598,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"HelpCircle","tag":118022518,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"MessageSquareText","tag":362479514,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Package","tag":512715491,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Plug","tag":395133442,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"RadioTower","tag":383619711,"kind":{"type":"message","definition":53},"cardinality":"variant"},{"name":"RotateCcw","tag":423043544,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"ShieldAlert","tag":384314354,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Target","tag":191366389,"kind":{"type":"message","definition":56},"cardinality":"variant"},{"name":"TimerReset","tag":14841342,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Wrench","tag":141273692,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Zap","tag":505452836,"kind":{"type":"message","definition":59},"cardinality":"variant"},{"name":"Clock","tag":459249779,"kind":{"type":"message","definition":60},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":61},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"Success","tag":226693972,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"Warning","tag":398787681,"kind":{"type":"message","definition":64},"cardinality":"variant"},{"name":"Danger","tag":250888887,"kind":{"type":"message","definition":65},"cardinality":"variant"},{"name":"Accent","tag":477223058,"kind":{"type":"message","definition":66},"cardinality":"variant"},{"name":"Muted","tag":354058639,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Neutral","tag":154347200,"kind":{"type":"message","definition":68},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":69},"cardinality":"variant"},{"name":"Count","tag":31971292,"kind":{"type":"message","definition":70},"cardinality":"variant"},{"name":"Distance","tag":333020129,"kind":{"type":"message","definition":71},"cardinality":"variant"},{"name":"Duration","tag":348611724,"kind":{"type":"message","definition":72},"cardinality":"variant"},{"name":"Frequency","tag":227678766,"kind":{"type":"message","definition":73},"cardinality":"variant"},{"name":"Power","tag":122274117,"kind":{"type":"message","definition":74},"cardinality":"variant"},{"name":"Temperature","tag":265692189,"kind":{"type":"message","definition":75},"cardinality":"variant"},{"name":"Voltage","tag":305938158,"kind":{"type":"message","definition":76},"cardinality":"variant"},{"name":"Ratio","tag":114139080,"kind":{"type":"message","definition":77},"cardinality":"variant"},{"name":"Custom","tag":354798363,"kind":{"type":"message","definition":78},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":79},"cardinality":"optional"}],[{"name":"Normal","tag":417215277,"kind":{"type":"message","definition":80},"cardinality":"variant"},{"name":"Fixed","tag":472597076,"kind":{"type":"message","definition":81},"cardinality":"variant"},{"name":"Scientific","tag":44374160,"kind":{"type":"message","definition":82},"cardinality":"variant"},{"name":"Engineering","tag":525559028,"kind":{"type":"message","definition":83},"cardinality":"variant"},{"name":"SiPrefix","tag":361504064,"kind":{"type":"message","definition":84},"cardinality":"variant"},{"name":"AbsoluteTime","tag":526423800,"kind":{"type":"message","definition":85},"cardinality":"variant"},{"name":"ElapsedSinceRun","tag":511662848,"kind":{"type":"message","definition":86},"cardinality":"variant"},{"name":"ElapsedSinceCycle","tag":391496928,"kind":{"type":"message","definition":87},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":88},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":89},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":90},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":91},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":92},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":93},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":94},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":95},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":96},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":97},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":98},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":99},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":100},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":101},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":102},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":103},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":103},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":104},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":105},"cardinality":"required"}],[{"name":"max_fraction_digits","tag":171183621,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"decimals","tag":427187734,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"significant_digits","tag":67597574,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"pattern","tag":121443510,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"unit","tag":146094415,"kind":{"type":"message","definition":106},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":107},"cardinality":"repeated"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":108},"cardinality":"variant"},{"name":"Seconds","tag":504562734,"kind":{"type":"message","definition":109},"cardinality":"variant"},{"name":"Milliseconds","tag":146668657,"kind":{"type":"message","definition":110},"cardinality":"variant"},{"name":"Minutes","tag":383360608,"kind":{"type":"message","definition":111},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Catalog","method":"GetRecordSchema"}}',
+        fingerprint="d981da4329177d9e037ca235bb50c8e157da2a1e5a0df4002608dedba55c3f5a",
+    )
 )
 
 DokimeCatalogGetSuiteRequest = _wire_10.Row1
@@ -394,10 +373,7 @@ DokimeCatalogGetTelemetrySchemaRequest = _wire_11.Row1
 DokimeCatalogGetTelemetrySchemaResponse = _wire_11.Row2
 
 DOKIME_CATALOG_GET_TELEMETRY_SCHEMA: Operation[
-    DokimeCatalogGetTelemetrySchemaRequest,
-    DokimeCatalogGetTelemetrySchemaResponse,
-    Message,
-    Message,
+    DokimeCatalogGetTelemetrySchemaRequest, DokimeCatalogGetTelemetrySchemaResponse, Message, Message
 ] = Operation(
     id="dokime.catalog.get_telemetry_schema",
     version=1,
@@ -418,10 +394,7 @@ DokimeCatalogListRecordSchemasRequest = _wire_12.Row1
 DokimeCatalogListRecordSchemasResponse = _wire_12.Row2
 
 DOKIME_CATALOG_LIST_RECORD_SCHEMAS: Operation[
-    DokimeCatalogListRecordSchemasRequest,
-    DokimeCatalogListRecordSchemasResponse,
-    Message,
-    Message,
+    DokimeCatalogListRecordSchemasRequest, DokimeCatalogListRecordSchemasResponse, Message, Message
 ] = Operation(
     id="dokime.catalog.list_record_schemas",
     version=1,
@@ -461,10 +434,7 @@ DokimeCatalogListTelemetrySchemasRequest = _wire_14.Row1
 DokimeCatalogListTelemetrySchemasResponse = _wire_14.Row2
 
 DOKIME_CATALOG_LIST_TELEMETRY_SCHEMAS: Operation[
-    DokimeCatalogListTelemetrySchemasRequest,
-    DokimeCatalogListTelemetrySchemasResponse,
-    Message,
-    Message,
+    DokimeCatalogListTelemetrySchemasRequest, DokimeCatalogListTelemetrySchemasResponse, Message, Message
 ] = Operation(
     id="dokime.catalog.list_telemetry_schemas",
     version=1,
@@ -511,10 +481,7 @@ DokimeContentDownloadArtifactResponse = _wire_17.Row2
 DokimeContentDownloadArtifactOutput = _wire_17.Row3
 
 DOKIME_CONTENT_DOWNLOAD_ARTIFACT: Operation[
-    DokimeContentDownloadArtifactRequest,
-    DokimeContentDownloadArtifactResponse,
-    Message,
-    DokimeContentDownloadArtifactOutput,
+    DokimeContentDownloadArtifactRequest, DokimeContentDownloadArtifactResponse, Message, DokimeContentDownloadArtifactOutput
 ] = Operation(
     id="dokime.content.download_artifact",
     version=1,
@@ -536,10 +503,7 @@ DokimeContentDownloadExecutionFileResponse = _wire_18.Row2
 DokimeContentDownloadExecutionFileOutput = _wire_18.Row3
 
 DOKIME_CONTENT_DOWNLOAD_EXECUTION_FILE: Operation[
-    DokimeContentDownloadExecutionFileRequest,
-    DokimeContentDownloadExecutionFileResponse,
-    Message,
-    DokimeContentDownloadExecutionFileOutput,
+    DokimeContentDownloadExecutionFileRequest, DokimeContentDownloadExecutionFileResponse, Message, DokimeContentDownloadExecutionFileOutput
 ] = Operation(
     id="dokime.content.download_execution_file",
     version=1,
@@ -561,10 +525,7 @@ DokimeContentFollowExecutionFileResponse = _wire_19.Row2
 DokimeContentFollowExecutionFileOutput = _wire_19.Row3
 
 DOKIME_CONTENT_FOLLOW_EXECUTION_FILE: Operation[
-    DokimeContentFollowExecutionFileRequest,
-    DokimeContentFollowExecutionFileResponse,
-    Message,
-    DokimeContentFollowExecutionFileOutput,
+    DokimeContentFollowExecutionFileRequest, DokimeContentFollowExecutionFileResponse, Message, DokimeContentFollowExecutionFileOutput
 ] = Operation(
     id="dokime.content.follow_execution_file",
     version=1,
@@ -584,35 +545,29 @@ DOKIME_CONTENT_FOLLOW_EXECUTION_FILE: Operation[
 DokimeContentListArtifactsRequest = _wire_20.Row1
 DokimeContentListArtifactsResponse = _wire_20.Row2
 
-DOKIME_CONTENT_LIST_ARTIFACTS: Operation[
-    DokimeContentListArtifactsRequest,
-    DokimeContentListArtifactsResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.content.list_artifacts",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeContentListArtifactsRequest,
-    response=DokimeContentListArtifactsResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Content/ListArtifacts",
-    rpc_request=_wire_20.Row1,
-    rpc_response=_wire_20.Row2,
-    contract='{"operation":{"id":"dokime.content.list_artifacts","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":11,"definitions":[[{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"after_artifact_id","tag":190883561,"kind":{"type":"string"},"cardinality":"required"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"artifacts","tag":404807014,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"next_after_artifact_id","tag":222908107,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"metadata_sha256","tag":164881933,"kind":{"type":"bytes"},"cardinality":"required"}],[{"name":"artifact_id","tag":296843544,"kind":{"type":"string"},"cardinality":"required"},{"name":"upload_id","tag":258018103,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"filename","tag":521212250,"kind":{"type":"string"},"cardinality":"required"},{"name":"content_type","tag":329637726,"kind":{"type":"string"},"cardinality":"optional"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":5},"cardinality":"required"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Complete","tag":42905926,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Content","method":"ListArtifacts"}}',
-    fingerprint="1eeb7f47425ee7d142900fe278792beaa2d0a4b438beb0b4f4e90cb55aac0d2e",
+DOKIME_CONTENT_LIST_ARTIFACTS: Operation[DokimeContentListArtifactsRequest, DokimeContentListArtifactsResponse, Message, Message] = (
+    Operation(
+        id="dokime.content.list_artifacts",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeContentListArtifactsRequest,
+        response=DokimeContentListArtifactsResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Content/ListArtifacts",
+        rpc_request=_wire_20.Row1,
+        rpc_response=_wire_20.Row2,
+        contract='{"operation":{"id":"dokime.content.list_artifacts","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":11,"definitions":[[{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"after_artifact_id","tag":190883561,"kind":{"type":"string"},"cardinality":"required"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"artifacts","tag":404807014,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"next_after_artifact_id","tag":222908107,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"metadata_sha256","tag":164881933,"kind":{"type":"bytes"},"cardinality":"required"}],[{"name":"artifact_id","tag":296843544,"kind":{"type":"string"},"cardinality":"required"},{"name":"upload_id","tag":258018103,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"filename","tag":521212250,"kind":{"type":"string"},"cardinality":"required"},{"name":"content_type","tag":329637726,"kind":{"type":"string"},"cardinality":"optional"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":5},"cardinality":"required"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Complete","tag":42905926,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Content","method":"ListArtifacts"}}',
+        fingerprint="1eeb7f47425ee7d142900fe278792beaa2d0a4b438beb0b4f4e90cb55aac0d2e",
+    )
 )
 
 DokimeContentListExecutionFilesRequest = _wire_21.Row1
 DokimeContentListExecutionFilesResponse = _wire_21.Row2
 
 DOKIME_CONTENT_LIST_EXECUTION_FILES: Operation[
-    DokimeContentListExecutionFilesRequest,
-    DokimeContentListExecutionFilesResponse,
-    Message,
-    Message,
+    DokimeContentListExecutionFilesRequest, DokimeContentListExecutionFilesResponse, Message, Message
 ] = Operation(
     id="dokime.content.list_execution_files",
     version=1,
@@ -633,10 +588,7 @@ DokimeContentReadExecutionFileRequest = _wire_22.Row1
 DokimeContentReadExecutionFileResponse = _wire_22.Row2
 
 DOKIME_CONTENT_READ_EXECUTION_FILE: Operation[
-    DokimeContentReadExecutionFileRequest,
-    DokimeContentReadExecutionFileResponse,
-    Message,
-    Message,
+    DokimeContentReadExecutionFileRequest, DokimeContentReadExecutionFileResponse, Message, Message
 ] = Operation(
     id="dokime.content.read_execution_file",
     version=1,
@@ -658,10 +610,7 @@ DokimeContentUploadArtifactResponse = _wire_23.Row2
 DokimeContentUploadArtifactInput = _wire_23.Row3
 
 DOKIME_CONTENT_UPLOAD_ARTIFACT: Operation[
-    DokimeContentUploadArtifactRequest,
-    DokimeContentUploadArtifactResponse,
-    DokimeContentUploadArtifactInput,
-    Message,
+    DokimeContentUploadArtifactRequest, DokimeContentUploadArtifactResponse, DokimeContentUploadArtifactInput, Message
 ] = Operation(
     id="dokime.content.upload_artifact",
     version=1,
@@ -707,10 +656,7 @@ DokimeDocumentsUpdatePlotSettingsRequest = _wire_26.Row1
 DokimeDocumentsUpdatePlotSettingsResponse = _wire_26.Row2
 
 DOKIME_DOCUMENTS_UPDATE_PLOT_SETTINGS: Operation[
-    DokimeDocumentsUpdatePlotSettingsRequest,
-    DokimeDocumentsUpdatePlotSettingsResponse,
-    Message,
-    Message,
+    DokimeDocumentsUpdatePlotSettingsRequest, DokimeDocumentsUpdatePlotSettingsResponse, Message, Message
 ] = Operation(
     id="dokime.documents.update_plot_settings",
     version=1,
@@ -731,10 +677,7 @@ DokimeEvidenceGetCapturedRecordSchemaRequest = _wire_27.Row1
 DokimeEvidenceGetCapturedRecordSchemaResponse = _wire_27.Row2
 
 DOKIME_EVIDENCE_GET_CAPTURED_RECORD_SCHEMA: Operation[
-    DokimeEvidenceGetCapturedRecordSchemaRequest,
-    DokimeEvidenceGetCapturedRecordSchemaResponse,
-    Message,
-    Message,
+    DokimeEvidenceGetCapturedRecordSchemaRequest, DokimeEvidenceGetCapturedRecordSchemaResponse, Message, Message
 ] = Operation(
     id="dokime.evidence.get_captured_record_schema",
     version=1,
@@ -754,12 +697,7 @@ DOKIME_EVIDENCE_GET_CAPTURED_RECORD_SCHEMA: Operation[
 DokimeEvidenceListRecordsRequest = _wire_28.Row1
 DokimeEvidenceListRecordsResponse = _wire_28.Row2
 
-DOKIME_EVIDENCE_LIST_RECORDS: Operation[
-    DokimeEvidenceListRecordsRequest,
-    DokimeEvidenceListRecordsResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_EVIDENCE_LIST_RECORDS: Operation[DokimeEvidenceListRecordsRequest, DokimeEvidenceListRecordsResponse, Message, Message] = Operation(
     id="dokime.evidence.list_records",
     version=1,
     mode="unary",
@@ -780,10 +718,7 @@ DokimeEvidenceWatchRecordsResponse = _wire_29.Row2
 DokimeEvidenceWatchRecordsOutput = _wire_29.Row3
 
 DOKIME_EVIDENCE_WATCH_RECORDS: Operation[
-    DokimeEvidenceWatchRecordsRequest,
-    DokimeEvidenceWatchRecordsResponse,
-    Message,
-    DokimeEvidenceWatchRecordsOutput,
+    DokimeEvidenceWatchRecordsRequest, DokimeEvidenceWatchRecordsResponse, Message, DokimeEvidenceWatchRecordsOutput
 ] = Operation(
     id="dokime.evidence.watch_records",
     version=1,
@@ -804,10 +739,7 @@ DokimeExecutionAppendPlannedCasesRequest = _wire_31.Row1
 DokimeExecutionAppendPlannedCasesResponse = _wire_31.Row2
 
 DOKIME_EXECUTION_APPEND_PLANNED_CASES: Operation[
-    DokimeExecutionAppendPlannedCasesRequest,
-    DokimeExecutionAppendPlannedCasesResponse,
-    Message,
-    Message,
+    DokimeExecutionAppendPlannedCasesRequest, DokimeExecutionAppendPlannedCasesResponse, Message, Message
 ] = Operation(
     id="dokime.execution.append_planned_cases",
     version=1,
@@ -846,36 +778,28 @@ DOKIME_EXECUTION_COPY_CYCLE: Operation[DokimeExecutionCopyCycleRequest, DokimeEx
 DokimeExecutionCreateCycleRequest = _wire_33.Row1
 DokimeExecutionCreateCycleResponse = _wire_33.Row2
 
-DOKIME_EXECUTION_CREATE_CYCLE: Operation[
-    DokimeExecutionCreateCycleRequest,
-    DokimeExecutionCreateCycleResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.create_cycle",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionCreateCycleRequest,
-    response=DokimeExecutionCreateCycleResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/CreateCycle",
-    rpc_request=_wire_33.Row1,
-    rpc_response=_wire_33.Row2,
-    contract='{"operation":{"id":"dokime.execution.create_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":22,"definitions":[[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"continue_on_failure","tag":334772867,"kind":{"type":"bool"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":8},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":9},"cardinality":"optional"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":18},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":6},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":19},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":20},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":21},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"CreateCycle"}}',
-    fingerprint="bf4c1ffba0b6eb37441b3195e51d700810443e2f081537618b0780dfa9a00310",
+DOKIME_EXECUTION_CREATE_CYCLE: Operation[DokimeExecutionCreateCycleRequest, DokimeExecutionCreateCycleResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.create_cycle",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionCreateCycleRequest,
+        response=DokimeExecutionCreateCycleResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/CreateCycle",
+        rpc_request=_wire_33.Row1,
+        rpc_response=_wire_33.Row2,
+        contract='{"operation":{"id":"dokime.execution.create_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":22,"definitions":[[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"continue_on_failure","tag":334772867,"kind":{"type":"bool"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":8},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":9},"cardinality":"optional"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":18},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":6},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":19},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":20},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":21},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"CreateCycle"}}',
+        fingerprint="bf4c1ffba0b6eb37441b3195e51d700810443e2f081537618b0780dfa9a00310",
+    )
 )
 
 DokimeExecutionDeleteCaseRequest = _wire_34.Row1
 DokimeExecutionDeleteCaseResponse = _wire_34.Row2
 
-DOKIME_EXECUTION_DELETE_CASE: Operation[
-    DokimeExecutionDeleteCaseRequest,
-    DokimeExecutionDeleteCaseResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_EXECUTION_DELETE_CASE: Operation[DokimeExecutionDeleteCaseRequest, DokimeExecutionDeleteCaseResponse, Message, Message] = Operation(
     id="dokime.execution.delete_case",
     version=1,
     mode="unary",
@@ -932,35 +856,29 @@ DOKIME_EXECUTION_GET_CYCLE: Operation[DokimeExecutionGetCycleRequest, DokimeExec
 DokimeExecutionGetExecutionRequest = _wire_37.Row1
 DokimeExecutionGetExecutionResponse = _wire_37.Row2
 
-DOKIME_EXECUTION_GET_EXECUTION: Operation[
-    DokimeExecutionGetExecutionRequest,
-    DokimeExecutionGetExecutionResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.get_execution",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionGetExecutionRequest,
-    response=DokimeExecutionGetExecutionResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/GetExecution",
-    rpc_request=_wire_37.Row1,
-    rpc_response=_wire_37.Row2,
-    contract='{"operation":{"id":"dokime.execution.get_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":57,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"summary","tag":279202556,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"admitted_suite","tag":69576899,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"admitted_template_id","tag":301749159,"kind":{"type":"string"},"cardinality":"optional"},{"name":"admitted_template","tag":125487417,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"admitted_plugin","tag":401092799,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"invalidation","tag":276268966,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"started_at","tag":141176714,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"finished_at","tag":402244508,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"result","tag":171407885,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"input_parameter_count","tag":465402938,"kind":{"type":"u64"},"cardinality":"required"},{"name":"output_parameter_count","tag":353175804,"kind":{"type":"u64"},"cardinality":"required"},{"name":"step_count","tag":98474302,"kind":{"type":"u64"},"cardinality":"required"},{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":9},"cardinality":"optional"},{"name":"controls","tag":488697183,"kind":{"type":"message","definition":10},"cardinality":"optional"}],[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"required"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":11},"cardinality":"required"},{"name":"ordinal","tag":72516733,"kind":{"type":"u64"},"cardinality":"required"},{"name":"archived","tag":417318423,"kind":{"type":"bool"},"cardinality":"required"},{"name":"sealed","tag":165160192,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":12},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":13},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"required"},{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"optional"},{"name":"implementation","tag":68254265,"kind":{"type":"message","definition":14},"cardinality":"optional"}],[{"name":"previous","tag":341574768,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"current","tag":426104633,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"passed","tag":289194836,"kind":{"type":"u32"},"cardinality":"required"},{"name":"failed","tag":11333372,"kind":{"type":"u32"},"cardinality":"required"},{"name":"blocked","tag":442333806,"kind":{"type":"u32"},"cardinality":"required"},{"name":"skipped","tag":36621728,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"},{"name":"paused","tag":169450420,"kind":{"type":"bool"},"cardinality":"required"},{"name":"stop_requested","tag":510337835,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_pause","tag":133736419,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_resume","tag":458056488,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_stop","tag":176633358,"kind":{"type":"bool"},"cardinality":"required"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":16},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Invalidated","tag":521772466,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Pending","tag":324188078,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Running","tag":86585767,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Passed","tag":88819595,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Blocked","tag":58248091,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Interrupted","tag":81740250,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Skipped","tag":316124457,"kind":{"type":"message","definition":26},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":27},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":28},"cardinality":"optional"}],[{"name":"ContentDigest","tag":492582056,"kind":{"type":"message","definition":29},"cardinality":"variant"},{"name":"Generation","tag":452912786,"kind":{"type":"message","definition":30},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Pending","tag":324188078,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Passed","tag":88819595,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"Blocked","tag":58248091,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":36},"cardinality":"variant"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":38},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":42},"cardinality":"variant"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":43},"cardinality":"repeated"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[],[],[],[],[],[],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":44},"cardinality":"optional"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":53},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":7},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":54},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":55},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":56},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"GetExecution"}}',
-    fingerprint="65fb4b7c3b971112bb840af5750fa7e8fe1070ead4f28fa67590a118a2d47501",
+DOKIME_EXECUTION_GET_EXECUTION: Operation[DokimeExecutionGetExecutionRequest, DokimeExecutionGetExecutionResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.get_execution",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionGetExecutionRequest,
+        response=DokimeExecutionGetExecutionResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/GetExecution",
+        rpc_request=_wire_37.Row1,
+        rpc_response=_wire_37.Row2,
+        contract='{"operation":{"id":"dokime.execution.get_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":57,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"summary","tag":279202556,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"admitted_suite","tag":69576899,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"admitted_template_id","tag":301749159,"kind":{"type":"string"},"cardinality":"optional"},{"name":"admitted_template","tag":125487417,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"admitted_plugin","tag":401092799,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"invalidation","tag":276268966,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"started_at","tag":141176714,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"finished_at","tag":402244508,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"result","tag":171407885,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"input_parameter_count","tag":465402938,"kind":{"type":"u64"},"cardinality":"required"},{"name":"output_parameter_count","tag":353175804,"kind":{"type":"u64"},"cardinality":"required"},{"name":"step_count","tag":98474302,"kind":{"type":"u64"},"cardinality":"required"},{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":9},"cardinality":"optional"},{"name":"controls","tag":488697183,"kind":{"type":"message","definition":10},"cardinality":"optional"}],[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"required"},{"name":"status","tag":441159525,"kind":{"type":"message","definition":11},"cardinality":"required"},{"name":"ordinal","tag":72516733,"kind":{"type":"u64"},"cardinality":"required"},{"name":"archived","tag":417318423,"kind":{"type":"bool"},"cardinality":"required"},{"name":"sealed","tag":165160192,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":12},"cardinality":"optional"}],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":13},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"required"},{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"optional"},{"name":"implementation","tag":68254265,"kind":{"type":"message","definition":14},"cardinality":"optional"}],[{"name":"previous","tag":341574768,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"current","tag":426104633,"kind":{"type":"message","definition":5},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"status","tag":441159525,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"passed","tag":289194836,"kind":{"type":"u32"},"cardinality":"required"},{"name":"failed","tag":11333372,"kind":{"type":"u32"},"cardinality":"required"},{"name":"blocked","tag":442333806,"kind":{"type":"u32"},"cardinality":"required"},{"name":"skipped","tag":36621728,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"},{"name":"paused","tag":169450420,"kind":{"type":"bool"},"cardinality":"required"},{"name":"stop_requested","tag":510337835,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_pause","tag":133736419,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_resume","tag":458056488,"kind":{"type":"bool"},"cardinality":"required"},{"name":"can_stop","tag":176633358,"kind":{"type":"bool"},"cardinality":"required"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":16},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Invalidated","tag":521772466,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Pending","tag":324188078,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Running","tag":86585767,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Passed","tag":88819595,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Blocked","tag":58248091,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Interrupted","tag":81740250,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Skipped","tag":316124457,"kind":{"type":"message","definition":26},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":27},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":28},"cardinality":"optional"}],[{"name":"ContentDigest","tag":492582056,"kind":{"type":"message","definition":29},"cardinality":"variant"},{"name":"Generation","tag":452912786,"kind":{"type":"message","definition":30},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Pending","tag":324188078,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Passed","tag":88819595,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"Blocked","tag":58248091,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":36},"cardinality":"variant"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":38},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":42},"cardinality":"variant"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":43},"cardinality":"repeated"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[],[],[],[],[],[],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":44},"cardinality":"optional"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":48},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":49},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":50},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":51},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":52},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":53},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":7},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":54},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":55},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":56},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"GetExecution"}}',
+        fingerprint="65fb4b7c3b971112bb840af5750fa7e8fe1070ead4f28fa67590a118a2d47501",
+    )
 )
 
 DokimeExecutionGetExecutionCommandRequest = _wire_38.Row1
 DokimeExecutionGetExecutionCommandResponse = _wire_38.Row2
 
 DOKIME_EXECUTION_GET_EXECUTION_COMMAND: Operation[
-    DokimeExecutionGetExecutionCommandRequest,
-    DokimeExecutionGetExecutionCommandResponse,
-    Message,
-    Message,
+    DokimeExecutionGetExecutionCommandRequest, DokimeExecutionGetExecutionCommandResponse, Message, Message
 ] = Operation(
     id="dokime.execution.get_execution_command",
     version=1,
@@ -980,35 +898,29 @@ DOKIME_EXECUTION_GET_EXECUTION_COMMAND: Operation[
 DokimeExecutionGetRunRequestRequest = _wire_39.Row1
 DokimeExecutionGetRunRequestResponse = _wire_39.Row2
 
-DOKIME_EXECUTION_GET_RUN_REQUEST: Operation[
-    DokimeExecutionGetRunRequestRequest,
-    DokimeExecutionGetRunRequestResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.get_run_request",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionGetRunRequestRequest,
-    response=DokimeExecutionGetRunRequestResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/GetRunRequest",
-    rpc_request=_wire_39.Row1,
-    rpc_response=_wire_39.Row2,
-    contract='{"operation":{"id":"dokime.execution.get_run_request","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":17,"definitions":[[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"},{"name":"node_id","tag":169146145,"kind":{"type":"string"},"cardinality":"required"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":2},"cardinality":"required"},{"name":"paused","tag":169450420,"kind":{"type":"bool"},"cardinality":"required"},{"name":"stop_requested","tag":510337835,"kind":{"type":"bool"},"cardinality":"required"},{"name":"planned_count","tag":476813110,"kind":{"type":"u64"},"cardinality":"required"},{"name":"prepared_count","tag":238056899,"kind":{"type":"u64"},"cardinality":"required"},{"name":"finished_count","tag":19848719,"kind":{"type":"u64"},"cardinality":"required"},{"name":"unstarted_count","tag":277762436,"kind":{"type":"u64"},"cardinality":"required"},{"name":"failed_count","tag":123973141,"kind":{"type":"u64"},"cardinality":"required"},{"name":"claimed_count","tag":417278310,"kind":{"type":"u64"},"cardinality":"required"},{"name":"last_claim","tag":490249172,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"accepted_at","tag":221196770,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"provider_started_at","tag":313013980,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"finished_at","tag":402244508,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"submitted_by","tag":195215496,"kind":{"type":"string"},"cardinality":"optional"},{"name":"interruption","tag":139279651,"kind":{"type":"string"},"cardinality":"optional"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":6},"cardinality":"variant"},{"name":"Queued","tag":507744257,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Preparing","tag":415240956,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Running","tag":86585767,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Finishing","tag":115406715,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Completed","tag":210291194,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Stopped","tag":104803707,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Interrupted","tag":81740250,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"ordinal","tag":72516733,"kind":{"type":"u64"},"cardinality":"required"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"required"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":16},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"GetRunRequest"}}',
-    fingerprint="24ba420e38eaf76bab2c20f8ed1c129f331c6648160a024cbe0118c807bb26f2",
+DOKIME_EXECUTION_GET_RUN_REQUEST: Operation[DokimeExecutionGetRunRequestRequest, DokimeExecutionGetRunRequestResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.get_run_request",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionGetRunRequestRequest,
+        response=DokimeExecutionGetRunRequestResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/GetRunRequest",
+        rpc_request=_wire_39.Row1,
+        rpc_response=_wire_39.Row2,
+        contract='{"operation":{"id":"dokime.execution.get_run_request","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":17,"definitions":[[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request_id","tag":11456249,"kind":{"type":"string"},"cardinality":"required"},{"name":"node_id","tag":169146145,"kind":{"type":"string"},"cardinality":"required"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":2},"cardinality":"required"},{"name":"paused","tag":169450420,"kind":{"type":"bool"},"cardinality":"required"},{"name":"stop_requested","tag":510337835,"kind":{"type":"bool"},"cardinality":"required"},{"name":"planned_count","tag":476813110,"kind":{"type":"u64"},"cardinality":"required"},{"name":"prepared_count","tag":238056899,"kind":{"type":"u64"},"cardinality":"required"},{"name":"finished_count","tag":19848719,"kind":{"type":"u64"},"cardinality":"required"},{"name":"unstarted_count","tag":277762436,"kind":{"type":"u64"},"cardinality":"required"},{"name":"failed_count","tag":123973141,"kind":{"type":"u64"},"cardinality":"required"},{"name":"claimed_count","tag":417278310,"kind":{"type":"u64"},"cardinality":"required"},{"name":"last_claim","tag":490249172,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"accepted_at","tag":221196770,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"provider_started_at","tag":313013980,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"finished_at","tag":402244508,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"submitted_by","tag":195215496,"kind":{"type":"string"},"cardinality":"optional"},{"name":"interruption","tag":139279651,"kind":{"type":"string"},"cardinality":"optional"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":6},"cardinality":"variant"},{"name":"Queued","tag":507744257,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Preparing","tag":415240956,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Running","tag":86585767,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Finishing","tag":115406715,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Completed","tag":210291194,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Failed","tag":360304527,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Stopped","tag":104803707,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Interrupted","tag":81740250,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"ordinal","tag":72516733,"kind":{"type":"u64"},"cardinality":"required"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"required"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":16},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"GetRunRequest"}}',
+        fingerprint="24ba420e38eaf76bab2c20f8ed1c129f331c6648160a024cbe0118c807bb26f2",
+    )
 )
 
 DokimeExecutionListCaseParametersRequest = _wire_40.Row1
 DokimeExecutionListCaseParametersResponse = _wire_40.Row2
 
 DOKIME_EXECUTION_LIST_CASE_PARAMETERS: Operation[
-    DokimeExecutionListCaseParametersRequest,
-    DokimeExecutionListCaseParametersResponse,
-    Message,
-    Message,
+    DokimeExecutionListCaseParametersRequest, DokimeExecutionListCaseParametersResponse, Message, Message
 ] = Operation(
     id="dokime.execution.list_case_parameters",
     version=1,
@@ -1047,12 +959,7 @@ DOKIME_EXECUTION_LIST_CASES: Operation[DokimeExecutionListCasesRequest, DokimeEx
 DokimeExecutionListCyclesRequest = _wire_42.Row1
 DokimeExecutionListCyclesResponse = _wire_42.Row2
 
-DOKIME_EXECUTION_LIST_CYCLES: Operation[
-    DokimeExecutionListCyclesRequest,
-    DokimeExecutionListCyclesResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_EXECUTION_LIST_CYCLES: Operation[DokimeExecutionListCyclesRequest, DokimeExecutionListCyclesResponse, Message, Message] = Operation(
     id="dokime.execution.list_cycles",
     version=1,
     mode="unary",
@@ -1072,10 +979,7 @@ DokimeExecutionListExecutionParametersRequest = _wire_43.Row1
 DokimeExecutionListExecutionParametersResponse = _wire_43.Row2
 
 DOKIME_EXECUTION_LIST_EXECUTION_PARAMETERS: Operation[
-    DokimeExecutionListExecutionParametersRequest,
-    DokimeExecutionListExecutionParametersResponse,
-    Message,
-    Message,
+    DokimeExecutionListExecutionParametersRequest, DokimeExecutionListExecutionParametersResponse, Message, Message
 ] = Operation(
     id="dokime.execution.list_execution_parameters",
     version=1,
@@ -1096,10 +1000,7 @@ DokimeExecutionListExecutionStepsRequest = _wire_44.Row1
 DokimeExecutionListExecutionStepsResponse = _wire_44.Row2
 
 DOKIME_EXECUTION_LIST_EXECUTION_STEPS: Operation[
-    DokimeExecutionListExecutionStepsRequest,
-    DokimeExecutionListExecutionStepsResponse,
-    Message,
-    Message,
+    DokimeExecutionListExecutionStepsRequest, DokimeExecutionListExecutionStepsResponse, Message, Message
 ] = Operation(
     id="dokime.execution.list_execution_steps",
     version=1,
@@ -1120,10 +1021,7 @@ DokimeExecutionListExecutionsRequest = _wire_45.Row1
 DokimeExecutionListExecutionsResponse = _wire_45.Row2
 
 DOKIME_EXECUTION_LIST_EXECUTIONS: Operation[
-    DokimeExecutionListExecutionsRequest,
-    DokimeExecutionListExecutionsResponse,
-    Message,
-    Message,
+    DokimeExecutionListExecutionsRequest, DokimeExecutionListExecutionsResponse, Message, Message
 ] = Operation(
     id="dokime.execution.list_executions",
     version=1,
@@ -1144,10 +1042,7 @@ DokimeExecutionListStepCriteriaRequest = _wire_46.Row1
 DokimeExecutionListStepCriteriaResponse = _wire_46.Row2
 
 DOKIME_EXECUTION_LIST_STEP_CRITERIA: Operation[
-    DokimeExecutionListStepCriteriaRequest,
-    DokimeExecutionListStepCriteriaResponse,
-    Message,
-    Message,
+    DokimeExecutionListStepCriteriaRequest, DokimeExecutionListStepCriteriaResponse, Message, Message
 ] = Operation(
     id="dokime.execution.list_step_criteria",
     version=1,
@@ -1167,12 +1062,7 @@ DOKIME_EXECUTION_LIST_STEP_CRITERIA: Operation[
 DokimeExecutionPauseCycleRequest = _wire_47.Row1
 DokimeExecutionPauseCycleResponse = _wire_47.Row2
 
-DOKIME_EXECUTION_PAUSE_CYCLE: Operation[
-    DokimeExecutionPauseCycleRequest,
-    DokimeExecutionPauseCycleResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_EXECUTION_PAUSE_CYCLE: Operation[DokimeExecutionPauseCycleRequest, DokimeExecutionPauseCycleResponse, Message, Message] = Operation(
     id="dokime.execution.pause_cycle",
     version=1,
     mode="unary",
@@ -1192,10 +1082,7 @@ DokimeExecutionPauseExecutionRequest = _wire_48.Row1
 DokimeExecutionPauseExecutionResponse = _wire_48.Row2
 
 DOKIME_EXECUTION_PAUSE_EXECUTION: Operation[
-    DokimeExecutionPauseExecutionRequest,
-    DokimeExecutionPauseExecutionResponse,
-    Message,
-    Message,
+    DokimeExecutionPauseExecutionRequest, DokimeExecutionPauseExecutionResponse, Message, Message
 ] = Operation(
     id="dokime.execution.pause_execution",
     version=1,
@@ -1215,35 +1102,29 @@ DOKIME_EXECUTION_PAUSE_EXECUTION: Operation[
 DokimeExecutionRenameCycleRequest = _wire_49.Row1
 DokimeExecutionRenameCycleResponse = _wire_49.Row2
 
-DOKIME_EXECUTION_RENAME_CYCLE: Operation[
-    DokimeExecutionRenameCycleRequest,
-    DokimeExecutionRenameCycleResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.rename_cycle",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionRenameCycleRequest,
-    response=DokimeExecutionRenameCycleResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/RenameCycle",
-    rpc_request=_wire_49.Row1,
-    rpc_response=_wire_49.Row2,
-    contract='{"operation":{"id":"dokime.execution.rename_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"RenameCycle"}}',
-    fingerprint="bf2a1bfc424e13e05ad1120277a69004b9170a53cfbecce1ce5e76776682ca01",
+DOKIME_EXECUTION_RENAME_CYCLE: Operation[DokimeExecutionRenameCycleRequest, DokimeExecutionRenameCycleResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.rename_cycle",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionRenameCycleRequest,
+        response=DokimeExecutionRenameCycleResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/RenameCycle",
+        rpc_request=_wire_49.Row1,
+        rpc_response=_wire_49.Row2,
+        contract='{"operation":{"id":"dokime.execution.rename_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"RenameCycle"}}',
+        fingerprint="bf2a1bfc424e13e05ad1120277a69004b9170a53cfbecce1ce5e76776682ca01",
+    )
 )
 
 DokimeExecutionRenameExecutionRequest = _wire_50.Row1
 DokimeExecutionRenameExecutionResponse = _wire_50.Row2
 
 DOKIME_EXECUTION_RENAME_EXECUTION: Operation[
-    DokimeExecutionRenameExecutionRequest,
-    DokimeExecutionRenameExecutionResponse,
-    Message,
-    Message,
+    DokimeExecutionRenameExecutionRequest, DokimeExecutionRenameExecutionResponse, Message, Message
 ] = Operation(
     id="dokime.execution.rename_execution",
     version=1,
@@ -1263,35 +1144,29 @@ DOKIME_EXECUTION_RENAME_EXECUTION: Operation[
 DokimeExecutionResumeCycleRequest = _wire_51.Row1
 DokimeExecutionResumeCycleResponse = _wire_51.Row2
 
-DOKIME_EXECUTION_RESUME_CYCLE: Operation[
-    DokimeExecutionResumeCycleRequest,
-    DokimeExecutionResumeCycleResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.resume_cycle",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionResumeCycleRequest,
-    response=DokimeExecutionResumeCycleResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/ResumeCycle",
-    rpc_request=_wire_51.Row1,
-    rpc_response=_wire_51.Row2,
-    contract='{"operation":{"id":"dokime.execution.resume_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"ResumeCycle"}}',
-    fingerprint="2249037e369d8968686fbf9ecd22cc2664fd30422a0661f3906499fe7bd47abe",
+DOKIME_EXECUTION_RESUME_CYCLE: Operation[DokimeExecutionResumeCycleRequest, DokimeExecutionResumeCycleResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.resume_cycle",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionResumeCycleRequest,
+        response=DokimeExecutionResumeCycleResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/ResumeCycle",
+        rpc_request=_wire_51.Row1,
+        rpc_response=_wire_51.Row2,
+        contract='{"operation":{"id":"dokime.execution.resume_cycle","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"ResumeCycle"}}',
+        fingerprint="2249037e369d8968686fbf9ecd22cc2664fd30422a0661f3906499fe7bd47abe",
+    )
 )
 
 DokimeExecutionResumeExecutionRequest = _wire_52.Row1
 DokimeExecutionResumeExecutionResponse = _wire_52.Row2
 
 DOKIME_EXECUTION_RESUME_EXECUTION: Operation[
-    DokimeExecutionResumeExecutionRequest,
-    DokimeExecutionResumeExecutionResponse,
-    Message,
-    Message,
+    DokimeExecutionResumeExecutionRequest, DokimeExecutionResumeExecutionResponse, Message, Message
 ] = Operation(
     id="dokime.execution.resume_execution",
     version=1,
@@ -1349,35 +1224,29 @@ DOKIME_EXECUTION_RUN_CYCLE: Operation[DokimeExecutionRunCycleRequest, DokimeExec
 DokimeExecutionRunExecutionRequest = _wire_55.Row1
 DokimeExecutionRunExecutionResponse = _wire_55.Row2
 
-DOKIME_EXECUTION_RUN_EXECUTION: Operation[
-    DokimeExecutionRunExecutionRequest,
-    DokimeExecutionRunExecutionResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.run_execution",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionRunExecutionRequest,
-    response=DokimeExecutionRunExecutionResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/RunExecution",
-    rpc_request=_wire_55.Row1,
-    rpc_response=_wire_55.Row2,
-    contract='{"operation":{"id":"dokime.execution.run_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":14,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"idempotency_key","tag":286953619,"kind":{"type":"string"},"cardinality":"optional"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":3},"cardinality":"required"}],[{"name":"outcome","tag":71028974,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":5},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":6},"cardinality":"variant"}],[{"name":"Accepted","tag":30451227,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":8},"cardinality":"variant"}],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":9},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":10},"cardinality":"required"}],[{"name":"command_id","tag":7983655,"kind":{"type":"string"},"cardinality":"required"},{"name":"job_id","tag":307039835,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":11},"cardinality":"optional"},{"name":"accepted_at","tag":221196770,"kind":{"type":"message","definition":12},"cardinality":"optional"}],[{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"issues","tag":443550701,"kind":{"type":"message","definition":13},"cardinality":"repeated"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"expected","tag":388736683,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"RunExecution"}}',
-    fingerprint="88aae5d3cbe5b6a499d3a6fdb8b1f72a489ebcf0cd0011bff42e148085755426",
+DOKIME_EXECUTION_RUN_EXECUTION: Operation[DokimeExecutionRunExecutionRequest, DokimeExecutionRunExecutionResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.run_execution",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionRunExecutionRequest,
+        response=DokimeExecutionRunExecutionResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/RunExecution",
+        rpc_request=_wire_55.Row1,
+        rpc_response=_wire_55.Row2,
+        contract='{"operation":{"id":"dokime.execution.run_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":14,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"idempotency_key","tag":286953619,"kind":{"type":"string"},"cardinality":"optional"},{"name":"mode","tag":208600922,"kind":{"type":"message","definition":3},"cardinality":"required"}],[{"name":"outcome","tag":71028974,"kind":{"type":"message","definition":4},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Automatic","tag":23754536,"kind":{"type":"message","definition":5},"cardinality":"variant"},{"name":"Interactive","tag":230441949,"kind":{"type":"message","definition":6},"cardinality":"variant"}],[{"name":"Accepted","tag":30451227,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":8},"cardinality":"variant"}],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":9},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":10},"cardinality":"required"}],[{"name":"command_id","tag":7983655,"kind":{"type":"string"},"cardinality":"required"},{"name":"job_id","tag":307039835,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":11},"cardinality":"optional"},{"name":"accepted_at","tag":221196770,"kind":{"type":"message","definition":12},"cardinality":"optional"}],[{"name":"code","tag":422677564,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"issues","tag":443550701,"kind":{"type":"message","definition":13},"cardinality":"repeated"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"},{"name":"expected","tag":388736683,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"RunExecution"}}',
+        fingerprint="88aae5d3cbe5b6a499d3a6fdb8b1f72a489ebcf0cd0011bff42e148085755426",
+    )
 )
 
 DokimeExecutionScheduleCaseRerunRequest = _wire_56.Row1
 DokimeExecutionScheduleCaseRerunResponse = _wire_56.Row2
 
 DOKIME_EXECUTION_SCHEDULE_CASE_RERUN: Operation[
-    DokimeExecutionScheduleCaseRerunRequest,
-    DokimeExecutionScheduleCaseRerunResponse,
-    Message,
-    Message,
+    DokimeExecutionScheduleCaseRerunRequest, DokimeExecutionScheduleCaseRerunResponse, Message, Message
 ] = Operation(
     id="dokime.execution.schedule_case_rerun",
     version=1,
@@ -1398,10 +1267,7 @@ DokimeExecutionSetCycleArchivedRequest = _wire_57.Row1
 DokimeExecutionSetCycleArchivedResponse = _wire_57.Row2
 
 DOKIME_EXECUTION_SET_CYCLE_ARCHIVED: Operation[
-    DokimeExecutionSetCycleArchivedRequest,
-    DokimeExecutionSetCycleArchivedResponse,
-    Message,
-    Message,
+    DokimeExecutionSetCycleArchivedRequest, DokimeExecutionSetCycleArchivedResponse, Message, Message
 ] = Operation(
     id="dokime.execution.set_cycle_archived",
     version=1,
@@ -1422,10 +1288,7 @@ DokimeExecutionSetExecutionArchivedRequest = _wire_58.Row1
 DokimeExecutionSetExecutionArchivedResponse = _wire_58.Row2
 
 DOKIME_EXECUTION_SET_EXECUTION_ARCHIVED: Operation[
-    DokimeExecutionSetExecutionArchivedRequest,
-    DokimeExecutionSetExecutionArchivedResponse,
-    Message,
-    Message,
+    DokimeExecutionSetExecutionArchivedRequest, DokimeExecutionSetExecutionArchivedResponse, Message, Message
 ] = Operation(
     id="dokime.execution.set_execution_archived",
     version=1,
@@ -1464,35 +1327,29 @@ DOKIME_EXECUTION_STOP_CYCLE: Operation[DokimeExecutionStopCycleRequest, DokimeEx
 DokimeExecutionStopExecutionRequest = _wire_60.Row1
 DokimeExecutionStopExecutionResponse = _wire_60.Row2
 
-DOKIME_EXECUTION_STOP_EXECUTION: Operation[
-    DokimeExecutionStopExecutionRequest,
-    DokimeExecutionStopExecutionResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.execution.stop_execution",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeExecutionStopExecutionRequest,
-    response=DokimeExecutionStopExecutionResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Execution/StopExecution",
-    rpc_request=_wire_60.Row1,
-    rpc_response=_wire_60.Row2,
-    contract='{"operation":{"id":"dokime.execution.stop_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"StopExecution"}}',
-    fingerprint="b724e3756614ea0429f9a2744fc515ad81641b2ab9e77db84d65e2b22810c4a3",
+DOKIME_EXECUTION_STOP_EXECUTION: Operation[DokimeExecutionStopExecutionRequest, DokimeExecutionStopExecutionResponse, Message, Message] = (
+    Operation(
+        id="dokime.execution.stop_execution",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeExecutionStopExecutionRequest,
+        response=DokimeExecutionStopExecutionResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Execution/StopExecution",
+        rpc_request=_wire_60.Row1,
+        rpc_response=_wire_60.Row2,
+        contract='{"operation":{"id":"dokime.execution.stop_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"required"},{"name":"context","tag":210183177,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"observed_cursor","tag":518952574,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"correlation_id","tag":370622220,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Execution","method":"StopExecution"}}',
+        fingerprint="b724e3756614ea0429f9a2744fc515ad81641b2ab9e77db84d65e2b22810c4a3",
+    )
 )
 
 DokimeExecutionSubmitExecutionCommandRequest = _wire_61.Row1
 DokimeExecutionSubmitExecutionCommandResponse = _wire_61.Row2
 
 DOKIME_EXECUTION_SUBMIT_EXECUTION_COMMAND: Operation[
-    DokimeExecutionSubmitExecutionCommandRequest,
-    DokimeExecutionSubmitExecutionCommandResponse,
-    Message,
-    Message,
+    DokimeExecutionSubmitExecutionCommandRequest, DokimeExecutionSubmitExecutionCommandResponse, Message, Message
 ] = Operation(
     id="dokime.execution.submit_execution_command",
     version=1,
@@ -1513,10 +1370,7 @@ DokimeExecutionUpdateCyclePolicyRequest = _wire_62.Row1
 DokimeExecutionUpdateCyclePolicyResponse = _wire_62.Row2
 
 DOKIME_EXECUTION_UPDATE_CYCLE_POLICY: Operation[
-    DokimeExecutionUpdateCyclePolicyRequest,
-    DokimeExecutionUpdateCyclePolicyResponse,
-    Message,
-    Message,
+    DokimeExecutionUpdateCyclePolicyRequest, DokimeExecutionUpdateCyclePolicyResponse, Message, Message
 ] = Operation(
     id="dokime.execution.update_cycle_policy",
     version=1,
@@ -1537,25 +1391,22 @@ DokimeFilesFileWatchRequest = _wire_63.Row1
 DokimeFilesFileWatchResponse = _wire_63.Row2
 DokimeFilesFileWatchOutput = _wire_63.Row3
 
-DOKIME_FILES_FILE_WATCH: Operation[
-    DokimeFilesFileWatchRequest,
-    DokimeFilesFileWatchResponse,
-    Message,
-    DokimeFilesFileWatchOutput,
-] = Operation(
-    id="dokime.files.file_watch",
-    version=1,
-    mode="server_stream",
-    codec="protobuf",
-    request=DokimeFilesFileWatchRequest,
-    response=DokimeFilesFileWatchResponse,
-    input=None,
-    output=DokimeFilesFileWatchOutput,
-    grpc_path="/dokime.v1.Files/FileWatch",
-    rpc_request=_wire_63.Row1,
-    rpc_response=_wire_64.FilesFileWatchOutput,
-    contract='{"operation":{"id":"dokime.files.file_watch","description":"","policy":{"timeout":{"secs":86400,"nanos":0},"attempt_timeout":{"secs":86400,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":48,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"rules","tag":483381101,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"output","tag":430530216,"kind":{"type":"string"},"cardinality":"required"},{"name":"policy","tag":247535070,"kind":{"type":"message","definition":5},"cardinality":"required"},{"name":"poll_interval_ms","tag":78066846,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_seconds","tag":162491489,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_files","tag":269298131,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_bytes","tag":370641345,"kind":{"type":"u64"},"cardinality":"optional"}],[],[{"name":"payload","tag":319782775,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"payload","tag":319782775,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"glob","tag":389551502,"kind":{"type":"string"},"cardinality":"required"},{"name":"action","tag":73681502,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Stream","tag":92471035,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Mirror","tag":488932043,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"SnapshotAtStart","tag":262080734,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"SnapshotAtStop","tag":518193210,"kind":{"type":"message","definition":13},"cardinality":"variant"}],[{"name":"Progress","tag":439788879,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Gap","tag":178376933,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Sealed","tag":267093930,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Completed","tag":210291194,"kind":{"type":"message","definition":17},"cardinality":"variant"}],[{"name":"Local","tag":145894266,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Ftp","tag":459828142,"kind":{"type":"message","definition":19},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Include","tag":100822397,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Exclude","tag":330280360,"kind":{"type":"message","definition":22},"cardinality":"variant"}],[],[],[],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":23},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":24},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":25},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":26},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":27},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":28},"cardinality":"required"}],[],[],[],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"offset","tag":348706739,"kind":{"type":"u64"},"cardinality":"required"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":29},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"offset","tag":348706739,"kind":{"type":"u64"},"cardinality":"required"},{"name":"reason","tag":413367649,"kind":{"type":"message","definition":30},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"artifact","tag":514566087,"kind":{"type":"message","definition":31},"cardinality":"optional"}],[{"name":"artifacts","tag":404807014,"kind":{"type":"message","definition":31},"cardinality":"repeated"}],[{"name":"root","tag":16586263,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"url","tag":311383024,"kind":{"type":"string"},"cardinality":"required"},{"name":"credential_id","tag":273093192,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Baseline","tag":497138090,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Capturing","tag":267923053,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"Synced","tag":110190762,"kind":{"type":"message","definition":35},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Truncated","tag":152455021,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Replaced","tag":46887872,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"Vanished","tag":128670225,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"ResumeUnsupported","tag":12827329,"kind":{"type":"message","definition":40},"cardinality":"variant"}],[{"name":"artifact_id","tag":296843544,"kind":{"type":"string"},"cardinality":"required"},{"name":"upload_id","tag":258018103,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":41},"cardinality":"optional"},{"name":"filename","tag":521212250,"kind":{"type":"string"},"cardinality":"required"},{"name":"content_type","tag":329637726,"kind":{"type":"string"},"cardinality":"optional"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":42},"cardinality":"required"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":43},"cardinality":"optional"}],[],[],[],[],[],[],[],[],[],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":44},"cardinality":"variant"},{"name":"Complete","tag":42905926,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":47},"cardinality":"variant"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"},{"name":"output","tag":3,"kind":{"type":"message","definition":2},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Files","method":"FileWatch"}}',
-    fingerprint="bcab21b3fe4eecd3d3aa728b65f2dcc5ae73754de05fec887310517d488ae8dd",
+DOKIME_FILES_FILE_WATCH: Operation[DokimeFilesFileWatchRequest, DokimeFilesFileWatchResponse, Message, DokimeFilesFileWatchOutput] = (
+    Operation(
+        id="dokime.files.file_watch",
+        version=1,
+        mode="server_stream",
+        codec="protobuf",
+        request=DokimeFilesFileWatchRequest,
+        response=DokimeFilesFileWatchResponse,
+        input=None,
+        output=DokimeFilesFileWatchOutput,
+        grpc_path="/dokime.v1.Files/FileWatch",
+        rpc_request=_wire_63.Row1,
+        rpc_response=_wire_64.FilesFileWatchOutput,
+        contract='{"operation":{"id":"dokime.files.file_watch","description":"","policy":{"timeout":{"secs":86400,"nanos":0},"attempt_timeout":{"secs":86400,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":48,"definitions":[[{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"rules","tag":483381101,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"output","tag":430530216,"kind":{"type":"string"},"cardinality":"required"},{"name":"policy","tag":247535070,"kind":{"type":"message","definition":5},"cardinality":"required"},{"name":"poll_interval_ms","tag":78066846,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_seconds","tag":162491489,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_files","tag":269298131,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"maximum_bytes","tag":370641345,"kind":{"type":"u64"},"cardinality":"optional"}],[],[{"name":"payload","tag":319782775,"kind":{"type":"message","definition":6},"cardinality":"optional"}],[{"name":"payload","tag":319782775,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"glob","tag":389551502,"kind":{"type":"string"},"cardinality":"required"},{"name":"action","tag":73681502,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Stream","tag":92471035,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Mirror","tag":488932043,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"SnapshotAtStart","tag":262080734,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"SnapshotAtStop","tag":518193210,"kind":{"type":"message","definition":13},"cardinality":"variant"}],[{"name":"Progress","tag":439788879,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Gap","tag":178376933,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Sealed","tag":267093930,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Completed","tag":210291194,"kind":{"type":"message","definition":17},"cardinality":"variant"}],[{"name":"Local","tag":145894266,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Ftp","tag":459828142,"kind":{"type":"message","definition":19},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Include","tag":100822397,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Exclude","tag":330280360,"kind":{"type":"message","definition":22},"cardinality":"variant"}],[],[],[],[],[],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":23},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":24},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":25},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":26},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":27},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":28},"cardinality":"required"}],[],[],[],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"offset","tag":348706739,"kind":{"type":"u64"},"cardinality":"required"},{"name":"phase","tag":427838807,"kind":{"type":"message","definition":29},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"offset","tag":348706739,"kind":{"type":"u64"},"cardinality":"required"},{"name":"reason","tag":413367649,"kind":{"type":"message","definition":30},"cardinality":"required"}],[{"name":"path","tag":75980995,"kind":{"type":"string"},"cardinality":"required"},{"name":"artifact","tag":514566087,"kind":{"type":"message","definition":31},"cardinality":"optional"}],[{"name":"artifacts","tag":404807014,"kind":{"type":"message","definition":31},"cardinality":"repeated"}],[{"name":"root","tag":16586263,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"url","tag":311383024,"kind":{"type":"string"},"cardinality":"required"},{"name":"credential_id","tag":273093192,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Baseline","tag":497138090,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Capturing","tag":267923053,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"Synced","tag":110190762,"kind":{"type":"message","definition":35},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Truncated","tag":152455021,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Replaced","tag":46887872,"kind":{"type":"message","definition":38},"cardinality":"variant"},{"name":"Vanished","tag":128670225,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"ResumeUnsupported","tag":12827329,"kind":{"type":"message","definition":40},"cardinality":"variant"}],[{"name":"artifact_id","tag":296843544,"kind":{"type":"string"},"cardinality":"required"},{"name":"upload_id","tag":258018103,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":41},"cardinality":"optional"},{"name":"filename","tag":521212250,"kind":{"type":"string"},"cardinality":"required"},{"name":"content_type","tag":329637726,"kind":{"type":"string"},"cardinality":"optional"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":42},"cardinality":"required"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":43},"cardinality":"optional"}],[],[],[],[],[],[],[],[],[],[{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":44},"cardinality":"variant"},{"name":"Complete","tag":42905926,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Cancelled","tag":103489842,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Rejected","tag":273735599,"kind":{"type":"message","definition":47},"cardinality":"variant"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"},{"name":"output","tag":3,"kind":{"type":"message","definition":2},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Files","method":"FileWatch"}}',
+        fingerprint="bcab21b3fe4eecd3d3aa728b65f2dcc5ae73754de05fec887310517d488ae8dd",
+    )
 )
 
 DokimeHealthListHealthRequest = _wire_65.Row1
@@ -1581,10 +1432,7 @@ DokimeHistoryBrowseExecutionsRequest = _wire_66.Row1
 DokimeHistoryBrowseExecutionsResponse = _wire_66.Row2
 
 DOKIME_HISTORY_BROWSE_EXECUTIONS: Operation[
-    DokimeHistoryBrowseExecutionsRequest,
-    DokimeHistoryBrowseExecutionsResponse,
-    Message,
-    Message,
+    DokimeHistoryBrowseExecutionsRequest, DokimeHistoryBrowseExecutionsResponse, Message, Message
 ] = Operation(
     id="dokime.history.browse_executions",
     version=1,
@@ -1604,25 +1452,22 @@ DOKIME_HISTORY_BROWSE_EXECUTIONS: Operation[
 DokimeHistoryDeleteExecutionRequest = _wire_67.Row1
 DokimeHistoryDeleteExecutionResponse = _wire_67.Row2
 
-DOKIME_HISTORY_DELETE_EXECUTION: Operation[
-    DokimeHistoryDeleteExecutionRequest,
-    DokimeHistoryDeleteExecutionResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.history.delete_execution",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeHistoryDeleteExecutionRequest,
-    response=DokimeHistoryDeleteExecutionResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.History/DeleteExecution",
-    rpc_request=_wire_67.Row1,
-    rpc_response=_wire_67.Row2,
-    contract='{"operation":{"id":"dokime.history.delete_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":5,"definitions":[[{"name":"checkpoint","tag":400868551,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"request_identifier","tag":483398697,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request_identifier","tag":483398697,"kind":{"type":"string"},"cardinality":"required"},{"name":"execution_identifier","tag":130802207,"kind":{"type":"string"},"cardinality":"required"},{"name":"local_complete","tag":472191354,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"execution_identifier","tag":130802207,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"version","tag":108116562,"kind":{"type":"bytes"},"cardinality":"required"},{"name":"evidence_through","tag":139184557,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"history","tag":175213978,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"sequence","tag":474216250,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"store","tag":132634509,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"History","method":"DeleteExecution"}}',
-    fingerprint="1a7d11c3b257e9d2f35a37d1efce5c54b663ff7757c6975099d6ce6cd01a0e7f",
+DOKIME_HISTORY_DELETE_EXECUTION: Operation[DokimeHistoryDeleteExecutionRequest, DokimeHistoryDeleteExecutionResponse, Message, Message] = (
+    Operation(
+        id="dokime.history.delete_execution",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeHistoryDeleteExecutionRequest,
+        response=DokimeHistoryDeleteExecutionResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.History/DeleteExecution",
+        rpc_request=_wire_67.Row1,
+        rpc_response=_wire_67.Row2,
+        contract='{"operation":{"id":"dokime.history.delete_execution","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":5,"definitions":[[{"name":"checkpoint","tag":400868551,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"request_identifier","tag":483398697,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request_identifier","tag":483398697,"kind":{"type":"string"},"cardinality":"required"},{"name":"execution_identifier","tag":130802207,"kind":{"type":"string"},"cardinality":"required"},{"name":"local_complete","tag":472191354,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"execution_identifier","tag":130802207,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"version","tag":108116562,"kind":{"type":"bytes"},"cardinality":"required"},{"name":"evidence_through","tag":139184557,"kind":{"type":"message","definition":3},"cardinality":"optional"}],[{"name":"history","tag":175213978,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"sequence","tag":474216250,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"store","tag":132634509,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"History","method":"DeleteExecution"}}',
+        fingerprint="1a7d11c3b257e9d2f35a37d1efce5c54b663ff7757c6975099d6ce6cd01a0e7f",
+    )
 )
 
 DokimeHistoryDownloadCheckpointArtifactRequest = _wire_68.Row1
@@ -1654,10 +1499,7 @@ DokimeHistoryGetCheckpointContextRequest = _wire_70.Row1
 DokimeHistoryGetCheckpointContextResponse = _wire_70.Row2
 
 DOKIME_HISTORY_GET_CHECKPOINT_CONTEXT: Operation[
-    DokimeHistoryGetCheckpointContextRequest,
-    DokimeHistoryGetCheckpointContextResponse,
-    Message,
-    Message,
+    DokimeHistoryGetCheckpointContextRequest, DokimeHistoryGetCheckpointContextResponse, Message, Message
 ] = Operation(
     id="dokime.history.get_checkpoint_context",
     version=1,
@@ -1678,10 +1520,7 @@ DokimeHistoryGetCheckpointDocumentRequest = _wire_71.Row1
 DokimeHistoryGetCheckpointDocumentResponse = _wire_71.Row2
 
 DOKIME_HISTORY_GET_CHECKPOINT_DOCUMENT: Operation[
-    DokimeHistoryGetCheckpointDocumentRequest,
-    DokimeHistoryGetCheckpointDocumentResponse,
-    Message,
-    Message,
+    DokimeHistoryGetCheckpointDocumentRequest, DokimeHistoryGetCheckpointDocumentResponse, Message, Message
 ] = Operation(
     id="dokime.history.get_checkpoint_document",
     version=1,
@@ -1702,10 +1541,7 @@ DokimeHistoryGetCheckpointEvidenceRequest = _wire_72.Row1
 DokimeHistoryGetCheckpointEvidenceResponse = _wire_72.Row2
 
 DOKIME_HISTORY_GET_CHECKPOINT_EVIDENCE: Operation[
-    DokimeHistoryGetCheckpointEvidenceRequest,
-    DokimeHistoryGetCheckpointEvidenceResponse,
-    Message,
-    Message,
+    DokimeHistoryGetCheckpointEvidenceRequest, DokimeHistoryGetCheckpointEvidenceResponse, Message, Message
 ] = Operation(
     id="dokime.history.get_checkpoint_evidence",
     version=1,
@@ -1726,10 +1562,7 @@ DokimeHistoryGetExecutionCheckpointRequest = _wire_73.Row1
 DokimeHistoryGetExecutionCheckpointResponse = _wire_73.Row2
 
 DOKIME_HISTORY_GET_EXECUTION_CHECKPOINT: Operation[
-    DokimeHistoryGetExecutionCheckpointRequest,
-    DokimeHistoryGetExecutionCheckpointResponse,
-    Message,
-    Message,
+    DokimeHistoryGetExecutionCheckpointRequest, DokimeHistoryGetExecutionCheckpointResponse, Message, Message
 ] = Operation(
     id="dokime.history.get_execution_checkpoint",
     version=1,
@@ -1750,10 +1583,7 @@ DokimeHistoryListCheckpointRecordsRequest = _wire_74.Row1
 DokimeHistoryListCheckpointRecordsResponse = _wire_74.Row2
 
 DOKIME_HISTORY_LIST_CHECKPOINT_RECORDS: Operation[
-    DokimeHistoryListCheckpointRecordsRequest,
-    DokimeHistoryListCheckpointRecordsResponse,
-    Message,
-    Message,
+    DokimeHistoryListCheckpointRecordsRequest, DokimeHistoryListCheckpointRecordsResponse, Message, Message
 ] = Operation(
     id="dokime.history.list_checkpoint_records",
     version=1,
@@ -1774,10 +1604,7 @@ DokimeHistoryListCheckpointTelemetryRequest = _wire_75.Row1
 DokimeHistoryListCheckpointTelemetryResponse = _wire_75.Row2
 
 DOKIME_HISTORY_LIST_CHECKPOINT_TELEMETRY: Operation[
-    DokimeHistoryListCheckpointTelemetryRequest,
-    DokimeHistoryListCheckpointTelemetryResponse,
-    Message,
-    Message,
+    DokimeHistoryListCheckpointTelemetryRequest, DokimeHistoryListCheckpointTelemetryResponse, Message, Message
 ] = Operation(
     id="dokime.history.list_checkpoint_telemetry",
     version=1,
@@ -1798,10 +1625,7 @@ DokimeHistoryReadCheckpointOutputRequest = _wire_76.Row1
 DokimeHistoryReadCheckpointOutputResponse = _wire_76.Row2
 
 DOKIME_HISTORY_READ_CHECKPOINT_OUTPUT: Operation[
-    DokimeHistoryReadCheckpointOutputRequest,
-    DokimeHistoryReadCheckpointOutputResponse,
-    Message,
-    Message,
+    DokimeHistoryReadCheckpointOutputRequest, DokimeHistoryReadCheckpointOutputResponse, Message, Message
 ] = Operation(
     id="dokime.history.read_checkpoint_output",
     version=1,
@@ -1823,10 +1647,7 @@ DokimeMediaAudioRecordingResponse = _wire_77.Row2
 DokimeMediaAudioRecordingOutput = _wire_77.Row3
 
 DOKIME_MEDIA_AUDIO_RECORDING: Operation[
-    DokimeMediaAudioRecordingRequest,
-    DokimeMediaAudioRecordingResponse,
-    Message,
-    DokimeMediaAudioRecordingOutput,
+    DokimeMediaAudioRecordingRequest, DokimeMediaAudioRecordingResponse, Message, DokimeMediaAudioRecordingOutput
 ] = Operation(
     id="dokime.media.audio_recording",
     version=1,
@@ -1848,10 +1669,7 @@ DokimeMediaCameraRecordingResponse = _wire_79.Row2
 DokimeMediaCameraRecordingOutput = _wire_79.Row3
 
 DOKIME_MEDIA_CAMERA_RECORDING: Operation[
-    DokimeMediaCameraRecordingRequest,
-    DokimeMediaCameraRecordingResponse,
-    Message,
-    DokimeMediaCameraRecordingOutput,
+    DokimeMediaCameraRecordingRequest, DokimeMediaCameraRecordingResponse, Message, DokimeMediaCameraRecordingOutput
 ] = Operation(
     id="dokime.media.camera_recording",
     version=1,
@@ -1892,10 +1710,7 @@ DokimeMediaScreenRecordingResponse = _wire_81.Row2
 DokimeMediaScreenRecordingOutput = _wire_81.Row3
 
 DOKIME_MEDIA_SCREEN_RECORDING: Operation[
-    DokimeMediaScreenRecordingRequest,
-    DokimeMediaScreenRecordingResponse,
-    Message,
-    DokimeMediaScreenRecordingOutput,
+    DokimeMediaScreenRecordingRequest, DokimeMediaScreenRecordingResponse, Message, DokimeMediaScreenRecordingOutput
 ] = Operation(
     id="dokime.media.screen_recording",
     version=1,
@@ -1992,10 +1807,7 @@ DokimeObservationGetRuntimeShellRequest = _wire_86.Row1
 DokimeObservationGetRuntimeShellResponse = _wire_86.Row2
 
 DOKIME_OBSERVATION_GET_RUNTIME_SHELL: Operation[
-    DokimeObservationGetRuntimeShellRequest,
-    DokimeObservationGetRuntimeShellResponse,
-    Message,
-    Message,
+    DokimeObservationGetRuntimeShellRequest, DokimeObservationGetRuntimeShellResponse, Message, Message
 ] = Operation(
     id="dokime.observation.get_runtime_shell",
     version=1,
@@ -2016,10 +1828,7 @@ DokimeObservationGetTraceabilityRequest = _wire_87.Row1
 DokimeObservationGetTraceabilityResponse = _wire_87.Row2
 
 DOKIME_OBSERVATION_GET_TRACEABILITY: Operation[
-    DokimeObservationGetTraceabilityRequest,
-    DokimeObservationGetTraceabilityResponse,
-    Message,
-    Message,
+    DokimeObservationGetTraceabilityRequest, DokimeObservationGetTraceabilityResponse, Message, Message
 ] = Operation(
     id="dokime.observation.get_traceability",
     version=1,
@@ -2066,10 +1875,7 @@ DokimeObservationWatchRuntimeResponse = _wire_90.Row2
 DokimeObservationWatchRuntimeOutput = _wire_90.Row3
 
 DOKIME_OBSERVATION_WATCH_RUNTIME: Operation[
-    DokimeObservationWatchRuntimeRequest,
-    DokimeObservationWatchRuntimeResponse,
-    Message,
-    DokimeObservationWatchRuntimeOutput,
+    DokimeObservationWatchRuntimeRequest, DokimeObservationWatchRuntimeResponse, Message, DokimeObservationWatchRuntimeOutput
 ] = Operation(
     id="dokime.observation.watch_runtime",
     version=1,
@@ -2090,10 +1896,7 @@ DokimePlanningPreviewSelectionRequest = _wire_91.Row1
 DokimePlanningPreviewSelectionResponse = _wire_91.Row2
 
 DOKIME_PLANNING_PREVIEW_SELECTION: Operation[
-    DokimePlanningPreviewSelectionRequest,
-    DokimePlanningPreviewSelectionResponse,
-    Message,
-    Message,
+    DokimePlanningPreviewSelectionRequest, DokimePlanningPreviewSelectionResponse, Message, Message
 ] = Operation(
     id="dokime.planning.preview_selection",
     version=1,
@@ -2114,10 +1917,7 @@ DokimePlanningRegisterSelectionRequest = _wire_92.Row1
 DokimePlanningRegisterSelectionResponse = _wire_92.Row2
 
 DOKIME_PLANNING_REGISTER_SELECTION: Operation[
-    DokimePlanningRegisterSelectionRequest,
-    DokimePlanningRegisterSelectionResponse,
-    Message,
-    Message,
+    DokimePlanningRegisterSelectionRequest, DokimePlanningRegisterSelectionResponse, Message, Message
 ] = Operation(
     id="dokime.planning.register_selection",
     version=1,
@@ -2156,12 +1956,7 @@ DOKIME_PLOTS_LIST_ANALYSES: Operation[DokimePlotsListAnalysesRequest, DokimePlot
 DokimePlotsQuerySnapshotsRequest = _wire_94.Row1
 DokimePlotsQuerySnapshotsResponse = _wire_94.Row2
 
-DOKIME_PLOTS_QUERY_SNAPSHOTS: Operation[
-    DokimePlotsQuerySnapshotsRequest,
-    DokimePlotsQuerySnapshotsResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_PLOTS_QUERY_SNAPSHOTS: Operation[DokimePlotsQuerySnapshotsRequest, DokimePlotsQuerySnapshotsResponse, Message, Message] = Operation(
     id="dokime.plots.query_snapshots",
     version=1,
     mode="unary",
@@ -2219,35 +2014,29 @@ DOKIME_PLUGINS_CONSENT: Operation[DokimePluginsConsentRequest, DokimePluginsCons
 DokimePluginsGetInstallationRequest = _wire_98.Row1
 DokimePluginsGetInstallationResponse = _wire_98.Row2
 
-DOKIME_PLUGINS_GET_INSTALLATION: Operation[
-    DokimePluginsGetInstallationRequest,
-    DokimePluginsGetInstallationResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.plugins.get_installation",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimePluginsGetInstallationRequest,
-    response=DokimePluginsGetInstallationResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Plugins/GetInstallation",
-    rpc_request=_wire_98.Row1,
-    rpc_response=_wire_98.Row2,
-    contract='{"operation":{"id":"dokime.plugins.get_installation","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":16,"definitions":[[{"name":"install_id","tag":308161646,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"install_id","tag":308161646,"kind":{"type":"string"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"staged_at","tag":481011537,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"consented_at","tag":350753220,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":3},"cardinality":"required"},{"name":"last_boot","tag":427031194,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"error","tag":26316579,"kind":{"type":"string"},"cardinality":"optional"},{"name":"active","tag":427144334,"kind":{"type":"bool"},"cardinality":"required"},{"name":"restart_required","tag":535436417,"kind":{"type":"bool"},"cardinality":"required"},{"name":"boot_error","tag":207365713,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":6},"cardinality":"variant"},{"name":"Staged","tag":364143325,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Installed","tag":145191397,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Disabled","tag":533639323,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"RemovalPending","tag":516752344,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"at","tag":388309315,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"result","tag":171407885,"kind":{"type":"message","definition":11},"cardinality":"optional"}],[{"name":"identity","tag":155536401,"kind":{"type":"message","definition":12},"cardinality":"optional"},{"name":"owners","tag":412994093,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"environment_references","tag":475776693,"kind":{"type":"message","definition":13},"cardinality":"repeated"}],[],[],[],[],[],[{"name":"Loaded","tag":206156507,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":15},"cardinality":"variant"}],[{"name":"name","tag":221892979,"kind":{"type":"string"},"cardinality":"required"},{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"owner","tag":359099420,"kind":{"type":"string"},"cardinality":"required"},{"name":"setting","tag":360360294,"kind":{"type":"string"},"cardinality":"required"},{"name":"variable","tag":423122670,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Plugins","method":"GetInstallation"}}',
-    fingerprint="70c4d4da1fe2275323debe389d671286b3e0d57ddddd3bb860dfc6cd72b529da",
+DOKIME_PLUGINS_GET_INSTALLATION: Operation[DokimePluginsGetInstallationRequest, DokimePluginsGetInstallationResponse, Message, Message] = (
+    Operation(
+        id="dokime.plugins.get_installation",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimePluginsGetInstallationRequest,
+        response=DokimePluginsGetInstallationResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Plugins/GetInstallation",
+        rpc_request=_wire_98.Row1,
+        rpc_response=_wire_98.Row2,
+        contract='{"operation":{"id":"dokime.plugins.get_installation","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":16,"definitions":[[{"name":"install_id","tag":308161646,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"install_id","tag":308161646,"kind":{"type":"string"},"cardinality":"required"},{"name":"sha256","tag":483674503,"kind":{"type":"string"},"cardinality":"required"},{"name":"staged_at","tag":481011537,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"consented_at","tag":350753220,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"state","tag":405881498,"kind":{"type":"message","definition":3},"cardinality":"required"},{"name":"last_boot","tag":427031194,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":5},"cardinality":"optional"},{"name":"error","tag":26316579,"kind":{"type":"string"},"cardinality":"optional"},{"name":"active","tag":427144334,"kind":{"type":"bool"},"cardinality":"required"},{"name":"restart_required","tag":535436417,"kind":{"type":"bool"},"cardinality":"required"},{"name":"boot_error","tag":207365713,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":6},"cardinality":"variant"},{"name":"Staged","tag":364143325,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"Installed","tag":145191397,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Disabled","tag":533639323,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"RemovalPending","tag":516752344,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"at","tag":388309315,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"result","tag":171407885,"kind":{"type":"message","definition":11},"cardinality":"optional"}],[{"name":"identity","tag":155536401,"kind":{"type":"message","definition":12},"cardinality":"optional"},{"name":"owners","tag":412994093,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"size_bytes","tag":218318530,"kind":{"type":"u64"},"cardinality":"required"},{"name":"environment_references","tag":475776693,"kind":{"type":"message","definition":13},"cardinality":"repeated"}],[],[],[],[],[],[{"name":"Loaded","tag":206156507,"kind":{"type":"message","definition":14},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":15},"cardinality":"variant"}],[{"name":"name","tag":221892979,"kind":{"type":"string"},"cardinality":"required"},{"name":"version","tag":108116562,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"owner","tag":359099420,"kind":{"type":"string"},"cardinality":"required"},{"name":"setting","tag":360360294,"kind":{"type":"string"},"cardinality":"required"},{"name":"variable","tag":423122670,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Plugins","method":"GetInstallation"}}',
+        fingerprint="70c4d4da1fe2275323debe389d671286b3e0d57ddddd3bb860dfc6cd72b529da",
+    )
 )
 
 DokimePluginsListAdmittedPluginsRequest = _wire_99.Row1
 DokimePluginsListAdmittedPluginsResponse = _wire_99.Row2
 
 DOKIME_PLUGINS_LIST_ADMITTED_PLUGINS: Operation[
-    DokimePluginsListAdmittedPluginsRequest,
-    DokimePluginsListAdmittedPluginsResponse,
-    Message,
-    Message,
+    DokimePluginsListAdmittedPluginsRequest, DokimePluginsListAdmittedPluginsResponse, Message, Message
 ] = Operation(
     id="dokime.plugins.list_admitted_plugins",
     version=1,
@@ -2268,10 +2057,7 @@ DokimePluginsListInstallationsRequest = _wire_100.Row1
 DokimePluginsListInstallationsResponse = _wire_100.Row2
 
 DOKIME_PLUGINS_LIST_INSTALLATIONS: Operation[
-    DokimePluginsListInstallationsRequest,
-    DokimePluginsListInstallationsResponse,
-    Message,
-    Message,
+    DokimePluginsListInstallationsRequest, DokimePluginsListInstallationsResponse, Message, Message
 ] = Operation(
     id="dokime.plugins.list_installations",
     version=1,
@@ -2330,12 +2116,7 @@ DokimePluginsStageRequest = _wire_103.Row1
 DokimePluginsStageResponse = _wire_103.Row2
 DokimePluginsStageInput = _wire_103.Row3
 
-DOKIME_PLUGINS_STAGE: Operation[
-    DokimePluginsStageRequest,
-    DokimePluginsStageResponse,
-    DokimePluginsStageInput,
-    Message,
-] = Operation(
+DOKIME_PLUGINS_STAGE: Operation[DokimePluginsStageRequest, DokimePluginsStageResponse, DokimePluginsStageInput, Message] = Operation(
     id="dokime.plugins.stage",
     version=1,
     mode="client_stream",
@@ -2354,25 +2135,22 @@ DOKIME_PLUGINS_STAGE: Operation[
 DokimePromptsGetDefinitionRequest = _wire_105.Row1
 DokimePromptsGetDefinitionResponse = _wire_105.Row2
 
-DOKIME_PROMPTS_GET_DEFINITION: Operation[
-    DokimePromptsGetDefinitionRequest,
-    DokimePromptsGetDefinitionResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.prompts.get_definition",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimePromptsGetDefinitionRequest,
-    response=DokimePromptsGetDefinitionResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Prompts/GetDefinition",
-    rpc_request=_wire_105.Row1,
-    rpc_response=_wire_105.Row2,
-    contract='{"operation":{"id":"dokime.prompts.get_definition","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":99,"definitions":[[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"archetype","tag":375805575,"kind":{"type":"message","definition":2},"cardinality":"required"},{"name":"title","tag":409323670,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"optional"},{"name":"fields","tag":104884581,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"actions","tag":364207578,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"rules","tag":483381101,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"condition","tag":303240733,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"owner_suite_id","tag":369734122,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_identifier","tag":107005934,"kind":{"type":"string"},"cardinality":"optional"},{"name":"examples","tag":5827688,"kind":{"type":"message","definition":7},"cardinality":"repeated"},{"name":"level","tag":463076202,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Confirmation","tag":444291375,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Form","tag":8728262,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Choice","tag":515257068,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Status","tag":6223352,"kind":{"type":"message","definition":13},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":14},"cardinality":"optional"},{"name":"value_type","tag":460104777,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"kind","tag":420740514,"kind":{"type":"message","definition":16},"cardinality":"required"},{"name":"multiple","tag":328484778,"kind":{"type":"bool"},"cardinality":"required"},{"name":"required","tag":76323245,"kind":{"type":"bool"},"cardinality":"required"},{"name":"default_value","tag":304977848,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"choices","tag":395773831,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"validation","tag":303517890,"kind":{"type":"message","definition":17},"cardinality":"optional"}],[{"name":"id","tag":389575346,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"emphasis","tag":536065458,"kind":{"type":"message","definition":18},"cardinality":"required"},{"name":"requires_condition","tag":497309057,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"predicate","tag":49181821,"kind":{"type":"message","definition":19},"cardinality":"optional"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":20},"cardinality":"repeated"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":21},"cardinality":"repeated"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":27},"cardinality":"variant"}],[],[],[],[],[],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":28},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":29},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":29},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"File","tag":186138165,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":38},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"Float","tag":209808864,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Int","tag":410268998,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"Choice","tag":515257068,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":44},"cardinality":"variant"}],[{"name":"min_length","tag":241091981,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_length","tag":524608435,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"pattern","tag":121443510,"kind":{"type":"string"},"cardinality":"optional"},{"name":"minimum","tag":327235204,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"maximum","tag":468910652,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"min_items","tag":321495543,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_items","tag":299682153,"kind":{"type":"u64"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Primary","tag":125999832,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Secondary","tag":432907354,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Danger","tag":250888887,"kind":{"type":"message","definition":48},"cardinality":"variant"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":49},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":50},"cardinality":"optional"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":51},"cardinality":"optional"}],[],[],[],[],[],[],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":52},"cardinality":"optional"}],[{"name":"Record","tag":524646777,"kind":{"type":"message","definition":53},"cardinality":"variant"},{"name":"Telemetry","tag":127316420,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"All","tag":363852552,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Any","tag":246820474,"kind":{"type":"message","definition":56},"cardinality":"variant"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":59},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":60},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":61},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":64},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":65},"cardinality":"variant"}],[{"name":"Literal","tag":493112173,"kind":{"type":"message","definition":66},"cardinality":"variant"},{"name":"Field","tag":263733488,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Not","tag":205380279,"kind":{"type":"message","definition":68},"cardinality":"variant"},{"name":"Binary","tag":388066660,"kind":{"type":"message","definition":69},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":70},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":71},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":72},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":72},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":29},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":73},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":74},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":7},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":75},"cardinality":"required"}],[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"},{"name":"match_fields","tag":405777233,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"field","tag":125989387,"kind":{"type":"string"},"cardinality":"required"},{"name":"op","tag":523516005,"kind":{"type":"message","definition":76},"cardinality":"required"},{"name":"target","tag":308318234,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"tolerance","tag":185797790,"kind":{"type":"f64"},"cardinality":"optional"}],[{"name":"conditions","tag":14738500,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":77},"cardinality":"repeated"}],[{"name":"op","tag":523516005,"kind":{"type":"message","definition":78},"cardinality":"required"},{"name":"left","tag":306901081,"kind":{"type":"u32"},"cardinality":"required"},{"name":"right","tag":417545609,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":79},"cardinality":"variant"},{"name":"Exists","tag":265085382,"kind":{"type":"message","definition":80},"cardinality":"variant"},{"name":"Eq","tag":63723294,"kind":{"type":"message","definition":81},"cardinality":"variant"},{"name":"Gt","tag":181460817,"kind":{"type":"message","definition":82},"cardinality":"variant"},{"name":"Gte","tag":431865599,"kind":{"type":"message","definition":83},"cardinality":"variant"},{"name":"Lt","tag":484590792,"kind":{"type":"message","definition":84},"cardinality":"variant"},{"name":"Lte","tag":2127406,"kind":{"type":"message","definition":85},"cardinality":"variant"},{"name":"Within","tag":17832174,"kind":{"type":"message","definition":86},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":87},"cardinality":"variant"},{"name":"And","tag":297139434,"kind":{"type":"message","definition":88},"cardinality":"variant"},{"name":"Or","tag":484737887,"kind":{"type":"message","definition":89},"cardinality":"variant"},{"name":"Eq","tag":63723294,"kind":{"type":"message","definition":90},"cardinality":"variant"},{"name":"Ne","tag":400996887,"kind":{"type":"message","definition":91},"cardinality":"variant"},{"name":"Gt","tag":181460817,"kind":{"type":"message","definition":92},"cardinality":"variant"},{"name":"Gte","tag":431865599,"kind":{"type":"message","definition":93},"cardinality":"variant"},{"name":"Lt","tag":484590792,"kind":{"type":"message","definition":94},"cardinality":"variant"},{"name":"Lte","tag":2127406,"kind":{"type":"message","definition":95},"cardinality":"variant"},{"name":"Contains","tag":110909692,"kind":{"type":"message","definition":96},"cardinality":"variant"},{"name":"StartsWith","tag":468552562,"kind":{"type":"message","definition":97},"cardinality":"variant"},{"name":"EndsWith","tag":505393131,"kind":{"type":"message","definition":98},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Prompts","method":"GetDefinition"}}',
-    fingerprint="987f5a9908d57d2d6e8e41a7472b438897cd88934e6911b9a871cd3c6e381458",
+DOKIME_PROMPTS_GET_DEFINITION: Operation[DokimePromptsGetDefinitionRequest, DokimePromptsGetDefinitionResponse, Message, Message] = (
+    Operation(
+        id="dokime.prompts.get_definition",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimePromptsGetDefinitionRequest,
+        response=DokimePromptsGetDefinitionResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Prompts/GetDefinition",
+        rpc_request=_wire_105.Row1,
+        rpc_response=_wire_105.Row2,
+        contract='{"operation":{"id":"dokime.prompts.get_definition","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":99,"definitions":[[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"archetype","tag":375805575,"kind":{"type":"message","definition":2},"cardinality":"required"},{"name":"title","tag":409323670,"kind":{"type":"string"},"cardinality":"required"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"optional"},{"name":"fields","tag":104884581,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"actions","tag":364207578,"kind":{"type":"message","definition":4},"cardinality":"repeated"},{"name":"rules","tag":483381101,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"condition","tag":303240733,"kind":{"type":"message","definition":6},"cardinality":"optional"},{"name":"owner_suite_id","tag":369734122,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_identifier","tag":107005934,"kind":{"type":"string"},"cardinality":"optional"},{"name":"examples","tag":5827688,"kind":{"type":"message","definition":7},"cardinality":"repeated"},{"name":"level","tag":463076202,"kind":{"type":"message","definition":8},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Confirmation","tag":444291375,"kind":{"type":"message","definition":10},"cardinality":"variant"},{"name":"Form","tag":8728262,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Choice","tag":515257068,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Status","tag":6223352,"kind":{"type":"message","definition":13},"cardinality":"variant"}],[{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":14},"cardinality":"optional"},{"name":"value_type","tag":460104777,"kind":{"type":"message","definition":15},"cardinality":"required"},{"name":"kind","tag":420740514,"kind":{"type":"message","definition":16},"cardinality":"required"},{"name":"multiple","tag":328484778,"kind":{"type":"bool"},"cardinality":"required"},{"name":"required","tag":76323245,"kind":{"type":"bool"},"cardinality":"required"},{"name":"default_value","tag":304977848,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"choices","tag":395773831,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"validation","tag":303517890,"kind":{"type":"message","definition":17},"cardinality":"optional"}],[{"name":"id","tag":389575346,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"emphasis","tag":536065458,"kind":{"type":"message","definition":18},"cardinality":"required"},{"name":"requires_condition","tag":497309057,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"predicate","tag":49181821,"kind":{"type":"message","definition":19},"cardinality":"optional"},{"name":"message","tag":82972854,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":20},"cardinality":"repeated"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":21},"cardinality":"repeated"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Trace","tag":116977440,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Debug","tag":174131978,"kind":{"type":"message","definition":24},"cardinality":"variant"},{"name":"Info","tag":266467762,"kind":{"type":"message","definition":25},"cardinality":"variant"},{"name":"Warn","tag":128001018,"kind":{"type":"message","definition":26},"cardinality":"variant"},{"name":"Error","tag":328055865,"kind":{"type":"message","definition":27},"cardinality":"variant"}],[],[],[],[],[],[{"name":"identifier","tag":145076240,"kind":{"type":"string"},"cardinality":"required"},{"name":"label","tag":379008837,"kind":{"type":"string"},"cardinality":"required"},{"name":"description","tag":342836027,"kind":{"type":"string"},"cardinality":"optional"},{"name":"tags","tag":337054440,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"attributes","tag":33553116,"kind":{"type":"message","definition":28},"cardinality":"repeated"},{"name":"created_at","tag":389583604,"kind":{"type":"message","definition":29},"cardinality":"optional"},{"name":"updated_at","tag":306938047,"kind":{"type":"message","definition":29},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":30},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":31},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":32},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":33},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":34},"cardinality":"variant"},{"name":"File","tag":186138165,"kind":{"type":"message","definition":35},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":36},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":37},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":38},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":39},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":40},"cardinality":"variant"},{"name":"Float","tag":209808864,"kind":{"type":"message","definition":41},"cardinality":"variant"},{"name":"Int","tag":410268998,"kind":{"type":"message","definition":42},"cardinality":"variant"},{"name":"Choice","tag":515257068,"kind":{"type":"message","definition":43},"cardinality":"variant"},{"name":"Boolean","tag":211116711,"kind":{"type":"message","definition":44},"cardinality":"variant"}],[{"name":"min_length","tag":241091981,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_length","tag":524608435,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"pattern","tag":121443510,"kind":{"type":"string"},"cardinality":"optional"},{"name":"minimum","tag":327235204,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"maximum","tag":468910652,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"min_items","tag":321495543,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_items","tag":299682153,"kind":{"type":"u64"},"cardinality":"optional"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":45},"cardinality":"variant"},{"name":"Primary","tag":125999832,"kind":{"type":"message","definition":46},"cardinality":"variant"},{"name":"Secondary","tag":432907354,"kind":{"type":"message","definition":47},"cardinality":"variant"},{"name":"Danger","tag":250888887,"kind":{"type":"message","definition":48},"cardinality":"variant"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":49},"cardinality":"repeated"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":50},"cardinality":"optional"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":51},"cardinality":"optional"}],[],[],[],[],[],[],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":52},"cardinality":"optional"}],[{"name":"Record","tag":524646777,"kind":{"type":"message","definition":53},"cardinality":"variant"},{"name":"Telemetry","tag":127316420,"kind":{"type":"message","definition":54},"cardinality":"variant"},{"name":"All","tag":363852552,"kind":{"type":"message","definition":55},"cardinality":"variant"},{"name":"Any","tag":246820474,"kind":{"type":"message","definition":56},"cardinality":"variant"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":57},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":58},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":59},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":60},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":61},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":62},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":63},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":64},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":65},"cardinality":"variant"}],[{"name":"Literal","tag":493112173,"kind":{"type":"message","definition":66},"cardinality":"variant"},{"name":"Field","tag":263733488,"kind":{"type":"message","definition":67},"cardinality":"variant"},{"name":"Not","tag":205380279,"kind":{"type":"message","definition":68},"cardinality":"variant"},{"name":"Binary","tag":388066660,"kind":{"type":"message","definition":69},"cardinality":"variant"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":70},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":71},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":72},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":72},"cardinality":"required"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":29},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":73},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":74},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":7},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":75},"cardinality":"required"}],[{"name":"record_type","tag":77708366,"kind":{"type":"string"},"cardinality":"required"},{"name":"match_fields","tag":405777233,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"field","tag":125989387,"kind":{"type":"string"},"cardinality":"required"},{"name":"op","tag":523516005,"kind":{"type":"message","definition":76},"cardinality":"required"},{"name":"target","tag":308318234,"kind":{"type":"message","definition":7},"cardinality":"optional"},{"name":"tolerance","tag":185797790,"kind":{"type":"f64"},"cardinality":"optional"}],[{"name":"conditions","tag":14738500,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":77},"cardinality":"repeated"}],[{"name":"op","tag":523516005,"kind":{"type":"message","definition":78},"cardinality":"required"},{"name":"left","tag":306901081,"kind":{"type":"u32"},"cardinality":"required"},{"name":"right","tag":417545609,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":79},"cardinality":"variant"},{"name":"Exists","tag":265085382,"kind":{"type":"message","definition":80},"cardinality":"variant"},{"name":"Eq","tag":63723294,"kind":{"type":"message","definition":81},"cardinality":"variant"},{"name":"Gt","tag":181460817,"kind":{"type":"message","definition":82},"cardinality":"variant"},{"name":"Gte","tag":431865599,"kind":{"type":"message","definition":83},"cardinality":"variant"},{"name":"Lt","tag":484590792,"kind":{"type":"message","definition":84},"cardinality":"variant"},{"name":"Lte","tag":2127406,"kind":{"type":"message","definition":85},"cardinality":"variant"},{"name":"Within","tag":17832174,"kind":{"type":"message","definition":86},"cardinality":"variant"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":87},"cardinality":"variant"},{"name":"And","tag":297139434,"kind":{"type":"message","definition":88},"cardinality":"variant"},{"name":"Or","tag":484737887,"kind":{"type":"message","definition":89},"cardinality":"variant"},{"name":"Eq","tag":63723294,"kind":{"type":"message","definition":90},"cardinality":"variant"},{"name":"Ne","tag":400996887,"kind":{"type":"message","definition":91},"cardinality":"variant"},{"name":"Gt","tag":181460817,"kind":{"type":"message","definition":92},"cardinality":"variant"},{"name":"Gte","tag":431865599,"kind":{"type":"message","definition":93},"cardinality":"variant"},{"name":"Lt","tag":484590792,"kind":{"type":"message","definition":94},"cardinality":"variant"},{"name":"Lte","tag":2127406,"kind":{"type":"message","definition":95},"cardinality":"variant"},{"name":"Contains","tag":110909692,"kind":{"type":"message","definition":96},"cardinality":"variant"},{"name":"StartsWith","tag":468552562,"kind":{"type":"message","definition":97},"cardinality":"variant"},{"name":"EndsWith","tag":505393131,"kind":{"type":"message","definition":98},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Prompts","method":"GetDefinition"}}',
+        fingerprint="987f5a9908d57d2d6e8e41a7472b438897cd88934e6911b9a871cd3c6e381458",
+    )
 )
 
 DokimePromptsGetPromptRequest = _wire_106.Row1
@@ -2397,25 +2175,22 @@ DOKIME_PROMPTS_GET_PROMPT: Operation[DokimePromptsGetPromptRequest, DokimePrompt
 DokimePromptsListDefinitionsRequest = _wire_107.Row1
 DokimePromptsListDefinitionsResponse = _wire_107.Row2
 
-DOKIME_PROMPTS_LIST_DEFINITIONS: Operation[
-    DokimePromptsListDefinitionsRequest,
-    DokimePromptsListDefinitionsResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.prompts.list_definitions",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimePromptsListDefinitionsRequest,
-    response=DokimePromptsListDefinitionsResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Prompts/ListDefinitions",
-    rpc_request=_wire_107.Row1,
-    rpc_response=_wire_107.Row2,
-    contract='{"operation":{"id":"dokime.prompts.list_definitions","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"after_prompt_type","tag":244961890,"kind":{"type":"string"},"cardinality":"required"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"definitions","tag":521025439,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"next_after_prompt_type","tag":486418958,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"title","tag":409323670,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Prompts","method":"ListDefinitions"}}',
-    fingerprint="089e6f7a0f6d9b1e69d26da727997bf190090cdfb6d2dde0b05c70de510a3185",
+DOKIME_PROMPTS_LIST_DEFINITIONS: Operation[DokimePromptsListDefinitionsRequest, DokimePromptsListDefinitionsResponse, Message, Message] = (
+    Operation(
+        id="dokime.prompts.list_definitions",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimePromptsListDefinitionsRequest,
+        response=DokimePromptsListDefinitionsResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Prompts/ListDefinitions",
+        rpc_request=_wire_107.Row1,
+        rpc_response=_wire_107.Row2,
+        contract='{"operation":{"id":"dokime.prompts.list_definitions","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":4,"definitions":[[{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"after_prompt_type","tag":244961890,"kind":{"type":"string"},"cardinality":"required"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"definitions","tag":521025439,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"next_after_prompt_type","tag":486418958,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cursor","tag":53891415,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"position","tag":323969431,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"prompt_type","tag":288956396,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"title","tag":409323670,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Prompts","method":"ListDefinitions"}}',
+        fingerprint="089e6f7a0f6d9b1e69d26da727997bf190090cdfb6d2dde0b05c70de510a3185",
+    )
 )
 
 DokimePromptsListPendingRequest = _wire_108.Row1
@@ -2480,10 +2255,7 @@ DokimeReportsDownloadCycleReportResponse = _wire_111.Row2
 DokimeReportsDownloadCycleReportOutput = _wire_111.Row3
 
 DOKIME_REPORTS_DOWNLOAD_CYCLE_REPORT: Operation[
-    DokimeReportsDownloadCycleReportRequest,
-    DokimeReportsDownloadCycleReportResponse,
-    Message,
-    DokimeReportsDownloadCycleReportOutput,
+    DokimeReportsDownloadCycleReportRequest, DokimeReportsDownloadCycleReportResponse, Message, DokimeReportsDownloadCycleReportOutput
 ] = Operation(
     id="dokime.reports.download_cycle_report",
     version=1,
@@ -2529,10 +2301,7 @@ DokimeReportsMaterializeReportRequest = _wire_114.Row1
 DokimeReportsMaterializeReportResponse = _wire_114.Row2
 
 DOKIME_REPORTS_MATERIALIZE_REPORT: Operation[
-    DokimeReportsMaterializeReportRequest,
-    DokimeReportsMaterializeReportResponse,
-    Message,
-    Message,
+    DokimeReportsMaterializeReportRequest, DokimeReportsMaterializeReportResponse, Message, Message
 ] = Operation(
     id="dokime.reports.materialize_report",
     version=1,
@@ -2591,10 +2360,7 @@ DokimeSettingsGetPluginSettingsRequest = _wire_117.Row1
 DokimeSettingsGetPluginSettingsResponse = _wire_117.Row2
 
 DOKIME_SETTINGS_GET_PLUGIN_SETTINGS: Operation[
-    DokimeSettingsGetPluginSettingsRequest,
-    DokimeSettingsGetPluginSettingsResponse,
-    Message,
-    Message,
+    DokimeSettingsGetPluginSettingsRequest, DokimeSettingsGetPluginSettingsResponse, Message, Message
 ] = Operation(
     id="dokime.settings.get_plugin_settings",
     version=1,
@@ -2614,12 +2380,7 @@ DOKIME_SETTINGS_GET_PLUGIN_SETTINGS: Operation[
 DokimeSettingsGetSettingsRequest = _wire_118.Row1
 DokimeSettingsGetSettingsResponse = _wire_118.Row2
 
-DOKIME_SETTINGS_GET_SETTINGS: Operation[
-    DokimeSettingsGetSettingsRequest,
-    DokimeSettingsGetSettingsResponse,
-    Message,
-    Message,
-] = Operation(
+DOKIME_SETTINGS_GET_SETTINGS: Operation[DokimeSettingsGetSettingsRequest, DokimeSettingsGetSettingsResponse, Message, Message] = Operation(
     id="dokime.settings.get_settings",
     version=1,
     mode="unary",
@@ -2639,10 +2400,7 @@ DokimeSettingsListStorageSourcesRequest = _wire_119.Row1
 DokimeSettingsListStorageSourcesResponse = _wire_119.Row2
 
 DOKIME_SETTINGS_LIST_STORAGE_SOURCES: Operation[
-    DokimeSettingsListStorageSourcesRequest,
-    DokimeSettingsListStorageSourcesResponse,
-    Message,
-    Message,
+    DokimeSettingsListStorageSourcesRequest, DokimeSettingsListStorageSourcesResponse, Message, Message
 ] = Operation(
     id="dokime.settings.list_storage_sources",
     version=1,
@@ -2663,10 +2421,7 @@ DokimeSettingsReadApplicationSettingsRequest = _wire_120.Row1
 DokimeSettingsReadApplicationSettingsResponse = _wire_120.Row2
 
 DOKIME_SETTINGS_READ_APPLICATION_SETTINGS: Operation[
-    DokimeSettingsReadApplicationSettingsRequest,
-    DokimeSettingsReadApplicationSettingsResponse,
-    Message,
-    Message,
+    DokimeSettingsReadApplicationSettingsRequest, DokimeSettingsReadApplicationSettingsResponse, Message, Message
 ] = Operation(
     id="dokime.settings.read_application_settings",
     version=1,
@@ -2687,10 +2442,7 @@ DokimeSettingsReadStoragePolicyRequest = _wire_121.Row1
 DokimeSettingsReadStoragePolicyResponse = _wire_121.Row2
 
 DOKIME_SETTINGS_READ_STORAGE_POLICY: Operation[
-    DokimeSettingsReadStoragePolicyRequest,
-    DokimeSettingsReadStoragePolicyResponse,
-    Message,
-    Message,
+    DokimeSettingsReadStoragePolicyRequest, DokimeSettingsReadStoragePolicyResponse, Message, Message
 ] = Operation(
     id="dokime.settings.read_storage_policy",
     version=1,
@@ -2711,10 +2463,7 @@ DokimeSettingsReorderStorageSourcesRequest = _wire_122.Row1
 DokimeSettingsReorderStorageSourcesResponse = _wire_122.Row2
 
 DOKIME_SETTINGS_REORDER_STORAGE_SOURCES: Operation[
-    DokimeSettingsReorderStorageSourcesRequest,
-    DokimeSettingsReorderStorageSourcesResponse,
-    Message,
-    Message,
+    DokimeSettingsReorderStorageSourcesRequest, DokimeSettingsReorderStorageSourcesResponse, Message, Message
 ] = Operation(
     id="dokime.settings.reorder_storage_sources",
     version=1,
@@ -2735,10 +2484,7 @@ DokimeSettingsSetStorageSourceEnabledRequest = _wire_123.Row1
 DokimeSettingsSetStorageSourceEnabledResponse = _wire_123.Row2
 
 DOKIME_SETTINGS_SET_STORAGE_SOURCE_ENABLED: Operation[
-    DokimeSettingsSetStorageSourceEnabledRequest,
-    DokimeSettingsSetStorageSourceEnabledResponse,
-    Message,
-    Message,
+    DokimeSettingsSetStorageSourceEnabledRequest, DokimeSettingsSetStorageSourceEnabledResponse, Message, Message
 ] = Operation(
     id="dokime.settings.set_storage_source_enabled",
     version=1,
@@ -2759,10 +2505,7 @@ DokimeSettingsUpdateAppearanceRequest = _wire_124.Row1
 DokimeSettingsUpdateAppearanceResponse = _wire_124.Row2
 
 DOKIME_SETTINGS_UPDATE_APPEARANCE: Operation[
-    DokimeSettingsUpdateAppearanceRequest,
-    DokimeSettingsUpdateAppearanceResponse,
-    Message,
-    Message,
+    DokimeSettingsUpdateAppearanceRequest, DokimeSettingsUpdateAppearanceResponse, Message, Message
 ] = Operation(
     id="dokime.settings.update_appearance",
     version=1,
@@ -2782,35 +2525,29 @@ DOKIME_SETTINGS_UPDATE_APPEARANCE: Operation[
 DokimeSettingsUpdateDataRootRequest = _wire_125.Row1
 DokimeSettingsUpdateDataRootResponse = _wire_125.Row2
 
-DOKIME_SETTINGS_UPDATE_DATA_ROOT: Operation[
-    DokimeSettingsUpdateDataRootRequest,
-    DokimeSettingsUpdateDataRootResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.settings.update_data_root",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeSettingsUpdateDataRootRequest,
-    response=DokimeSettingsUpdateDataRootResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Settings/UpdateDataRoot",
-    rpc_request=_wire_125.Row1,
-    rpc_response=_wire_125.Row2,
-    contract='{"operation":{"id":"dokime.settings.update_data_root","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":20,"definitions":[[{"name":"data_root","tag":327490211,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"appearance","tag":236053191,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"report","tag":431700180,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"application_root","tag":261172345,"kind":{"type":"string"},"cardinality":"required"},{"name":"configured_data_root","tag":439647387,"kind":{"type":"string"},"cardinality":"optional"},{"name":"default_data_root","tag":339472489,"kind":{"type":"string"},"cardinality":"required"},{"name":"effective_data_root","tag":176538570,"kind":{"type":"string"},"cardinality":"required"},{"name":"restart_required","tag":535436417,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"theme_mode","tag":508082941,"kind":{"type":"message","definition":4},"cardinality":"required"},{"name":"theme_family","tag":263296805,"kind":{"type":"string"},"cardinality":"optional"},{"name":"density","tag":314119487,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"plot_points","tag":478015811,"kind":{"type":"u32"},"cardinality":"required"},{"name":"plot_downsample","tag":260934792,"kind":{"type":"message","definition":6},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"System","tag":254908489,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Light","tag":181603420,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Dark","tag":89590816,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Comfortable","tag":113726049,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Compact","tag":413058300,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Touch","tag":256180065,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Raw","tag":109691399,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"MinMax","tag":285215527,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Lttb","tag":253673891,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Auto","tag":309064607,"kind":{"type":"message","definition":19},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Settings","method":"UpdateDataRoot"}}',
-    fingerprint="ed8787608aa3cf99fbafc64f013f56e7d35b6e1b25e2ccb197b93de7b154df16",
+DOKIME_SETTINGS_UPDATE_DATA_ROOT: Operation[DokimeSettingsUpdateDataRootRequest, DokimeSettingsUpdateDataRootResponse, Message, Message] = (
+    Operation(
+        id="dokime.settings.update_data_root",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeSettingsUpdateDataRootRequest,
+        response=DokimeSettingsUpdateDataRootResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Settings/UpdateDataRoot",
+        rpc_request=_wire_125.Row1,
+        rpc_response=_wire_125.Row2,
+        contract='{"operation":{"id":"dokime.settings.update_data_root","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":20,"definitions":[[{"name":"data_root","tag":327490211,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"appearance","tag":236053191,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"report","tag":431700180,"kind":{"type":"message","definition":3},"cardinality":"optional"},{"name":"application_root","tag":261172345,"kind":{"type":"string"},"cardinality":"required"},{"name":"configured_data_root","tag":439647387,"kind":{"type":"string"},"cardinality":"optional"},{"name":"default_data_root","tag":339472489,"kind":{"type":"string"},"cardinality":"required"},{"name":"effective_data_root","tag":176538570,"kind":{"type":"string"},"cardinality":"required"},{"name":"restart_required","tag":535436417,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"theme_mode","tag":508082941,"kind":{"type":"message","definition":4},"cardinality":"required"},{"name":"theme_family","tag":263296805,"kind":{"type":"string"},"cardinality":"optional"},{"name":"density","tag":314119487,"kind":{"type":"message","definition":5},"cardinality":"required"}],[{"name":"plot_points","tag":478015811,"kind":{"type":"u32"},"cardinality":"required"},{"name":"plot_downsample","tag":260934792,"kind":{"type":"message","definition":6},"cardinality":"required"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":7},"cardinality":"variant"},{"name":"System","tag":254908489,"kind":{"type":"message","definition":8},"cardinality":"variant"},{"name":"Light","tag":181603420,"kind":{"type":"message","definition":9},"cardinality":"variant"},{"name":"Dark","tag":89590816,"kind":{"type":"message","definition":10},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Comfortable","tag":113726049,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"Compact","tag":413058300,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Touch","tag":256180065,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"Unspecified","tag":105266261,"kind":{"type":"message","definition":15},"cardinality":"variant"},{"name":"Raw","tag":109691399,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"MinMax","tag":285215527,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Lttb","tag":253673891,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Auto","tag":309064607,"kind":{"type":"message","definition":19},"cardinality":"variant"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Settings","method":"UpdateDataRoot"}}',
+        fingerprint="ed8787608aa3cf99fbafc64f013f56e7d35b6e1b25e2ccb197b93de7b154df16",
+    )
 )
 
 DokimeSettingsUpdatePluginCredentialRequest = _wire_126.Row1
 DokimeSettingsUpdatePluginCredentialResponse = _wire_126.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_CREDENTIAL: Operation[
-    DokimeSettingsUpdatePluginCredentialRequest,
-    DokimeSettingsUpdatePluginCredentialResponse,
-    Message,
-    Message,
+    DokimeSettingsUpdatePluginCredentialRequest, DokimeSettingsUpdatePluginCredentialResponse, Message, Message
 ] = Operation(
     id="dokime.settings.update_plugin_credential",
     version=1,
@@ -2831,10 +2568,7 @@ DokimeSettingsUpdatePluginSettingsRequest = _wire_127.Row1
 DokimeSettingsUpdatePluginSettingsResponse = _wire_127.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SETTINGS: Operation[
-    DokimeSettingsUpdatePluginSettingsRequest,
-    DokimeSettingsUpdatePluginSettingsResponse,
-    Message,
-    Message,
+    DokimeSettingsUpdatePluginSettingsRequest, DokimeSettingsUpdatePluginSettingsResponse, Message, Message
 ] = Operation(
     id="dokime.settings.update_plugin_settings",
     version=1,
@@ -2855,10 +2589,7 @@ DokimeSettingsUpdateReportDefaultsRequest = _wire_128.Row1
 DokimeSettingsUpdateReportDefaultsResponse = _wire_128.Row2
 
 DOKIME_SETTINGS_UPDATE_REPORT_DEFAULTS: Operation[
-    DokimeSettingsUpdateReportDefaultsRequest,
-    DokimeSettingsUpdateReportDefaultsResponse,
-    Message,
-    Message,
+    DokimeSettingsUpdateReportDefaultsRequest, DokimeSettingsUpdateReportDefaultsResponse, Message, Message
 ] = Operation(
     id="dokime.settings.update_report_defaults",
     version=1,
@@ -2879,10 +2610,7 @@ DokimeSettingsUpdateStoragePolicyRequest = _wire_129.Row1
 DokimeSettingsUpdateStoragePolicyResponse = _wire_129.Row2
 
 DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
-    DokimeSettingsUpdateStoragePolicyRequest,
-    DokimeSettingsUpdateStoragePolicyResponse,
-    Message,
-    Message,
+    DokimeSettingsUpdateStoragePolicyRequest, DokimeSettingsUpdateStoragePolicyResponse, Message, Message
 ] = Operation(
     id="dokime.settings.update_storage_policy",
     version=1,
@@ -2902,44 +2630,41 @@ DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
 DokimeTelemetryListSamplesRequest = _wire_130.Row1
 DokimeTelemetryListSamplesResponse = _wire_130.Row2
 
-DOKIME_TELEMETRY_LIST_SAMPLES: Operation[
-    DokimeTelemetryListSamplesRequest,
-    DokimeTelemetryListSamplesResponse,
-    Message,
-    Message,
-] = Operation(
-    id="dokime.telemetry.list_samples",
-    version=1,
-    mode="unary",
-    codec="protobuf",
-    request=DokimeTelemetryListSamplesRequest,
-    response=DokimeTelemetryListSamplesResponse,
-    input=None,
-    output=None,
-    grpc_path="/dokime.v1.Telemetry/ListSamples",
-    rpc_request=_wire_130.Row1,
-    rpc_response=_wire_130.Row2,
-    contract='{"operation":{"id":"dokime.telemetry.list_samples","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":28,"definitions":[[{"name":"streams","tag":308856157,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"schema_versions","tag":412826411,"kind":{"type":"u32"},"cardinality":"repeated"},{"name":"sources","tag":303998933,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"signals","tag":63351149,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"after_stream_cursors","tag":210138601,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"start","tag":86709379,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"end","tag":177112398,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"latest","tag":24137217,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"samples","tag":472317815,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"through_stream_cursors","tag":181562416,"kind":{"type":"message","definition":6},"cardinality":"repeated"},{"name":"complete","tag":365623613,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"sample_id","tag":487335870,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"sequence","tag":474216250,"kind":{"type":"u64"},"cardinality":"required"},{"name":"timestamp","tag":310635673,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"received_at","tag":18782246,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"values","tag":340218893,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"summary","tag":279202556,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":8},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":9},"cardinality":"optional"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":10},"cardinality":"repeated"}],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":15},"cardinality":"optional"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":24},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":4},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":25},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":26},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":27},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Telemetry","method":"ListSamples"}}',
-    fingerprint="d7e60b9a44e544fc1e92547dee86e982ae0ed753a743c5d8eb37a56602433d6c",
+DOKIME_TELEMETRY_LIST_SAMPLES: Operation[DokimeTelemetryListSamplesRequest, DokimeTelemetryListSamplesResponse, Message, Message] = (
+    Operation(
+        id="dokime.telemetry.list_samples",
+        version=1,
+        mode="unary",
+        codec="protobuf",
+        request=DokimeTelemetryListSamplesRequest,
+        response=DokimeTelemetryListSamplesResponse,
+        input=None,
+        output=None,
+        grpc_path="/dokime.v1.Telemetry/ListSamples",
+        rpc_request=_wire_130.Row1,
+        rpc_response=_wire_130.Row2,
+        contract='{"operation":{"id":"dokime.telemetry.list_samples","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":28,"definitions":[[{"name":"streams","tag":308856157,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limit","tag":316334342,"kind":{"type":"u32"},"cardinality":"required"},{"name":"schema_versions","tag":412826411,"kind":{"type":"u32"},"cardinality":"repeated"},{"name":"sources","tag":303998933,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"signals","tag":63351149,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"after_stream_cursors","tag":210138601,"kind":{"type":"message","definition":3},"cardinality":"repeated"},{"name":"start","tag":86709379,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"end","tag":177112398,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"latest","tag":24137217,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"samples","tag":472317815,"kind":{"type":"message","definition":5},"cardinality":"repeated"},{"name":"through_stream_cursors","tag":181562416,"kind":{"type":"message","definition":6},"cardinality":"repeated"},{"name":"complete","tag":365623613,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"session_id","tag":125142222,"kind":{"type":"string"},"cardinality":"optional"},{"name":"cycle_id","tag":389404079,"kind":{"type":"string"},"cardinality":"optional"},{"name":"case_id","tag":516394676,"kind":{"type":"string"},"cardinality":"optional"},{"name":"execution_id","tag":185185429,"kind":{"type":"string"},"cardinality":"optional"},{"name":"step_id","tag":476184309,"kind":{"type":"string"},"cardinality":"optional"},{"name":"criterion_id","tag":511639968,"kind":{"type":"string"},"cardinality":"optional"},{"name":"template_id","tag":531529081,"kind":{"type":"string"},"cardinality":"optional"},{"name":"suite_id","tag":150976677,"kind":{"type":"string"},"cardinality":"optional"},{"name":"origin","tag":427799982,"kind":{"type":"message","definition":7},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"seconds","tag":112647566,"kind":{"type":"i64"},"cardinality":"required"},{"name":"nanos","tag":63739416,"kind":{"type":"i32"},"cardinality":"required"}],[{"name":"sample_id","tag":487335870,"kind":{"type":"string"},"cardinality":"required"},{"name":"stream","tag":527399200,"kind":{"type":"string"},"cardinality":"required"},{"name":"schema_version","tag":383781929,"kind":{"type":"u32"},"cardinality":"required"},{"name":"sequence","tag":474216250,"kind":{"type":"u64"},"cardinality":"required"},{"name":"timestamp","tag":310635673,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"received_at","tag":18782246,"kind":{"type":"message","definition":4},"cardinality":"optional"},{"name":"source","tag":466562497,"kind":{"type":"string"},"cardinality":"required"},{"name":"scope","tag":506137441,"kind":{"type":"message","definition":2},"cardinality":"optional"},{"name":"values","tag":340218893,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"summary","tag":279202556,"kind":{"type":"message","definition":8},"cardinality":"optional"},{"name":"metadata","tag":102916836,"kind":{"type":"message","definition":8},"cardinality":"optional"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":9},"cardinality":"optional"}],[{"name":"nodes","tag":290364437,"kind":{"type":"message","definition":10},"cardinality":"repeated"}],[{"name":"Default","tag":433861735,"kind":{"type":"message","definition":11},"cardinality":"variant"},{"name":"Initialization","tag":301215078,"kind":{"type":"message","definition":12},"cardinality":"variant"},{"name":"StepAttemptId","tag":285620250,"kind":{"type":"message","definition":13},"cardinality":"variant"},{"name":"Cleanup","tag":486092092,"kind":{"type":"message","definition":14},"cardinality":"variant"}],[{"name":"kind","tag":420740514,"kind":{"type":"message","definition":15},"cardinality":"optional"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"Null","tag":389265164,"kind":{"type":"message","definition":16},"cardinality":"variant"},{"name":"Bool","tag":259273775,"kind":{"type":"message","definition":17},"cardinality":"variant"},{"name":"Integer","tag":430534468,"kind":{"type":"message","definition":18},"cardinality":"variant"},{"name":"Unsigned","tag":215665806,"kind":{"type":"message","definition":19},"cardinality":"variant"},{"name":"Number","tag":32111204,"kind":{"type":"message","definition":20},"cardinality":"variant"},{"name":"Text","tag":504640816,"kind":{"type":"message","definition":21},"cardinality":"variant"},{"name":"Datetime","tag":471385241,"kind":{"type":"message","definition":22},"cardinality":"variant"},{"name":"Array","tag":382271663,"kind":{"type":"message","definition":23},"cardinality":"variant"},{"name":"Object","tag":93226018,"kind":{"type":"message","definition":24},"cardinality":"variant"}],[],[{"name":"field_0","tag":465105749,"kind":{"type":"bool"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"i64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"u64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"f64"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"string"},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":4},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":25},"cardinality":"required"}],[{"name":"field_0","tag":465105749,"kind":{"type":"message","definition":26},"cardinality":"required"}],[{"name":"items","tag":444152673,"kind":{"type":"u32"},"cardinality":"repeated"}],[{"name":"fields","tag":104884581,"kind":{"type":"message","definition":27},"cardinality":"repeated"}],[{"name":"key","tag":135649296,"kind":{"type":"string"},"cardinality":"required"},{"name":"value","tag":39772037,"kind":{"type":"u32"},"cardinality":"required"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Telemetry","method":"ListSamples"}}',
+        fingerprint="d7e60b9a44e544fc1e92547dee86e982ae0ed753a743c5d8eb37a56602433d6c",
+    )
 )
 
-HostOperationsRequest = _wire_131.Row1
-HostOperationsResponse = _wire_131.Row2
+HostCatalogRequest = _wire_131.Row1
+HostCatalogResponse = _wire_131.Row2
 
-HOST_OPERATIONS: Operation[HostOperationsRequest, HostOperationsResponse, Message, Message] = Operation(
-    id="host.operations",
+HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Message] = Operation(
+    id="host.catalog",
     version=1,
     mode="unary",
     codec="protobuf",
-    request=HostOperationsRequest,
-    response=HostOperationsResponse,
+    request=HostCatalogRequest,
+    response=HostCatalogResponse,
     input=None,
     output=None,
-    grpc_path="/harmos.host.v1.Host/Operations",
+    grpc_path="/harmos.host.v1.Host/Catalog",
     rpc_request=_wire_131.Row1,
     rpc_response=_wire_131.Row2,
-    contract='{"operation":{"id":"host.operations","description":"Discover bounded live contracts; invocation authorization remains conditional","policy":{"timeout":{"secs":30,"nanos":0},"attempt_timeout":{"secs":30,"nanos":0},"retries":"never","restart":"never"},"visibility":"shared","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":2,"definitions":[[{"name":"after","tag":1,"kind":{"type":"string"},"cardinality":"optional"},{"name":"rows","tag":2,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"bytes","tag":3,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"catalog","tag":1,"kind":{"type":"bytes"},"cardinality":"required"},{"name":"next","tag":2,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"harmos.host.v1","service":"Host","method":"Operations"}}',
-    fingerprint="39d7a8ac55735057546cdcb59b445de9101cf45cada0559239100f19e5474147",
+    contract='{"operation":{"id":"host.catalog","description":"Page live operation contracts or the schemas, streams and objects storage holds durably","policy":{"timeout":{"secs":30,"nanos":0},"attempt_timeout":{"secs":30,"nanos":0},"retries":"never","restart":"never"},"visibility":"shared","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":2,"definitions":[[{"name":"kind","tag":1,"kind":{"type":"u32"},"cardinality":"required"},{"name":"schema","tag":2,"kind":{"type":"string"},"cardinality":"optional"},{"name":"after","tag":3,"kind":{"type":"string"},"cardinality":"optional"},{"name":"rows","tag":4,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"bytes","tag":5,"kind":{"type":"u64"},"cardinality":"optional"}],[{"name":"entries","tag":1,"kind":{"type":"bytes"},"cardinality":"required"},{"name":"next","tag":2,"kind":{"type":"string"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"harmos.host.v1","service":"Host","method":"Catalog"}}',
+    fingerprint="a9a4d5735bc521f1bfda3ce7258a3c6be538835260420afc03f7679ea2e8eb57",
 )
 
 # === Classes === #

@@ -381,6 +381,6 @@ export const settingsUpdateStoragePolicy = (session: SessionIdentity, request: P
 import { Row1Schema as telemetryListSamplesRequest } from "../../../../.generated/dokime/v1/TelemetryMessages/ListSamples/messages_pb.js";
 import { Row2Schema as telemetryListSamplesResponse } from "../../../../.generated/dokime/v1/TelemetryMessages/ListSamples/messages_pb.js";
 export const telemetryListSamples = (session: SessionIdentity, request: Parameters<typeof unary<typeof telemetryListSamplesRequest, typeof telemetryListSamplesResponse>>[4]) => unary("/dokime.v1.Telemetry/ListSamples", telemetryListSamplesRequest, telemetryListSamplesResponse, session, request, 10000);
-import { Row1Schema as hostOperationsRequest } from "../../../../.generated/harmos/host/v1/HostMessages/Operations/messages_pb.js";
-import { Row2Schema as hostOperationsResponse } from "../../../../.generated/harmos/host/v1/HostMessages/Operations/messages_pb.js";
-export const hostOperations = (session: SessionIdentity, request: Parameters<typeof unary<typeof hostOperationsRequest, typeof hostOperationsResponse>>[4]) => unary("/harmos.host.v1.Host/Operations", hostOperationsRequest, hostOperationsResponse, session, request, 30000);
+import { Row1Schema as hostCatalogRequest } from "../../../../.generated/harmos/host/v1/HostMessages/Catalog/messages_pb.js";
+import { Row2Schema as hostCatalogResponse } from "../../../../.generated/harmos/host/v1/HostMessages/Catalog/messages_pb.js";
+export const hostCatalog = (session: SessionIdentity, request: Parameters<typeof unary<typeof hostCatalogRequest, typeof hostCatalogResponse>>[4]) => unary("/harmos.host.v1.Host/Catalog", hostCatalogRequest, hostCatalogResponse, session, request, 30000);

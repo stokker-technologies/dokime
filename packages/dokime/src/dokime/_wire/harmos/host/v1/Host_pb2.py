@@ -21,7 +21,7 @@ from google.protobuf.internal import builder as _builder
 # Local Imports
 from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
-from dokime._wire.harmos.host.v1.HostMessages.Operations import messages_pb2 as dokime_dot___wire_dot_harmos_dot_host_dot_v1_dot_HostMessages_dot_Operations_dot_messages__pb2
+from dokime._wire.harmos.host.v1.HostMessages.Catalog import messages_pb2 as dokime_dot___wire_dot_harmos_dot_host_dot_v1_dot_HostMessages_dot_Catalog_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -46,15 +46,15 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n&dokime/_wire/harmos/host/v1/Host.proto\x12\x0eharmos.host.v1\x1a\x42\x64okime/_wire/harmos/host/v1/HostMessages/Operations/messages.proto2p\n\x04Host\x12h\n\nOperations\x12,.harmos.host.v1.HostMessages.Operations.Row1\x1a,.harmos.host.v1.HostMessages.Operations.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n&dokime/_wire/harmos/host/v1/Host.proto\x12\x0eharmos.host.v1\x1a?dokime/_wire/harmos/host/v1/HostMessages/Catalog/messages.proto2g\n\x04Host\x12_\n\x07\x43\x61talog\x12).harmos.host.v1.HostMessages.Catalog.Row1\x1a).harmos.host.v1.HostMessages.Catalog.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.harmos.host.v1.Host_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_HOST']._serialized_start=126
-  _globals['_HOST']._serialized_end=238
+  _globals['_HOST']._serialized_start=123
+  _globals['_HOST']._serialized_end=226
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #
