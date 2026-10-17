@@ -18,7 +18,8 @@ pub use project::Project;
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    path::PathBuf,
+    collections::BTreeMap,
+    path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
 };
@@ -35,8 +36,17 @@ use crate::{Error, bundle::files, process};
 /* === Macros === */
 
 /* === Type Aliases === */
+type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
 
 /* === Structs === */
+// One plugin's executables as an earlier Cargo build produced them, ready to bundle without compiling again.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Collected {
+    pub package: Package,
+    pub target: String,
+    pub executables: BTreeMap<String, (PathBuf, Option<PathBuf>)>,
+}
+
 // Whether a build keeps line-table debug info and ships its symbols, as the
 // package's `[package.metadata.dokime] debuginfo` selects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,6 +113,53 @@ pub async fn run(args: Options) -> Result<PathBuf, Error> {
     build_resolved(args, metadata).await
 }
 
+// The selected executables of the build whose Cargo messages and metadata `args` names; Cargo is not run.
+pub async fn collect(args: &Options) -> Result<Collected, Error> {
+    let (Some(messages), Some(metadata), Some(receipt)) = (&args.from_cargo_json, &args.metadata_json, &args.archive_json) else {
+        return Err(Error::Invalid("collection requires Cargo messages, metadata and the archive producer receipt".into()));
+    };
+    if !receipt.is_file() {
+        return Err(Error::Invalid(format!("archive producer receipt {} is missing", receipt.display())));
+    }
+    let metadata: cargo_metadata::Metadata = serde_json::from_slice(&std::fs::read(metadata)?)?;
+    let package = select_package(&metadata, args.package.as_deref())?;
+    let selected = selected_binaries(package, &args.binaries)?;
+    let target = host_target(package).await?;
+    if args.target.as_deref().is_some_and(|requested| requested != target) {
+        return Err(Error::Invalid(format!("native binaries require the native host target {target}")));
+    }
+    let debuginfo = DebugInfo::of(package);
+    let reader = std::io::BufReader::new(std::fs::File::open(messages)?);
+    let mut executables = Executables::new();
+    for message in Message::parse_stream(reader) {
+        if let Message::CompilerArtifact(artifact) = message?
+            && artifact.package_id == package.id
+            && !artifact.profile.test
+            && selected.contains(&artifact.target.name)
+            && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin)
+        {
+            let pdb = debuginfo.symbols(&artifact.filenames);
+            executables
+                .entry(artifact.target.name)
+                .or_default()
+                .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
+        }
+    }
+    let executables = single(executables, selected.len())?;
+    Ok(Collected {
+        package: package.clone(),
+        target,
+        executables: executables.into_iter().map(|(name, mut paths)| (name, paths.remove(0))).collect(),
+    })
+}
+
+// Bundle collected executables into `output/<package>.dokime`.
+pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Error> {
+    let destination = output.join(format!("{}.dokime", collected.package.name));
+    let executables = collected.executables.into_iter().map(|(name, path)| (name, vec![path])).collect();
+    bundle(&collected.package, &collected.target, executables, destination).await
+}
+
 /* === Private Functions === */
 async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::Metadata, Error> {
     let cargo_timeout = args.cargo_timeout;
@@ -133,43 +190,9 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     let binaries = args.binaries.as_slice();
     let package = select_package(&metadata, args.package.as_deref())?;
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
-    let bins = package.targets.iter().filter(|target| target.kind.contains(&cargo_metadata::TargetKind::Bin)).collect::<Vec<_>>();
-    let selected = if binaries.is_empty() {
-        vec![
-            package
-                .default_run
-                .as_deref()
-                .or_else(|| (bins.len() == 1).then(|| bins[0].name.as_str()))
-                .ok_or_else(|| {
-                    Error::Invalid("select one native binary with --bin (repeat for multiple files), or set package.default-run".into())
-                })?
-                .to_owned(),
-        ]
-    } else {
-        binaries.to_vec()
-    };
-    let limits = Limits::default();
-    if selected.len() > limits.files {
-        return Err(Error::Invalid("too many selected executable files".into()));
-    }
-    let mut requested = std::collections::BTreeSet::new();
-    for name in &selected {
-        if !requested.insert(name) {
-            return Err(Error::Invalid(format!("binary {name} was selected twice")));
-        }
-        if !bins.iter().any(|bin| bin.name == *name) {
-            return Err(Error::Invalid(format!("package {} has no binary {name}", package.name)));
-        }
-    }
-
-    let mut probe = Command::new("rustc");
-    probe.current_dir(root).arg("-vV");
-    let host = process::run(probe, "rustc host probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
-    let host = String::from_utf8_lossy(&host.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: "))
-        .map(str::to_owned)
-        .ok_or_else(|| Error::Invalid("rustc did not report a host target".into()))?;
+    let selected = selected_binaries(package, binaries)?;
+    let requested = selected.iter().collect::<std::collections::BTreeSet<_>>();
+    let host = host_target(package).await?;
     let target = args.target.as_deref().unwrap_or(&host);
     if target != host {
         return Err(Error::Invalid(format!("native binaries require the native host target {host}")));
@@ -234,13 +257,71 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
             _ => {}
         }
     }
+    if !finished {
+        return Err(Error::Invalid("Cargo did not report exactly one successful executable for each selected binary".into()));
+    }
+    let executables = single(executables, selected.len())?;
+    let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
+    bundle(package, target, executables, output).await
+}
+
+fn selected_binaries(package: &Package, binaries: &[String]) -> Result<Vec<String>, Error> {
+    let bins = package.targets.iter().filter(|target| target.kind.contains(&cargo_metadata::TargetKind::Bin)).collect::<Vec<_>>();
+    let selected = if binaries.is_empty() {
+        vec![
+            package
+                .default_run
+                .as_deref()
+                .or_else(|| (bins.len() == 1).then(|| bins[0].name.as_str()))
+                .ok_or_else(|| {
+                    Error::Invalid("select one native binary with --bin (repeat for multiple files), or set package.default-run".into())
+                })?
+                .to_owned(),
+        ]
+    } else {
+        binaries.to_vec()
+    };
+    if selected.len() > Limits::default().files {
+        return Err(Error::Invalid("too many selected executable files".into()));
+    }
+    let mut requested = std::collections::BTreeSet::new();
+    for name in &selected {
+        if !requested.insert(name) {
+            return Err(Error::Invalid(format!("binary {name} was selected twice")));
+        }
+        if !bins.iter().any(|bin| bin.name == *name) {
+            return Err(Error::Invalid(format!("package {} has no binary {name}", package.name)));
+        }
+    }
+    Ok(selected)
+}
+
+async fn host_target(package: &Package) -> Result<String, Error> {
+    let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
+    let mut probe = Command::new("rustc");
+    probe.current_dir(root).arg("-vV");
+    let host = process::run(probe, "rustc host probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
+    String::from_utf8_lossy(&host.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "))
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Invalid("rustc did not report a host target".into()))
+}
+
+fn single(mut executables: Executables, selected: usize) -> Result<Executables, Error> {
     for paths in executables.values_mut() {
         paths.sort();
         paths.dedup();
     }
-    if !finished || executables.len() != selected.len() || executables.values().any(|paths| paths.len() != 1) {
+    if executables.len() != selected || executables.values().any(|paths| paths.len() != 1) {
         return Err(Error::Invalid("Cargo did not report exactly one successful executable for each selected binary".into()));
     }
+    Ok(executables)
+}
+
+async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf) -> Result<PathBuf, Error> {
+    let limits = Limits::default();
+    let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let terminal = dokime::terminal::Terminal::default();
     terminal.status("Collecting plugin declarations and assets");
     let collection_started = Instant::now();
@@ -287,7 +368,6 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     let bundle_started = Instant::now();
     let sources = inputs.iter().map(|(path, bytes, executable)| Source { path, bytes, executable: executable.clone() }).collect::<Vec<_>>();
     let bundle = Bundle::build(package_identity(package), &sources, limits)?;
-    let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
     let parent = output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(parent)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)?;

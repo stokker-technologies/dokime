@@ -67,6 +67,14 @@ pub struct Options {
     pub cargo_timeout: Option<std::time::Duration>,
     #[arg(short, long)]
     pub output: Option<std::path::PathBuf>,
+    #[arg(long, requires_all = ["metadata_json", "archive_json"], help = "Collect the executables of an earlier Cargo build instead of compiling.")]
+    pub from_cargo_json: Option<std::path::PathBuf>,
+    #[arg(long, requires = "from_cargo_json")]
+    pub metadata_json: Option<std::path::PathBuf>,
+    #[arg(long, requires = "from_cargo_json")]
+    pub archive_json: Option<std::path::PathBuf>,
+    #[arg(long, help = "Print the collected build as JSON.")]
+    pub json: bool,
 }
 
 /* === Enums === */

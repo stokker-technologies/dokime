@@ -12,6 +12,7 @@ mod build;
 mod dev;
 mod inspect;
 mod new;
+mod package;
 
 /* === Re-Exports === */
 
@@ -35,6 +36,7 @@ mod new;
 pub enum Command {
     New(new::Args),
     Build(build::Args),
+    Package(package::Args),
     Dev(Box<dev::Args>),
     Inspect(inspect::Args),
 }
@@ -48,6 +50,7 @@ impl Command {
         match self {
             Self::New(args) => new::run(args),
             Self::Build(args) => build::run(args).await,
+            Self::Package(args) => package::run(args).await,
             Self::Dev(args) => dev::run(*args).await,
             Self::Inspect(args) => inspect::run(args),
         }

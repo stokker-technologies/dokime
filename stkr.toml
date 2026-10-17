@@ -21,6 +21,7 @@ max_workspaces = 5
 [hooks]
 # Workspace repair and checks exceed one minute even with warm Cargo caches.
 step_timeout_seconds = 900
+validation_inputs = ["crates/dokime-runtime/dist-report/report.html"]
 
 # === Conventions === #
 

@@ -49,14 +49,14 @@ def prepare(
     messages = root / producer["messages"]["path"]
     metadata = root / producer["metadata"]["path"]
     receipt = archive.location(root, producer["profile"]).with_name(archive.RECEIPT)
-    output.mkdir(parents=True, exist_ok=True)
+    clear_output(output)
+    output.mkdir(parents=True)
     files: dict[str, str] = {}
     producers: list[dict] = []
     for package in PACKAGES:
-        directory = output / package
-        clear_output(directory)
-        build_json = directory / "build.json"
-        package_json = directory / "package.json"
+        directory = output
+        build_json = directory / f"{package}.build.json"
+        package_json = directory / f"{package}.package.json"
         collector = [
             str(tool),
             "dokime",
