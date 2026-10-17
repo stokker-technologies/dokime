@@ -1,6 +1,4 @@
-# Rendered-pending: the plugin-profile output of `stkr project update` from templates/ci/.github/workflows/nightly.yml
-# (Hub refactor/test-layers), copied by hand until the Hub renders it; the gate and the release verify
-# through `mise run test:verify` and `mise run ci` instead of the internal evidence tooling.
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:4bcf1cd5d86f33c951ed64b3c9f8aaa79429be9a3013ad4201b01125192c81dd
 name: Nightly
 "on":
   schedule:
@@ -48,3 +46,5 @@ jobs:
           .stkr/benchmarks/
         include-hidden-files: true
         if-no-files-found: ignore
+    env:
+      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,cargo:cargo-llvm-cov,taplo

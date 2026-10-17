@@ -1,6 +1,4 @@
-# Rendered-pending: the plugin-profile output of `stkr project update` from templates/ci/.gitlab-ci.yml
-# (Hub refactor/test-layers), copied by hand until the Hub renders it; the gate and the release verify
-# through `mise run test:verify` and `mise run ci` instead of the internal evidence tooling.
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:5bc5e9cc32549104e3f96952f351032ebb03a00170a09b2087e35c37116c2cd2
 stages:
 - Source
 - Build
@@ -41,11 +39,17 @@ Source:
   tags: []
   timeout: 10 minutes
   script:
+  - mise run format:python --check
   - mise run format:rust --check
+  - mise run format:toml --check
+  - mise run check:python
+  - mise run lint:python
   needs: []
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_COMMIT_BRANCH =~ /^(dev|main|release\/v.*)$/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,taplo
 Build:
   stage: Build
   tags: []
@@ -72,6 +76,8 @@ Build:
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_COMMIT_BRANCH =~ /^(dev|main|release\/v.*)$/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
 Test / Integration / Rust:
   stage: Integration
   tags: []
@@ -93,6 +99,8 @@ Test / Integration / Rust:
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_COMMIT_BRANCH =~ /^(dev|main|release\/v.*)$/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
 Test / Acceptance / Rust:
   stage: Acceptance And System
   tags: []
@@ -116,12 +124,19 @@ Test / Acceptance / Rust:
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_COMMIT_BRANCH =~ /^(dev|main|release\/v.*)$/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
 Gate:
   stage: Gate
   tags: []
   timeout: 10 minutes
   script:
-  - mise run test:verify
+  - >-
+    mise exec -- uv run --locked --project tools/python python -m
+    project_tools.test.run collect .cache/evidence/*
+  - >-
+    mise exec -- uv run --locked --project tools/python python -m
+    project_tools.test.run verify
   needs:
   - job: Source
     artifacts: true
@@ -140,6 +155,20 @@ Gate:
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_COMMIT_BRANCH =~ /^(dev|main|release\/v.*)$/
+  variables:
+    MISE_ENABLE_TOOLS: python,uv
+Release / Publish / Dry:
+  stage: Gate
+  tags: []
+  timeout: 60 minutes
+  script:
+  - mise run package:rust --profile release
+  - mise run release:publish:dry
+  needs:
+  - job: Gate
+    artifacts: false
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|release\/v.*)$/
 CI / Nightly:
   stage: Gate
   tags: []
@@ -164,12 +193,21 @@ CI / Nightly:
     paths:
     - .stkr/tests/
     - .stkr/benchmarks/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,cargo:cargo-llvm-cov,taplo
 Package / Release:
   stage: Build
   tags: []
   timeout: 30 minutes
   script:
-  - mise run ci
+  - "mkdir -p .cache/release && curl --fail --location --header \"JOB-TOKEN: $CI_JOB_TOKEN\" --output .cache/release/evidence.zip \"$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/release%2F${CI_COMMIT_TAG}/download?job=Gate\""
+  - unzip -o .cache/release/evidence.zip -d .cache/release
+  - >-
+    mise exec -- uv run --locked --project tools/python python -m
+    project_tools.test.run collect .cache/release/.stkr/tests
+  - >-
+    mise exec -- uv run --locked --project tools/python python -m
+    project_tools.test.run verify
   - mise run package:rust --profile release
   needs: []
   rules:
@@ -177,7 +215,7 @@ Package / Release:
   artifacts:
     expire_in: 30 days
     paths:
-    - dist/
+    - target/package/
 Release / Publish:
   stage: Gate
   tags: []
@@ -196,6 +234,8 @@ Release / Publish:
       aud: pypi
     CRATES_IO_ID_TOKEN:
       aud: crates.io
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,git-cliff
 Prepare Release:
   stage: Source
   tags: []
@@ -211,3 +251,5 @@ Prepare Release:
   rules:
   - if: $CI_PIPELINE_SOURCE == "web" && $RELEASE_VERSION
     when: manual
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,git-cliff

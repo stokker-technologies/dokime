@@ -1,6 +1,4 @@
-# Rendered-pending: the plugin-profile output of `stkr project update` from templates/ci/.github/workflows/prepare-release.yml
-# (Hub refactor/test-layers), copied by hand until the Hub renders it; the gate and the release verify
-# through `mise run test:verify` and `mise run ci` instead of the internal evidence tooling.
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:ad44385b3fc46f8ea0770c1b9ba991bf34f64d29ed84a6ae62bb4133c4ccab22
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -39,3 +37,5 @@ jobs:
     - run: mise run release:prepare
     - run: "git -c user.name=\"${{ github.actor }}\" -c user.email=\"${{ github.actor }}@users.noreply.github.com\" commit -am \"chore: prepare release v${{ inputs.version }}\""
     - run: git push origin "release/v${{ inputs.version }}"
+    env:
+      MISE_ENABLE_TOOLS: python,rust,uv,git-cliff

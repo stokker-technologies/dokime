@@ -15,8 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime::host::ToolConnectionAcquired;
-use dokime::plugin::testing::Harness;
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::plugin::testing::Harness;
 
 // Local Imports
 use {{crate}}::bench::Sensor;
@@ -126,8 +126,8 @@ async fn unreachable_target_run() {
 /* === Tests === */
 #[test]
 fn soak_document_wraps() {
-    use dokime::definition::DeclaredTemplate;
-    use dokime::document::{DocumentCardBody, DocumentNode};
+    use dokime_runtime::definition::DeclaredTemplate;
+    use dokime_runtime::document::{DocumentCardBody, DocumentNode};
 
     let declaration = <{{crate}}::suites::soak::Hold as DeclaredTemplate>::declaration();
     let document = declaration
