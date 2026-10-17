@@ -44,7 +44,7 @@ storage = [
 
 [dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract" }
+dokime-contract = { path = "../dokime-contract", features = ["diagnostics"] }
 dokime-filesystem = { path = "../dokime-filesystem", optional = true }
 dokime-macros = { path = "../dokime-macros", optional = true }
 

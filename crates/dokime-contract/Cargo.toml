@@ -16,6 +16,8 @@ repository.workspace = true
 version = { workspace = true }
 
 [features]
+# Captures error chains, span traces and backtraces into a `Diagnostic`.
+diagnostics = ["dep:tracing-error"]
 # Projects the public operations into protobuf descriptors and readable sources.
 descriptors = ["harmos/grpc"]
 
@@ -27,7 +29,7 @@ harmos = { workspace = true }
 thiserror = { workspace = true }
 
 # Logging
-tracing-error = { workspace = true }
+tracing-error = { workspace = true, optional = true }
 
 # Utilities
 sha2 = { workspace = true }

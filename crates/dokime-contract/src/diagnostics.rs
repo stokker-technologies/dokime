@@ -13,23 +13,31 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(feature = "diagnostics")]
 use std::backtrace::Backtrace;
 use std::fmt;
+#[cfg(feature = "diagnostics")]
 use std::panic::Location;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "diagnostics")]
 use tracing_error::SpanTrace;
 // Local Imports
 
 /* === Constants === */
+#[cfg(feature = "diagnostics")]
 const HOME: &str = "~";
 
+#[cfg(feature = "diagnostics")]
 const USER: &str = "<user>";
 
+#[cfg(feature = "diagnostics")]
 const CAPTURE: &str = module_path!();
 
+#[cfg(feature = "diagnostics")]
 const UNKNOWN: &str = "<unknown>";
 
+#[cfg(feature = "diagnostics")]
 const UNRESOLVED_HINT: &str = "no frame resolved to a symbol: the plugin was \
 built without debug info, or on Windows its .pdb was not found beside the \
 executable";
@@ -52,6 +60,7 @@ pub struct Diagnostic {
     pub backtrace: String,
 }
 
+#[cfg(feature = "diagnostics")]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Redaction {
     root: Option<String>,
@@ -101,6 +110,7 @@ impl harmos::MemorySize for Diagnostic {
 }
 
 impl Diagnostic {
+    #[cfg(feature = "diagnostics")]
     #[track_caller]
     pub fn capture<E>(error: &E) -> Self
     where
@@ -109,6 +119,7 @@ impl Diagnostic {
         Self::at(Location::caller(), error)
     }
 
+    #[cfg(feature = "diagnostics")]
     pub fn at<E>(location: &Location<'_>, error: &E) -> Self
     where
         E: std::error::Error + ?Sized,
@@ -129,6 +140,7 @@ impl Diagnostic {
         }
     }
 
+    #[cfg(feature = "diagnostics")]
     #[track_caller]
     pub fn of(message: impl Into<String>) -> Self {
         Self {
@@ -158,11 +170,13 @@ impl Diagnostic {
         summary
     }
 
+    #[cfg(feature = "diagnostics")]
     #[must_use]
     pub fn redacted(&self) -> Self {
         self.redact(&Redaction::environment())
     }
 
+    #[cfg(feature = "diagnostics")]
     fn redact(&self, redaction: &Redaction) -> Self {
         Self {
             message: redaction.apply(&self.message),
@@ -182,6 +196,7 @@ impl Diagnostic {
     }
 }
 
+#[cfg(feature = "diagnostics")]
 impl Redaction {
     fn environment() -> Self {
         let home = std::env::var("HOME")
@@ -250,11 +265,13 @@ impl fmt::Display for Diagnostic {
 impl std::error::Error for Diagnostic {}
 
 /* === Public Functions === */
+#[cfg(feature = "diagnostics")]
 #[must_use]
 pub fn redacted(text: &str) -> String {
     Redaction::environment().apply(text)
 }
 
+#[cfg(feature = "diagnostics")]
 #[track_caller]
 pub fn captured<T, E>(answered: Result<T, E>) -> Result<T, Diagnostic>
 where
@@ -267,10 +284,12 @@ where
 }
 
 /* === Private Functions === */
+#[cfg(feature = "diagnostics")]
 fn located(location: &Location<'_>) -> String {
     format!("{}:{}", location.file(), location.line())
 }
 
+#[cfg(feature = "diagnostics")]
 fn backtrace() -> String {
     let captured = Backtrace::force_capture().to_string();
     let frames = frames(&captured)
@@ -287,6 +306,7 @@ fn backtrace() -> String {
     rendered.join("\n")
 }
 
+#[cfg(feature = "diagnostics")]
 fn collapsed(frames: &[&str]) -> Vec<String> {
     let mut rendered = Vec::new();
     let mut index = 0;
@@ -308,18 +328,22 @@ fn collapsed(frames: &[&str]) -> Vec<String> {
     rendered
 }
 
+#[cfg(feature = "diagnostics")]
 fn wholly_unresolved(frames: &[&str]) -> bool {
     frames.iter().any(|frame| !has_symbol(frame)) && frames.iter().all(|frame| !rust_path(frame))
 }
 
+#[cfg(feature = "diagnostics")]
 fn has_symbol(frame: &str) -> bool {
     symbol(frame) != UNKNOWN
 }
 
+#[cfg(feature = "diagnostics")]
 fn rust_path(frame: &str) -> bool {
     symbol(frame).contains("::")
 }
 
+#[cfg(feature = "diagnostics")]
 fn symbol(frame: &str) -> &str {
     let header = frame.split('\n').next().unwrap_or(frame);
     match header.find(": ") {
@@ -328,6 +352,7 @@ fn symbol(frame: &str) -> &str {
     }
 }
 
+#[cfg(feature = "diagnostics")]
 fn frames(backtrace: &str) -> impl Iterator<Item = &str> {
     let mut starts = backtrace
         .char_indices()
@@ -341,6 +366,7 @@ fn frames(backtrace: &str) -> impl Iterator<Item = &str> {
         .map(move |frame| backtrace[starts[frame]..starts[frame + 1]].trim_end_matches('\n'))
 }
 
+#[cfg(feature = "diagnostics")]
 fn numbered(line: &str) -> bool {
     let digits = line.trim_start_matches(' ');
     let rest = digits.trim_start_matches(|character: char| character.is_ascii_digit());
@@ -348,6 +374,7 @@ fn numbered(line: &str) -> bool {
     digits.len() != rest.len() && rest.starts_with(": ")
 }
 
+#[cfg(feature = "diagnostics")]
 fn renumbered(index: usize, frame: &str) -> String {
     let leading = frame.len() - frame.trim_start_matches(' ').len();
     let Some(colon) = frame.find(": ") else {
@@ -357,6 +384,7 @@ fn renumbered(index: usize, frame: &str) -> String {
     format!("{:leading$}{index}{}", "", &frame[colon..])
 }
 
+#[cfg(feature = "diagnostics")]
 fn plain(styled: &str) -> String {
     let mut plain = String::with_capacity(styled.len());
     let mut characters = styled.chars();
@@ -376,6 +404,7 @@ fn plain(styled: &str) -> String {
     plain
 }
 
+#[cfg(feature = "diagnostics")]
 fn spans() -> Vec<String> {
     let mut spans = Vec::new();
     SpanTrace::capture().with_spans(|metadata, fields| {
