@@ -97,6 +97,9 @@ macro_rules! templated {
             const FIELDS: &'static [harmos::schema::graph::Field<harmos::schema::declaration::Definition>] =
                 <$inner as harmos::schema::Described>::FIELDS;
             const MARKER: &'static [u8] = <$inner as harmos::schema::Described>::MARKER;
+            // The wrapper shares the inner request's schema identity, so one
+            // definition name keeps one owner across every template.
+            const DEFINITION: harmos::schema::declaration::Definition = <$inner as harmos::schema::Described>::DEFINITION;
         }
     };
 }
