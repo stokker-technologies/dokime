@@ -13,9 +13,12 @@
 
 /* === Imports === */
 use dokime_runtime::{Identifier, Metadata};
-use dokime_runtime::domains::evidence::{OperatorNoteRequest, RecordSelection};
-use dokime_runtime::records::{
-    ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
+use dokime_runtime::domains::evidence::RecordSelection;
+use model::execution::OperatorNoteRequest;
+use {
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
 };
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 
@@ -24,6 +27,7 @@ use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 
 /* === Constants === */
 

@@ -28,6 +28,7 @@ pub(crate) use crate::service_support::prelude::*;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 
 /* === Constants === */
 
@@ -50,7 +51,7 @@ async fn record_health(runtime: &RuntimeHandle, message: &str) -> dokime_runtime
     runtime
         .add_health_item(
             RecordScope::default(),
-            dokime_runtime::execution::HealthSeverity::Info,
+            model::execution::HealthSeverity::Info,
             message.to_owned(),
             None,
         )

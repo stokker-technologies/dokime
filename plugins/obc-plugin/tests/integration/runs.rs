@@ -20,6 +20,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::answering;
 use dokime_runtime::{PromptId, Timestamp};
 use dokime_runtime::execution::{Caller, SidecarTemplate, Workflow};
@@ -49,7 +50,7 @@ type Connections = Arc<Mutex<Vec<String>>>;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn assert_record_contract(request: dokime_runtime::records::RecordPublishRequest) {
+fn assert_record_contract(request: model::records::publication::RecordPublishRequest) {
     let contract =
         dokime_runtime::catalog::entries::<obc_plugin::suites::Suites, dokime_runtime::catalog::Suites>()
             .into_iter()
@@ -311,8 +312,9 @@ async fn settled_evidence<T: SidecarTemplate>(
         }
 }
 
-fn connection(resource: &str) -> dokime_runtime::records::Record {
-    let mut record = dokime_runtime::records::Record::new(
+fn connection(resource: &str) -> model::records::evidence::Record {
+    let mut record = model::records::evidence::Record::new(
+        dokime_runtime::model::identity::new_id(),
         Timestamp::new("2026-01-01T00:00:00Z"),
         dokime_runtime::Identifier::new("tool.connection.acquired").unwrap(),
         1,

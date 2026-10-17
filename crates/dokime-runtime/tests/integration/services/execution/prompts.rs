@@ -17,12 +17,17 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use tempfile::tempdir;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use crate::service_support::prompts::{assert_late_answer_refused, settlement_records};
 use dokime_runtime::{Identifier, Metadata, PromptId, RecordScope, Value, ValueType};
 use dokime_runtime::definition::TestSuite;
 use dokime_runtime::prompts::{PromptField, PromptFieldKind, PromptRequest};
-use dokime_runtime::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
+use {
+    model::records::product::ProductConnectionDetails,
+    model::records::product::ProductConnectionState,
+    dokime_runtime::records::RecordCondition,
+};
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::definition::RuntimeCondition;
 use dokime_runtime::execution::CycleStatus;

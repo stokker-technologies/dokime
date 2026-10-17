@@ -15,7 +15,11 @@
 // Standard Library Imports
 // Third Party Imports
 // Local Imports
-use dokime_runtime::{core::TestExecutionId, execution::saved::ExecutionCheckpoint};
+use dokime_domain::model;
+use {
+    dokime_runtime::TestExecutionId,
+    dokime_runtime::execution::saved::ExecutionCheckpoint,
+};
 use dokime_runtime::{RuntimeHandle, runtime::ExecutionView};
 
 /* === Constants === */
@@ -49,7 +53,7 @@ pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> E
 pub async fn records(
     handle: &RuntimeHandle,
     checkpoint: &ExecutionCheckpoint,
-) -> Vec<dokime_runtime::records::RecordEntry> {
+) -> Vec<model::records::evidence::RecordEntry> {
     let mut records = Vec::new();
     let mut after = None;
     loop {

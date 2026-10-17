@@ -17,11 +17,13 @@
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{
     CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp,
 };
-use dokime_runtime::execution::{CycleView, OperatorNote};
-use dokime_runtime::execution::notes::*;
+use dokime_runtime::execution::CycleView;
+use model::execution::OperatorNote;
+use model::execution::notes::*;
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{AddOperatorNote, CreateOperatorNote};
 

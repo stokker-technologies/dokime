@@ -24,9 +24,13 @@ use harmos::{
 };
 
 // Local Imports
-use dokime_runtime::{
-    core::{Identifier, TestCycleId, Timestamp},
-    storage::{Backend, Manager, reports},
+use {
+    dokime_runtime::Identifier,
+    dokime_runtime::TestCycleId,
+    dokime_runtime::Timestamp,
+    dokime_runtime::storage::Backend,
+    dokime_runtime::storage::Manager,
+    dokime_runtime::storage::reports,
 };
 
 /* === Constants === */

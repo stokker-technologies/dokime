@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -286,7 +287,7 @@ async fn failing_panicking_failed() {
         evidence
             .health
             .iter()
-            .any(|item| item.severity == dokime_runtime::execution::HealthSeverity::Error)
+            .any(|item| item.severity == model::execution::HealthSeverity::Error)
     );
 
     // A panicking provider cannot take the runtime with it: Harmos's job

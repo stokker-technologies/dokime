@@ -48,9 +48,10 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
 // Local Imports
-use dokime_runtime::{
-    Runtime,
-    core::{Identifier, Metadata},
+use {
+    dokime_runtime::Runtime,
+    dokime_runtime::Identifier,
+    dokime_runtime::Metadata,
 };
 use dokime_client::contracts;
 use dokime_server::grpc::{

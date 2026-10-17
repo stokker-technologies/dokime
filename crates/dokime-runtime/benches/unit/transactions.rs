@@ -22,10 +22,13 @@ use criterion::{BatchSize, BenchmarkId, Criterion, Throughput};
 use harmos::state::{Records, Transaction};
 
 // Local Imports
-use dokime_runtime::{
-    records::{ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase},
-    state::RuntimeState,
-    transactions::PublishRecord,
+use dokime_domain::model;
+use {
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
+    dokime_runtime::state::RuntimeState,
+    dokime_runtime::transactions::PublishRecord,
 };
 
 /* === Constants === */

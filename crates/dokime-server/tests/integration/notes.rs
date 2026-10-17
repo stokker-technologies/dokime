@@ -21,8 +21,8 @@ use dokime_domain::model;
 use super::*;
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::{RecordScope, TestCycleId};
-use dokime_runtime::domains::evidence::OperatorNoteRequest;
-use dokime_runtime::execution::HealthSeverity;
+use model::execution::OperatorNoteRequest;
+use model::execution::HealthSeverity;
 use dokime_runtime::runtime::command::CommandContext;
 
 /* === Constants === */

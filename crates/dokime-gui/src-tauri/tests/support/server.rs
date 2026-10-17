@@ -19,10 +19,13 @@ use std::{path::Path, sync::Arc};
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::artifact;
-use dokime_runtime::{
-    Runtime, RuntimeConfig,
-    core::{Identifier, Metadata},
+use {
+    dokime_runtime::Runtime,
+    dokime_runtime::RuntimeConfig,
+    dokime_runtime::Identifier,
+    dokime_runtime::Metadata,
 };
 use dokime_gui::connection::{
     ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget,
@@ -78,10 +81,10 @@ impl Fixture {
         )
         .await
         .unwrap();
-        let calibration = dokime_runtime::records::ProductCalibrationDetails::new(
+        let calibration = model::records::product::ProductCalibrationDetails::new(
             "rpc-device",
-            dokime_runtime::records::ProductCalibrationKind::Field,
-            dokime_runtime::records::ProductCalibrationPhase::Completed,
+            model::records::product::ProductCalibrationKind::Field,
+            model::records::product::ProductCalibrationPhase::Completed,
         );
         runtime
             .handle()

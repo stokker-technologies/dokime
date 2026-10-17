@@ -18,6 +18,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::service_support::prelude::*;
 use dokime_runtime::domains::evidence::RecordSelection;
 
@@ -40,9 +41,11 @@ use dokime_runtime::domains::evidence::RecordSelection;
 /* === Private Functions === */
 
 async fn publish_position_record(runtime: &RuntimeHandle, message: String) {
-    use dokime_runtime::records::{
-        ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
-    };
+    use {
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
+};
     let mut draft = ProductCalibrationDetails::new(
         "bench",
         ProductCalibrationKind::Field,
@@ -75,7 +78,7 @@ async fn managed_records_kill() {
     );
     child.ready().await;
     child.kill();
-    let old: Vec<dokime_runtime::records::RecordEntry> =
+    let old: Vec<model::records::evidence::RecordEntry> =
         serde_json::from_slice(&std::fs::read(marker).unwrap()).unwrap();
     let (mut owner, runtime) = started(config(root.path())).await;
     for index in 0..32 {

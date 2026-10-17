@@ -26,7 +26,11 @@ use harmos::sidecar::{Attach, Notice, Supervised};
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::records::{PublishRecord, RecordPublication, RecordPublishRequest};
+use {
+    dokime_runtime::records::PublishRecord,
+    dokime_runtime::records::RecordPublication,
+    model::records::publication::RecordPublishRequest,
+};
 use dokime_runtime::transport::{
     AskOperator, EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, LeaseStream,
     OperatorAnswer, OperatorQuestion, PushEvidence, StepAdmission,

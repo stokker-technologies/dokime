@@ -18,6 +18,7 @@
 use sha2::Digest;
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -53,12 +54,13 @@ async fn report_save_receipt() {
         Backend,
         objects::execution::{self, Execution},
     };
-    use dokime_runtime::{
-        core::NodeId,
-        definition::TestCase,
-        execution::{ExecutionSnapshot, TestExecution},
-        storage::Manager,
-    };
+    use {
+    dokime_runtime::NodeId,
+    dokime_runtime::definition::TestCase,
+    dokime_runtime::execution::ExecutionSnapshot,
+    dokime_runtime::execution::TestExecution,
+    dokime_runtime::storage::Manager,
+};
     use dokime_runtime::{
         execution::CycleView,
         report::{CycleReportInput, saved::CapturedExecutionReportInput},
@@ -178,15 +180,15 @@ async fn report_save_receipt() {
         },
         execution_documents: BTreeMap::new(),
         prompts: Vec::new(),
-        health: vec![dokime_runtime::execution::HealthItem {
+        health: vec![model::execution::HealthItem {
             health_item_id: dokime_runtime::HealthItemId::from_seed("captured-health"),
             scope: original_execution.scope.clone(),
-            severity: dokime_runtime::execution::HealthSeverity::Warning,
+            severity: model::execution::HealthSeverity::Warning,
             message: "Captured Warning".into(),
             detail: Some("Original observation".into()),
             observed_at: finished_at.clone(),
         }],
-        notes: vec![dokime_runtime::execution::OperatorNote {
+        notes: vec![model::execution::OperatorNote {
             note_id: dokime_runtime::NoteId::from_seed("captured-note"),
             scope: original_execution.scope.clone(),
             author: None,

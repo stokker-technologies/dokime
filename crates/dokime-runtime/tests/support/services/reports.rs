@@ -21,8 +21,9 @@ use harmos::storage::FileReference;
 use sha2::Digest;
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::execution::saved::ExecutionRevision;
-use dokime_runtime::execution::{HealthItem, OperatorNote};
+use model::execution::{HealthItem, OperatorNote};
 use dokime_runtime::records::RecordContract;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_runtime::telemetry::contract::TelemetryContract;

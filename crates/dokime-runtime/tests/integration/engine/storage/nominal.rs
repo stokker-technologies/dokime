@@ -40,10 +40,13 @@ use sha2::{Digest, Sha256};
 use dokime_domain::model;
 use super::sqlite::storage::{declared, id, page, rows, write_batch};
 use dokime_runtime::storage::sqlite::Backend;
-use dokime_runtime::{
-    core::{SessionId, Timestamp, Value},
-    storage::telemetry::{TelemetryEntry, TypedCodec},
-    model::telemetry::wire::TelemetrySample,
+use {
+    dokime_runtime::SessionId,
+    dokime_runtime::Timestamp,
+    dokime_runtime::Value,
+    dokime_runtime::storage::telemetry::TelemetryEntry,
+    dokime_runtime::storage::telemetry::TypedCodec,
+    dokime_runtime::model::telemetry::wire::TelemetrySample,
 };
 
 /* === Constants === */

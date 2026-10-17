@@ -21,8 +21,13 @@ use std::hint::black_box;
 use criterion::{BenchmarkId, Criterion, Throughput};
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{Identifier, Timestamp, Value};
-use dokime_runtime::records::{Record, RecordEntry, RecordSeverity};
+use {
+    model::records::evidence::Record,
+    model::records::evidence::RecordEntry,
+    dokime_runtime::records::RecordSeverity,
+};
 use dokime_runtime::telemetry::TelemetrySample;
 use dokime_runtime::domains::evidence::{RecordSelection, TelemetrySelection};
 
@@ -85,6 +90,7 @@ fn records(count: u64) -> Vec<RecordEntry> {
             let mut record = RecordEntry::from_record(
                 index + 1,
                 Record::new(
+                    dokime_runtime::model::identity::new_id(),
                     dokime_runtime::model::time::now_utc(),
                     identifier("bench.event"),
                     1,

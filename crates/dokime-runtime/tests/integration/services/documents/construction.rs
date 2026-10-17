@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -443,9 +444,11 @@ async fn section_run_report() {
 
 #[tokio::test]
 async fn current_fact_frontiers() {
-    use dokime_runtime::records::{
-        ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
-    };
+    use {
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
+};
     use dokime_runtime::document::{
         DocumentCard, TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition,
         TelemetrySummaryTileDefinition,

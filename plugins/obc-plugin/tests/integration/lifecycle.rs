@@ -19,9 +19,10 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::Value;
 use dokime_runtime::execution::Workflow;
-use dokime_runtime::records::RecordPublishRequest;
+use model::records::publication::RecordPublishRequest;
 use dokime_runtime::transport::{
     EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome,
     StepAdmission,

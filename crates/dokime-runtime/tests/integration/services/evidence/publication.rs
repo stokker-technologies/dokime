@@ -17,11 +17,16 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
-use dokime_runtime::execution::HealthSeverity;
-use dokime_runtime::records::{
-    ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
-    ProductConnectionDetails, ProductConnectionState, ProductRecordDraft,
+use model::execution::HealthSeverity;
+use {
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
+    model::records::product::ProductConnectionDetails,
+    model::records::product::ProductConnectionState,
+    model::records::product::ProductRecordDraft,
 };
 use dokime_runtime::domains::evidence::RecordSelection;
 
@@ -293,7 +298,7 @@ async fn publish_record_warning() {
     assert_eq!(evidence.health.len(), 1);
     assert_eq!(
         evidence.health[0].severity,
-        dokime_runtime::execution::HealthSeverity::Warning
+        model::execution::HealthSeverity::Warning
     );
     assert!(
         evidence.health[0]

@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use crate::service_support::reports::{parse, payload_text, render, render_annotated};
 use dokime_runtime::{TraceabilityId, Value};
@@ -31,7 +32,7 @@ use dokime_runtime::document::{
     TelemetrySummaryPresentation, TelemetrySummaryStat, TelemetrySummaryTilePayload,
 };
 use dokime_runtime::execution::{CycleStatus, CycleView, TestExecution};
-use dokime_runtime::records::TestRecordSet;
+use dokime_domain::state::records::set::TestRecordSet;
 use dokime_runtime::report::{CycleReportInput, ReportCaseDocument};
 use dokime_runtime::traceability::{TraceabilityEntry, TraceabilitySnapshot};
 
@@ -1169,9 +1170,9 @@ async fn stated_section_wrote() {
 #[tokio::test]
 async fn rendered_report_happened() {
     let mut input = fixture_input("Failed Cycle");
-    input.records = vec![dokime_runtime::records::RecordEntry::from_record(
+    input.records = vec![model::records::evidence::RecordEntry::from_record(
         1,
-        dokime_runtime::records::Record {
+        model::records::evidence::Record {
             received_at: dokime_runtime::model::time::now_utc(),
             record_id: dokime_runtime::model::identity::new_id::<dokime_runtime::RecordId>(),
             timestamp: dokime_runtime::model::time::now_utc(),
@@ -1297,7 +1298,7 @@ async fn failed_step_frames() {
 
 #[tokio::test]
 async fn normalised_report_rows() {
-    use dokime_runtime::execution::{HealthItem, HealthSeverity, OperatorNote};
+    use model::execution::{HealthItem, HealthSeverity, OperatorNote};
     use dokime_runtime::report::ReportArtifactLink;
 
     let mut input = fixture_input("Normalised Rows");
@@ -1392,9 +1393,9 @@ async fn normalised_report_rows() {
 #[tokio::test]
 async fn latest_member_annotations() {
     use dokime_runtime::CommandId;
-    use dokime_runtime::execution::{HealthItem, HealthSeverity};
+    use model::execution::{HealthItem, HealthSeverity};
     use dokime_runtime::domains::evidence::notes::CreateNote;
-    use dokime_runtime::execution::notes::NoteOwner;
+    use model::execution::notes::NoteOwner;
 
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;

@@ -22,6 +22,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::Value;
 use dokime_runtime::{PromptId, Timestamp};
 use dokime_runtime::definition::TestCaseTemplate;
@@ -281,7 +282,7 @@ impl dokime_runtime::records::DeclaredRecord for UnitConnected {
         std::collections::BTreeMap::from([("serial".to_owned(), Value::from(self.serial))])
     }
 
-    fn from_record(record: &dokime_runtime::records::Record) -> dokime_runtime::Result<Self> {
+    fn from_record(record: &model::records::evidence::Record) -> dokime_runtime::Result<Self> {
         Self::from_details(&record.details)
             .map_err(|error| dokime_runtime::Error::record_field(Self::RECORD_TYPE, error))
     }
@@ -2340,8 +2341,9 @@ fn captured(execution: dokime_runtime::TestExecutionId) -> dokime_runtime::Recor
         .with_test_execution(execution)
 }
 
-fn admitted(record_type: &str, source: &str, serial: &str) -> dokime_runtime::records::Record {
-    let mut record = dokime_runtime::records::Record::new(
+fn admitted(record_type: &str, source: &str, serial: &str) -> model::records::evidence::Record {
+    let mut record = model::records::evidence::Record::new(
+        dokime_runtime::model::identity::new_id(),
         dokime_runtime::model::time::now_utc(),
         dokime_runtime::Identifier::new(record_type).expect("a fixture identifier is valid"),
         1,

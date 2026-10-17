@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{
     CaseId, CommandId, Identifier, Metadata, TemplateId, TestCycleId, Timestamp, Value,
 };
@@ -483,14 +484,14 @@ fn step_attempt_rewrites() {
         }
     );
     let captured_id = dokime_runtime::RecordId::from_seed("admitted-at-first-attempt");
-    let mut admitted = dokime_runtime::records::Record::new(
+    let mut admitted = model::records::evidence::Record::new(
+        captured_id.clone(),
         dokime_runtime::model::time::now_utc(),
         Identifier::new("fixture.output").unwrap(),
         1,
         "fixture",
         dokime_runtime::records::RecordSeverity::Info,
     );
-    admitted.record_id = captured_id.clone();
     admitted.scope = Some(first_scope.clone());
     state.commit_record(admitted);
     assert_eq!(
@@ -1703,7 +1704,7 @@ fn request_queues_evidence() {
         .unwrap();
     let execution_id = execution.test_execution_id.clone();
     assert_eq!(execution.status, ExecutionStatus::Skipped);
-    let note = dokime_runtime::execution::OperatorNote {
+    let note = model::execution::OperatorNote {
         note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::NoteId>(),
         scope: execution.scope.clone(),
         author: None,

@@ -18,10 +18,11 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::service_support::prelude::*;
 use dokime_runtime::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, EditNote, NoteError};
-use dokime_runtime::execution::notes::NoteOwner;
+use model::execution::notes::NoteOwner;
 
 /* === Constants === */
 

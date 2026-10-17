@@ -20,11 +20,16 @@ use sha2::Digest as _;
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{
-    InstalledPlugin,
-    core::{Identifier, Value},
-    domains::installed_plugins::PluginCredentialSecretUpdate,
-    settings::{SecretSetting, SettingValues, Settings, SettingsEntry, TextArea},
+use {
+    dokime_runtime::InstalledPlugin,
+    dokime_runtime::Identifier,
+    dokime_runtime::Value,
+    dokime_runtime::domains::installed_plugins::PluginCredentialSecretUpdate,
+    dokime_runtime::settings::SecretSetting,
+    dokime_runtime::settings::SettingValues,
+    dokime_runtime::settings::Settings,
+    dokime_runtime::settings::SettingsEntry,
+    dokime_runtime::settings::TextArea,
 };
 
 /* === Constants === */

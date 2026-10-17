@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 // Installed-plugin runtime contract tests.
@@ -66,10 +67,10 @@ async fn boot_health_transaction() {
     let boot_health_observed_at = dokime_runtime::model::time::now_utc();
 
     runtime
-        .record_health_item(dokime_runtime::execution::HealthItem {
+        .record_health_item(model::execution::HealthItem {
             health_item_id: boot_health_item_id.clone(),
             scope: dokime_runtime::RecordScope::default(),
-            severity: dokime_runtime::execution::HealthSeverity::Error,
+            severity: model::execution::HealthSeverity::Error,
             message: "InstalledPlugin discovery failed.".to_owned(),
             detail: Some("fixture.missing: manifest missing".to_owned()),
             observed_at: boot_health_observed_at.clone(),

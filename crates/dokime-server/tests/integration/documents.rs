@@ -19,10 +19,13 @@
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{
-    core::Value,
-    document::{DocumentCard, DocumentCardBody, DocumentDefinition, DocumentSection},
-    runtime::command::CommandContext,
+use {
+    dokime_runtime::Value,
+    dokime_runtime::document::DocumentCard,
+    dokime_runtime::document::DocumentCardBody,
+    dokime_runtime::document::DocumentDefinition,
+    dokime_runtime::document::DocumentSection,
+    dokime_runtime::runtime::command::CommandContext,
 };
 use model::documents::wire::DocumentFrameFrame as Frame;
 
@@ -203,14 +206,14 @@ async fn current_document_rows() {
 
 #[tokio::test]
 async fn summary_complete_telemetry() {
-    use dokime_runtime::{
-        core::Timestamp,
-        document::{
-            TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition,
-            TelemetrySummaryTileDefinition,
-        },
-        telemetry::{TelemetryBatch, TelemetrySample},
-    };
+    use {
+    dokime_runtime::Timestamp,
+    dokime_runtime::document::TelemetrySummaryDefinition,
+    dokime_runtime::document::TelemetrySummaryGroupDefinition,
+    dokime_runtime::document::TelemetrySummaryTileDefinition,
+    dokime_runtime::telemetry::TelemetryBatch,
+    dokime_runtime::telemetry::TelemetrySample,
+};
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::default());
     let mut owner = Runtime::with_execution_fixture(

@@ -18,14 +18,25 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::service_support::prelude::*;
 use std::sync::Arc;
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
-use dokime_runtime::{InstalledPlugin, core::ValueType};
-use dokime_runtime::records::{PublishRecord, RecordContract, RecordField, RecordPublication, RecordPublishRequest, RecordSeverity};
+use {
+    dokime_runtime::InstalledPlugin,
+    dokime_runtime::ValueType,
+};
+use {
+    dokime_runtime::records::PublishRecord,
+    dokime_runtime::records::RecordContract,
+    dokime_runtime::records::RecordField,
+    dokime_runtime::records::RecordPublication,
+    model::records::publication::RecordPublishRequest,
+    dokime_runtime::records::RecordSeverity,
+};
 
 /* === Constants === */
 

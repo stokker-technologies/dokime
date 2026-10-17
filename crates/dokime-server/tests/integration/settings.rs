@@ -23,10 +23,15 @@ use dokime_runtime::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderContribution,
     OptionProviderOption, OptionProviderSource, PluginEntrypoint,
 };
-use dokime_runtime::{
-    InstalledPlugin,
-    core::{Identifier, Metadata, Value},
-    settings::{SecretSetting, Settings, SettingsEntry, TextArea},
+use {
+    dokime_runtime::InstalledPlugin,
+    dokime_runtime::Identifier,
+    dokime_runtime::Metadata,
+    dokime_runtime::Value,
+    dokime_runtime::settings::SecretSetting,
+    dokime_runtime::settings::Settings,
+    dokime_runtime::settings::SettingsEntry,
+    dokime_runtime::settings::TextArea,
 };
 
 /* === Constants === */

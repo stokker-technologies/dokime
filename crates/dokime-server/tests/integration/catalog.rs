@@ -19,10 +19,20 @@ use std::collections::BTreeMap;
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{
-    core::{DurationMillis, MeasurementUnit, UnitFamily, Value, ValueType},
-    records::{RecordContract, RecordField, RecordIconKey, RecordSeverity, RecordTone},
-    telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole},
+use {
+    dokime_runtime::DurationMillis,
+    dokime_runtime::MeasurementUnit,
+    dokime_runtime::UnitFamily,
+    dokime_runtime::Value,
+    dokime_runtime::ValueType,
+    dokime_runtime::records::RecordContract,
+    dokime_runtime::records::RecordField,
+    dokime_runtime::records::RecordIconKey,
+    dokime_runtime::records::RecordSeverity,
+    dokime_runtime::records::RecordTone,
+    dokime_runtime::telemetry::TelemetryColumn,
+    dokime_runtime::telemetry::TelemetryContract,
+    dokime_runtime::telemetry::TelemetryRole,
 };
 
 /* === Constants === */

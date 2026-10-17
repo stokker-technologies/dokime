@@ -159,6 +159,7 @@ use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use harmos::Message;
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
 
@@ -571,7 +572,8 @@ async fn opened(
 }
 
 fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
-    let mut filed = dokime_runtime::records::Record::new(
+    let mut filed = model::records::evidence::Record::new(
+        dokime_runtime::model::identity::new_id(),
         dokime_runtime::model::time::now_utc(),
         <UnitConnected as dokime_runtime::records::DeclaredRecord>::record_type(),
         1,

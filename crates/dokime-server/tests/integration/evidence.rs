@@ -19,10 +19,15 @@ use tonic::Code;
 // Local Imports
 use dokime_domain::model;
 use crate::{WireClient, contracts};
-use dokime_runtime::{
-    Runtime, RuntimeConfig, RuntimeHandle,
-    core::{Identifier, Metadata},
-    records::{ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase},
+use {
+    dokime_runtime::Runtime,
+    dokime_runtime::RuntimeConfig,
+    dokime_runtime::RuntimeHandle,
+    dokime_runtime::Identifier,
+    dokime_runtime::Metadata,
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
 };
 use dokime_server::grpc::{Config, Server};
 

@@ -19,7 +19,10 @@
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{core::Value, domains::execution::authoring::SidecarStepContext};
+use {
+    dokime_runtime::Value,
+    dokime_runtime::domains::execution::authoring::SidecarStepContext,
+};
 
 /* === Constants === */
 

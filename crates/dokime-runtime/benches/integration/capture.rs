@@ -22,13 +22,16 @@ use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 use tempfile::TempDir;
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{Identifier, Metadata};
-use dokime_runtime::{
-    Runtime, RuntimeConfig, RuntimeHandle,
-    records::{
-        ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
-        ProductRecordDraft,
-    },
+use {
+    dokime_runtime::Runtime,
+    dokime_runtime::RuntimeConfig,
+    dokime_runtime::RuntimeHandle,
+    model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase,
+    model::records::product::ProductRecordDraft,
 };
 
 /* === Constants === */

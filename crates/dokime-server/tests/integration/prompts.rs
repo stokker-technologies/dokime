@@ -19,11 +19,20 @@ use prost::Message;
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{
-    core::{PromptId, RecordScope, TestCycleId, Value, ValueType},
-    domains::prompts::{FormPrompt, Prompt, PromptField, PromptFieldKind, PromptRequest, Rule},
-    expressions::BooleanExpression,
-    runtime::command::CommandContext,
+use {
+    dokime_runtime::PromptId,
+    dokime_runtime::RecordScope,
+    dokime_runtime::TestCycleId,
+    dokime_runtime::Value,
+    dokime_runtime::ValueType,
+    dokime_runtime::domains::prompts::FormPrompt,
+    dokime_runtime::domains::prompts::Prompt,
+    dokime_runtime::domains::prompts::PromptField,
+    dokime_runtime::domains::prompts::PromptFieldKind,
+    dokime_runtime::domains::prompts::PromptRequest,
+    dokime_runtime::domains::prompts::Rule,
+    dokime_runtime::expressions::BooleanExpression,
+    dokime_runtime::runtime::command::CommandContext,
 };
 
 /* === Constants === */
@@ -276,7 +285,11 @@ async fn prompt_answers_identity() {
 #[tokio::test]
 async fn prompt_condition_commit() {
     use dokime_runtime::definition::RuntimeCondition;
-    use dokime_runtime::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
+    use {
+    model::records::product::ProductConnectionDetails,
+    model::records::product::ProductConnectionState,
+    dokime_runtime::records::RecordCondition,
+};
     let root = tempfile::tempdir().unwrap();
     let mut definition =
         FormPrompt::<BTreeMap<String, bool>>::new("fixture.condition", "Connect device")

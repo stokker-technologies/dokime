@@ -30,10 +30,19 @@ use harmos::storage::{
 };
 
 // Local Imports
-use dokime_runtime::{
-    core::{Identifier, RecordId, RecordScope, SessionId, Timestamp, Value},
-    records::{RecordEntry, RecordPublishRequest, RecordSeverity},
-    storage::{records, sqlite::Backend},
+use dokime_domain::model;
+use {
+    dokime_runtime::Identifier,
+    dokime_runtime::RecordId,
+    dokime_runtime::RecordScope,
+    dokime_runtime::SessionId,
+    dokime_runtime::Timestamp,
+    dokime_runtime::Value,
+    model::records::evidence::RecordEntry,
+    model::records::publication::RecordPublishRequest,
+    dokime_runtime::records::RecordSeverity,
+    dokime_runtime::storage::records,
+    dokime_runtime::storage::sqlite::Backend,
 };
 
 /* === Constants === */

@@ -19,9 +19,12 @@
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{
-    core::{Identifier, Timestamp, Value},
-    telemetry::{TelemetryBatch, TelemetrySample},
+use {
+    dokime_runtime::Identifier,
+    dokime_runtime::Timestamp,
+    dokime_runtime::Value,
+    dokime_runtime::telemetry::TelemetryBatch,
+    dokime_runtime::telemetry::TelemetrySample,
 };
 
 /* === Constants === */

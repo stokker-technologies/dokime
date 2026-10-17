@@ -19,6 +19,7 @@ use std::time::Duration;
 use tokio::sync::Notify;
 use tokio_stream::StreamExt as _;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::host::ToolConnectionAcquired;
 use dokime_runtime::execution::{CycleStatus, ExecutionStatus};
@@ -153,8 +154,8 @@ async fn waiting_cycle(
     (owner, cycle)
 }
 
-fn connection(resource: &str) -> dokime_runtime::records::RecordPublishRequest {
-    let mut record = dokime_runtime::records::RecordPublishRequest::new(
+fn connection(resource: &str) -> model::records::publication::RecordPublishRequest {
+    let mut record = model::records::publication::RecordPublishRequest::new(
         Identifier::new("tool.connection.acquired").expect("a builtin record type"),
         dokime_runtime::records::RecordSeverity::Info,
     );

@@ -19,13 +19,18 @@ use std::sync::Arc;
 use harmos::{Application, Runtime, state::Never, storage::StorageBackends};
 
 // Local Imports
-use dokime_runtime::{
-    core::{CaseId, Identifier, Metadata, TemplateId, Value},
-    definition::{TestCase, TestSuite},
-    storage::{
-        Backend, Manager,
-        objects::case::{self, Case},
-    },
+use {
+    dokime_runtime::CaseId,
+    dokime_runtime::Identifier,
+    dokime_runtime::Metadata,
+    dokime_runtime::TemplateId,
+    dokime_runtime::Value,
+    dokime_runtime::definition::TestCase,
+    dokime_runtime::definition::TestSuite,
+    dokime_runtime::storage::Backend,
+    dokime_runtime::storage::Manager,
+    dokime_runtime::storage::objects::case,
+    dokime_runtime::storage::objects::case::Case,
 };
 
 /* === Constants === */

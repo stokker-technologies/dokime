@@ -31,6 +31,7 @@ use dokime_runtime::harmos::operations::{
 use dokime_runtime::harmos::plugin::Contribution;
 use dokime_runtime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{
     Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType,
 };
@@ -40,7 +41,12 @@ use dokime_runtime::definition::{
 use dokime_runtime::domains::TestSuiteDefinition;
 use dokime_runtime::execution::{StepAttemptStart, TerminationReason, TestStepAttempt};
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
-use dokime_runtime::records::{RecordContract, RecordField, RecordPublishRequest, RecordSeverity};
+use {
+    dokime_runtime::records::RecordContract,
+    dokime_runtime::records::RecordField,
+    model::records::publication::RecordPublishRequest,
+    dokime_runtime::records::RecordSeverity,
+};
 use dokime_runtime::transport::{
     ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecution,
     SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome,
