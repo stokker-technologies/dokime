@@ -230,7 +230,7 @@ impl ExecutionFixtureContext {
             .commit(crate::transactions::SetCapturePhase {
                 scope,
                 phase,
-                occurred_at: crate::core::Timestamp::now_utc(),
+                occurred_at: crate::model::time::now_utc(),
             })
             .await
             .map(|_| ())
@@ -301,7 +301,7 @@ impl ExecutionFixtureContext {
             .commit_execution_document_parts(crate::documents::AddExecutionDocumentParts {
                 scope,
                 additions,
-                occurred_at: crate::core::Timestamp::now_utc(),
+                occurred_at: crate::model::time::now_utc(),
             })
             .await
     }

@@ -63,7 +63,7 @@ impl RuntimeHandle {
             plot_id: plot_id.clone(),
             display_points,
             downsample,
-            occurred_at: crate::core::Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         };
         update.validate(&self.state_read())?;
         self.commit(update)

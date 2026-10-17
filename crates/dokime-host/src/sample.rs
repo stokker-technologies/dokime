@@ -41,7 +41,7 @@ pub struct HostStreamSample {
 /* === Implementations === */
 impl HostStreamSample {
     pub fn new(stream: HostTelemetryStream, values: BTreeMap<String, Value>) -> Self {
-        Self::with_timestamp(stream, Timestamp::now_utc(), values)
+        Self::with_timestamp(stream, dokime_contract::core::Timestamp::from_system_time(std::time::SystemTime::now()), values)
     }
 
     pub fn with_timestamp(

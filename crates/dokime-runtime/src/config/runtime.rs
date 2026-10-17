@@ -78,7 +78,7 @@ impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
         Self {
-            session_id: SessionId::new(),
+            session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
             compaction_interval: default_compaction_interval(),
             local_retention: None,

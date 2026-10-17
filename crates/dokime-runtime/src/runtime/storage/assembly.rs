@@ -76,7 +76,7 @@ pub(crate) async fn build(
                 .map_err(reconciliation_error)?;
             state_manager
                 .commit(crate::transactions::RecoverInterruptedCycles {
-                    at: crate::core::Timestamp::now_utc(),
+                    at: crate::model::time::now_utc(),
                 })
                 .await
                 .map_err(reconciliation_error)?;

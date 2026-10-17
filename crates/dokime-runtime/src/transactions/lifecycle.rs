@@ -448,9 +448,9 @@ mod tests {
 
     #[test]
     fn cycle_intent_survives_state_encoding_and_refuses_a_new_cursor() {
-        let mut state = RuntimeState::default();
-        let id = TestCycleId::new();
-        let at = Timestamp::now_utc();
+        let mut state = RuntimeState::new(crate::model::identity::new_id());
+        let id = crate::model::identity::new_id::<TestCycleId>();
+        let at = crate::model::time::now_utc();
         let source = crate::execution::TestCycle {
             saved: None,
             test_cycle_id: id.clone(),
@@ -492,8 +492,8 @@ mod tests {
         let bytes = serde_json::to_vec(&state).unwrap();
         let mut recovered: RuntimeState = serde_json::from_slice(&bytes).unwrap();
         // Startup And Later Lifecycle Metadata Cannot Move The Frozen Header.
-        recovered.session_id = SessionId::new();
-        recovered.cycles.get_mut(&id).unwrap().updated_at = Timestamp::now_utc();
+        recovered.session_id = crate::model::identity::new_id::<SessionId>();
+        recovered.cycles.get_mut(&id).unwrap().updated_at = crate::model::time::now_utc();
         assert_eq!(recovered.cycle_report_finalizations[&id], request.intent);
         request.check(&recovered).unwrap();
         request.apply(&mut recovered);

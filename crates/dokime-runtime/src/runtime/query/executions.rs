@@ -109,7 +109,7 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
         ControlExecution {
             test_execution_id: id.clone(),
             action,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         }
         .request(state)
         .is_ok()

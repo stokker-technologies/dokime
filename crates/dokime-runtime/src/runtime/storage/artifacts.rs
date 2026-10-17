@@ -251,7 +251,7 @@ impl RuntimeHandle {
         &self,
         mut input: ArtifactUploadInput,
     ) -> Result<ArtifactUpload> {
-        let created_at = Timestamp::now_utc();
+        let created_at = crate::model::time::now_utc();
         input.scope = self.capture_publication_scope(input.scope).await?;
         self.begin_captured_artifact_upload(input, created_at).await
     }
@@ -358,7 +358,7 @@ impl ExecutionStorage {
                 "execution no longer accepts artifacts",
             ));
         }
-        let id = ArtifactId::new();
+        let id = crate::model::identity::new_id::<ArtifactId>();
         let owner = Arc::new(());
         let filename = crate::exports::storage::paths::safe_artifact_path(&input.filename);
         let metadata = {
@@ -373,7 +373,7 @@ impl ExecutionStorage {
         };
         let record = ArtifactRecord {
             artifact_id: id.clone(),
-            upload_id: UploadId::new(),
+            upload_id: crate::model::identity::new_id::<UploadId>(),
             scope: input.scope,
             filename,
             content_type: input.content_type,

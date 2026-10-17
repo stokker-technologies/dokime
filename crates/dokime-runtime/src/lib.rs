@@ -39,6 +39,8 @@ pub mod paths;
 
 pub mod host;
 
+pub mod model;
+
 pub mod parameters;
 
 pub mod plugin;

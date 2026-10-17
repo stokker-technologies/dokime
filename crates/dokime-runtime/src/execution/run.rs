@@ -623,8 +623,8 @@ async fn walk<T: SidecarTemplate>(
         // Progress is recorded here, before the step's own code can run, so a
         // step that started is a fact about the run rather than a claim the
         // template makes about itself.
-        let attempt_id = crate::core::StepAttemptId::new();
-        let started_at = crate::core::Timestamp::now_utc();
+        let attempt_id = crate::model::identity::new_id::<crate::core::StepAttemptId>();
+        let started_at = crate::model::time::now_utc();
         let start = super::StepAttemptStart {
             attempt_id: attempt_id.clone(),
             step_id: declared.step_id.clone(),
@@ -694,7 +694,7 @@ async fn walk<T: SidecarTemplate>(
             attempt_id: attempt_id.clone(),
             step_id: declared.step_id.clone(),
             started_at,
-            finished_at: Some(crate::core::Timestamp::now_utc()),
+            finished_at: Some(crate::model::time::now_utc()),
             termination,
             detail,
         };

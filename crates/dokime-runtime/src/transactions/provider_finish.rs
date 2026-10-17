@@ -973,7 +973,7 @@ fn append_provider_evidence(
             )
         })?;
         for row in &group.samples {
-            let mut sample = TelemetrySample::new(stream.clone(), 0, at.clone(), "provider");
+            let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), 0, at.clone(), "provider");
             sample.schema_version = contract.schema_version;
             sample.received_at = at.clone();
             sample.scope = Some(execution.scope.clone());

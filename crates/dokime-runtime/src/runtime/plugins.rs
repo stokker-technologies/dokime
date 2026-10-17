@@ -935,7 +935,7 @@ impl Runtime {
                     .commit(crate::transactions::InvalidateExecutions {
                         previous,
                         current,
-                        invalidated_at: crate::core::Timestamp::now_utc(),
+                        invalidated_at: crate::model::time::now_utc(),
                     })
                     .await
                     .map_err(operation)?;
@@ -944,7 +944,7 @@ impl Runtime {
         if !self.handle.state_read().cycles.is_empty() {
             self.handle
                 .commit(crate::transactions::RecoverInterruptedCycles {
-                    at: crate::core::Timestamp::now_utc(),
+                    at: crate::model::time::now_utc(),
                 })
                 .await
                 .map_err(operation)?;

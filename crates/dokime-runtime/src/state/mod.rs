@@ -110,12 +110,6 @@ pub enum RuntimeStateInstallError {
 /* === Traits === */
 
 /* === Implementations === */
-impl Default for RuntimeState {
-    fn default() -> Self {
-        Self::new(SessionId::default())
-    }
-}
-
 impl RuntimeState {
     pub fn process_epoch(&self) -> &SessionId {
         &self.record_namespace

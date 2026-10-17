@@ -421,7 +421,7 @@ pub(super) fn record_publication(
     // An absent production time means the sidecar did not stamp one; anything
     // else is passed through and validated with the rest of the record.
     let produced_at = if publication.produced_at.is_empty() {
-        Timestamp::now_utc()
+        crate::model::time::now_utc()
     } else {
         Timestamp::new(publication.produced_at)
     };

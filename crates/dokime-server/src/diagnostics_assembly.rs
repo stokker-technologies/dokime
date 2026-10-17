@@ -95,7 +95,7 @@ impl DiagnosticsSnapshot {
         storage_root: &Path,
         application_root: &Path,
     ) -> Self {
-        let captured_at = Timestamp::now_utc();
+        let captured_at = dokime_runtime::model::time::now_utc();
         let startup_doctor =
             StartupDoctorSnapshot::from_runtime(&snapshot, storage_root, captured_at.clone());
         let counts = DiagnosticsCounts::from_runtime(&snapshot);

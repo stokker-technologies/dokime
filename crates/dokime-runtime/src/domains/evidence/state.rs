@@ -19,7 +19,6 @@
 // Local Imports
 use crate::runtime_state::RuntimeState;
 use crate::traceability::TraceabilitySnapshot;
-use crate::core::Timestamp;
 
 /* === Constants === */
 
@@ -37,7 +36,7 @@ use crate::core::Timestamp;
 
 /* === Public Functions === */
 pub(crate) fn traceability_snapshots(state: &RuntimeState) -> Vec<TraceabilitySnapshot> {
-    crate::traceability::snapshots_from_state(state, None, Timestamp::now_utc())
+    crate::traceability::snapshots_from_state(state, None, crate::model::time::now_utc())
 }
 
 /* === Private Functions === */

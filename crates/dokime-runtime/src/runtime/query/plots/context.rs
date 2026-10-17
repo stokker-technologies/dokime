@@ -76,7 +76,7 @@ impl RuntimePlotEnvelopeContext {
             None
         };
         Self {
-            generated_at: Timestamp::now_utc().to_string(),
+            generated_at: crate::model::time::now_utc().to_string(),
             snapshot,
             cycles,
             traceability,

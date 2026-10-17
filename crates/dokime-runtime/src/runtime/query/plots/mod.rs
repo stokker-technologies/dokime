@@ -402,6 +402,7 @@ fn record_context_samples(
         .iter()
         .map(|record| {
             let mut sample = TelemetrySample::new(
+                crate::model::identity::new_id(),
                 stream.clone(),
                 record.sequence,
                 record.timestamp.clone(),

@@ -20,7 +20,7 @@ pub(crate) use crate::transactions::{CycleResetAction as Action, ResetCycle as R
 // Local Imports
 use crate::transactions::cycle::apply_cycle_reset;
 use crate::{CommandContext, runtime::Error, RuntimeHandle};
-use crate::core::{CaseId, TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{CaseId, TestCycleId, TestExecutionId};
 
 /* === Constants === */
 
@@ -56,7 +56,7 @@ impl RuntimeHandle {
             test_cycle_id,
             Action::Rerun {
                 test_case_id,
-                execution_id: TestExecutionId::new(),
+                execution_id: crate::model::identity::new_id::<TestExecutionId>(),
             },
             context,
         )
@@ -89,7 +89,7 @@ impl RuntimeHandle {
         let transaction = Reset {
             test_cycle_id: test_cycle_id.clone(),
             action,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         };
         let mut projected = (*self.state_read()).clone();
         let execution_ids = apply_cycle_reset(&mut projected, &transaction)?;

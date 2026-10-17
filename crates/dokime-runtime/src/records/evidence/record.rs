@@ -130,7 +130,7 @@ impl Record {
         severity: RecordSeverity,
     ) -> Self {
         Self {
-            record_id: RecordId::new(),
+            record_id: crate::model::identity::new_id::<RecordId>(),
             received_at: timestamp.clone(),
             timestamp,
             record_type,

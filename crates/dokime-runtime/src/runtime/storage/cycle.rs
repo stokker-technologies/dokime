@@ -100,7 +100,7 @@ impl CycleSnapshot {
             source,
             revisions: Arc::new(Vec::new()),
             appearance,
-            captured_at: Timestamp::now_utc(),
+            captured_at: crate::model::time::now_utc(),
             owner_node_id: owner_node_id.clone(),
         })))
     }

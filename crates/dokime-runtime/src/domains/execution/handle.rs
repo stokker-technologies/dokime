@@ -18,7 +18,7 @@
 
 // Local Imports
 use crate::{RuntimeHandle, execution::CycleStatus};
-use crate::core::{Identifier, RecordScope, TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{Identifier, RecordScope, TestCycleId, TestExecutionId};
 
 /* === Constants === */
 
@@ -76,7 +76,7 @@ impl RuntimeHandle {
             identifier,
             label,
             status,
-            occurred_at: Timestamp::now_utc(),
+            occurred_at: crate::model::time::now_utc(),
         })
         .await
     }

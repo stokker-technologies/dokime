@@ -258,7 +258,7 @@ impl RuntimeHandle {
         let credentials = CredentialStore::from_config(&config.credential_backend)
             .map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
-        state.record_namespace = crate::core::SessionId::new();
+        state.record_namespace = crate::model::identity::new_id::<crate::core::SessionId>();
         if install_builtins {
             state.install_builtin_domains().map_err(|error| {
                 Error::Operation(format!("failed to install built-in domains: {error}"))
@@ -438,7 +438,7 @@ impl RuntimeHandle {
         );
         let (state_watch, _) = tokio::sync::watch::channel(initial_snapshot);
         let brand = Arc::new(RwLock::new(None));
-        let process_id = SessionId::new();
+        let process_id = crate::model::identity::new_id::<SessionId>();
         let requests_started = std::time::Instant::now();
         let request_storage = crate::runtime::storage::requests::RequestStorage::new(
             storage.clone(),

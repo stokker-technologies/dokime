@@ -111,7 +111,7 @@ impl RuntimeHandle {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
                 metadata: None,
-                generated_at: Timestamp::now_utc(),
+                generated_at: crate::model::time::now_utc(),
                 origin: ReportOrigin::Current,
                 html,
             });
@@ -161,7 +161,7 @@ impl RuntimeHandle {
             test_cycle_id: id.clone(),
             test_execution_id: None,
             metadata: Some(metadata),
-            generated_at: Timestamp::now_utc(),
+            generated_at: crate::model::time::now_utc(),
             origin: ReportOrigin::Current,
             html,
         })

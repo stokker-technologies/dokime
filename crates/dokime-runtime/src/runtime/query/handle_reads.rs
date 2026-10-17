@@ -345,7 +345,7 @@ impl RuntimeHandle {
         max_entries: usize,
         max_bytes: usize,
     ) -> crate::runtime::Result<(Vec<TraceabilitySnapshot>, bool, String)> {
-        let created_at = crate::core::Timestamp::now_utc();
+        let created_at = crate::model::time::now_utc();
         self.with_latest_host_traceability(scope, |host, host_fingerprint| {
             let host_candidate = host.and_then(|sample| {
                 crate::traceability::host_traceability_page_candidate(sample, scope)

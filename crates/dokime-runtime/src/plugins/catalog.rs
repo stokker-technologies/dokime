@@ -117,7 +117,7 @@ pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
                 });
             }
         }
-        crate::RuntimeState::default()
+        crate::RuntimeState::new(crate::model::identity::new_id())
             .install_plugin(installation)
             .map_err(PluginError::Invalid)?;
         owners.insert(id.clone());

@@ -20,7 +20,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Timestamp, Value};
+use crate::core::{Identifier, Value};
 use crate::telemetry::TelemetryRow;
 
 /* === Constants === */
@@ -194,7 +194,7 @@ impl Streams {
         // it; `or_insert_with` never overwrites.
         values
             .entry("timestamp".to_owned())
-            .or_insert_with(|| Value::from(Timestamp::now_utc()));
+            .or_insert_with(|| Value::from(crate::model::time::now_utc()));
 
         #[cfg(not(feature = "native"))]
         let _ = row_type;

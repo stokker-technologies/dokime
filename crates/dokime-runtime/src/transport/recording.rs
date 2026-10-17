@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use super::protocol::ArtifactChunk;
 use super::{ExecutionTransport, Journal, TransportFuture};
 use crate::artifacts::ArtifactSink;
-use crate::core::{Identifier, Timestamp, Value};
+use crate::core::{Identifier, Value};
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::log::Level;
 use crate::execution::{ExecutionProgress, ProgressSink};
@@ -351,7 +351,7 @@ impl SampleSink for RecordingSink {
                 .filter(|sample| sample.stream == *stream)
                 .count() as u64;
             let mut sample =
-                TelemetrySample::new(stream.clone(), sequence, Timestamp::now_utc(), "recording");
+                TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), sequence, crate::model::time::now_utc(), "recording");
             sample.values = values;
             sample.storage_payload = storage_payload;
             samples.push(sample);

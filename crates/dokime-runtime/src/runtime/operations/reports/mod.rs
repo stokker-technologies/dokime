@@ -15,7 +15,7 @@ use crate::{
     app::{Dokime, Lanes},
     runtime::storage::executions::ExecutionStorage,
 };
-use crate::core::{TestCycleId, TestExecutionId, Timestamp};
+use crate::core::{TestCycleId, TestExecutionId};
 use crate::operations::reports::{
     MaterializeReport, MaterializeReportRequest, MaterializedReport, ReportSubject,
 };
@@ -188,7 +188,7 @@ async fn execution(
     if final_report {
         resources
             .execution_storage
-            .materialize_final_report(ctx, inspection, prepared, Timestamp::now_utc())
+            .materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc())
             .await
     } else {
         let revision = resources

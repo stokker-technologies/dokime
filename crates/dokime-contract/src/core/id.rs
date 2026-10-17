@@ -66,11 +66,7 @@ macro_rules! typed_uuid {
         }
 
         impl $name {
-            pub fn new() -> Self {
-                Self($format(fresh_uuid()))
-            }
-
-                                                                        pub fn from_seed(seed: impl AsRef<str>) -> Self {
+            pub fn from_seed(seed: impl AsRef<str>) -> Self {
                 Self($format(seeded_uuid(stringify!($name), seed.as_ref())))
             }
 
@@ -85,9 +81,11 @@ macro_rules! typed_uuid {
             }
         }
 
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
+        impl TryFrom<String> for $name {
+            type Error = crate::Error;
+
+            fn try_from(value: String) -> crate::Result<Self> {
+                Self::$wire(value)
             }
         }
 
@@ -205,10 +203,6 @@ pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
     right = fnv1a64(seed.as_bytes(), right);
     right = fnv1a64(type_name.as_bytes(), right);
     format_uuid(left, right, 5)
-}
-
-pub(crate) fn fresh_uuid() -> String {
-    uuid::Uuid::now_v7().to_string()
 }
 
 /* === Private Functions === */

@@ -17,7 +17,7 @@
 // Third Party Imports
 // Local Imports
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
-use crate::core::{CommandId, StepAttemptId, Timestamp};
+use crate::core::{CommandId, StepAttemptId};
 use crate::execution::TerminationReason;
 use crate::execution::request::{StepCommand, StepCommandPhase, StepCommandReceipt};
 use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
@@ -217,7 +217,7 @@ async fn save(
     if command.phase == phase && command.attempt_id == attempt_id && command.detail == detail {
         return Ok(());
     }
-    let at = Timestamp::now_utc();
+    let at = crate::model::time::now_utc();
     let mut decision = None;
     context
         .runtime

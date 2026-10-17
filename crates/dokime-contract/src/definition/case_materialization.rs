@@ -110,17 +110,6 @@ pub enum CaseMaterializationError {
 /* === Traits === */
 
 /* === Implementations === */
-impl Default for CaseMaterializationOptions {
-    fn default() -> Self {
-        Self {
-            max_cases: DEFAULT_MATERIALIZED_CASE_CAP,
-            force: false,
-            registration_id: CommandId::new(),
-            first_label_number: 1,
-        }
-    }
-}
-
 impl Materialization<'_> {
     fn push_cases(
         &self,

@@ -25,7 +25,7 @@ use crate::execution::notes::{
     NoteOwner, note_identity,
 };
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
-use crate::core::{CommandId, NoteId, SessionId, TestExecutionId, Timestamp};
+use crate::core::{CommandId, NoteId, SessionId, TestExecutionId};
 
 /* === Constants === */
 
@@ -186,7 +186,7 @@ impl RuntimeHandle {
                         scope,
                         author: Some(request.actor),
                         message: request.message,
-                        created_at: Timestamp::now_utc(),
+                        created_at: crate::model::time::now_utc(),
                     },
                     checkpoint_targets: targets,
                 };
@@ -270,7 +270,7 @@ impl RuntimeHandle {
             note_id: request.note_id.clone(),
             actor: request.actor,
             message: request.message,
-            edited_at: Timestamp::now_utc(),
+            edited_at: crate::model::time::now_utc(),
         })
         .await
         .map_err(|error| NoteError::Unavailable(error.to_string()))?;

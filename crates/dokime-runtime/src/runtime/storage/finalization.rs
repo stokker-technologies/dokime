@@ -14,7 +14,7 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     execution::{CycleView, TestExecution},
 };
-use crate::core::{TestExecutionId, Timestamp};
+use crate::core::{TestExecutionId};
 use crate::execution::ExecutionStatus;
 use crate::runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -213,7 +213,7 @@ impl RuntimeHandle {
                 executions: vec![id.clone()],
                 intent: crate::transactions::ReportFinalization {
                     evidence_at: evidence_at.clone(),
-                    requested_at: Timestamp::now_utc(),
+                    requested_at: crate::model::time::now_utc(),
                     lifecycle: None,
                 },
             })

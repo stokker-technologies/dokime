@@ -344,7 +344,7 @@ impl WifiCollector {
         {
             match crate::platform::windows::wifi::scan_channel_occupancy(options) {
                 Ok(channels) => {
-                    let scan_timestamp = Timestamp::now_utc();
+                    let scan_timestamp = dokime_contract::core::Timestamp::from_system_time(std::time::SystemTime::now());
                     let active_channel = channels.iter().find_map(|channel| channel.active_channel);
                     let active_band = channels
                         .iter()
@@ -458,7 +458,7 @@ impl WifiCollector {
                     Ok(samples)
                 }
                 Err(error) => {
-                    let scan_timestamp = Timestamp::now_utc();
+                    let scan_timestamp = dokime_contract::core::Timestamp::from_system_time(std::time::SystemTime::now());
                     let active = active_wifi_context(options);
                     let congestion =
                         wifi_congestion_summary(active.channel, active.band.clone(), &[]);
@@ -496,7 +496,7 @@ impl WifiCollector {
         {
             match linux_wifi_scan_rows() {
                 Ok((rows, scan_status, scan_error)) => {
-                    let scan_timestamp = Timestamp::now_utc();
+                    let scan_timestamp = dokime_contract::core::Timestamp::from_system_time(std::time::SystemTime::now());
                     let adapter_filter = options.wifi_adapter_name.as_deref();
                     let rows = rows
                         .into_iter()

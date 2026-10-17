@@ -195,7 +195,7 @@ impl LeasedRows {
 impl LeaseState {
     fn release(&mut self, lease_id: &str) -> Option<Released> {
         let stream = self.held.remove(lease_id)?.stream;
-        let closed_at = Timestamp::now_utc();
+        let closed_at = crate::model::time::now_utc();
         for window in self.ledger.iter_mut().rev() {
             if window.lease_id == lease_id {
                 window.closed_at = Some(closed_at);
@@ -279,7 +279,7 @@ impl StreamLeases {
             owner,
             requester: requester.to_owned(),
             scope,
-            opened_at: Timestamp::now_utc(),
+            opened_at: crate::model::time::now_utc(),
             closed_at: None,
             gap: false,
         });
@@ -603,7 +603,7 @@ impl RuntimeHandle {
         let gap = crate::telemetry::LeaseGap {
             stream: stream.clone(),
             owner,
-            observed_at: Timestamp::now_utc(),
+            observed_at: crate::model::time::now_utc(),
             reason: reason.to_owned(),
         };
         let Ok(encoded) = serde_json::to_string(&gap) else {
@@ -653,7 +653,7 @@ impl RuntimeHandle {
         let gap = crate::telemetry::LeaseGap {
             stream: stream.clone(),
             owner: requester.to_owned(),
-            observed_at: Timestamp::now_utc(),
+            observed_at: crate::model::time::now_utc(),
             reason: reason.to_owned(),
         };
         if let Ok(encoded) = serde_json::to_string(&gap) {
@@ -840,7 +840,7 @@ mod tests {
     #[test]
     fn delivery_preserves_producer_origin_for_its_execution() {
         let holder = RecordScope {
-            test_execution_id: Some(TestExecutionId::new()),
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
             ..Default::default()
         };
         let source = RecordScope {
@@ -850,7 +850,7 @@ mod tests {
         assert_eq!(delivery_scope(Some(&source), &holder), source);
         assert_eq!(delivery_scope(None, &holder), holder);
         let other = RecordScope {
-            test_execution_id: Some(TestExecutionId::new()),
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
             ..Default::default()
         };
         assert_eq!(delivery_scope(Some(&source), &other), other);
