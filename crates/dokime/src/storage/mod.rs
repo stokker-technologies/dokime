@@ -35,6 +35,9 @@ pub use sqlite as local;
 pub const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
 // Integrity envelope, positions and histories around one encoded state record.
 const STATE_ENVELOPE_BYTES: usize = 64 * 1024;
+// One recovery entry may take at most this share of a checkpoint: what it
+// changes must still fit the snapshot beside the rest of state.
+const STATE_ENTRY_SHARE: usize = 2;
 
 /* === Macros === */
 
@@ -74,24 +77,20 @@ pub enum Error {
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Durable state limits matching what the manager admits: one recovery entry
-/// carries at most a quarter of the pending write bytes and one checkpoint the
-/// runtime-state snapshot, each base64 encoded inside its envelope.
-pub fn state_settings(
-    settings: &harmos::storage::StorageSettings,
-) -> harmos::config::StorageStateSettings {
-    let encoded = |payload: usize| {
-        std::num::NonZeroUsize::new(
-            payload
-                .div_ceil(3)
-                .saturating_mul(4)
-                .saturating_add(STATE_ENVELOPE_BYTES),
-        )
-        .expect("the envelope keeps encoded records nonempty")
+/// Durable state limits, derived from the state policy alone: one checkpoint
+/// holds the runtime-state snapshot base64 encoded inside its envelope, and
+/// one recovery entry is a fixed share of that checkpoint.
+pub fn state_settings() -> harmos::config::StorageStateSettings {
+    let checkpoint = STATE_SNAPSHOT_BYTES
+        .div_ceil(3)
+        .saturating_mul(4)
+        .saturating_add(STATE_ENVELOPE_BYTES);
+    let bytes = |bytes: usize| {
+        std::num::NonZeroUsize::new(bytes).expect("the envelope keeps encoded records nonempty")
     };
     harmos::config::StorageStateSettings {
-        max_entry_bytes: encoded(settings.request.max_pending_write_bytes.get() / 4),
-        max_checkpoint_bytes: encoded(STATE_SNAPSHOT_BYTES),
+        max_entry_bytes: bytes(checkpoint / STATE_ENTRY_SHARE),
+        max_checkpoint_bytes: bytes(checkpoint),
     }
 }
 

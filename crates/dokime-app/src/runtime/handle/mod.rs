@@ -271,7 +271,7 @@ impl RuntimeHandle {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             config.storage_root.clone(),
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-            dokime::storage::state_settings(&settings),
+            dokime::storage::state_settings(),
         ));
         tracing::info!(
             read_pool_bytes = settings.budget.read_memory_bytes.get(),

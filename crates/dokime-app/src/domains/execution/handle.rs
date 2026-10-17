@@ -53,12 +53,15 @@ impl RuntimeHandle {
                 return;
             }
         };
-        let _ = self
+        if let Err(error) = self
             .commit(crate::transactions::outputs::FinalizeExecutionOutputs {
                 test_execution_id: test_execution_id.clone(),
                 outputs,
             })
-            .await;
+            .await
+        {
+            tracing::warn!(%error, %test_execution_id, "failed to record execution aggregates");
+        }
     }
 
     pub async fn update_execution_phase(

@@ -181,7 +181,7 @@ impl ExecutionStorage {
             .iter_mut()
             .find(|member| member.test_execution_id == *execution)
             .ok_or_else(|| invalid("execution is absent from cycle"))?;
-        *member = lifecycle.execution;
+        *member = self.frozen_execution(&lifecycle.execution).await?;
         Ok(source)
     }
 
@@ -201,12 +201,15 @@ impl ExecutionStorage {
                 return Err(invalid("captured report output is not durable"));
             }
         }
-        let anchor = ExecutionView::open(
-            &self.storage,
-            &inputs.execution.test_execution_id,
-            ObjectVersion::Latest,
-        )
-        .await?;
+        let version = inputs
+            .anchor
+            .as_ref()
+            .map_or(ObjectVersion::Latest, |anchor| {
+                ObjectVersion::Exact(anchor.version.clone())
+            });
+        let anchor =
+            ExecutionView::open(&self.storage, &inputs.execution.test_execution_id, version)
+                .await?;
         let revision = anchor
             .as_ref()
             .map(|anchor| {

@@ -58,38 +58,37 @@ impl RuntimeHandle {
         Ok(())
     }
 
+    /// Freeze the terminal `execution` a final report captures: saved once as
+    /// its durable revision, which the lifecycle intent references.
     pub(crate) async fn capture_report_lifecycle(
         &self,
         execution: &crate::execution::TestExecution,
     ) -> crate::Result<crate::transactions::ReportLifecycle> {
-        if let Some(lifecycle) = self
-            .state_read()
-            .report_finalizations
-            .get(&execution.test_execution_id)
-            .and_then(|intent| intent.lifecycle.clone())
-        {
-            if lifecycle.execution != *execution {
-                return Err(crate::Error::Operation(
-                    "report lifecycle changed after its capture".into(),
-                ));
-            }
+        let captured = |runtime: &Self| {
+            runtime
+                .state_read()
+                .report_finalizations
+                .get(&execution.test_execution_id)
+                .and_then(|intent| intent.lifecycle.clone())
+        };
+        if let Some(lifecycle) = captured(self) {
+            self.execution_storage
+                .adopt_revision(execution, &lifecycle.execution)
+                .await?;
             return Ok(lifecycle);
         }
+        let revision = self.execution_storage.freeze_revision(execution).await?;
         self.commit(crate::transactions::CaptureReportLifecycle {
             lifecycle: crate::transactions::ReportLifecycle {
                 id: uuid::Uuid::now_v7(),
-                execution: execution.clone(),
+                execution: (*revision).clone(),
             },
         })
         .await
         .map_err(|error| crate::Error::Operation(error.to_string()))?;
-        self.state_read()
-            .report_finalizations
-            .get(&execution.test_execution_id)
-            .and_then(|intent| intent.lifecycle.clone())
-            .ok_or_else(|| {
-                crate::Error::Operation("report lifecycle capture was not applied".into())
-            })
+        captured(self).ok_or_else(|| {
+            crate::Error::Operation("report lifecycle capture was not applied".into())
+        })
     }
 
     pub async fn pause_execution(

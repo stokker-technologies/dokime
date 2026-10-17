@@ -97,6 +97,8 @@ pub(super) struct CycleMemberContext {
 pub(crate) struct CaptureInputs {
     pub execution: Arc<TestExecution>,
     pub lifecycle_id: String,
+    // The Revision A Lifecycle Froze, Which Anchors Its Report.
+    pub anchor: Option<ExecutionRevision>,
     pub outputs: Arc<Vec<ExecutionOutput>>,
     pub unavailable_outputs: Vec<String>,
     pub through: StorageCursor,
@@ -382,15 +384,17 @@ impl ExecutionStorage {
             .await?
             .value;
         let report_boundary = intent.as_ref().map(|intent| intent.evidence_at.clone());
-        let lifecycle_id = match intent.and_then(|intent| intent.lifecycle) {
-            Some(lifecycle) if lifecycle.execution == *execution => lifecycle.id.to_string(),
-            Some(_) => return Err(invalid("capture differs from immutable lifecycle intent")),
+        let (lifecycle_id, anchor) = match intent.and_then(|intent| intent.lifecycle) {
+            Some(lifecycle) => {
+                self.adopt_revision(execution, &lifecycle.execution).await?;
+                (lifecycle.id.to_string(), Some(lifecycle.execution))
+            }
             None if final_report => {
                 return Err(invalid(
                     "final report requires an immutable lifecycle intent",
                 ));
             }
-            None => uuid::Uuid::now_v7().to_string(),
+            None => (uuid::Uuid::now_v7().to_string(), None),
         };
         if report_boundary
             .as_ref()
@@ -454,6 +458,7 @@ impl ExecutionStorage {
             Ok::<_, Error>(CaptureInputs {
                 execution: frozen,
                 lifecycle_id,
+                anchor,
                 outputs: Arc::new(included),
                 unavailable_outputs,
                 through: report_boundary,
@@ -476,6 +481,113 @@ impl ExecutionStorage {
             })
             .await?
             .value)
+    }
+
+    /// Save `execution` as its owner's revision and return it: the durable
+    /// terminal snapshot a report lifecycle references instead of copying.
+    pub(crate) async fn freeze_revision(
+        &self,
+        execution: &TestExecution,
+    ) -> Result<Arc<ExecutionRevision>> {
+        let owner = self
+            .acquisition(&execution.test_execution_id)
+            .await
+            .ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+        let execution = Arc::new(execution.clone());
+        // Saving Survives Caller Cancellation So A Started Freeze Always Settles.
+        tokio::spawn(async move {
+            let gate = owner.lock().await.gate.clone();
+            let _boundary = gate.lock().await;
+            let mut acquisition = owner.lock().await;
+            validate_identity(&acquisition, &execution)?;
+            if acquisition
+                .finalizing
+                .as_ref()
+                .is_some_and(|frozen| **frozen != *execution)
+            {
+                return Err(invalid("report lifecycle differs from its frozen input"));
+            }
+            bind_publication_revision(&mut acquisition, &execution).await?;
+            acquisition
+                .working
+                .clone()
+                .ok_or_else(|| invalid("report lifecycle has no saved revision"))
+        })
+        .await
+        .map_err(|source| Error::Join { source })?
+    }
+
+    /// The terminal execution a report lifecycle froze, read from its owner
+    /// when that owner saved it, otherwise from its durable revision.
+    pub(crate) async fn frozen_execution(
+        &self,
+        revision: &ExecutionRevision,
+    ) -> Result<TestExecution> {
+        if let Some(owner) = self.acquisition(&revision.execution_id).await {
+            let acquisition = owner.lock().await;
+            if acquisition.working.as_deref() == Some(revision) && acquisition.pending.is_none() {
+                return Ok((*acquisition.execution).clone());
+            }
+        }
+        let stored = dokime::storage::objects::execution::read(
+            &self.storage,
+            &revision.execution_id,
+            harmos::storage::ObjectVersion::Exact(revision.version.clone()),
+        )
+        .await?
+        .ok_or_else(|| invalid("report lifecycle revision is missing"))?;
+        if stored.position != revision.position
+            || stored.value.test_execution_id != revision.execution_id
+            || stored.value.saved.is_some()
+        {
+            return Err(invalid(
+                "report lifecycle revision differs from its reference",
+            ));
+        }
+        Ok(stored.value)
+    }
+
+    /// Bind the owner of `execution` to the revision its lifecycle froze,
+    /// reading it back when this owner has not saved it (after a restart).
+    pub(crate) async fn adopt_revision(
+        &self,
+        execution: &TestExecution,
+        revision: &ExecutionRevision,
+    ) -> Result<()> {
+        let owner = self
+            .acquisition(&execution.test_execution_id)
+            .await
+            .ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+        let gate = owner.lock().await.gate.clone();
+        let _boundary = gate.lock().await;
+        let mut acquisition = owner.lock().await;
+        validate_identity(&acquisition, execution)?;
+        if acquisition.working.as_deref() == Some(revision)
+            && *acquisition.execution == *execution
+            && acquisition.pending.is_none()
+        {
+            return Ok(());
+        }
+        let stored = acquisition
+            .storage
+            .read_object::<Execution>(
+                revision.execution_id.as_str(),
+                harmos::storage::ObjectVersion::Exact(revision.version.clone()),
+            )
+            .await?
+            .ok_or_else(|| invalid("report lifecycle revision is missing"))?;
+        if revision.execution_id != execution.test_execution_id
+            || stored.position != revision.position
+            || stored.version != revision.version
+            || stored.value != Execution::try_from(execution)?
+            || acquisition.pending.is_some()
+            || acquisition.execution.saved.is_some()
+        {
+            return Err(invalid("capture differs from immutable lifecycle intent"));
+        }
+        acquisition.execution = Arc::new(execution.clone());
+        acquisition.working = Some(Arc::new(revision.clone()));
+        Ok(())
     }
 
     pub(crate) async fn publication_revision(

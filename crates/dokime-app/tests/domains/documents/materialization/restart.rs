@@ -122,22 +122,25 @@ pub(crate) async fn persisted_cycle_restart() {
         !released.iter().any(|(item, _)| item == cycle_id.as_str()),
         "active parent must retain its history: {released:?}"
     );
-    // A sealed member releases only revisions before its sealed one; the
-    // never-started member releases nothing.
-    let sealed_through = format!("{:016x}", seal.source.execution.position.sequence);
-    for (item, through) in &released {
-        assert_ne!(
-            item,
-            before.test_executions[1].test_execution_id.as_str(),
-            "active parent must retain its draft member's history: {released:?}"
-        );
-        if item == first.as_str() {
-            assert!(
-                through < &sealed_through,
-                "a sealed member keeps its sealed revision: {released:?}"
-            );
-        }
-    }
+    // A sealed member releases exactly the revisions before the anchor its
+    // report captured, which its seal records; the never-started member
+    // releases nothing.
+    let anchor = format!("{:016x}", seal.source.execution.position.sequence - 1);
+    assert!(
+        released
+            .iter()
+            .all(|(item, _)| item != before.test_executions[1].test_execution_id.as_str()),
+        "active parent must retain its draft member's history: {released:?}"
+    );
+    assert_eq!(
+        released
+            .iter()
+            .filter(|(item, _)| item == first.as_str())
+            .map(|(_, through)| through.as_str())
+            .collect::<Vec<_>>(),
+        [anchor.as_str()],
+        "a sealed member releases through its captured anchor: {released:?}"
+    );
     while !backend
         .prune_objects(&at, NonZeroUsize::new(128).unwrap())
         .await

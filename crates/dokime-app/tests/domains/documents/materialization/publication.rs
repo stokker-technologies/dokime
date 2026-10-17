@@ -125,7 +125,7 @@ pub(crate) async fn dependency_publication_retry() {
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-            dokime::storage::state_settings(&settings),
+            dokime::storage::state_settings(),
         ));
         let backend = Arc::new(PublicationBackend::new(primary, fault.clone()));
         let manager = Manager::new(

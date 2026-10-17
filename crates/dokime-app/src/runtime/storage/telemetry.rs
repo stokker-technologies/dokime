@@ -503,7 +503,7 @@ mod admission_tests {
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-            dokime::storage::state_settings(&settings),
+            dokime::storage::state_settings(),
         ));
         let storage = Manager::new(
             StorageBackends {

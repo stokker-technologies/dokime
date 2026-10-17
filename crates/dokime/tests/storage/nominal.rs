@@ -375,7 +375,7 @@ async fn nominal() {
             state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
                 root.path().to_owned(),
                 backend.history().clone(),
-                dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
+                dokime::storage::state_settings(),
             )),
         },
         super::sqlite::storage::storage_settings(),

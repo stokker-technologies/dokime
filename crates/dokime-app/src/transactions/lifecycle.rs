@@ -78,10 +78,11 @@ pub struct CaptureReportLifecycle {
     pub lifecycle: ReportLifecycle,
 }
 
+/// The Terminal Execution A Final Report Captures, By Its Durable Revision.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
     pub id: uuid::Uuid,
-    pub execution: TestExecution,
+    pub execution: dokime::execution::saved::ExecutionRevision,
 }
 
 /// The Frozen Cycle Header And Durable Member Boundary Used By Every Retry.
@@ -253,8 +254,7 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
-        let execution = &self.lifecycle.execution;
-        let id = &execution.test_execution_id;
+        let id = &self.lifecycle.execution.execution_id;
         let intent = state
             .report_finalizations
             .get(id)
@@ -263,22 +263,20 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
             .executions
             .get(id)
             .ok_or("report execution owner is missing")?;
-        if owner.scope != execution.scope || owner.test_cycle_id != execution.test_cycle_id {
-            return Err("report lifecycle owner differs from the managed execution".into());
-        }
         if matches!(
-            execution.status,
+            owner.status,
             ExecutionStatus::Pending | ExecutionStatus::Running
-        ) || execution.saved.is_some()
+        ) || owner.finished_at.is_none()
+            || owner.saved.is_some()
         {
             return Err("report lifecycle must be terminal and unsealed".into());
         }
         if intent
             .lifecycle
             .as_ref()
-            .is_some_and(|lifecycle| lifecycle.execution != *execution)
+            .is_some_and(|lifecycle| lifecycle.execution != self.lifecycle.execution)
         {
-            return Err("report lifecycle is already frozen to another terminal snapshot".into());
+            return Err("report lifecycle is already frozen to another terminal revision".into());
         }
         if self.lifecycle.id.is_nil() {
             return Err("report lifecycle identity is empty".into());
@@ -290,7 +288,7 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
     fn apply(&self, state: &mut RuntimeState) {
         let intent = state
             .report_finalizations
-            .get_mut(&self.lifecycle.execution.test_execution_id)
+            .get_mut(&self.lifecycle.execution.execution_id)
             .expect("checked report finalization intent exists");
         intent
             .lifecycle

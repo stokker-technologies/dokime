@@ -80,7 +80,7 @@ impl Fixture {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-                    dokime::storage::state_settings(&settings),
+                    dokime::storage::state_settings(),
                 )),
                 primary: backend.clone(),
             },

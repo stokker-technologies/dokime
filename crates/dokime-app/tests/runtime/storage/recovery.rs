@@ -253,9 +253,23 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
     TelemetryBatch::new(identifier(STREAM), samples)
 }
 
-// Shut A Session Down And Return The Bytes Of The State Snapshot It Wrote
+// Shut A Session Down And Return The Payload Bytes Of The State Snapshot It
+// Wrote, After Checking The Session's Journal Against The Entry Bound The
+// State Policy Derives From Its Checkpoint.
 async fn shut_down(mut owner: Runtime, handle: RuntimeHandle, logs: &Captured) -> usize {
-    let primary = handle.storage_root().join("local.sqlite");
+    let root = handle.storage_root();
+    let limits = dokime::storage::state_settings();
+    let journal = std::fs::read(root.join("state.jsonl")).unwrap();
+    let largest = journal
+        .split_inclusive(|byte| *byte == b'\n')
+        .map(<[u8]>::len)
+        .max()
+        .unwrap();
+    // A Wide Member's Finalized Aggregates Are The Largest Entry, Near 344 KB.
+    assert!(
+        largest <= limits.max_entry_bytes.get(),
+        "the session's largest journal entry of {largest} bytes against the state entry bound"
+    );
     drop(handle);
     owner.shutdown().await.unwrap();
     assert!(
@@ -264,16 +278,13 @@ async fn shut_down(mut owner: Runtime, handle: RuntimeHandle, logs: &Captured) -
         logs.text()
     );
 
-    let connection = rusqlite::Connection::open(primary).unwrap();
-    let bytes: Option<i64> = connection
-        .query_row(
-            "SELECT length(snapshot) FROM storage_recovery_head",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    let bytes = bytes.expect("shutdown writes a state snapshot");
-    usize::try_from(bytes).unwrap()
+    let snapshot =
+        std::fs::read(root.join("state.json")).expect("shutdown writes a state snapshot");
+    assert!(snapshot.len() <= limits.max_checkpoint_bytes.get());
+    let record: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    let payload = record["value"]["payload"].as_str().unwrap();
+    // Unpadded Base64 Carries Three Payload Bytes In Every Four Characters.
+    payload.len() * 3 / 4
 }
 
 // The Snapshot Encoding Stores Shared Catalogs And Plans Once; Decoding Restores Them
@@ -293,9 +304,9 @@ fn assert_round_trip(handle: &RuntimeHandle) {
 // Cycle Never Strands Its Root And The State Snapshot Stays Bounded With The
 // Shipped Plugin Catalogs Loaded.
 pub(crate) async fn cycle_survives_skipped_snapshot() {
-    // Measured 925,117 And 922,395 Bytes: About 512 KB Of State (420 KB Of It The
-    // Pooled Plugin Catalog) Plus About 413 KB Of Journal Tail, Mostly The Wide
-    // Member's Finalized Aggregates.
+    // Measured 934,729 And 673,866 Bytes: About 512 KB Of State (420 KB Of It The
+    // Pooled Plugin Catalog) Plus The Journal Tail, Mostly The Wide Member's
+    // Finalized Aggregates; Report Lifecycles Reference Their Frozen Revisions.
     const SNAPSHOT_LIMIT: usize = 960 * 1024;
 
     let logs = Captured::default();
