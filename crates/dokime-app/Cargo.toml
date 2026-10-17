@@ -140,6 +140,16 @@ rusqlite = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]
-name = "runtime"
-path = "benches/runtime/main.rs"
+name = "unit"
+path = "benches/unit/main.rs"
+harness = false
+
+[[bench]]
+name = "integration"
+path = "benches/integration/main.rs"
+harness = false
+
+[[bench]]
+name = "system"
+path = "benches/system/main.rs"
 harness = false

@@ -398,7 +398,7 @@ def test_cancel_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
         task = asyncio.create_task(consume())
         try:
-            await asyncio.wait_for(reader.waiting.wait(), timeout=5)
+            await reader.waiting.wait()
             assert destination.read_bytes() == partial
         finally:
             task.cancel()

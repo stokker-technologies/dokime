@@ -15,7 +15,6 @@
 import asyncio
 import hashlib
 import json
-import os
 import sys
 from contextlib import aclosing
 from pathlib import Path
@@ -76,16 +75,15 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
 
         await progress_at(0)
         # Prompt admission does not certify that independent evidence readers
-        # have reached the publisher. Follow each frontier with a fixed budget.
-        async with asyncio.timeout(25 if os.environ.get("COVERAGE") == "1" else 5):
-            async with aclosing(
-                run_cycle.records(record_types=[contract["record"]], until=run)
-            ) as events:
-                await anext(events)
-            async with aclosing(
-                run_cycle.samples(streams=[contract["stream"]], page_size=1, until=run)
-            ) as samples:
-                await anext(samples)
+        # have reached the publisher. Follow each frontier to its first item.
+        async with aclosing(
+            run_cycle.records(record_types=[contract["record"]], until=run)
+        ) as events:
+            await anext(events)
+        async with aclosing(
+            run_cycle.samples(streams=[contract["stream"]], page_size=1, until=run)
+        ) as samples:
+            await anext(samples)
 
         live_records = [item async for item in run_cycle.records()]
         live_rows = [
@@ -120,7 +118,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
                 await asyncio.sleep(0.01)
             await progress_at(1)
             await run_cycle.respond(next_prompts[0].id, action="yes")
-        status = await run.wait(timeout=20, poll_interval=0.02)
+        status = await run.wait(poll_interval=0.02)
         records = [item async for item in run_cycle.records()]
         rows = [
             item
@@ -204,4 +202,4 @@ if __name__ == "__main__":
     scenario = next(
         item for item in contract["scenarios"] if item["name"] == sys.argv[3]
     )
-    asyncio.run(asyncio.wait_for(drive(sys.argv[1], contract, scenario), timeout=35))
+    asyncio.run(drive(sys.argv[1], contract, scenario))

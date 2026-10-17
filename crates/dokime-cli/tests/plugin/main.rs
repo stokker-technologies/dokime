@@ -17,7 +17,6 @@ use std::{
     io::{Read, Write},
     path::Path,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
 };
 // Third Party Imports
 use harmos::bundle::Bundle;
@@ -29,7 +28,6 @@ use dokime_client::contracts::{self, Endpoint, backend, plugins as v1, runtime};
 
 /* === Constants === */
 const ID: &str = "01900000-0000-7000-8000-000000000001";
-const CHILD_TIMEOUT: Duration = Duration::from_secs(15);
 const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
 
 /* === Macros === */
@@ -440,27 +438,13 @@ fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, Stri
             .map_err(|error| error.to_string())?;
         writer.flush().map_err(|error| error.to_string())?;
     }
-    let deadline = Instant::now() + CHILD_TIMEOUT;
-    let status = loop {
-        if let Some(status) = child.child.try_wait().map_err(|error| error.to_string())? {
-            child.reaped = true;
-            break status;
-        }
-        if Instant::now() >= deadline {
-            child.child.kill().map_err(|error| error.to_string())?;
-            child.child.wait().map_err(|error| error.to_string())?;
-            child.reaped = true;
-            drop(writer);
-            drop(pair.master);
-            let _ = received.recv_timeout(CHILD_TIMEOUT);
-            return Err("install CLI exceeded its exit deadline".into());
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    };
+    // The lane deadline bounds a CLI that never exits; the guard reaps it.
+    let status = child.child.wait().map_err(|error| error.to_string())?;
+    child.reaped = true;
     drop(writer);
     drop(pair.master);
     let output = received
-        .recv_timeout(CHILD_TIMEOUT)
+        .recv()
         .map_err(|_| "install PTY output did not close")?;
     read_task
         .join()
@@ -576,16 +560,14 @@ async fn scenario(
     let endpoint = format!("http://{}", attachment.local_addr());
     let output =
         tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint, consent)).await;
-    tokio::time::timeout(CHILD_TIMEOUT, attachment.detach())
-        .await
-        .expect("install fixture host exceeded shutdown deadline")
-        .unwrap();
-    runtime.stop_with_timeout(CHILD_TIMEOUT).await.unwrap();
+    attachment.detach().await.unwrap();
+    runtime.stop().await.unwrap();
     let calls = calls.lock().unwrap().clone();
     (output.unwrap().unwrap(), calls)
 }
 
-async fn hidden_environment_access_prevents_automatic_consent() {
+#[tokio::test]
+async fn hidden_access_refused() {
     let (outcome, calls) = scenario(true, true, tonic::Code::Unavailable).await;
     assert!(!outcome.success);
     assert!(
@@ -599,7 +581,8 @@ async fn hidden_environment_access_prevents_automatic_consent() {
     assert!(!outcome.output.contains(SECRET_VALUE));
 }
 
-async fn interactive_cancellation_removes_only_the_staged_bundle() {
+#[tokio::test]
+async fn cancel_removes_staged() {
     let (outcome, calls) = scenario(false, false, tonic::Code::Ok).await;
     assert!(outcome.success, "{}", outcome.output);
     assert!(outcome.output.contains("Discarded staged installation"));
@@ -609,7 +592,8 @@ async fn interactive_cancellation_removes_only_the_staged_bundle() {
     assert_eq!(calls, ["stage", "remove"]);
 }
 
-async fn refused_or_uncertain_consent_never_removes_or_retries() {
+#[tokio::test]
+async fn refusal_never_retries() {
     for code in [tonic::Code::FailedPrecondition, tonic::Code::Unavailable] {
         let (outcome, calls) = scenario(false, true, code).await;
         assert!(!outcome.success);
@@ -621,16 +605,3 @@ async fn refused_or_uncertain_consent_never_removes_or_retries() {
 }
 
 /* === Tests === */
-
-#[test]
-fn consent_contract() {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            hidden_environment_access_prevents_automatic_consent().await;
-            interactive_cancellation_removes_only_the_staged_bundle().await;
-            refused_or_uncertain_consent_never_removes_or_retries().await;
-        });
-}

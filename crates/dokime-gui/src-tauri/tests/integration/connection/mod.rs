@@ -1,0 +1,39 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+//! Connection Session And Shared Client Stories Against An In-Process gRPC Fixture.
+
+/* === Modules === */
+mod client;
+mod fixture;
+mod session;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

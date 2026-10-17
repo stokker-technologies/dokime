@@ -39,15 +39,7 @@ mod terminal;
 
 /* === Private Functions === */
 fn executable() -> std::path::PathBuf {
-    let path = std::path::PathBuf::from(
-        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact release host"),
-    );
-    assert!(
-        path.is_file(),
-        "run mise run build:release first: {}",
-        path.display()
-    );
-    path
+    crate::support::artifacts::host_binary()
 }
 
 /* === Tests === */

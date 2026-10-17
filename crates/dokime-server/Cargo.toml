@@ -90,7 +90,8 @@ dokime-host = { path = "../dokime-host" }
 anyhow = { workspace = true }
 
 # Async
-tokio = { workspace = true, features = ["test-util"] }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["process", "test-util"] }
 
 # Networking
 rcgen = { workspace = true }
@@ -100,16 +101,11 @@ tonic = { workspace = true, features = ["channel"] }
 criterion = { workspace = true }
 
 [[bench]]
-name = "grpc"
-path = "benches/grpc/main.rs"
+name = "system"
+path = "benches/system/main.rs"
 harness = false
 
 [[bin]]
 name = "dokime-server"
 path = "src/main.rs"
 doc = false
-
-[[bench]]
-name = "shutdown"
-path = "benches/host/main.rs"
-harness = false

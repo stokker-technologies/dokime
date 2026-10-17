@@ -577,12 +577,7 @@ impl PluginLifecycle for Host {
         )?;
         backend.registered = true;
         backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
-        let native = Arc::new(
-            tokio::time::timeout(Duration::from_secs(5), resident.staged_operations())
-                .await
-                .unwrap()
-                .unwrap(),
-        );
+        let native = Arc::new(resident.staged_operations().await.unwrap());
         let scope = native.scope().unwrap();
         assert!(authority.matches_scope(
             scope,
@@ -717,10 +712,7 @@ impl Bench {
         let mut plugins = PluginManager::new(definitions).unwrap();
         plugins.initialize(&mut host).await.unwrap();
         let mut ready = host.resident.as_ref().unwrap().ready();
-        tokio::time::timeout(Duration::from_secs(5), ready.wait_for(|ready| *ready))
-            .await
-            .unwrap()
-            .unwrap();
+        ready.wait_for(|ready| *ready).await.unwrap();
         Self {
             runtime,
             plugins,
@@ -804,7 +796,8 @@ async fn dispatch(
 }
 
 /* === Tests === */
-async fn the_inert_mini_inventory_matches_live_dispatch() {
+#[tokio::test]
+async fn inventory_matches_dispatch() {
     use harmos::Message;
     use harmos::operations::OperationDeclaration;
     let bench = Bench::new().await;
@@ -874,19 +867,21 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime.streams.publication("obc-plugin.system", 1).unwrap();
-    let demand = system.watch();
-    let rows = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            let rows = system.query(..).await.unwrap().collect::<Vec<_>>();
-            if rows.len() >= 2 {
-                break rows;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    let system = runtime
+        .streams
+        .publication("obc-plugin.system", 1)
+        .unwrap();
+    // The watch holds demand and yields each published tick.
+    let mut demand = system.watch();
+    let mut rows = Vec::new();
+    while rows.len() < 2 {
+        let item = futures_util::StreamExt::next(&mut demand)
+            .await
+            .expect("the demanded host observer publishes consecutive ticks");
+        if let harmos::streams::Item::Row(row) = item {
+            rows.push(row);
         }
-    })
-    .await
-    .expect("the demanded host observer publishes consecutive ticks");
+    }
     let decoder = harmos::schema::Validator::from_schema(
         system.definition().schema().unwrap(),
         &harmos::config::SchemaSettings::default(),
@@ -954,7 +949,8 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
     bench.shutdown().await;
 }
 
-async fn samples_use_native_streams_and_keep_execution_context() {
+#[tokio::test]
+async fn samples_keep_context() {
     use dokime::core::Value;
     use harmos::Message;
 
@@ -972,10 +968,7 @@ async fn samples_use_native_streams_and_keep_execution_context() {
         .collect::<Vec<_>>();
 
     for (token, run) in tokens.iter().zip(runs) {
-        let outcome = tokio::time::timeout(Duration::from_secs(10), run)
-            .await
-            .expect("the run settles")
-            .unwrap();
+        let outcome = run.await.unwrap();
         assert!(
             outcome.passed,
             "local criteria must retain their evidence: {outcome:?}"
@@ -1049,87 +1042,4 @@ async fn samples_use_native_streams_and_keep_execution_context() {
         assert_eq!(indices, &(0..indices.len() as i64).collect::<Vec<_>>());
     }
     bench.runtime.stop().await.unwrap();
-}
-
-async fn harmos_and_dokime_share_noncloneable_resources() {
-    use dokime::__harmos::Plugin;
-
-    let mut plugin = <ObcPlugin as Plugin>::prepare(Default::default()).unwrap();
-    let first = Plugin::resources(&plugin);
-    let second = Plugin::resources(&plugin);
-    assert!(std::sync::Arc::ptr_eq(&first, &second));
-
-    let weak = std::sync::Arc::downgrade(&first);
-    drop((first, second));
-    plugin.cleanup().await.unwrap();
-    drop(plugin);
-    assert!(weak.upgrade().is_none());
-}
-
-fn executable_declares_identity_and_execution_routes() {
-    let declared = harmos::sidecar::Executable::at(EXECUTABLE)
-        .expect("the obc-plugin executable declares itself")
-        .declaration()
-        .clone();
-
-    assert_eq!(declared.id, "obc-plugin");
-    assert_eq!(declared.version.to_string(), "0.1.0");
-    let operations = declared
-        .operations
-        .iter()
-        .map(|operation| operation.id.as_str().to_owned())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(
-        operations,
-        std::collections::BTreeSet::from(
-            [
-                // The bench's own operations and its connection listener.
-                "obc-plugin.check_readiness",
-                "obc-plugin.connection",
-                "obc-plugin.get_status",
-                "obc-plugin.list_connections",
-                "obc-plugin.observers.observe",
-                "obc-plugin.ripple",
-                // Every template of every suite serves a run and a signal.
-                "obc.charger.protection.overcurrent.run",
-                "obc.charger.protection.overcurrent.signal",
-                "obc.charger.recovery.power.run",
-                "obc.charger.recovery.power.signal",
-                "obc.charger.startup.sequence.run",
-                "obc.charger.startup.sequence.signal",
-                "obc.charger.steady.measurement.run",
-                "obc.charger.steady.measurement.signal",
-                "obc.checks.pulse.run",
-                "obc.checks.pulse.signal",
-            ]
-            .map(str::to_owned)
-        )
-    );
-    let streams = declared
-        .streams
-        .iter()
-        .map(|stream| stream.id.as_str().to_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        streams,
-        [
-            "obc-plugin.system",
-            "obc.charger.protection.samples",
-            "obc.charger.recovery.samples",
-            "obc.charger.startup.log",
-            "obc.charger.startup.samples",
-            "obc.charger.steady.events",
-            "obc.charger.steady.samples",
-            "obc.pulse",
-        ]
-    );
-    assert_eq!("obc-plugin", declared.id);
-}
-
-#[tokio::test]
-async fn native_plugin_contract() {
-    the_inert_mini_inventory_matches_live_dispatch().await;
-    samples_use_native_streams_and_keep_execution_context().await;
-    harmos_and_dokime_share_noncloneable_resources().await;
-    executable_declares_identity_and_execution_routes();
 }

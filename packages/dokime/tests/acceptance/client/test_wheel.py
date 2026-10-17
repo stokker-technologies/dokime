@@ -14,9 +14,9 @@
 import hashlib
 import importlib.metadata
 import importlib.util
-import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -37,11 +37,8 @@ from zipfile import ZipFile
 # === Public Functions === #
 
 
-def test_pure_wheel() -> None:
-    root = Path(__file__).resolve().parents[5]
-    wheel_dir = Path(
-        os.environ.get("DOKIME_PYTHON_TEST_WHEEL_DIR", root / "dist/python-test")
-    )
+def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
+    wheel_dir = artifact("python")
     wheels = list(wheel_dir.glob("dokime-*.whl"))
     assert len(wheels) == 1, "prepare exactly one wheel before acceptance"
     assert wheels[0].name.endswith("-py3-none-any.whl")

@@ -21,8 +21,8 @@ import pytest
 import dokime
 from dokime.client import DokimeClient, ProtocolError, RpcError
 
+from .backend import BackendFixture
 from .canonical import register
-from .test_client import BackendFixture
 
 # Type Checking Imports
 
@@ -40,7 +40,7 @@ from .test_client import BackendFixture
 @pytest.mark.parametrize(
     "failure", ["missing_response", "trailing_item", "status_after_response"]
 )
-def test_stream_completion_refusal(failure: str) -> None:
+def test_incomplete_stream_refused(failure: str) -> None:
     async def scenario():
         operation = dokime.DOKIME_EVIDENCE_WATCH_RECORDS
         assert operation.output is not None

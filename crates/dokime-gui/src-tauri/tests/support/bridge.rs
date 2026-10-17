@@ -29,7 +29,6 @@ use std::{
         Arc, Condvar, Mutex,
         atomic::{AtomicU32, Ordering},
     },
-    time::Duration,
 };
 // Third Party Imports
 use base64::Engine;
@@ -182,17 +181,16 @@ impl Harness {
     }
 
     /// Waits Until A Channel Carries Its Terminal Frame, Then Returns Them All.
-    pub fn settle(&self, channel: u32, timeout: Duration) -> Vec<Vec<u8>> {
+    pub fn settle(&self, channel: u32) -> Vec<Vec<u8>> {
         let (frames, ready) = &*self.frames.0;
         let guard = frames.lock().expect("harness frames poisoned");
-        let (guard, waited) = ready
-            .wait_timeout_while(guard, timeout, |frames| {
+        let guard = ready
+            .wait_while(guard, |frames| {
                 !frames
                     .get(&channel)
                     .is_some_and(|frames| frames.iter().any(|frame| frame[8] != 0))
             })
             .expect("harness frames poisoned");
-        assert!(!waited.timed_out(), "channel {channel} did not settle");
         guard[&channel].clone()
     }
 

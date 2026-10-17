@@ -339,7 +339,10 @@ description = "Test Rust Runtime And Persistence Workflows"
 # Rust integration scenarios never load the installed wheel; only the
 # acceptance lanes verify exact development artifacts before running.
 depends = ["prepare:tools"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration rust"
+run = [
+  "uv run --no-sync python -m dokime_tools.test.preflight integration",
+  "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration rust",
+]
 
 [tasks."test:integration:python"]
 env.UV_NO_SYNC = "1"
@@ -349,7 +352,7 @@ depends = ["prepare:tools", "prepare:python"]
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration python"
 
 [tasks."test:integration:typescript"]
-description = "Test Desktop Client Stories And Generator Contracts"
+description = "Test Desktop Client Stories"
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration typescript"
 
 [tasks."test:acceptance"]
@@ -361,13 +364,14 @@ env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 description = "Test CLI, Plugin, And Cross-Language Workflows"
 depends = ["prepare:python"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run acceptance rust"
+run = [
+  "uv run --no-sync python -m dokime_tools.test.preflight acceptance",
+  "uv run --no-sync --project tools/python python -m dokime_tools.evidence run acceptance rust",
+]
 
 [tasks."test:acceptance:python"]
 env.UV_NO_SYNC = "1"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-# The completed charger capture's sealed report becomes the download's example.
-env.DOKIME_EXAMPLE_REPORT = "{{config_root}}/target/validation/examples/charger-report.html"
 description = "Test Installed Python Packages Against Native Interfaces"
 depends = ["prepare:python"]
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run acceptance python"
@@ -386,7 +390,10 @@ depends = ["test:system:rust", "test:system:typescript"]
 env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 description = "Test Explicit Native Hardware Prerequisites"
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run system rust"
+run = [
+  "uv run --no-sync python -m dokime_tools.test.preflight system",
+  "uv run --no-sync --project tools/python python -m dokime_tools.evidence run system rust",
+]
 
 [tasks."test:system:typescript"]
 description = "Drive Native Desktop Installation And Workflows"

@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::time::Duration;
 // Third Party Imports
 // Local Imports
 use dokime::{core::TestExecutionId, execution::saved::ExecutionCheckpoint};
@@ -35,17 +34,12 @@ use dokime_app::{RuntimeHandle, runtime::ExecutionView};
 
 /* === Public Functions === */
 pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> ExecutionCheckpoint {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-    loop {
-        match handle.execution_saved_checkpoint(id.clone()).await {
-            Ok(checkpoint) => return checkpoint,
-            Err(error) if tokio::time::Instant::now() >= deadline => {
-                panic!("saved seal did not appear: {error}")
-            }
-            Err(_) => tokio::time::sleep(Duration::from_millis(10)).await,
-        }
-    }
+    super::waits::settle(handle, || async {
+        handle.execution_saved_checkpoint(id.clone()).await.ok()
+    })
+    .await
 }
+
 pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> ExecutionView {
     ExecutionView::open_checkpoint(handle.storage(), checkpoint)
         .await

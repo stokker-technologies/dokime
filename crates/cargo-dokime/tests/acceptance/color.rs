@@ -37,7 +37,8 @@ use std::{fs, process::Command};
 /* === Private Functions === */
 
 /* === Tests === */
-pub(super) fn compiler_color_policy() {
+#[test]
+fn build_color_policy() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(

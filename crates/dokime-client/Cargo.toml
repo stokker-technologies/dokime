@@ -68,10 +68,6 @@ tempfile = { workspace = true }
 
 # === Test Targets ===
 
-[[test]]
-name = "profiles"
-path = "tests/integration/profiles/main.rs"
-
 # === Bench Targets ===
 
 # === Example Targets ===

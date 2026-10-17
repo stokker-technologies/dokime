@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 // Third Party Imports
 
@@ -41,26 +40,29 @@ pub struct FakePythonExecutor {
     case_parameter_status: bool,
 }
 
+/// Holds its first execution open until the story releases it or the run is cancelled.
 #[derive(Default)]
 pub struct BlockingPublishingExecutor {
-    entered: AtomicBool,
-    released: AtomicBool,
-    release_signal: tokio::sync::Notify,
+    entered: Entered,
+    released: tokio::sync::watch::Sender<bool>,
 }
 
 #[derive(Default)]
 pub struct BlockingErrorExecutor {
-    entered: AtomicBool,
-    released: AtomicBool,
-    release_signal: tokio::sync::Notify,
+    entered: Entered,
+    released: tokio::sync::watch::Sender<bool>,
 }
 
 /// Runs every case of a cycle and holds the first one open until an operator
 /// stops that execution alone; the siblings then run to completion.
 #[derive(Default)]
 pub struct MemberStopExecutor {
-    entered: AtomicBool,
+    entered: Entered,
 }
+
+/// Signals Once A Fixture Executor Holds Its Execution Open.
+#[derive(Default)]
+struct Entered(tokio::sync::watch::Sender<bool>);
 
 pub struct PanickingExecutor;
 
@@ -91,68 +93,51 @@ impl FakePythonExecutor {
     }
 }
 
+impl Entered {
+    fn signal(&self) {
+        self.0.send_replace(true);
+    }
+
+    async fn wait(&self) {
+        let mut entered = self.0.subscribe();
+        entered
+            .wait_for(|entered| *entered)
+            .await
+            .expect("the executor owns its entry signal");
+    }
+}
+
 impl BlockingPublishingExecutor {
     pub fn new() -> Self {
-        Self {
-            entered: AtomicBool::new(false),
-            released: AtomicBool::new(false),
-            release_signal: tokio::sync::Notify::new(),
-        }
+        Self::default()
     }
 
     pub async fn wait_until_entered(&self) {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-        while tokio::time::Instant::now() < deadline {
-            if self.entered.load(Ordering::SeqCst) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        panic!("blocking executor did not enter within timeout");
+        self.entered.wait().await;
     }
 
     pub fn release(&self) {
-        self.released.store(true, Ordering::SeqCst);
-        self.release_signal.notify_waiters();
+        self.released.send_replace(true);
     }
 }
 
 impl BlockingErrorExecutor {
     pub fn new() -> Self {
-        Self {
-            entered: AtomicBool::new(false),
-            released: AtomicBool::new(false),
-            release_signal: tokio::sync::Notify::new(),
-        }
+        Self::default()
     }
 
     pub async fn wait_until_entered(&self) {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-        while tokio::time::Instant::now() < deadline {
-            if self.entered.load(Ordering::SeqCst) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        panic!("blocking error executor did not enter within timeout");
+        self.entered.wait().await;
     }
 
     pub fn release(&self) {
-        self.released.store(true, Ordering::SeqCst);
-        self.release_signal.notify_waiters();
+        self.released.send_replace(true);
     }
 }
 
 impl MemberStopExecutor {
     pub async fn wait_until_entered(&self) {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-        while tokio::time::Instant::now() < deadline {
-            if self.entered.load(Ordering::SeqCst) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        panic!("member stop executor did not enter within timeout");
+        self.entered.wait().await;
     }
 }
 
@@ -187,16 +172,18 @@ impl ExecutionFixture for BlockingPublishingExecutor {
             if let Some(execution) = runnable_executions(cycle).next() {
                 activate_fixture_execution(&context, execution).await;
             }
-            self.entered.store(true, Ordering::SeqCst);
-            while !self.released.load(Ordering::SeqCst) {
+            let mut released = self.released.subscribe();
+            self.entered.signal();
+            while !*released.borrow_and_update() {
                 if context.is_cancelled() {
                     return Err(dokime::transport::ProviderExecutionFailure::new(
                         "cancel",
                         "fixture cancelled",
                     ));
                 }
+                // TODO(source-hook): ExecutionFixtureContext::cancelled is crate-private; a public cancellation future would replace this tick.
                 tokio::select! {
-                    _ = self.release_signal.notified() => {},
+                    _ = released.changed() => {},
                     _ = tokio::time::sleep(Duration::from_millis(10)) => {},
                 }
             }
@@ -217,10 +204,12 @@ impl ExecutionFixture for BlockingErrorExecutor {
             if let Some(execution) = runnable_executions(cycle).next() {
                 activate_fixture_execution(&context, execution).await;
             }
-            self.entered.store(true, Ordering::SeqCst);
-            while !self.released.load(Ordering::SeqCst) {
-                self.release_signal.notified().await;
-            }
+            let mut released = self.released.subscribe();
+            self.entered.signal();
+            released
+                .wait_for(|released| *released)
+                .await
+                .expect("the executor owns its release signal");
 
             Err(ProviderExecutionFailure::new(
                 "worker",
@@ -245,7 +234,8 @@ impl ExecutionFixture for MemberStopExecutor {
                 .expect("cycle has a runnable execution")
                 .clone();
             activate_fixture_execution(&context, &first).await;
-            self.entered.store(true, Ordering::SeqCst);
+            self.entered.signal();
+            // TODO(source-hook): ExecutionFixtureContext exposes no future for an execution stop or cancellation; this tick polls both.
             while !context.execution_stop_requested(&first.test_execution_id) {
                 if context.is_cancelled() {
                     return Err(ProviderExecutionFailure::new("cancel", "fixture cancelled"));
@@ -312,8 +302,6 @@ impl ExecutionFixture for PublishingExecutor {
                 sample.scope = Some(execution_scope.clone());
             }
             context.publish_telemetry_batch(host_batch).await.unwrap();
-
-            tokio::time::sleep(Duration::from_millis(5)).await;
 
             Ok(custom_outcome(cycle))
         })

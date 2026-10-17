@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod output;
 
 /* === Re-Exports === */
 
@@ -33,26 +34,34 @@
 /* === Implementations === */
 
 /* === Public Functions === */
+/// The released `cargo-dokime` this crate's stories drive.
 pub fn tool() -> std::path::PathBuf {
-    let path = std::path::PathBuf::from(
-        std::env::var_os("DOKIME_TEST_TOOL")
-            .unwrap_or_else(|| panic!("DOKIME_TEST_TOOL is unset: run mise run test:acceptance")),
-    );
-    assert!(
-        path.is_file(),
-        "release tool is missing: run mise run build:release ({})",
-        path.display()
-    );
-    path
+    artifact("cargo-dokime")
+}
+
+/// The released `dokime-server` the tool's stories host plugins in.
+pub fn host() -> std::path::PathBuf {
+    artifact("dokime-server")
+}
+
+/// The directory holding `Cargo.lock`, which every built artifact derives from.
+pub fn workspace_root() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|ancestor| ancestor.join("Cargo.lock").is_file())
+        .expect("the crate lives in a Cargo workspace")
+        .to_owned()
+}
+
+pub fn target_directory() -> std::path::PathBuf {
+    let root = workspace_root();
+    std::env::var_os("CARGO_TARGET_DIR")
+        .map(|path| root.join(path))
+        .unwrap_or_else(|| root.join("target"))
 }
 
 pub fn standalone_directory() -> tempfile::TempDir {
-    standalone_directory_in(&std::env::temp_dir())
-}
-
-/* === Private Functions === */
-fn standalone_directory_in(preferred: &std::path::Path) -> tempfile::TempDir {
-    let preferred = preferred.canonicalize().unwrap();
+    let preferred = std::env::temp_dir().canonicalize().unwrap();
     let mut parent = preferred.as_path();
     for ancestor in preferred.ancestors() {
         if ancestor.join("Cargo.toml").is_file() {
@@ -61,27 +70,36 @@ fn standalone_directory_in(preferred: &std::path::Path) -> tempfile::TempDir {
                 .expect("filesystem root cannot be a Cargo workspace");
         }
     }
-    tempfile::Builder::new()
+    let directory = tempfile::Builder::new()
         .prefix("dokime-plugin-")
         .tempdir_in(parent)
-        .unwrap()
+        .unwrap();
+    // A generated standalone plugin must never join an enclosing workspace.
+    assert!(
+        directory
+            .path()
+            .ancestors()
+            .all(|ancestor| !ancestor.join("Cargo.toml").exists()),
+        "{} lies inside a Cargo workspace",
+        directory.path().display()
+    );
+    directory
+}
+
+/* === Private Functions === */
+fn artifact(name: &str) -> std::path::PathBuf {
+    let platform = if cfg!(windows) { "windows" } else { "linux" };
+    let path = workspace_root()
+        .join("dist/build")
+        .join(platform)
+        .join("bin")
+        .join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+    assert!(
+        path.is_file(),
+        "{} is missing: run mise run build",
+        path.display()
+    );
+    path
 }
 
 /* === Tests === */
-pub(super) fn nested_scratch_independent() {
-    let repository = tempfile::tempdir().unwrap();
-    let manifest = repository.path().join("Cargo.toml");
-    let original = "[workspace]\nmembers = []\n";
-    std::fs::write(&manifest, original).unwrap();
-    let scratch = repository.path().join(".tmp");
-    std::fs::create_dir(&scratch).unwrap();
-    let standalone = standalone_directory_in(&scratch);
-    assert!(!standalone.path().starts_with(repository.path()));
-    assert!(
-        standalone
-            .path()
-            .ancestors()
-            .all(|ancestor| !ancestor.join("Cargo.toml").exists())
-    );
-    assert_eq!(std::fs::read_to_string(manifest).unwrap(), original);
-}

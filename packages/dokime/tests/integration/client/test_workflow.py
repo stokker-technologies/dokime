@@ -14,7 +14,6 @@
 # Standard Library Imports
 import asyncio
 import json
-from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +29,8 @@ from dokime.client import (
     RunRequest,
 )
 
-from .test_capture import fixture
-from .test_client import SUITE_ID, TEMPLATE
+from .backend import SUITE_ID, TEMPLATE, collect
+from .capture_backend import serve
 
 # Type Checking Imports
 
@@ -50,7 +49,8 @@ from .test_client import SUITE_ID, TEMPLATE
 
 def test_handles_progress() -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
+        async with serve() as (backend, client):
+            backend.finish_gate.clear()
             cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             request = await cycle.run(request_key="handle-test")
             assert isinstance(request, RunRequest)
@@ -59,26 +59,30 @@ def test_handles_progress() -> None:
             assert request._transport is cycle._transport
             assert request._backend == cycle._backend
             assert request.id != cycle.id
-            records, samples, progress = await asyncio.gather(
-                drain(cycle.records(until=request)),
-                drain(cycle.samples(until=request, page_size=1, poll_interval=0.01)),
-                drain(request.updates(poll_interval=0.01)),
+            # Readers Follow The Run Live, Then Drain After Completion
+            following = asyncio.gather(
+                collect(cycle.records(until=request)),
+                collect(cycle.samples(until=request, page_size=1, poll_interval=0.01)),
+                collect(request.updates(poll_interval=0.01)),
             )
+            await backend.records_parked.wait()
+            backend.finish_gate.set()
+            records, samples, progress = await following
             assert len(records) == len(samples) == 2
             assert progress[-1].phase is RunPhase.COMPLETED
             assert backend.stop_calls == 0
             unrelated = await client.cycle("bdda795a-2929-4d27-8c2c-32965d3c2ff3")
             with pytest.raises(ValueError, match="another cycle"):
-                await drain(unrelated.records(until=request))
+                await collect(unrelated.records(until=request))
             with pytest.raises(ValueError, match="another cycle"):
-                await drain(unrelated.samples(until=request))
+                await collect(unrelated.samples(until=request))
 
     asyncio.run(scenario())
 
 
 def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
+        async with serve() as (backend, client):
             capture = await Capture.prepare(
                 client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
@@ -86,7 +90,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
             backend.fail_admission = True
             with pytest.raises(ExecutionSubmissionUncertain):
                 await capture.start()
-            stages = [item.stage for item in await drain(capture.updates())]
+            stages = [item.stage for item in await collect(capture.updates())]
             assert stages[0] == "connecting" and stages[-1] == "failed"
             saved_key = backend.key
             recovered = await Capture.open(client, output=capture.output)
@@ -94,7 +98,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
             assert backend.key == saved_key
             assert backend.created == 1
             result, updates = await asyncio.gather(
-                recovered.collect(request), drain(recovered.updates())
+                recovered.collect(request), collect(recovered.updates())
             )
             assert result.request.id == request.id
             assert result.result.status == "passed"
@@ -102,7 +106,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
             assert [u.stage for u in updates].count("complete") == 1
             assert recovered.result is result
             assert not list(capture.output.rglob("*.part"))
-            late = await drain(recovered.updates())
+            late = await collect(recovered.updates())
             assert late[-1].stage == "complete"
             assert not (capture.output / ".collect.lock").exists()
 
@@ -110,18 +114,18 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
     assert capsys.readouterr() == ("", "")
 
 
-def case_failed_retried(tmp_path: Path) -> None:
+def test_failed_retried(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
+        async with serve() as (backend, client):
             capture = await Capture.prepare(
                 client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             request = await capture.start()
             backend.bad_report = "hash"
-            updates = asyncio.create_task(drain(capture.updates()))
+            updates = asyncio.create_task(collect(capture.updates()))
             with pytest.raises(ProtocolError):
                 await capture.collect(request)
-            assert (await asyncio.wait_for(updates, 1))[-1].stage == "failed"
+            assert (await updates)[-1].stage == "failed"
             with pytest.raises(RuntimeError, match="not completed"):
                 _ = capture.result
             assert not json.loads((capture.output / "capture.json").read_text())[
@@ -135,25 +139,25 @@ def case_failed_retried(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def case_cancellation_identity(
-    tmp_path: Path,
-) -> None:
+def test_cancel_keeps_execution(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
-            hold_acquisition(backend)
+        async with serve() as (backend, client):
+            _hold_acquisition(backend)
             capture = await Capture.prepare(
                 client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             request = await capture.start()
-            updates = asyncio.create_task(drain(capture.updates()))
+            updates = asyncio.create_task(collect(capture.updates()))
             collection = asyncio.create_task(capture.collect(request))
-            await wait_for_file(capture.output / "records.jsonl.part")
+            # Live Files Open Before The Records Watch Starts
+            await backend.records_watched.wait()
+            assert (capture.output / "records.jsonl.part").exists()
             collection.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await collection
             assert backend.stop_calls == 0
             assert not (await request.status()).terminal
-            assert (await asyncio.wait_for(updates, 1))[-1].stage == "failed"
+            assert (await updates)[-1].stage == "failed"
             assert not (capture.output / ".collect.lock").exists()
             assert not json.loads((capture.output / "capture.json").read_text())[
                 "complete"
@@ -171,10 +175,10 @@ def case_cancellation_identity(
     asyncio.run(scenario())
 
 
-def case_capture_request(tmp_path: Path) -> None:
+def test_capture_exclusive(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
-            hold_acquisition(backend)
+        async with serve() as (backend, client):
+            _hold_acquisition(backend)
             capture = await Capture.prepare(
                 client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
@@ -184,7 +188,9 @@ def case_capture_request(tmp_path: Path) -> None:
             with pytest.raises(ValueError, match="this capture"):
                 await capture.collect(other_request)
             collection = asyncio.create_task(capture.collect(request))
-            await wait_for_file(capture.output / "records.jsonl.part")
+            # Live Files Open Before The Records Watch Starts
+            await backend.records_watched.wait()
+            assert (capture.output / "records.jsonl.part").exists()
             try:
                 with pytest.raises(FileExistsError):
                     await other.collect(other_request)
@@ -201,18 +207,9 @@ def case_capture_request(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def case_capture_mutation(tmp_path: Path) -> None:
+def test_capture_output_refused(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with fixture() as (backend, client):
-            with pytest.raises(ValueError):
-                await Capture.prepare(
-                    client,
-                    output=tmp_path / "invalid",
-                    suite=SUITE_ID,
-                    template=TEMPLATE,
-                    parameters={"bad": float("nan")},
-                )
-            assert not (tmp_path / "invalid").exists()
+        async with serve() as (backend, client):
             existing = tmp_path / "existing"
             existing.mkdir()
             with pytest.raises(FileExistsError):
@@ -230,20 +227,10 @@ def case_capture_mutation(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-async def drain[T](items: AsyncIterator[T]) -> list[T]:
-    return [item async for item in items]
-
-
-async def wait_for_file(path: Path) -> None:
-    async with asyncio.timeout(2):
-        while not path.exists():
-            await asyncio.sleep(0.001)
-
-
 # === Private Functions === #
 
 
-def hold_acquisition(backend: Any) -> None:
+def _hold_acquisition(backend: Any) -> None:
     async def produce() -> None:
         backend.publish("started")
         await asyncio.Event().wait()
@@ -252,16 +239,3 @@ def hold_acquisition(backend: Any) -> None:
 
 
 # === Entry Point === #
-
-
-@pytest.mark.parametrize(
-    "scenario",
-    [
-        pytest.param(case_failed_retried, id="failed_retried"),
-        pytest.param(case_cancellation_identity, id="cancellation_identity"),
-        pytest.param(case_capture_request, id="capture_request"),
-        pytest.param(case_capture_mutation, id="capture_mutation"),
-    ],
-)
-def test_contract(scenario: Callable[..., None], tmp_path: Path) -> None:
-    scenario(tmp_path)

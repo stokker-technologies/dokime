@@ -8,8 +8,6 @@
  */
 
 /* === Modules === */
-#[path = "../../support/shutdown.rs"]
-mod shutdown;
 
 /* === Re-Exports === */
 
@@ -19,7 +17,7 @@ use std::process::Command;
 // Third Party Imports
 
 // Local Imports
-use shutdown::measure_shutdown;
+use crate::support::host::Host;
 
 /* === Constants === */
 
@@ -38,13 +36,27 @@ use shutdown::measure_shutdown;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
-async fn ready_then_shutdown() {
-    measure_shutdown(false, true, false, None, std::time::Duration::ZERO).await;
+// A Connected Client Sees The Host Ready Before It Is Stopped
+async fn serve_until_stopped(signal: bool) {
+    let host = Host::launch(None).await;
+    let client = host.connect().await;
+    let health = client.health().await.unwrap();
+    assert_eq!(
+        health.readiness,
+        dokime_client::contracts::runtime::Readiness::Ready
+    );
+    host.stop(signal).await;
+    drop(client);
 }
 
-fn browser_origins_are_validated_before_runtime_start() {
+/* === Tests === */
+#[tokio::test]
+async fn stdin_close_stops() {
+    serve_until_stopped(false).await;
+}
+
+#[test]
+fn browser_origins_validated() {
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
     for (web, origins) in [
@@ -84,7 +96,8 @@ fn browser_origins_are_validated_before_runtime_start() {
     }
 }
 
-fn version_identity() {
+#[test]
+fn reports_version_identity() {
     let output = Command::new(super::executable())
         .args(["--color", "always", "version", "--json"])
         .output()
@@ -111,6 +124,7 @@ fn version_identity() {
     );
 }
 
+#[test]
 fn stderr_color_policy() {
     for (mode, no_color, colored) in [
         ("auto", false, false),
@@ -138,6 +152,7 @@ fn stderr_color_policy() {
     }
 }
 
+#[test]
 fn control_requires_stdin() {
     let output = Command::new(super::executable())
         .args(["--dev-control"])
@@ -148,7 +163,8 @@ fn control_requires_stdin() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("--shutdown-stdin"));
 }
 
-fn authentication_file_is_read_bounded_and_validated() {
+#[test]
+fn authentication_file_bounded() {
     let root = tempfile::tempdir().unwrap();
     let auth = root.path().join("auth.json");
     for (bytes, expected) in [
@@ -188,7 +204,8 @@ fn authentication_file_is_read_bounded_and_validated() {
     );
 }
 
-async fn environment_file_precedence_and_missing_file_errors() {
+#[tokio::test]
+async fn environment_file_precedence() {
     let root = tempfile::tempdir().unwrap();
     let env = root.path().join("settings.env");
     for exported in [false, true] {
@@ -272,7 +289,8 @@ fn owned_launch(application: &std::path::Path) -> std::process::Command {
     command
 }
 
-fn same_root_relaunches_ready() {
+#[test]
+fn same_root_relaunches() {
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
     let root = tempfile::tempdir().unwrap();
@@ -314,7 +332,8 @@ fn same_root_relaunches_ready() {
     assert!(application.join("data").join("local.sqlite").is_file());
 }
 
-async fn incompatible_storage_is_refused_by_name() {
+#[tokio::test]
+async fn incompatible_storage_refused() {
     use dokime::storage::sqlite::{self, rusqlite};
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
@@ -387,21 +406,7 @@ async fn incompatible_storage_is_refused_by_name() {
 }
 
 #[cfg(unix)]
-async fn ready_then_sigint_shutdown() {
-    measure_shutdown(true, true, false, None, std::time::Duration::ZERO).await;
-}
-
 #[tokio::test]
-async fn terminal_contract() {
-    ready_then_shutdown().await;
-    version_identity();
-    stderr_color_policy();
-    browser_origins_are_validated_before_runtime_start();
-    control_requires_stdin();
-    authentication_file_is_read_bounded_and_validated();
-    environment_file_precedence_and_missing_file_errors().await;
-    same_root_relaunches_ready();
-    incompatible_storage_is_refused_by_name().await;
-    #[cfg(unix)]
-    ready_then_sigint_shutdown().await;
+async fn sigint_stops_host() {
+    serve_until_stopped(true).await;
 }

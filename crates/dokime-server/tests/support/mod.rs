@@ -10,8 +10,11 @@
 #![allow(dead_code)]
 
 /* === Modules === */
+pub mod artifacts;
 #[path = "../../../dokime-app/tests/support/budgets.rs"]
 pub mod budgets;
+pub mod host;
+pub mod wire;
 
 /* === Re-Exports === */
 
@@ -20,11 +23,9 @@ pub mod budgets;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
-    time::Duration,
 };
 // Third Party Imports
 use tempfile::tempdir;
-use tokio::time::{Instant, sleep};
 use tonic::{Extensions, Request, Status};
 // Local Imports
 use dokime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
@@ -174,7 +175,7 @@ impl ExecutionFixture for FixtureProgressExecutor {
 /// Creates an empty cycle, then appends the planned cases under the same
 /// request metadata, and returns the cycle ID.
 pub(crate) async fn planned_cycle(
-    client: &crate::WireClient,
+    client: &wire::WireClient,
     create: Request<contracts::execution::CreateCycleRequest>,
     plan: contracts::planning::SelectionPlan,
 ) -> Result<String, Status> {
@@ -375,65 +376,42 @@ pub async fn test_case_id_for(
         .clone()
 }
 
+/// Awaits the state revision in which the cycle reaches `lifecycle`.
 pub async fn wait_for_cycle_lifecycle(
     runtime: &RuntimeHandle,
     test_cycle_id: &TestCycleId,
     lifecycle: CycleStatus,
 ) -> CycleView {
-    wait_for_cycle_lifecycle_with_timeout(runtime, test_cycle_id, lifecycle, Duration::from_secs(5))
+    let snapshot = runtime
+        .watch_state()
+        .wait_until(|snapshot| {
+            snapshot
+                .state()
+                .cycle_view(test_cycle_id)
+                .is_none_or(|cycle| cycle.lifecycle == lifecycle)
+        })
         .await
+        .expect("the runtime state watch stays open");
+    snapshot
+        .state()
+        .cycle_view(test_cycle_id)
+        .expect("the cycle stays live until it reaches the lifecycle")
 }
 
-pub async fn wait_for_cycle_lifecycle_with_timeout(
+/// Re-runs `probe` after every runtime state change until it yields a value.
+pub async fn on_state_change<T>(
     runtime: &RuntimeHandle,
-    test_cycle_id: &TestCycleId,
-    lifecycle: CycleStatus,
-    timeout: Duration,
-) -> CycleView {
-    let deadline = Instant::now() + timeout;
+    mut probe: impl AsyncFnMut() -> Option<T>,
+) -> T {
+    let mut changes = runtime.watch_state();
     loop {
-        let cycle = runtime
-            .cycles()
-            .await
-            .into_iter()
-            .find(|cycle| &cycle.test_cycle_id == test_cycle_id)
-            .expect("cycle exists");
-        if cycle.lifecycle == lifecycle {
-            return cycle;
+        if let Some(value) = probe().await {
+            return value;
         }
-        let actual_lifecycle = cycle.lifecycle;
-        let execution_statuses = cycle
-            .test_executions
-            .iter()
-            .map(|execution| {
-                format!(
-                    "{}:{:?}",
-                    execution.test_execution_id.as_str(),
-                    execution.status
-                )
-            })
-            .collect::<Vec<_>>();
-        let health = runtime
-            .health_items()
+        changes
+            .next_change()
             .await
-            .into_iter()
-            .map(|item| {
-                format!(
-                    "{:?}: {}{}",
-                    item.severity,
-                    item.message,
-                    item.detail
-                        .as_ref()
-                        .map(|detail| format!(" ({detail})"))
-                        .unwrap_or_default()
-                )
-            })
-            .collect::<Vec<_>>();
-        assert!(
-            Instant::now() < deadline,
-            "cycle {test_cycle_id} did not reach {lifecycle:?}; last lifecycle was {actual_lifecycle:?}; executions: {execution_statuses:?}; health: {health:?}"
-        );
-        sleep(Duration::from_millis(25)).await;
+            .expect("the runtime state watch stays open");
     }
 }
 

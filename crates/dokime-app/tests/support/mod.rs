@@ -11,12 +11,12 @@
 pub mod backend;
 pub mod budgets;
 pub mod bundles;
+pub mod children;
 pub mod contracts;
 pub mod evidence;
 pub mod executors;
-pub mod fixtures;
 pub mod native;
-pub mod plugins;
+pub mod prompts;
 pub mod publication;
 pub mod reports;
 pub mod suites;
@@ -60,7 +60,6 @@ pub mod prelude {
     pub use super::contracts::*;
     pub use super::evidence::*;
     pub use super::executors::*;
-    pub use super::plugins::*;
     pub use super::suites::*;
     pub use super::waits::*;
     pub use super::{

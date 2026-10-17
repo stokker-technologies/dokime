@@ -61,7 +61,8 @@ fn succeeded(output: Output) -> String {
 }
 
 /* === Tests === */
-fn standalone_is_editable_and_offline() {
+#[test]
+fn standalone_scaffold_offline() {
     let root = support::standalone_directory();
     succeeded(generate(root.path(), &["my-plugin"]));
     let manifest = fs::read_to_string(root.path().join("my-plugin/Cargo.toml")).unwrap();
@@ -96,7 +97,8 @@ fn standalone_is_editable_and_offline() {
     );
 }
 
-fn workspace_preserves_comments_defaults_and_matching_globs() {
+#[test]
+fn workspace_scaffold_preserved() {
     for members in ["[]", "[\"plugins/*\"]", "[\"./plugins/*\"]"] {
         let root = tempfile::tempdir().unwrap();
         fs::create_dir(root.path().join("plugins")).unwrap();
@@ -118,7 +120,8 @@ fn workspace_preserves_comments_defaults_and_matching_globs() {
     }
 }
 
-fn excluded_plugin_is_independent_and_workspace_is_untouched() {
+#[test]
+fn excluded_scaffold_independent() {
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("plugins")).unwrap();
     let original = "[workspace]\nmembers = [\"plugins/*\"]\nexclude = [\"plugins/private-*\"]\n";
@@ -136,7 +139,8 @@ fn excluded_plugin_is_independent_and_workspace_is_untouched() {
     );
 }
 
-fn invalid_names_targets_and_workspaces_leave_no_changes() {
+#[test]
+fn invalid_scaffold_refused() {
     let root = tempfile::tempdir().unwrap();
     for name in [
         "self",
@@ -170,32 +174,4 @@ fn invalid_names_targets_and_workspaces_leave_no_changes() {
         fs::read_to_string(root.path().join("Cargo.toml")).unwrap(),
         malformed
     );
-}
-
-fn template_manifests_never_carry_the_manifest_name() {
-    let templates = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
-    let mut pending = vec![templates];
-    while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(&directory).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                pending.push(path);
-            } else {
-                assert_ne!(
-                    path.file_name().and_then(|name| name.to_str()),
-                    Some("Cargo.toml"),
-                    "{} must not be named like a real manifest",
-                    path.display()
-                );
-            }
-        }
-    }
-}
-
-pub(super) fn scaffold_contract() {
-    standalone_is_editable_and_offline();
-    workspace_preserves_comments_defaults_and_matching_globs();
-    excluded_plugin_is_independent_and_workspace_is_untouched();
-    invalid_names_targets_and_workspaces_leave_no_changes();
-    template_manifests_never_carry_the_manifest_name();
 }

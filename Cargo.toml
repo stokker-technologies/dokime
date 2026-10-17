@@ -157,16 +157,19 @@ tauri-plugin-updater = { version = "2.13.3" }
 xcap = { version = "0.9.8" }
 
 # Testing
-criterion = { version = "0.8.2" }
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
 [profile.dev]
-debug = 1
+debug = "line-tables-only"
 
-# Distribution applications, validation executables and native admission fixtures
-# share the release profile. Instrumented coverage uses its isolated build inputs.
 [profile.release]
-debug = 0
-incremental = false
-codegen-units = 1
 lto = "thin"
+codegen-units = 1
 strip = "symbols"
+
+[profile.bench]
+inherits = "release"
+lto = false
+incremental = false
+debug = "line-tables-only"
+strip = "none"

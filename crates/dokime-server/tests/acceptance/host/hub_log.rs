@@ -40,10 +40,11 @@ fn hub_log(root: &Path) -> std::path::PathBuf {
 }
 
 /* === Tests === */
-fn serve_logging_writes_parseable_hub_log_records() {
+#[test]
+fn serve_writes_records() {
     let root = tempfile::tempdir().unwrap();
 
-    if !isolated("serve_logging_writes_parseable_hub_log_records", None) {
+    if !isolated("serve_writes_records", None) {
         return;
     }
 
@@ -80,14 +81,14 @@ fn serve_logging_writes_parseable_hub_log_records() {
 
 // Configure global subscribers and environment only in a child process.
 fn isolated(name: &str, profile: Option<&str>) -> bool {
-    let name = format!("hub_log::{name}");
-    if std::env::var("DOKIME_LOG_TEST").as_deref() == Ok(name.as_str()) {
+    if std::env::var("DOKIME_LOG_TEST").as_deref() == Ok(name) {
         return true;
     }
+    let test = format!("{}::{name}", module_path!().split_once("::").unwrap().1);
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
     command
-        .args(["--exact", "hub_log::logging_contract", "--nocapture"])
-        .env("DOKIME_LOG_TEST", &name)
+        .args(["--exact", &test, "--nocapture"])
+        .env("DOKIME_LOG_TEST", name)
         .env("RUST_LOG", "info")
         .env_remove("DOKIME_LOG_FORMAT")
         .env_remove("DOKIME_DEV_PROFILE");
@@ -96,7 +97,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
     }
     let output = command.output().unwrap();
     assert!(
-        output.status.success(),
+        output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
         "{}\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
@@ -104,11 +105,9 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
     false
 }
 
-fn reopened_full_log_rotates_before_the_next_whole_record() {
-    if !isolated(
-        "reopened_full_log_rotates_before_the_next_whole_record",
-        None,
-    ) {
+#[test]
+fn reopened_log_rotates() {
+    if !isolated("reopened_log_rotates", None) {
         return;
     }
     let root = tempfile::tempdir().unwrap();
@@ -137,8 +136,9 @@ fn reopened_full_log_rotates_before_the_next_whole_record() {
     );
 }
 
-fn logging_writes_the_plain_rolling_file() {
-    if !isolated("logging_writes_the_plain_rolling_file", None) {
+#[test]
+fn plain_rolling_file() {
+    if !isolated("plain_rolling_file", None) {
         return;
     }
     let root = tempfile::tempdir().unwrap();
@@ -160,11 +160,9 @@ fn logging_writes_the_plain_rolling_file() {
 }
 
 #[cfg(debug_assertions)]
-fn profiling_writes_both_formats_and_prunes_old_runs() {
-    if !isolated(
-        "profiling_writes_both_formats_and_prunes_old_runs",
-        Some("yes"),
-    ) {
+#[test]
+fn profiling_prunes_runs() {
+    if !isolated("profiling_prunes_runs", Some("yes")) {
         return;
     }
     let root = tempfile::tempdir().unwrap();
@@ -198,32 +196,4 @@ fn profiling_writes_both_formats_and_prunes_old_runs() {
     let _: serde_json::Value =
         serde_json::from_slice(&std::fs::read(current.path().join("server.trace.json")).unwrap())
             .unwrap();
-}
-
-#[test]
-fn logging_contract() {
-    if let Ok(selected) = std::env::var("DOKIME_LOG_TEST") {
-        match selected.as_str() {
-            "hub_log::serve_logging_writes_parseable_hub_log_records" => {
-                serve_logging_writes_parseable_hub_log_records()
-            }
-            "hub_log::reopened_full_log_rotates_before_the_next_whole_record" => {
-                reopened_full_log_rotates_before_the_next_whole_record()
-            }
-            "hub_log::logging_writes_the_plain_rolling_file" => {
-                logging_writes_the_plain_rolling_file()
-            }
-            #[cfg(debug_assertions)]
-            "hub_log::profiling_writes_both_formats_and_prunes_old_runs" => {
-                profiling_writes_both_formats_and_prunes_old_runs()
-            }
-            _ => panic!("unknown logging scenario: {selected}"),
-        }
-        return;
-    }
-    serve_logging_writes_parseable_hub_log_records();
-    reopened_full_log_rotates_before_the_next_whole_record();
-    logging_writes_the_plain_rolling_file();
-    #[cfg(debug_assertions)]
-    profiling_writes_both_formats_and_prunes_old_runs();
 }
