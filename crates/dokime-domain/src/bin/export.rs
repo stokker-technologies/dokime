@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "the exporter takes no arguments; output belongs to the selected Cargo build".into(),
         );
     }
-    let artifacts = dokime_domain::operations::artifacts()?;
+    let artifacts = crate::operations::artifacts()?;
     let directory = std::path::Path::new(env!("OUT_DIR"));
     let output = artifacts.export(directory, "operations")?;
     println!("{}", output.display());

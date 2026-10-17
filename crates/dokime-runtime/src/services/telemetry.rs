@@ -24,7 +24,7 @@ use tokio::sync::{Mutex, RwLock};
 // Local Imports
 use crate::app::Dokime;
 use crate::runtime::error::{Error, Result};
-use crate::execution::HealthSeverity;
+use dokime_domain::model::execution::health::HealthSeverity;
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry_runtime::sampling::{
     SamplingPhaseState, record_scope_from_sampling_scope, sampling_phase_state,

@@ -19,10 +19,17 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCase;
-use crate::execution::{
-    CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionStatus, HealthSeverity,
-    ResultStatus, ResultSummary, StepRecord, StepStatus, TestExecution,
-};
+use crate::execution::CriterionResult;
+use crate::execution::CriterionStatus;
+use crate::execution::CycleStatus;
+use crate::execution::CycleView;
+use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::health::HealthSeverity;
+use crate::execution::ResultStatus;
+use crate::execution::ResultSummary;
+use crate::execution::StepRecord;
+use crate::execution::StepStatus;
+use crate::execution::TestExecution;
 use crate::records::BuiltinRecordType;
 use crate::records::{
     Record, RecordSeverity, ValidationMode as RecordValidationMode, validate_record,

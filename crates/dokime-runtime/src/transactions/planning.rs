@@ -171,7 +171,7 @@ fn apply_create_cycle(
     records.apply(state);
     state.record_health(
         scope,
-        crate::execution::HealthSeverity::Info,
+        dokime_domain::model::execution::health::HealthSeverity::Info,
         "Cycle ready for execution.",
         Some("Provider execution is ready.".to_owned()),
         create.occurred_at.clone(),

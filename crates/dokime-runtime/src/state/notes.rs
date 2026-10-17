@@ -18,11 +18,14 @@
 
 // Local Imports
 use super::RuntimeState;
-use crate::execution::notes::{
-    NOTE_ACTOR_BYTES, NOTE_OWNER_BYTES, NOTE_OWNER_SEALED, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES,
-    NoteOwner,
-};
-use crate::execution::{HealthItem, OperatorNote};
+use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
+use dokime_domain::model::execution::notes::NOTE_OWNER_BYTES;
+use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
+use dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
+use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
+use dokime_domain::model::execution::notes::NoteOwner;
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::execution::RecordScope;
 

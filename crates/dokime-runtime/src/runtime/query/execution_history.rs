@@ -148,8 +148,8 @@ pub struct ExecutionCheckpointContext {
     pub execution_documents:
         BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
     pub prompts: Vec<crate::prompts::PromptInstance>,
-    pub health: Vec<crate::execution::HealthItem>,
-    pub notes: Vec<crate::execution::OperatorNote>,
+    pub health: Vec<dokime_domain::model::execution::health::HealthItem>,
+    pub notes: Vec<dokime_domain::model::execution::notes::OperatorNote>,
     pub traceability: Vec<crate::traceability::TraceabilitySnapshot>,
     pub appearance: crate::installed_plugins::RuntimeAppearanceFrame,
 }

@@ -25,7 +25,9 @@ use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::{HealthItem, HealthSeverity, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::records::TestRecordSet;
 use crate::storage::{Error, Result, records::ScopeRow};
 

@@ -19,9 +19,9 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::NoteId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
+use crate::model::identity::NoteId;
+use crate::model::execution::RecordScope;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 pub const NOTE_TEXT_BYTES: usize = 16 * 1024;
@@ -58,10 +58,10 @@ pub struct OperatorNoteRequest {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteAdmission {
-    pub mutation_id: dokime_domain::model::identity::CommandId,
+    pub mutation_id: crate::model::identity::CommandId,
     pub owner: NoteOwner,
-    pub note: crate::execution::OperatorNote,
-    pub checkpoint_targets: Vec<dokime_domain::model::identity::TestExecutionId>,
+    pub note: crate::model::execution::notes::OperatorNote,
+    pub checkpoint_targets: Vec<crate::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -69,15 +69,15 @@ pub struct NoteAdmission {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
     Cycle {
-        cycle_id: dokime_domain::model::identity::TestCycleId,
+        cycle_id: crate::model::identity::TestCycleId,
     },
     Case {
-        cycle_id: dokime_domain::model::identity::TestCycleId,
-        case_id: dokime_domain::model::identity::CaseId,
+        cycle_id: crate::model::identity::TestCycleId,
+        case_id: crate::model::identity::CaseId,
     },
     Execution {
-        cycle_id: dokime_domain::model::identity::TestCycleId,
-        execution_id: dokime_domain::model::identity::TestExecutionId,
+        cycle_id: crate::model::identity::TestCycleId,
+        execution_id: crate::model::identity::TestExecutionId,
     },
 }
 
@@ -121,7 +121,7 @@ impl harmos::MemorySize for OperatorNote {
     }
 }
 impl NoteOwner {
-    pub fn cycle_id(&self) -> &dokime_domain::model::identity::TestCycleId {
+    pub fn cycle_id(&self) -> &crate::model::identity::TestCycleId {
         match self {
             Self::Cycle { cycle_id }
             | Self::Case { cycle_id, .. }
@@ -132,9 +132,9 @@ impl NoteOwner {
 
 /* === Public Functions === */
 pub fn note_identity(
-    epoch: &dokime_domain::model::identity::SessionId,
+    epoch: &crate::model::identity::SessionId,
     actor: &str,
-    mutation: &dokime_domain::model::identity::CommandId,
+    mutation: &crate::model::identity::CommandId,
 ) -> NoteId {
     NoteId::from_seed(format!(
         "note:{}:{}:{}:{}",

@@ -17,9 +17,9 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::HealthItemId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
+use crate::model::identity::HealthItemId;
+use crate::model::execution::RecordScope;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 

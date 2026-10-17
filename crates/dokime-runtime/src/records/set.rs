@@ -21,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
-use crate::execution::{HealthItem, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
 
 /* === Constants === */
 

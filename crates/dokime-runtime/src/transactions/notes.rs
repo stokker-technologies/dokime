@@ -18,11 +18,14 @@ use std::collections::BTreeMap;
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::OperatorNote;
-use crate::execution::notes::{
-    NOTE_CHECKPOINT_LIMIT, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_RECEIPT_BYTES,
-    NOTE_RECEIPT_LIMIT, NoteAdmission, note_identity,
-};
+use dokime_domain::model::execution::notes::OperatorNote;
+use dokime_domain::model::execution::notes::NOTE_CHECKPOINT_LIMIT;
+use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
+use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
+use dokime_domain::model::execution::notes::NOTE_RECEIPT_BYTES;
+use dokime_domain::model::execution::notes::NOTE_RECEIPT_LIMIT;
+use dokime_domain::model::execution::notes::NoteAdmission;
+use dokime_domain::model::execution::notes::note_identity;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
@@ -145,7 +148,7 @@ impl Transaction<RuntimeState> for CreateOperatorNote {
         for target in &next.checkpoint_targets {
             if !state
                 .executions_for_cycle(cycle)
-                .take(crate::execution::notes::NOTE_SCAN_LIMIT)
+                .take(dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT)
                 .any(|execution| {
                     &execution.test_execution_id == target
                         && next
@@ -294,7 +297,7 @@ fn receipt_bytes(receipt: &NoteAdmission) -> usize {
                 .map_or(0, |id| id.as_str().len()),
         )
         .saturating_add(match &receipt.owner {
-            crate::execution::notes::NoteOwner::Case { case_id, .. } => case_id.as_str().len(),
+            dokime_domain::model::execution::notes::NoteOwner::Case { case_id, .. } => case_id.as_str().len(),
             _ => 0,
         })
         .saturating_add(receipt.checkpoint_targets.len().saturating_mul(64))

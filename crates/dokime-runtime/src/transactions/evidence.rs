@@ -19,7 +19,8 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::runtime::Error;
-use crate::execution::{HealthItem, HealthSeverity};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
 use crate::records::{RecordPublishRequest, ValidationMode, validate_record};
 use crate::state::RuntimeState;
 use dokime_domain::model::identity::HealthItemId;

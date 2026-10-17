@@ -19,8 +19,10 @@ use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
-use crate::execution::notes::{NOTE_CHECKPOINT_LIMIT, NOTE_SCAN_LIMIT};
-use crate::execution::{CycleView, OperatorNote};
+use dokime_domain::model::execution::notes::NOTE_CHECKPOINT_LIMIT;
+use dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
+use crate::execution::CycleView;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;

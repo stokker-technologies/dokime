@@ -64,7 +64,7 @@ struct Encoded<'a> {
     cycle_report_finalizations:
         &'a BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     report_finalizations: &'a BTreeMap<TestExecutionId, crate::transactions::ReportFinalization>,
-    note_admissions: &'a BTreeMap<NoteId, crate::execution::notes::NoteAdmission>,
+    note_admissions: &'a BTreeMap<NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     records: &'a EvidenceRecords,
     resources: &'a ResourceRegistry,
     installed_plugin_errors: &'a [InstalledPluginErrorRecord],
@@ -99,7 +99,7 @@ struct Decoded {
     run_requests: BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     report_finalizations: BTreeMap<TestExecutionId, crate::transactions::ReportFinalization>,
-    note_admissions: BTreeMap<NoteId, crate::execution::notes::NoteAdmission>,
+    note_admissions: BTreeMap<NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     records: EvidenceRecords,
     resources: ResourceRegistry,
     installed_plugin_errors: Vec<InstalledPluginErrorRecord>,

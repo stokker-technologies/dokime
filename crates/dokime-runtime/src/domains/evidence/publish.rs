@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use tracing::Instrument;
 
 // Local Imports
-use crate::execution::HealthSeverity;
+use dokime_domain::model::execution::health::HealthSeverity;
 use crate::records::ProductRecordDraft;
 use crate::telemetry_runtime::sampling::{SamplingPhaseState, sampling_phase_state};
 use crate::transactions::RecordHealth;
