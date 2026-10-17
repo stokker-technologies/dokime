@@ -11,7 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
@@ -29,12 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  type CycleLifecycle,
-  cycleStatusLabel,
-  cycleStatusVariant,
-  STATUS_PILL_CLASS,
-} from "@/features/cycle/cycle-workspace-model";
+import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
@@ -50,7 +45,7 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
-import { useSidebarState } from "@/shell/use-sidebar-state";
+import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -97,45 +92,9 @@ const CONNECTION_LABEL = {
  * needs the operator and what is running from the right.
  */
 export function StatusBar(props: StatusBarProps) {
-  const sidebar = useSidebarState();
-  const frozen = props.live === false ? props.frozen : null;
-
+  if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
   return (
-    <footer
-      className="grid shrink-0 border-t bg-card text-xs text-muted-foreground"
-      style={{
-        gridTemplateColumns: `${sidebar.width} minmax(0,1fr)`,
-        height: "var(--status-bar-height)",
-      }}
-    >
-      <div className="grid place-items-center border-r">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              aria-label={sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-              className="size-[var(--status-bar-height)] rounded-none"
-              onClick={sidebar.toggle}
-              size="icon-sm"
-              variant="ghost"
-            >
-              {sidebar.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            {sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          </TooltipContent>
-        </Tooltip>
-      </div>
-      {frozen ? (
-        /* A file has no connection and nothing needing attention. The page bar
-           above states what it is and when it was written, so the bar states
-           only how the cycle ended rather than repeating the provenance. */
-        <div className="flex min-w-0 items-center justify-end gap-6 px-[var(--shell-inset)]">
-          <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(frozen.status)}>
-            {cycleStatusLabel(frozen.status)}
-          </Badge>
-        </div>
-      ) : (
+    <StatusBarFrame>
         <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
           <div className="flex min-w-0 items-stretch gap-6">
             <BackendItem />
@@ -148,8 +107,7 @@ export function StatusBar(props: StatusBarProps) {
             <ConsoleItem />
           </div>
         </div>
-      )}
-    </footer>
+    </StatusBarFrame>
   );
 }
 
