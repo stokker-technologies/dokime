@@ -606,7 +606,7 @@ impl harmos::operations::Operation for Evidence {
                 .step_begins
                 .iter()
                 .map(|encoded| {
-                    let start: dokime_runtime::execution::StepAttemptStart =
+                    let start: dokime_domain::model::execution::result::StepAttemptStart =
                         serde_json::from_str(encoded).unwrap();
                     StepAdmission {
                         attempt_id: start.attempt_id.to_string(),
@@ -785,7 +785,7 @@ pub(super) async fn settled<T: dokime_runtime::execution::SidecarTemplate>(
     loop {
         let batch = workflow.next(token, cursor).await.unwrap();
         for encoded in &batch.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             workflow.admit(
                 token,
                 &StepAdmission {

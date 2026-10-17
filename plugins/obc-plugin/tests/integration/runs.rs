@@ -507,7 +507,7 @@ fn steady_request(token: &str) -> RunExecution {
 
 fn admit_steps<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, reply: &EvidenceBatch) {
     for encoded in &reply.step_begins {
-        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {

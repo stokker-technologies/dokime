@@ -39,7 +39,7 @@ use super::*;
 async fn wait_for_cycle_seal(
     runtime: &RuntimeHandle,
     test_cycle_id: &TestCycleId,
-) -> dokime_runtime::execution::CycleView {
+) -> dokime_domain::model::execution::result::CycleView {
     until_state(runtime, |state| {
         state
             .cycle_views()
@@ -53,7 +53,7 @@ async fn stored_cycle(
     runtime: &RuntimeHandle,
     test_cycle_id: &TestCycleId,
 ) -> (
-    dokime_runtime::execution::TestCycle,
+    dokime_domain::model::execution::result::TestCycle,
     harmos::storage::StorageCursor,
 ) {
     let stored = dokime_runtime::storage::objects::cycle::read(

@@ -292,13 +292,13 @@ async fn ordered_selections_provider() {
     let snapshot = owner.handle().watch_state().latest();
     let id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
-    assert_eq!(cycle.lifecycle, dokime_runtime::execution::CycleStatus::Ready);
+    assert_eq!(cycle.lifecycle, dokime_domain::model::execution::result::CycleStatus::Ready);
     assert_eq!(cycle.test_executions.len(), cycle.cases().count());
     for (execution, case) in cycle.test_executions.iter().zip(cycle.cases()) {
         assert_eq!(execution.test_case_id, case.test_case_id);
         assert_eq!(
             execution.status,
-            dokime_runtime::execution::ExecutionStatus::Skipped
+            dokime_domain::model::execution::result::ExecutionStatus::Skipped
         );
         assert!(execution.started_at.is_none());
     }

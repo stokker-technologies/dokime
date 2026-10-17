@@ -375,7 +375,7 @@ async fn keyed_runs_restart() {
     assert_eq!(plan.test_executions.len(), 1);
     assert_eq!(
         plan.test_executions[0].status,
-        dokime_runtime::execution::ExecutionStatus::Interrupted
+        dokime_domain::model::execution::result::ExecutionStatus::Interrupted
     );
     assert!(plan.test_executions[0].started_at.is_none());
     assert!(plan.test_executions[0].finished_at.is_some());
@@ -410,7 +410,7 @@ async fn keyed_runs_restart() {
     assert_eq!(plan.test_executions.len(), 1);
     assert_eq!(
         plan.test_executions[0].status,
-        dokime_runtime::execution::ExecutionStatus::Interrupted
+        dokime_domain::model::execution::result::ExecutionStatus::Interrupted
     );
     assert!(plan.test_executions[0].started_at.is_none());
     assert!(plan.test_executions[0].finished_at.is_some());

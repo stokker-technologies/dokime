@@ -39,7 +39,11 @@ use dokime_runtime::definition::{
     ExecutionPhaseDefinition, Subscription, SuiteSet, TestCaseTemplate, TestSuite,
 };
 use dokime_runtime::domains::TestSuiteDefinition;
-use dokime_runtime::execution::{StepAttemptStart, TerminationReason, TestStepAttempt};
+use {
+    dokime_domain::model::execution::result::StepAttemptStart,
+    dokime_domain::model::execution::termination::TerminationReason,
+    dokime_domain::model::execution::result::TestStepAttempt,
+};
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
 use {
     dokime_runtime::records::RecordContract,

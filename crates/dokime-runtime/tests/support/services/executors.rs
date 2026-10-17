@@ -145,7 +145,7 @@ impl ExecutionFixture for FakePythonExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -165,7 +165,7 @@ impl ExecutionFixture for BlockingPublishingExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -196,7 +196,7 @@ impl ExecutionFixture for BlockingErrorExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -222,7 +222,7 @@ impl ExecutionFixture for MemberStopExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -270,7 +270,7 @@ impl ExecutionFixture for PanickingExecutor {
     fn run_cycle<'a>(
         &'a self,
         _context: ExecutionFixtureContext,
-        _cycle: &'a dokime_runtime::execution::CycleView,
+        _cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -283,7 +283,7 @@ impl ExecutionFixture for PublishingExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -310,7 +310,7 @@ impl ExecutionFixture for DocumentAddingExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -347,7 +347,7 @@ impl ExecutionFixture for TrackingTransitionExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {

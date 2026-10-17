@@ -20,7 +20,10 @@ use std::collections::BTreeMap;
 use super::identifier;
 use dokime_runtime::{Identifier, RecordScope, Timestamp, Value};
 use dokime_runtime::definition::TestCase;
-use dokime_runtime::execution::{ExecutionStatus, TestExecution};
+use {
+    dokime_domain::model::execution::result::ExecutionStatus,
+    dokime_domain::model::execution::result::TestExecution,
+};
 use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_runtime::transport::{
@@ -31,7 +34,7 @@ use dokime_runtime::transport::{
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::evidence::RecordPublishRequest;
 use dokime_runtime::domains::execution::provider::ExecutionFixtureContext;
-use dokime_runtime::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 
 /* === Constants === */
 
@@ -244,7 +247,7 @@ pub fn custom_outcome(cycle: &CycleView) -> ProviderCycleOutcome {
 }
 
 pub fn runnable_executions(
-    cycle: &dokime_runtime::execution::CycleView,
+    cycle: &dokime_domain::model::execution::result::CycleView,
 ) -> impl Iterator<Item = &TestExecution> {
     cycle.test_executions.iter().filter(|execution| {
         matches!(
@@ -271,7 +274,7 @@ pub async fn activate_fixture_execution(
 
 pub async fn publish_tracking_sample(
     runtime: &RuntimeHandle,
-    cycle: &dokime_runtime::execution::CycleView,
+    cycle: &dokime_domain::model::execution::result::CycleView,
 ) {
     let execution = cycle
         .test_executions
@@ -311,7 +314,7 @@ pub async fn publish_tracking_sample(
         .unwrap();
 }
 
-pub fn provider_execution_scope(cycle: &dokime_runtime::execution::CycleView) -> RecordScope {
+pub fn provider_execution_scope(cycle: &dokime_domain::model::execution::result::CycleView) -> RecordScope {
     let execution = initialized_execution(cycle);
     let case = cycle
         .cases()
@@ -325,8 +328,8 @@ pub fn provider_execution_scope(cycle: &dokime_runtime::execution::CycleView) ->
 }
 
 pub fn initialized_execution(
-    cycle: &dokime_runtime::execution::CycleView,
-) -> &dokime_runtime::execution::TestExecution {
+    cycle: &dokime_domain::model::execution::result::CycleView,
+) -> &dokime_domain::model::execution::result::TestExecution {
     cycle
         .test_executions
         .iter()

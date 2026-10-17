@@ -25,9 +25,13 @@ use dokime_runtime::definition::{
     MaterializedParameter, ParameterSource, SuiteSet, TestCase, TestCaseTemplate, TestSuite,
 };
 use dokime_runtime::domains::TestSuiteDefinition;
-use dokime_runtime::execution::{
-    CycleStatus, ExecutionPluginIdentity, ExecutionStatus, ResultStatus, ResultSummary,
-    TestExecution,
+use {
+    dokime_domain::model::execution::result::CycleStatus,
+    dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
+    dokime_domain::model::execution::result::ExecutionStatus,
+    dokime_domain::model::execution::result::ResultStatus,
+    dokime_domain::model::execution::result::ResultSummary,
+    dokime_domain::model::execution::result::TestExecution,
 };
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{
@@ -60,7 +64,7 @@ fn identity(digest: &str) -> ExecutionPluginIdentity {
     ExecutionPluginIdentity {
         source: "fixture.plugin".into(),
         version: Some("1.0.0".into()),
-        implementation: dokime_runtime::execution::ExecutionImplementation::Bundle {
+        implementation: dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle {
             content_digest: digest.into(),
         },
     }
@@ -288,7 +292,11 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
 #[test]
 fn reruns_invalidate_steps() {
     use dokime_runtime::{StepAttemptId, StepId};
-    use dokime_runtime::execution::{ExecutionSnapshot, TerminationReason, TestStepAttempt};
+    use {
+        dokime_domain::model::execution::snapshot::ExecutionSnapshot,
+        dokime_domain::model::execution::termination::TerminationReason,
+        dokime_domain::model::execution::result::TestStepAttempt,
+    };
     use dokime_runtime::transactions::{BeginStepAttempt, RecordStepAttempt};
     let (mut state, cycle_id) = admitted();
     state.cycles.get_mut(&cycle_id).unwrap().lifecycle = CycleStatus::Running;
@@ -368,13 +376,13 @@ fn reruns_invalidate_steps() {
             .find(|step| step.step_id == steps[0])
             .unwrap()
             .status,
-        dokime_runtime::execution::StepStatus::Running
+        dokime_domain::model::execution::result::StepStatus::Running
     );
     let invalidated = presented
         .iter()
         .find(|step| step.step_id == steps[1])
         .unwrap();
-    assert_eq!(invalidated.status, dokime_runtime::execution::StepStatus::Pending);
+    assert_eq!(invalidated.status, dokime_domain::model::execution::result::StepStatus::Pending);
     assert!(invalidated.started_at.is_none());
     assert!(invalidated.finished_at.is_none());
     replacement.check(&state).unwrap();
@@ -427,7 +435,11 @@ fn reruns_invalidate_steps() {
 #[test]
 fn step_attempt_rewrites() {
     use dokime_runtime::{StepAttemptId, StepId};
-    use dokime_runtime::execution::{ExecutionSnapshot, TerminationReason, TestStepAttempt};
+    use {
+        dokime_domain::model::execution::snapshot::ExecutionSnapshot,
+        dokime_domain::model::execution::termination::TerminationReason,
+        dokime_domain::model::execution::result::TestStepAttempt,
+    };
     use dokime_runtime::transactions::{BeginStepAttempt, RecordStepAttempt};
     let (mut state, cycle_id) = admitted();
     state.cycles.get_mut(&cycle_id).unwrap().lifecycle = CycleStatus::Running;
@@ -746,7 +758,7 @@ fn admission_freezes_them() {
     assert_eq!(before.host_version(), Some(env!("CARGO_PKG_VERSION")));
     let mut serialized = serde_json::to_value(&before).unwrap();
     serialized.as_object_mut().unwrap().remove("host_version");
-    let older: dokime_runtime::execution::ExecutionSnapshot = serde_json::from_value(serialized).unwrap();
+    let older: dokime_domain::model::execution::snapshot::ExecutionSnapshot = serde_json::from_value(serialized).unwrap();
     assert_eq!(
         older.host_version(),
         None,
@@ -851,7 +863,7 @@ fn admission_freezes_them() {
 fn settlement_replay_timestamp() {
     let (mut state, cycle_id, id) = queued();
     state.run_requests.get_mut(&id).unwrap().summary.phase =
-        dokime_runtime::execution::request::RunPhase::Finishing;
+        dokime_domain::model::execution::request::RunPhase::Finishing;
     let at = Timestamp::new("2026-10-09T10:00:00Z");
     let later = Timestamp::new("2026-10-09T10:01:00Z");
     for timestamp in [&at, &later] {
@@ -1460,7 +1472,7 @@ fn copied_cycle_reusing() {
     let mut source = state.cycle_view(&source_id).unwrap();
     let mut case = source.test_executions[0].snapshot.case().clone();
     case.parameters.insert("deep".into(), deep);
-    source.test_executions[0].snapshot = dokime_runtime::execution::ExecutionSnapshot::materialize(
+    source.test_executions[0].snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
         &case,
         None,
         Default::default(),
@@ -2078,7 +2090,7 @@ fn canonical_execution_recovery() {
     assert!(encoded.get("test_executions").is_none());
     assert_eq!(encoded["execution_ids"].as_array().unwrap().len(), 1);
     encoded.as_object_mut().unwrap().remove("execution_ids");
-    assert!(serde_json::from_value::<dokime_runtime::execution::TestCycle>(encoded).is_err());
+    assert!(serde_json::from_value::<dokime_domain::model::execution::result::TestCycle>(encoded).is_err());
 
     let mut missing = restored.clone();
     missing.executions.remove(&execution_id);

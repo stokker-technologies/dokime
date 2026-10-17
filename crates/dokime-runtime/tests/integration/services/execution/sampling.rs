@@ -27,9 +27,12 @@ use super::smoke::{
 use crate::service_support::prelude::*;
 use dokime_runtime::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
 use dokime_runtime::definition::TestCase;
-use dokime_runtime::execution::ExecutionStatus;
-use dokime_runtime::domains::execution::requests::{RunPhase, RunReceipt};
-use dokime_runtime::execution::CriterionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use {
+    dokime_domain::model::execution::request::RunPhase,
+    dokime_domain::model::execution::request::RunReceipt,
+};
+use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 use dokime_runtime::runtime::progress::{LiveOperation, OperationOutcome};
 use dokime_runtime::runtime::query::RuntimeChange;

@@ -336,7 +336,7 @@ async fn template_declarations_register() {
         ended
             .test_executions
             .iter()
-            .all(|execution| execution.status == dokime_runtime::execution::ExecutionStatus::Passed)
+            .all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );
 
     drop(handle);

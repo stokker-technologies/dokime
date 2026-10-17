@@ -36,7 +36,11 @@ pub mod prelude {
     };
     pub use dokime_runtime::definition::{ParameterExpr, TestSuite};
     pub use dokime_runtime::domains::TestSuiteDefinition;
-    pub use dokime_runtime::execution::{ExecutionStatus, ResultStatus, StepStatus};
+    pub use {
+        dokime_domain::model::execution::result::ExecutionStatus,
+        dokime_domain::model::execution::result::ResultStatus,
+        dokime_domain::model::execution::result::StepStatus,
+    };
     pub use dokime_runtime::records::RecordSeverity;
     pub use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
 

@@ -78,7 +78,7 @@ async fn cleanup_drains_input() {
     loop {
         let reply = workflow.next("finalize", cursor).await.unwrap();
         for encoded in &reply.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             workflow.admit(
                 "finalize",
                 &StepAdmission {

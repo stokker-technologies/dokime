@@ -135,7 +135,7 @@ async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>(
     let result = loop {
         let frame = engine.next(&token, cursor).await.unwrap();
         for encoded in &frame.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             engine.admit(
                 &token,
                 &StepAdmission {

@@ -21,8 +21,11 @@ use sha2::{Digest, Sha256};
 use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
-use dokime_runtime::domains::execution::requests::RunPhase;
-use dokime_runtime::execution::{CycleView, TestExecution};
+use dokime_domain::model::execution::request::RunPhase;
+use {
+    dokime_domain::model::execution::result::CycleView,
+    dokime_domain::model::execution::result::TestExecution,
+};
 use dokime_domain::operations::content as wire;
 
 /* === Constants === */

@@ -23,7 +23,7 @@ use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use dokime_runtime::RecordScope;
-use dokime_runtime::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
@@ -383,7 +383,7 @@ async fn artifact_transfer(message_bytes: usize) {
         support::wait_for_cycle_lifecycle(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_runtime::execution::CycleStatus::Completed,
+            dokime_domain::model::execution::result::CycleStatus::Completed,
         )
         .await;
         // A sealed execution cannot acquire another mutable artifact producer.
@@ -436,7 +436,7 @@ async fn artifact_transfer(message_bytes: usize) {
         support::wait_for_cycle_lifecycle(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_runtime::execution::CycleStatus::Completed,
+            dokime_domain::model::execution::result::CycleStatus::Completed,
         )
         .await;
     }
@@ -993,7 +993,7 @@ async fn completion_harness() -> (
 async fn wait_for_watched_lifecycle(
     owner: &Runtime,
     cycle: &dokime_runtime::TestCycleId,
-    lifecycle: dokime_runtime::execution::CycleStatus,
+    lifecycle: dokime_domain::model::execution::result::CycleStatus,
 ) {
     owner
         .handle()
@@ -1205,7 +1205,7 @@ async fn open_report_states() {
         .execution_id
         .clone()
         .expect("captured execution scope");
-    wait_for_watched_lifecycle(&owner, &cycle, dokime_runtime::execution::CycleStatus::Running).await;
+    wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Running).await;
 
     // Running: Both Reports Are Rendered From The Current Evidence
     let (metadata, html) = cycle_report(&execution, &cycle_id).await;
@@ -1226,7 +1226,7 @@ async fn open_report_states() {
     wait_for_watched_lifecycle(
         &owner,
         &cycle,
-        dokime_runtime::execution::CycleStatus::Completed,
+        dokime_domain::model::execution::result::CycleStatus::Completed,
     )
     .await;
     let (metadata, first) = cycle_report(&execution, &cycle_id).await;

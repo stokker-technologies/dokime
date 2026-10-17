@@ -22,7 +22,7 @@ use std::sync::Mutex;
 use crate::service_support::prelude::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
-use dokime_runtime::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 
 /* === Constants === */
 // The Steady Charging Cycle That Stranded Its Root Had 9 Members, One With 637
@@ -70,7 +70,7 @@ impl ExecutionFixture for WideTelemetryExecutor {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {

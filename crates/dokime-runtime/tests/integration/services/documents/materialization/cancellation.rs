@@ -68,7 +68,7 @@ impl ExecutionFixture for QueuedSamples {
     fn run_cycle<'a>(
         &'a self,
         context: ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        cycle: &'a dokime_domain::model::execution::result::CycleView,
         _: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {

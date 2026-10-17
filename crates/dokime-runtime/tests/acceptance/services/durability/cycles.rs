@@ -71,7 +71,7 @@ async fn kill_recovers_cycle() {
         .await
         .unwrap();
     assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
-    let cycle = dokime_runtime::execution::TestCycle::try_from(cycles[0].value.clone())
+    let cycle = dokime_domain::model::execution::result::TestCycle::try_from(cycles[0].value.clone())
         .expect("saved cycle is canonical");
     assert_eq!(cycle.metadata.identifier.as_str(), "fixture.cycle");
     assert!(cycle.execution_ids.is_empty());

@@ -101,7 +101,7 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_runtime::execution::CycleView) {
+async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
     let provider = Smoke::new(Behaviour::new(0, 0, false).artifacts(abandoned));
     let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
@@ -111,7 +111,7 @@ async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokim
     wait_for_run_settled(&handle, &receipt.command_id).await;
     let cycle = cycle_snapshot(&handle, &cycle_id).await;
     assert_eq!(cycle.test_executions.len(), 1);
-    assert_eq!(cycle.test_executions[0].status, dokime_runtime::execution::ExecutionStatus::Passed);
+    assert_eq!(cycle.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Passed);
     (runtime, handle, cycle)
 }
 

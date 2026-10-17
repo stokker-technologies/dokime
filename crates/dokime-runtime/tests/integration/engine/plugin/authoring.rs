@@ -363,7 +363,7 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
             .await
             .expect("the execution remains drainable");
         for encoded in &reply.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             execution.admit(
                 "authoring",
                 &StepAdmission {

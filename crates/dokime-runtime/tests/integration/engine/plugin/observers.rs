@@ -783,7 +783,7 @@ async fn cancellation_drops_cleanup() {
                 let batch = batch.unwrap();
                 cursor = batch.cursor;
                 for encoded in &batch.step_begins {
-                    let start: dokime_runtime::execution::StepAttemptStart =
+                    let start: dokime_domain::model::execution::result::StepAttemptStart =
                         serde_json::from_str(encoded).unwrap();
                     workflow.admit("pending", &dokime_runtime::transport::StepAdmission {
                         attempt_id: start.attempt_id.to_string(),

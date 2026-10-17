@@ -21,7 +21,7 @@ use dokime_domain::model;
 use dokime_runtime::{
     CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp,
 };
-use dokime_runtime::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use model::execution::OperatorNote;
 use model::execution::notes::*;
 use dokime_runtime::state::RuntimeState;
@@ -58,7 +58,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
         "created_at":dokime_runtime::model::time::now_utc(),"updated_at":dokime_runtime::model::time::now_utc(),
         "test_executions":[{
             "test_cycle_id": cycle_id, "test_execution_id": dokime_runtime::model::identity::new_id::<TestExecutionId>(), "test_case_id": case_id, "status":"skipped", "scope":{},
-            "snapshot":dokime_runtime::execution::ExecutionSnapshot::materialize(
+            "snapshot":dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
                 &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
                 None, Default::default(), None, Default::default(),
             ).unwrap()

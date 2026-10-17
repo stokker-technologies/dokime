@@ -31,10 +31,17 @@ use dokime_runtime::document::{
     PlotInput, PlotStyle, PlotType, TelemetrySummaryFormat, TelemetrySummaryGroupPayload,
     TelemetrySummaryPresentation, TelemetrySummaryStat, TelemetrySummaryTilePayload,
 };
-use dokime_runtime::execution::{CycleStatus, CycleView, TestExecution};
+use {
+    dokime_domain::model::execution::result::CycleStatus,
+    dokime_domain::model::execution::result::CycleView,
+    dokime_domain::model::execution::result::TestExecution,
+};
 use dokime_domain::state::records::set::TestRecordSet;
 use dokime_runtime::report::{CycleReportInput, ReportCaseDocument};
-use dokime_runtime::traceability::{TraceabilityEntry, TraceabilitySnapshot};
+use {
+    dokime_domain::model::traceability::TraceabilityEntry,
+    dokime_domain::model::traceability::TraceabilitySnapshot,
+};
 
 /* === Constants === */
 
@@ -80,7 +87,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         ExecutionStatus::Skipped,
     );
     execution.started_at = None;
-    execution.snapshot = dokime_runtime::execution::ExecutionSnapshot::materialize(
+    execution.snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
         &case,
         None,
         Default::default(),
@@ -346,7 +353,7 @@ fn fixture_test_execution(
         suite: None,
         status,
         scope,
-        snapshot: dokime_runtime::execution::ExecutionSnapshot::materialize(
+        snapshot: dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
             &case,
             None,
             Default::default(),
@@ -815,17 +822,17 @@ async fn execution_template_cases() {
         .with_test_execution(id.clone());
     let mut execution =
         fixture_test_execution(id, case.test_case_id, scope, ExecutionStatus::Passed);
-    execution.steps.push(dokime_runtime::execution::StepRecord {
+    execution.steps.push(dokime_domain::model::execution::result::StepRecord {
         step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
         metadata: metadata("fixture.step", "Fixture Step"),
-        status: dokime_runtime::execution::StepStatus::Passed,
+        status: dokime_domain::model::execution::result::StepStatus::Passed,
         started_at: None,
         finished_at: None,
         measurements: Vec::new(),
-        criteria: vec![dokime_runtime::execution::CriterionResult {
+        criteria: vec![dokime_domain::model::execution::result::CriterionResult {
             criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
-            status: dokime_runtime::execution::CriterionStatus::Passed,
+            status: dokime_domain::model::execution::result::CriterionStatus::Passed,
             observed: Some(Value::from("original measurement")),
             message: Some("original criterion reason".into()),
         }],
@@ -1249,10 +1256,10 @@ async fn failed_step_frames() {
         ExecutionStatus::Failed,
     );
     execution.finished_at = Some(Timestamp::new("2026-01-01T00:00:01Z"));
-    execution.steps = vec![dokime_runtime::execution::StepRecord {
+    execution.steps = vec![dokime_domain::model::execution::result::StepRecord {
         step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
         metadata: metadata("thermo.soak.hold", "Hold"),
-        status: dokime_runtime::execution::StepStatus::Failed,
+        status: dokime_domain::model::execution::result::StepStatus::Failed,
         started_at: Some(Timestamp::new("2026-01-01T00:00:00Z")),
         finished_at: Some(Timestamp::new("2026-01-01T00:00:01Z")),
         measurements: Vec::new(),
@@ -1306,18 +1313,18 @@ async fn normalised_report_rows() {
     let scope = execution.scope.clone();
     let owner = execution.test_execution_id.to_string();
     for (label, criteria) in [("First", 1), ("Second", 0)] {
-        execution.steps.push(dokime_runtime::execution::StepRecord {
+        execution.steps.push(dokime_domain::model::execution::result::StepRecord {
             step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
             metadata: metadata("fixture.step", label),
-            status: dokime_runtime::execution::StepStatus::Passed,
+            status: dokime_domain::model::execution::result::StepStatus::Passed,
             started_at: None,
             finished_at: None,
             measurements: Vec::new(),
             criteria: (0..criteria)
-                .map(|_| dokime_runtime::execution::CriterionResult {
+                .map(|_| dokime_domain::model::execution::result::CriterionResult {
                     criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
                     metadata: metadata("fixture.criterion", "Fixture Criterion"),
-                    status: dokime_runtime::execution::CriterionStatus::Passed,
+                    status: dokime_domain::model::execution::result::CriterionStatus::Passed,
                     observed: None,
                     message: None,
                 })

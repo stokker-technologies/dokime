@@ -220,7 +220,7 @@ impl Operation for Evidence {
         let batch = std::mem::take(batch);
         let mut admitted = Vec::new();
         for encoded in &batch.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             {
                 let mut captures = self.0.captures.lock().unwrap();
                 let scope = captures.scopes.get_mut(&token).unwrap();
@@ -990,12 +990,12 @@ async fn samples_keep_context() {
         let mut completed = std::collections::BTreeSet::new();
         for page in &pages {
             for encoded in &page.step_begins {
-                let start: dokime_runtime::execution::StepAttemptStart =
+                let start: dokime_domain::model::execution::result::StepAttemptStart =
                     serde_json::from_str(encoded).unwrap();
                 assert!(admitted.insert(start.attempt_id.clone()));
             }
             for encoded in &page.step_attempts {
-                let attempt: dokime_runtime::execution::TestStepAttempt =
+                let attempt: dokime_domain::model::execution::result::TestStepAttempt =
                     serde_json::from_str(encoded).unwrap();
                 assert!(admitted.contains(&attempt.attempt_id));
                 assert!(completed.insert(attempt.attempt_id));

@@ -23,7 +23,7 @@ use harmos::storage::{StorageBackend, StorageBackends};
 // Local Imports
 use crate::service_support::prelude::*;
 use crate::service_support::publication::{PublicationBackend, PublicationFault};
-use dokime_runtime::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_runtime::report::saved::CapturedExecutionReportInput;
 

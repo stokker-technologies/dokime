@@ -261,12 +261,12 @@ async fn cycles_reopen_producers() {
         None,
     );
     let at = dokime_runtime::Timestamp::new("2026-10-05T09:00:00Z");
-    let mut expected = dokime_runtime::execution::TestCycle {
+    let mut expected = dokime_domain::model::execution::result::TestCycle {
         saved: None,
         test_cycle_id: dokime_runtime::TestCycleId::from_seed("native-latest-cycle"),
         session_id: None,
         metadata,
-        lifecycle: dokime_runtime::execution::CycleStatus::Ready,
+        lifecycle: dokime_domain::model::execution::result::CycleStatus::Ready,
         created_at: at.clone(),
         started_at: None,
         updated_at: at,
@@ -282,11 +282,11 @@ async fn cycles_reopen_producers() {
     let receipt = storage.write_object(&row).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
 
-    expected.lifecycle = dokime_runtime::execution::CycleStatus::Completed;
+    expected.lifecycle = dokime_domain::model::execution::result::CycleStatus::Completed;
     expected.updated_at = dokime_runtime::Timestamp::new("2026-10-05T09:01:00Z");
     expected.execution_ids.reverse();
-    expected.result = Some(dokime_runtime::execution::ResultSummary {
-        status: dokime_runtime::execution::ResultStatus::Passed,
+    expected.result = Some(dokime_domain::model::execution::result::ResultSummary {
+        status: dokime_domain::model::execution::result::ResultStatus::Passed,
         passed: 2,
         failed: 0,
         blocked: 0,
@@ -374,7 +374,7 @@ async fn executions_reopen_results() {
         generation_index: 2,
         label_number: 0,
     };
-    let snapshot = dokime_runtime::execution::ExecutionSnapshot::materialize(
+    let snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
         &case,
         None,
         Default::default(),
@@ -389,7 +389,7 @@ async fn executions_reopen_results() {
         .with_cycle(cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
         .with_test_execution(execution_id.clone());
-    let mut expected = dokime_runtime::execution::TestExecution {
+    let mut expected = dokime_domain::model::execution::result::TestExecution {
         saved: None,
         mode: Default::default(),
         active_step_attempt: None,
@@ -399,7 +399,7 @@ async fn executions_reopen_results() {
         test_execution_id: execution_id,
         test_case_id: case.test_case_id.clone(),
         suite: None,
-        status: dokime_runtime::execution::ExecutionStatus::Pending,
+        status: dokime_domain::model::execution::result::ExecutionStatus::Pending,
         snapshot,
         invalidation: None,
         scope,
@@ -430,11 +430,11 @@ async fn executions_reopen_results() {
     output.source = dokime_runtime::definition::ParameterSource::Output;
     output.value = Value::Integer(i64::MIN);
     expected.output_parameters.insert("count".into(), output);
-    expected.status = dokime_runtime::execution::ExecutionStatus::Failed;
+    expected.status = dokime_domain::model::execution::result::ExecutionStatus::Failed;
     expected.started_at = Some(dokime_runtime::Timestamp::new("2026-10-05T09:00:00Z"));
     expected.finished_at = Some(dokime_runtime::Timestamp::new("2026-10-05T09:01:00Z"));
-    expected.result = Some(dokime_runtime::execution::ResultSummary {
-        status: dokime_runtime::execution::ResultStatus::Failed,
+    expected.result = Some(dokime_domain::model::execution::result::ResultSummary {
+        status: dokime_domain::model::execution::result::ResultStatus::Failed,
         passed: 0,
         failed: 1,
         blocked: 0,

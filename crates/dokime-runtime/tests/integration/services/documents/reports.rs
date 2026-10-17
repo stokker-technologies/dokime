@@ -49,21 +49,22 @@ fn whole() -> harmos::storage::ByteRange {
 
 #[tokio::test]
 async fn report_save_receipt() {
-    use dokime_runtime::execution::saved::ExecutionRevision;
+    use dokime_domain::model::execution::saved::ExecutionRevision;
     use dokime_runtime::storage::{
         Backend,
         objects::execution::{self, Execution},
     };
     use {
-    dokime_runtime::NodeId,
-    dokime_runtime::definition::TestCase,
-    dokime_runtime::execution::ExecutionSnapshot,
-    dokime_runtime::execution::TestExecution,
-    dokime_runtime::storage::Manager,
-};
-    use dokime_runtime::{
-        execution::CycleView,
-        report::{CycleReportInput, saved::CapturedExecutionReportInput},
+        dokime_runtime::NodeId,
+        dokime_runtime::definition::TestCase,
+        dokime_domain::model::execution::snapshot::ExecutionSnapshot,
+        dokime_domain::model::execution::result::TestExecution,
+        dokime_runtime::storage::Manager,
+    };
+    use {
+        dokime_domain::model::execution::result::CycleView,
+        dokime_runtime::report::CycleReportInput,
+        dokime_runtime::report::saved::CapturedExecutionReportInput,
     };
     use harmos::storage::{ObjectVersion, StorageBackends};
     use std::sync::Arc;
@@ -373,7 +374,7 @@ async fn report_save_receipt() {
             .await
             .is_err()
     );
-    let unsealed = dokime_runtime::execution::saved::ExecutionCheckpoint {
+    let unsealed = dokime_domain::model::execution::saved::ExecutionCheckpoint {
         execution_id: original.source.execution.execution_id.clone(),
         position: original.source.execution.position.clone(),
         version: original.source.execution.version.clone(),

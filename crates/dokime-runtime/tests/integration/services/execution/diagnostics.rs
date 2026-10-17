@@ -46,7 +46,7 @@ impl ExecutionFixture for DiagnosticExecutor {
     fn run_cycle<'a>(
         &'a self,
         _context: ExecutionFixtureContext,
-        _cycle: &'a dokime_runtime::execution::CycleView,
+        _cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {

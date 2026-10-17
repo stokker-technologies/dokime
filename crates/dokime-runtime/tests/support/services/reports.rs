@@ -22,7 +22,7 @@ use sha2::Digest;
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionRevision;
 use model::execution::{HealthItem, OperatorNote};
 use dokime_runtime::records::RecordContract;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};

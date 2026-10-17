@@ -18,7 +18,7 @@
 use dokime_domain::model;
 use {
     dokime_runtime::TestExecutionId,
-    dokime_runtime::execution::saved::ExecutionCheckpoint,
+    dokime_domain::model::execution::saved::ExecutionCheckpoint,
 };
 use dokime_runtime::{RuntimeHandle, runtime::ExecutionView};
 

@@ -41,8 +41,11 @@ use dokime_runtime::definition::{
 use dokime_runtime::domains::execution::provider::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
 };
-use dokime_runtime::execution::ExecutionStatus;
-use dokime_runtime::execution::{CycleStatus, CycleView};
+use dokime_domain::model::execution::result::ExecutionStatus;
+use {
+    dokime_domain::model::execution::result::CycleStatus,
+    dokime_domain::model::execution::result::CycleView,
+};
 use dokime_runtime::runtime::command::CommandContext;
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime_runtime::transactions::CycleDefinition;

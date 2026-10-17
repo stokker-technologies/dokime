@@ -529,7 +529,7 @@ async fn capture_failure_provider() {
         fn run_cycle<'a>(
             &'a self,
             context: ExecutionFixtureContext,
-            _cycle: &'a dokime_runtime::execution::CycleView,
+            _cycle: &'a dokime_domain::model::execution::result::CycleView,
             _target: &'a ExecutionProviderTarget,
         ) -> ExecutionFixtureFuture<'a> {
             Box::pin(async move {
@@ -704,7 +704,10 @@ async fn completed_record_capacity() {
 #[tokio::test]
 async fn native_entry_independent() {
     use dokime_runtime::{TestCycleId, Timestamp};
-    use dokime_runtime::execution::{CycleStatus, TestCycle};
+    use {
+        dokime_domain::model::execution::result::CycleStatus,
+        dokime_domain::model::execution::result::TestCycle,
+    };
     use dokime_runtime::storage::objects::cycle::{self, Cycle};
     use harmos::storage::ObjectVersion;
 

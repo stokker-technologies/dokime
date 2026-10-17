@@ -41,7 +41,10 @@ use dokime_runtime::execution::{
 use dokime_runtime::plugin::Diagnostic;
 use dokime_runtime::prelude::StreamExt as _;
 use dokime_runtime::prompts::{PromptRequest, PromptResponse};
-use dokime_runtime::traceability::{TraceabilityRow, TraceabilitySection};
+use {
+    dokime_domain::model::traceability::TraceabilityRow,
+    dokime_domain::model::traceability::TraceabilitySection,
+};
 use dokime_runtime::transport::SidecarCriterionStatus;
 use dokime_runtime::transport::*;
 
@@ -879,7 +882,7 @@ async fn interactive_commands_downstream() {
     if !replies.iter().any(|reply| reply.outcome.is_some()) {
         replies.extend(drain_from(&workflow, token, None, cursor).await);
     }
-    let attempts: Vec<dokime_runtime::execution::TestStepAttempt> = replies
+    let attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt> = replies
         .iter()
         .flat_map(|reply| &reply.step_attempts)
         .map(|encoded| serde_json::from_str(encoded).unwrap())
@@ -1015,7 +1018,7 @@ fn drain<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -
         .drain(token, cursor)
         .expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {
@@ -1031,7 +1034,7 @@ fn drain<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -
 async fn next<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -> EvidenceBatch {
     let reply = workflow.next(token, cursor).await.expect("the execution remains retained");
     for encoded in &reply.step_begins {
-        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(token, &StepAdmission {
             attempt_id: start.attempt_id.to_string(),
             accepted: true,
@@ -1205,7 +1208,7 @@ async fn unacknowledged_invoke_callback() {
             let reply = workflow.next(token, cursor).await.unwrap();
             cursor = reply.cursor;
             if let Some(encoded) = reply.step_begins.first() {
-                break serde_json::from_str::<dokime_runtime::execution::StepAttemptStart>(encoded)
+                break serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded)
                     .unwrap();
             }
         };
@@ -1276,7 +1279,7 @@ async fn embedded_execution_output() {
             rows.2.lock().unwrap().origin = phase.into();
         }
         for encoded in &reply.step_begins {
-            let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step {
                 attempt_id: start.attempt_id.clone(),
             };

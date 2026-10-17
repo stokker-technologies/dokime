@@ -84,7 +84,7 @@ fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch 
         .drain(token, cursor)
         .expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {
@@ -103,7 +103,7 @@ async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceB
         .await
         .expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {

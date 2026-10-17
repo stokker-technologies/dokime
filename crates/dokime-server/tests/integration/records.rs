@@ -22,7 +22,10 @@ use tokio_stream::StreamExt as _;
 use dokime_domain::model;
 use super::*;
 use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::execution::{CycleStatus, ExecutionStatus};
+use {
+    dokime_domain::model::execution::result::CycleStatus,
+    dokime_domain::model::execution::result::ExecutionStatus,
+};
 use dokime_runtime::runtime::command::CommandContext;
 
 /* === Constants === */

@@ -22,9 +22,12 @@ use harmos::storage::StorageBackend;
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::CommandId;
-use dokime_runtime::execution::request::RunSummary;
+use dokime_domain::model::execution::request::RunSummary;
 use dokime_runtime::storage::requests::Request;
-use dokime_runtime::domains::execution::requests::{RunPhase, RunReceipt};
+use {
+    dokime_domain::model::execution::request::RunPhase,
+    dokime_domain::model::execution::request::RunReceipt,
+};
 
 /* === Constants === */
 

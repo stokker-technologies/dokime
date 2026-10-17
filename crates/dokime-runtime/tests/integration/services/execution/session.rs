@@ -21,7 +21,15 @@ use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, StepAttemptStart, TerminationReason, TestStepAttempt};
+use {
+    dokime_runtime::execution::Caller,
+    dokime_runtime::execution::ExecutionHost,
+    dokime_runtime::execution::Runnable,
+    dokime_runtime::execution::SampleOutput,
+    dokime_domain::model::execution::result::StepAttemptStart,
+    dokime_domain::model::execution::termination::TerminationReason,
+    dokime_domain::model::execution::result::TestStepAttempt,
+};
 use dokime_runtime::execution::log::{Entry, Level};
 use dokime_runtime::transport::{EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply, TransportFuture};
 use dokime_runtime::{InstalledPlugin, Refusal};
@@ -238,7 +246,7 @@ async fn cancellation_preserves_verdict_and_log() {
         if mode != Settlement::Refused {
             let criteria = execution.steps.iter().flat_map(|step| &step.criteria).collect::<Vec<_>>();
             assert_eq!(criteria.len(), 1);
-            assert_eq!(criteria[0].status, dokime_runtime::execution::CriterionStatus::Indeterminate);
+            assert_eq!(criteria[0].status, dokime_domain::model::execution::result::CriterionStatus::Indeterminate);
             assert_eq!(criteria[0].message.as_deref(), Some("cancelled before deciding"));
         }
         let files = handle.execution_files(&execution.test_execution_id).await.unwrap();

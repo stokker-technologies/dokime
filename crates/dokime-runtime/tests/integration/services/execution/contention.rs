@@ -22,7 +22,7 @@ use tokio::sync::Barrier;
 use super::smoke::{Behaviour, Smoke, PULSE_STREAM, SOURCE, SUITE};
 use crate::service_support::prelude::*;
 use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
-use dokime_runtime::domains::execution::requests::RunPhase;
+use dokime_domain::model::execution::request::RunPhase;
 
 /* === Constants === */
 const LIVE_PLOTS: usize = 15;

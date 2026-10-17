@@ -259,7 +259,7 @@ async fn live_rows_paths() {
         .unwrap()
         .clone();
     assert!(matches!(&admitted_identity.implementation,
-        dokime_runtime::execution::ExecutionImplementation::Embedded { generation } if !generation.is_empty()));
+        dokime_domain::model::execution::snapshot::ExecutionImplementation::Embedded { generation } if !generation.is_empty()));
     assert_eq!(admitted_identity.content_digest(), None);
 
     let receipt = handle
@@ -330,7 +330,7 @@ async fn live_rows_paths() {
 
     assert_eq!(
         ended.test_executions[0].status,
-        dokime_runtime::execution::ExecutionStatus::Passed
+        dokime_domain::model::execution::result::ExecutionStatus::Passed
     );
     assert_eq!(
         *events.lock().unwrap(),

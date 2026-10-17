@@ -101,7 +101,7 @@ async fn report_publication_reopens() {
     let file = file.finish().await.unwrap();
     let saved = storage.flush_until(&file.position).await.unwrap();
     let at = Timestamp::new("2026-10-09T09:00:00Z");
-    let cycle = dokime_runtime::execution::TestCycle {
+    let cycle = dokime_domain::model::execution::result::TestCycle {
         saved: None,
         test_cycle_id: owner.clone(),
         session_id: None,
@@ -110,7 +110,7 @@ async fn report_publication_reopens() {
             "Report Cycle",
             None,
         ),
-        lifecycle: dokime_runtime::execution::CycleStatus::Completed,
+        lifecycle: dokime_domain::model::execution::result::CycleStatus::Completed,
         created_at: at.clone(),
         started_at: None,
         updated_at: at.clone(),

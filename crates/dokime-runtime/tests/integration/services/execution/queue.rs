@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_runtime::execution::ResultStatus;
+use dokime_domain::model::execution::result::ResultStatus;
 use dokime_runtime::runtime::query::execution_history::ExecutionBrowseLifecycle;
 
 /* === Constants === */
@@ -380,7 +380,7 @@ async fn request_retries_receipt() {
         .unwrap();
     assert_eq!(
         settled.summary.phase,
-        dokime_runtime::domains::execution::requests::RunPhase::Completed
+        dokime_domain::model::execution::request::RunPhase::Completed
     );
     assert_eq!(settled.summary.prepared, 3);
     assert_eq!(settled.summary.finished, 3);

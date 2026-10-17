@@ -22,9 +22,9 @@ use futures_util::{FutureExt, StreamExt};
 
 // Local Imports
 use dokime_runtime::TestCycleId;
-use dokime_runtime::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::execution::CycleStatus;
+use dokime_domain::model::execution::result::CycleStatus;
 use dokime_runtime::runtime::query::{
     RuntimeResolution, RuntimeStateSnapshot, RuntimeViewPayload, RuntimeViewQuery,
     RuntimeViewTopic, RuntimeWindow,
@@ -132,7 +132,7 @@ pub async fn wait_for_subscription_record(
 pub async fn cycle_snapshot(
     runtime: &RuntimeHandle,
     test_cycle_id: &TestCycleId,
-) -> dokime_runtime::execution::CycleView {
+) -> dokime_domain::model::execution::result::CycleView {
     runtime
         .cycles()
         .await
@@ -145,7 +145,7 @@ pub async fn wait_for_cycle_lifecycle(
     runtime: &RuntimeHandle,
     test_cycle_id: &TestCycleId,
     lifecycle: CycleStatus,
-) -> dokime_runtime::execution::CycleView {
+) -> dokime_domain::model::execution::result::CycleView {
     let snapshot = until_state(runtime, |state| {
         state
             .cycle_views()
@@ -200,7 +200,7 @@ pub async fn wait_for_execution_document_payload(
 }
 
 pub fn latest_execution_for_case<'a>(
-    cycle: &'a dokime_runtime::execution::CycleView,
+    cycle: &'a dokime_domain::model::execution::result::CycleView,
     test_case_id: &dokime_runtime::CaseId,
 ) -> Option<&'a TestExecution> {
     cycle

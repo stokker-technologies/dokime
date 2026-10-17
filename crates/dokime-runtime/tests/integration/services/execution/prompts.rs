@@ -30,7 +30,7 @@ use {
 };
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::definition::RuntimeCondition;
-use dokime_runtime::execution::CycleStatus;
+use dokime_domain::model::execution::result::CycleStatus;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 
 /* === Constants === */
@@ -605,7 +605,7 @@ fn inspection_definition() -> dokime_runtime::prompts::PromptDefinition {
 
 async fn ask_inspection(
     runtime: &RuntimeHandle,
-    cycle: &dokime_runtime::execution::CycleView,
+    cycle: &dokime_domain::model::execution::result::CycleView,
     index: usize,
 ) -> PromptId {
     let execution = &cycle.test_executions[index];
@@ -840,7 +840,7 @@ async fn stopped_cycle_question() {
 }
 
 async fn check_stopped_question(stop_cycle: bool) {
-    use dokime_runtime::execution::ExecutionStatus;
+    use dokime_domain::model::execution::result::ExecutionStatus;
 
     // === Run A Step That Waits On An Operator === //
 

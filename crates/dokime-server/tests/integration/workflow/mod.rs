@@ -36,7 +36,7 @@ use tokio::sync::Notify;
 use dokime_domain::model;
 use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_runtime::transport::ProviderExecutionFailure;
 use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
