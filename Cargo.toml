@@ -159,10 +159,6 @@ xcap = { version = "0.9.8" }
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
-[patch."https://github.com/stokker-technologies/harmos.git"]
-harmos = { path = "../../harmos.wt/conventions/crates/harmos" }
-harmos-packaging = { path = "../../harmos.wt/conventions/crates/harmos-packaging" }
-
 [profile.dev]
 debug = "line-tables-only"
 
