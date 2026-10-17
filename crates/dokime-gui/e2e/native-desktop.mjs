@@ -2694,19 +2694,20 @@ async function writeJunit() {
     if (existing) existing.failure = failure.reason;
     else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
   }
-  const count = cases.filter((result) => result.failure).length;
-  const skipped = cases.filter((result) => result.skipped).length;
+  const failed = cases.filter((result) => result.failure);
+  const skipped = cases.length > 0 && cases.every((result) => result.skipped);
   const seconds = cases.reduce((total, result) => total + result.seconds, 0);
-  const entries = cases
-    .map(
-      (result) =>
-        `<testcase classname="dokime.native.${process.platform}" name="${escapeXml(result.name)}" time="${result.seconds}">${result.failure ? `<failure message="${escapeXml(result.failure)}">${escapeXml(result.failure)}</failure>` : result.skipped ? `<skipped message="${escapeXml(result.skipped)}"/>` : ""}</testcase>`,
-    )
+  const detail = cases
+    .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)
     .join("\n");
+  const outcome = failed.length
+    ? `<failure message="${escapeXml(`${failed.length} scene(s) failed`)}">${escapeXml(detail)}</failure>`
+    : skipped ? "<skipped/>" : "";
+  const story = `<testcase classname="dokime.native.${process.platform}" name="Desktop Backend Walkthrough" time="${seconds}">${outcome}<system-out>${escapeXml(detail)}</system-out></testcase>`;
   await mkdir(dirname(resolve(options.junit)), { recursive: true });
   await writeFile(
     options.junit,
-    `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites><testsuite name="Native Desktop" tests="${cases.length}" failures="${count}" errors="0" skipped="${skipped}" time="${seconds}">${entries}</testsuite></testsuites>\n`,
+    `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites><testsuite name="Native Desktop" tests="1" failures="${failed.length ? 1 : 0}" errors="0" skipped="${skipped ? 1 : 0}" time="${seconds}">${story}</testsuite></testsuites>\n`,
   );
 }
 
