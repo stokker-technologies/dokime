@@ -1132,7 +1132,7 @@ async fn failing_step_backtrace() {
     assert_eq!(detail.chain, vec![r#"the operator answered "no""#]);
     // The location is the generated call into authored code, in the file the
     // template was written in — not a line in the engine that ran it.
-    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow.rs"), "{}", detail.location);
+    assert!(detail.location.replace('\\', "/").contains("tests/integration/engine/execution/workflow.rs"), "{}", detail.location);
     assert!(detail.span_trace.iter().any(|span| span.contains("step=start")), "{:?}", detail.span_trace);
     assert!(detail.span_trace.iter().any(|span| span.contains(TEMPLATE) && span.contains(SOURCE)), "{:?}", detail.span_trace);
     assert!(detail.backtrace.contains("0:"), "{}", detail.backtrace);
@@ -1196,7 +1196,7 @@ async fn panicking_step_diagnostic() {
     assert_eq!(detail.chain, vec!["plugin panicked: the probe blew up"]);
     // Captured at the panic site by the hook, so the location is the `panic!`
     // itself rather than the boundary that caught the unwind.
-    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow.rs"), "{}", detail.location);
+    assert!(detail.location.replace('\\', "/").contains("tests/integration/engine/execution/workflow.rs"), "{}", detail.location);
     assert!(!outcome(&replies).0.passed);
     workflow.shutdown().await;
 }

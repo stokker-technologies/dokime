@@ -248,7 +248,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             tokio::pin!(notified);
             notified.as_mut().enable();
             let batch = self.drain(token, cursor)?;
-            let samples = lock(&self.executions).get(token).is_some_and(|state| state.has_local_samples());
+            let samples = lock(&self.executions).get_mut(token).is_some_and(|state| state.announce_local_samples());
             if batch.cursor > cursor || batch.record_subscriptions_settling || batch.cleanup_settled || samples {
                 return Ok(batch);
             }

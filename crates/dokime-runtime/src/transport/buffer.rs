@@ -69,6 +69,8 @@ pub(crate) struct ExecutionState {
     sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, usize>,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
+    // How many of the held local samples a wait has already reported.
+    local_samples_announced: usize,
     produced: BTreeMap<String, u64>,
     delivered: Vec<dokime_domain::model::records::evidence::Record>,
     subscriptions: Vec<dokime_domain::model::identity::Identifier>,
@@ -122,8 +124,12 @@ pub(crate) enum LeaseOutcome {
 
 /* === Implementations === */
 impl ExecutionState {
-    pub(crate) fn has_local_samples(&self) -> bool {
-        !self.local_samples.is_empty()
+    /// Whether samples arrived since a wait last reported them; reporting
+    /// them once keeps a waiter that does not consume them from spinning.
+    pub(crate) fn announce_local_samples(&mut self) -> bool {
+        let fresh = self.local_samples.len() > self.local_samples_announced;
+        self.local_samples_announced = self.local_samples.len();
+        fresh
     }
 
     pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
@@ -151,6 +157,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn take_local_samples(&mut self) -> Vec<crate::telemetry::TelemetrySample> {
+        self.local_samples_announced = 0;
         std::mem::take(&mut self.local_samples)
     }
 
@@ -184,6 +191,7 @@ impl ExecutionState {
             sample_positions: BTreeMap::new(),
             samples_closed: false,
             local_samples: Vec::new(),
+            local_samples_announced: 0,
             produced: BTreeMap::new(),
             delivered: Vec::new(),
             subscriptions: Vec::new(),
