@@ -50,7 +50,7 @@ impl CycleReport {
         manager: &Manager,
         snapshot: CycleSnapshot,
         captured_members: Vec<super::CapturedExecutionReportInput>,
-        operation: Option<&Operation>,
+        operation: &Operation,
     ) -> Result<Self> {
         let source = HtmlReport::from_cycle(snapshot, captured_members, operation)?;
         let cycle = source.header().cycle.test_cycle_id.to_string();

@@ -527,7 +527,7 @@ pub(crate) async fn report_open_shows_progress() {
                 None => break seen,
             };
             let Some(operation) = snapshot.operations().iter().find(|operation| {
-                operation.label == "Opening Cycle Report"
+                operation.label == "Materializing Cycle Report"
                     && !earlier.contains(&operation.operation_id)
             }) else {
                 continue;

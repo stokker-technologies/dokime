@@ -26,7 +26,7 @@
 use harmos::storage::ObjectVersion;
 // Local Imports
 use super::execution::ExecutionView;
-use crate::{Error, Result, RuntimeHandle, runtime::progress::Operation};
+use crate::{Error, Result, RuntimeHandle};
 use dokime::core::{Metadata, TestCycleId, TestExecutionId, Timestamp};
 
 /* === Constants === */
@@ -62,25 +62,8 @@ pub enum ReportOrigin {
 /* === Implementations === */
 impl RuntimeHandle {
     /// The report a cycle has right now. See the module comment for which.
+    /// A live report is one materialization operation; a sealed one is read.
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
-        let operation = self.operation_progress().begin("Opening Cycle Report");
-        let opened = self.open_cycle_report_once(id, &operation).await;
-        operation.track(opened)
-    }
-
-    /// The report one execution has right now. See the module comment for
-    /// which.
-    pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
-        let operation = self.operation_progress().begin("Opening Execution Report");
-        let opened = self.open_execution_report_once(id, &operation).await;
-        operation.track(opened)
-    }
-
-    async fn open_cycle_report_once(
-        &self,
-        id: &TestCycleId,
-        operation: &Operation,
-    ) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -89,16 +72,14 @@ impl RuntimeHandle {
             .get(id)
             .map(|cycle| cycle.saved.is_none());
         match live {
-            Some(true) => self.current_cycle_report(id, operation).await,
-            _ => self.sealed_cycle_report(id, operation).await,
+            Some(true) => self.current_cycle_report(id).await,
+            _ => self.sealed_cycle_report(id).await,
         }
     }
 
-    async fn open_execution_report_once(
-        &self,
-        id: &TestExecutionId,
-        operation: &Operation,
-    ) -> Result<OpenedReport> {
+    /// The report one execution has right now. See the module comment for
+    /// which.
+    pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -107,7 +88,6 @@ impl RuntimeHandle {
             .get(id)
             .map(|execution| (execution.saved.is_none(), execution.test_cycle_id.clone()));
         if let Some((true, cycle)) = live {
-            operation.phase("Capturing Evidence");
             let at = self
                 .state_read()
                 .report_finalizations
@@ -136,7 +116,6 @@ impl RuntimeHandle {
                 html,
             });
         }
-        operation.phase("Reading Sealed Report");
         let inspection = ExecutionView::open(self.storage(), id, ObjectVersion::Latest)
             .await?
             .filter(|inspection| inspection.execution().saved.is_some())
@@ -156,12 +135,7 @@ impl RuntimeHandle {
         })
     }
 
-    async fn current_cycle_report(
-        &self,
-        id: &TestCycleId,
-        operation: &Operation,
-    ) -> Result<OpenedReport> {
-        operation.phase("Materializing Report");
+    async fn current_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let metadata = self
             .state_read()
             .cycle_view(id)
@@ -193,12 +167,7 @@ impl RuntimeHandle {
         })
     }
 
-    async fn sealed_cycle_report(
-        &self,
-        id: &TestCycleId,
-        operation: &Operation,
-    ) -> Result<OpenedReport> {
-        operation.phase("Reading Sealed Report");
+    async fn sealed_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let storage = self.storage();
         let selected = dokime::storage::objects::cycle::read(storage, id, ObjectVersion::Latest)
             .await?

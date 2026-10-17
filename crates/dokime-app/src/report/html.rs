@@ -91,7 +91,7 @@ impl HtmlReport {
     pub(super) fn from_cycle(
         snapshot: CycleSnapshot,
         captured_members: Vec<CapturedExecutionReportInput>,
-        operation: Option<&Operation>,
+        operation: &Operation,
     ) -> Result<Self> {
         let count = captured_members.len();
         let documents = cycle_document(&snapshot)?;
@@ -102,9 +102,7 @@ impl HtmlReport {
             if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
                 return Err(invalid("materialized member belongs to another cycle"));
             }
-            if let Some(operation) = operation {
-                operation.progress(materialized as u64, count as u64);
-            }
+            operation.progress(materialized as u64, count as u64);
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution_id.clone();
             captured.record_contracts.clear();
@@ -117,9 +115,7 @@ impl HtmlReport {
             index.push_capture(&captured)?;
             members.push(Arc::new(captured));
         }
-        if let Some(operation) = operation {
-            operation.progress(count as u64, count as u64);
-        }
+        operation.progress(count as u64, count as u64);
         index.sort();
         Ok(Self {
             index,

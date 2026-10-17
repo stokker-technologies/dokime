@@ -26,6 +26,7 @@ use super::Resources;
 use crate::{
     Error, Result,
     app::Dokime,
+    runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
 };
 use dokime::{
@@ -52,17 +53,17 @@ pub(super) async fn materialize(
     resources: &Resources,
     id: &TestCycleId,
     at: &StorageCursor,
+    progress: &Operation,
 ) -> Result<MaterializedReport> {
     let _gate = resources.execution_storage.cycle_save.lock().await;
-    let collecting = resources.progress.begin("Collecting Cycle Report Members");
+    progress.phase("Collecting Cycle Report Members");
     let finalization = resources
         .execution_storage
-        .cycle_materialization(id, at, &collecting)
+        .cycle_materialization(id, at, progress)
         .await?;
-    collecting.finish();
     match finalization {
-        Some(finalization) => sealed(ctx, resources, id, at, finalization).await,
-        None => current(ctx, resources, id, at).await,
+        Some(finalization) => sealed(ctx, resources, id, at, finalization, progress).await,
+        None => current(ctx, resources, id, at, progress).await,
     }
 }
 
@@ -74,6 +75,7 @@ async fn sealed(
     id: &TestCycleId,
     at: &StorageCursor,
     finalization: cycle_finalization::Materialization,
+    progress: &Operation,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
     let settings = &ctx.scope().resources::<Dokime>().storage_settings;
@@ -88,14 +90,20 @@ async fn sealed(
             ));
         }
         members.push(
-            crate::report::materialize::sealed_member(ctx, storage, settings, execution).await?,
+            crate::report::materialize::sealed_member(ctx, storage, settings, execution, progress)
+                .await?,
         );
     }
-    let report =
-        crate::report::cycle::CycleReport::prepare(storage, finalization.snapshot, members, None)
-            .await?
-            .finish(ctx)
-            .await?;
+    progress.phase("Rendering");
+    let prepared = crate::report::cycle::CycleReport::prepare(
+        storage,
+        finalization.snapshot,
+        members,
+        progress,
+    )
+    .await?;
+    progress.phase("Publishing Report");
+    let report = prepared.finish(ctx).await?;
     storage.flush_until(&report.position).await?;
     resources
         .execution_storage
@@ -110,6 +118,7 @@ async fn current(
     resources: &Resources,
     id: &TestCycleId,
     at: &StorageCursor,
+    progress: &Operation,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
     let settings = &ctx.scope().resources::<Dokime>().storage_settings;
@@ -171,8 +180,10 @@ async fn current(
                     "sealed member evidence exceeds cycle report boundary",
                 ));
             }
-            crate::report::materialize::sealed_member(ctx, storage, settings, seal).await?
+            crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress)
+                .await?
         } else {
+            progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
             if !at.covers(boundary)? {
                 return Err(invalid(
@@ -212,7 +223,8 @@ async fn current(
             if inspection.evidence_through()? != boundary || inspection.execution() != execution {
                 return Err(invalid("cycle member differs from its frozen source"));
             }
-            crate::report::materialize::execution(ctx, settings, &inspection, false, None).await?
+            crate::report::materialize::execution(ctx, settings, &inspection, false, progress)
+                .await?
         };
         members.push(member);
     }
@@ -226,10 +238,11 @@ async fn current(
         Arc::new(appearance),
         &owner,
     )?;
-    let report = crate::report::cycle::CycleReport::prepare(storage, snapshot, members, None)
-        .await?
-        .finish(ctx)
-        .await?;
+    progress.phase("Rendering");
+    let prepared =
+        crate::report::cycle::CycleReport::prepare(storage, snapshot, members, progress).await?;
+    progress.phase("Publishing Report");
+    let report = prepared.finish(ctx).await?;
     storage.flush_until(&report.position).await?;
     Ok(MaterializedReport { report })
 }

@@ -55,6 +55,7 @@ pub(crate) async fn sealed_member(
     storage: &Manager,
     settings: &crate::config::StorageSettings,
     seal: &dokime::execution::saved::ExecutionSeal,
+    operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
     let mut source =
         crate::execution::context::read::read_file(storage, &seal.source.context).await?;
@@ -77,7 +78,7 @@ pub(crate) async fn sealed_member(
     source.outputs = seal.source.outputs.clone();
     let inspection =
         ExecutionView::captured(storage, Arc::new(source), &seal.source.owner_node_id).await?;
-    execution(ctx, settings, &inspection, true, None).await
+    execution(ctx, settings, &inspection, true, operation).await
 }
 
 /// Materialize one execution's report input from its frozen capture and evidence.
@@ -86,11 +87,9 @@ pub(crate) async fn execution(
     settings: &crate::config::StorageSettings,
     inspection: &ExecutionView,
     final_report: bool,
-    operation: Option<&Operation>,
+    operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
-    if let Some(operation) = operation {
-        operation.phase("Materializing Evidence");
-    }
+    operation.phase("Materializing Evidence");
     let captured = inspection
         .captured_source()
         .ok_or_else(|| invalid("report has no captured execution context"))?;
@@ -140,13 +139,9 @@ pub(crate) async fn execution(
         )?;
         documents.insert(id.clone(), document);
     }
-    if let Some(operation) = operation {
-        operation.phase("Querying Report Plots");
-    }
+    operation.phase("Querying Report Plots");
     let plots = plots(ctx, settings, captured, execution, &records, &documents).await?;
-    if let Some(operation) = operation {
-        operation.phase("Assembling Report");
-    }
+    operation.phase("Assembling Report");
     assemble(
         final_report,
         captured,

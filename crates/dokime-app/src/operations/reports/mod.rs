@@ -61,26 +61,24 @@ impl Operation for Handler {
         if !storage.cursor_saved().covers(&request.at)? {
             return Err(invalid("requested report cursor is not durable"));
         }
+        // Materializing A Report Is One Operation; Its Callers Add None Around It.
         let result = match &request.subject {
             ReportSubject::Execution(id) => {
-                execution(
-                    &ctx,
-                    &self.resources,
-                    &TestExecutionId::from_uuid(id.clone())
-                        .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
-                    &request.at,
-                )
-                .await
+                let id = TestExecutionId::from_uuid(id.clone())
+                    .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                let progress = self
+                    .resources
+                    .progress
+                    .begin("Materializing Execution Report");
+                progress.track(execution(&ctx, &self.resources, &id, &request.at, &progress).await)
             }
             ReportSubject::Cycle(id) => {
-                cycle::materialize(
-                    &ctx,
-                    &self.resources,
-                    &TestCycleId::from_uuid(id.clone())
-                        .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
-                    &request.at,
+                let id = TestCycleId::from_uuid(id.clone())
+                    .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                let progress = self.resources.progress.begin("Materializing Cycle Report");
+                progress.track(
+                    cycle::materialize(&ctx, &self.resources, &id, &request.at, &progress).await,
                 )
-                .await
             }
         }?;
         Ok(result.into())
@@ -109,7 +107,9 @@ async fn execution(
     resources: &Resources,
     id: &TestExecutionId,
     at: &harmos::storage::StorageCursor,
+    progress: &crate::runtime::progress::Operation,
 ) -> Result<MaterializedReport> {
+    progress.phase("Capturing Evidence");
     let app = ctx.scope().resources::<Dokime>();
     let source = resources.execution_storage.report_source(id).await?;
     let member = source
@@ -166,7 +166,6 @@ async fn execution(
     if inspection.evidence_through()? != at {
         return Err(invalid("capture changed requested report boundary"));
     }
-    let progress = resources.progress.begin("Materializing Report");
     let storage = &resources.execution_storage.storage;
     let captured = Arc::new(
         crate::report::materialize::execution(
@@ -174,17 +173,19 @@ async fn execution(
             &app.storage_settings,
             &inspection,
             final_report,
-            Some(&progress),
+            progress,
         )
         .await?,
     );
+    progress.phase("Rendering");
     let outputs = inspection.outputs()?.to_vec();
     let renderer = app.renderer;
     let saved = storage.cursor_saved();
     let mut prepared =
         tokio::task::spawn_blocking(move || renderer.execution(captured, outputs, &saved))
             .await??;
-    let result = if final_report {
+    progress.phase("Publishing Report");
+    if final_report {
         resources
             .execution_storage
             .materialize_final_report(ctx, inspection, prepared, Timestamp::now_utc())
@@ -195,8 +196,7 @@ async fn execution(
             .publication_revision(inspection.execution())
             .await?;
         prepared.publish_current(storage, ctx, &revision).await
-    };
-    progress.track(result)
+    }
 }
 
 fn invalid(reason: &str) -> Error {
