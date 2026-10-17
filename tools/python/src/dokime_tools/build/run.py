@@ -13,11 +13,11 @@
 
 `rust` captures the embedded report viewer, compiles the one workspace nextest archive with
 that report as its declared parent input, stages the product executables and packages the
-OBC plugin bundle from the archive's compiler output. `typescript` generates the GUI bindings
-from the server's contract export and captures the live frontend. `python` verifies the
-tracked client bindings and captures the client wheel. `stamp` binds every staged file under
-`dist/build/<platform>` to its original producer. Each step records its producers under
-`target/build/<profile>/` so later steps never compile again.
+OBC plugin bundle from the archive's compiler output. `typescript` runs protoc-gen-es over the
+dokime-server contract export, verifies the tracked GUI client and captures the live frontend.
+`python` verifies the tracked client bindings and captures the client wheel. `stamp` binds every
+staged file under `dist/build/<platform>` to its original producer. Each step records its producers
+under `target/build/<profile>/` so later steps never compile again.
 """
 
 # === Imports === #
@@ -26,6 +26,7 @@ tracked client bindings and captures the client wheel. `stamp` binds every stage
 import argparse
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -33,7 +34,6 @@ from pathlib import Path
 # Local Imports
 from dokime_tools.build import frontend, outputs, wheel
 from dokime_tools.package import fixtures
-from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import clear_output, stage_verified
 from dokime_tools.prepare import bindings
 from dokime_tools.test import archive, policy
@@ -74,10 +74,11 @@ def rust(profile: str) -> dict:
 
 
 def typescript(profile: str) -> dict:
-    """Generate The GUI Bindings From The Server Export And Capture The Live Frontend."""
+    """Generate The GUI Message Modules From The Server Export And Capture The Live Frontend."""
     compiled = _archive(profile)
-    export = locate(ROOT / compiled["messages"]["path"])
-    bindings.typescript(export)
+    subprocess.run(
+        ["node", str(frontend.WEB_ROOT / "tools/bindings.mjs"), str(ROOT / compiled["messages"]["path"]), "--check"], cwd=ROOT, check=True
+    )
     live = frontend.capture(profile, report=False, parents=[compiled], inputs=[frontend.WEB_ROOT / ".generated"])
     destination = STAGED / "frontend"
     clear_output(destination)
@@ -128,7 +129,7 @@ def main(arguments: list[str] | None = None) -> int:
             stamp(options.profile)
             return 0
         record = {"rust": rust, "typescript": typescript, "python": python}[options.step](options.profile)
-    except (policy.TestError, OSError, ValueError) as error:
+    except (policy.TestError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build {options.step}: {error}", file=sys.stderr)
         return 1
     path = _record(options.profile, options.step)

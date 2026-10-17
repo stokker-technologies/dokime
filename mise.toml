@@ -144,7 +144,7 @@ run = [
   "cargo check --locked -p dokime-gui --lib --no-default-features",
   "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
   "{{vars.tools}} dokime_tools.prepare.bindings --build-json target/contracts/check.jsonl --check",
-  "{{vars.tools}} dokime_tools.prepare.bindings --build-json target/contracts/check.jsonl --language typescript",
+  "node crates/dokime-gui/tools/bindings.mjs target/contracts/check.jsonl --check",
 ]
 
 [tasks."check:typescript"]
@@ -174,7 +174,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run rust --profile {{usage.profile}}"
 
 [tasks."build:typescript"]
-description = "Build The GUI Bindings And Frontend"
+description = "Build The GUI Bindings With protoc-gen-es And The Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run typescript --profile {{usage.profile}}"
 

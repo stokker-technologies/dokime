@@ -14,7 +14,6 @@
 # Standard Library Imports
 import argparse
 import hashlib
-import os
 import subprocess
 import sys
 import tempfile
@@ -26,7 +25,7 @@ from pathlib import Path
 # Local Imports
 # isort: split
 from dokime_tools.ci.bootstrap import prepare_harmos
-from dokime_tools.package.contracts import locate, restored
+from dokime_tools.package.contracts import locate
 
 # Type Checking Imports
 
@@ -148,14 +147,6 @@ def generate(
     print("Python contracts match the selected Cargo build.")
 
 
-def typescript(export: Path, *, check: bool = False) -> None:
-    """Generate (Or Verify) The GUI Bindings From One Contract Export."""
-    command = ["node", str(ROOT / "crates/dokime-gui/tools/bindings.mjs"), str(export)]
-    if check:
-        command.append("--check")
-    subprocess.run(command, cwd=ROOT, check=True)
-
-
 def fingerprint(root: Path = ROOT) -> str:
     """The SHA-256 of the committed contract set this tree's bindings carry."""
     digest = hashlib.sha256()
@@ -272,31 +263,11 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--language", choices=("python", "typescript"), default="python")
-    parser.add_argument("--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON"))
+    parser.add_argument("--build-json", type=Path, required=True, help="Compiler messages of the Cargo build that exported the contracts")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--cargo-config", type=Path)
-    parser.add_argument("--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT"))
     args = parser.parse_args()
-    export = None
-    if args.export is not None:
-        revision = os.environ.get("GITHUB_SHA") or subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        export = restored(args.export, revision)
-    if args.build_json is None and export is None:
-        parser.error("--build-json or DOKIME_CONTRACT_BUILD_JSON must select a successful Cargo build")
-    if args.language == "typescript":
-        if export is None:
-            if args.build_json is None:
-                parser.error("a selected Cargo build is required")
-            export = locate(args.build_json)
-        typescript(export, check=args.check)
-    else:
-        generate(
-            args.build_json,
-            check=args.check,
-            export=export,
-            cargo_config=args.cargo_config,
-        )
+    generate(args.build_json, check=args.check, cargo_config=args.cargo_config)
 
 
 # === Private Functions === #
