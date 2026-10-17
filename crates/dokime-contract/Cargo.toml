@@ -28,7 +28,6 @@ thiserror = { workspace = true }
 
 # Logging
 tracing-error = { workspace = true }
-tracing = { workspace = true }
 
 # Utilities
 sha2 = { workspace = true }
