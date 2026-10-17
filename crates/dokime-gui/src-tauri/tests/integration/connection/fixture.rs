@@ -32,6 +32,7 @@ use tonic::{
     transport::{Identity, Server, ServerTlsConfig},
 };
 // Local Imports
+use dokime_domain::model;
 use dokime_client::contracts::{Endpoint, backend, plugins, runtime};
 use dokime_client::credentials::{Error as CredentialError, SecretStore};
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
@@ -73,7 +74,7 @@ pub struct Service {
     pub availability_epoch: String,
     pub api_package: String,
     pub api_version: String,
-    pub readiness: backend::Readiness,
+    pub readiness: model::backend::wire::Readiness,
     pub max_request_bytes: u64,
     pub max_response_bytes: u64,
     pub descriptor: Vec<u8>,
@@ -140,8 +141,8 @@ impl Service {
             health_epoch: "epoch".into(),
             availability_epoch: "epoch".into(),
             api_package: "dokime.v1".into(),
-            api_version: backend::API_VERSION.into(),
-            readiness: backend::Readiness::Ready,
+            api_version: model::backend::wire::API_VERSION.into(),
+            readiness: model::backend::wire::Readiness::Ready,
             max_request_bytes: u64::MAX,
             max_response_bytes: u64::MAX,
             descriptor: DESCRIPTOR.clone(),
@@ -198,8 +199,8 @@ type FixtureFuture<T> = std::pin::Pin<Box<dyn Future<Output = Result<T, Status>>
 type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
 type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
 type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
-type LogEnvelope = harmos::grpc::OutputEnvelope<backend::LogFrame, ()>;
-type UploadEnvelope = harmos::grpc::InputEnvelope<plugins::Stage, plugins::StagePluginFrame>;
+type LogEnvelope = harmos::grpc::OutputEnvelope<model::backend::wire::LogFrame, ()>;
+type UploadEnvelope = harmos::grpc::InputEnvelope<plugins::Stage, model::plugins::wire::StagePluginFrame>;
 
 #[tonic::async_trait]
 trait FixtureUnary: harmos::operations::OperationDeclaration + Send + 'static {
@@ -208,12 +209,12 @@ trait FixtureUnary: harmos::operations::OperationDeclaration + Send + 'static {
 
 #[tonic::async_trait]
 impl FixtureUnary for backend::GetIdentity {
-    async fn reply(service: Service) -> Result<backend::BackendIdentity, Status> {
+    async fn reply(service: Service) -> Result<model::backend::wire::BackendIdentity, Status> {
         if let Some(gate) = &service.gate {
             gate.entered.notify_one();
             gate.release.acquire().await.unwrap().forget();
         }
-        Ok(backend::BackendIdentity {
+        Ok(model::backend::wire::BackendIdentity {
             backend_id: service.id,
             epoch: service.identity_epoch.lock().unwrap().clone(),
             display_name: "Fixture".into(),
@@ -221,7 +222,7 @@ impl FixtureUnary for backend::GetIdentity {
             started_at: None,
             source_revision: None,
             sdk_revision: None,
-            api: Some(backend::ApiIdentity {
+            api: Some(model::backend::wire::ApiIdentity {
                 package: service.api_package,
                 version: service.api_version,
                 descriptor_sha256: service.descriptor,
@@ -232,8 +233,8 @@ impl FixtureUnary for backend::GetIdentity {
 
 #[tonic::async_trait]
 impl FixtureUnary for backend::GetHealth {
-    async fn reply(service: Service) -> Result<backend::BackendHealth, Status> {
-        Ok(backend::BackendHealth {
+    async fn reply(service: Service) -> Result<model::backend::wire::BackendHealth, Status> {
+        Ok(model::backend::wire::BackendHealth {
             backend_id: service.id,
             epoch: service.health_epoch,
             readiness: service.readiness,
@@ -245,12 +246,12 @@ impl FixtureUnary for backend::GetHealth {
 
 #[tonic::async_trait]
 impl FixtureUnary for backend::GetAvailability {
-    async fn reply(service: Service) -> Result<backend::BackendAvailability, Status> {
-        Ok(backend::BackendAvailability {
+    async fn reply(service: Service) -> Result<model::backend::wire::BackendAvailability, Status> {
+        Ok(model::backend::wire::BackendAvailability {
             backend_id: service.id,
             epoch: service.availability_epoch,
             methods: service.methods,
-            limits: Some(backend::BackendLimits {
+            limits: Some(model::backend::wire::BackendLimits {
                 max_request_bytes: service.max_request_bytes,
                 max_response_bytes: service.max_response_bytes,
                 max_content_bytes: Some(u64::MAX),
@@ -264,9 +265,9 @@ impl FixtureUnary for backend::GetAvailability {
 
 #[tonic::async_trait]
 impl FixtureUnary for backend::GetDiagnostics {
-    async fn reply(_: Service) -> Result<backend::DiagnosticsResponse, Status> {
-        Ok(backend::DiagnosticsResponse {
-            server: Some(backend::BackendDiagnostics {
+    async fn reply(_: Service) -> Result<model::backend::wire::DiagnosticsResponse, Status> {
+        Ok(model::backend::wire::DiagnosticsResponse {
+            server: Some(model::backend::wire::BackendDiagnostics {
                 version: "fixture".into(),
                 process: None,
             }),
@@ -277,8 +278,8 @@ impl FixtureUnary for backend::GetDiagnostics {
 
 #[tonic::async_trait]
 impl FixtureUnary for runtime::GetIdentity {
-    async fn reply(service: Service) -> Result<runtime::Identity, Status> {
-        Ok(runtime::Identity {
+    async fn reply(service: Service) -> Result<model::runtime::wire::Identity, Status> {
+        Ok(model::runtime::wire::Identity {
             backend_id: service.id,
             epoch: service.identity_epoch.lock().unwrap().clone(),
             display_name: "Fixture".into(),
@@ -289,16 +290,16 @@ impl FixtureUnary for runtime::GetIdentity {
 
 #[tonic::async_trait]
 impl FixtureUnary for runtime::GetHealth {
-    async fn reply(service: Service) -> Result<runtime::Health, Status> {
+    async fn reply(service: Service) -> Result<model::runtime::wire::Health, Status> {
         let readiness = match service.readiness {
-            backend::Readiness::Unspecified | backend::Readiness::Starting => {
-                runtime::Readiness::Starting
+            model::backend::wire::Readiness::Unspecified | model::backend::wire::Readiness::Starting => {
+                model::runtime::wire::Readiness::Starting
             }
-            backend::Readiness::Ready => runtime::Readiness::Ready,
-            backend::Readiness::Degraded => runtime::Readiness::Degraded,
-            backend::Readiness::Stopping => runtime::Readiness::Stopping,
+            model::backend::wire::Readiness::Ready => model::runtime::wire::Readiness::Ready,
+            model::backend::wire::Readiness::Degraded => model::runtime::wire::Readiness::Degraded,
+            model::backend::wire::Readiness::Stopping => model::runtime::wire::Readiness::Stopping,
         };
-        Ok(runtime::Health {
+        Ok(model::runtime::wire::Health {
             backend_id: service.id,
             epoch: service.health_epoch,
             readiness,
@@ -349,9 +350,9 @@ impl
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             sender
                 .send(Ok(harmos::operations::Response::new(LogEnvelope::Item(
-                    backend::LogFrame {
+                    model::backend::wire::LogFrame {
                         time: None,
-                        level: backend::LogLevel::Unspecified,
+                        level: model::backend::wire::LogLevel::Unspecified,
                         target: String::new(),
                         message: String::new(),
                         fields: vec![],
@@ -375,7 +376,7 @@ impl
 impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<UploadEnvelope>>
     for Upload
 {
-    type Response = harmos::operations::Response<plugins::PluginInstallation>;
+    type Response = harmos::operations::Response<model::plugins::wire::PluginInstallation>;
     type Future = FixtureFuture<Response<Self::Response>>;
 
     fn call(
@@ -427,12 +428,12 @@ impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<Upload
             }
             drop(input);
             Ok(Response::new(harmos::operations::Response::new(
-                plugins::PluginInstallation {
+                model::plugins::wire::PluginInstallation {
                     install_id: count.to_string(),
                     sha256: String::new(),
                     staged_at: None,
                     consented_at: None,
-                    state: plugins::PluginInstallationState::Unspecified,
+                    state: model::plugins::wire::PluginInstallationState::Unspecified,
                     last_boot: None,
                     metadata: None,
                     error: None,
@@ -513,7 +514,7 @@ impl tonic::codegen::Service<HttpRequest> for PluginsService {
                 plugins::Stage::PATH => {
                     wire_codec::<
                         UploadEnvelope,
-                        harmos::operations::Response<plugins::PluginInstallation>,
+                        harmos::operations::Response<model::plugins::wire::PluginInstallation>,
                     >()
                     .server()
                     .client_streaming(Upload(service), request)
@@ -596,7 +597,7 @@ where
         .await
 }
 
-pub async fn server_health(endpoint: &str) -> backend::BackendHealth {
+pub async fn server_health(endpoint: &str) -> model::backend::wire::BackendHealth {
     let channel = tonic::transport::Endpoint::from_shared(endpoint.to_owned())
         .unwrap()
         .connect()
@@ -611,7 +612,7 @@ pub async fn server_health(endpoint: &str) -> backend::BackendHealth {
             )),
             tonic::codegen::http::uri::PathAndQuery::from_static(backend::GetHealth::PATH),
             wire_codec::<
-                backend::BackendHealth,
+                model::backend::wire::BackendHealth,
                 harmos::operations::Response<backend::GetHealth>,
             >(),
         )
@@ -625,7 +626,7 @@ pub async fn server_health(endpoint: &str) -> backend::BackendHealth {
 }
 
 impl tokio_stream::Stream for UploadInput {
-    type Item = plugins::StagePluginFrame;
+    type Item = model::plugins::wire::StagePluginFrame;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -633,7 +634,7 @@ impl tokio_stream::Stream for UploadInput {
     ) -> std::task::Poll<Option<Self::Item>> {
         if self.first {
             self.first = false;
-            return std::task::Poll::Ready(Some(plugins::StagePluginFrame::default()));
+            return std::task::Poll::Ready(Some(model::plugins::wire::StagePluginFrame::default()));
         }
 
         std::task::Poll::Pending

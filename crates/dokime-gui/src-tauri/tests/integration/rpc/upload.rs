@@ -21,6 +21,7 @@ use harmos::{MemorySize, Protobuf};
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use dokime_domain::model;
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
 use dokime_domain::operations::content;
@@ -54,8 +55,8 @@ fn generation(session: &dokime_gui::connection::ConnectionSession) -> u64 {
         .expect("fixture generation is numeric")
 }
 
-fn header(size_bytes: u64, scope: Option<content::ArtifactScope>) -> content::UploadArtifactHeader {
-    content::UploadArtifactHeader {
+fn header(size_bytes: u64, scope: Option<model::content::wire::ArtifactScope>) -> model::content::wire::UploadArtifactHeader {
+    model::content::wire::UploadArtifactHeader {
         scope,
         filename: "upload-sink-fixture.bin".into(),
         content_type: Some("application/octet-stream".into()),
@@ -133,7 +134,7 @@ struct ScopedFixture {
     server: dokime_server::grpc::Server,
     runtime: dokime_runtime::Runtime,
     _root: tempfile::TempDir,
-    scope: content::ArtifactScope,
+    scope: model::content::wire::ArtifactScope,
     execution: std::sync::Arc<ActiveFixture>,
 }
 
@@ -250,7 +251,7 @@ impl ScopedFixture {
             server,
             runtime,
             _root: root,
-            scope: content::ArtifactScope {
+            scope: model::content::wire::ArtifactScope {
                 cycle_id: Some(cycle_id),
                 case_id: None,
                 execution_id: Some(execution_id),
@@ -322,10 +323,10 @@ async fn upload_sink_completes() {
     };
     let payload = &metadata_bytes[8..];
     assert!(
-        content::ArtifactMetadata::decoding_memory(payload).unwrap() <= MAX_FRAME_BYTES * 8,
+        model::content::wire::ArtifactMetadata::decoding_memory(payload).unwrap() <= MAX_FRAME_BYTES * 8,
         "the metadata decoding budget stays within the native transfer bound"
     );
-    let metadata = content::ArtifactMetadata::decode(payload).unwrap();
+    let metadata = model::content::wire::ArtifactMetadata::decode(payload).unwrap();
     assert!(
         metadata.memory_size() <= MAX_FRAME_BYTES * 8,
         "the decoded metadata stays within the native transfer bound"
@@ -338,7 +339,7 @@ async fn upload_sink_completes() {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
     );
-    assert_eq!(metadata.state, content::ArtifactState::Complete);
+    assert_eq!(metadata.state, model::content::wire::ArtifactState::Complete);
 
     use tauri::Manager;
     app.state::<Bridge>().cancel_owner("main");

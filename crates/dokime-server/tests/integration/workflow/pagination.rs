@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -185,7 +186,7 @@ async fn large_cycles_order() {
         assert_eq!(execution.case_id, native.test_case_id.as_str());
         assert_eq!(
             execution.status,
-            contracts::execution::ExecutionStatus::Skipped
+            model::execution::wire::ExecutionStatus::Skipped
         );
     }
     assert_eq!(
@@ -250,7 +251,7 @@ async fn large_run_preparation() {
         .unwrap();
     assert!(matches!(
         outcome,
-        contracts::execution::RunReplyOutcome::Accepted(_)
+        model::execution::wire::RunReplyOutcome::Accepted(_)
     ));
     {
         client
@@ -266,8 +267,8 @@ async fn large_run_preparation() {
             .into_inner();
         assert!(matches!(
             summary.status,
-            contracts::execution::CycleStatus::Stopping
-                | contracts::execution::CycleStatus::Stopped
+            model::execution::wire::CycleStatus::Stopping
+                | model::execution::wire::CycleStatus::Stopped
         ));
     }
     // Terminal Acknowledgement Also Publishes One Durable Report Per Case.
@@ -279,7 +280,7 @@ async fn large_run_preparation() {
             .await
             .unwrap()
             .into_inner();
-        if summary.status == contracts::execution::CycleStatus::Stopped {
+        if summary.status == model::execution::wire::CycleStatus::Stopped {
             return Some(summary);
         }
         None
@@ -307,8 +308,8 @@ async fn large_run_preparation() {
         for execution in &page.executions {
             assert!(matches!(
                 execution.status,
-                contracts::execution::ExecutionStatus::Cancelled
-                    | contracts::execution::ExecutionStatus::Skipped
+                model::execution::wire::ExecutionStatus::Cancelled
+                    | model::execution::wire::ExecutionStatus::Skipped
             ));
         }
         count += page.executions.len();

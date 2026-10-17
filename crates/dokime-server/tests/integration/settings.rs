@@ -17,6 +17,7 @@ use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use tonic::Code;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderContribution,
@@ -121,7 +122,7 @@ async fn frame_readable_probe() {
         section.section_id == "identity"
             && matches!(
                 section.owner.as_ref(),
-                Some(contracts::settings::SettingsSectionOwner::App(true))
+                Some(model::settings::wire::SettingsSectionOwner::App(true))
             )
     }));
     let card = frame
@@ -132,7 +133,7 @@ async fn frame_readable_probe() {
     assert_eq!(card.plugin_id, "fixture.settings");
     assert_eq!(
         card.state,
-        contracts::settings::SettingsCardState::Disconnected
+        model::settings::wire::SettingsCardState::Disconnected
     );
 
     server.shutdown().await.unwrap();
@@ -303,7 +304,7 @@ async fn plugin_settings_admin() {
 
     let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture.settings".into(),
-        values: Some(contracts::value::Value::from(&Value::Object(
+        values: Some(model::values::wire::Value::from(&Value::Object(
             BTreeMap::from([("workspace".into(), Value::Text("Production".into()))]),
         ))),
     };
@@ -463,7 +464,7 @@ async fn backend_policy_revision() {
     );
     let invalid = contracts::settings::UpdateStoragePolicy {
         expected_revision: 1,
-        policy: Some(contracts::settings::StoragePolicy::default()),
+        policy: Some(model::settings::wire::StoragePolicy::default()),
     };
     assert_eq!(
         client
@@ -500,10 +501,10 @@ async fn app_settings_role() {
 
     // Appearance Needs Control; It Is Saved Without A Restart
     let appearance = contracts::settings::UpdateAppearance {
-        appearance: Some(contracts::settings::AppearancePreference {
-            theme_mode: contracts::settings::ThemeMode::Dark,
+        appearance: Some(model::settings::wire::AppearancePreference {
+            theme_mode: model::settings::wire::ThemeMode::Dark,
             theme_family: Some("brand.theme".into()),
-            density: contracts::settings::Density::Compact,
+            density: model::settings::wire::Density::Compact,
         }),
     };
     assert_eq!(
@@ -521,7 +522,7 @@ async fn app_settings_role() {
         .into_inner();
     assert_eq!(
         saved.appearance.unwrap().theme_mode,
-        contracts::settings::ThemeMode::Dark
+        model::settings::wire::ThemeMode::Dark
     );
     assert_eq!(saved.restart_required, initial.restart_required);
 

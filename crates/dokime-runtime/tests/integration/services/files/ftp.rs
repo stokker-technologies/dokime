@@ -26,10 +26,15 @@ use unftp_core::auth::{AuthenticationError, Authenticator, Credentials, Principa
 use unftp_sbe_fs::Filesystem;
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::config::RuntimeCredentialConfig;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
-use dokime_domain::operations::files::{FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource};
+use {
+    model::files::wire::FileWatchPolicy,
+    model::files::wire::FileWatchSourcePayload,
+    model::files::wire::FtpWatchSource,
+};
 
 /* === Constants === */
 const USER: &str = "bench";

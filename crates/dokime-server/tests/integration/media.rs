@@ -22,6 +22,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::content::UploadGate;
 use super::*;
 
@@ -70,7 +71,7 @@ async fn media_capture_artifacts() {
     // Scope And Limits Are Refused Before Any Device Opens
     let unscoped = client
         .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot {
-            scope: Some(contracts::content::ArtifactScope {
+            scope: Some(model::content::wire::ArtifactScope {
                 execution_id: None,
                 ..scope.clone()
             }),
@@ -134,11 +135,11 @@ async fn media_capture_artifacts() {
             let mut progress = 0;
             let completed = loop {
                 match frames.message().await.unwrap().expect("a completed frame") {
-                    contracts::media::RecordingFrame {
-                        payload: Some(contracts::media::RecordingFramePayload::Progress(_)),
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Progress(_)),
                     } => progress += 1,
-                    contracts::media::RecordingFrame {
-                        payload: Some(contracts::media::RecordingFramePayload::Completed(record)),
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Completed(record)),
                     } => break *record,
                     other => panic!("unexpected recording frame {other:?}"),
                 }
@@ -201,8 +202,8 @@ async fn media_capture_artifacts() {
         let completed = {
             loop {
                 match frames.message().await.unwrap().expect("a completed frame") {
-                    contracts::media::RecordingFrame {
-                        payload: Some(contracts::media::RecordingFramePayload::Completed(record)),
+                    model::media::wire::RecordingFrame {
+                        payload: Some(model::media::wire::RecordingFramePayload::Completed(record)),
                     } => break *record,
                     _ => continue,
                 }
@@ -226,7 +227,7 @@ async fn media_capture_artifacts() {
         contracts::media::ScreenRecording {
             scope: Some(scope.clone()),
             display: None,
-            audio: Some(contracts::media::RecordingAudio {
+            audio: Some(model::media::wire::RecordingAudio {
                 microphone: true,
                 system: true,
             }),
@@ -258,11 +259,11 @@ pub(super) async fn running_execution(
     owner: &Runtime,
     client: &WireClient,
     gate: &UploadGate,
-) -> contracts::content::ArtifactScope {
+) -> model::content::wire::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,
         authenticated(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: "media.capture".into(),
                 label: "Media".into(),
                 description: None,
@@ -299,7 +300,7 @@ pub(super) async fn running_execution(
         .executions
         .remove(0)
         .execution_id;
-    contracts::content::ArtifactScope {
+    model::content::wire::ArtifactScope {
         cycle_id: Some(cycle_id),
         case_id: None,
         execution_id: Some(execution_id),
@@ -309,7 +310,7 @@ pub(super) async fn running_execution(
 async fn recording(
     client: &WireClient,
     request: contracts::media::AudioRecording,
-) -> Result<WireStream<contracts::media::RecordingFrame>, tonic::Status> {
+) -> Result<WireStream<model::media::wire::RecordingFrame>, tonic::Status> {
     let mut frames = client
         .download::<contracts::media::AudioRecording>(authenticated(request))
         .await?
@@ -327,7 +328,7 @@ async fn recording(
 async fn recording_refusal<O>(client: &WireClient, request: O::Request) -> tonic::Status
 where
     O: contracts::Endpoint
-        + harmos::operations::OutputDeclaration<Item = contracts::media::RecordingFrame>,
+        + harmos::operations::OutputDeclaration<Item = model::media::wire::RecordingFrame>,
     O::Request: harmos::Protobuf + Sync,
     O::Response: harmos::Protobuf + harmos::MemorySize,
 {
@@ -343,7 +344,7 @@ where
 
 // Asserts a capture landed, or that the host's missing device was refused.
 fn captured(
-    result: Result<contracts::content::ArtifactMetadata, tonic::Status>,
+    result: Result<model::content::wire::ArtifactMetadata, tonic::Status>,
     folder: &str,
     extension: &str,
     content_type: &str,
@@ -362,7 +363,7 @@ fn captured(
         record.filename
     );
     assert_eq!(record.content_type.as_deref(), Some(content_type));
-    assert_eq!(record.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(record.state, model::content::wire::ArtifactState::Complete);
     assert!(record.size_bytes > 0);
 }
 

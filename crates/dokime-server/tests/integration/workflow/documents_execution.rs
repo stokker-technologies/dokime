@@ -17,8 +17,9 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
-use dokime_client::contracts::documents::DocumentFrameFrame as Frame;
+use model::documents::wire::DocumentFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -66,7 +67,7 @@ async fn running_execution_owners() {
         .into_inner();
     let id = attempts.executions[0].execution_id.clone();
     let documents = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let selected = contracts::documents::DocumentScope {
+    let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle,
         execution_id: id.clone(),
     };
@@ -88,8 +89,8 @@ async fn running_execution_owners() {
                 value.scope.unwrap().execution_id.as_deref(),
                 Some(id.as_str())
             ),
-            Frame::Card(contracts::documents::DocumentCard {
-                body: Some(contracts::documents::DocumentCardBody::Owner(reference)),
+            Frame::Card(model::documents::wire::DocumentCard {
+                body: Some(model::documents::wire::DocumentCardBody::Owner(reference)),
                 ..
             }) => {
                 kinds.push(reference.kind);
@@ -104,13 +105,13 @@ async fn running_execution_owners() {
     assert_eq!(
         kinds,
         [
-            contracts::documents::DocumentCardKind::Steps,
-            contracts::documents::DocumentCardKind::Criteria,
-            contracts::documents::DocumentCardKind::Notes,
-            contracts::documents::DocumentCardKind::Records,
-            contracts::documents::DocumentCardKind::Artifacts,
-            contracts::documents::DocumentCardKind::Media,
-            contracts::documents::DocumentCardKind::Traceability,
+            model::documents::wire::DocumentCardKind::Steps,
+            model::documents::wire::DocumentCardKind::Criteria,
+            model::documents::wire::DocumentCardKind::Notes,
+            model::documents::wire::DocumentCardKind::Records,
+            model::documents::wire::DocumentCardKind::Artifacts,
+            model::documents::wire::DocumentCardKind::Media,
+            model::documents::wire::DocumentCardKind::Traceability,
         ]
     );
     gate.release.notify_one();

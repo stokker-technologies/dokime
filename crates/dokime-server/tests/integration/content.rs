@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
@@ -200,7 +201,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let cycle_id = support::planned_cycle(
         &execution,
         authenticated(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: "content.cycle".into(),
                 label: "Content".into(),
                 description: None,
@@ -225,7 +226,7 @@ async fn artifact_transfer(message_bytes: usize) {
         .into_inner();
     assert!(matches!(
         reply.outcome,
-        Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
     ));
     artifacts.ready.notified().await;
     let records = artifacts.records.lock().unwrap().clone();
@@ -390,7 +391,7 @@ async fn artifact_transfer(message_bytes: usize) {
             native
                 .upload_artifact_file(
                     &destination,
-                    contracts::content::UploadArtifactHeader {
+                    model::content::wire::UploadArtifactHeader {
                         scope: verified.metadata.scope.clone(),
                         filename: "native-upload.bin".into(),
                         content_type: verified.metadata.content_type.clone(),
@@ -450,7 +451,7 @@ async fn artifact_transfer(message_bytes: usize) {
                 .await
                 .unwrap()
                 .into_inner();
-            let Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) =
+            let Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) =
                 stream.message().await.unwrap().unwrap().payload
             else {
                 panic!("an artifact download opens with its metadata");
@@ -466,9 +467,9 @@ async fn artifact_transfer(message_bytes: usize) {
             assert_eq!(
                 metadata.state,
                 if record.filename == "partial.bin" {
-                    contracts::content::ArtifactState::Cancelled
+                    model::content::wire::ArtifactState::Cancelled
                 } else {
-                    contracts::content::ArtifactState::Complete
+                    model::content::wire::ArtifactState::Complete
                 }
             );
             let mut actual = Vec::new();
@@ -476,13 +477,13 @@ async fn artifact_transfer(message_bytes: usize) {
             while let Some(frame) = stream.message().await.unwrap() {
                 assert!(!complete, "completion must be the last frame");
                 match frame.payload.unwrap() {
-                    contracts::content::ArtifactFramePayload::Chunk(chunk) => {
+                    model::content::wire::ArtifactFramePayload::Chunk(chunk) => {
                         assert_eq!(chunk.offset, actual.len() as u64);
                         assert!(!chunk.data.is_empty());
                         assert!(chunk.data.len() <= message_bytes - 32);
                         actual.extend(chunk.data);
                     }
-                    contracts::content::ArtifactFramePayload::Complete(done) => {
+                    model::content::wire::ArtifactFramePayload::Complete(done) => {
                         assert_eq!(done.size_bytes, expected.len() as u64);
                         assert_eq!(
                             done.sha256,
@@ -511,7 +512,7 @@ async fn artifact_transfer(message_bytes: usize) {
         .into_inner();
     assert!(matches!(
         stalled.message().await.unwrap().unwrap().payload,
-        Some(contracts::content::ArtifactFramePayload::Metadata(_))
+        Some(model::content::wire::ArtifactFramePayload::Metadata(_))
     ));
     // The server grants existing connections a five-second graceful drain,
     // then disconnects a stalled peer.
@@ -523,7 +524,7 @@ async fn artifact_transfer(message_bytes: usize) {
                 Ok(None) => return false,
                 Ok(Some(frame)) => assert!(!matches!(
                     frame.payload,
-                    Some(contracts::content::ArtifactFramePayload::Complete(_))
+                    Some(model::content::wire::ArtifactFramePayload::Complete(_))
                 )),
             }
         }
@@ -584,7 +585,7 @@ async fn artifact_upload_owned() {
     let cycle_id = support::planned_cycle(
         &execution,
         authenticated(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: "content.upload".into(),
                 label: "Upload".into(),
                 description: None,
@@ -621,7 +622,7 @@ async fn artifact_upload_owned() {
         .executions
         .remove(0)
         .execution_id;
-    let scope = || contracts::content::ArtifactScope {
+    let scope = || model::content::wire::ArtifactScope {
         cycle_id: Some(cycle_id.clone()),
         case_id: None,
         execution_id: Some(execution_id.clone()),
@@ -637,9 +638,9 @@ async fn artifact_upload_owned() {
         .max_encoding_message_size(4096);
     let uploaded = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "native.bin".into(),
                         content_type: Some("application/octet-stream".into()),
@@ -648,9 +649,9 @@ async fn artifact_upload_owned() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
@@ -661,15 +662,15 @@ async fn artifact_upload_owned() {
         .unwrap()
         .into_inner();
     assert_eq!(uploaded.filename, "native.bin");
-    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(uploaded.state, model::content::wire::ArtifactState::Complete);
     assert_eq!(uploaded.sha256, digest);
 
     // Operator Uploads Land Under Their Folder; Escaping Names Are Refused
     let upload_named = |filename: &str| {
         tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: filename.into(),
                         content_type: Some("text/plain".into()),
@@ -678,9 +679,9 @@ async fn artifact_upload_owned() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: b"notes".to_vec(),
                     },
@@ -696,7 +697,7 @@ async fn artifact_upload_owned() {
         .unwrap()
         .into_inner();
     assert_eq!(foldered.filename, "upload/operator-notes.txt");
-    assert_eq!(foldered.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(foldered.state, model::content::wire::ArtifactState::Complete);
     for escaping in ["../escape.txt", "/absolute.txt", "upload//empty.txt"] {
         let refused = content
             .upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping)))
@@ -717,7 +718,7 @@ async fn artifact_upload_owned() {
     let uploaded = native
         .upload_artifact_file(
             &source,
-            contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactHeader {
                 scope: Some(scope()),
                 filename: "native-upload.bin".into(),
                 content_type: None,
@@ -729,14 +730,14 @@ async fn artifact_upload_owned() {
         .unwrap();
     assert_eq!(uploaded.size_bytes, bytes.len() as u64);
     assert_eq!(uploaded.sha256, digest);
-    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(uploaded.state, model::content::wire::ArtifactState::Complete);
     native.close_and_wait().await;
 
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-offset.bin".into(),
                         content_type: None,
@@ -745,9 +746,9 @@ async fn artifact_upload_owned() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 1,
                         data: b"bad".to_vec(),
                     },
@@ -772,9 +773,9 @@ async fn artifact_upload_owned() {
 
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-size.bin".into(),
                         content_type: None,
@@ -783,9 +784,9 @@ async fn artifact_upload_owned() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: b"bad".to_vec(),
                     },
@@ -810,9 +811,9 @@ async fn artifact_upload_owned() {
 
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-digest.bin".into(),
                         content_type: None,
@@ -821,9 +822,9 @@ async fn artifact_upload_owned() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: b"bad".to_vec(),
                     },
@@ -855,15 +856,15 @@ async fn artifact_upload_owned() {
         .into_inner()
         .artifacts;
     for (filename, state) in [
-        ("native.bin", contracts::content::ArtifactState::Complete),
+        ("native.bin", model::content::wire::ArtifactState::Complete),
         (
             "bad-offset.bin",
-            contracts::content::ArtifactState::Cancelled,
+            model::content::wire::ArtifactState::Cancelled,
         ),
-        ("bad-size.bin", contracts::content::ArtifactState::Rejected),
+        ("bad-size.bin", model::content::wire::ArtifactState::Rejected),
         (
             "bad-digest.bin",
-            contracts::content::ArtifactState::Rejected,
+            model::content::wire::ArtifactState::Rejected,
         ),
     ] {
         assert_eq!(
@@ -887,7 +888,7 @@ async fn artifact_upload_owned() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == contracts::execution::CycleStatus::Completed {
+        if cycle.status == model::execution::wire::CycleStatus::Completed {
             return Some(());
         }
         None
@@ -905,7 +906,7 @@ async fn completion_harness() -> (
     WireClient,
     Arc<UploadGate>,
     String,
-    contracts::content::ArtifactScope,
+    model::content::wire::ArtifactScope,
 ) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
@@ -938,7 +939,7 @@ async fn completion_harness() -> (
     let cycle_id = support::planned_cycle(
         &execution,
         authenticated(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: "content.completion".into(),
                 label: "Completion".into(),
                 description: None,
@@ -975,7 +976,7 @@ async fn completion_harness() -> (
         .executions
         .remove(0)
         .execution_id;
-    let scope = contracts::content::ArtifactScope {
+    let scope = model::content::wire::ArtifactScope {
         cycle_id: Some(cycle_id.clone()),
         case_id: None,
         execution_id: Some(execution_id),
@@ -1027,7 +1028,7 @@ async fn finish_completion_harness(
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == contracts::execution::CycleStatus::Completed {
+        if cycle.status == model::execution::wire::CycleStatus::Completed {
             return Some(());
         }
         None
@@ -1048,9 +1049,9 @@ async fn artifact_upload_digest() {
         .collect::<String>();
     let uploaded = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "trailing.bin".into(),
                         content_type: Some("application/octet-stream".into()),
@@ -1059,17 +1060,17 @@ async fn artifact_upload_digest() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
-                    contracts::content::ArtifactCompletion {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
+                    model::content::wire::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: digest.clone(),
                     },
@@ -1080,7 +1081,7 @@ async fn artifact_upload_digest() {
         .unwrap()
         .into_inner();
     assert_eq!(uploaded.filename, "trailing.bin");
-    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(uploaded.state, model::content::wire::ArtifactState::Complete);
     assert_eq!(uploaded.sha256, digest);
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
@@ -1096,9 +1097,9 @@ async fn artifact_upload_match() {
         .collect::<String>();
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "mismatched.bin".into(),
                         content_type: None,
@@ -1107,17 +1108,17 @@ async fn artifact_upload_match() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
-                    contracts::content::ArtifactCompletion {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
+                    model::content::wire::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: wrong_digest,
                     },
@@ -1153,9 +1154,9 @@ async fn artifact_upload_completion() {
         .collect::<String>();
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
-                    contracts::content::UploadArtifactHeader {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
+                    model::content::wire::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "trailing-extra.bin".into(),
                         content_type: None,
@@ -1164,25 +1165,25 @@ async fn artifact_upload_completion() {
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
-                    contracts::content::ArtifactCompletion {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
+                    model::content::wire::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: digest,
                     },
                 )),
             },
-            contracts::content::UploadArtifactFrame {
-                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
-                    contracts::content::ArtifactChunk {
+            model::content::wire::UploadArtifactFrame {
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
+                    model::content::wire::ArtifactChunk {
                         offset: bytes.len() as u64,
                         data: b"x".to_vec(),
                     },
@@ -1208,11 +1209,11 @@ async fn open_report_states() {
 
     // Running: Both Reports Are Rendered From The Current Evidence
     let (metadata, html) = cycle_report(&execution, &cycle_id).await;
-    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Current);
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Current);
     assert_eq!(metadata.test_execution_id, None);
     assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
     let (metadata, html) = execution_report(&execution, &execution_id).await;
-    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Current);
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Current);
     assert_eq!(metadata.test_cycle_id, cycle_id);
     assert_eq!(
         metadata.test_execution_id.as_deref(),
@@ -1229,14 +1230,14 @@ async fn open_report_states() {
     )
     .await;
     let (metadata, first) = cycle_report(&execution, &cycle_id).await;
-    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Sealed);
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     let (_, second) = cycle_report(&execution, &cycle_id).await;
     assert_eq!(
         first, second,
         "a sealed cycle report must read back unchanged"
     );
     let (metadata, _) = execution_report(&execution, &execution_id).await;
-    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Sealed);
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -1244,7 +1245,7 @@ async fn open_report_states() {
 async fn cycle_report(
     client: &WireClient,
     cycle_id: &str,
-) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let stream = client
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
             contracts::reports::DownloadCycleReport {
@@ -1261,7 +1262,7 @@ async fn cycle_report(
 async fn execution_report(
     client: &WireClient,
     execution_id: &str,
-) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let stream = client
         .download::<contracts::reports::DownloadExecutionReport>(authenticated(
             contracts::reports::DownloadExecutionReport {
@@ -1275,21 +1276,21 @@ async fn execution_report(
 }
 
 async fn report_frames(
-    mut stream: WireStream<contracts::reports::ReportHtmlFrame>,
-) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+    mut stream: WireStream<model::reports::wire::ReportHtmlFrame>,
+) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let mut metadata = None;
     let mut html = Vec::new();
     let mut complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.payload.expect("report payload") {
-            contracts::reports::ReportHtmlFramePayload::Report(report) => {
+            model::reports::wire::ReportHtmlFramePayload::Report(report) => {
                 assert!(metadata.replace(*report).is_none(), "one metadata frame");
             }
-            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => {
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, html.len() as u64);
                 html.extend_from_slice(&chunk.data);
             }
-            contracts::reports::ReportHtmlFramePayload::Complete(done) => {
+            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
                 assert_eq!(done.size_bytes, html.len() as u64);
                 complete = true;
             }
@@ -1334,7 +1335,7 @@ async fn large_artifact_buffering() {
     let cycle_id = support::planned_cycle(
         &execution,
         authenticated(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: "content.bundle".into(),
                 label: "Bundle".into(),
                 description: None,
@@ -1366,8 +1367,8 @@ async fn large_artifact_buffering() {
             .await
             .unwrap()
             .into_inner();
-        assert_ne!(cycle.status, contracts::execution::CycleStatus::Failed);
-        (cycle.status == contracts::execution::CycleStatus::Completed).then_some(())
+        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
+        (cycle.status == model::execution::wire::CycleStatus::Completed).then_some(())
     })
     .await;
     let content = WireClient::new(stream);
@@ -1386,7 +1387,7 @@ async fn large_artifact_buffering() {
         .unwrap()
         .into_inner();
     let metadata = match download.message().await.unwrap().unwrap().payload {
-        Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) => metadata,
+        Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) => metadata,
         payload => panic!("unexpected artifact header: {payload:?}"),
     };
     assert_eq!(metadata.size_bytes, LARGE_ARTIFACT_BYTES);
@@ -1399,14 +1400,14 @@ async fn large_artifact_buffering() {
             .unwrap()
             .expect("artifact completion");
         match frame.payload.unwrap() {
-            contracts::content::ArtifactFramePayload::Chunk(chunk) => {
+            model::content::wire::ArtifactFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, downloaded);
                 assert!(!chunk.data.is_empty());
                 downloaded += chunk.data.len() as u64;
                 digest.update(&chunk.data);
             }
-            contracts::content::ArtifactFramePayload::Complete(done) => break done,
-            contracts::content::ArtifactFramePayload::Metadata(_) => {
+            model::content::wire::ArtifactFramePayload::Complete(done) => break done,
+            model::content::wire::ArtifactFramePayload::Metadata(_) => {
                 panic!("artifact metadata must be emitted once")
             }
         }

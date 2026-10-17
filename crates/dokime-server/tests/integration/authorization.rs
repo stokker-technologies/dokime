@@ -18,6 +18,7 @@ use std::pin::Pin;
 // Third Party Imports
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_server::grpc::access::Role;
 
@@ -29,7 +30,7 @@ const STREAMING_CASES: &[Case] = &[
             Box::pin(async move {
                 WireClient::new(stream)
                     .upload::<contracts::content::UploadArtifact>(credentialed(
-                        tokio_stream::iter(Vec::<contracts::content::UploadArtifactFrame>::new()),
+                        tokio_stream::iter(Vec::<model::content::wire::UploadArtifactFrame>::new()),
                         token,
                     ))
                     .await
@@ -43,7 +44,7 @@ const STREAMING_CASES: &[Case] = &[
             Box::pin(async move {
                 WireClient::new(stream)
                     .upload::<contracts::plugins::Stage>(credentialed(
-                        tokio_stream::iter(Vec::<contracts::plugins::StagePluginFrame>::new()),
+                        tokio_stream::iter(Vec::<model::plugins::wire::StagePluginFrame>::new()),
                         token,
                     ))
                     .await
@@ -80,7 +81,7 @@ macro_rules! matrix {
 
 matrix! {
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
-        subject: contracts::reports::ReportSubject::Execution(String::new()),
+        subject: model::reports::wire::ReportSubject::Execution(String::new()),
         at: harmos::storage::StorageCursor {
             history: harmos::storage::StoreHistory {
                 store: harmos::Identifier::new("authorization").unwrap(),
@@ -98,13 +99,13 @@ matrix! {
     "/dokime.v1.Backend/GetHealth", unary, contracts::backend::GetHealth;
     "/dokime.v1.Backend/GetIdentity", unary, contracts::backend::GetIdentity;
     "/dokime.v1.Backend/WatchLogs", download, contracts::backend::WatchLogs = contracts::backend::WatchLogs {
-        min_level: contracts::backend::LogLevel::Unspecified,
+        min_level: model::backend::wire::LogLevel::Unspecified,
         replay_lines: 0,
     };
     "/dokime.v1.Backend/WatchTrace", download, contracts::backend::WatchTrace = contracts::backend::WatchTrace {
         epoch: None,
         scope: None,
-        min_level: contracts::backend::LogLevel::Unspecified,
+        min_level: model::backend::wire::LogLevel::Unspecified,
         after_sequence: 0,
         max_events: 0,
         max_bytes: 0,
@@ -147,7 +148,7 @@ matrix! {
     "/dokime.v1.Execution/ListCycles", unary, contracts::execution::ListCycles;
     "/dokime.v1.Execution/ListExecutionParameters", unary, contracts::execution::ListExecutionParameters = contracts::execution::ListExecutionParameters {
         execution_id: String::new(),
-        set: contracts::execution::ExecutionParameterSet::Unspecified,
+        set: model::execution::wire::ExecutionParameterSet::Unspecified,
         limit: 0,
         after_name: String::new(),
         cursor: None,
@@ -162,7 +163,7 @@ matrix! {
         execution_id: String::new(),
         context: None,
         idempotency_key: None,
-        mode: contracts::execution::ExecutionMode::Automatic,
+        mode: model::execution::wire::ExecutionMode::Automatic,
     };
     "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
     "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
@@ -171,7 +172,7 @@ matrix! {
         request_id: String::new(),
         command_id: String::new(),
         execution_id: String::new(),
-        action: contracts::execution::ExecutionCommandAction::Unspecified,
+        action: model::execution::wire::ExecutionCommandAction::Unspecified,
         step_id: None,
     };
     "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
@@ -187,7 +188,7 @@ matrix! {
         source: None,
         rules: Vec::new(),
         output: String::new(),
-        policy: contracts::files::FileWatchPolicy::Unspecified,
+        policy: model::files::wire::FileWatchPolicy::Unspecified,
         poll_interval_ms: None,
         maximum_seconds: None,
         maximum_files: None,
@@ -233,7 +234,7 @@ matrix! {
     "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
     "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
     "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::Aggregate {
-        source: contracts::query::QuerySource::Unspecified,
+        source: model::query::wire::QuerySource::Unspecified,
         filters: vec![],
         group_by: vec![],
         aggregates: vec![],

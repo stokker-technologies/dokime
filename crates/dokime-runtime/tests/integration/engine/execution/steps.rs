@@ -24,10 +24,16 @@ use std::time::Duration;
 use dokime_runtime::harmos::operations::Host;
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::host::StepHandleCancelled;
-use dokime_runtime::operations::files::{
-    FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMarker, LineMatcher,
-    LocalWatchSource, WatchFile, WatchFile,
+use {
+    model::files::wire::FileWatchPolicy,
+    model::files::wire::FileWatchSource,
+    model::files::wire::FileWatchSourcePayload,
+    model::files::wire::LineMarker,
+    model::files::wire::LineMatcher,
+    model::files::wire::LocalWatchSource,
+    dokime_runtime::operations::files::WatchFile,
 };
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;

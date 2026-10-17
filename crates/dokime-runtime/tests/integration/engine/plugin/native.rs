@@ -25,6 +25,7 @@ use harmos::plugin::{
 use harmos::sidecar::{Attach, Notice, Supervised};
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::records::{PublishRecord, RecordPublication, RecordPublishRequest};
 use dokime_runtime::transport::{
     AskOperator, EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, LeaseStream,
@@ -689,7 +690,7 @@ impl harmos::operations::Operation for Watching {
         _: Self::Context<'ctx>,
         _: &mut dokime_runtime::operations::files::WatchFile,
         _: &mut (),
-    ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>>
+    ) -> harmos::Result<harmos::operations::Response<model::files::wire::WatchFileOutcome>>
     {
         Err(harmos::Error::InvalidInput {
             field: "file watch",

@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -42,7 +43,7 @@ fn labelled(
     description: Option<&str>,
 ) -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
-        metadata: Some(contracts::common::Metadata {
+        metadata: Some(model::identity::wire::Metadata {
             identifier: identifier.into(),
             label: label.into(),
             description: description.map(Into::into),
@@ -54,8 +55,8 @@ fn labelled(
 
 async fn walk(
     client: &mut WireClient,
-    filter: contracts::execution::CycleFilter,
-    order: contracts::execution::CycleOrder,
+    filter: model::execution::wire::CycleFilter,
+    order: model::execution::wire::CycleOrder,
     limit: u32,
 ) -> Vec<String> {
     let mut request = contracts::execution::ListCycles {
@@ -112,8 +113,8 @@ async fn cycle_search_once() {
             .await
             .unwrap();
     }
-    let by_label = contracts::execution::CycleOrder {
-        key: contracts::execution::CycleOrderKey::Label,
+    let by_label = model::execution::wire::CycleOrder {
+        key: model::execution::wire::CycleOrderKey::Label,
         descending: false,
     };
 
@@ -121,7 +122,7 @@ async fn cycle_search_once() {
     // whole match set once, in the declared order.
     let walked = walk(
         &mut client,
-        contracts::execution::CycleFilter {
+        model::execution::wire::CycleFilter {
             text: "BURN in".into(),
             ..Default::default()
         },
@@ -134,7 +135,7 @@ async fn cycle_search_once() {
     // The same matches, in one page, are the same sequence.
     let single = walk(
         &mut client,
-        contracts::execution::CycleFilter {
+        model::execution::wire::CycleFilter {
             text: "burn in".into(),
             ..Default::default()
         },
@@ -147,7 +148,7 @@ async fn cycle_search_once() {
     // Text also matches the description, and the identifier.
     let by_description = walk(
         &mut client,
-        contracts::execution::CycleFilter {
+        model::execution::wire::CycleFilter {
             text: "thermal SOAK".into(),
             ..Default::default()
         },
@@ -158,7 +159,7 @@ async fn cycle_search_once() {
     assert_eq!(by_description, ["Burn In Alpha", "Calibration Sweep"]);
     let by_identifier = walk(
         &mut client,
-        contracts::execution::CycleFilter {
+        model::execution::wire::CycleFilter {
             text: "grpc.burn-b".into(),
             ..Default::default()
         },
@@ -173,8 +174,8 @@ async fn cycle_search_once() {
     assert!(
         walk(
             &mut client,
-            contracts::execution::CycleFilter {
-                statuses: vec![contracts::execution::CycleStatus::Completed],
+            model::execution::wire::CycleFilter {
+                statuses: vec![model::execution::wire::CycleStatus::Completed],
                 ..Default::default()
             },
             by_label.clone(),
@@ -186,8 +187,8 @@ async fn cycle_search_once() {
     assert_eq!(
         walk(
             &mut client,
-            contracts::execution::CycleFilter {
-                statuses: vec![contracts::execution::CycleStatus::Ready],
+            model::execution::wire::CycleFilter {
+                statuses: vec![model::execution::wire::CycleStatus::Ready],
                 ..Default::default()
             },
             by_label.clone(),
@@ -218,7 +219,7 @@ async fn cycle_search_once() {
             .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 after_cycle_id: outsider,
                 cursor: excluded.cursor.clone(),
-                filter: Some(contracts::execution::CycleFilter {
+                filter: Some(model::execution::wire::CycleFilter {
                     text: "burn in".into(),
                     ..Default::default()
                 }),
@@ -235,8 +236,8 @@ async fn cycle_search_once() {
     assert_eq!(
         client
             .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
-                filter: Some(contracts::execution::CycleFilter {
-                    statuses: vec![contracts::execution::CycleStatus::Unspecified],
+                filter: Some(model::execution::wire::CycleFilter {
+                    statuses: vec![model::execution::wire::CycleStatus::Unspecified],
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -275,12 +276,12 @@ async fn listed_cases_page() {
     for case in &page.cases {
         // Creation materializes one undispatched attempt per case, which is
         // queued work rather than a skip and is the attempt a run dispatches.
-        assert_eq!(case.status, contracts::execution::CaseStatus::Queued);
+        assert_eq!(case.status, model::execution::wire::CaseStatus::Queued);
         assert_eq!(case.attempt_count, 1);
         assert!(!case.rerun_scheduled);
         assert_eq!(
             case.latest_execution_status,
-            Some(contracts::execution::ExecutionStatus::Skipped)
+            Some(model::execution::wire::ExecutionStatus::Skipped)
         );
         assert!(case.latest_execution_id.is_some());
         let actions = case.actions.as_ref().unwrap();

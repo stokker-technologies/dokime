@@ -22,8 +22,12 @@ use std::num::NonZeroUsize;
 use harmos::storage::StorageBackend;
 
 // Local Imports
+use dokime_domain::model;
 use crate::service_support::prelude::*;
-use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
+use {
+    dokime_runtime::operations::reports::MaterializeReport,
+    model::reports::wire::ReportSubject,
+};
 
 /* === Constants === */
 

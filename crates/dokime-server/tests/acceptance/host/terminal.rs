@@ -17,6 +17,7 @@ use std::process::Command;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::support::host::Host;
 
 /* === Constants === */
@@ -43,7 +44,7 @@ async fn serve_until_stopped(signal: bool) {
     let health = client.health().await.unwrap();
     assert_eq!(
         health.readiness,
-        dokime_client::contracts::runtime::Readiness::Ready
+        model::runtime::wire::Readiness::Ready
     );
     host.stop(signal).await;
     drop(client);

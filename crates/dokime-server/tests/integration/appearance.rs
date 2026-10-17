@@ -18,6 +18,7 @@
 use prost::Message;
 use sha2::{Digest, Sha256};
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::domains::installed_plugins::{ResolvedBrand, load_brand};
 
@@ -46,7 +47,7 @@ fn brand(path: &std::path::Path) -> ResolvedBrand {
     brand
 }
 
-fn failure(status: tonic::Status, code: Code, kind: contracts::appearance::AppearanceFailureKind) {
+fn failure(status: tonic::Status, code: Code, kind: model::appearance::wire::AppearanceFailureKind) {
     assert_eq!(status.code(), code);
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
     assert_eq!(envelope.code, code as i32);
@@ -55,7 +56,7 @@ fn failure(status: tonic::Status, code: Code, kind: contracts::appearance::Appea
         "type.googleapis.com/dokime.v1.AppearanceFailure"
     );
     assert_eq!(
-        <contracts::appearance::AppearanceFailure as harmos::Protobuf>::decode(
+        <model::appearance::wire::AppearanceFailure as harmos::Protobuf>::decode(
             envelope.details[0].value.as_slice()
         )
         .unwrap()
@@ -124,7 +125,7 @@ async fn appearance_asset_bound() {
     assert_eq!(actual.mode_locked, expected.mode_locked);
     assert_eq!(
         actual.mode_policy,
-        contracts::appearance::ThemeModePolicy::UserOrSystem
+        model::appearance::wire::ThemeModePolicy::UserOrSystem
     );
     assert_eq!(actual.source_plugin_id.as_deref(), Some("brand"));
     assert_eq!(actual.themes.len(), expected.themes.len());
@@ -169,7 +170,7 @@ async fn appearance_asset_bound() {
         content
             .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
                 contracts::content::DownloadAppearanceAsset {
-                    reference: Some(contracts::appearance::AppearanceAssetReference {
+                    reference: Some(model::appearance::wire::AppearanceAssetReference {
                         plugin_id: "unselected.owner".into(),
                         ..reference.clone()
                     }),
@@ -182,7 +183,7 @@ async fn appearance_asset_bound() {
             .await
             .unwrap_err(),
         Code::NotFound,
-        contracts::appearance::AppearanceFailureKind::AssetMissing,
+        model::appearance::wire::AppearanceFailureKind::AssetMissing,
     );
     let request = || {
         authenticated(contracts::content::DownloadAppearanceAsset {
@@ -196,7 +197,7 @@ async fn appearance_asset_bound() {
         .into_inner();
     assert_eq!(
         stream.message().await.unwrap().unwrap().payload,
-        Some(contracts::content::AppearanceAssetFramePayload::Metadata(
+        Some(model::content::wire::AppearanceAssetFramePayload::Metadata(
             metadata
         ))
     );
@@ -206,13 +207,13 @@ async fn appearance_asset_bound() {
     let mut complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.payload.unwrap() {
-            contracts::content::AppearanceAssetFramePayload::Chunk(chunk) => {
+            model::content::wire::AppearanceAssetFramePayload::Chunk(chunk) => {
                 assert!(!complete);
                 assert_eq!(chunk.offset, received.len() as u64);
                 assert!(chunk.data.len() <= 64 * 1024);
                 received.extend(chunk.data);
             }
-            contracts::content::AppearanceAssetFramePayload::Complete(value) => {
+            model::content::wire::AppearanceAssetFramePayload::Complete(value) => {
                 assert!(!complete);
                 assert_eq!(value.size_bytes, bytes.len() as u64);
                 assert_eq!(value.sha256, reference.sha256);
@@ -233,7 +234,7 @@ async fn appearance_asset_bound() {
             .await
             .unwrap_err(),
         Code::FailedPrecondition,
-        contracts::appearance::AppearanceFailureKind::AssetChanged,
+        model::appearance::wire::AppearanceFailureKind::AssetChanged,
     );
     std::fs::remove_file(&path).unwrap();
     failure(
@@ -246,13 +247,13 @@ async fn appearance_asset_bound() {
             .await
             .unwrap_err(),
         Code::NotFound,
-        contracts::appearance::AppearanceFailureKind::AssetMissing,
+        model::appearance::wire::AppearanceFailureKind::AssetMissing,
     );
     failure(
         content
             .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
                 contracts::content::DownloadAppearanceAsset {
-                    reference: Some(contracts::appearance::AppearanceAssetReference {
+                    reference: Some(model::appearance::wire::AppearanceAssetReference {
                         asset_id: "../logo".into(),
                         ..reference
                     }),
@@ -265,7 +266,7 @@ async fn appearance_asset_bound() {
             .await
             .unwrap_err(),
         Code::InvalidArgument,
-        contracts::appearance::AppearanceFailureKind::InvalidReference,
+        model::appearance::wire::AppearanceFailureKind::InvalidReference,
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -292,7 +293,7 @@ async fn appearance_refuses_transfer() {
             .await
             .unwrap_err(),
         Code::ResourceExhausted,
-        contracts::appearance::AppearanceFailureKind::TooLarge,
+        model::appearance::wire::AppearanceFailureKind::TooLarge,
     );
     // Source preflight also bounds CSS independently of a missing logo file.
     std::fs::remove_file(path).unwrap();
@@ -306,7 +307,7 @@ async fn appearance_refuses_transfer() {
             .await
             .unwrap_err(),
         Code::ResourceExhausted,
-        contracts::appearance::AppearanceFailureKind::TooLarge,
+        model::appearance::wire::AppearanceFailureKind::TooLarge,
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

@@ -47,7 +47,7 @@ pub mod prelude {
         TelemetrySelection,
     };
     pub use dokime_runtime::domains::execution::provider::ExecutionFixture;
-    pub use dokime_runtime::{execution::CycleStatus, transactions::CycleDefinition};
+    pub use dokime_runtime::{model::execution::wire::CycleStatus, transactions::CycleDefinition};
 
     pub use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
     pub use dokime_runtime::runtime::query::{
@@ -77,6 +77,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{Identifier, Metadata, Value};
 use dokime_runtime::domains::execution::provider::ExecutionFixture;
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};

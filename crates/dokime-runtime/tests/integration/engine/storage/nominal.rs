@@ -37,12 +37,13 @@ use harmos::{Application, DefinitionId, Identified, Message, Runtime, state::Nev
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use dokime_domain::model;
 use super::sqlite::storage::{declared, id, page, rows, write_batch};
 use dokime_runtime::storage::sqlite::Backend;
 use dokime_runtime::{
     core::{SessionId, Timestamp, Value},
     storage::telemetry::{TelemetryEntry, TypedCodec},
-    telemetry::TelemetrySample,
+    model::telemetry::wire::TelemetrySample,
 };
 
 /* === Constants === */

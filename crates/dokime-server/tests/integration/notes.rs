@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::{RecordScope, TestCycleId};
@@ -52,10 +53,10 @@ async fn cycle(runtime: &dokime_runtime::RuntimeHandle) -> TestCycleId {
     .await
 }
 
-fn selection(cycle: &TestCycleId, context: bool) -> Option<contracts::notes::AnnotationSelection> {
-    Some(contracts::notes::AnnotationSelection {
-        owner: Some(contracts::notes::AnnotationOwner {
-            owner: Some(contracts::notes::AnnotationOwnerOwner::CycleId(
+fn selection(cycle: &TestCycleId, context: bool) -> Option<model::notes::wire::AnnotationSelection> {
+    Some(model::notes::wire::AnnotationSelection {
+        owner: Some(model::notes::wire::AnnotationOwner {
+            owner: Some(model::notes::wire::AnnotationOwnerOwner::CycleId(
                 cycle.to_string(),
             )),
         }),
@@ -144,7 +145,7 @@ async fn scoped_annotation_workflow() {
     assert_eq!(receipt.epoch, epoch);
     assert_eq!(
         receipt.publication,
-        contracts::notes::NotePublication::NoExistingDatasets
+        model::notes::wire::NotePublication::NoExistingDatasets
     );
     assert_eq!(
         receipt.note.as_ref().unwrap().author.as_deref(),
@@ -252,7 +253,7 @@ async fn scoped_annotation_workflow() {
         .iter()
         .find(|item| item.message == "connector warning")
         .unwrap();
-    assert_eq!(warning.severity, contracts::common::Severity::Warn);
+    assert_eq!(warning.severity, model::identity::wire::Severity::Warn);
     assert_eq!(warning.detail.as_deref(), Some("inspect connector"));
     assert!(
         health
@@ -292,9 +293,9 @@ async fn scoped_annotation_workflow() {
         .unwrap()
         .test_case_id
         .to_string();
-    let case_owner = contracts::notes::AnnotationOwner {
-        owner: Some(contracts::notes::AnnotationOwnerOwner::PlannedCase(
-            contracts::notes::PlannedCaseNoteOwner {
+    let case_owner = model::notes::wire::AnnotationOwner {
+        owner: Some(model::notes::wire::AnnotationOwnerOwner::PlannedCase(
+            model::notes::wire::PlannedCaseNoteOwner {
                 cycle_id: first.to_string(),
                 case_id: case_id.clone(),
             },
@@ -324,7 +325,7 @@ async fn scoped_annotation_workflow() {
     let case_notes = notes
         .unary::<contracts::notes::ListNotes>(authenticated(
             contracts::notes::ListNotes {
-                selection: Some(contracts::notes::AnnotationSelection {
+                selection: Some(model::notes::wire::AnnotationSelection {
                     owner: Some(case_owner),
                     include_context: false,
                 }),

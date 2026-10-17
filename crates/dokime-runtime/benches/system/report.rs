@@ -28,6 +28,7 @@ use std::{
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::{CommandId, TestCycleId, TestExecutionId, Value};
 use dokime_runtime::{
     Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext,
@@ -115,7 +116,10 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
 /// Runs one steady execution to its inspection prompt and times only the
 /// report materialization of the unsealed execution.
 async fn materialization(concurrency: usize, duration: f64) -> Duration {
-    use dokime_runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
+    use {
+    dokime_runtime::operations::reports::MaterializeReport,
+    model::reports::wire::ReportSubject,
+};
     let root = tempfile::tempdir().unwrap();
     let (mut owner, runtime, cycle, request) =
         started_cycle(root.path(), concurrency, duration).await;

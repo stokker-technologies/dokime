@@ -20,6 +20,7 @@ use std::process::{Command, Stdio};
 use harmos::Protobuf;
 use serde_json::json;
 // Local Imports
+use dokime_domain::model;
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
 use dokime_domain::operations::{execution, value};
@@ -86,9 +87,9 @@ async fn typescript_facade_bridge() {
             }
             // These fixtures exercise TS-generated message semantics against canonical Harmos types.
             "fixture_value" => {
-                let value = value::Value::decode(bytes).unwrap();
+                let value = model::values::wire::Value::decode(bytes).unwrap();
                 assert_eq!(value.nodes.len(), 5);
-                let Some(value::ValueKind::Object(fields)) = &value.nodes[0].kind else {
+                let Some(model::values::wire::ValueKind::Object(fields)) = &value.nodes[0].kind else {
                     panic!("the fixture value has an object root");
                 };
                 assert_eq!(
@@ -101,18 +102,18 @@ async fn typescript_facade_bridge() {
                 );
                 assert!(matches!(
                     value.nodes[1].kind,
-                    Some(value::ValueKind::Integer(i64::MIN))
+                    Some(model::values::wire::ValueKind::Integer(i64::MIN))
                 ));
                 assert!(matches!(
                     value.nodes[2].kind,
-                    Some(value::ValueKind::Integer(i64::MAX))
+                    Some(model::values::wire::ValueKind::Integer(i64::MAX))
                 ));
-                assert!(matches!(value.nodes[3].kind, Some(value::ValueKind::Null)));
+                assert!(matches!(value.nodes[3].kind, Some(model::values::wire::ValueKind::Null)));
                 assert!(value.nodes[4].kind.is_none());
                 Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))
             }
             "fixture_admission" => {
-                let value = execution::Admission::decode(bytes).unwrap();
+                let value = model::execution::wire::Admission::decode(bytes).unwrap();
                 assert_eq!(value.cursor.as_ref().unwrap().position, u64::MAX);
                 assert_eq!(value.accepted_at.as_ref().unwrap().seconds, -1);
                 assert_eq!(value.accepted_at.as_ref().unwrap().nanos, 999_999_999);

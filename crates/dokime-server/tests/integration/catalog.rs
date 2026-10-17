@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     core::{DurationMillis, MeasurementUnit, UnitFamily, Value, ValueType},
@@ -161,15 +162,15 @@ async fn schemas_exact_pages() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(record.default_severity, contracts::common::Severity::Warn);
+    assert_eq!(record.default_severity, model::identity::wire::Severity::Warn);
     assert_eq!(
         record.validation_mode,
-        Some(contracts::schema::ValidationMode::Strict)
+        Some(model::definition::wire::ValidationMode::Strict)
     );
     assert!(!record.allow_extra_fields);
     let display = record.display.unwrap();
-    assert_eq!(display.icon, contracts::schema::RecordIcon::Gauge);
-    assert_eq!(display.tone, contracts::schema::RecordTone::Warning);
+    assert_eq!(display.icon, model::definition::wire::RecordIcon::Gauge);
+    assert_eq!(display.tone, model::definition::wire::RecordTone::Warning);
     assert_eq!(
         record.fields[0]
             .default_value
@@ -218,7 +219,7 @@ async fn schemas_exact_pages() {
         .into_inner();
     assert_eq!(telemetry.plot_window_ms, Some(u64::MAX));
     let unit = telemetry.columns[1].unit.as_ref().unwrap();
-    assert_eq!(unit.family, contracts::schema::UnitFamily::Count);
+    assert_eq!(unit.family, model::definition::wire::UnitFamily::Count);
     assert_eq!(unit.symbol, "tick");
     assert_eq!(unit.metadata.as_ref().unwrap().identifier, "unit.tick");
     assert_eq!(telemetry.columns[1].display_unit.as_deref(), Some("ticks"));
@@ -233,7 +234,7 @@ async fn schemas_exact_pages() {
     );
     assert_eq!(
         telemetry.columns[1].role,
-        contracts::schema::TelemetryRole::Counter
+        model::definition::wire::TelemetryRole::Counter
     );
     assert_eq!(telemetry.default_x.as_deref(), Some("timestamp"));
     assert_eq!(

@@ -18,8 +18,9 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::support::*;
-use dokime_domain::model::values::Value;
+use model::values::Value;
 use dokime_host::HostTelemetryStream;
 
 /* === Constants === */

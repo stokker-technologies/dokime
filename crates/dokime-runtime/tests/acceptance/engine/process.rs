@@ -26,9 +26,13 @@ use std::time::Duration;
 use dokime_runtime::harmos::operations::Host;
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::execution::log::Level;
 use dokime_runtime::host::{ProcessExited, StepHandleCancelled};
-use dokime_runtime::operations::process::{Output, RunProcess, RunProcess};
+use {
+    model::process::wire::Output,
+    dokime_runtime::operations::process::RunProcess,
+};
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 

@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{CriterionId, StepId};
 use dokime_runtime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
@@ -152,13 +153,13 @@ async fn step_pages_selections() {
             .criteria
             .iter()
             .all(
-                |criterion| criterion.status == contracts::execution::CriterionStatus::Pending
+                |criterion| criterion.status == model::execution::wire::CriterionStatus::Pending
                     && criterion.observed.is_none()
             )
     );
     evidence.cursor = first_criteria.next_cursor;
     let mut wrong_kind = evidence.clone();
-    wrong_kind.cursor.as_mut().unwrap().kind = contracts::execution::StepPageKind::Steps;
+    wrong_kind.cursor.as_mut().unwrap().kind = model::execution::wire::StepPageKind::Steps;
     assert_eq!(
         client
             .unary::<contracts::execution::ListStepCriteria>(authenticated(wrong_kind))
@@ -234,7 +235,7 @@ async fn step_pages_selections() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == contracts::execution::CycleStatus::Completed {
+        if cycle.status == model::execution::wire::CycleStatus::Completed {
             return Some(());
         }
         None
@@ -273,7 +274,7 @@ async fn step_pages_selections() {
             .criteria
             .iter()
             .all(|criterion| criterion.status
-                == contracts::execution::CriterionStatus::Indeterminate)
+                == model::execution::wire::CriterionStatus::Indeterminate)
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

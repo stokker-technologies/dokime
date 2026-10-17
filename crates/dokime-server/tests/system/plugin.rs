@@ -21,6 +21,7 @@ use std::{
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
+use dokime_domain::model;
 use crate::support::{self, host::Host};
 use dokime_runtime::Value;
 use dokime_client::{Client, ResponseStream, contracts};
@@ -66,7 +67,7 @@ const HOST_STREAMS: &[&str] = &[
 /* === Public Functions === */
 
 /* === Private Functions === */
-type Changes = ResponseStream<contracts::observation::RuntimeStateFrame>;
+type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
 /// Re-runs `probe` after every runtime frame the host pushes until it yields.
 async fn on_change<T>(changes: &mut Changes, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
@@ -86,7 +87,7 @@ async fn wait_prompt(
     changes: &mut Changes,
     prompts: &mut Client,
     cycle_id: &str,
-) -> contracts::prompts::PendingPromptIdentity {
+) -> model::prompts::wire::PendingPromptIdentity {
     on_change(changes, async || {
         let page = prompts
             .prompts_list_pending(contracts::prompts::ListPending {
@@ -104,7 +105,7 @@ async fn wait_completed(
     changes: &mut Changes,
     execution: &mut Client,
     cycle_id: &str,
-) -> contracts::execution::CycleSummary {
+) -> model::execution::wire::CycleSummary {
     on_change(changes, async || {
         let cycle = execution
             .execution_get_cycle(contracts::execution::GetCycle {
@@ -114,9 +115,9 @@ async fn wait_completed(
             .unwrap();
         matches!(
             cycle.status,
-            contracts::execution::CycleStatus::Completed
-                | contracts::execution::CycleStatus::Failed
-                | contracts::execution::CycleStatus::Stopped
+            model::execution::wire::CycleStatus::Completed
+                | model::execution::wire::CycleStatus::Failed
+                | model::execution::wire::CycleStatus::Stopped
         )
         .then_some(cycle)
     })
@@ -140,7 +141,7 @@ async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &
     .await
 }
 
-fn field(sample: &contracts::telemetry::TelemetrySample, name: &str) -> String {
+fn field(sample: &model::telemetry::wire::TelemetrySample, name: &str) -> String {
     let Value::Object(mut fields) = sample.values.as_ref().unwrap().to_core().unwrap() else {
         panic!("sample values must be an object");
     };
@@ -150,33 +151,33 @@ fn field(sample: &contracts::telemetry::TelemetrySample, name: &str) -> String {
     }
 }
 
-fn number(value: f64) -> contracts::value::Value {
-    contracts::value::Value::from(&Value::Number(value))
+fn number(value: f64) -> model::values::wire::Value {
+    model::values::wire::Value::from(&Value::Number(value))
 }
 
-fn text(value: &str) -> contracts::value::Value {
-    contracts::value::Value::from(&Value::Text(value.to_owned()))
+fn text(value: &str) -> model::values::wire::Value {
+    model::values::wire::Value::from(&Value::Text(value.to_owned()))
 }
 
-fn boolean(value: bool) -> contracts::value::Value {
-    contracts::value::Value::from(&Value::Bool(value))
+fn boolean(value: bool) -> model::values::wire::Value {
+    model::values::wire::Value::from(&Value::Bool(value))
 }
 
 fn selection(
     suite_id: &str,
     template_id: &str,
-    parameters: impl IntoIterator<Item = (&'static str, contracts::value::Value)>,
-) -> contracts::planning::SelectionPlan {
-    contracts::planning::SelectionPlan {
-        selections: vec![contracts::planning::RegisteredSelection {
+    parameters: impl IntoIterator<Item = (&'static str, model::values::wire::Value)>,
+) -> model::planning::wire::SelectionPlan {
+    model::planning::wire::SelectionPlan {
+        selections: vec![model::planning::wire::RegisteredSelection {
             suite_id: suite_id.to_owned(),
             template_id: template_id.to_owned(),
             parameters: parameters
                 .into_iter()
                 .map(
-                    |(name, value)| contracts::planning::RegisteredSelectionParametersEntry {
+                    |(name, value)| model::planning::wire::RegisteredSelectionParametersEntry {
                         key: name.to_owned(),
-                        value: Some(contracts::planning::SelectionValues {
+                        value: Some(model::planning::wire::SelectionValues {
                             values: vec![value],
                         }),
                     },
@@ -190,15 +191,15 @@ fn selection(
     }
 }
 
-fn scope(cycle_id: &str, execution_id: &str) -> contracts::common::EvidenceScope {
-    contracts::common::EvidenceScope {
+fn scope(cycle_id: &str, execution_id: &str) -> model::identity::wire::EvidenceScope {
+    model::identity::wire::EvidenceScope {
         cycle_id: Some(cycle_id.to_owned()),
         execution_id: Some(execution_id.to_owned()),
         ..Default::default()
     }
 }
 
-async fn suite(catalog: &mut Client, suite_id: &str) -> contracts::catalog::SuiteDefinition {
+async fn suite(catalog: &mut Client, suite_id: &str) -> model::catalog::wire::SuiteDefinition {
     catalog
         .catalog_get_suite(contracts::catalog::GetSuite {
             suite_id: suite_id.to_owned(),
@@ -210,7 +211,7 @@ async fn suite(catalog: &mut Client, suite_id: &str) -> contracts::catalog::Suit
 async fn create_cycle(
     planning: &mut Client,
     execution: &mut Client,
-    plan: contracts::planning::SelectionPlan,
+    plan: model::planning::wire::SelectionPlan,
     identifier: &str,
     expected_cases: usize,
 ) -> String {
@@ -223,7 +224,7 @@ async fn create_cycle(
     assert_eq!(preview.cases.len(), expected_cases);
     let cycle_id = execution
         .execution_create_cycle(contracts::execution::CreateCycle {
-            metadata: Some(contracts::common::Metadata {
+            metadata: Some(model::identity::wire::Metadata {
                 identifier: identifier.to_owned(),
                 label: identifier.to_owned(),
                 description: None,
@@ -255,7 +256,7 @@ async fn run_cycle(execution: &mut Client, cycle_id: &str) {
         .unwrap();
     assert!(matches!(
         reply.outcome,
-        Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
     ));
 }
 
@@ -263,7 +264,7 @@ async fn read_file(
     content: &mut Client,
     execution_id: &str,
     relative_path: &str,
-) -> contracts::content::ExecutionFileWindow {
+) -> model::content::wire::ExecutionFileWindow {
     content
         .content_read_execution_file(contracts::content::ReadExecutionFile {
             execution_id: execution_id.to_owned(),
@@ -279,7 +280,7 @@ async fn list_file(
     content: &mut Client,
     execution_id: &str,
     relative_path: &str,
-) -> contracts::content::ExecutionFileMetadata {
+) -> model::content::wire::ExecutionFileMetadata {
     let page = content
         .content_list_execution_files(contracts::content::ListExecutionFiles {
             execution_id: execution_id.to_owned(),
@@ -294,13 +295,13 @@ async fn list_file(
 }
 
 fn value_object(
-    fields: impl IntoIterator<Item = (&'static str, contracts::value::Value)>,
-) -> contracts::value::Value {
+    fields: impl IntoIterator<Item = (&'static str, model::values::wire::Value)>,
+) -> model::values::wire::Value {
     let values = fields
         .into_iter()
         .map(|(key, value)| (key.to_owned(), value.to_core().unwrap()))
         .collect();
-    contracts::value::Value::from(&Value::Object(values))
+    model::values::wire::Value::from(&Value::Object(values))
 }
 
 async fn serves_startup(client: &Client) -> bool {
@@ -315,10 +316,10 @@ async fn serves_startup(client: &Client) -> bool {
 async fn status_ready(client: &Client) {
     let frame = client.settings_get_settings(Default::default()).await.unwrap();
     let card = frame.cards.iter().find(|card| card.plugin_id == "obc-plugin").expect("the OBC settings card is registered");
-    assert_eq!(card.state, contracts::settings::SettingsCardState::Ready, "the native status operation serves the installed plugin");
+    assert_eq!(card.state, model::settings::wire::SettingsCardState::Ready, "the native status operation serves the installed plugin");
 }
 
-async fn installations(client: &Client) -> Vec<contracts::plugins::PluginInstallation> {
+async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInstallation> {
     client
         .plugins_list_installations(Default::default())
         .await
@@ -327,21 +328,24 @@ async fn installations(client: &Client) -> Vec<contracts::plugins::PluginInstall
 }
 
 /// Stages `bytes` in the plugin store and consents to them.
-async fn install(client: &Client, bytes: &[u8]) -> contracts::plugins::PluginInstallation {
-    use contracts::plugins::{StagePluginFrame, StagePluginFrameFrame as Frame};
+async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
+    use {
+    model::plugins::wire::StagePluginFrame,
+    model::plugins::wire::StagePluginFrameFrame as Frame,
+};
     let sha256 = Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let mut frames = vec![StagePluginFrame {
-        frame: Some(Frame::Header(contracts::plugins::StagePluginHeader {
+        frame: Some(Frame::Header(model::plugins::wire::StagePluginHeader {
             size_bytes: bytes.len() as u64,
             sha256: sha256.clone(),
         })),
     }];
     for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
         frames.push(StagePluginFrame {
-            frame: Some(Frame::Chunk(contracts::plugins::StagePluginChunk {
+            frame: Some(Frame::Chunk(model::plugins::wire::StagePluginChunk {
                 offset: (index * 64 * 1024) as u64,
                 data: chunk.to_vec(),
             })),
@@ -498,7 +502,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .unwrap();
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
+    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
     let summary = execution
         .execution_list_executions(contracts::execution::ListExecutions {
             cycle_id: cycle_id.clone(),
@@ -513,7 +517,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     assert_eq!(summary.execution_id, execution_id);
     assert_eq!(
         summary.status,
-        contracts::execution::ExecutionStatus::Passed
+        model::execution::wire::ExecutionStatus::Passed
     );
 
     let steps = execution
@@ -549,7 +553,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .expect("steady acceptance criterion is present");
     assert_eq!(
         acceptance.status,
-        contracts::execution::CriterionStatus::Passed
+        model::execution::wire::CriterionStatus::Passed
     );
     assert_eq!(
         acceptance
@@ -561,10 +565,10 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
 
     let mut content = client.clone();
     let stream_log = list_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
-    assert_eq!(stream_log.kind, contracts::content::ExecutionFileKind::Text);
+    assert_eq!(stream_log.kind, model::content::wire::ExecutionFileKind::Text);
     assert_eq!(
         stream_log.state,
-        contracts::content::ExecutionFileState::Finalized
+        model::content::wire::ExecutionFileState::Finalized
     );
     let log = read_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
     let log = String::from_utf8_lossy(&log.data);
@@ -642,7 +646,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
             .through_stream_cursors
             .into_iter()
             .map(
-                |entry| contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+                |entry| model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
                     key: entry.key,
                     value: entry.value,
                 },
@@ -746,7 +750,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let started = cycle.started_at.as_ref().expect("cycle started");
     let finished = cycle.updated_at.as_ref().expect("cycle completed");
     // The lake stores microseconds while lifecycle timestamps retain nanoseconds.
-    let micros = |at: &contracts::common::Timestamp| {
+    let micros = |at: &model::identity::wire::Timestamp| {
         i128::from(at.seconds) * 1_000_000 + i128::from(at.nanos) / 1_000
     };
     for (stream, instants) in &host_instants {
@@ -761,7 +765,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let documents = client.clone();
     let stream = documents
         .documents_capture_current_document(contracts::documents::CaptureCurrentDocument {
-            scope: Some(contracts::documents::DocumentScope {
+            scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle_id.clone(),
                 execution_id: execution_id.clone(),
             }),
@@ -773,8 +777,8 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let mut document_complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.frame {
-            Some(contracts::documents::DocumentFrameFrame::Card(card)) => {
-                if let Some(contracts::documents::DocumentCardBody::Owner(reference)) = card.body
+            Some(model::documents::wire::DocumentFrameFrame::Card(card)) => {
+                if let Some(model::documents::wire::DocumentCardBody::Owner(reference)) = card.body
                     && reference.plot_id.as_deref()
                         == Some("obc.charger.steady.measurement.execution.signals")
                 {
@@ -792,15 +796,15 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
                     assert!(request.y_expressions.iter().any(|expression| {
                         matches!(
                             expression.source,
-                            Some(contracts::plots::DataExpressionSource::Telemetry(
-                                contracts::plots::TelemetryDataSource { ref stream, ref field }
+                            Some(model::plots::wire::DataExpressionSource::Telemetry(
+                                model::plots::wire::TelemetryDataSource { ref stream, ref field }
                             )) if stream == STEADY_SAMPLES && field == "voltage_v"
                         )
                     }));
                     plot_found = true;
                 }
             }
-            Some(contracts::documents::DocumentFrameFrame::Completion(_)) => {
+            Some(model::documents::wire::DocumentFrameFrame::Completion(_)) => {
                 document_complete = true
             }
             _ => {}
@@ -815,7 +819,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let evidence = client.clone();
     let records = evidence
         .evidence_list_records(contracts::evidence::ListRecords {
-            selection: Some(contracts::evidence::CapturedRecordSelection {
+            selection: Some(model::evidence::wire::CapturedRecordSelection {
                 scope: Some(execution_scope.clone()),
                 ..Default::default()
             }),
@@ -861,26 +865,26 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .content_download_artifact(contracts::content::DownloadArtifact { artifact_id })
         .await
         .unwrap();
-    let Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) =
+    let Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) =
         artifact_stream.message().await.unwrap().unwrap().payload
     else {
         panic!("an artifact download opens with its metadata");
     };
     assert_eq!(metadata.filename, STEADY_SUMMARY);
     assert_eq!(metadata.content_type.as_deref(), Some("application/json"));
-    assert_eq!(metadata.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(metadata.state, model::content::wire::ArtifactState::Complete);
     let mut artifact_bytes = Vec::new();
     let mut artifact_complete = false;
     while let Some(frame) = artifact_stream.message().await.unwrap() {
         match frame.payload.unwrap() {
-            contracts::content::ArtifactFramePayload::Chunk(chunk) => {
+            model::content::wire::ArtifactFramePayload::Chunk(chunk) => {
                 artifact_bytes.extend(chunk.data)
             }
-            contracts::content::ArtifactFramePayload::Complete(completion) => {
+            model::content::wire::ArtifactFramePayload::Complete(completion) => {
                 assert_eq!(completion.size_bytes, metadata.size_bytes);
                 artifact_complete = true;
             }
-            contracts::content::ArtifactFramePayload::Metadata(_) => {
+            model::content::wire::ArtifactFramePayload::Metadata(_) => {
                 panic!("artifact metadata repeated")
             }
         }
@@ -971,7 +975,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
             })
             .await
             .unwrap();
-        assert_ne!(cycle.status, contracts::execution::CycleStatus::Failed);
+        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
         cycle.sealed.then_some(())
     })
     .await;
@@ -1091,7 +1095,7 @@ async fn plugin_host_walkthrough() {
         })
         .await
         .unwrap();
-    let Some(contracts::content::ExecutionFileFollowFramePayload::Metadata(metadata)) = follow
+    let Some(model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) = follow
         .message()
         .await
         .unwrap()
@@ -1101,7 +1105,7 @@ async fn plugin_host_walkthrough() {
     };
     assert_eq!(
         metadata.phase,
-        contracts::content::ExecutionFilePhase::Producing
+        model::content::wire::ExecutionFilePhase::Producing
     );
     assert_eq!(metadata.offset, 0);
     let identity = metadata
@@ -1117,7 +1121,7 @@ async fn plugin_host_walkthrough() {
                 .unwrap()
                 .and_then(|frame| frame.payload)
             {
-                Some(contracts::content::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                Some(model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
                     assert_eq!(chunk.offset, followed.len() as u64);
                     assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
                     followed.extend_from_slice(&chunk.data);
@@ -1137,7 +1141,7 @@ async fn plugin_host_walkthrough() {
     let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
     assert_eq!(
         file.state,
-        contracts::content::ExecutionFileState::Streaming
+        model::content::wire::ExecutionFileState::Streaming
     );
     let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
     let running_log = String::from_utf8_lossy(&window.data).into_owned();
@@ -1159,7 +1163,7 @@ async fn plugin_host_walkthrough() {
         .unwrap();
 
     let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
+    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
     let telemetry = client.clone();
     let telemetry = telemetry
         .telemetry_list_samples(contracts::telemetry::ListSamples {
@@ -1182,10 +1186,10 @@ async fn plugin_host_walkthrough() {
     );
 
     let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    assert_eq!(file.kind, contracts::content::ExecutionFileKind::Text);
+    assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
     assert_eq!(
         file.state,
-        contracts::content::ExecutionFileState::Finalized
+        model::content::wire::ExecutionFileState::Finalized
     );
     let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
     let final_text = String::from_utf8_lossy(&final_log.data);
@@ -1216,14 +1220,14 @@ async fn plugin_host_walkthrough() {
     let mut complete = false;
     while let Some(frame) = report.message().await.unwrap() {
         match frame.payload.expect("report payload") {
-            contracts::reports::ReportHtmlFramePayload::Report(header) => {
+            model::reports::wire::ReportHtmlFramePayload::Report(header) => {
                 assert!(metadata.replace(*header).is_none(), "one metadata frame");
             }
-            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => {
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, html.len() as u64);
                 html.extend_from_slice(&chunk.data);
             }
-            contracts::reports::ReportHtmlFramePayload::Complete(done) => {
+            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
                 assert_eq!(done.size_bytes, html.len() as u64);
                 complete = true;
             }
@@ -1270,7 +1274,7 @@ async fn plugin_host_walkthrough() {
         .expect("a consented installation stays pending removal");
     assert_eq!(
         removed.state,
-        contracts::plugins::PluginInstallationState::RemovalPending
+        model::plugins::wire::PluginInstallationState::RemovalPending
     );
     assert!(removed.active && removed.restart_required);
     assert!(serves_startup(&client).await);
@@ -1295,7 +1299,7 @@ async fn plugin_host_walkthrough() {
                 .last_boot
                 .as_ref()
                 .and_then(|boot| boot.result.as_ref()),
-            Some(contracts::plugins::PluginLastBootResult::Error(_))
+            Some(model::plugins::wire::PluginLastBootResult::Error(_))
         ),
         "the broken installation reports its failed boot: {:?}",
         listed[0].last_boot

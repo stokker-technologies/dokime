@@ -22,6 +22,7 @@ use harmos::Protobuf;
 use serde_json::json;
 use sha2::Digest;
 // Local Imports
+use dokime_domain::model;
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::{Fixture, TOKEN};
 use dokime_domain::operations::{backend, plugins};
@@ -47,7 +48,7 @@ struct StageInput {
 
 /* === Implementations === */
 impl tokio_stream::Stream for StageInput {
-    type Item = plugins::StagePluginFrame;
+    type Item = model::plugins::wire::StagePluginFrame;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -58,9 +59,9 @@ impl tokio_stream::Stream for StageInput {
         };
         entered.send(()).unwrap();
 
-        std::task::Poll::Ready(Some(plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Header(
-                plugins::StagePluginHeader {
+        std::task::Poll::Ready(Some(model::plugins::wire::StagePluginFrame {
+            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(
+                model::plugins::wire::StagePluginHeader {
                     size_bytes: 1,
                     sha256: "00".repeat(32),
                 },
@@ -170,9 +171,9 @@ fn envelope(field: u8, message: &[u8]) -> Vec<u8> {
 fn stage_header(size_bytes: u64, sha256: String) -> Vec<u8> {
     envelope(
         2,
-        &plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Header(
-                plugins::StagePluginHeader { size_bytes, sha256 },
+        &model::plugins::wire::StagePluginFrame {
+            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(
+                model::plugins::wire::StagePluginHeader { size_bytes, sha256 },
             )),
         }
         .encode_to_vec(),
@@ -199,9 +200,9 @@ fn stage(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
 
     for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
         let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Chunk(
-                plugins::StagePluginChunk {
+        let chunk = model::plugins::wire::StagePluginFrame {
+            frame: Some(model::plugins::wire::StagePluginFrameFrame::Chunk(
+                model::plugins::wire::StagePluginChunk {
                     offset: offset as u64,
                     data: bytes[offset..end].to_vec(),
                 },
@@ -330,7 +331,7 @@ async fn unary_call_bridges() {
         u64::from_le_bytes(reply[..8].try_into().unwrap()),
         generation
     );
-    let identity = backend::BackendIdentity::decode(&reply[8..]).unwrap();
+    let identity = model::backend::wire::BackendIdentity::decode(&reply[8..]).unwrap();
     assert_eq!(
         identity.backend_id,
         fixture.session.status().backend.unwrap().backend_id
@@ -383,7 +384,7 @@ fn stages_large_bundle() {
     assert_eq!(frames.len(), 2, "one reply, then the final status");
     assert_eq!(frames[0][8], FRAME_MESSAGE);
     assert_eq!(frames[1][8], FRAME_END);
-    let installation = plugins::PluginInstallation::decode(&frames[0][9..])
+    let installation = model::plugins::wire::PluginInstallation::decode(&frames[0][9..])
         .expect("the reply is a PluginInstallation");
     assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
     use tauri::Manager;

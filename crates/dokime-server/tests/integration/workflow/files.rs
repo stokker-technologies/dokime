@@ -17,6 +17,7 @@
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -142,7 +143,7 @@ async fn live_file_rewrites() {
     assert_eq!(window.observed_size_bytes, bytes.len() as u64);
     assert_eq!(
         window.state,
-        contracts::content::ExecutionFileState::Streaming
+        model::content::wire::ExecutionFileState::Streaming
     );
     assert_eq!(window.data, bytes[37..37 + window.data.len()]);
     assert!(window.data.len() < 4096);
@@ -193,7 +194,7 @@ async fn live_file_rewrites() {
         .unwrap()
         .into_inner();
     let metadata = match download.message().await.unwrap().unwrap().payload.unwrap() {
-        contracts::content::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
+        model::content::wire::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
         payload => panic!("expected execution file metadata, got {payload:?}"),
     };
     assert_eq!(metadata.relative_path, "files/a.bin");
@@ -202,24 +203,24 @@ async fn live_file_rewrites() {
     // still transferred verbatim.
     assert_eq!(
         metadata.kind,
-        contracts::content::ExecutionFileKind::Unknown
+        model::content::wire::ExecutionFileKind::Unknown
     );
     assert_eq!(
         metadata.state,
-        contracts::content::ExecutionFileState::Streaming
+        model::content::wire::ExecutionFileState::Streaming
     );
     assert_eq!(metadata.observed_size_bytes, bytes.len() as u64);
     let mut downloaded = Vec::new();
     let completion = loop {
         let frame = download.message().await.unwrap().unwrap();
         match frame.payload.unwrap() {
-            contracts::content::ExecutionFileDownloadFramePayload::Chunk(chunk) => {
+            model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, downloaded.len() as u64);
                 assert!(!chunk.data.is_empty());
                 assert!(chunk.data.len() <= 64 * 1024);
                 downloaded.extend(chunk.data);
             }
-            contracts::content::ExecutionFileDownloadFramePayload::Complete(completion) => {
+            model::content::wire::ExecutionFileDownloadFramePayload::Complete(completion) => {
                 break completion;
             }
             payload => panic!("expected execution file chunk or completion, got {payload:?}"),
@@ -327,7 +328,7 @@ async fn live_file_rewrites() {
         .into_inner();
     assert!(matches!(
         canceled.message().await.unwrap().unwrap().payload,
-        Some(contracts::content::ExecutionFileDownloadFramePayload::Metadata(_))
+        Some(model::content::wire::ExecutionFileDownloadFramePayload::Metadata(_))
     ));
     cancel_server.shutdown().await.unwrap();
     {
@@ -336,7 +337,7 @@ async fn live_file_rewrites() {
                 Ok(Some(frame)) => assert!(
                     !matches!(
                         frame.payload,
-                        Some(contracts::content::ExecutionFileDownloadFramePayload::Complete(_))
+                        Some(model::content::wire::ExecutionFileDownloadFramePayload::Complete(_))
                     ),
                     "listener shutdown must stop before completion"
                 ),
@@ -384,7 +385,7 @@ async fn live_file_rewrites() {
             .await
             .unwrap()
             .into_inner();
-        if window.state == contracts::content::ExecutionFileState::Finalized {
+        if window.state == model::content::wire::ExecutionFileState::Finalized {
             return Some(window);
         }
         None
@@ -410,12 +411,12 @@ async fn live_file_rewrites() {
         .payload
         .unwrap();
     let finalized_metadata = match finalized_metadata {
-        contracts::content::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
+        model::content::wire::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
         payload => panic!("expected finalized metadata, got {payload:?}"),
     };
     assert_eq!(
         finalized_metadata.state,
-        contracts::content::ExecutionFileState::Finalized
+        model::content::wire::ExecutionFileState::Finalized
     );
     assert_eq!(finalized_metadata.observed_size_bytes, 13);
     let finalized_chunk = finalized_download
@@ -426,7 +427,7 @@ async fn live_file_rewrites() {
         .payload
         .unwrap();
     let finalized_chunk = match finalized_chunk {
-        contracts::content::ExecutionFileDownloadFramePayload::Chunk(chunk) => chunk,
+        model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk) => chunk,
         payload => panic!("expected finalized file chunk, got {payload:?}"),
     };
     assert_eq!(finalized_chunk.offset, 0);
@@ -439,7 +440,7 @@ async fn live_file_rewrites() {
         .payload
         .unwrap();
     let finalized_completion = match finalized_completion {
-        contracts::content::ExecutionFileDownloadFramePayload::Complete(completion) => completion,
+        model::content::wire::ExecutionFileDownloadFramePayload::Complete(completion) => completion,
         payload => panic!("expected finalized completion, got {payload:?}"),
     };
     assert_eq!(finalized_completion.size_bytes, 13);
@@ -452,7 +453,10 @@ async fn live_file_rewrites() {
     );
     assert!(finalized_download.message().await.unwrap().is_none());
     // Resume A Finished File From A Committed Prefix.
-    use contracts::content::{ExecutionFileFollowFramePayload as FollowFrame, ExecutionFilePhase};
+    use {
+    model::content::wire::ExecutionFileFollowFramePayload as FollowFrame,
+    model::content::wire::ExecutionFilePhase,
+};
     let follow = |identity, offset| contracts::content::FollowExecutionFile {
         execution_id: id.to_string(),
         relative_path: "files/a.bin".into(),
@@ -682,7 +686,10 @@ async fn producer_generation_follow(runtime: &dokime_runtime::RuntimeHandle) {
 }
 
 async fn live_follow_refusal(change: &str) {
-    use contracts::content::{ExecutionFileFollowFramePayload as Frame, ExecutionFilePhase};
+    use {
+    model::content::wire::ExecutionFileFollowFramePayload as Frame,
+    model::content::wire::ExecutionFilePhase,
+};
     let Gated {
         root: _root,
         gate,
@@ -929,7 +936,7 @@ async fn execution_file_buffer() {
         .unwrap()
         .into_inner();
     let metadata = match download.message().await.unwrap().unwrap().payload.unwrap() {
-        contracts::content::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
+        model::content::wire::ExecutionFileDownloadFramePayload::Metadata(metadata) => metadata,
         payload => panic!("expected execution file metadata, got {payload:?}"),
     };
     assert_eq!(metadata.observed_size_bytes, size_bytes);
@@ -938,14 +945,14 @@ async fn execution_file_buffer() {
     let completion = loop {
         let frame = download.message().await.unwrap().unwrap();
         match frame.payload.unwrap() {
-            contracts::content::ExecutionFileDownloadFramePayload::Chunk(chunk) => {
+            model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, downloaded);
                 assert!(!chunk.data.is_empty());
                 assert!(chunk.data.len() as u64 <= 1024 * 1024);
                 downloaded += chunk.data.len() as u64;
                 digest.update(&chunk.data);
             }
-            contracts::content::ExecutionFileDownloadFramePayload::Complete(completion) => {
+            model::content::wire::ExecutionFileDownloadFramePayload::Complete(completion) => {
                 break completion;
             }
             payload => panic!("expected execution file chunk or completion, got {payload:?}"),

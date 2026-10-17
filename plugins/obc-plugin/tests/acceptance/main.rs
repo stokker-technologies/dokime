@@ -29,7 +29,7 @@ use dokime_runtime::execution::ExecutionScope;
 use dokime_runtime::transport::{
     DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk,
     LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence,
-    RunExecutionRequest, SidecarExecutionOutcome, StepAdmission,
+    RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
 use harmos::operations::{Context, Operation};
 use harmos::plugin::{
@@ -64,10 +64,10 @@ struct Backend {
 
 #[derive(Default)]
 struct Captures {
-    scopes: BTreeMap<String, dokime_runtime::core::RecordScope>,
+    scopes: BTreeMap<String, dokime_runtime::RecordScope>,
     publications: Vec<(
         harmos::streams::ManagedPublication,
-        dokime_runtime::core::RecordScope,
+        dokime_runtime::RecordScope,
     )>,
 }
 
@@ -158,12 +158,12 @@ impl Hosting {
             let instant = std::time::UNIX_EPOCH
                 .checked_add(Duration::from_micros(micros))
                 .unwrap();
-            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), dokime_runtime::core::Identifier::new(publication.stream()).unwrap(),
+            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), dokime_runtime::Identifier::new(publication.stream()).unwrap(),
                 publication.sequence(),
-                dokime_runtime::core::Timestamp::from_system_time(instant),
+                dokime_runtime::Timestamp::from_system_time(instant),
                 publication.owner(),
             );
-            sample.sample_id = dokime_runtime::core::TelemetrySampleId::from_seed(format!(
+            sample.sample_id = dokime_runtime::TelemetrySampleId::from_seed(format!(
                 "{}/{}/{:?}/{}",
                 publication.owner(),
                 publication.stream(),
@@ -225,7 +225,7 @@ impl Operation for Evidence {
                 let mut captures = self.0.captures.lock().unwrap();
                 let scope = captures.scopes.get_mut(&token).unwrap();
                 scope.step_id = Some(start.step_id.clone());
-                scope.origin = dokime_runtime::core::EvidenceOrigin::Step {
+                scope.origin = dokime_runtime::EvidenceOrigin::Step {
                     attempt_id: start.attempt_id.clone(),
                 };
             }
@@ -320,7 +320,7 @@ impl Operation for Watching {
     async fn run<'ctx>(
         &mut self,
         _: Self::Context<'ctx>,
-        _: &mut dokime_runtime::operations::files::WatchFileRequest,
+        _: &mut dokime_runtime::operations::files::WatchFile,
         _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>>
     {
@@ -723,22 +723,22 @@ impl Bench {
     fn start(
         &self,
         token: &str,
-        parameters: &BTreeMap<&str, dokime_runtime::core::Value>,
+        parameters: &BTreeMap<&str, dokime_runtime::Value>,
     ) -> tokio::task::JoinHandle<SidecarExecutionOutcome> {
         use harmos::Message;
-        let cycle = dokime_runtime::core::TestCycleId::from_seed("native-cycle");
+        let cycle = dokime_runtime::TestCycleId::from_seed("native-cycle");
         self.host.hosting.captures.lock().unwrap().scopes.insert(
             token.to_owned(),
-            dokime_runtime::core::RecordScope {
+            dokime_runtime::RecordScope {
                 test_cycle_id: Some(cycle.clone()),
                 test_execution_id: Some(
-                    dokime_runtime::core::TestExecutionId::from_uuid(token.to_owned()).unwrap(),
+                    dokime_runtime::TestExecutionId::from_uuid(token.to_owned()).unwrap(),
                 ),
-                origin: dokime_runtime::core::EvidenceOrigin::Initialization,
+                origin: dokime_runtime::EvidenceOrigin::Initialization,
                 ..Default::default()
             },
         );
-        let request = RunExecutionRequest {
+        let request = RunExecution {
             mode: "automatic".into(),
             execution_token: token.into(),
             test_execution_id: token.into(),
@@ -816,7 +816,7 @@ async fn inventory_matches_dispatch() {
         dispatch(
             &runtime.operations,
             &run,
-            RunExecutionRequest::default().encode_to_vec(),
+            RunExecution::default().encode_to_vec(),
         )
         .await;
         dispatch(
@@ -950,7 +950,7 @@ async fn inventory_matches_dispatch() {
 
 #[tokio::test]
 async fn samples_keep_context() {
-    use dokime_runtime::core::Value;
+    use dokime_runtime::Value;
     use harmos::Message;
 
     let mut bench = Bench::new().await;
@@ -960,7 +960,7 @@ async fn samples_keep_context() {
         ("capture_system", Value::from(false)),
     ]);
     let tokens = ["native-a", "native-b"]
-        .map(|seed| dokime_runtime::core::TestExecutionId::from_seed(seed).to_string());
+        .map(|seed| dokime_runtime::TestExecutionId::from_seed(seed).to_string());
     let runs = tokens
         .iter()
         .map(|token| bench.start(token, &parameters))

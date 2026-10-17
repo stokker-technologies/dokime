@@ -18,8 +18,9 @@ use std::sync::Arc;
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
+use dokime_domain::model;
 use super::*;
-use dokime_client::contracts::plugins::StagePluginFrameFrame as Frame;
+use model::plugins::wire::StagePluginFrameFrame as Frame;
 
 /* === Constants === */
 const DYNAMIC_OWNER: &str = "grpc.dynamic-fixture";
@@ -377,9 +378,9 @@ async fn fixture(root: &std::path::Path) -> Runtime {
     Runtime::start(config).await.unwrap()
 }
 
-fn frames(bytes: &[u8]) -> Vec<contracts::plugins::StagePluginFrame> {
-    let mut frames = vec![contracts::plugins::StagePluginFrame {
-        frame: Some(Frame::Header(contracts::plugins::StagePluginHeader {
+fn frames(bytes: &[u8]) -> Vec<model::plugins::wire::StagePluginFrame> {
+    let mut frames = vec![model::plugins::wire::StagePluginFrame {
+        frame: Some(Frame::Header(model::plugins::wire::StagePluginHeader {
             size_bytes: bytes.len() as u64,
             sha256: Sha256::digest(bytes)
                 .iter()
@@ -388,8 +389,8 @@ fn frames(bytes: &[u8]) -> Vec<contracts::plugins::StagePluginFrame> {
         })),
     }];
     for (index, chunk) in bytes.chunks(37).enumerate() {
-        frames.push(contracts::plugins::StagePluginFrame {
-            frame: Some(Frame::Chunk(contracts::plugins::StagePluginChunk {
+        frames.push(model::plugins::wire::StagePluginFrame {
+            frame: Some(Frame::Chunk(model::plugins::wire::StagePluginChunk {
                 offset: (index * 37) as u64,
                 data: chunk.to_vec(),
             })),
@@ -428,7 +429,7 @@ async fn plugin_stage_identity() {
         .into_inner();
     assert_eq!(
         staged.state,
-        contracts::plugins::PluginInstallationState::Staged
+        model::plugins::wire::PluginInstallationState::Staged
     );
     assert!(!staged.active);
     assert!(!staged.restart_required);
@@ -469,7 +470,7 @@ async fn plugin_stage_identity() {
         .into_inner();
     assert_eq!(
         installed.state,
-        contracts::plugins::PluginInstallationState::Installed
+        model::plugins::wire::PluginInstallationState::Installed
     );
     assert!(installed.consented_at.is_some());
     assert!(installed.restart_required);
@@ -486,7 +487,7 @@ async fn plugin_stage_identity() {
         .into_inner();
     assert_eq!(
         disabled.state,
-        contracts::plugins::PluginInstallationState::Disabled
+        model::plugins::wire::PluginInstallationState::Disabled
     );
     let page = client
         .unary::<contracts::plugins::ListInstallations>(authenticated(
@@ -508,7 +509,7 @@ async fn plugin_stage_identity() {
         .into_inner();
     assert_eq!(
         removed.installation.unwrap().state,
-        contracts::plugins::PluginInstallationState::RemovalPending
+        model::plugins::wire::PluginInstallationState::RemovalPending
     );
     let current = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(
@@ -1028,7 +1029,7 @@ async fn invalid_uploads_mutate() {
     assert_eq!(inventory.plugins[0].plugin_id, "grpc.host");
     assert_eq!(
         inventory.plugins[0].owner,
-        Some(contracts::plugins::AdmittedPluginOwner::Host(true))
+        Some(model::plugins::wire::AdmittedPluginOwner::Host(true))
     );
     assert_eq!(
         client
@@ -1085,9 +1086,9 @@ async fn listener_shutdown_admission() {
 async fn open_upload(
     client: &mut WireClient,
 ) -> (
-    tokio::sync::mpsc::Sender<contracts::plugins::StagePluginFrame>,
+    tokio::sync::mpsc::Sender<model::plugins::wire::StagePluginFrame>,
     tokio::task::JoinHandle<
-        Result<tonic::Response<contracts::plugins::PluginInstallation>, tonic::Status>,
+        Result<tonic::Response<model::plugins::wire::PluginInstallation>, tonic::Status>,
     >,
 ) {
     loop {
@@ -1196,7 +1197,7 @@ async fn oversized_permissions_consent() {
         .into_inner();
     assert_eq!(
         entry.state,
-        contracts::plugins::PluginInstallationState::Staged
+        model::plugins::wire::PluginInstallationState::Staged
     );
     assert!(entry.consented_at.is_none());
     assert!(

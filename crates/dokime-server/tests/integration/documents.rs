@@ -17,13 +17,14 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     core::Value,
     document::{DocumentCard, DocumentCardBody, DocumentDefinition, DocumentSection},
     runtime::command::CommandContext,
 };
-use dokime_client::contracts::documents::DocumentFrameFrame as Frame;
+use model::documents::wire::DocumentFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -84,7 +85,7 @@ async fn current_document_rows() {
     .await
     .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let selected = contracts::documents::DocumentScope {
+    let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle.to_string(),
         execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0]
             .to_string(),
@@ -107,7 +108,7 @@ async fn current_document_rows() {
     let cycle_header = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
             contracts::documents::CaptureCurrentDocument {
-                scope: Some(contracts::documents::DocumentScope {
+                scope: Some(model::documents::wire::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: String::new(),
                 }),
@@ -299,7 +300,7 @@ async fn summary_complete_telemetry() {
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(
             contracts::documents::CaptureCurrentDocument {
-                scope: Some(contracts::documents::DocumentScope {
+                scope: Some(model::documents::wire::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: handle.watch_state().latest().state().cycles[&cycle]
                         .execution_ids[0]
@@ -319,7 +320,7 @@ async fn summary_complete_telemetry() {
                 let cut = presentation.frontiers.unwrap().telemetry.unwrap();
                 assert!(matches!(
                     cut.source,
-                    Some(contracts::documents::DocumentTelemetryCutSource::RetainedWindow(true))
+                    Some(model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true))
                 ));
                 assert_eq!(cut.series_ordinal, None);
             }
@@ -403,7 +404,7 @@ async fn duration_x_axis() {
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(
             contracts::documents::CaptureCurrentDocument {
-                scope: Some(contracts::documents::DocumentScope {
+                scope: Some(model::documents::wire::DocumentScope {
                     cycle_id: cycle.to_string(),
                     execution_id: handle.watch_state().latest().state().cycles[&cycle]
                         .execution_ids[0]
@@ -418,7 +419,7 @@ async fn duration_x_axis() {
     let mut presentations = Vec::new();
     while let Some(frame) = stream.message().await.unwrap() {
         if let Frame::Binding(binding) = frame.frame.unwrap()
-            && let Some(contracts::documents::DocumentBindingResult::Plot(plot)) = binding.result
+            && let Some(model::documents::wire::DocumentBindingResult::Plot(plot)) = binding.result
         {
             presentations.push(plot.presentation.unwrap());
         }
@@ -427,7 +428,7 @@ async fn duration_x_axis() {
     assert_eq!(presentations.len(), 1, "one plot card crosses the wire");
     assert_eq!(
         presentations[0].x_axis,
-        contracts::documents::PlotAxisKind::Elapsed,
+        model::documents::wire::PlotAxisKind::Elapsed,
         "the declared duration unit reached the wire"
     );
     assert_eq!(presentations[0].x_axis_unit.as_deref(), Some("s"));

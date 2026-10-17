@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{core::Value, domains::execution::authoring::SidecarStepContext};
 
@@ -134,7 +135,7 @@ async fn inspection_separates_outputs() {
         .to_string();
     for unknown_variant in [false, true] {
         let refused = client
-            .invalid_enum::<contracts::execution::RunExecution, contracts::execution::ExecutionMode>(authenticated(contracts::execution::RunExecution {
+            .invalid_enum::<contracts::execution::RunExecution, model::execution::wire::ExecutionMode>(authenticated(contracts::execution::RunExecution {
                 mode: Default::default(),
                 execution_id: selected.clone(),
                 idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
@@ -191,7 +192,7 @@ async fn inspection_separates_outputs() {
     };
     let before = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
-            contracts::execution::ExecutionParameterSet::Inputs,
+            model::execution::wire::ExecutionParameterSet::Inputs,
         )))
         .await
         .unwrap()
@@ -217,13 +218,13 @@ async fn inspection_separates_outputs() {
     );
     let after = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
-            contracts::execution::ExecutionParameterSet::Inputs,
+            model::execution::wire::ExecutionParameterSet::Inputs,
         )))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(after.parameters, before.parameters);
-    let mut output_request = request(contracts::execution::ExecutionParameterSet::Outputs);
+    let mut output_request = request(model::execution::wire::ExecutionParameterSet::Outputs);
     output_request.limit = 1;
     let first = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(
@@ -234,7 +235,7 @@ async fn inspection_separates_outputs() {
         .into_inner();
     let current_outputs = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
-            contracts::execution::ExecutionParameterSet::Outputs,
+            model::execution::wire::ExecutionParameterSet::Outputs,
         )))
         .await
         .unwrap()
@@ -251,15 +252,15 @@ async fn inspection_separates_outputs() {
     );
     assert_eq!(
         counter.source,
-        contracts::execution::ParameterSource::Runtime
+        model::execution::wire::ParameterSource::Runtime
     );
     // The shared name exists in both inputs and outputs: scope validation must
     // reject switching sets, not rely on an absent continuation marker.
     let mismatch = contracts::execution::ListExecutionParameters {
-        set: contracts::execution::ExecutionParameterSet::Inputs,
+        set: model::execution::wire::ExecutionParameterSet::Inputs,
         after_name: "fixture.result".into(),
         cursor: first.cursor.clone(),
-        ..request(contracts::execution::ExecutionParameterSet::Inputs)
+        ..request(model::execution::wire::ExecutionParameterSet::Inputs)
     };
     assert_eq!(
         client
@@ -270,11 +271,11 @@ async fn inspection_separates_outputs() {
         Code::InvalidArgument
     );
     let malformed = contracts::execution::ListExecutionParameters {
-        cursor: Some(contracts::execution::ParameterCursor {
+        cursor: Some(model::execution::wire::ParameterCursor {
             observed: None,
             selection: first.cursor.as_ref().unwrap().selection.clone(),
         }),
-        ..request(contracts::execution::ExecutionParameterSet::Outputs)
+        ..request(model::execution::wire::ExecutionParameterSet::Outputs)
     };
     assert_eq!(
         client
@@ -302,7 +303,7 @@ async fn inspection_separates_outputs() {
     );
     let outputs = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
-            contracts::execution::ExecutionParameterSet::Outputs,
+            model::execution::wire::ExecutionParameterSet::Outputs,
         )))
         .await
         .unwrap()
@@ -317,7 +318,7 @@ async fn inspection_separates_outputs() {
     assert_eq!(
         client
             .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
-                contracts::execution::ExecutionParameterSet::Unspecified
+                model::execution::wire::ExecutionParameterSet::Unspecified
             )))
             .await
             .unwrap_err()
@@ -326,8 +327,8 @@ async fn inspection_separates_outputs() {
     );
     for unknown_variant in [false, true] {
         assert_eq!(
-            client.invalid_enum::<contracts::execution::ListExecutionParameters, contracts::execution::ExecutionParameterSet>(
-                authenticated(request(contracts::execution::ExecutionParameterSet::Unspecified)),
+            client.invalid_enum::<contracts::execution::ListExecutionParameters, model::execution::wire::ExecutionParameterSet>(
+                authenticated(request(model::execution::wire::ExecutionParameterSet::Unspecified)),
                 "set", unknown_variant,
             ).await.unwrap_err().code(),
             Code::InvalidArgument,
@@ -410,11 +411,11 @@ async fn inspection_separates_outputs() {
             assert!(final_detail.controls.is_none());
             assert_eq!(
                 final_detail.summary.unwrap().status,
-                contracts::execution::ExecutionStatus::Passed
+                model::execution::wire::ExecutionStatus::Passed
             );
             assert_eq!(
                 final_detail.result.unwrap().status,
-                contracts::execution::ResultStatus::Passed
+                model::execution::wire::ResultStatus::Passed
             );
             return Some(());
         }
@@ -543,7 +544,7 @@ async fn planned_params_limit() {
                     .unary::<contracts::execution::ListExecutionParameters>(
                         contracts::execution::ListExecutionParameters {
                             execution_id: execution_id.clone(),
-                            set: contracts::execution::ExecutionParameterSet::Inputs,
+                            set: model::execution::wire::ExecutionParameterSet::Inputs,
                             limit: 0,
                             after_name: String::new(),
                             cursor: cursor.clone(),

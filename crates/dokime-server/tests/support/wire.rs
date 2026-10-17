@@ -25,6 +25,7 @@ use tonic::{
     transport::{Channel, Endpoint},
 };
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, Runtime,
@@ -483,15 +484,15 @@ pub async fn connect(server: &Server) -> WireClient {
     WireClient::connect(server.local_endpoint()).await.unwrap()
 }
 
-pub fn selection_plan(owner: &Runtime) -> contracts::planning::SelectionPlan {
+pub fn selection_plan(owner: &Runtime) -> model::planning::wire::SelectionPlan {
     let snapshot = owner.handle().watch_state().latest();
     let suite = snapshot.state().suites.get("fixture.suite").unwrap();
-    contracts::planning::SelectionPlan {
+    model::planning::wire::SelectionPlan {
         selections: suite
             .suite
             .test_case_templates
             .iter()
-            .map(|template| contracts::planning::RegisteredSelection {
+            .map(|template| model::planning::wire::RegisteredSelection {
                 suite_id: suite.suite_id.clone(),
                 template_id: template.test_case_template_id.to_string(),
                 ..Default::default()
@@ -524,7 +525,7 @@ pub async fn fixture_with_provider(
 
 pub fn create() -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
-        metadata: Some(contracts::common::Metadata {
+        metadata: Some(model::identity::wire::Metadata {
             identifier: "grpc.cycle".into(),
             label: "gRPC cycle".into(),
             description: None,
@@ -534,10 +535,10 @@ pub fn create() -> contracts::execution::CreateCycle {
     }
 }
 
-pub fn accepted(reply: contracts::execution::RunReply) -> contracts::execution::Admission {
+pub fn accepted(reply: model::execution::wire::RunReply) -> model::execution::wire::Admission {
     match reply.outcome.unwrap() {
-        contracts::execution::RunReplyOutcome::Accepted(admission) => admission,
-        contracts::execution::RunReplyOutcome::Rejected(rejection) => {
+        model::execution::wire::RunReplyOutcome::Accepted(admission) => admission,
+        model::execution::wire::RunReplyOutcome::Rejected(rejection) => {
             panic!("run rejected: {rejection:?}")
         }
     }
@@ -547,7 +548,7 @@ pub async fn lookup(
     client: &mut WireClient,
     id: &str,
     token: &str,
-) -> Result<contracts::execution::RunRequestReceipt, tonic::Status> {
+) -> Result<model::execution::wire::RunRequestReceipt, tonic::Status> {
     client
         .unary::<contracts::execution::GetRunRequest>(auth(
             contracts::execution::GetRunRequest {

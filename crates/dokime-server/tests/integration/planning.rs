@@ -17,6 +17,7 @@
 // Third Party Imports
 use prost::Message;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::Value;
 use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
@@ -40,8 +41,8 @@ use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelecti
 /* === Private Functions === */
 fn selection(
     suite: &dokime_runtime::definition::TestSuite,
-) -> contracts::planning::RegisteredSelection {
-    contracts::planning::RegisteredSelection {
+) -> model::planning::wire::RegisteredSelection {
+    model::planning::wire::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[0]
             .test_case_template_id
@@ -50,11 +51,11 @@ fn selection(
     }
 }
 
-fn integer(value: i64) -> contracts::value::Value {
-    contracts::value::Value::from(&Value::Integer(value))
+fn integer(value: i64) -> model::values::wire::Value {
+    model::values::wire::Value::from(&Value::Integer(value))
 }
 
-fn field(value: &contracts::value::Value, key: &str) -> Value {
+fn field(value: &model::values::wire::Value, key: &str) -> Value {
     let Value::Object(mut fields) = value.to_core().unwrap() else {
         panic!("planned parameters and file attributes must be objects");
     };
@@ -62,9 +63,9 @@ fn field(value: &contracts::value::Value, key: &str) -> Value {
 }
 
 fn plan(
-    selections: Vec<contracts::planning::RegisteredSelection>,
-) -> contracts::planning::SelectionPlan {
-    contracts::planning::SelectionPlan {
+    selections: Vec<model::planning::wire::RegisteredSelection>,
+) -> model::planning::wire::SelectionPlan {
+    model::planning::wire::SelectionPlan {
         selections,
         max_cases: 0,
         case_ids: vec![],
@@ -74,7 +75,7 @@ fn plan(
 
 fn create() -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
-        metadata: Some(contracts::common::Metadata {
+        metadata: Some(model::identity::wire::Metadata {
             identifier: "planning.cycle".into(),
             label: "Plan".into(),
             description: None,
@@ -86,7 +87,7 @@ fn create() -> contracts::execution::CreateCycle {
 
 fn append(
     cycle_id: &str,
-    plan: contracts::planning::SelectionPlan,
+    plan: model::planning::wire::SelectionPlan,
 ) -> contracts::execution::AppendPlannedCases {
     contracts::execution::AppendPlannedCases {
         cycle_id: cycle_id.into(),
@@ -117,7 +118,7 @@ async fn assert_no_cases(owner: &Runtime) {
 
 fn error_code(status: &tonic::Status) -> String {
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    <contracts::execution::Rejection as harmos::Protobuf>::decode(
+    <model::execution::wire::Rejection as harmos::Protobuf>::decode(
         envelope.details[0].value.as_slice(),
     )
     .unwrap()
@@ -181,19 +182,19 @@ async fn ordered_selections_provider() {
     let mut selected = selection(&first);
     selected
         .parameters
-        .push(contracts::planning::RegisteredSelectionParametersEntry {
+        .push(model::planning::wire::RegisteredSelectionParametersEntry {
             key: "fixture.result".into(),
-            value: Some(contracts::planning::SelectionValues {
+            value: Some(model::planning::wire::SelectionValues {
                 values: vec![integer(i64::MIN), integer(i64::MAX), integer(i64::MIN)],
             }),
         });
     let mut multiple = selection(&second);
     multiple
         .parameters
-        .push(contracts::planning::RegisteredSelectionParametersEntry {
+        .push(model::planning::wire::RegisteredSelectionParametersEntry {
             key: "fixture.result".into(),
-            value: Some(contracts::planning::SelectionValues {
-                values: vec![contracts::value::Value::from(&Value::Array(vec![
+            value: Some(model::planning::wire::SelectionValues {
+                values: vec![model::values::wire::Value::from(&Value::Array(vec![
                     Value::Integer(i64::MIN),
                     Value::Integer(i64::MAX),
                     Value::Integer(i64::MIN),
@@ -389,10 +390,10 @@ async fn planning_refuses_inputs() {
     let mut invalid = selection(&first);
     invalid
         .files
-        .push(contracts::planning::RegisteredSelectionFilesEntry {
+        .push(model::planning::wire::RegisteredSelectionFilesEntry {
             key: "fixture.file".into(),
-            value: Some(contracts::planning::SelectedFile {
-                kind: Some(contracts::planning::SelectedFileKind::Clear),
+            value: Some(model::planning::wire::SelectedFile {
+                kind: Some(model::planning::wire::SelectedFileKind::Clear),
             }),
         });
     let mut unknown = selection(&first);
@@ -400,12 +401,12 @@ async fn planning_refuses_inputs() {
     let mut cartesian = selection(&first);
     cartesian
         .parameters
-        .push(contracts::planning::RegisteredSelectionParametersEntry {
+        .push(model::planning::wire::RegisteredSelectionParametersEntry {
             key: "fixture.result".into(),
-            value: Some(contracts::planning::SelectionValues {
+            value: Some(model::planning::wire::SelectionValues {
                 values: vec![
-                    contracts::value::Value::from(&Value::Text("a".into())),
-                    contracts::value::Value::from(&Value::Text("b".into())),
+                    model::values::wire::Value::from(&Value::Text("a".into())),
+                    model::values::wire::Value::from(&Value::Text("b".into())),
                 ],
             }),
         });
@@ -416,7 +417,7 @@ async fn planning_refuses_inputs() {
         (
             "a case ceiling above the limit",
             Code::ResourceExhausted,
-            contracts::planning::SelectionPlan {
+            model::planning::wire::SelectionPlan {
                 max_cases: 1001,
                 ..plan(vec![selection(&first)])
             },
@@ -424,7 +425,7 @@ async fn planning_refuses_inputs() {
         (
             "an expansion past its own ceiling",
             Code::InvalidArgument,
-            contracts::planning::SelectionPlan {
+            model::planning::wire::SelectionPlan {
                 max_cases: 3,
                 ..plan(vec![cartesian.clone(), cartesian])
             },
@@ -636,9 +637,9 @@ async fn effective_native_materialization() {
         let mut selected = selection(&suite);
         selected
             .parameters
-            .push(contracts::planning::RegisteredSelectionParametersEntry {
+            .push(model::planning::wire::RegisteredSelectionParametersEntry {
                 key: "fixture.result".into(),
-                value: Some(contracts::planning::SelectionValues {
+                value: Some(model::planning::wire::SelectionValues {
                     values: vec![integer(7)],
                 }),
             });
@@ -744,9 +745,9 @@ async fn payload_budget_allocation() {
     let mut selected = selection(&suite);
     selected
         .parameters
-        .push(contracts::planning::RegisteredSelectionParametersEntry {
+        .push(model::planning::wire::RegisteredSelectionParametersEntry {
             key: "fixture.result".into(),
-            value: Some(contracts::planning::SelectionValues {
+            value: Some(model::planning::wire::SelectionValues {
                 values: vec![integer(0)],
             }),
         });
@@ -869,7 +870,7 @@ async fn registered_cases_selection() {
             .is_empty()
     );
     let ids = vec![first.cases[0].case_id.clone(); 2];
-    let selected = contracts::planning::SelectionPlan {
+    let selected = model::planning::wire::SelectionPlan {
         case_ids: ids.clone(),
         ..Default::default()
     };
@@ -907,7 +908,7 @@ async fn registered_cases_selection() {
         cycle.test_executions[1].test_case_id
     );
 
-    let mixed = contracts::planning::SelectionPlan {
+    let mixed = model::planning::wire::SelectionPlan {
         case_ids: ids,
         selections: vec![selection(&suite)],
         ..Default::default()

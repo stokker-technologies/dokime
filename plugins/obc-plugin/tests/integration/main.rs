@@ -23,7 +23,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::{ValidationMode, ValueType};
+use dokime_runtime::{ValidationMode, ValueType};
 use dokime_runtime::definition::{SuiteSet, materialize_template_cases};
 use dokime_runtime::execution::{Answering, Caller};
 use dokime_runtime::harmos::operations::{Declares, OperationDeclaration};

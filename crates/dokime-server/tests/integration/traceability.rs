@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
 use dokime_runtime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
@@ -223,7 +224,7 @@ async fn get_traceability_cursor() {
     let scoped = client
         .unary::<contracts::observation::GetTraceability>(authenticated(
             contracts::observation::GetTraceability {
-                scope: Some(contracts::common::EvidenceScope {
+                scope: Some(model::identity::wire::EvidenceScope {
                     cycle_id: Some(cycle_id.to_string()),
                     ..Default::default()
                 }),

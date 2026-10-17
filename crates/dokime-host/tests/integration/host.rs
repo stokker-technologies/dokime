@@ -20,11 +20,12 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::support::*;
 use dokime_runtime::telemetry::TelemetryRow;
 use dokime_runtime::telemetry::validate_telemetry_sample;
-use dokime_domain::model::telemetry::{TelemetryBatch, TelemetrySample};
-use dokime_domain::model::telemetry::{ValidationMode, host_telemetry_contract};
+use model::telemetry::{TelemetryBatch, TelemetrySample};
+use model::telemetry::{ValidationMode, host_telemetry_contract};
 use dokime_host::{Host, HostTelemetryStream};
 
 /* === Constants === */

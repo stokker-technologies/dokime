@@ -17,6 +17,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use crate::support;
 use crate::support::wire::*;
 use dokime_client::contracts;
@@ -104,7 +105,7 @@ async fn crashed_run_replay() {
             .unwrap();
         assert_eq!(
             receipt.phase,
-            contracts::execution::RunRequestPhase::Running
+            model::execution::wire::RunRequestPhase::Running
         );
         // Crash recovery applies to saved work; ordinary admission may still be buffered.
         owner.handle().storage().flush().await.unwrap();
@@ -147,7 +148,7 @@ async fn crashed_run_replay() {
     let receipt = lookup(&mut client, &request_id, READER).await.unwrap();
     assert_eq!(
         receipt.phase,
-        contracts::execution::RunRequestPhase::Interrupted
+        model::execution::wire::RunRequestPhase::Interrupted
     );
     assert_eq!(receipt.prepared_count, 1);
     assert_eq!(receipt.finished_count, 0);

@@ -17,6 +17,7 @@
 // Third Party Imports
 use tonic::Code;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -40,8 +41,8 @@ const CONTROL_TOKEN: &str = "append-control-token-012345678901234567890";
 fn selection(
     suite: &dokime_runtime::definition::TestSuite,
     index: usize,
-) -> contracts::planning::RegisteredSelection {
-    contracts::planning::RegisteredSelection {
+) -> model::planning::wire::RegisteredSelection {
+    model::planning::wire::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[index]
             .test_case_template_id
@@ -50,14 +51,14 @@ fn selection(
     }
 }
 
-fn plan(selection: contracts::planning::RegisteredSelection) -> contracts::planning::SelectionPlan {
-    contracts::planning::SelectionPlan {
+fn plan(selection: model::planning::wire::RegisteredSelection) -> model::planning::wire::SelectionPlan {
+    model::planning::wire::SelectionPlan {
         selections: vec![selection],
         ..Default::default()
     }
 }
 
-async fn cases(execution: &WireClient, cycle_id: &str) -> Vec<contracts::execution::CaseSummary> {
+async fn cases(execution: &WireClient, cycle_id: &str) -> Vec<model::execution::wire::CaseSummary> {
     execution
         .unary::<contracts::execution::ListCases>(auth(
             contracts::execution::ListCases {
@@ -99,7 +100,7 @@ async fn append_cases_control() {
     let cycle_id = execution
         .unary::<contracts::execution::CreateCycle>(auth(
             contracts::execution::CreateCycle {
-                metadata: Some(contracts::common::Metadata {
+                metadata: Some(model::identity::wire::Metadata {
                     label: "Append cycle".into(),
                     ..Default::default()
                 }),
@@ -121,7 +122,7 @@ async fn append_cases_control() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(created.status, contracts::execution::CycleStatus::Ready);
+    assert_eq!(created.status, model::execution::wire::CycleStatus::Ready);
     assert_eq!(created.case_count, 0);
     // An empty identifier is derived by the server.
     assert!(created.metadata.unwrap().identifier.starts_with("cycle."));
@@ -142,7 +143,7 @@ async fn append_cases_control() {
         .into_inner();
     assert!(matches!(
         empty.outcome,
-        Some(contracts::execution::RunReplyOutcome::Rejected(ref rejection))
+        Some(model::execution::wire::RunReplyOutcome::Rejected(ref rejection))
             if rejection.code == "empty_cycle"
     ));
 

@@ -18,6 +18,7 @@ use std::io::{Cursor, Read as _, Write as _};
 // Third Party Imports
 use sha2::Digest as _;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     InstalledPlugin,
@@ -141,14 +142,14 @@ async fn collected_archive_material() {
     let mut completion = None;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.payload.expect("every frame carries a payload") {
-            contracts::backend::DiagnosticsBundleFramePayload::Header(value) => {
+            model::backend::wire::DiagnosticsBundleFramePayload::Header(value) => {
                 header = Some(value)
             }
-            contracts::backend::DiagnosticsBundleFramePayload::Chunk(chunk) => {
+            model::backend::wire::DiagnosticsBundleFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, archive.len() as u64, "chunks are contiguous");
                 archive.extend_from_slice(&chunk.data);
             }
-            contracts::backend::DiagnosticsBundleFramePayload::Complete(value) => {
+            model::backend::wire::DiagnosticsBundleFramePayload::Complete(value) => {
                 completion = Some(value)
             }
         }
@@ -284,7 +285,7 @@ async fn log_stream_file() {
 
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
-            min_level: contracts::backend::LogLevel::Warn,
+            min_level: model::backend::wire::LogLevel::Warn,
             replay_lines: 500,
         })
         .await
@@ -296,7 +297,7 @@ async fn log_stream_file() {
         .await
         .unwrap()
         .expect("the WARN record replays");
-    assert_eq!(replayed.level, contracts::backend::LogLevel::Warn);
+    assert_eq!(replayed.level, model::backend::wire::LogLevel::Warn);
     assert_eq!(replayed.target, "dokime_runtime::fixture");
     assert_eq!(replayed.message, "slow");
     assert_eq!(replayed.dropped, 0);
@@ -311,7 +312,7 @@ async fn log_stream_file() {
         .await
         .unwrap()
         .expect("the ERROR record follows");
-    assert_eq!(live.level, contracts::backend::LogLevel::Error);
+    assert_eq!(live.level, model::backend::wire::LogLevel::Error);
     assert_eq!(live.message, "failed");
 
     server.shutdown().await.unwrap();
@@ -332,14 +333,14 @@ async fn level_filter_stream() {
     )).unwrap();
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
-            min_level: contracts::backend::LogLevel::Warn,
+            min_level: model::backend::wire::LogLevel::Warn,
             replay_lines: 0,
         })
         .await
         .unwrap()
         .into_inner();
     let frame = stream.message().await.unwrap().unwrap();
-    assert_eq!(frame.level, contracts::backend::LogLevel::Warn);
+    assert_eq!(frame.level, model::backend::wire::LogLevel::Warn);
     assert_eq!(frame.target, "dokime_runtime::hub");
     assert_eq!(frame.message, "slow");
     assert_eq!(
@@ -371,7 +372,7 @@ async fn missing_file_live() {
     assert!(!log.exists());
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
-            min_level: contracts::backend::LogLevel::Unspecified,
+            min_level: model::backend::wire::LogLevel::Unspecified,
             replay_lines: 0,
         })
         .await
@@ -380,7 +381,7 @@ async fn missing_file_live() {
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, concat!(r#"{"timestamp":"2026-09-30T14:22:35.000001Z","level":"ERROR","target":"dokime","fields":{"message":"failed"}}"#, "\n")).unwrap();
     let frame = stream.message().await.unwrap().unwrap();
-    assert_eq!(frame.level, contracts::backend::LogLevel::Error);
+    assert_eq!(frame.level, model::backend::wire::LogLevel::Error);
     assert_eq!(frame.message, "failed");
     server.shutdown().await.unwrap();
     drop(environment);

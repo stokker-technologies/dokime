@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -54,10 +55,10 @@ async fn aggregate_answers_asked() {
 
     let reply = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
-            source: contracts::query::QuerySource::Executions,
+            source: model::query::wire::QuerySource::Executions,
             filters: Vec::new(),
             group_by: vec!["status".to_owned()],
-            aggregates: vec![contracts::query::QueryAggregate {
+            aggregates: vec![model::query::wire::QueryAggregate {
                 aggregate: harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".to_owned(),
@@ -81,10 +82,10 @@ async fn unknown_column_exist() {
 
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
-            source: contracts::query::QuerySource::Steps,
+            source: model::query::wire::QuerySource::Steps,
             filters: Vec::new(),
             group_by: vec!["step_id".to_owned()],
-            aggregates: vec![contracts::query::QueryAggregate {
+            aggregates: vec![model::query::wire::QueryAggregate {
                 aggregate: harmos::Aggregate::Mean,
                 column: "duration_ms".to_owned(),
                 alias: "mean".to_owned(),
@@ -106,10 +107,10 @@ async fn percentile_rank_bounded() {
     let root = tempfile::tempdir().unwrap();
     let (_held, client) = client(root.path()).await;
     let request = |aggregate| contracts::query::Aggregate {
-        source: contracts::query::QuerySource::Steps,
+        source: model::query::wire::QuerySource::Steps,
         filters: Vec::new(),
         group_by: Vec::new(),
-        aggregates: vec![contracts::query::QueryAggregate {
+        aggregates: vec![model::query::wire::QueryAggregate {
             aggregate,
             column: "duration_ms".to_owned(),
             alias: "statistic".to_owned(),
@@ -147,7 +148,7 @@ async fn unspecified_source_read() {
 
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
-            source: contracts::query::QuerySource::Unspecified,
+            source: model::query::wire::QuerySource::Unspecified,
             filters: vec![],
             group_by: vec![],
             aggregates: vec![],
@@ -174,9 +175,9 @@ async fn detailed_status_directory() {
     let (held, client) = client(root.path()).await;
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
-            source: contracts::query::QuerySource::Steps,
+            source: model::query::wire::QuerySource::Steps,
             group_by: vec![format!("{home}/evidence")],
-            aggregates: vec![contracts::query::QueryAggregate {
+            aggregates: vec![model::query::wire::QueryAggregate {
                 aggregate: harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".into(),
@@ -196,7 +197,7 @@ async fn detailed_status_directory() {
         detail.type_url,
         "type.googleapis.com/dokime.v1.CapturedRecordError"
     );
-    let detail = <contracts::evidence::CapturedRecordError as harmos::Protobuf>::decode(
+    let detail = <model::evidence::wire::CapturedRecordError as harmos::Protobuf>::decode(
         detail.value.as_slice(),
     )
     .unwrap();

@@ -22,14 +22,22 @@ use std::time::SystemTime;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::runtime::Error;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
-use dokime_domain::operations::files::{
-    FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource, LineField, LineFieldKind, LineMarker,
-    LineMatcher, WatchFile, WatchFile, WatchedArtifact,
+use {
+    model::files::wire::FileWatchPolicy,
+    model::files::wire::FileWatchSourcePayload,
+    model::files::wire::FtpWatchSource,
+    model::files::wire::LineField,
+    model::files::wire::LineFieldKind,
+    model::files::wire::LineMarker,
+    model::files::wire::LineMatcher,
+    dokime_domain::operations::files::WatchFile,
+    model::files::wire::WatchedArtifact,
 };
 
 /* === Constants === */
@@ -443,7 +451,7 @@ async fn watch_refusals() {
 
     // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
     let ftp = |url: &str| FileWatch {
-        source: Some(dokime_domain::operations::files::FileWatchSource {
+        source: Some(model::files::wire::FileWatchSource {
             payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource {
                 url: url.to_owned(),
                 credential_id: None,

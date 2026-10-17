@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -67,7 +68,7 @@ async fn discovery_shares_independently() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(health.readiness, contracts::backend::Readiness::Ready);
+    assert_eq!(health.readiness, model::backend::wire::Readiness::Ready);
     assert_eq!(health.epoch, epoch);
     let native = dokime_client::Client::connect(
         dokime_client::Target::local(server.local_endpoint()).unwrap(),
@@ -113,7 +114,7 @@ async fn discovery_shares_independently() {
     assert_eq!(managed.epoch, epoch);
     assert_eq!(
         managed.readiness,
-        dokime_runtime::operations::runtime::Readiness::Ready
+        model::runtime::wire::Readiness::Ready
     );
     assert!(managed.observed_at_nanoseconds < 1_000_000_000);
     native.close_and_wait().await;
@@ -281,13 +282,13 @@ async fn diagnostics_projects_paths() {
     assert_eq!(runtime.storage_root, root.path().to_string_lossy());
     assert_eq!(
         runtime.startup_doctor.unwrap().status,
-        contracts::backend::DiagnosticCheckStatus::Ok
+        model::backend::wire::DiagnosticCheckStatus::Ok
     );
     assert!(
         runtime
             .path_conventions
             .iter()
-            .any(|path| path.key == contracts::backend::DiagnosticPathKey::HubLog)
+            .any(|path| path.key == model::backend::wire::DiagnosticPathKey::HubLog)
     );
     let counts = runtime.counts.expect("diagnostic counts");
     assert_eq!(counts.cycles, 0);

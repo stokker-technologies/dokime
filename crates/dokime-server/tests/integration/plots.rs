@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     core::{Identifier, Timestamp, Value},
@@ -62,7 +63,7 @@ async fn plot_points_admission() {
     let served = first_frame(&client, 10_000).await;
     assert_eq!(
         served.kind,
-        contracts::plots::PlotStreamKind::Snapshot,
+        model::plots::wire::PlotStreamKind::Snapshot,
         "a 10,000-point window is served: {:?}",
         served.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
@@ -74,7 +75,7 @@ async fn plot_points_admission() {
 
     let mut watch = open_watch(&client, 100_000).await;
     let refused = watch.message().await.unwrap().unwrap();
-    assert_eq!(refused.kind, contracts::plots::PlotStreamKind::Error);
+    assert_eq!(refused.kind, model::plots::wire::PlotStreamKind::Error);
     let message = refused.envelope.as_ref().unwrap().warnings[0].clone();
     assert!(
         !message.contains("plot admission failed"),
@@ -110,7 +111,7 @@ async fn plot_points_admission() {
     let largest = first_frame(&client, maximum as u64).await;
     assert_eq!(
         largest.kind,
-        contracts::plots::PlotStreamKind::Snapshot,
+        model::plots::wire::PlotStreamKind::Snapshot,
         "the named maximum is served: {:?}",
         largest.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
@@ -129,15 +130,15 @@ async fn plot_points_admission() {
 }
 
 /* === Private Functions === */
-fn request(max_points: u64) -> contracts::plots::PlotRequest {
-    contracts::plots::PlotRequest {
+fn request(max_points: u64) -> model::plots::wire::PlotRequest {
+    model::plots::wire::PlotRequest {
         plot_id: Some("fixture.progress.plot".into()),
-        plot_type: contracts::plots::PlotType::TimeSeries,
+        plot_type: model::plots::wire::PlotType::TimeSeries,
         stream: "fixture.progress".into(),
         y_keys: vec!["progress".into()],
         max_points: Some(max_points),
-        x_scale: contracts::plots::AxisScale::Unspecified,
-        y_scale: contracts::plots::AxisScale::Unspecified,
+        x_scale: model::plots::wire::AxisScale::Unspecified,
+        y_scale: model::plots::wire::AxisScale::Unspecified,
         marker_record_types: Vec::new(),
         filters: Vec::new(),
         x_key: None,
@@ -161,7 +162,7 @@ fn request(max_points: u64) -> contracts::plots::PlotRequest {
     }
 }
 
-async fn first_frame(client: &WireClient, max_points: u64) -> contracts::plots::PlotStreamFrame {
+async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire::PlotStreamFrame {
     let mut stream = open_watch(client, max_points).await;
     stream.message().await.unwrap().unwrap()
 }
@@ -169,7 +170,7 @@ async fn first_frame(client: &WireClient, max_points: u64) -> contracts::plots::
 async fn open_watch(
     client: &WireClient,
     max_points: u64,
-) -> WireStream<contracts::plots::PlotStreamFrame> {
+) -> WireStream<model::plots::wire::PlotStreamFrame> {
     client
         .download::<contracts::plots::Watch>(contracts::plots::Watch {
             requests: vec![request(max_points)],
@@ -179,7 +180,7 @@ async fn open_watch(
         .into_inner()
 }
 
-fn served_points(frame: &contracts::plots::PlotStreamFrame) -> usize {
+fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
     frame
         .envelope
         .as_ref()

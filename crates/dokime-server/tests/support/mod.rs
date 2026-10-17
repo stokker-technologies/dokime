@@ -28,6 +28,7 @@ use std::{
 use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
 use dokime_runtime::{
     CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId,
@@ -177,7 +178,7 @@ impl ExecutionFixture for FixtureProgressExecutor {
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient,
     create: Request<contracts::execution::CreateCycle>,
-    plan: contracts::planning::SelectionPlan,
+    plan: model::planning::wire::SelectionPlan,
 ) -> Result<String, Status> {
     let metadata = create.metadata().clone();
     let cycle_id = client

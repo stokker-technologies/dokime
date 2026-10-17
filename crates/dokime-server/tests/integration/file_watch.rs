@@ -22,11 +22,20 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::content::UploadGate;
 use super::*;
-use contracts::files::{
-    FileRule, FileRuleAction, FileWatchFrame, FileWatchFramePayload, FileWatchPhase,
-    FileWatchPolicy, FileWatch, FileWatchSource, FileWatchSourcePayload, LocalWatchSource,
+use {
+    model::files::wire::FileRule,
+    model::files::wire::FileRuleAction,
+    model::files::wire::FileWatchFrame,
+    model::files::wire::FileWatchFramePayload,
+    model::files::wire::FileWatchPhase,
+    model::files::wire::FileWatchPolicy,
+    contracts::files::FileWatch,
+    model::files::wire::FileWatchSource,
+    model::files::wire::FileWatchSourcePayload,
+    model::files::wire::LocalWatchSource,
 };
 
 /* === Constants === */
@@ -134,7 +143,7 @@ async fn file_watch_artifacts() {
     let sealed = sealed.expect("the watched file is sealed");
     assert_eq!(sealed.filename, "capture/logs/charger.log");
     assert_eq!(sealed.size_bytes, 7);
-    assert_eq!(sealed.state, contracts::content::ArtifactState::Complete);
+    assert_eq!(sealed.state, model::content::wire::ArtifactState::Complete);
     assert_eq!(completed.artifacts, vec![sealed]);
     assert!(frames.message().await.unwrap().is_none());
 

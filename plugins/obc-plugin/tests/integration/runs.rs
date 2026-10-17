@@ -21,11 +21,11 @@ use std::time::Duration;
 
 // Local Imports
 use super::answering;
-use dokime_runtime::core::{PromptId, Timestamp};
+use dokime_runtime::{PromptId, Timestamp};
 use dokime_runtime::execution::{Caller, SidecarTemplate, Workflow};
 use dokime_runtime::prompts::{PromptRequest, PromptResponse};
 use dokime_runtime::transport::{
-    EvidenceBatch, RunExecutionRequest, SidecarCriterionStatus, SidecarExecutionOutcome,
+    EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome,
     StepAdmission,
 };
 use obc_plugin::operations::connections::{Connections as ListedConnections, ListConnections};
@@ -57,7 +57,7 @@ fn assert_record_contract(request: dokime_runtime::records::RecordPublishRequest
             .find(|contract| contract.record_type == request.record_type)
             .expect("emitted record is declared");
     let record = request.into_record(
-        dokime_runtime::model::identity::new_id::<dokime_runtime::core::RecordId>(),
+        dokime_runtime::model::identity::new_id::<dokime_runtime::RecordId>(),
         contract.schema_version,
         Timestamp::new("2026-01-01T00:00:00Z"),
         obc_plugin::SOURCE,
@@ -65,7 +65,7 @@ fn assert_record_contract(request: dokime_runtime::records::RecordPublishRequest
     dokime_runtime::records::validate_record(
         Some(&contract),
         &record,
-        dokime_runtime::core::ValidationMode::Strict,
+        dokime_runtime::ValidationMode::Strict,
     )
     .expect("authored evidence matches its declared contract");
 }
@@ -87,7 +87,7 @@ fn workflow<T: SidecarTemplate>(suite: &str) -> Workflow<T> {
 fn start<T: SidecarTemplate>(
     workflow: &Workflow<T>,
     resources: &Connections,
-    request: RunExecutionRequest,
+    request: RunExecution,
 ) -> Result<(), dokime_runtime::Refusal> {
     workflow.start_on(request, None, road(resources))
 }
@@ -270,7 +270,7 @@ async fn faults_contained_ready() {
         assert!(
             samples
                 .iter()
-                .any(|sample| matches!(sample.values.get("phase"), Some(dokime_runtime::core::Value::Text(phase)) if phase == "faulted" || phase == "power_loss"))
+                .any(|sample| matches!(sample.values.get("phase"), Some(dokime_runtime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss"))
         );
         // The bench is untouched by a fault the Charger contained.
         assert!(
@@ -314,7 +314,7 @@ async fn settled_evidence<T: SidecarTemplate>(
 fn connection(resource: &str) -> dokime_runtime::records::Record {
     let mut record = dokime_runtime::records::Record::new(
         Timestamp::new("2026-01-01T00:00:00Z"),
-        dokime_runtime::core::Identifier::new("tool.connection.acquired").unwrap(),
+        dokime_runtime::Identifier::new("tool.connection.acquired").unwrap(),
         1,
         "fixture-gateway",
         dokime_runtime::records::RecordSeverity::Info,
@@ -338,9 +338,9 @@ fn deliver<T: SidecarTemplate>(
     workflow.deliver_captured(
         &connection(resource),
         "fixture-gateway",
-        &[dokime_runtime::core::RecordScope {
+        &[dokime_runtime::RecordScope {
             test_execution_id: Some(
-                dokime_runtime::core::TestExecutionId::from_uuid(execution_id(token)).unwrap(),
+                dokime_runtime::TestExecutionId::from_uuid(execution_id(token)).unwrap(),
             ),
             ..Default::default()
         }],
@@ -442,11 +442,11 @@ async fn unit_refuses_waited() {
 }
 
 fn execution_id(token: &str) -> String {
-    dokime_runtime::core::TestExecutionId::from_seed(token).to_string()
+    dokime_runtime::TestExecutionId::from_seed(token).to_string()
 }
 
-fn runtime_request(token: &str, continuous: bool) -> RunExecutionRequest {
-    RunExecutionRequest {
+fn runtime_request(token: &str, continuous: bool) -> RunExecution {
+    RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),
@@ -485,8 +485,8 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecutionRequest {
     }
 }
 
-fn steady_request(token: &str) -> RunExecutionRequest {
-    RunExecutionRequest {
+fn steady_request(token: &str) -> RunExecution {
+    RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),

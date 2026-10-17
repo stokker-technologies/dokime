@@ -18,6 +18,7 @@ use std::time::Duration;
 // Third Party Imports
 use harmos::Message;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{Identifier, TestExecutionId, Timestamp, Value, ValueType};
 use dokime_runtime::execution::Signal;
@@ -98,7 +99,7 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
             );
         }
         sample.storage_payload = Some(
-            dokime_domain::model::telemetry::host_telemetry_payload(host_stream, &sample.values)
+            model::telemetry::host_telemetry_payload(host_stream, &sample.values)
                 .map_err(|error| error.to_string())?,
         );
         Ok(Some(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier, vec![sample])))

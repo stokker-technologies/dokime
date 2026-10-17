@@ -20,8 +20,12 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::files::{FileMatcher, InvalidRule};
-use dokime_domain::operations::files::{FileRule, FileRuleAction};
+use {
+    model::files::wire::FileRule,
+    model::files::wire::FileRuleAction,
+};
 
 /* === Constants === */
 

@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -144,7 +145,7 @@ async fn cycle_edits_state() {
     assert_ne!(planned[1].execution_id, first[0].execution_id);
     assert_eq!(
         planned[1].status,
-        contracts::execution::ExecutionStatus::Skipped
+        model::execution::wire::ExecutionStatus::Skipped
     );
     client
         .unary::<contracts::execution::RunCase>(authenticated(
@@ -182,14 +183,14 @@ async fn cycle_edits_state() {
     assert!(archived.archived);
     assert_eq!(
         archived.status,
-        contracts::execution::CycleStatus::Completed
+        model::execution::wire::CycleStatus::Completed
     );
     assert!(!listed(&mut client, &id, None).await);
     assert!(
         listed(
             &mut client,
             &id,
-            Some(contracts::execution::ArchiveScope::Archived)
+            Some(model::execution::wire::ArchiveScope::Archived)
         )
         .await
     );
@@ -235,7 +236,7 @@ async fn cycle_edits_state() {
     assert_eq!(retained[2].case_id, case.case_id);
     assert_eq!(
         retained[2].status,
-        contracts::execution::ExecutionStatus::Skipped
+        model::execution::wire::ExecutionStatus::Skipped
     );
     assert!(
         second
@@ -439,12 +440,12 @@ fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchived {
 async fn listed(
     client: &mut WireClient,
     id: &str,
-    archive: Option<contracts::execution::ArchiveScope>,
+    archive: Option<model::execution::wire::ArchiveScope>,
 ) -> bool {
     client
         .unary::<contracts::execution::ListCycles>(authenticated(
             contracts::execution::ListCycles {
-                filter: Some(contracts::execution::CycleFilter {
+                filter: Some(model::execution::wire::CycleFilter {
                     archive,
                     ..Default::default()
                 }),
@@ -462,7 +463,7 @@ async fn listed(
 async fn attempts(
     client: &mut WireClient,
     id: &str,
-) -> Vec<contracts::execution::ExecutionSummary> {
+) -> Vec<model::execution::wire::ExecutionSummary> {
     client
         .unary::<contracts::execution::ListExecutions>(authenticated(
             contracts::execution::ListExecutions {
@@ -488,7 +489,7 @@ async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClie
             .unwrap()
             .into_inner()
             .status
-            == contracts::execution::CycleStatus::Completed
+            == model::execution::wire::CycleStatus::Completed
         {
             return Some(());
         }

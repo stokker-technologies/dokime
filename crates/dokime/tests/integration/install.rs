@@ -24,6 +24,7 @@ use harmos::operations::{Context, Operation, OperationDeclaration, Response, Str
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
 // Local Imports
+use dokime_domain::model;
 use dokime_client::contracts::{self, Endpoint, backend, plugins as v1, runtime};
 
 /* === Constants === */
@@ -198,12 +199,12 @@ operation!(
     _request,
     _input,
     {
-        Ok(backend::BackendIdentity {
+        Ok(model::backend::wire::BackendIdentity {
             backend_id: ID.into(),
             epoch: ID.into(),
-            api: Some(backend::ApiIdentity {
-                package: backend::API_PACKAGE.into(),
-                version: backend::API_VERSION.into(),
+            api: Some(model::backend::wire::ApiIdentity {
+                package: model::backend::wire::API_PACKAGE.into(),
+                version: model::backend::wire::API_VERSION.into(),
                 descriptor_sha256: host.descriptor_sha256.clone(),
             }),
             product_version: env!("CARGO_PKG_VERSION").into(),
@@ -223,10 +224,10 @@ operation!(
     _request,
     _input,
     {
-        Ok(backend::BackendHealth {
+        Ok(model::backend::wire::BackendHealth {
             backend_id: ID.into(),
             epoch: ID.into(),
-            readiness: backend::Readiness::Ready,
+            readiness: model::backend::wire::Readiness::Ready,
             observed_at: None,
             message: String::new(),
         }
@@ -243,7 +244,7 @@ operation!(
     _request,
     _input,
     {
-        Ok(backend::BackendAvailability {
+        Ok(model::backend::wire::BackendAvailability {
             backend_id: ID.into(),
             epoch: ID.into(),
             methods: [
@@ -259,7 +260,7 @@ operation!(
             .into_iter()
             .map(str::to_owned)
             .collect(),
-            limits: Some(backend::BackendLimits {
+            limits: Some(model::backend::wire::BackendLimits {
                 max_request_bytes: 16 * 1024 * 1024,
                 max_response_bytes: 16 * 1024 * 1024,
                 max_content_bytes: Some(272 * 1024 * 1024),
@@ -280,7 +281,7 @@ operation!(
     _request,
     _input,
     {
-        Ok(runtime::Identity {
+        Ok(model::runtime::wire::Identity {
             backend_id: ID.into(),
             epoch: ID.into(),
             display_name: "Installation Fixture".into(),
@@ -299,10 +300,10 @@ operation!(
     _request,
     _input,
     {
-        Ok(runtime::Health {
+        Ok(model::runtime::wire::Health {
             backend_id: ID.into(),
             epoch: ID.into(),
-            readiness: runtime::Readiness::Ready,
+            readiness: model::runtime::wire::Readiness::Ready,
             observed_at_seconds: 0,
             observed_at_nanoseconds: 0,
             message: String::new(),

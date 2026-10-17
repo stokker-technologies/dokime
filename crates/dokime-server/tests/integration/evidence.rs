@@ -17,6 +17,7 @@
 // Third Party Imports
 use tonic::Code;
 // Local Imports
+use dokime_domain::model;
 use crate::{WireClient, contracts};
 use dokime_runtime::{
     Runtime, RuntimeConfig, RuntimeHandle,
@@ -84,8 +85,8 @@ async fn publish(handle: &RuntimeHandle) {
         .unwrap();
 }
 
-fn selection() -> contracts::evidence::CapturedRecordSelection {
-    contracts::evidence::CapturedRecordSelection {
+fn selection() -> model::evidence::wire::CapturedRecordSelection {
+    model::evidence::wire::CapturedRecordSelection {
         record_types: vec!["calibration.field.completed".into()],
         ..Default::default()
     }
@@ -145,7 +146,7 @@ async fn fixed_pages_gap() {
     let record = &initial.records[0];
     assert!(!record.record_id.is_empty());
     assert_eq!(record.schema_version, 2);
-    assert_eq!(record.severity, contracts::common::Severity::Info);
+    assert_eq!(record.severity, model::identity::wire::Severity::Info);
     assert!(record.timestamp.is_some());
     let schema = client
         .unary::<contracts::evidence::GetCapturedRecordSchema>(
@@ -184,7 +185,7 @@ async fn filtered_scans_resync() {
     for _ in 0..1005 {
         publish(&handle).await;
     }
-    let selection = contracts::evidence::CapturedRecordSelection {
+    let selection = model::evidence::wire::CapturedRecordSelection {
         sources: vec!["absent".into()],
         ..Default::default()
     };

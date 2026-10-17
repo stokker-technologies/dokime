@@ -26,11 +26,17 @@ pub(crate) use crate::service_support::prelude::*;
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use dokime_domain::model;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
 use dokime_runtime::domains::files::{FileWatch, WatchEvent};
-use dokime_domain::operations::files::{
-    FileRule, FileRuleAction, FileWatchPolicy, FileWatch, FileWatchSource,
-    FileWatchSourcePayload, LocalWatchSource,
+use {
+    model::files::wire::FileRule,
+    model::files::wire::FileRuleAction,
+    model::files::wire::FileWatchPolicy,
+    dokime_domain::operations::files::FileWatch,
+    model::files::wire::FileWatchSource,
+    model::files::wire::FileWatchSourcePayload,
+    model::files::wire::LocalWatchSource,
 };
 
 /* === Constants === */

@@ -20,7 +20,7 @@ use std::time::Duration;
 
 // Local Imports
 use dokime_runtime::execution::Workflow;
-use dokime_runtime::transport::{RunExecutionRequest, StepAdmission};
+use dokime_runtime::transport::{RunExecution, StepAdmission};
 use obc_plugin::{SOURCE, suites::steady};
 
 /* === Constants === */
@@ -50,7 +50,7 @@ async fn cleanup_drains_input() {
     let workflow = Workflow::<steady::Steady>::new(steady::STEADY_SUITE, SOURCE);
     workflow
         .start_on(
-            RunExecutionRequest {
+            RunExecution {
                 mode: "automatic".into(),
                 execution_token: "finalize".into(),
                 test_cycle_id: "cycle".into(),

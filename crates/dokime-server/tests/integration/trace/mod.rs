@@ -15,6 +15,7 @@ mod journal;
 // Third Party Imports
 use tracing_subscriber::prelude::*;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_server::trace::{Capture, Journal};
 
@@ -44,10 +45,10 @@ fn emit(execution_id: &str, count: usize) {
 fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::WatchTrace {
     contracts::backend::WatchTrace {
         epoch: None,
-        scope: Some(contracts::backend::TraceScope::Execution(
+        scope: Some(model::backend::wire::TraceScope::Execution(
             execution_id.to_owned(),
         )),
-        min_level: contracts::backend::LogLevel::Info,
+        min_level: model::backend::wire::LogLevel::Info,
         after_sequence: after,
         max_events: 2,
         max_bytes: 32768,

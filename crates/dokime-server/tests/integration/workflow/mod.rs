@@ -33,6 +33,7 @@ use std::sync::Arc;
 use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::execution::CycleView;
@@ -179,7 +180,7 @@ async fn registered_create_definitions() {
     assert_eq!(suite.templates.len(), 1);
     assert_eq!(
         suite.templates[0].parameters[0].value_type,
-        contracts::schema::ValueType::Text
+        model::definition::wire::ValueType::Text
     );
     assert!(matches!(
         suite.templates[0].parameters[0]
@@ -188,7 +189,7 @@ async fn registered_create_definitions() {
             .unwrap()
             .nodes[0]
             .kind,
-        Some(contracts::catalog::ParameterNodeKind::Literal(_))
+        Some(model::catalog::wire::ParameterNodeKind::Literal(_))
     ));
     let mut stream = observation
         .download::<contracts::observation::WatchRuntime>(authenticated(
@@ -211,7 +212,7 @@ async fn registered_create_definitions() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(planned.status, contracts::execution::CycleStatus::Ready);
+    assert_eq!(planned.status, model::execution::wire::CycleStatus::Ready);
     assert_eq!(planned.case_count, 1);
     assert_eq!(planned.execution_count, 1);
     let cases = execution
@@ -240,7 +241,7 @@ async fn registered_create_definitions() {
         .into_inner();
     assert!(matches!(
         admitted.outcome,
-        Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
     ));
     gate.started.notified().await;
     execution
@@ -275,7 +276,7 @@ async fn registered_create_definitions() {
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status == contracts::execution::CycleStatus::Completed {
+            if cycle.status == model::execution::wire::CycleStatus::Completed {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
                     .unary::<contracts::execution::ListExecutions>(authenticated(
@@ -289,7 +290,7 @@ async fn registered_create_definitions() {
                     .into_inner();
                 assert_eq!(
                     attempts.executions[0].status,
-                    contracts::execution::ExecutionStatus::Passed
+                    model::execution::wire::ExecutionStatus::Passed
                 );
                 break;
             }
@@ -320,7 +321,7 @@ async fn registered_create_definitions() {
             .unwrap()
             .into_inner()
             .status,
-        contracts::execution::CycleStatus::Stopped
+        model::execution::wire::CycleStatus::Stopped
     );
     server.shutdown().await.unwrap();
     {
@@ -359,7 +360,7 @@ async fn stopping_running_unwind() {
         .into_inner();
     assert!(matches!(
         reply.outcome,
-        Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
     ));
     blocker.started.notified().await;
 
@@ -376,7 +377,7 @@ async fn stopping_running_unwind() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(stopping.status, contracts::execution::CycleStatus::Stopping);
+    assert_eq!(stopping.status, model::execution::wire::CycleStatus::Stopping);
 
     blocker.release.notify_one();
     let stopped = support::on_state_change(&owner.handle(), async || {
@@ -389,7 +390,7 @@ async fn stopping_running_unwind() {
             .await
             .unwrap()
             .into_inner();
-        if summary.status == contracts::execution::CycleStatus::Stopped {
+        if summary.status == model::execution::wire::CycleStatus::Stopped {
             return Some(summary);
         }
         None
@@ -409,7 +410,7 @@ async fn stopping_running_unwind() {
     assert_eq!(executions.executions.len(), 1);
     assert_eq!(
         executions.executions[0].status,
-        contracts::execution::ExecutionStatus::Cancelled
+        model::execution::wire::ExecutionStatus::Cancelled
     );
 
     server.shutdown().await.unwrap();
@@ -478,7 +479,7 @@ async fn runtime_shell_cursor() {
     );
     assert!(second.next_after_cycle_id.is_none());
 
-    let future_cursor = contracts::cursor::Cursor {
+    let future_cursor = model::execution::wire_cursor::Cursor {
         position: cursor.position + 1,
         ..cursor.clone()
     };
@@ -573,7 +574,7 @@ async fn checkpoint_telemetry_queries() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == contracts::execution::CycleStatus::Completed {
+        if cycle.status == model::execution::wire::CycleStatus::Completed {
             return Some(
                 history
                     .unary::<contracts::history::BrowseExecutions>(authenticated(
@@ -604,7 +605,7 @@ async fn checkpoint_telemetry_queries() {
         .unary::<contracts::history::GetCheckpointEvidence>(authenticated(
             contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
-                sections: vec![contracts::history::EvidenceSection::TelemetryTables],
+                sections: vec![model::history::wire::EvidenceSection::TelemetryTables],
             },
         ))
         .await
@@ -711,7 +712,7 @@ async fn historical_checkpoint_content() {
             .unwrap()
             .into_inner()
             .status
-            == contracts::execution::CycleStatus::Completed
+            == model::execution::wire::CycleStatus::Completed
         {
             return Some(());
         }
@@ -806,9 +807,9 @@ async fn historical_checkpoint_content() {
     assert_eq!(definition.generation_index, frozen_case.generation_index);
     assert_eq!(
         definition.parameters,
-        vec![contracts::execution::CaseParameter {
+        vec![model::execution::wire::CaseParameter {
             name: "fixture.result".into(),
-            value: Some(contracts::value::Value::from(
+            value: Some(model::values::wire::Value::from(
                 &dokime_runtime::Value::Text("passed".into())
             )),
         }]
@@ -863,17 +864,17 @@ async fn historical_checkpoint_content() {
     let mut execution_html = Vec::new();
     while let Some(frame) = execution_stream.message().await.unwrap() {
         match frame.payload.expect("execution report payload") {
-            contracts::reports::ReportHtmlFramePayload::Report(report) => {
-                assert_eq!(report.origin, contracts::reports::ReportOrigin::Sealed);
+            model::reports::wire::ReportHtmlFramePayload::Report(report) => {
+                assert_eq!(report.origin, model::reports::wire::ReportOrigin::Sealed);
                 assert_eq!(
                     report.test_execution_id.as_deref(),
                     Some(checkpoint.execution_identifier.as_str())
                 );
             }
-            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => {
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => {
                 execution_html.extend(chunk.data)
             }
-            contracts::reports::ReportHtmlFramePayload::Complete(_) => {}
+            model::reports::wire::ReportHtmlFramePayload::Complete(_) => {}
         }
     }
     assert!(String::from_utf8_lossy(&execution_html).contains("<!doctype html>"));
@@ -895,11 +896,11 @@ async fn historical_checkpoint_content() {
     let mut html = Vec::new();
     while let Some(frame) = html_stream.message().await.unwrap() {
         match frame.payload.expect("report payload") {
-            contracts::reports::ReportHtmlFramePayload::Report(snapshot) => {
+            model::reports::wire::ReportHtmlFramePayload::Report(snapshot) => {
                 assert_eq!(snapshot.identifier, "grpc.download");
             }
-            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => html.extend(chunk.data),
-            contracts::reports::ReportHtmlFramePayload::Complete(_) => {}
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => html.extend(chunk.data),
+            model::reports::wire::ReportHtmlFramePayload::Complete(_) => {}
         }
     }
     assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
@@ -989,7 +990,7 @@ async fn historical_checkpoint_content() {
         .into_inner();
     let mut restored_html = Vec::new();
     while let Some(frame) = restored_report.message().await.unwrap() {
-        if let Some(contracts::reports::ReportHtmlFramePayload::Chunk(chunk)) = frame.payload {
+        if let Some(model::reports::wire::ReportHtmlFramePayload::Chunk(chunk)) = frame.payload {
             assert_eq!(chunk.offset, restored_html.len() as u64);
             restored_html.extend(chunk.data);
         }
@@ -1064,20 +1065,20 @@ async fn read_role_admit() {
     // a value that decodes but does not fit its declaration — is now the
     // template parameter's own admission, exercised where that is decided.
     for value in [
-        contracts::value::Value::default(),
-        contracts::value::Value {
-            nodes: vec![contracts::value::ValueNode {
-                kind: Some(contracts::value::ValueKind::Array(
-                    contracts::value::ValueItems { items: vec![99] },
+        model::values::wire::Value::default(),
+        model::values::wire::Value {
+            nodes: vec![model::values::wire::ValueNode {
+                kind: Some(model::values::wire::ValueKind::Array(
+                    model::values::wire::ValueItems { items: vec![99] },
                 )),
             }],
         },
     ] {
         let mut plan = selection_plan(&owner);
         plan.selections[0].parameters.push(
-            contracts::planning::RegisteredSelectionParametersEntry {
+            model::planning::wire::RegisteredSelectionParametersEntry {
                 key: "fixture.result".into(),
-                value: Some(contracts::planning::SelectionValues {
+                value: Some(model::planning::wire::SelectionValues {
                     values: vec![value],
                 }),
             },
@@ -1106,7 +1107,7 @@ async fn read_role_admit() {
         envelope.details[0].type_url,
         "type.googleapis.com/dokime.v1.Rejection"
     );
-    let rejection = <contracts::execution::Rejection as harmos::Protobuf>::decode(
+    let rejection = <model::execution::wire::Rejection as harmos::Protobuf>::decode(
         envelope.details[0].value.as_slice(),
     )
     .unwrap();
@@ -1140,7 +1141,7 @@ async fn read_role_admit() {
         observation
             .download::<contracts::observation::WatchRuntime>(
                 contracts::observation::WatchRuntime {
-                    cursor: Some(contracts::cursor::Cursor {
+                    cursor: Some(model::execution::wire_cursor::Cursor {
                         epoch: "other".into(),
                         stream: "runtime.state".into(),
                         position: 0
@@ -1181,7 +1182,7 @@ async fn stalled_stream_execution() {
         .into_inner();
     assert!(matches!(
         result.outcome,
-        Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
     ));
     gate.started.notified().await;
     let connection = Endpoint::from_shared(server.local_endpoint())
@@ -1216,7 +1217,7 @@ async fn stalled_stream_execution() {
             .unwrap()
             .into_inner()
             .status
-            == contracts::execution::CycleStatus::Completed
+            == model::execution::wire::CycleStatus::Completed
         {
             return Some(());
         }
@@ -1253,7 +1254,7 @@ async fn run_cycle_targets() {
     let diagnostics = {
         let snapshot = owner.handle().watch_state().latest();
         let entry = snapshot.state().suites.get("fixture.diagnostics").unwrap();
-        contracts::planning::RegisteredSelection {
+        model::planning::wire::RegisteredSelection {
             suite_id: entry.suite_id.clone(),
             template_id: entry.suite.test_case_templates[0]
                 .test_case_template_id
@@ -1265,7 +1266,7 @@ async fn run_cycle_targets() {
         .unary::<contracts::execution::AppendPlannedCases>(authenticated(
             contracts::execution::AppendPlannedCases {
                 cycle_id: cycle_id.clone(),
-                plan: Some(contracts::planning::SelectionPlan {
+                plan: Some(model::planning::wire::SelectionPlan {
                     selections: vec![diagnostics],
                     max_cases: 0,
                     case_ids: vec![],
@@ -1285,7 +1286,7 @@ async fn run_cycle_targets() {
     assert!(
         matches!(
             admitted.outcome,
-            Some(contracts::execution::RunReplyOutcome::Accepted(_))
+            Some(model::execution::wire::RunReplyOutcome::Accepted(_))
         ),
         "{:?}",
         admitted.outcome
@@ -1301,7 +1302,7 @@ async fn run_cycle_targets() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == contracts::execution::CycleStatus::Completed {
+        if cycle.status == model::execution::wire::CycleStatus::Completed {
             return Some(cycle);
         }
         None
@@ -1325,7 +1326,7 @@ async fn run_cycle_targets() {
     assert!(
         executions
             .iter()
-            .all(|entry| entry.status == contracts::execution::ExecutionStatus::Passed),
+            .all(|entry| entry.status == model::execution::wire::ExecutionStatus::Passed),
         "{executions:?}"
     );
 

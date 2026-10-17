@@ -19,11 +19,11 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::core::Value;
+use dokime_runtime::Value;
 use dokime_runtime::execution::Workflow;
 use dokime_runtime::records::RecordPublishRequest;
 use dokime_runtime::transport::{
-    EvidenceBatch, RunExecutionRequest, SidecarCriterionStatus, SidecarExecutionOutcome,
+    EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome,
     StepAdmission,
 };
 use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
@@ -46,7 +46,7 @@ const POLL: Duration = Duration::from_millis(5);
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
+fn start_request(token: &str, sample_count: u64) -> RunExecution {
     let template = <Pulse as dokime_runtime::definition::DeclaredTemplate>::declaration();
     let cases = dokime_runtime::definition::materialize_template_cases(
         "fixture.registration",
@@ -61,11 +61,11 @@ fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
         Default::default(),
     )
     .expect("the host resolves declared inputs before starting the sidecar");
-    RunExecutionRequest {
+    RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
-        test_cycle_id: dokime_runtime::core::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
-        test_execution_id: dokime_runtime::core::TestExecutionId::from_seed(token).to_string(),
+        test_cycle_id: dokime_runtime::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
+        test_execution_id: dokime_runtime::TestExecutionId::from_seed(token).to_string(),
         template_identifier: template.metadata.identifier.to_string(),
         workflow: suites::checks::ID.to_owned(),
 

@@ -19,6 +19,7 @@ use std::{future::Future, net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tokio::sync::Notify;
 // Local Imports
+use dokime_domain::model;
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
 use dokime_client::contracts::{backend, catalog, plugins};
 use dokime_client::{Client, Error, Target};
@@ -149,7 +150,7 @@ async fn stream_close_releases() {
             .unwrap();
         let stream = client
             .backend_watch_logs(backend::WatchLogs {
-                min_level: backend::LogLevel::Unspecified,
+                min_level: model::backend::wire::LogLevel::Unspecified,
                 replay_lines: 0,
             })
             .await
@@ -188,7 +189,7 @@ async fn stream_clones_close() {
         .unwrap();
     let stream = client
         .backend_watch_logs(backend::WatchLogs {
-            min_level: backend::LogLevel::Unspecified,
+            min_level: model::backend::wire::LogLevel::Unspecified,
             replay_lines: 0,
         })
         .await
@@ -274,9 +275,9 @@ async fn upload_operation_closes() {
             .await
             .unwrap();
         let upload = client.plugins_stage_open().unwrap();
-        let oversized = plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Header(
-                plugins::StagePluginHeader {
+        let oversized = model::plugins::wire::StagePluginFrame {
+            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(
+                model::plugins::wire::StagePluginHeader {
                     size_bytes: 1,
                     sha256: String::new(),
                 },
@@ -286,14 +287,14 @@ async fn upload_operation_closes() {
             Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
         let retained = upload.clone();
         upload
-            .send(plugins::StagePluginFrame::default())
+            .send(model::plugins::wire::StagePluginFrame::default())
             .await
             .unwrap();
         drop(upload);
 
         if action == "finish" {
             retained
-                .send(plugins::StagePluginFrame::default())
+                .send(model::plugins::wire::StagePluginFrame::default())
                 .await
                 .unwrap();
             assert_eq!(retained.finish().await.unwrap().install_id, "2");
@@ -324,7 +325,7 @@ async fn upload_operation_closes() {
         }
 
         assert!(matches!(
-            retained.send(plugins::StagePluginFrame::default()).await,
+            retained.send(model::plugins::wire::StagePluginFrame::default()).await,
             Err(Error::Closed)
         ));
         retained.close().await;

@@ -16,8 +16,9 @@
 use std::sync::Arc;
 // Third Party Imports
 // Local Imports
+use dokime_domain::model;
 use super::*;
-use dokime_runtime::{execution::CycleStatus, runtime::command::CommandContext};
+use dokime_runtime::{model::execution::wire::CycleStatus, runtime::command::CommandContext};
 use dokime_client::contracts::history::BrowseExecutions;
 use dokime_client::contracts::history::DeleteExecution;
 
@@ -44,7 +45,7 @@ async fn checkpoint_for(
     handle: &dokime_runtime::RuntimeHandle,
     history: &mut WireClient,
     execution_id: &str,
-) -> contracts::checkpoint::ExecutionCheckpoint {
+) -> model::execution::wire_checkpoint::ExecutionCheckpoint {
     support::on_state_change(handle, async || {
         let checkpoint = history
             .unary::<contracts::history::BrowseExecutions>(auth(

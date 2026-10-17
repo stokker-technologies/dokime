@@ -19,6 +19,7 @@ use std::{net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tonic::Status;
 // Local Imports
+use dokime_domain::model;
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
 use dokime_client::contracts::{backend, runtime};
 use dokime_gui::connection::{
@@ -281,11 +282,11 @@ async fn negotiation_matches_fixture() {
         let mut service = Service::new("backend");
         service.api_version = case["version"].as_str().unwrap().into();
         service.readiness = match case["readiness"].as_i64().unwrap_or(2) {
-            0 => backend::Readiness::Unspecified,
-            1 => backend::Readiness::Starting,
-            2 => backend::Readiness::Ready,
-            3 => backend::Readiness::Degraded,
-            4 => backend::Readiness::Stopping,
+            0 => model::backend::wire::Readiness::Unspecified,
+            1 => model::backend::wire::Readiness::Starting,
+            2 => model::backend::wire::Readiness::Ready,
+            3 => model::backend::wire::Readiness::Degraded,
+            4 => model::backend::wire::Readiness::Stopping,
             value => panic!("fixture has an unknown readiness: {value}"),
         };
         service.max_request_bytes = case["max_request_bytes"].as_u64().unwrap_or(u64::MAX);

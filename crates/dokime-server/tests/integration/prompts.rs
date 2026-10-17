@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use prost::Message;
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     core::{PromptId, RecordScope, TestCycleId, Value, ValueType},
@@ -127,7 +128,7 @@ async fn prompt_answers_identity() {
     );
     assert!(matches!(
         definition.rules[0].predicate.as_ref().unwrap().nodes[0].kind,
-        Some(contracts::prompts::AnswerPredicateKind::Binary(_))
+        Some(model::prompts::wire::AnswerPredicateKind::Binary(_))
     ));
     let first = client
         .unary::<contracts::prompts::ListPending>(authenticated(
@@ -171,7 +172,7 @@ async fn prompt_answers_identity() {
     let answer = |value| contracts::prompts::Respond {
         prompt_id: ids[0].to_string(),
         action: "submit".into(),
-        values: Some(contracts::value::Value::from(&Value::Object(
+        values: Some(model::values::wire::Value::from(&Value::Object(
             BTreeMap::from([("counter".into(), Value::Integer(value))]),
         ))),
         accepted: true,
@@ -188,7 +189,7 @@ async fn prompt_answers_identity() {
         "type.googleapis.com/dokime.v1.Rejection"
     );
     assert!(
-        !<contracts::execution::Rejection as harmos::Protobuf>::decode(
+        !<model::execution::wire::Rejection as harmos::Protobuf>::decode(
             envelope.details[0].value.as_slice()
         )
         .unwrap()
@@ -322,7 +323,7 @@ async fn prompt_condition_commit() {
         .into_inner();
     let definition = view.prompt.unwrap().definition.unwrap();
     assert!(definition.actions[0].requires_condition);
-    let Some(contracts::prompts::EvidenceConditionKind::Record(condition)) = definition
+    let Some(model::prompts::wire::EvidenceConditionKind::Record(condition)) = definition
         .condition
         .unwrap()
         .nodes
@@ -351,7 +352,7 @@ async fn prompt_condition_commit() {
     assert_eq!(rejected.code(), Code::FailedPrecondition);
     let envelope = tonic_types::Status::decode(rejected.details()).unwrap();
     assert_eq!(
-        <contracts::execution::Rejection as harmos::Protobuf>::decode(
+        <model::execution::wire::Rejection as harmos::Protobuf>::decode(
             envelope.details[0].value.as_slice()
         )
         .unwrap()
@@ -421,7 +422,7 @@ async fn prompt_level_watched() {
     let mut follow = client
         .download::<contracts::evidence::WatchRecords>(authenticated(
             contracts::evidence::WatchRecords {
-                selection: Some(contracts::evidence::CapturedRecordSelection {
+                selection: Some(model::evidence::wire::CapturedRecordSelection {
                     record_types: vec!["prompt.request.form".into()],
                     ..Default::default()
                 }),
@@ -439,9 +440,9 @@ async fn prompt_level_watched() {
     // === Compare === //
 
     let level = view.prompt.unwrap().definition.unwrap().level;
-    assert_eq!(level, contracts::common::Severity::Warn);
+    assert_eq!(level, model::identity::wire::Severity::Warn);
     assert_eq!(watched.len(), 1);
-    assert_eq!(watched[0].severity, contracts::common::Severity::Warn);
+    assert_eq!(watched[0].severity, model::identity::wire::Severity::Warn);
     drop(follow);
     server.shutdown().await.unwrap();
     drop(handle);

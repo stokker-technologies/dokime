@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 
 /* === Constants === */
@@ -84,7 +85,7 @@ async fn commands_owner_receipts() {
             .unary::<contracts::execution::RunExecution>(authenticated(
                 contracts::execution::RunExecution {
                     execution_id: execution_id.clone(),
-                    mode: contracts::execution::ExecutionMode::Interactive,
+                    mode: model::execution::wire::ExecutionMode::Interactive,
                     context: None,
                     idempotency_key: Some("interactive-command-owner".into()),
                 },
@@ -105,13 +106,13 @@ async fn commands_owner_receipts() {
         .into_inner();
     assert_eq!(
         detail.controls.unwrap().mode,
-        contracts::execution::ExecutionMode::Interactive
+        model::execution::wire::ExecutionMode::Interactive
     );
     let command = contracts::execution::SubmitExecutionCommand {
         request_id: admission.command_id.clone(),
         command_id: uuid::Uuid::now_v7().to_string(),
         execution_id,
-        action: contracts::execution::ExecutionCommandAction::Next,
+        action: model::execution::wire::ExecutionCommandAction::Next,
         step_id: None,
     };
     assert_eq!(
@@ -142,7 +143,7 @@ async fn commands_owner_receipts() {
         .into_inner();
     assert_eq!(
         receipt.phase,
-        contracts::execution::ExecutionCommandPhase::Accepted
+        model::execution::wire::ExecutionCommandPhase::Accepted
     );
     assert_eq!(
         client
@@ -181,7 +182,7 @@ async fn commands_owner_receipts() {
         Code::NotFound
     );
     let mut conflicting = command.clone();
-    conflicting.action = contracts::execution::ExecutionCommandAction::Finish;
+    conflicting.action = model::execution::wire::ExecutionCommandAction::Finish;
     assert_eq!(
         client
             .unary::<contracts::execution::SubmitExecutionCommand>(authenticated(conflicting))
@@ -202,7 +203,7 @@ async fn commands_owner_receipts() {
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
         let receipt = response.unwrap().into_inner();
-        if receipt.phase == contracts::execution::ExecutionCommandPhase::Interrupted {
+        if receipt.phase == model::execution::wire::ExecutionCommandPhase::Interrupted {
             return Some(receipt);
         }
         None
@@ -260,7 +261,7 @@ async fn keyed_runs_restart() {
     started(&gate).await;
     // A different correlation label is not a different operation or identity.
     let mut retry = request.clone();
-    retry.context = Some(contracts::execution::MutationContext {
+    retry.context = Some(model::execution::wire::MutationContext {
         correlation_id: Some(uuid::Uuid::now_v7().to_string()),
     });
     let duplicate = accepted(
@@ -277,7 +278,7 @@ async fn keyed_runs_restart() {
         .unwrap();
     assert_eq!(
         running.phase,
-        contracts::execution::RunRequestPhase::Running
+        model::execution::wire::RunRequestPhase::Running
     );
     assert_eq!(running.submitted_by.as_deref(), Some("fixture"));
     assert_eq!(running.planned_count, 1);
@@ -320,7 +321,7 @@ async fn keyed_runs_restart() {
         .unwrap()
         .into_inner();
     assert!(
-        matches!(conflict.outcome, Some(contracts::execution::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
+        matches!(conflict.outcome, Some(model::execution::wire::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
     );
     let other_cycle =
         support::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
@@ -337,7 +338,7 @@ async fn keyed_runs_restart() {
         .unwrap()
         .into_inner();
     assert!(
-        matches!(conflict.outcome, Some(contracts::execution::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
+        matches!(conflict.outcome, Some(model::execution::wire::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
     );
     assert_eq!(
         owner
@@ -356,7 +357,7 @@ async fn keyed_runs_restart() {
         let receipt = lookup(&mut client, &admission.command_id, READER)
             .await
             .unwrap();
-        (receipt.phase == contracts::execution::RunRequestPhase::Completed).then_some(receipt)
+        (receipt.phase == model::execution::wire::RunRequestPhase::Completed).then_some(receipt)
     })
     .await;
     assert_eq!(completed.finished_count, 1);

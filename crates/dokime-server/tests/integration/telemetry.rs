@@ -17,6 +17,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model;
 use super::*;
 use dokime_runtime::{
     core::{Identifier, Timestamp, Value},
@@ -40,11 +41,11 @@ use dokime_runtime::{
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn sequences(reply: &contracts::telemetry::TelemetrySamplesReply) -> Vec<u64> {
+fn sequences(reply: &model::telemetry::wire::TelemetrySamplesReply) -> Vec<u64> {
     reply.samples.iter().map(|sample| sample.sequence).collect()
 }
 
-fn cursor(reply: &contracts::telemetry::TelemetrySamplesReply, stream: &str) -> Option<u64> {
+fn cursor(reply: &model::telemetry::wire::TelemetrySamplesReply, stream: &str) -> Option<u64> {
     reply
         .through_stream_cursors
         .iter()
@@ -53,13 +54,13 @@ fn cursor(reply: &contracts::telemetry::TelemetrySamplesReply, stream: &str) -> 
 }
 
 fn continuation(
-    reply: &contracts::telemetry::TelemetrySamplesReply,
-) -> Vec<contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry> {
+    reply: &model::telemetry::wire::TelemetrySamplesReply,
+) -> Vec<model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry> {
     reply
         .through_stream_cursors
         .iter()
         .map(
-            |entry| contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+            |entry| model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
                 key: entry.key.clone(),
                 value: entry.value,
             },
