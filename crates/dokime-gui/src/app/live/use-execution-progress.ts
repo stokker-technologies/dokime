@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openNativeExecutionProgressStream } from "@/lib/api/native-observation";
 import { safeNumber } from "@/lib/api/native-values";
 

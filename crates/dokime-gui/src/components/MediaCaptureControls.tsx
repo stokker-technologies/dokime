@@ -22,7 +22,7 @@ import { Camera, Mic, Monitor, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 // Local Imports
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
 import {
   invalidateWorkflowDocuments,

@@ -22,7 +22,7 @@ import { useId, useRef, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -20,7 +20,7 @@ import { type ReactNode, useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Input } from "@/components/ui/input";
 import {
   Select,

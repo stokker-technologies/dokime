@@ -197,3 +197,14 @@ function touched(
   }
   return next;
 }
+
+/** Rows Returned By The Live Source To The Shared Console Surface. */
+export type ConsoleRecords = {
+  clear: () => void;
+  dropped: bigint;
+  records: HubRecord[];
+  error: string | null;
+};
+
+/** One Per Window: The Console Rows Outlive Every Route. */
+export const consoleRecordsStore = createConsoleRecordsStore();

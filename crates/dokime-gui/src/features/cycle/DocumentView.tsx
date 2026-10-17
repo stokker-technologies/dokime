@@ -17,7 +17,7 @@ import { type ReactNode, useCallback } from "react";
 
 // Local Imports
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 
 import {
   type DocumentBlockChrome,
@@ -41,7 +41,7 @@ import type {
 } from "@/lib/types";
 
 import { elapsedColumnUnit } from "@/plots/axis";
-import { ConsoleDrawer } from "@/shell/ConsoleDrawer";
+import { FrozenConsole } from "@/shell/ConsoleDrawerView";
 import type { PlotWindowOption } from "./PlotWindowSlider";
 import { type DocumentViewOptions, useDocumentView } from "./use-document-view";
 
@@ -130,7 +130,7 @@ export function DocumentView({
 /** The frozen console a report prints after the document it belongs to. */
 export function FrozenDocumentConsole({ surface }: { surface: DocumentSurface }) {
   return surface.options.live ? null : (
-    <ConsoleDrawer live={false} records={surface.view.records} />
+    <FrozenConsole records={surface.view.records} />
   );
 }
 

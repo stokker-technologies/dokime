@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,7 @@ import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
-import { consoleAttentionCount } from "@/shell/ConsoleDrawer";
+import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
 import { useRouteCycleId } from "@/shell/route-scope";
 import {
   type BackendOperation,

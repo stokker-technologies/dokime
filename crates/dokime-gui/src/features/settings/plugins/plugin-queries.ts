@@ -14,7 +14,7 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
 import { nativeContentSession } from "@/lib/api/native-content";
 import type { StagePluginProgress } from "@/lib/api/native-plugins";

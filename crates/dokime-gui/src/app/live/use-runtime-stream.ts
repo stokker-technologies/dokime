@@ -14,7 +14,7 @@ import { useEffect } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import {
   invalidateRuntimeDocuments,
   invalidateRuntimeProjectionQueries,

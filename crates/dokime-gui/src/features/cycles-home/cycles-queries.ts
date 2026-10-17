@@ -16,7 +16,7 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import {
   createNativeTestCycle,
