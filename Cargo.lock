@@ -2008,6 +2008,7 @@ dependencies = [
 name = "dokime-fixtures"
 version = "0.1.0"
 dependencies = [
+ "dokime-domain",
  "dokime-runtime",
  "serde",
  "serde_json",

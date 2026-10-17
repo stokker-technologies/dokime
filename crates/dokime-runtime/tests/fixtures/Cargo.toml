@@ -23,6 +23,7 @@ fixtures = []
 
 [dependencies]
 # Local
+dokime-domain = { workspace = true }
 dokime-runtime = { path = "../../../dokime-runtime" }
 
 # Error Handling
