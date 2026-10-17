@@ -376,6 +376,7 @@ pub(crate) async fn running_report_follows_live_plot() {
         false,
     )
     .await;
+    let mut records = handle.subscribe_records();
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -383,23 +384,33 @@ pub(crate) async fn running_report_follows_live_plot() {
     let execution =
         handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
     let pulse = "fixture.checks.smoke.pulse";
-    // The step holds once every pulse row is published.
+    // The step publishes its row count after every pulse row and then holds;
+    // its rows reach the host ahead of that record, so the report renders
+    // once they are saved rather than on every poll while they arrive.
     tokio::time::timeout(Duration::from_secs(300), async {
-        loop {
-            if let Ok(opened) = handle.open_execution_report(&execution).await {
-                let payload =
-                    crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
-                if payload["case_runs"][0]["plots"][pulse]["series"][0]["raw_points"]
-                    == serde_json::json!(LARGE_PULSE_ROWS)
-                {
-                    break;
-                }
+        while let Some(record) = records.next().await {
+            if record.unwrap().record_type.as_str() == "fixture.checks.pulse_produced" {
+                return;
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
         }
+        panic!("the record subscription closed before the pulse rows were produced");
     })
     .await
     .expect("the running step publishes every pulse row");
+    tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let opened = handle.open_execution_report(&execution).await.unwrap();
+            let payload =
+                crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+            if payload["case_runs"][0]["plots"][pulse]["series"][0]["raw_points"]
+                == serde_json::json!(LARGE_PULSE_ROWS)
+            {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("the running report reads every saved pulse row");
 
     handle
         .update_plot_settings(
