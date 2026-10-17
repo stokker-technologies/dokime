@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -23,7 +25,13 @@ use serde::Serialize;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -117,12 +125,14 @@ pub struct PluginInstallation {
     pub consented_at: Option<Timestamp>,
     pub state: PluginInstallationState,
     pub last_boot: Option<PluginLastBoot>,
+
     // Absent if bytes cannot be verified or full metadata exceeds the response
     // budget; error explains why. Permission disclosure is never truncated.
     #[row(
         description = "Absent if bytes cannot be verified or full metadata exceeds the response budget; error explains why. Permission disclosure is never truncated."
     )]
     pub metadata: Option<PluginMetadata>,
+
     pub error: Option<String>,
     pub active: bool,
     pub restart_required: bool,
@@ -173,6 +183,8 @@ pub struct AdmittedPlugin {
     pub owner: Option<AdmittedPluginOwner>,
 }
 
+/* === Enums === */
+
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PluginInstallationState {
@@ -205,6 +217,12 @@ pub enum AdmittedPluginOwner {
     Embedded(AdmittedEmbeddedOwner),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

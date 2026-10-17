@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,7 +24,13 @@ use serde::Serialize;
 // Local Imports
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // `values` carries exactly one value for EQ, NEQ, GT, GTE, LT and LTE, one or
 // more for IN, and none for IS_NULL. Values are compared against the column's
@@ -71,6 +79,8 @@ pub struct QueryRow {
     pub values: Vec<Value>,
 }
 
+/* === Enums === */
+
 // Native saved sources a caller may aggregate. Telemetry samples retain their
 // declared-schema reader through Telemetry.ListSamples.
 #[harmos::message]
@@ -106,6 +116,12 @@ pub enum QueryFilterOperator {
     IsNull,
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

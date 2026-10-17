@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,15 +24,23 @@ use serde::Serialize;
 // Local Imports
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -102,6 +112,7 @@ pub struct PromptDefinition {
     pub owner_suite_id: Option<String>,
     pub template_identifier: Option<String>,
     pub examples: Vec<Value>,
+
     // The declared level on the record severity scale; Unspecified reads as Info.
     #[row(description = "The declared level on the record severity scale; Unspecified reads as Info.")]
     pub level: Severity,
@@ -169,9 +180,11 @@ pub struct AnswerPredicateNode {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnswerBinaryPredicate {
     pub op: AnswerOperator,
+
     // Operand index.
     #[row(description = "Operand index.")]
     pub left: u32,
+
     // Operand index.
     #[row(description = "Operand index.")]
     pub right: u32,
@@ -235,6 +248,8 @@ pub struct PromptResponse {
     pub values: Option<Value>,
     pub accepted: bool,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,6 +341,12 @@ pub enum EvidenceConditionKind {
     Any(EvidenceConditions),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

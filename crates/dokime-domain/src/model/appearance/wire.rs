@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -21,7 +23,13 @@ use serde::Serialize;
 
 // Local Imports
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -85,12 +93,14 @@ pub struct ThemeFamily {
     pub theme_id: String,
     pub label: String,
     pub description: Option<String>,
+
     // Self-contained authored CSS, including embedded font data. Bounded by the
     // appearance response budget; no external resource-resolution API is implied.
     #[row(
         description = "Self-contained authored CSS, including embedded font data. Bounded by the appearance response budget; no external resource-resolution API is implied."
     )]
     pub stylesheet: Option<String>,
+
     pub variables: Vec<ThemeFamilyVariablesEntry>,
     pub corner_radii: Option<ThemeCornerRadii>,
     pub light: Option<ThemeVariant>,
@@ -131,6 +141,8 @@ pub struct AppearanceFailure {
     pub kind: AppearanceFailureKind,
 }
 
+/* === Enums === */
+
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeModePolicy {
@@ -152,6 +164,12 @@ pub enum AppearanceFailureKind {
     AssetUnavailable,
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

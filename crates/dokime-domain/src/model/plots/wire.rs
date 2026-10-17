@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,14 +24,22 @@ use serde::Serialize;
 // Local Imports
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::document::DownsampleTechnique;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -66,6 +76,7 @@ pub struct PlotRequest {
     pub interval: Option<PlotIntervalOptions>,
     pub histogram: Option<PlotHistogramOptions>,
     pub analysis: Option<AnalysisSelection>,
+
     // The x range a time series or scatter plot shows after a zoom; its
     // series summaries cover only the rows inside it.
     #[row(
@@ -79,6 +90,7 @@ pub struct PlotRequest {
 pub struct PlotFilter {
     pub expression: Option<DataExpression>,
     pub operator: FilterOperator,
+
     // Absent means the Exists operator. A present Value may explicitly be null.
     #[row(description = "Absent means the Exists operator. A present Value may explicitly be null.")]
     pub value: Option<Value>,
@@ -175,12 +187,14 @@ pub struct PlotCursorTelemetryStreamsEntry {
 pub struct PlotCursor {
     pub telemetry_streams: Vec<PlotCursorTelemetryStreamsEntry>,
     pub record_sequence: Option<u64>,
+
     // Cursors are process-local. The backend rejects a cursor from another
     // runtime epoch or another plot selection instead of silently resuming it.
     #[row(
         description = "Cursors are process-local. The backend rejects a cursor from another runtime epoch or another plot selection instead of silently resuming it."
     )]
     pub epoch: String,
+
     pub selection: String,
 }
 
@@ -216,15 +230,19 @@ pub struct PlotPayload {
     pub window_s: Option<f64>,
     pub generated_at: String,
     pub x_format: Option<ValueFormat>,
+
     // RFC3339, the origin `elapsed_since_run` counts from. Absent when this
     // payload was not built for one execution.
     #[row(description = "RFC3339, the origin `elapsed_since_run` counts from. Absent when this payload was not built for one execution.")]
     pub run_started_at: Option<String>,
+
     // RFC3339, the origin `elapsed_since_cycle` counts from.
     #[row(description = "RFC3339, the origin `elapsed_since_cycle` counts from.")]
     pub cycle_started_at: Option<String>,
+
     pub analysis: Option<PlotAnalysis>,
     pub computed: Option<AnalysisComputation>,
+
     // One summary per series, in series order, for time series and scatter
     // plots: the statistics of the exact rows in the shown window.
     #[row(
@@ -271,6 +289,7 @@ pub struct PlotCartesianFrame {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotCartesianSeriesFrame {
     pub x: Vec<f64>,
+
     // A message wrapper preserves null y values without a NaN sentinel.
     #[row(description = "A message wrapper preserves null y values without a NaN sentinel.")]
     pub y: Vec<NullableNumber>,
@@ -407,6 +426,7 @@ pub struct PlotHistogramBin {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotBoxSummaryAnalysis {
     pub series: Vec<PlotBoxSummary>,
+
     // Samples summarized across every box.
     #[row(description = "Samples summarized across every box.")]
     pub total: u64,
@@ -439,6 +459,7 @@ pub struct PlotSigmaIntervalAnalysis {
 pub struct PlotSigmaSeries {
     pub key: String,
     pub bins: Vec<PlotSigmaBin>,
+
     // Samples the bins summarize: every row with a finite x and y.
     #[row(description = "Samples the bins summarize: every row with a finite x and y.")]
     pub raw_points: u64,
@@ -460,10 +481,13 @@ pub struct PlotWifiOccupancyAnalysis {
     // Every channel a series reported, ascending.
     #[row(description = "Every channel a series reported, ascending.")]
     pub channels: Vec<i64>,
+
     // Channels that held a network in any scan, ascending.
     #[row(description = "Channels that held a network in any scan, ascending.")]
     pub occupied_channels: Vec<i64>,
+
     pub bands: Vec<PlotWifiBandWindow>,
+
     // Scans in time order.
     #[row(description = "Scans in time order.")]
     pub scans: Vec<PlotWifiScan>,
@@ -600,10 +624,13 @@ pub struct AnalysisValues {
     pub axis_unit: String,
     pub axis: Vec<f64>,
     pub values: Vec<f64>,
+
     // Optional display selection into the complete scientific arrays.
     #[row(description = "Optional display selection into the complete scientific arrays.")]
     pub display_indices: Vec<u32>,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -725,6 +752,12 @@ pub enum PlotAnalysisResult {
     WifiOccupancy(PlotWifiOccupancyAnalysis),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

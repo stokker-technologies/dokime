@@ -33,7 +33,9 @@ use dokime_runtime::{CommandId, TestCycleId, TestExecutionId, Value};
 use dokime_runtime::{Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext, transactions::CycleDefinition};
 
 /* === Constants === */
+
 const STEADY_SUITE: &str = "obc.charger.steady";
+
 /// Half a second at the steady suite's 1 ms step: about 500 rows per case.
 const STEADY_DURATION_S: f64 = 0.5;
 const SETTLE: Duration = Duration::from_secs(600);
@@ -52,6 +54,7 @@ const POLL: Duration = Duration::from_millis(20);
 /* === Implementations === */
 
 /* === Public Functions === */
+
 /// Measures fresh materialization at admission limits 1/2/4 separately from
 /// rendering immutable saved reports. Fixture acquisition and cleanup are untimed.
 pub fn benchmark(criterion: &mut Criterion) {
@@ -77,6 +80,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
 fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     let mut group = criterion.benchmark_group("report_materializes_execution");
     // Every iteration runs a cycle to inspection: equal iteration counts per sample.
@@ -229,3 +233,5 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
         tokio::time::sleep(POLL).await;
     }
 }
+
+/* === Tests === */

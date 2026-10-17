@@ -7,7 +7,14 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::HashMap,
@@ -18,6 +25,7 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
+
 // Third Party Imports
 use harmos::{
     BackendFailure,
@@ -25,11 +33,13 @@ use harmos::{
     storage::*,
 };
 use tokio::sync::{Mutex, Notify};
+
 // Local Imports
 use super::super::{Error, State};
 use super::{Entry, Scan, entry::key};
 
 /* === Constants === */
+
 const METADATA_BYTES: usize = 16 * 1024;
 const RECEIPT_BYTES: usize = 32 * 1024;
 
@@ -38,6 +48,7 @@ const RECEIPT_BYTES: usize = 32 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /// Dokime's SQLite primary store for one storage root.
 pub struct Backend<C: ObjectCatalog> {
     catalog: std::marker::PhantomData<fn() -> C>,
@@ -65,6 +76,7 @@ struct ActiveRead(Arc<Pin>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for ActiveRead {
     fn drop(&mut self) {
         if self.0.reads.fetch_sub(1, Ordering::AcqRel) == 1 {
@@ -474,6 +486,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(reason: &'static str) -> harmos::Error {
     harmos::Error::InvalidInput { field: "SQLite storage", reason }
 }

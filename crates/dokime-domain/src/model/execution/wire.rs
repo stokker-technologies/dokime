@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -24,13 +26,21 @@ use serde::Serialize;
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::planning::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // Correlation is a caller label, never authenticated identity or an idempotency
 // key. Only the run-specific idempotency_key fields support safe retries. Other
@@ -64,6 +74,7 @@ pub struct CycleFilter {
     pub statuses: Vec<CycleStatus>,
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
+
     // Absent lists only unarchived cycles.
     #[row(description = "Absent lists only unarchived cycles.")]
     pub archive: Option<ArchiveScope>,
@@ -136,11 +147,14 @@ pub struct RunRequestReceipt {
     pub claimed_count: u64,
     pub last_claim: Option<RunAttemptClaim>,
     pub accepted_at: Option<Timestamp>,
+
     // Authorized provider dispatch, not proof that a device action occurred.
     #[row(description = "Authorized provider dispatch, not proof that a device action occurred.")]
     pub provider_started_at: Option<Timestamp>,
+
     pub finished_at: Option<Timestamp>,
     pub submitted_by: Option<String>,
+
     // Why the request ended without its normal outcome: the interruption of an
     // Interrupted request, or the permanent cause a Failed request's final
     // reports were not sealed.
@@ -148,6 +162,7 @@ pub struct RunRequestReceipt {
         description = "Why the request ended without its normal outcome: the interruption of an Interrupted request, or the permanent cause a Failed request's final reports were not sealed."
     )]
     pub interruption: Option<String>,
+
     pub mode: ExecutionMode,
 }
 
@@ -219,9 +234,11 @@ pub struct CycleSummary {
     pub updated_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
     pub archived: bool,
+
     // The cycle report is sealed: its label no longer changes.
     #[row(description = "The cycle report is sealed: its label no longer changes.")]
     pub sealed: bool,
+
     // Planned cases by their latest attempt: running counts cases whose attempt
     // is running; queued counts cases still waiting to run (no attempt yet, an
     // undispatched attempt, or one admitted but not started).
@@ -229,6 +246,7 @@ pub struct CycleSummary {
         description = "Planned cases by their latest attempt: running counts cases whose attempt is running; queued counts cases still waiting to run (no attempt yet, an undispatched attempt, or one admitted but not started)."
     )]
     pub running_count: u64,
+
     pub queued_count: u64,
 }
 
@@ -302,6 +320,7 @@ pub struct ExecutionSummary {
     pub status: ExecutionStatus,
     pub ordinal: u64,
     pub archived: bool,
+
     // The execution report is sealed: its case label no longer changes.
     #[row(description = "The execution report is sealed: its case label no longer changes.")]
     pub sealed: bool,
@@ -471,6 +490,7 @@ pub struct ExecutionStep {
     pub measurement_count: u64,
     pub criterion_count: u64,
     pub ordinal: u64,
+
     // Why this step failed, for the one step that did. Present only on a failed
     // step, and already redacted: the step is the row an event log renders with a
     // status, so it is where the failure's own story belongs.
@@ -499,6 +519,8 @@ pub struct StepCriterion {
     pub message: Option<String>,
     pub ordinal: u64,
 }
+
+/* === Enums === */
 
 // The requested order key. Ordering is always total: the key, then the cycle ID
 // ascending, so equal keys never permute between pages. An unspecified key is
@@ -703,6 +725,12 @@ pub enum ParameterCursorSelection {
     PlannedCase(PlannedCaseParameters),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

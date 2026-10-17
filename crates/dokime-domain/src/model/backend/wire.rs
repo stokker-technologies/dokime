@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -21,14 +23,20 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
 
 pub const API_PACKAGE: &str = "dokime.v1";
-
 pub const API_VERSION: &str = "0.6.0";
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // One page of captured tracing events, oldest first.
 #[harmos::message]
@@ -36,12 +44,14 @@ pub const API_VERSION: &str = "0.6.0";
 pub struct TraceBatch {
     pub epoch: String,
     pub events: Vec<TraceEvent>,
+
     // Events of this scope, of any level, evicted before this stream read them.
     // Cumulative for the stream; it never rewinds.
     #[row(
         description = "Events of this scope, of any level, evicted before this stream read them. Cumulative for the stream; it never rewinds."
     )]
     pub dropped: u64,
+
     // The scope sequence to pass as after_sequence when resuming; it covers
     // events scanned but selected out by min_level.
     #[row(
@@ -58,13 +68,16 @@ pub struct TraceEvent {
     // Position within the requested scope; strictly increasing per scope.
     #[row(description = "Position within the requested scope; strictly increasing per scope.")]
     pub sequence: u64,
+
     pub time: Option<Timestamp>,
     pub level: LogLevel,
     pub target: String,
     pub message: String,
+
     // The plugin that emitted or forwarded the line, when known.
     #[row(description = "The plugin that emitted or forwarded the line, when known.")]
     pub plugin_id: Option<String>,
+
     pub cycle_id: Option<String>,
     pub execution_id: Option<String>,
     pub fields: Vec<LogFrameFieldsEntry>,
@@ -76,9 +89,11 @@ pub struct BackendIdentity {
     // Stable identity of this backend installation, not its network address.
     #[row(description = "Stable identity of this backend installation, not its network address.")]
     pub backend_id: String,
+
     // Unique for every runtime boot; invalidates process-local cursors.
     #[row(description = "Unique for every runtime boot; invalidates process-local cursors.")]
     pub epoch: String,
+
     pub api: Option<ApiIdentity>,
     pub product_version: String,
     pub source_revision: Option<String>,
@@ -93,9 +108,11 @@ pub struct ApiIdentity {
     // Fully qualified protobuf package, currently dokime.v1.
     #[row(description = "Fully qualified protobuf package, currently dokime.v1.")]
     pub package: String,
+
     // Contract version independent of product and SDK version.
     #[row(description = "Contract version independent of product and SDK version.")]
     pub version: String,
+
     // SHA-256 of the released descriptor set, including imports.
     #[row(description = "SHA-256 of the released descriptor set, including imports.")]
     pub descriptor_sha256: Vec<u8>,
@@ -108,6 +125,7 @@ pub struct BackendHealth {
     pub epoch: String,
     pub readiness: Readiness,
     pub observed_at: Option<Timestamp>,
+
     // Human-readable explanation; callers branch on readiness, not this text.
     #[row(description = "Human-readable explanation; callers branch on readiness, not this text.")]
     pub message: String,
@@ -118,12 +136,14 @@ pub struct BackendHealth {
 pub struct BackendAvailability {
     pub backend_id: String,
     pub epoch: String,
+
     // Methods both implemented and available to the authenticated caller.
     // Full names, e.g. /dokime.v1.Backend/GetIdentity.
     #[row(
         description = "Methods both implemented and available to the authenticated caller. Full names, e.g. /dokime.v1.Backend/GetIdentity."
     )]
     pub methods: Vec<String>,
+
     pub limits: Option<BackendLimits>,
 }
 
@@ -133,10 +153,13 @@ pub struct BackendLimits {
     // Positive limits enforced by this backend, excluding transport framing.
     #[row(description = "Positive limits enforced by this backend, excluding transport framing.")]
     pub max_request_bytes: u64,
+
     pub max_response_bytes: u64,
+
     // Optional until corresponding streaming/query services are implemented.
     #[row(description = "Optional until corresponding streaming/query services are implemented.")]
     pub max_content_bytes: Option<u64>,
+
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,
@@ -292,12 +315,15 @@ pub struct DiagnosticsBundleHeader {
         description = "Suggested save name, dokime-diagnostics-<utc timestamp>.zip. It is a name, not a backend path: nothing is written to the storage root."
     )]
     pub filename: String,
+
     pub content_type: String,
     pub generated_at: Option<Timestamp>,
+
     // Present whenever the archive is complete before the first chunk, which is
     // how this backend builds it.
     #[row(description = "Present whenever the archive is complete before the first chunk, which is how this backend builds it.")]
     pub total_size_bytes: Option<u64>,
+
     // The same inventory the archive's manifest.json carries.
     #[row(description = "The same inventory the archive's manifest.json carries.")]
     pub entries: Vec<DiagnosticsBundleEntry>,
@@ -309,13 +335,16 @@ pub struct DiagnosticsBundleEntry {
     // Archive-relative path, never a backend filesystem path.
     #[row(description = "Archive-relative path, never a backend filesystem path.")]
     pub path: String,
+
     pub size_bytes: u64,
+
     // False when the source file does not exist; the entry is still listed so an
     // absent convention is distinguishable from an unattempted one.
     #[row(
         description = "False when the source file does not exist; the entry is still listed so an absent convention is distinguishable from an unattempted one."
     )]
     pub present: bool,
+
     pub note: Option<String>,
 }
 
@@ -330,6 +359,7 @@ pub struct DiagnosticsBundleChunk {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleCompletion {
     pub size_bytes: u64,
+
     // SHA-256 of exactly the bytes delivered by preceding chunks.
     #[row(description = "SHA-256 of exactly the bytes delivered by preceding chunks.")]
     pub sha256: String,
@@ -352,6 +382,7 @@ pub struct LogFrame {
     pub target: String,
     pub message: String,
     pub fields: Vec<LogFrameFieldsEntry>,
+
     // Matching records discarded ahead of this one because the client fell
     // behind. Cumulative for the stream; it never rewinds.
     #[row(
@@ -359,6 +390,8 @@ pub struct LogFrame {
     )]
     pub dropped: u64,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -461,6 +494,12 @@ pub enum DiagnosticsBundleFramePayload {
     Complete(DiagnosticsBundleCompletion),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
 pub fn compatible_api(package: &str, version: &str) -> bool {
     fn release(version: &str) -> Option<(&str, &str)> {
         let parts: Vec<_> = version.split('.').collect();
@@ -478,6 +517,6 @@ pub fn compatible_api(package: &str, version: &str) -> bool {
     package == API_PACKAGE && release(version).is_some_and(|version| Some(version) == release(API_VERSION))
 }
 
-/* === Public Functions === */
-
 /* === Private Functions === */
+
+/* === Tests === */

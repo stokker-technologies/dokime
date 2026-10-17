@@ -25,7 +25,13 @@ use serde::Serialize;
 use crate::model::content::wire::ArtifactMetadata;
 use crate::model::content::wire::ArtifactScope;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // Which audio sources a video recording mixes into its soundtrack.
 #[harmos::message]
@@ -50,6 +56,8 @@ pub struct RecordingFrame {
     pub payload: Option<RecordingFramePayload>,
 }
 
+/* === Enums === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum RecordingFramePayload {
@@ -57,6 +65,12 @@ pub enum RecordingFramePayload {
     Completed(Box<ArtifactMetadata>),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -23,11 +25,18 @@ use serde::Serialize;
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -35,6 +44,7 @@ pub struct CapturedRecordSelection {
     // Conjunction of exact supplied fields. Missing record fields do not match.
     #[row(description = "Conjunction of exact supplied fields. Missing record fields do not match.")]
     pub scope: Option<EvidenceScope>,
+
     pub record_types: Vec<String>,
     pub sources: Vec<String>,
     pub severities: Vec<Severity>,
@@ -44,11 +54,14 @@ pub struct CapturedRecordSelection {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordPage {
     pub records: Vec<CapturedRecord>,
+
     // Scanned journal position, including excluded records and empty ranges.
     #[row(description = "Scanned journal position, including excluded records and empty ranges.")]
     pub scanned: Option<Cursor>,
+
     pub through: Option<Cursor>,
     pub replay_complete: bool,
+
     // This process retains all captured facts. Zero is currently the only value.
     #[row(description = "This process retains all captured facts. Zero is currently the only value.")]
     pub retained_after: u64,
@@ -59,9 +72,11 @@ pub struct RecordPage {
 pub struct CapturedRecord {
     pub record_id: String,
     pub sequence: u64,
+
     // Authored UTC occurrence time, not capture or commit time.
     #[row(description = "Authored UTC occurrence time, not capture or commit time.")]
     pub timestamp: Option<Timestamp>,
+
     pub record_type: String,
     pub schema_version: u32,
     pub source: String,
@@ -96,6 +111,14 @@ pub struct CapturedErrorCause {
     pub source: Option<String>,
 }
 
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

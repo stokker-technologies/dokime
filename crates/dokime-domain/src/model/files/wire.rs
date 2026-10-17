@@ -31,7 +31,13 @@ use crate::model::telemetry::TelemetryRow;
 use crate::model::telemetry::TelemetryStream;
 use crate::model::values::ValueType;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // One ordered include or exclude rule over paths relative to the source root.
 #[harmos::message]
@@ -40,6 +46,7 @@ pub struct FileRule {
     // A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.
     #[row(description = "A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.")]
     pub glob: String,
+
     pub action: FileRuleAction,
 }
 
@@ -59,6 +66,7 @@ pub struct FtpWatchSource {
     // `ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.
     #[row(description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
     pub url: String,
+
     // The host credential store entry holding the password; absent logs in anonymously.
     #[row(description = "The host credential store entry holding the password; absent logs in anonymously.")]
     pub credential_id: Option<String>,
@@ -77,6 +85,7 @@ pub struct LineField {
     // The column, and the named capture group that fills it.
     #[row(description = "The column, and the named capture group that fills it.")]
     pub name: String,
+
     pub kind: LineFieldKind,
 }
 
@@ -121,9 +130,11 @@ pub struct FileWatchProgress {
     // The path relative to the source root.
     #[row(description = "The path relative to the source root.")]
     pub path: String,
+
     // Bytes captured into the output so far.
     #[row(description = "Bytes captured into the output so far.")]
     pub offset: u64,
+
     pub phase: FileWatchPhase,
 }
 
@@ -132,9 +143,11 @@ pub struct FileWatchProgress {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchGap {
     pub path: String,
+
     // The output offset at which the gap sits.
     #[row(description = "The output offset at which the gap sits.")]
     pub offset: u64,
+
     pub reason: FileWatchGapReason,
 }
 
@@ -159,6 +172,8 @@ pub struct FileWatchCompleted {
 pub struct FileWatchFrame {
     pub payload: Option<FileWatchFramePayload>,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +249,10 @@ pub enum FileWatchFramePayload {
     Completed(FileWatchCompleted),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 impl LineMatcher {
     // Publishes one row of `S` per matching line, each column read from the
     // named group of the same name.
@@ -275,3 +294,5 @@ impl LineMarker {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

@@ -7,11 +7,14 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,6 +26,22 @@ use dokime_runtime::runtime::query::{
     PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, WifiBandScan, WifiBandWindow,
     WifiChannelCount,
 };
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
 
 pub(crate) async fn external_analysis_reload() {
     let root = tempdir().unwrap();
@@ -69,3 +88,7 @@ pub(crate) async fn external_analysis_reload() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

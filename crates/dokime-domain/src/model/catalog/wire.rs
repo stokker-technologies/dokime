@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -24,11 +26,18 @@ use serde::Serialize;
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -112,9 +121,11 @@ pub struct ParameterSchema {
     pub runtime_writable: bool,
     pub expression: Option<ParameterExpression>,
     pub selection: Option<ParameterSelection>,
+
     // Plugin-defined typed metadata retained from the registered parameter.
     #[row(description = "Plugin-defined typed metadata retained from the registered parameter.")]
     pub extensions: Vec<ParameterSchemaExtensionsEntry>,
+
     // Present when the parameter is a list: one array value of typed elements
     // belonging to one case, never a parameter space. `value_type` stays
     // VALUE_TYPE_ARRAY; this carries the element type and the length bounds a
@@ -123,9 +134,11 @@ pub struct ParameterSchema {
         description = "Present when the parameter is a list: one array value of typed elements belonging to one case, never a parameter space. `value_type` stays VALUE_TYPE_ARRAY; this carries the element type and the length bounds a list editor needs."
     )]
     pub list: Option<ParameterList>,
+
     // Inclusive numeric bounds; for lists, applied to each element.
     #[row(description = "Inclusive numeric bounds; for lists, applied to each element.")]
     pub min: Option<f64>,
+
     pub max: Option<f64>,
     pub expansion: Option<ParameterExpansion>,
 }
@@ -200,6 +213,7 @@ pub struct LinearSpace {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DynamicDefault {
     pub key: DynamicDefaultKey,
+
     // Operand index of the fallback expression.
     #[row(description = "Operand index of the fallback expression.")]
     pub fallback: Option<u32>,
@@ -209,6 +223,7 @@ pub struct DynamicDefault {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UnaryExpression {
     pub op: UnaryOperator,
+
     // Operand index.
     #[row(description = "Operand index.")]
     pub value: u32,
@@ -218,9 +233,11 @@ pub struct UnaryExpression {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BinaryExpression {
     pub op: BinaryOperator,
+
     // Operand index.
     #[row(description = "Operand index.")]
     pub left: u32,
+
     // Operand index.
     #[row(description = "Operand index.")]
     pub right: u32,
@@ -257,6 +274,8 @@ pub struct TelemetrySchemaIdentity {
     pub schema_version: u32,
     pub metadata: Option<Metadata>,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -305,6 +324,12 @@ pub enum ParameterNodeKind {
     Binary(BinaryExpression),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

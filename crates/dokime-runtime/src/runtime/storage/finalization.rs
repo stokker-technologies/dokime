@@ -7,9 +7,20 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use futures_util::{StreamExt, stream::FuturesUnordered};
+
+// Local Imports
 use crate::RuntimeHandle;
 use crate::runtime::Error;
 use crate::runtime::Result;
@@ -18,14 +29,21 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
-use futures_util::{StreamExt, stream::FuturesUnordered};
+
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl RuntimeHandle {
     /// Seal a terminal cycle no running request will finish: from its durable
     /// report intent when one exists, otherwise from its persisted members now.
@@ -202,9 +220,13 @@ impl RuntimeHandle {
         Ok(())
     }
 }
+
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
+
 /* === Tests === */

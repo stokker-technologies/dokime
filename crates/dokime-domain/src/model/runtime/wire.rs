@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -21,7 +23,13 @@ use serde::Serialize;
 
 // Local Imports
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -43,6 +51,8 @@ pub struct Health {
     pub message: String,
 }
 
+/* === Enums === */
+
 #[harmos::message]
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Readiness {
@@ -52,6 +62,12 @@ pub enum Readiness {
     Stopping,
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

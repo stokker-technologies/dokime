@@ -6,10 +6,24 @@
  *
  * ***
  */
+
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
+
 mod cycle;
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
+// Standard Library Imports
+use std::sync::Arc;
+
+// Third Party Imports
+use harmos::operations::{Context, Operation};
+
+// Local Imports
 use crate::operations::reports::MaterializeReport;
 use crate::{
     RuntimeHandle,
@@ -22,24 +36,32 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 use dokime_domain::model::reports::wire::ReportSubject;
-use harmos::operations::{Context, Operation};
-use std::sync::Arc;
+
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Handler {
     resources: Arc<Resources>,
 }
+
 pub(super) struct Resources {
     pub(super) execution_storage: Arc<ExecutionStorage>,
     pub(super) settings: crate::config::Settings,
     pub(super) providers: Arc<crate::domains::execution::provider::ProviderExecutorRegistry>,
     pub(super) progress: Arc<crate::runtime::progress::OperationRegistry>,
 }
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for Handler {
     type Declaration = MaterializeReport;
     type Resources = Resources;
@@ -76,6 +98,7 @@ impl Operation for Handler {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn register(runtime: &RuntimeHandle) -> Result<()> {
     let resources = Resources {
         execution_storage: runtime.execution_storage.clone(),
@@ -88,6 +111,7 @@ pub(crate) fn register(runtime: &RuntimeHandle) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 async fn execution(
     ctx: &Context<'_>, resources: &Resources, id: &TestExecutionId, at: &harmos::storage::StorageCursor,
     progress: &crate::runtime::progress::Operation,
@@ -158,4 +182,5 @@ async fn execution(
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
+
 /* === Tests === */

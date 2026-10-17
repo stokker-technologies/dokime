@@ -7,12 +7,16 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
+
 pub mod id;
 pub mod identity;
 pub mod wire;
 
 /* === Re-Exports === */
+
 pub use harmos::Identifier;
 pub use harmos::Metadata;
 pub use id::ActorId;
@@ -49,6 +53,30 @@ pub use identity::DokimeNodeIdentity;
 pub use identity::ExternalIdentityMapping;
 pub use identity::ExternalIdentityProvider;
 
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

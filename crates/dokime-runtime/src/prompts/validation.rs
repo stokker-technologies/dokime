@@ -15,8 +15,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,7 +28,20 @@ use dokime_domain::model::values::{Value, ValueType};
 
 /* === Constants === */
 
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
+
 pub fn validate_fields(fields: &[PromptField], values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     let mut issues = prompts::validate_fields(fields, values);
     for field in fields {
@@ -76,6 +91,7 @@ pub fn validate_answers(definition: &PromptDefinition, values: &BTreeMap<String,
 }
 
 /* === Private Functions === */
+
 fn validate_pattern(pattern: &str, value: &Value, name: &str, issues: &mut Vec<ValidationIssue>) {
     let Value::Text(text) = value else {
         return;

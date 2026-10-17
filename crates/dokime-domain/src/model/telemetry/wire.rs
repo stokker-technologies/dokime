@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -24,7 +26,13 @@ use serde::Serialize;
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +52,7 @@ pub struct TelemetrySamplesReplyThroughStreamCursorsEntry {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySamplesReply {
     pub samples: Vec<TelemetrySample>,
+
     // The greatest sequence returned for each stream. For latest=false, a
     // caller can use these positions as the next after_stream_cursors value.
     // Latest-window replies leave this map empty because older samples are
@@ -52,6 +61,7 @@ pub struct TelemetrySamplesReply {
         description = "The greatest sequence returned for each stream. For latest=false, a caller can use these positions as the next after_stream_cursors value. Latest-window replies leave this map empty because older samples are intentionally outside that request's selection."
     )]
     pub through_stream_cursors: Vec<TelemetrySamplesReplyThroughStreamCursorsEntry>,
+
     // For latest=false, false means the page reached its limit or the message
     // budget and the full filtered selection may contain more samples; continue
     // with the returned cursors. For latest=true, the selected tail window is
@@ -79,6 +89,14 @@ pub struct TelemetrySample {
     pub metadata: Option<Value>,
 }
 
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

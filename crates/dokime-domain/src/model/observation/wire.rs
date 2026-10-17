@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -24,10 +26,17 @@ use serde::Serialize;
 use crate::model::execution::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -36,6 +45,7 @@ pub struct RuntimeStateFrame {
     pub resynchronized: bool,
     pub shutting_down: bool,
     pub cycle_count: u64,
+
     // The slow work the backend is doing now, and work that ended moments ago.
     // A frame that changes only these repeats the previous cursor.
     #[row(
@@ -51,12 +61,15 @@ pub struct OperationProgress {
     pub operation_id: String,
     pub label: String,
     pub phase: String,
+
     // Every phase entered, oldest first and the current one last; at most 16.
     #[row(description = "Every phase entered, oldest first and the current one last; at most 16.")]
     pub phases: Vec<String>,
+
     // Absent while the operation cannot tell how far it has come.
     #[row(description = "Absent while the operation cannot tell how far it has come.")]
     pub fraction: Option<f64>,
+
     pub started_at: Option<Timestamp>,
     pub status: OperationStatus,
     pub finished_at: Option<Timestamp>,
@@ -117,10 +130,12 @@ pub struct TraceabilityPage {
     // response to another selected execution.
     #[row(description = "The request scope is echoed so a consumer cannot accidentally apply a response to another selected execution.")]
     pub scope: Option<EvidenceScope>,
+
     pub snapshots: Vec<TraceabilitySnapshot>,
     pub cursor: Option<Cursor>,
     pub next_after_traceability_id: String,
     pub complete: bool,
+
     // The source cut used for the host overlay. This binds continuations even
     // though host telemetry is stored outside the journal cursor.
     #[row(
@@ -128,6 +143,8 @@ pub struct TraceabilityPage {
     )]
     pub host_traceability_fingerprint: String,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +155,12 @@ pub enum OperationStatus {
     Failed,
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

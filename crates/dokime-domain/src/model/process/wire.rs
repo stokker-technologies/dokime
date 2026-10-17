@@ -18,17 +18,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
-/* === Types === */
+/* === Constants === */
 
 // The grace a cancelled process gets between SIGTERM and the kill.
 pub const DEFAULT_GRACE_MS: u32 = 2_000;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,11 +51,15 @@ pub struct ProcessExit {
     // Absent when a signal ended the process.
     #[row(description = "Absent when a signal ended the process.")]
     pub exit_code: Option<i32>,
+
     pub duration_ms: u64,
+
     // The instance was cancelled before the process exited by itself.
     #[row(description = "The instance was cancelled before the process exited by itself.")]
     pub cancelled: bool,
 }
+
+/* === Enums === */
 
 // Where one output of the process goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,6 +67,10 @@ pub enum Output {
     Log,
     Artifact(String),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl Output {
     pub(crate) fn artifact(self) -> Option<String> {
@@ -78,3 +94,5 @@ impl ProcessExit {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

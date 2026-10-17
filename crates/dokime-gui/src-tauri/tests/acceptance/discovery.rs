@@ -14,8 +14,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{fs, path::Path};
+
+// Third Party Imports
+
+// Local Imports
 
 /* === Constants === */
 
@@ -36,6 +41,7 @@ use std::{fs, path::Path};
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[test]
 fn discovery_refuses_precedence() {
     const PROBE: &str = "DOKIME_DISCOVERY_TEST_EXPECTED";

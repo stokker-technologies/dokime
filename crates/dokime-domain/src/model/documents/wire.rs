@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -23,13 +25,21 @@ use serde::Serialize;
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -46,6 +56,7 @@ pub struct DocumentFrontiers {
     pub process_epoch: String,
     pub state_revision: u64,
     pub telemetry: Option<DocumentTelemetryCut>,
+
     // SHA-256 of this captured artifact/report descriptor input, not a journal
     // position or published checkpoint. These owners have no shared revision.
     #[row(
@@ -137,6 +148,7 @@ pub struct DocumentCard {
 pub struct DocumentOwnerReference {
     pub kind: DocumentCardKind,
     pub plot_id: Option<String>,
+
     // Plot owners carry the authored input and presentation alongside the
     // stable owner identity. The request has no cursor; callers add one only
     // when opening a live plot stream.
@@ -152,6 +164,7 @@ pub struct DocumentPlotDefinition {
     pub metadata: Option<Metadata>,
     pub request: Option<PlotRequest>,
     pub presentation: Option<PlotPresentation>,
+
     // Authored z-axis data selection. This belongs to the document definition
     // and is kept separate from PlotRequest because the runtime query currently
     // evaluates only the request's lowered fields.
@@ -173,12 +186,14 @@ pub struct PlotPresentation {
     pub live_window_s: Option<f64>,
     pub x_format: Option<ValueFormat>,
     pub y_format: Option<ValueFormat>,
+
     // What the x axis measures. Unspecified is wall time, so a payload written
     // before this was declared still reads correctly.
     #[row(
         description = "What the x axis measures. Unspecified is wall time, so a payload written before this was declared still reads correctly."
     )]
     pub x_axis: PlotAxisKind,
+
     // The unit an elapsed x axis counts in, as the column declared it: "s",
     // "ms", "us", "min", "h". Absent for a wall-time axis.
     #[row(
@@ -252,6 +267,7 @@ pub struct DocumentSummaryTile {
     pub presentation: DocumentSummaryPresentation,
     pub unit: Option<String>,
     pub state: Option<DocumentSummaryState>,
+
     // Evaluation failure; value and state must be absent. Missing evidence alone
     // remains an absent value, not an unavailable result.
     #[row(
@@ -330,6 +346,7 @@ pub struct DocumentRepeatInstance {
 pub struct DocumentSectionIdentity {
     pub node_id: String,
     pub metadata: Option<Metadata>,
+
     // An unevaluable repeat retains its original section identity with no instances.
     #[row(description = "An unevaluable repeat retains its original section identity with no instances.")]
     pub unavailable: Option<String>,
@@ -352,6 +369,8 @@ pub struct DocumentCompletion {
 pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -508,6 +527,12 @@ pub enum DocumentFrameFrame {
     SectionIdentity(DocumentSectionIdentity),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

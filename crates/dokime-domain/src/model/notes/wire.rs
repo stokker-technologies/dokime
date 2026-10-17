@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -21,10 +23,17 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::execution::wire_cursor::Cursor;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // Current owners only. An execution owner never falls back to its cycle.
 #[harmos::message]
@@ -53,6 +62,7 @@ pub struct AnnotationSelection {
     // Absent selects all current annotations. Present selects this owner and descendants.
     #[row(description = "Absent selects all current annotations. Present selects this owner and descendants.")]
     pub owner: Option<AnnotationOwner>,
+
     // Also include ancestors, including session/global annotations.
     #[row(description = "Also include ancestors, including session/global annotations.")]
     pub include_context: bool,
@@ -99,9 +109,11 @@ pub struct NoteReceipt {
 pub struct HealthItem {
     pub health_item_id: String,
     pub scope: Option<EvidenceScope>,
+
     // Info, Warn or Error
     #[row(description = "Info, Warn or Error")]
     pub severity: Severity,
+
     pub message: String,
     pub detail: Option<String>,
     pub observed_at: Option<Timestamp>,
@@ -114,6 +126,8 @@ pub struct ListHealthResponse {
     pub cursor: Option<Cursor>,
     pub next_after_id: String,
 }
+
+/* === Enums === */
 
 // A committed note may have no existing persisted execution dataset. Confirmation
 // verifies this exact note in all captured targets; it does not promise future
@@ -135,6 +149,12 @@ pub enum AnnotationOwnerOwner {
     Execution(ExecutionNoteOwner),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

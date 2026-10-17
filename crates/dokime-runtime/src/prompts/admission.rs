@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -30,7 +31,20 @@ use dokime_domain::model::prompts::{PromptDefinition, checks::collect_definition
 
 /* === Constants === */
 
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
+
 /// Untrusted declarations are checked before the pure installation transaction.
 pub(crate) fn validate_installation(installation: &InstalledPlugin) -> Result<(), String> {
     validate_definitions(
@@ -96,6 +110,7 @@ pub(crate) fn validate_response(state: &RuntimeState, response: &SubmitPromptRes
 }
 
 /* === Private Functions === */
+
 fn validate_definitions<'a>(source: &str, definitions: impl IntoIterator<Item = &'a PromptDefinition>) -> Result<(), String> {
     for definition in collect_definitions(source, definitions)? {
         let issues = super::validate_definition(definition);

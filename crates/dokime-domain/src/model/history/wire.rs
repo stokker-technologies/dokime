@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,34 +24,52 @@ use serde::Serialize;
 // Local Imports
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::content::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::documents::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::evidence::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire_checkpoint::*;
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::notes::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::prompts::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::telemetry::wire::*;
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -76,6 +96,7 @@ pub struct ExecutionFilter {
     pub cycle_ids: Vec<String>,
     pub started_after: Option<Timestamp>,
     pub started_before: Option<Timestamp>,
+
     // Absent lists only unarchived executions.
     #[row(description = "Absent lists only unarchived executions.")]
     pub archive: Option<crate::model::execution::wire::ArchiveScope>,
@@ -98,6 +119,7 @@ pub struct ExecutionBrowsePage {
     pub omitted_conflicts: u32,
     pub issues: Vec<HistoryIssue>,
     pub omitted_issues: u32,
+
     // One aggregate per cycle the page's entries belong to, folded over the
     // whole filtered selection rather than this page, so a client renders a
     // cycle's totals without loading every page.
@@ -153,6 +175,7 @@ pub struct HistoricalExecutionMetadata {
     pub started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
+
     // The frozen case template and admitted suite label this entry belongs to,
     // so a client can read back what `ExecutionFilter` selected on. Absent when
     // the stored row no longer resolves its case or suite revision.
@@ -160,6 +183,7 @@ pub struct HistoricalExecutionMetadata {
         description = "The frozen case template and admitted suite label this entry belongs to, so a client can read back what `ExecutionFilter` selected on. Absent when the stored row no longer resolves its case or suite revision."
     )]
     pub template_id: Option<String>,
+
     pub suite_label: Option<String>,
 }
 
@@ -245,9 +269,11 @@ pub struct HistoricalExecutionSnapshot {
     pub parameter_definitions: Vec<ParameterSchema>,
     pub parameters: Vec<MaterializedParameter>,
     pub documents: Vec<HistoricalDocument>,
+
     // Captured at admission; never reconstructed from the current suite catalog.
     #[row(description = "Captured at admission; never reconstructed from the current suite catalog.")]
     pub case_definition: Option<HistoricalCaseDefinition>,
+
     pub host_version: Option<String>,
 }
 
@@ -439,6 +465,8 @@ pub struct HistoricalCycle {
     pub result: Option<ResultSummary>,
 }
 
+/* === Enums === */
+
 // The requested order key. Ordering is always total: the key, then the
 // execution ID ascending, so equal keys never permute between pages. An
 // unspecified key is STARTED_AT. TITLE compares the case-folded title. An
@@ -506,6 +534,12 @@ pub enum HistoricalDocumentCardBody {
     Owner(DocumentOwnerReference),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

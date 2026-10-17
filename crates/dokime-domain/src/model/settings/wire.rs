@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,7 +24,13 @@ use serde::Serialize;
 // Local Imports
 use crate::model::values::wire::Value;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 // The points and strategy a plot draws with when neither its author nor its
 // operator chose, live and in every report.
@@ -47,13 +55,17 @@ pub struct ApplicationSettings {
     pub appearance: Option<AppearancePreference>,
     pub report: Option<ReportPreference>,
     pub application_root: String,
+
     // Absent when settings.json names none and the default applies.
     #[row(description = "Absent when settings.json names none and the default applies.")]
     pub configured_data_root: Option<String>,
+
     pub default_data_root: String,
+
     // The data root this backend process is using.
     #[row(description = "The data root this backend process is using.")]
     pub effective_data_root: String,
+
     pub restart_required: bool,
 }
 
@@ -194,6 +206,7 @@ pub struct PluginRuntimeSettings {
     pub settings: Option<SettingsCatalog>,
     pub values: Option<Value>,
     pub credential_bindings: Option<PluginRuntimeCredentialBindings>,
+
     // Values a plugin's discovery routes computed, by setting id, for the fields
     // nobody saved. A value here is shown on the card with a `Discovered` marker
     // and is used by no run: saving it is what turns it into an edited value.
@@ -264,6 +277,7 @@ pub struct MultipleChoiceSetting {
     pub description: Option<String>,
     pub default: String,
     pub choices: Vec<SettingChoice>,
+
     // The id of the plugin route that fills this dropdown at run time.
     #[row(description = "The id of the plugin route that fills this dropdown at run time.")]
     pub provider: Option<String>,
@@ -313,6 +327,8 @@ pub struct RedactedCredentialBinding {
     pub backend: CredentialBackendKind,
     pub configured: bool,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -406,6 +422,12 @@ pub enum SecretReferenceKind {
     StoredCredential(String),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

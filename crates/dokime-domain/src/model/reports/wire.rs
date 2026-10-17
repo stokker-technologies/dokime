@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -21,10 +23,17 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -34,18 +43,13 @@ pub struct MaterializedReport {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum ReportSubject {
-    Execution(String),
-    Cycle(String),
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportMetadata {
     pub test_cycle_id: String,
+
     // Set when the report is one execution's rather than its cycle's.
     #[row(description = "Set when the report is one execution's rather than its cycle's.")]
     pub test_execution_id: Option<String>,
+
     pub identifier: String,
     pub metadata: Option<Metadata>,
     pub generated_at: Option<Timestamp>,
@@ -71,9 +75,19 @@ pub struct ReportHtmlChunk {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportHtmlCompletion {
     pub size_bytes: u64,
+
     // SHA-256 of exactly the bytes delivered by preceding chunks.
     #[row(description = "SHA-256 of exactly the bytes delivered by preceding chunks.")]
     pub sha256: String,
+}
+
+/* === Enums === */
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub enum ReportSubject {
+    Execution(String),
+    Cycle(String),
 }
 
 // Where the delivered report came from.
@@ -94,6 +108,12 @@ pub enum ReportHtmlFramePayload {
     Complete(ReportHtmlCompletion),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */

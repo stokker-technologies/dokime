@@ -7,6 +7,8 @@
  * ***
  */
 
+// TODO: Describe this module's responsibility.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -22,10 +24,17 @@ use serde::Serialize;
 // Local Imports
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Types === */
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -47,6 +56,7 @@ pub struct ListArtifactsReply {
 pub struct ArtifactScope {
     pub cycle_id: Option<String>,
     pub case_id: Option<String>,
+
     // Captured artifacts carry their owning execution.
     #[row(description = "Captured artifacts carry their owning execution.")]
     pub execution_id: Option<String>,
@@ -61,9 +71,11 @@ pub struct ArtifactMetadata {
     pub filename: String,
     pub content_type: Option<String>,
     pub size_bytes: u64,
+
     // Exactly 64 lowercase hexadecimal characters.
     #[row(description = "Exactly 64 lowercase hexadecimal characters.")]
     pub sha256: String,
+
     pub state: ArtifactState,
     pub created_at: Option<Timestamp>,
 }
@@ -218,6 +230,7 @@ pub struct ExecutionFileSeal {
     pub identity: Option<ExecutionFileIdentity>,
     pub position: Option<crate::model::execution::wire_checkpoint::StorageCursor>,
     pub length: u64,
+
     // Exactly 64 lowercase hexadecimal characters, over the entire file.
     #[row(description = "Exactly 64 lowercase hexadecimal characters, over the entire file.")]
     pub sha256: String,
@@ -228,6 +241,8 @@ pub struct ExecutionFileSeal {
 pub struct AppearanceAssetFrame {
     pub payload: Option<AppearanceAssetFramePayload>,
 }
+
+/* === Enums === */
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -306,6 +321,12 @@ pub enum AppearanceAssetFramePayload {
     Complete(ArtifactCompletion),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */
