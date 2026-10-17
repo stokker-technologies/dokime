@@ -243,6 +243,12 @@ impl From<std::io::Error> for Error {
 /* === Private Functions === */
 fn harmos_message(error: &harmos::Error) -> String {
     let mut message = error.to_string();
+    // Harmos prints an operation failure on its own line; Dokime messages carry the cause.
+    if let harmos::Error::OperationFailed { source, .. } = error {
+        use std::fmt::Write;
+        let _ = write!(message, ": {source}");
+        return message;
+    }
     if let harmos::Error::PluginLifecycle { source } = error {
         let failures = match source.as_ref() {
             harmos::plugin::PluginFailure::Cleanup(failures)
