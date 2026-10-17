@@ -38,11 +38,7 @@ use dokime_runtime::telemetry::TelemetrySample;
 /* === Public Functions === */
 pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>();
-    for text in [
-        sample.sample_id.as_str(),
-        sample.stream.as_str(),
-        &sample.source,
-    ] {
+    for text in [sample.sample_id.as_str(), sample.stream.as_str(), &sample.source] {
         value::text(text)?;
         bytes = bytes.saturating_add(text.len());
     }
@@ -53,16 +49,12 @@ pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status>
         bytes = bytes.saturating_add(canonical::scope_memory(scope)?);
     }
     if bytes == usize::MAX {
-        return Err(Status::resource_exhausted(
-            "sample construction size overflow",
-        ));
+        return Err(Status::resource_exhausted("sample construction size overflow"));
     }
     Ok(bytes)
 }
 
-pub(in crate::grpc) fn sample(
-    sample: &TelemetrySample,
-) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
+pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
     memory(sample)?;
     Ok(dokime_domain::model::telemetry::wire::TelemetrySample {
         sample_id: sample.sample_id.to_string(),

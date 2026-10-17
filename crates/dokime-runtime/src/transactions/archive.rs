@@ -18,9 +18,9 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::state::RuntimeState;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
-use crate::state::RuntimeState;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
@@ -60,9 +60,7 @@ impl Transaction<RuntimeState> for SetArchived {
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         match &self.subject {
             ArchiveSubject::Cycle(id) => match state.cycles.get(id) {
-                Some(cycle) if !cycle_terminal(cycle.lifecycle) => {
-                    Err("only a terminal cycle can be archived or unarchived".to_owned())
-                }
+                Some(cycle) if !cycle_terminal(cycle.lifecycle) => Err("only a terminal cycle can be archived or unarchived".to_owned()),
                 _ => Ok(()),
             },
             ArchiveSubject::Execution(id) => match state.executions.get(id) {
@@ -81,11 +79,7 @@ impl Transaction<RuntimeState> for SetArchived {
                 state.cycle_report_finalizations.remove(id);
                 if let Some(cycle) = state.cycles.get(id) {
                     for member in &cycle.execution_ids {
-                        if state
-                            .executions
-                            .get(member)
-                            .is_some_and(|execution| execution.saved.is_some())
-                        {
+                        if state.executions.get(member).is_some_and(|execution| execution.saved.is_some()) {
                             state.report_finalizations.remove(member);
                         }
                     }
@@ -96,11 +90,7 @@ impl Transaction<RuntimeState> for SetArchived {
             }
             (ArchiveSubject::Execution(id), true) => {
                 state.archived_executions.insert(id.clone());
-                if state
-                    .executions
-                    .get(id)
-                    .is_some_and(|execution| execution.saved.is_some())
-                {
+                if state.executions.get(id).is_some_and(|execution| execution.saved.is_some()) {
                     state.report_finalizations.remove(id);
                 }
             }
@@ -114,10 +104,7 @@ impl Transaction<RuntimeState> for SetArchived {
 /* === Public Functions === */
 /// Whether a cycle's lifecycle has ended: nothing more will run in it.
 pub fn cycle_terminal(lifecycle: CycleStatus) -> bool {
-    matches!(
-        lifecycle,
-        CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped
-    )
+    matches!(lifecycle, CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped)
 }
 
 /// Whether an execution has ended, whatever its verdict.

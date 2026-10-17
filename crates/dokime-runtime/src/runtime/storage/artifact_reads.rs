@@ -21,12 +21,12 @@ use harmos::storage::{ByteRange, FileReader, ReadFile};
 
 // Local Imports
 use super::execution::ExecutionView;
-use crate::{runtime::Error, runtime::Result};
 use crate::artifacts::ArtifactRecord;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::Metadata;
+use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 
@@ -50,19 +50,8 @@ pub struct ArtifactReader {
 
 /* === Implementations === */
 impl ArtifactReader {
-    pub(super) async fn from_output(
-        storage: &crate::storage::Manager,
-        descriptor: ExecutionOutput,
-    ) -> Result<Self> {
-        let reader = storage
-            .read_file(ReadFile {
-                file: descriptor.file.clone(),
-                range: ByteRange {
-                    offset: 0,
-                    limit: None,
-                },
-            })
-            .await?;
+    pub(super) async fn from_output(storage: &crate::storage::Manager, descriptor: ExecutionOutput) -> Result<Self> {
+        let reader = storage.read_file(ReadFile { file: descriptor.file.clone(), range: ByteRange { offset: 0, limit: None } }).await?;
         Ok(Self::new(descriptor, reader))
     }
 
@@ -74,31 +63,14 @@ impl ArtifactReader {
                 matches!(&output.content, ExecutionOutputContent::Artifact { record, .. }
                 if &record.artifact_id == id)
             })
-            .ok_or_else(|| {
-                Error::Storage(crate::storage::Error::Invalid(
-                    "artifact descriptor is missing from captured output",
-                ))
-            })?
+            .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("artifact descriptor is missing from captured output")))?
             .clone();
-        let reader = view
-            .read_file(
-                &output.file,
-                harmos::storage::ByteRange {
-                    offset: 0,
-                    limit: None,
-                },
-            )
-            .await?;
+        let reader = view.read_file(&output.file, harmos::storage::ByteRange { offset: 0, limit: None }).await?;
         Ok(Self::new(output, reader))
     }
 
     fn new(descriptor: ExecutionOutput, reader: FileReader) -> Self {
-        Self {
-            descriptor,
-            reader,
-            pending: Vec::new(),
-            offset: 0,
-        }
+        Self { descriptor, reader, pending: Vec::new(), offset: 0 }
     }
 
     pub fn record(&self) -> &ArtifactRecord {

@@ -21,8 +21,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use super::{intern, position, resolve};
 use crate::definition::{ParameterDefinition, TestCaseTemplate};
 use crate::document::DocumentDefinition;
-use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
 use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::TestExecutionId;
 
@@ -106,15 +106,8 @@ impl<'a> Shared<'a> {
             if let Some(template) = snapshot.template() {
                 intern(&mut shared.templates, template);
             }
-            intern(
-                &mut shared.parameter_definitions,
-                snapshot.parameter_definitions(),
-            );
-            for document in snapshot
-                .documents()
-                .values()
-                .chain(execution.documents.values())
-            {
+            intern(&mut shared.parameter_definitions, snapshot.parameter_definitions());
+            for document in snapshot.documents().values().chain(execution.documents.values()) {
                 intern(&mut shared.documents, document);
             }
         }
@@ -122,10 +115,7 @@ impl<'a> Shared<'a> {
     }
 
     fn documents(&self, documents: &BTreeMap<DocumentId, DocumentDefinition>) -> DocumentRefs {
-        documents
-            .iter()
-            .map(|(id, document)| (id.clone(), position(&self.documents, document)))
-            .collect()
+        documents.iter().map(|(id, document)| (id.clone(), position(&self.documents, document))).collect()
     }
 }
 
@@ -138,13 +128,8 @@ impl Serialize for Members<'_> {
             let lean = lean_clone(execution);
             let member = Member {
                 execution: &lean,
-                template: snapshot
-                    .template()
-                    .map(|template| position(&self.shared.templates, template)),
-                parameter_definitions: position(
-                    &self.shared.parameter_definitions,
-                    snapshot.parameter_definitions(),
-                ),
+                template: snapshot.template().map(|template| position(&self.shared.templates, template)),
+                parameter_definitions: position(&self.shared.parameter_definitions, snapshot.parameter_definitions()),
                 planned_documents: self.shared.documents(snapshot.documents()),
                 documents: self.shared.documents(&execution.documents),
             };
@@ -155,33 +140,15 @@ impl Serialize for Members<'_> {
 }
 
 impl DecodedShared {
-    fn documents(
-        &self,
-        references: DocumentRefs,
-    ) -> Result<BTreeMap<DocumentId, DocumentDefinition>, String> {
-        references
-            .into_iter()
-            .map(|(id, index)| Ok((id, resolve(&self.documents, index, "document")?)))
-            .collect()
+    fn documents(&self, references: DocumentRefs) -> Result<BTreeMap<DocumentId, DocumentDefinition>, String> {
+        references.into_iter().map(|(id, index)| Ok((id, resolve(&self.documents, index, "document")?))).collect()
     }
 
     fn restore(&self, member: DecodedMember) -> Result<TestExecution, String> {
-        let DecodedMember {
-            mut execution,
-            template,
-            parameter_definitions,
-            planned_documents,
-            documents,
-        } = member;
+        let DecodedMember { mut execution, template, parameter_definitions, planned_documents, documents } = member;
         let lean = &execution.snapshot;
-        let template = template
-            .map(|index| resolve(&self.templates, index, "template"))
-            .transpose()?;
-        let definitions = resolve(
-            &self.parameter_definitions,
-            parameter_definitions,
-            "parameter set",
-        )?;
+        let template = template.map(|index| resolve(&self.templates, index, "template")).transpose()?;
+        let definitions = resolve(&self.parameter_definitions, parameter_definitions, "parameter set")?;
 
         execution.snapshot = ExecutionSnapshot::from_captured(
             lean.case().clone(),
@@ -198,24 +165,12 @@ impl DecodedShared {
 }
 
 /* === Public Functions === */
-pub(super) fn serialize<S: Serializer>(
-    executions: &Executions,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+pub(super) fn serialize<S: Serializer>(executions: &Executions, serializer: S) -> Result<S::Ok, S::Error> {
     let shared = Shared::collect(executions);
-    Encoded {
-        shared: &shared,
-        members: Members {
-            executions,
-            shared: &shared,
-        },
-    }
-    .serialize(serializer)
+    Encoded { shared: &shared, members: Members { executions, shared: &shared } }.serialize(serializer)
 }
 
-pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Executions, D::Error> {
+pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Executions, D::Error> {
     let Decoded { shared, members } = Decoded::deserialize(deserializer)?;
 
     members

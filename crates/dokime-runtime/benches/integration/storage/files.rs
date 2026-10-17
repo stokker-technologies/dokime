@@ -55,9 +55,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
                     let fixture = executor.block_on(Fixture::new(4));
                     let metadata = metadata(length);
                     let started = std::time::Instant::now();
-                    let file = executor
-                        .block_on(fixture.storage.write_file(metadata, &bytes))
-                        .unwrap();
+                    let file = executor.block_on(fixture.storage.write_file(metadata, &bytes)).unwrap();
                     executor.block_on(fixture.storage.flush()).unwrap();
                     elapsed += started.elapsed();
                     assert_eq!(file.length, length as u64);
@@ -73,22 +71,16 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
     for length in lengths {
         let bytes = bytes(length);
         let fixture = executor.block_on(Fixture::new(4));
-        let file = executor
-            .block_on(fixture.storage.write_file(metadata(length), &bytes))
-            .unwrap();
+        let file = executor.block_on(fixture.storage.write_file(metadata(length), &bytes)).unwrap();
         executor.block_on(fixture.storage.flush()).unwrap();
         let saved = fixture.storage.cursor_saved();
-        let view = executor
-            .block_on(fixture.backend.open_snapshot(&saved))
-            .unwrap();
+        let view = executor.block_on(fixture.backend.open_snapshot(&saved)).unwrap();
         assert_eq!(executor.block_on(read(&fixture, &view, &file)), bytes);
         group.throughput(Throughput::Bytes(length as u64));
         group.bench_function(BenchmarkId::from_parameter(length), |bencher| {
             bencher.iter(|| std::hint::black_box(executor.block_on(read(&fixture, &view, &file))));
         });
-        executor
-            .block_on(fixture.backend.release_snapshot(&view))
-            .unwrap();
+        executor.block_on(fixture.backend.release_snapshot(&view)).unwrap();
         executor.block_on(fixture.runtime.stop()).unwrap();
     }
     group.finish();
@@ -110,11 +102,7 @@ fn metadata(length: usize) -> FileMetadata {
 async fn read(fixture: &Fixture, view: &BackendSnapshot, file: &FileReference) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(file.length as usize);
     while bytes.len() < file.length as usize {
-        let batch = fixture
-            .backend
-            .read_file(view, file, bytes.len() as u64, nz(64 * 1024))
-            .await
-            .unwrap();
+        let batch = fixture.backend.read_file(view, file, bytes.len() as u64, nz(64 * 1024)).await.unwrap();
         assert!(!batch.is_empty());
         bytes.extend(batch);
     }

@@ -18,25 +18,25 @@ use std::collections::BTreeMap;
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::runtime::Error;
+use crate::prompts::{
+    PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind, PromptInstance, PromptKind, PromptRequest,
+    PromptResponse,
+};
 use crate::records::BuiltinRecordType;
-use dokime_domain::model::records::evidence::Record;
 use crate::records::RecordSeverity;
 use crate::records::ValidationMode;
 use crate::records::validate_record;
+use crate::runtime::Error;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::Drafts;
+use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-use crate::prompts::{
-    PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind,
-    PromptInstance, PromptKind, PromptRequest, PromptResponse,
-};
 
 /* === Constants === */
 
@@ -131,16 +131,11 @@ impl Transaction<RuntimeState> for RequestPrompt {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        prepare_request(state, self)
-            .map(|_| ())
-            .map_err(|error| error.to_string())
+        prepare_request(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
-        prepare_request(state, self)
-            .expect("checked prompt plan")
-            .1
-            .collect(out);
+        prepare_request(state, self).expect("checked prompt plan").1.collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
         request_prompt(state, self).expect("Harmos checked the prompt request before applying it");
@@ -152,20 +147,14 @@ impl Transaction<RuntimeState> for SubmitPromptResponse {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        prepare_response(state, self)
-            .map(|_| ())
-            .map_err(|error| error.to_string())
+        prepare_response(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
-        prepare_response(state, self)
-            .expect("checked response plan")
-            .1
-            .collect(out);
+        prepare_response(state, self).expect("checked response plan").1.collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
-        submit_prompt_response(state, self)
-            .expect("Harmos checked the prompt response before applying it");
+        submit_prompt_response(state, self).expect("Harmos checked the prompt response before applying it");
     }
 }
 
@@ -174,17 +163,11 @@ pub fn validate_request(state: &RuntimeState, request: &RequestPrompt) -> Result
     prepare_request(state, request).map(|(prompt, _)| prompt.prompt_id)
 }
 
-pub fn validate_response(
-    state: &RuntimeState,
-    response: &SubmitPromptResponse,
-) -> Result<PromptId, Error> {
+pub fn validate_response(state: &RuntimeState, response: &SubmitPromptResponse) -> Result<PromptId, Error> {
     prepare_response(state, response).map(|_| response.prompt_id.clone())
 }
 
-pub fn request_prompt(
-    state: &mut RuntimeState,
-    request: &RequestPrompt,
-) -> Result<PromptId, Error> {
+pub fn request_prompt(state: &mut RuntimeState, request: &RequestPrompt) -> Result<PromptId, Error> {
     let (prompt, records) = prepare_request(state, request)?;
     let id = prompt.prompt_id.clone();
     records.apply(state);
@@ -192,15 +175,10 @@ pub fn request_prompt(
     Ok(id)
 }
 
-pub fn submit_prompt_response(
-    state: &mut RuntimeState,
-    response: &SubmitPromptResponse,
-) -> Result<PromptId, Error> {
+pub fn submit_prompt_response(state: &mut RuntimeState, response: &SubmitPromptResponse) -> Result<PromptId, Error> {
     let (answer, records) = prepare_response(state, response)?;
     records.apply(state);
-    state
-        .prompt_responses
-        .insert(response.prompt_id.clone(), answer);
+    state.prompt_responses.insert(response.prompt_id.clone(), answer);
     Ok(response.prompt_id.clone())
 }
 
@@ -211,17 +189,10 @@ pub fn submit_prompt_response(
 /// gave, and a requester still waiting is cancelled with its owner. Commit
 /// the result with [`commit_settled_prompts`].
 pub(crate) fn settle_prompts(
-    state: &RuntimeState,
-    records: &mut Drafts,
-    settlement: PromptSettlement,
-    at: &Timestamp,
-    owned: impl Fn(&RecordScope) -> bool,
+    state: &RuntimeState, records: &mut Drafts, settlement: PromptSettlement, at: &Timestamp, owned: impl Fn(&RecordScope) -> bool,
 ) -> SettledPrompts {
     let contract = settlement.record_type().contract();
-    let mut settled = SettledPrompts {
-        ids: Vec::new(),
-        at: Some(at.clone()),
-    };
+    let mut settled = SettledPrompts { ids: Vec::new(), at: Some(at.clone()) };
     for prompt in state.open_prompts().filter(|prompt| owned(&prompt.scope)) {
         let closure = PromptResponse {
             prompt_id: prompt.prompt_id.clone(),
@@ -266,17 +237,14 @@ pub(crate) fn commit_settled_prompts(state: &mut RuntimeState, settled: SettledP
 
 /* === Private Functions === */
 fn prepare_request(
-    state: &RuntimeState,
-    request: &RequestPrompt,
+    state: &RuntimeState, request: &RequestPrompt,
 ) -> Result<(PromptInstance, crate::transactions::records::draft::Drafts), Error> {
     let invocation = &request.prompt;
     let definition = state
         .prompt_definitions
         .get(invocation.prompt_type.as_str())
         .cloned()
-        .ok_or_else(|| {
-            Error::not_found("prompt_definition_not_found", "question is not installed")
-        })?;
+        .ok_or_else(|| Error::not_found("prompt_definition_not_found", "question is not installed"))?;
     validate_prompt_definition(&definition)?;
     let scope = admitted_scope(state, invocation, &definition)?;
     let mut fields = definition.fields.clone();
@@ -286,11 +254,7 @@ fn prepare_request(
     }
     let issues = dokime_domain::model::prompts::validate_fields(&fields, &invocation.values);
     if !issues.is_empty() {
-        return Err(Error::validation(
-            "validation_failed",
-            "invalid question initial values",
-            issues,
-        ));
+        return Err(Error::validation("validation_failed", "invalid question initial values", issues));
     }
     let prompt = PromptInstance {
         prompt_id: invocation.prompt_id.clone(),
@@ -307,31 +271,15 @@ fn prepare_request(
     Ok((prompt, records))
 }
 
-fn admitted_scope(
-    state: &RuntimeState,
-    request: &PromptRequest,
-    definition: &PromptDefinition,
-) -> Result<RecordScope, Error> {
-    let invalid = || {
-        Error::validation(
-            "prompt_scope_invalid",
-            "question scope does not match an admitted execution",
-            vec![],
-        )
-    };
+fn admitted_scope(state: &RuntimeState, request: &PromptRequest, definition: &PromptDefinition) -> Result<RecordScope, Error> {
+    let invalid = || Error::validation("prompt_scope_invalid", "question scope does not match an admitted execution", vec![]);
     let scope = &request.scope;
-    let standalone = state.installed_plugins.values().any(|installation| {
-        installation.enabled
-            && installation
-                .prompts
-                .iter()
-                .any(|declared| declared == definition)
-    });
+    let standalone = state
+        .installed_plugins
+        .values()
+        .any(|installation| installation.enabled && installation.prompts.iter().any(|declared| declared == definition));
     let Some(cycle_id) = &scope.test_cycle_id else {
-        if scope.test_execution_id.is_some()
-            || scope.test_case_id.is_some()
-            || scope.template_id.is_some()
-        {
+        if scope.test_execution_id.is_some() || scope.test_case_id.is_some() || scope.template_id.is_some() {
             return Err(invalid());
         }
         // A trusted host may open a standalone installed question.
@@ -351,32 +299,15 @@ fn admitted_scope(
         }
         return Ok(scope.clone());
     };
-    let execution = state
-        .executions
-        .get(execution_id)
-        .filter(|execution| &execution.test_cycle_id == cycle_id)
-        .ok_or_else(invalid)?;
+    let execution = state.executions.get(execution_id).filter(|execution| &execution.test_cycle_id == cycle_id).ok_or_else(invalid)?;
     let case = execution.snapshot.case();
-    if scope
-        .test_case_id
-        .as_ref()
-        .is_some_and(|id| id != &case.test_case_id)
-        || scope
-            .template_id
-            .as_ref()
-            .is_some_and(|id| id != &case.test_case_template_id)
-        || scope
-            .session_id
-            .as_ref()
-            .is_some_and(|id| id != &state.session_id)
+    if scope.test_case_id.as_ref().is_some_and(|id| id != &case.test_case_id)
+        || scope.template_id.as_ref().is_some_and(|id| id != &case.test_case_template_id)
+        || scope.session_id.as_ref().is_some_and(|id| id != &state.session_id)
     {
         return Err(invalid());
     }
-    if scope
-        .suite_id
-        .as_ref()
-        .is_some_and(|id| Some(id) != execution.scope.suite_id.as_ref())
-    {
+    if scope.suite_id.as_ref().is_some_and(|id| Some(id) != execution.scope.suite_id.as_ref()) {
         return Err(invalid());
     }
     let suite = state.suites.suite_for_case(case).ok_or_else(invalid)?;
@@ -386,11 +317,7 @@ fn admitted_scope(
         .iter()
         .find(|template| template.test_case_template_id == case.test_case_template_id)
         .ok_or_else(invalid)?;
-    if !template
-        .prompt_definitions
-        .iter()
-        .any(|declared| declared == definition)
-    {
+    if !template.prompt_definitions.iter().any(|declared| declared == definition) {
         return Err(invalid());
     }
     let mut admitted = execution.scope.clone();
@@ -400,15 +327,10 @@ fn admitted_scope(
 }
 
 fn prepare_insert(
-    state: &RuntimeState,
-    prompt: &PromptInstance,
-    at: &Timestamp,
+    state: &RuntimeState, prompt: &PromptInstance, at: &Timestamp,
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
     if state.prompt_requests.contains_key(&prompt.prompt_id) {
-        return Err(Error::conflict(
-            "prompt_already_exists",
-            "prompt already exists",
-        ));
+        return Err(Error::conflict("prompt_already_exists", "prompt already exists"));
     }
     // The request record carries the prompt's declared level, so the timeline
     // row and the sealed report state how urgent the question was.
@@ -425,41 +347,22 @@ fn prepare_insert(
 }
 
 fn prepare_response(
-    state: &RuntimeState,
-    response: &SubmitPromptResponse,
+    state: &RuntimeState, response: &SubmitPromptResponse,
 ) -> Result<(PromptResponse, crate::transactions::records::draft::Drafts), Error> {
     if state.prompt_responses.contains_key(&response.prompt_id) {
-        return Err(Error::conflict(
-            "prompt_already_answered",
-            "prompt already has a response",
-        ));
+        return Err(Error::conflict("prompt_already_answered", "prompt already has a response"));
     }
-    let prompt = state
-        .prompt_requests
-        .get(&response.prompt_id)
-        .cloned()
-        .ok_or_else(|| Error::not_found("prompt_not_found", "prompt not found"))?;
+    let prompt =
+        state.prompt_requests.get(&response.prompt_id).cloned().ok_or_else(|| Error::not_found("prompt_not_found", "prompt not found"))?;
     if !state.prompt_open(&prompt) {
-        return Err(Error::conflict(
-            "prompt_settled",
-            "prompt was settled because its execution is no longer running",
-        ));
+        return Err(Error::conflict("prompt_settled", "prompt was settled because its execution is no longer running"));
     }
     let action = response.action.trim().to_owned();
-    prompt
-        .definition
-        .actions
-        .iter()
-        .find(|candidate| candidate.id == action)
-        .ok_or_else(|| unsupported_action(&prompt, &action))?;
+    prompt.definition.actions.iter().find(|candidate| candidate.id == action).ok_or_else(|| unsupported_action(&prompt, &action))?;
     if response.accepted {
         let issues = validate_prompt_response_values(&prompt, &response.values);
         if !issues.is_empty() {
-            return Err(Error::validation(
-                "validation_failed",
-                "prompt response validation failed",
-                issues,
-            ));
+            return Err(Error::validation("validation_failed", "prompt response validation failed", issues));
         }
     }
     let answer = PromptResponse {
@@ -470,11 +373,8 @@ fn prepare_response(
         values: response.values.clone(),
         accepted: response.accepted,
     };
-    let record_type = if response.accepted {
-        BuiltinRecordType::PromptResponseSubmitted
-    } else {
-        BuiltinRecordType::PromptResponseCancelled
-    };
+    let record_type =
+        if response.accepted { BuiltinRecordType::PromptResponseSubmitted } else { BuiltinRecordType::PromptResponseCancelled };
     let mut details = prompt_response_details(&answer);
     if !response.accepted {
         details.insert("reason".to_owned(), Value::from(action));
@@ -492,23 +392,11 @@ fn prepare_response(
 }
 
 fn prepare_prompt_record(
-    state: &RuntimeState,
-    record_type: BuiltinRecordType,
-    severity: RecordSeverity,
-    message: Option<String>,
-    scope: Option<RecordScope>,
-    details: BTreeMap<String, Value>,
-    at: Timestamp,
+    state: &RuntimeState, record_type: BuiltinRecordType, severity: RecordSeverity, message: Option<String>, scope: Option<RecordScope>,
+    details: BTreeMap<String, Value>, at: Timestamp,
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
     let contract = record_type.contract();
-    let mut record = Record::new(
-        state.next_record_id(),
-        at,
-        record_type.identifier(),
-        contract.schema_version,
-        "runtime",
-        severity,
-    );
+    let mut record = Record::new(state.next_record_id(), at, record_type.identifier(), contract.schema_version, "runtime", severity);
     record.message = message;
     record.scope = scope;
     record.details = details;
@@ -530,21 +418,10 @@ fn prepare_prompt_record(
 
 fn validate_prompt_definition(definition: &PromptDefinition) -> Result<(), Error> {
     let issues = dokime_domain::model::prompts::validate_definition(definition);
-    if issues.is_empty() {
-        Ok(())
-    } else {
-        Err(Error::validation(
-            "validation_failed",
-            "prompt definition validation failed",
-            issues,
-        ))
-    }
+    if issues.is_empty() { Ok(()) } else { Err(Error::validation("validation_failed", "prompt definition validation failed", issues)) }
 }
 
-fn validate_prompt_response_values(
-    prompt: &PromptInstance,
-    values: &BTreeMap<String, Value>,
-) -> Vec<ValidationIssue> {
+fn validate_prompt_response_values(prompt: &PromptInstance, values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     dokime_domain::model::prompts::validate_answers(&prompt.definition, values)
 }
 
@@ -555,24 +432,14 @@ fn unsupported_action(prompt: &PromptInstance, action: &str) -> Error {
         vec![ValidationIssue {
             path: "action".to_owned(),
             message: "prompt action is not declared by the prompt".to_owned(),
-            expected: Some(
-                prompt
-                    .definition
-                    .actions
-                    .iter()
-                    .map(|action| action.id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ),
+            expected: Some(prompt.definition.actions.iter().map(|action| action.id.as_str()).collect::<Vec<_>>().join(", ")),
         }],
     )
 }
 
 fn request_record_type(kind: &PromptKind) -> BuiltinRecordType {
     match kind {
-        PromptKind::Confirmation | PromptKind::Verification => {
-            BuiltinRecordType::PromptRequestConfirmation
-        }
+        PromptKind::Confirmation | PromptKind::Verification => BuiltinRecordType::PromptRequestConfirmation,
         PromptKind::Form => BuiltinRecordType::PromptRequestForm,
         PromptKind::Choice => BuiltinRecordType::PromptRequestChoice,
         PromptKind::Status => BuiltinRecordType::PromptRequestStatus,
@@ -581,30 +448,12 @@ fn request_record_type(kind: &PromptKind) -> BuiltinRecordType {
 
 fn prompt_request_details(prompt: &PromptInstance) -> BTreeMap<String, Value> {
     let mut details = BTreeMap::from([
-        (
-            "prompt_id".to_owned(),
-            Value::from(prompt.prompt_id.as_str()),
-        ),
-        (
-            "contract_id".to_owned(),
-            Value::from(prompt.contract_id.as_str()),
-        ),
-        (
-            "contract_identifier".to_owned(),
-            Value::from(prompt.definition.prompt_type.as_str()),
-        ),
-        (
-            "prompt_type".to_owned(),
-            Value::from(prompt.definition.prompt_type.as_str()),
-        ),
-        (
-            "title".to_owned(),
-            Value::from(prompt.definition.title.clone()),
-        ),
-        (
-            "kind".to_owned(),
-            Value::from(prompt_kind_wire(&prompt.kind)),
-        ),
+        ("prompt_id".to_owned(), Value::from(prompt.prompt_id.as_str())),
+        ("contract_id".to_owned(), Value::from(prompt.contract_id.as_str())),
+        ("contract_identifier".to_owned(), Value::from(prompt.definition.prompt_type.as_str())),
+        ("prompt_type".to_owned(), Value::from(prompt.definition.prompt_type.as_str())),
+        ("title".to_owned(), Value::from(prompt.definition.title.clone())),
+        ("kind".to_owned(), Value::from(prompt_kind_wire(&prompt.kind))),
         (
             "fields".to_owned(),
             Value::Array(
@@ -622,28 +471,16 @@ fn prompt_request_details(prompt: &PromptInstance) -> BTreeMap<String, Value> {
                     .collect(),
             ),
         ),
-        (
-            "actions".to_owned(),
-            Value::Array(prompt.definition.actions.iter().map(action_value).collect()),
-        ),
-        (
-            "allow_timeout".to_owned(),
-            Value::from(prompt.allow_timeout),
-        ),
-        (
-            "created_at".to_owned(),
-            Value::from(prompt.created_at.as_str()),
-        ),
+        ("actions".to_owned(), Value::Array(prompt.definition.actions.iter().map(action_value).collect())),
+        ("allow_timeout".to_owned(), Value::from(prompt.allow_timeout)),
+        ("created_at".to_owned(), Value::from(prompt.created_at.as_str())),
         ("context".to_owned(), Value::Object(BTreeMap::new())),
     ]);
     if let Some(message) = &prompt.definition.message {
         details.insert("message".to_owned(), Value::from(message.clone()));
     }
     if let Some(template) = &prompt.definition.template_identifier {
-        details.insert(
-            "template_identifier".to_owned(),
-            Value::from(template.as_str()),
-        );
+        details.insert("template_identifier".to_owned(), Value::from(template.as_str()));
     }
     if let Some(expires_at) = &prompt.expires_at {
         details.insert("expires_at".to_owned(), Value::from(expires_at.as_str()));
@@ -653,15 +490,9 @@ fn prompt_request_details(prompt: &PromptInstance) -> BTreeMap<String, Value> {
 
 fn prompt_response_details(response: &PromptResponse) -> BTreeMap<String, Value> {
     BTreeMap::from([
-        (
-            "prompt_id".to_owned(),
-            Value::from(response.prompt_id.as_str()),
-        ),
+        ("prompt_id".to_owned(), Value::from(response.prompt_id.as_str())),
         ("action".to_owned(), Value::from(response.action.clone())),
-        (
-            "responder".to_owned(),
-            Value::from(response.responder.clone()),
-        ),
+        ("responder".to_owned(), Value::from(response.responder.clone())),
         ("source".to_owned(), Value::from("api")),
         ("accepted".to_owned(), Value::from(response.accepted)),
         ("values".to_owned(), Value::Object(response.values.clone())),
@@ -670,18 +501,9 @@ fn prompt_response_details(response: &PromptResponse) -> BTreeMap<String, Value>
 
 fn field_value(field: &PromptField) -> Value {
     let mut object = BTreeMap::from([
-        (
-            "name".to_owned(),
-            Value::from(field.metadata.identifier.as_str()),
-        ),
-        (
-            "label".to_owned(),
-            Value::from(field.metadata.label.clone()),
-        ),
-        (
-            "value_type".to_owned(),
-            Value::from(value_type_wire(&field.value_type)),
-        ),
+        ("name".to_owned(), Value::from(field.metadata.identifier.as_str())),
+        ("label".to_owned(), Value::from(field.metadata.label.clone())),
+        ("value_type".to_owned(), Value::from(value_type_wire(&field.value_type))),
         (
             "kind".to_owned(),
             Value::from(match field.kind {
@@ -697,55 +519,13 @@ fn field_value(field: &PromptField) -> Value {
         (
             "validation".to_owned(),
             Value::Object(BTreeMap::from([
-                (
-                    "min_length".into(),
-                    field
-                        .validation
-                        .min_length
-                        .map(|value| Value::from(value as u64))
-                        .unwrap_or(Value::Null),
-                ),
-                (
-                    "max_length".into(),
-                    field
-                        .validation
-                        .max_length
-                        .map(|value| Value::from(value as u64))
-                        .unwrap_or(Value::Null),
-                ),
-                (
-                    "pattern".into(),
-                    field
-                        .validation
-                        .pattern
-                        .clone()
-                        .map(Value::from)
-                        .unwrap_or(Value::Null),
-                ),
-                (
-                    "minimum".into(),
-                    field.validation.minimum.clone().unwrap_or(Value::Null),
-                ),
-                (
-                    "maximum".into(),
-                    field.validation.maximum.clone().unwrap_or(Value::Null),
-                ),
-                (
-                    "min_items".into(),
-                    field
-                        .validation
-                        .min_items
-                        .map(|value| Value::from(value as u64))
-                        .unwrap_or(Value::Null),
-                ),
-                (
-                    "max_items".into(),
-                    field
-                        .validation
-                        .max_items
-                        .map(|value| Value::from(value as u64))
-                        .unwrap_or(Value::Null),
-                ),
+                ("min_length".into(), field.validation.min_length.map(|value| Value::from(value as u64)).unwrap_or(Value::Null)),
+                ("max_length".into(), field.validation.max_length.map(|value| Value::from(value as u64)).unwrap_or(Value::Null)),
+                ("pattern".into(), field.validation.pattern.clone().map(Value::from).unwrap_or(Value::Null)),
+                ("minimum".into(), field.validation.minimum.clone().unwrap_or(Value::Null)),
+                ("maximum".into(), field.validation.maximum.clone().unwrap_or(Value::Null)),
+                ("min_items".into(), field.validation.min_items.map(|value| Value::from(value as u64)).unwrap_or(Value::Null)),
+                ("max_items".into(), field.validation.max_items.map(|value| Value::from(value as u64)).unwrap_or(Value::Null)),
             ])),
         ),
     ]);
@@ -756,10 +536,7 @@ fn field_value(field: &PromptField) -> Value {
         object.insert("default".to_owned(), default.clone());
     }
     if !field.choices.is_empty() {
-        object.insert(
-            "choices".to_owned(),
-            Value::Array(field.choices.iter().cloned().map(Value::from).collect()),
-        );
+        object.insert("choices".to_owned(), Value::Array(field.choices.iter().cloned().map(Value::from).collect()));
     }
     Value::Object(object)
 }
@@ -776,10 +553,7 @@ fn action_value(action: &PromptAction) -> Value {
                 PromptActionEmphasis::Danger => "danger",
             }),
         ),
-        (
-            "requires_condition".to_owned(),
-            Value::from(action.requires_condition),
-        ),
+        ("requires_condition".to_owned(), Value::from(action.requires_condition)),
     ]))
 }
 
@@ -807,11 +581,7 @@ fn value_type_wire(value_type: &ValueType) -> &'static str {
 }
 
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
-    if state.shutting_down {
-        Err("runtime is shutting down".to_owned())
-    } else {
-        Ok(())
-    }
+    if state.shutting_down { Err("runtime is shutting down".to_owned()) } else { Ok(()) }
 }
 
 /* === Tests === */

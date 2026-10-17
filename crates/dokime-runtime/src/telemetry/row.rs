@@ -18,8 +18,8 @@ pub use dokime_domain::model::telemetry::TelemetryRow;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::values::ValueType;
 use crate::telemetry::contract::{TelemetryColumn, TelemetryRole};
+use dokime_domain::model::values::ValueType;
 
 /* === Constants === */
 
@@ -47,12 +47,7 @@ pub fn declared_column(field: harmos::StreamField, value_type: ValueType) -> Tel
         "value" => TelemetryRole::Value,
         role => panic!("unsupported Dokime telemetry role `{role}`"),
     };
-    let mut column = TelemetryColumn::declared(
-        field.metadata.identifier.as_str(),
-        &field.metadata.label,
-        value_type,
-        role,
-    );
+    let mut column = TelemetryColumn::declared(field.metadata.identifier.as_str(), &field.metadata.label, value_type, role);
     column.metadata = field.metadata;
     column.unit = field.unit.map(crate::definition::authored_unit);
 

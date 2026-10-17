@@ -33,9 +33,7 @@ from dokime.client.models import Backend
 # === Constants === #
 
 DATA = b"registered-output:" + b"a" * 65_536 + b":finished"
-IDENTITY = files.FileIdentity(
-    "original-store", "original-history", "file-1", "execution-1", "output.bin"
-)
+IDENTITY = files.FileIdentity("original-store", "original-history", "file-1", "execution-1", "output.bin")
 BACKEND = Backend(
     id="backend-1",
     epoch="reconnected-runtime",
@@ -115,9 +113,7 @@ class Transport:
         assert live
         self.verified = True
 
-    async def stream(
-        self, service: str, method: str, request: dict[str, Any]
-    ) -> Reader:
+    async def stream(self, service: str, method: str, request: dict[str, Any]) -> Reader:
         assert self.verified
         assert (service, method) == ("Content", "FollowExecutionFile")
         self.request = request
@@ -128,9 +124,7 @@ class Transport:
 
 
 @pytest.mark.parametrize("prefix_length", [0, 17, 65_537, len(DATA)])
-def test_finished_resume(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix_length: int
-) -> None:
+def test_finished_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix_length: int) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     identity = IDENTITY if prefix_length else None
@@ -166,20 +160,14 @@ def test_finished_resume(
     }
     assert all(update.identity == IDENTITY for update in updates)
     assert updates[0] == files.FileUpdate(IDENTITY, prefix_length, "producing")
-    assert updates[-1] == files.FileUpdate(
-        IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest()
-    )
+    assert updates[-1] == files.FileUpdate(IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest())
     assert all(update.sha256 is None for update in updates[:-1])
-    assert [update.committed_offset for update in updates] == sorted(
-        update.committed_offset for update in updates
-    )
+    assert [update.committed_offset for update in updates] == sorted(update.committed_offset for update in updates)
     assert reader.closed
 
 
 @pytest.mark.parametrize("resume", [False, True])
-def test_abandoned_prefix(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume: bool
-) -> None:
+def test_abandoned_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume: bool) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     prefix_length = 5 if resume else 0
@@ -258,9 +246,7 @@ def test_abandoned_prefix(
         "final_status",
     ],
 )
-def test_invalid_follow(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: str
-) -> None:
+def test_invalid_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: str) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     prefix_length = 17
@@ -426,9 +412,7 @@ def test_cancel_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         assert resumed_transport.request is not None
         assert resumed_transport.request["offset"] == len(partial)
         assert resumed_transport.request["identity"] == IDENTITY._wire()
-        assert resumed[-1] == files.FileUpdate(
-            IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest()
-        )
+        assert resumed[-1] == files.FileUpdate(IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest())
         assert resumed_reader.closed
 
     asyncio.run(scenario())
@@ -442,10 +426,7 @@ def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     opened = 314
     frames = _frames(0)
     frames[0].payload.Metadata.field_0.available_length = opened
-    frames[1:-1] = [
-        _frame("Chunk", offset=start, data=DATA[start : start + size])
-        for start, size in _growth(opened)
-    ]
+    frames[1:-1] = [_frame("Chunk", offset=start, data=DATA[start : start + size]) for start, size in _growth(opened)]
     reader = Reader(frames)
     transport = Transport(reader)
 
@@ -470,9 +451,7 @@ def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert offsets == sorted(set(offsets))
     assert offsets[-1] == len(DATA)
     assert all(update.phase == "producing" for update in updates[:-1])
-    assert updates[-1] == files.FileUpdate(
-        IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest()
-    )
+    assert updates[-1] == files.FileUpdate(IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest())
     assert destination.read_bytes() == DATA
     assert reader.final_accepted
     assert reader.closed

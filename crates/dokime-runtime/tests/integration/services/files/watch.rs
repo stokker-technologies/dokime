@@ -22,22 +22,16 @@ use std::time::SystemTime;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use dokime_runtime::artifacts::ArtifactStatus;
-use dokime_runtime::runtime::Error;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
+use dokime_runtime::runtime::Error;
 use {
-    model::files::wire::FileWatchPolicy,
-    model::files::wire::FileWatchSourcePayload,
-    model::files::wire::FtpWatchSource,
-    model::files::wire::LineField,
-    model::files::wire::LineFieldKind,
-    model::files::wire::LineMarker,
-    model::files::wire::LineMatcher,
-    dokime_domain::operations::files::WatchFile,
-    model::files::wire::WatchedArtifact,
+    dokime_domain::operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload,
+    model::files::wire::FtpWatchSource, model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker,
+    model::files::wire::LineMatcher, model::files::wire::WatchedArtifact,
 };
 
 /* === Constants === */
@@ -61,11 +55,7 @@ fn gaps(events: &[WatchEvent]) -> Vec<(String, u64, GapReason)> {
     events
         .iter()
         .filter_map(|event| match event {
-            WatchEvent::Gap {
-                path,
-                offset,
-                reason,
-            } => Some((path.clone(), *offset, *reason)),
+            WatchEvent::Gap { path, offset, reason } => Some((path.clone(), *offset, *reason)),
             _ => None,
         })
         .collect()
@@ -75,11 +65,7 @@ fn phases(events: &[WatchEvent], wanted: Phase) -> Vec<(String, u64)> {
     events
         .iter()
         .filter_map(|event| match event {
-            WatchEvent::Progress {
-                path,
-                offset,
-                phase,
-            } if *phase == wanted => Some((path.clone(), *offset)),
+            WatchEvent::Progress { path, offset, phase } if *phase == wanted => Some((path.clone(), *offset)),
             _ => None,
         })
         .collect()
@@ -106,11 +92,7 @@ async fn stream_local_tree() {
             &request(
                 &bench.execution,
                 local(tree.path()),
-                vec![
-                    include("**/*.log"),
-                    exclude("**/debug/**"),
-                    include("**/debug/bms.log"),
-                ],
+                vec![include("**/*.log"), exclude("**/debug/**"), include("**/debug/bms.log")],
                 FileWatchPolicy::Stream,
             ),
             None,
@@ -120,97 +102,45 @@ async fn stream_local_tree() {
 
     // Files Present At The Start Baseline At Their Length
     let first = poll(&mut watch).await;
-    assert_eq!(
-        phases(&first, Phase::Baseline),
-        vec![
-            ("logs/charger.log".to_owned(), 0),
-            ("logs/debug/bms.log".to_owned(), 0)
-        ]
-    );
+    assert_eq!(phases(&first, Phase::Baseline), vec![("logs/charger.log".to_owned(), 0), ("logs/debug/bms.log".to_owned(), 0)]);
     assert!(phases(&first, Phase::Capturing).is_empty());
 
     // Appended Bytes Are Captured; A New File From Its First Byte
     append(&tree.path().join("logs/charger.log"), b"line 1\n");
     write(&tree.path().join("logs/bench/inverter.log"), b"born\n");
     let grown = poll(&mut watch).await;
-    assert_eq!(
-        phases(&grown, Phase::Capturing),
-        vec![
-            ("logs/bench/inverter.log".to_owned(), 5),
-            ("logs/charger.log".to_owned(), 7)
-        ]
-    );
+    assert_eq!(phases(&grown, Phase::Capturing), vec![("logs/bench/inverter.log".to_owned(), 5), ("logs/charger.log".to_owned(), 7)]);
 
     // Truncation Restarts At The First Byte; Rotation Seals The Segment
-    std::fs::rename(
-        tree.path().join("logs/charger.log"),
-        tree.path().join("logs/charger.log.1"),
-    )
-    .unwrap();
+    std::fs::rename(tree.path().join("logs/charger.log"), tree.path().join("logs/charger.log.1")).unwrap();
     write(&tree.path().join("logs/charger.log"), b"rotated\n");
     write(&tree.path().join("logs/bench/inverter.log"), b"x\n");
     let rotated = poll(&mut watch).await;
     assert_eq!(
         gaps(&rotated),
-        vec![
-            (
-                "logs/bench/inverter.log".to_owned(),
-                5,
-                GapReason::Truncated
-            ),
-            ("logs/charger.log".to_owned(), 7, GapReason::Replaced)
-        ]
+        vec![("logs/bench/inverter.log".to_owned(), 5, GapReason::Truncated), ("logs/charger.log".to_owned(), 7, GapReason::Replaced)]
     );
     let segment = sealed(&rotated);
-    assert_artifact(
-        &segment["logs/charger.log"],
-        "logs/charger.log",
-        b"line 1\n",
-    );
+    assert_artifact(&segment["logs/charger.log"], "logs/charger.log", b"line 1\n");
 
     // A Vanished File Is Sealed With A Gap While The Watch Continues
     append(&tree.path().join("logs/debug/bms.log"), b"cell 3\n");
     poll(&mut watch).await;
     std::fs::remove_file(tree.path().join("logs/debug/bms.log")).unwrap();
     let vanished = poll(&mut watch).await;
-    assert_eq!(
-        gaps(&vanished),
-        vec![("logs/debug/bms.log".to_owned(), 7, GapReason::Vanished)]
-    );
+    assert_eq!(gaps(&vanished), vec![("logs/debug/bms.log".to_owned(), 7, GapReason::Vanished)]);
     let early = sealed(&vanished);
-    assert_artifact(
-        &early["logs/debug/bms.log"],
-        "logs/debug/bms.log",
-        b"cell 3\n",
-    );
+    assert_artifact(&early["logs/debug/bms.log"], "logs/debug/bms.log", b"cell 3\n");
 
     // Sealing Captures The Last Bytes Of Every Remaining File
     append(&tree.path().join("logs/charger.log"), b"tail\n");
     let last = seal(&mut watch).await;
     let sealed = sealed(&last);
     assert_eq!(sealed.len(), 2);
-    assert_artifact(
-        &sealed["logs/charger.log"],
-        "logs/charger.log",
-        b"rotated\ntail\n",
-    );
-    assert_artifact(
-        &sealed["logs/bench/inverter.log"],
-        "logs/bench/inverter.log",
-        b"born\nx\n",
-    );
-    assert_eq!(
-        sealed["logs/charger.log"].content_type.as_deref(),
-        Some("text/plain")
-    );
-    assert_eq!(
-        sealed["logs/charger.log"]
-            .scope
-            .test_execution_id
-            .as_ref()
-            .map(ToString::to_string),
-        Some(bench.execution.clone())
-    );
+    assert_artifact(&sealed["logs/charger.log"], "logs/charger.log", b"rotated\ntail\n");
+    assert_artifact(&sealed["logs/bench/inverter.log"], "logs/bench/inverter.log", b"born\nx\n");
+    assert_eq!(sealed["logs/charger.log"].content_type.as_deref(), Some("text/plain"));
+    assert_eq!(sealed["logs/charger.log"].scope.test_execution_id.as_ref().map(ToString::to_string), Some(bench.execution.clone()));
     assert!(watch.is_complete());
     assert_eq!(watch.sealed().len(), 4);
     assert!(seal(&mut watch).await.is_empty(), "sealing is idempotent");
@@ -229,44 +159,22 @@ async fn mirror_local_tree() {
     write(&report, b"a,b\n1,2\n");
     let mut watch = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                local(tree.path()),
-                vec![include("**/*.csv")],
-                FileWatchPolicy::Mirror,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("**/*.csv")], FileWatchPolicy::Mirror), None)
         .await
         .unwrap();
 
     // The Whole File Is Mirrored At Discovery, Then Only On Change
     let first = poll(&mut watch).await;
-    assert_eq!(
-        phases(&first, Phase::Synced),
-        vec![("report.csv".to_owned(), 8)]
-    );
+    assert_eq!(phases(&first, Phase::Synced), vec![("report.csv".to_owned(), 8)]);
     assert!(phases(&poll(&mut watch).await, Phase::Synced).is_empty());
 
     // A Rewrite Of Equal Length Is Detected By Its Modification Time
     write(&report, b"a,b\n3,4\n");
     let later = SystemTime::now() + Duration::from_secs(5);
-    std::fs::File::options()
-        .write(true)
-        .open(&report)
-        .unwrap()
-        .set_modified(later)
-        .unwrap();
+    std::fs::File::options().write(true).open(&report).unwrap().set_modified(later).unwrap();
     write(&tree.path().join("runs/second.csv"), b"x\n");
     let changed = poll(&mut watch).await;
-    assert_eq!(
-        phases(&changed, Phase::Synced),
-        vec![
-            ("report.csv".to_owned(), 8),
-            ("runs/second.csv".to_owned(), 2)
-        ]
-    );
+    assert_eq!(phases(&changed, Phase::Synced), vec![("report.csv".to_owned(), 8), ("runs/second.csv".to_owned(), 2)]);
 
     // A Shrunk Source Is Mirrored Whole, Without A Gap
     write(&report, b"a\n");
@@ -292,15 +200,7 @@ async fn snapshot_local_tree() {
     // At Start: Copied And Sealed By The First Pass
     let mut start = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                local(tree.path()),
-                vec![include("*.log")],
-                FileWatchPolicy::SnapshotAtStart,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::SnapshotAtStart), None)
         .await
         .unwrap();
     let taken = sealed(&poll(&mut start).await);
@@ -310,15 +210,7 @@ async fn snapshot_local_tree() {
     // At Stop: Nothing Until Sealed, Then The Tree As It Is
     let mut stop = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                local(tree.path()),
-                vec![include("*.log")],
-                FileWatchPolicy::SnapshotAtStop,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::SnapshotAtStop), None)
         .await
         .unwrap();
     assert!(poll(&mut stop).await.is_empty());
@@ -341,27 +233,10 @@ async fn watch_refusals() {
     let tree = tempdir().unwrap();
     write(&tree.path().join("a.log"), b"0123456789");
     write(&tree.path().join("b.log"), b"0123456789");
-    let base = || {
-        request(
-            &bench.execution,
-            local(tree.path()),
-            vec![include("*.log")],
-            FileWatchPolicy::Mirror,
-        )
-    };
+    let base = || request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Mirror);
 
     // The File Cap Refuses The Second File, After Sealing The First
-    let mut capped = bench
-        .handle
-        .open_file_watch(
-            &FileWatch {
-                maximum_files: Some(1),
-                ..base()
-            },
-            None,
-        )
-        .await
-        .unwrap();
+    let mut capped = bench.handle.open_file_watch(&FileWatch { maximum_files: Some(1), ..base() }, None).await.unwrap();
     let mut events = Vec::new();
     let refused = capped.poll(&mut events).await.unwrap_err();
     assert_eq!(code(&refused), CAPPED, "{refused}");
@@ -369,93 +244,37 @@ async fn watch_refusals() {
     assert_artifact(&sealed["a.log"], "a.log", b"0123456789");
 
     // The Byte Cap Refuses A File That Would Exceed It
-    let mut small = bench
-        .handle
-        .open_file_watch(
-            &FileWatch {
-                maximum_bytes: Some(15),
-                ..base()
-            },
-            None,
-        )
-        .await
-        .unwrap();
+    let mut small = bench.handle.open_file_watch(&FileWatch { maximum_bytes: Some(15), ..base() }, None).await.unwrap();
     let refused = small.poll(&mut Vec::new()).await.unwrap_err();
     assert_eq!(code(&refused), CAPPED, "{refused}");
     seal(&mut small).await;
 
     // Requests Are Refused Before A Source Opens
     let refusals = [
-        FileWatch {
-            execution_id: None,
-            ..base()
-        },
-        FileWatch {
-            rules: vec![exclude("*.log")],
-            ..base()
-        },
-        FileWatch {
-            output: "../escape".to_owned(),
-            ..base()
-        },
-        FileWatch {
-            policy: FileWatchPolicy::Unspecified,
-            ..base()
-        },
-        FileWatch {
-            poll_interval_ms: Some(1),
-            ..base()
-        },
-        FileWatch {
-            maximum_files: Some(257),
-            ..base()
-        },
-        FileWatch {
-            source: None,
-            ..base()
-        },
+        FileWatch { execution_id: None, ..base() },
+        FileWatch { rules: vec![exclude("*.log")], ..base() },
+        FileWatch { output: "../escape".to_owned(), ..base() },
+        FileWatch { policy: FileWatchPolicy::Unspecified, ..base() },
+        FileWatch { poll_interval_ms: Some(1), ..base() },
+        FileWatch { maximum_files: Some(257), ..base() },
+        FileWatch { source: None, ..base() },
     ];
     for refused in refusals {
-        let error = bench
-            .handle
-            .open_file_watch(&refused, None)
-            .await
-            .err()
-            .unwrap();
+        let error = bench.handle.open_file_watch(&refused, None).await.err().unwrap();
         assert_eq!(code(&error), INVALID, "{error}");
     }
 
     // The Context Execution Must Agree With An Explicit One
-    let error = bench
-        .handle
-        .open_file_watch(&base(), Some("00000000-0000-7000-8000-000000000000"))
-        .await
-        .err()
-        .unwrap();
+    let error = bench.handle.open_file_watch(&base(), Some("00000000-0000-7000-8000-000000000000")).await.err().unwrap();
     assert_eq!(code(&error), INVALID, "{error}");
-    let scoped = bench
-        .handle
-        .open_file_watch(
-            &FileWatch {
-                execution_id: None,
-                ..base()
-            },
-            Some(&bench.execution),
-        )
-        .await;
-    assert!(
-        scoped.is_ok(),
-        "the calling step's execution scopes the watch"
-    );
+    let scoped = bench.handle.open_file_watch(&FileWatch { execution_id: None, ..base() }, Some(&bench.execution)).await;
+    assert!(scoped.is_ok(), "the calling step's execution scopes the watch");
     drop(scoped);
 
     // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
     let ftp = |url: &str| FileWatch {
         source: Some(model::files::wire::FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource {
-                url: url.to_owned(),
-                credential_id: None,
-            })),
+            payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource { url: url.to_owned(), credential_id: None })),
         }),
         ..base()
     };
@@ -465,12 +284,7 @@ async fn watch_refusals() {
         ("ftps://bench:secret@127.0.0.1/logs", INVALID),
         ("http://127.0.0.1/logs", INVALID),
     ] {
-        let error = bench
-            .handle
-            .open_file_watch(&ftp(url), None)
-            .await
-            .err()
-            .unwrap();
+        let error = bench.handle.open_file_watch(&ftp(url), None).await.err().unwrap();
         assert_eq!(code(&error), expected, "{url}: {error}");
     }
 
@@ -489,21 +303,10 @@ async fn mirror_keeps_last() {
     write(&report, b"v1\n");
     let mut watch = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                local(tree.path()),
-                vec![include("*.csv")],
-                FileWatchPolicy::Mirror,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("*.csv")], FileWatchPolicy::Mirror), None)
         .await
         .unwrap();
-    assert_eq!(
-        phases(&poll(&mut watch).await, Phase::Synced),
-        vec![("report.csv".to_owned(), 3)]
-    );
+    assert_eq!(phases(&poll(&mut watch).await, Phase::Synced), vec![("report.csv".to_owned(), 3)]);
 
     // The Source Changes But Cannot Be Read
     write(&report, b"version two, longer\n");
@@ -532,15 +335,7 @@ async fn execution_seals_watch() {
     write(&log, b"");
     let mut watch = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                local(tree.path()),
-                vec![include("*.log")],
-                FileWatchPolicy::Stream,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream), None)
         .await
         .unwrap();
     poll(&mut watch).await;
@@ -556,11 +351,7 @@ async fn execution_seals_watch() {
     });
     bench.executor.release();
     let sealed = driver.await.unwrap();
-    assert_artifact(
-        &sealed["run.log"],
-        "run.log",
-        b"captured before the execution closed\n",
-    );
+    assert_artifact(&sealed["run.log"], "run.log", b"captured before the execution closed\n");
     let stored = bench
         .handle
         .artifacts()
@@ -587,9 +378,7 @@ async fn watch_file_matchers() {
     write(&log, b"elapsed=0.5 locked=false\n");
     let request = WatchFile {
         execution_id: Some(bench.execution.clone()),
-        source: Some(FileWatchSource {
-            payload: Some(local(&log)),
-        }),
+        source: Some(FileWatchSource { payload: Some(local(&log)) }),
         output: OUTPUT.to_owned(),
         artifact: Some(format!("{OUTPUT}/device.log")),
         policy: FileWatchPolicy::Stream,
@@ -597,45 +386,24 @@ async fn watch_file_matchers() {
         maximum_seconds: Some(2),
         maximum_bytes: None,
         matchers: vec![LineMatcher {
-            storage_schema: crate::service_support::contracts::minimal_tracking_contract()
-                .storage_schema
-                .unwrap(),
+            storage_schema: crate::service_support::contracts::minimal_tracking_contract().storage_schema.unwrap(),
             pattern: r"elapsed=(?P<elapsed_s>[\d.]+) locked=(?P<target_locked>\w+)".to_owned(),
             stream: "tracking".to_owned(),
             fields: vec![
-                LineField {
-                    name: "elapsed_s".to_owned(),
-                    kind: LineFieldKind::Number,
-                },
-                LineField {
-                    name: "target_locked".to_owned(),
-                    kind: LineFieldKind::Boolean,
-                },
+                LineField { name: "elapsed_s".to_owned(), kind: LineFieldKind::Number },
+                LineField { name: "target_locked".to_owned(), kind: LineFieldKind::Boolean },
             ],
         }],
-        markers: vec![LineMarker::new(
-            r"WARN (?P<warning_code>\w+)",
-            "tracking.fixture_warning",
-        )],
+        markers: vec![LineMarker::new(r"WARN (?P<warning_code>\w+)", "tracking.fixture_warning")],
     };
-    let watch = bench
-        .handle
-        .operations()
-        .submit_as::<WatchFile>(request)
-        .unwrap();
+    let watch = bench.handle.operations().submit_as::<WatchFile>(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
     // TODO(source-hook): the WatchFile operation signals no readiness once it tails the file; this sleep stands in for it.
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     append(&log, APPENDED);
     let outcome = watch.join().await.unwrap().into_owned();
-    assert_eq!(
-        outcome.artifacts,
-        vec![WatchedArtifact {
-            artifact: format!("{OUTPUT}/device.log"),
-            size_bytes: APPENDED.len() as u64,
-        }]
-    );
+    assert_eq!(outcome.artifacts, vec![WatchedArtifact { artifact: format!("{OUTPUT}/device.log"), size_bytes: APPENDED.len() as u64 }]);
     assert!(outcome.gaps.is_empty());
 
     // Rows Reach The Declared Stream In The Execution's Scope
@@ -644,40 +412,23 @@ async fn watch_file_matchers() {
         .handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![identifier("tracking")],
-            scope: ScopeSelection {
-                test_execution_id: Some(execution.clone()),
-                ..Default::default()
-            },
+            scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
             ..Default::default()
         })
         .await;
     assert_eq!(
-        rows.iter()
-            .map(|row| (
-                row.values.get("elapsed_s").cloned(),
-                row.values.get("target_locked").cloned()
-            ))
-            .collect::<Vec<_>>(),
-        vec![
-            (Some(Value::Number(1.5)), Some(Value::Bool(true))),
-            (Some(Value::Number(2.5)), Some(Value::Bool(false))),
-        ]
+        rows.iter().map(|row| (row.values.get("elapsed_s").cloned(), row.values.get("target_locked").cloned())).collect::<Vec<_>>(),
+        vec![(Some(Value::Number(1.5)), Some(Value::Bool(true))), (Some(Value::Number(2.5)), Some(Value::Bool(false))),]
     );
 
     // The Marker Is Recorded
     let markers = bench
         .handle
-        .selected_records(RecordSelection {
-            record_types: vec![identifier("tracking.fixture_warning")],
-            ..Default::default()
-        })
+        .selected_records(RecordSelection { record_types: vec![identifier("tracking.fixture_warning")], ..Default::default() })
         .await
         .unwrap();
     assert_eq!(markers.len(), 1);
-    assert_eq!(
-        markers[0].record.details.get("warning_code"),
-        Some(&Value::Text("W42".to_owned()))
-    );
+    assert_eq!(markers[0].record.details.get("warning_code"), Some(&Value::Text("W42".to_owned())));
     assert_eq!(markers[0].record.message.as_deref(), Some("WARN W42"));
 
     // The Artifact Holds Only The Appended Bytes
@@ -691,12 +442,7 @@ async fn watch_file_matchers() {
         .cloned()
         .expect("the watch sealed its artifact");
     assert_artifact(&record, "device.log", APPENDED);
-    let content = bench
-        .handle
-        .read_artifact_content(&record.artifact_id, APPENDED.len())
-        .await
-        .unwrap()
-        .unwrap();
+    let content = bench.handle.read_artifact_content(&record.artifact_id, APPENDED.len()).await.unwrap().unwrap();
     assert_eq!(content.bytes, APPENDED);
     bench.stop().await;
 }

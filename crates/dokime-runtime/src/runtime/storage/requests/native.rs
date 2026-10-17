@@ -32,12 +32,12 @@ use harmos::storage::{
 // Local Imports
 use super::{Pending, RunReceipt, error, receipt_error};
 use crate::runtime::Result;
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::NodeId;
 use crate::storage::{
     Manager,
     requests::{Command, Request},
 };
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NodeId;
 
 /* === Constants === */
 const MAX_COMMANDS: usize = 4097;
@@ -57,22 +57,14 @@ const MAX_COMMANDS: usize = 4097;
 /* === Public Functions === */
 /// The latest saved receipt of one request with its latest command receipts.
 pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<RunReceipt>> {
-    let Some(parent) = storage
-        .read_object::<Request>(id.as_str(), ObjectVersion::Latest)
-        .await
-        .map_err(receipt_error)?
-    else {
+    let Some(parent) = storage.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
         return Ok(None);
     };
     let mut receipt = parent.value.into_receipt()?;
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let commands = latest::<Command>(
-        storage,
-        filter(vec![equal("request_id", ScalarValue::Text(id.to_string()))]),
-    )
-    .await?;
+    let commands = latest::<Command>(storage, filter(vec![equal("request_id", ScalarValue::Text(id.to_string()))])).await?;
     if commands.len() > MAX_COMMANDS {
         return Err(error("command receipt history exceeded capacity"));
     }
@@ -87,18 +79,12 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
 pub(super) async fn pending(storage: &Manager, node: &NodeId) -> Result<Vec<CommandId>> {
     let requests = latest::<Request>(
         storage,
-        filter(vec![
-            equal("node_id", ScalarValue::Text(node.to_string())),
-            equal("terminal", ScalarValue::Bool(false)),
-        ]),
+        filter(vec![equal("node_id", ScalarValue::Text(node.to_string())), equal("terminal", ScalarValue::Bool(false))]),
     )
     .await?;
     let mut ids = requests
         .into_iter()
-        .map(|request| {
-            CommandId::from_uuid(request.value.key())
-                .map_err(|source| receipt_error(crate::storage::Error::from(source)))
-        })
+        .map(|request| CommandId::from_uuid(request.value.key()).map_err(|source| receipt_error(crate::storage::Error::from(source))))
         .collect::<Result<Vec<_>>>()?;
     ids.sort();
     Ok(ids)
@@ -139,23 +125,14 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
             })
             .await
             .map_err(receipt_error)?;
-        pending.position = Some(
-            receipts
-                .last()
-                .expect("nonempty admitted group")
-                .position
-                .clone(),
-        );
+        pending.position = Some(receipts.last().expect("nonempty admitted group").position.clone());
     }
 
     // Save Command Admission And Terminal Publication Before External Effects
     if !pending.receipt.summary.phase.terminal() && pending.changed_commands().next().is_none() {
         return Ok(());
     }
-    let position = pending
-        .position
-        .as_ref()
-        .expect("admitted receipt position");
+    let position = pending.position.as_ref().expect("admitted receipt position");
     let saved = storage.flush_until(position).await.map_err(receipt_error)?;
     if !saved.covers(position).map_err(receipt_error)? {
         return Err(error("save did not cover pending receipt"));
@@ -175,30 +152,20 @@ where
     crate::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
     Ok(storage
-        .read_objects::<T>(ObjectRead {
-            at: storage.cursor_saved(),
-            key: None,
-            versions: ObjectVersions::Latest,
-            filters: vec![filter],
-        })
+        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest, filters: vec![filter] })
         .await?
         .collect()
         .await?)
 }
 
 fn filter(terms: Vec<Term>) -> Filter {
-    Filter {
-        clauses: vec![Clause { terms }],
-    }
+    Filter { clauses: vec![Clause { terms }] }
 }
 
 fn equal(field: &str, value: ScalarValue) -> Term {
     Term {
         field: FieldPath::from(format!("payload.{field}").as_str()),
-        condition: Condition::Compare {
-            op: Compare::Eq,
-            value,
-        },
+        condition: Condition::Compare { op: Compare::Eq, value },
         negate: false,
     }
 }

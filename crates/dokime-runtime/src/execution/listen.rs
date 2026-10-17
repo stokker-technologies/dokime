@@ -27,13 +27,13 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt};
 // Local Imports
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
 use crate::records::DeclaredRecord;
 use crate::records::Deliveries;
-use dokime_domain::model::records::evidence::Record;
 use crate::records::RecordSource;
 use crate::telemetry::{Streams, TelemetryStream};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(5);
@@ -87,10 +87,7 @@ pub trait Listenable: Sized {
 /* === Implementations === */
 impl<C: TelemetryStream> ListeningRows<C> {
     pub fn new(streams: &Streams) -> Self {
-        Self {
-            values: ListeningValues::new(streams, C::stream_id()),
-            stream_type: PhantomData,
-        }
+        Self { values: ListeningValues::new(streams, C::stream_id()), stream_type: PhantomData }
     }
 
     pub fn missed(&self) -> u64 {
@@ -102,37 +99,26 @@ impl<C: TelemetryStream> ListeningRows<C> {
         C: Unpin + 'static,
         C::Row: Send + Unpin + 'static,
     {
-        Box::pin(StreamExt::map(StreamExt::timeout(self, within), |item| {
-            item.map_err(Into::into)
-        }))
+        Box::pin(StreamExt::map(StreamExt::timeout(self, within), |item| item.map_err(Into::into)))
     }
 }
 
 impl<R: DeclaredRecord> ListeningRecords<R> {
     pub fn new(deliveries: &Deliveries) -> Self {
-        Self {
-            records: ListeningEvidence::new(deliveries, R::RECORD_TYPE.to_owned()),
-            record: PhantomData,
-        }
+        Self { records: ListeningEvidence::new(deliveries, R::RECORD_TYPE.to_owned()), record: PhantomData }
     }
 
     pub fn timeout(self, within: Duration) -> Deadlined<R>
     where
         R: Send + Unpin + 'static,
     {
-        Box::pin(StreamExt::map(StreamExt::timeout(self, within), |item| {
-            item.map_err(Into::into)
-        }))
+        Box::pin(StreamExt::map(StreamExt::timeout(self, within), |item| item.map_err(Into::into)))
     }
 }
 
 impl ListeningValues {
     pub fn new(streams: &Streams, stream: Identifier) -> Self {
-        Self {
-            stream,
-            rows: BroadcastStream::new(streams.subscribe()),
-            missed: Arc::new(AtomicU64::new(0)),
-        }
+        Self { stream, rows: BroadcastStream::new(streams.subscribe()), missed: Arc::new(AtomicU64::new(0)) }
     }
 
     pub fn missed(&self) -> u64 {
@@ -142,12 +128,7 @@ impl ListeningValues {
 
 impl ListeningEvidence {
     pub fn new(deliveries: &Deliveries, record_type: String) -> Self {
-        Self {
-            record_type,
-            source: deliveries.source(),
-            cursor: 0,
-            sleeping: None,
-        }
+        Self { record_type, source: deliveries.source(), cursor: 0, sleeping: None }
     }
 }
 
@@ -189,9 +170,7 @@ impl Stream for ListeningEvidence {
                 continue;
             }
             // This is the execution's bounded inbox, shared with Rust authors.
-            let sleeping = listening
-                .sleeping
-                .get_or_insert_with(|| Box::pin(tokio::time::sleep(INBOX_POLL_INTERVAL)));
+            let sleeping = listening.sleeping.get_or_insert_with(|| Box::pin(tokio::time::sleep(INBOX_POLL_INTERVAL)));
             match sleeping.as_mut().poll(context) {
                 Poll::Ready(()) => listening.sleeping = None,
                 Poll::Pending => return Poll::Pending,

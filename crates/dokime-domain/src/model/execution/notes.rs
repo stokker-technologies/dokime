@@ -64,17 +64,9 @@ pub struct NoteAdmission {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
-    Cycle {
-        cycle_id: crate::model::identity::TestCycleId,
-    },
-    Case {
-        cycle_id: crate::model::identity::TestCycleId,
-        case_id: crate::model::identity::CaseId,
-    },
-    Execution {
-        cycle_id: crate::model::identity::TestCycleId,
-        execution_id: crate::model::identity::TestExecutionId,
-    },
+    Cycle { cycle_id: crate::model::identity::TestCycleId },
+    Case { cycle_id: crate::model::identity::TestCycleId, case_id: crate::model::identity::CaseId },
+    Execution { cycle_id: crate::model::identity::TestCycleId, execution_id: crate::model::identity::TestExecutionId },
 }
 
 /* === Traits === */
@@ -83,61 +75,28 @@ pub enum NoteOwner {
 impl harmos::MemorySize for OperatorNote {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.note_id),
-                std::mem::size_of_val(&self.note_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.author),
-                std::mem::size_of_val(&self.author),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.note_id), std::mem::size_of_val(&self.note_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.author), std::mem::size_of_val(&self.author)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 impl NoteOwner {
     pub fn cycle_id(&self) -> &crate::model::identity::TestCycleId {
         match self {
-            Self::Cycle { cycle_id }
-            | Self::Case { cycle_id, .. }
-            | Self::Execution { cycle_id, .. } => cycle_id,
+            Self::Cycle { cycle_id } | Self::Case { cycle_id, .. } | Self::Execution { cycle_id, .. } => cycle_id,
         }
     }
 }
 
 /* === Public Functions === */
-pub fn note_identity(
-    epoch: &crate::model::identity::SessionId,
-    actor: &str,
-    mutation: &crate::model::identity::CommandId,
-) -> NoteId {
-    NoteId::from_seed(format!(
-        "note:{}:{}:{}:{}",
-        epoch,
-        actor.len(),
-        actor,
-        mutation
-    ))
+pub fn note_identity(epoch: &crate::model::identity::SessionId, actor: &str, mutation: &crate::model::identity::CommandId) -> NoteId {
+    NoteId::from_seed(format!("note:{}:{}:{}:{}", epoch, actor.len(), actor, mutation))
 }
 
 /* === Private Functions === */

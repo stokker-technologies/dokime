@@ -62,69 +62,38 @@ impl Operation for Upload {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
-        Ok(Self {
-            resources,
-            upload: None,
-        })
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { resources, upload: None })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut (),
-        input: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, _: &mut (), input: &mut Self::Endpoints,
     ) -> Result<Response<dokime_domain::model::content::wire::ArtifactMetadata>, Status> {
-        let first = receive_upload_frame(input)
-            .await?
-            .ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) =
-            &first.payload
-        else {
-            return Err(Status::invalid_argument(
-                "first artifact upload frame must be a header",
-            ));
+        let first = receive_upload_frame(input).await?.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
+        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+            return Err(Status::invalid_argument("first artifact upload frame must be a header"));
         };
         let upload_size = header.size_bytes;
         let (scope, filename, content_type, sha256) = upload_header(header)?;
         if scope.test_cycle_id.is_none() {
-            return Err(Status::invalid_argument(
-                "artifact upload cycle scope is required",
-            ));
+            return Err(Status::invalid_argument("artifact upload cycle scope is required"));
         }
         if scope.test_execution_id.is_none() {
-            return Err(Status::invalid_argument(
-                "artifact upload execution scope is required",
-            ));
+            return Err(Status::invalid_argument("artifact upload execution scope is required"));
         }
         let upload = self
             .resources
             .runtime
-            .begin_artifact_upload(ArtifactUploadInput {
-                scope,
-                filename,
-                content_type,
-                size_bytes: upload_size,
-                sha256,
-            })
+            .begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes: upload_size, sha256 })
             .await
             .map_err(content_failure)?;
         self.upload = Some(upload.clone());
         drop(first);
         let chunk_bytes = transfer_chunk_bytes(self.resources.maximum);
         if chunk_bytes == 0 {
-            return Err(Status::resource_exhausted(
-                "artifact upload exceeds configured message limit",
-            ));
+            return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
         }
         let receiving = std::time::Instant::now();
-        tracing::debug!(
-            phase = "artifact_receive",
-            bytes = upload_size,
-            "artifact upload receiving started"
-        );
+        tracing::debug!(phase = "artifact_receive", bytes = upload_size, "artifact upload receiving started");
         let received = receive_artifact(input, upload.clone(), upload_size, chunk_bytes).await;
         tracing::debug!(phase = "artifact_receive", bytes = upload_size, elapsed_ms = %receiving.elapsed().as_millis(), succeeded = received.is_ok(), "artifact upload receiving finished");
         let trailing = match received {
@@ -140,20 +109,14 @@ impl Operation for Upload {
             }
         };
         let sealing = std::time::Instant::now();
-        tracing::debug!(
-            phase = "artifact_upload_seal",
-            bytes = upload_size,
-            "original artifact upload sealing started"
-        );
+        tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, "original artifact upload sealing started");
         let sealed = upload.finish_verified(trailing).await;
         tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(), succeeded = sealed.is_ok(), "original artifact upload sealing finished");
         let record = sealed.map_err(content_failure)?;
         self.upload = None;
         let output = metadata(&record)?;
         if output.encoded_len() > self.resources.maximum {
-            return Err(Status::resource_exhausted(
-                "artifact metadata exceeds response budget",
-            ));
+            return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
         }
         Ok(output.into())
     }
@@ -179,10 +142,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Upload>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -200,39 +160,22 @@ fn upload_header(
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
     let scope = artifact_scope(header.scope.as_ref())?;
     let filename = header.filename.trim();
-    dokime_runtime::artifacts::name::validate(filename)
-        .map_err(|source| Status::invalid_argument(source.to_string()))?;
-    let content_type = header
-        .content_type
-        .as_deref()
-        .filter(|value| !value.is_empty());
+    dokime_runtime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
+    let content_type = header.content_type.as_deref().filter(|value| !value.is_empty());
     if content_type.as_ref().is_some_and(|value| value.len() > 255) {
-        return Err(Status::invalid_argument(
-            "artifact content type must not exceed 255 bytes",
-        ));
+        return Err(Status::invalid_argument("artifact content type must not exceed 255 bytes"));
     }
     if header.size_bytes > MAX_CONTENT_BYTES {
-        return Err(Status::resource_exhausted(
-            "artifact exceeds native content limit",
-        ));
+        return Err(Status::resource_exhausted("artifact exceeds native content limit"));
     }
     let sha256 = header.sha256.as_deref();
     if sha256.as_ref().is_some_and(|digest| !valid_digest(digest)) {
-        return Err(Status::invalid_argument(
-            "artifact sha256 must contain 64 lowercase hexadecimal characters",
-        ));
+        return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
     }
-    Ok((
-        scope,
-        filename.to_owned(),
-        content_type.map(str::to_owned),
-        sha256.map(str::to_owned),
-    ))
+    Ok((scope, filename.to_owned(), content_type.map(str::to_owned), sha256.map(str::to_owned)))
 }
 
-pub(in crate::grpc) fn artifact_scope(
-    scope: Option<&dokime_domain::model::content::wire::ArtifactScope>,
-) -> Result<RecordScope, Status> {
+pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime_domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("artifact scope is required"))?;
     let cycle_id = scope
         .cycle_id
@@ -247,8 +190,7 @@ pub(in crate::grpc) fn artifact_scope(
         .as_deref()
         .map(|id| {
             value::text(id)?;
-            CaseId::from_wire(id.to_owned())
-                .map_err(|_| Status::invalid_argument("invalid case ID"))
+            CaseId::from_wire(id.to_owned()).map_err(|_| Status::invalid_argument("invalid case ID"))
         })
         .transpose()?;
     let execution_id = scope
@@ -256,77 +198,49 @@ pub(in crate::grpc) fn artifact_scope(
         .as_deref()
         .map(|id| {
             value::text(id)?;
-            TestExecutionId::from_uuid(id)
-                .map_err(|_| Status::invalid_argument("invalid execution UUID"))
+            TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID"))
         })
         .transpose()?;
-    Ok(RecordScope {
-        test_cycle_id: cycle_id,
-        test_case_id: case_id,
-        test_execution_id: execution_id,
-        ..RecordScope::default()
-    })
+    Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
 }
 
 fn valid_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 async fn receive_artifact(
-    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
-    upload: ArtifactUpload,
-    expected_size: u64,
+    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>, upload: ArtifactUpload, expected_size: u64,
     max_chunk_bytes: usize,
 ) -> Result<Option<String>, Status> {
     let mut offset = 0_u64;
     while let Some(frame) = receive_upload_frame(input).await? {
         match &frame.payload {
             Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk)) => {
-                if chunk.data.is_empty()
-                    || chunk.data.len() > max_chunk_bytes
-                    || chunk.offset != offset
-                {
-                    return Err(Status::invalid_argument(
-                        "invalid artifact chunk offset or size",
-                    ));
+                if chunk.data.is_empty() || chunk.data.len() > max_chunk_bytes || chunk.offset != offset {
+                    return Err(Status::invalid_argument("invalid artifact chunk offset or size"));
                 }
-                offset = offset
-                    .checked_add(chunk.data.len() as u64)
-                    .ok_or_else(|| Status::invalid_argument("artifact size overflow"))?;
+                offset = offset.checked_add(chunk.data.len() as u64).ok_or_else(|| Status::invalid_argument("artifact size overflow"))?;
                 if offset > expected_size {
                     return Err(Status::invalid_argument("artifact exceeds declared size"));
                 }
                 upload.send(&chunk.data).await.map_err(content_failure)?;
             }
-            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
-                completion,
-            )) => {
+            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
                 if completion.size_bytes != offset {
-                    return Err(Status::invalid_argument(
-                        "artifact completion size does not match the received bytes",
-                    ));
+                    return Err(Status::invalid_argument("artifact completion size does not match the received bytes"));
                 }
                 if !valid_digest(&completion.sha256) {
-                    return Err(Status::invalid_argument(
-                        "artifact sha256 must contain 64 lowercase hexadecimal characters",
-                    ));
+                    return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
                 }
                 let sha256 = completion.sha256.clone();
                 drop(frame);
                 if receive_upload_frame(input).await?.is_some() {
-                    return Err(Status::invalid_argument(
-                        "no frame may follow the artifact upload completion",
-                    ));
+                    return Err(Status::invalid_argument("no frame may follow the artifact upload completion"));
                 }
                 return Ok(Some(sha256));
             }
             _ => {
-                return Err(Status::invalid_argument(
-                    "only chunks or a completion may follow artifact upload header",
-                ));
+                return Err(Status::invalid_argument("only chunks or a completion may follow artifact upload header"));
             }
         }
     }
@@ -336,28 +250,19 @@ async fn receive_artifact(
 pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) -> Status {
     use dokime_runtime::runtime::Error;
     let status = match &error {
-        Error::ExportStorage {
-            source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
-        } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
-        Error::Admission(AdmissionFailure::NotFound { .. }) => {
-            Status::not_found("artifact upload owner not found")
+        Error::ExportStorage { source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
+            Status::resource_exhausted("cycle bundle exceeds native content limit")
         }
-        Error::Admission(AdmissionFailure::Validation { message, .. }) => {
-            Status::invalid_argument(message.clone())
-        }
-        Error::Admission(AdmissionFailure::Forbidden { .. }) => {
-            Status::permission_denied("artifact upload failed")
-        }
-        Error::Harmos(harmos::Error::ResourceExhausted { .. })
-        | Error::Admission(AdmissionFailure::Overload { .. }) => {
+        Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
+        Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
+        Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
+        Error::Harmos(harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("artifact upload failed")
         }
-        Error::Admission(AdmissionFailure::Timeout { .. }) => {
-            Status::deadline_exceeded("artifact upload interrupted")
+        Error::Admission(AdmissionFailure::Timeout { .. }) => Status::deadline_exceeded("artifact upload interrupted"),
+        Error::Admission(AdmissionFailure::Unavailable { .. }) | Error::ShuttingDown | Error::Interrupted => {
+            Status::unavailable("artifact upload interrupted")
         }
-        Error::Admission(AdmissionFailure::Unavailable { .. })
-        | Error::ShuttingDown
-        | Error::Interrupted => Status::unavailable("artifact upload interrupted"),
         Error::Operation(message) => operation_status(message),
         _ => Status::internal("artifact upload failed"),
     };
@@ -368,10 +273,7 @@ pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) ->
 fn operation_status(message: &str) -> Status {
     if message.contains("not found") {
         Status::not_found("artifact upload owner not found")
-    } else if ["invalid", "requires", "exceeds", "scope", "size/hash"]
-        .iter()
-        .any(|marker| message.contains(marker))
-    {
+    } else if ["invalid", "requires", "exceeds", "scope", "size/hash"].iter().any(|marker| message.contains(marker)) {
         Status::invalid_argument(message.to_owned())
     } else {
         Status::internal("artifact upload failed")

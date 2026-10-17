@@ -118,21 +118,9 @@ fn write_brand(dir: &Path, manifest: &str) {
     fs::create_dir_all(&logos).unwrap();
     fs::write(logos.join("contained-dark.svg"), "<svg/>").unwrap();
     fs::create_dir_all(dir.join("theme")).unwrap();
-    let typography = REQUIRED_TEST_TYPOGRAPHY
-        .iter()
-        .map(|name| format!("--{name}: sample;"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(
-        dir.join("theme/typography.css"),
-        format!(":root {{ {typography} }}"),
-    )
-    .unwrap();
-    fs::write(
-        dir.join("theme/base.css"),
-        "::selection { color: currentColor; }",
-    )
-    .unwrap();
+    let typography = REQUIRED_TEST_TYPOGRAPHY.iter().map(|name| format!("--{name}: sample;")).collect::<Vec<_>>().join("\n");
+    fs::write(dir.join("theme/typography.css"), format!(":root {{ {typography} }}")).unwrap();
+    fs::write(dir.join("theme/base.css"), "::selection { color: currentColor; }").unwrap();
     let palette = |selector: &str, color: &str| {
         let semantic = REQUIRED_TEST_PALETTE
             .iter()
@@ -168,26 +156,14 @@ fn brand_toml_types() {
     assert_eq!(organization.unit.as_deref(), Some("Quality"));
     assert_eq!(customization.logo_assets.len(), 1);
     assert_eq!(customization.logo_assets[0].asset_id.as_str(), "brand.logo");
-    assert!(
-        Path::new(&customization.logo_assets[0].path)
-            .ends_with(Path::new("logos").join("contained-dark.svg"))
-    );
+    assert!(Path::new(&customization.logo_assets[0].path).ends_with(Path::new("logos").join("contained-dark.svg")));
 
-    assert!(matches!(
-        customization.theme_policy,
-        ThemeActivationPolicy::Required {
-            mode: ThemeModePolicy::ForceDark,
-            ..
-        }
-    ));
+    assert!(matches!(customization.theme_policy, ThemeActivationPolicy::Required { mode: ThemeModePolicy::ForceDark, .. }));
 
     let theme = brand.theme.expect("theme present");
     assert_eq!(theme.metadata.identifier.as_str(), "brand.theme");
     assert_eq!(theme.metadata.label, "Acme");
-    assert_eq!(
-        theme.variables.get("brand-font-sans").map(String::as_str),
-        Some("sample")
-    );
+    assert_eq!(theme.variables.get("brand-font-sans").map(String::as_str), Some("sample"));
     assert_eq!(
         theme.corner_radii,
         ThemeCornerRadii {
@@ -202,10 +178,7 @@ fn brand_toml_types() {
         }
     );
     assert_eq!(theme.light.plot_palette.len(), 8);
-    assert_eq!(
-        theme.dark.variables.get("primary").map(String::as_str),
-        Some("#eeeeee")
-    );
+    assert_eq!(theme.dark.variables.get("primary").map(String::as_str), Some("#eeeeee"));
 }
 
 #[test]
@@ -227,10 +200,7 @@ identifier = "com.minimal.hub"
     assert_eq!(brand.customization.display_name.as_deref(), Some("Minimal"));
     assert!(brand.customization.logo_assets.is_empty());
     assert!(brand.theme.is_none());
-    assert!(matches!(
-        brand.customization.theme_policy,
-        ThemeActivationPolicy::RegisterOnly
-    ));
+    assert!(matches!(brand.customization.theme_policy, ThemeActivationPolicy::RegisterOnly));
 }
 
 #[test]
@@ -257,19 +227,15 @@ mime_type = "image/svg+xml"
 
 #[tokio::test]
 async fn runtime_appearance_brand() {
-    use dokime_runtime::{Identifier, Metadata};
     use dokime_runtime::Runtime;
+    use dokime_runtime::{Identifier, Metadata};
 
     let root = tempdir().unwrap();
     write_brand(root.path(), NEUTRAL_BRAND);
     let brand = load_brand(root.path()).unwrap();
     let mut owner = Runtime::start(crate::service_support::budgets::runtime_config(
         root.path().join("runtime"),
-        Metadata::new(
-            Identifier::new("fixture.appearance").unwrap(),
-            "Appearance",
-            None,
-        ),
+        Metadata::new(Identifier::new("fixture.appearance").unwrap(), "Appearance", None),
     ))
     .await
     .unwrap();
@@ -281,14 +247,9 @@ async fn runtime_appearance_brand() {
     let captured = runtime.capture_appearance(64 * 1024).unwrap();
     assert_eq!(captured.frame, frame);
     let selected = frame.logo.as_ref().unwrap();
-    let asset = runtime
-        .plugin_appearance_asset(&selected.plugin_id, &selected.asset_id)
-        .await;
+    let asset = runtime.plugin_appearance_asset(&selected.plugin_id, &selected.asset_id).await;
     assert_eq!(captured.logo, asset);
-    assert_eq!(
-        asset.unwrap().path,
-        root.path().join("logos/contained-dark.svg")
-    );
+    assert_eq!(asset.unwrap().path, root.path().join("logos/contained-dark.svg"));
 
     runtime.set_brand(None);
     assert_ne!(runtime.appearance_frame().await.app_name, "Acme Test Hub");

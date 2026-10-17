@@ -18,9 +18,9 @@
 
 // Local Imports
 use super::{identifier, metadata};
-use dokime_runtime::{Identifier, Value, ValueType};
 use dokime_runtime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime_runtime::{Identifier, Value, ValueType};
 use harmos::{
     Message,
     schema::{Described, graph::Schema},
@@ -155,36 +155,23 @@ pub fn fixture_schema(stream: &str) -> Option<Schema> {
     Some(Schema::from_declaration(definition, &settings).unwrap())
 }
 
-pub fn typed_minimal_tracking_sample(
-    mut sample: dokime_runtime::telemetry::TelemetrySample,
-) -> dokime_runtime::telemetry::TelemetrySample {
+pub fn typed_minimal_tracking_sample(mut sample: dokime_runtime::telemetry::TelemetrySample) -> dokime_runtime::telemetry::TelemetrySample {
     sample.storage_payload = Some(fixture_payload::<MinimalTrackingRow>(&sample));
     sample
 }
 
-pub fn provider_tracking_row(
-    elapsed_s: f64,
-    target_locked: bool,
-) -> dokime_runtime::transport::ProviderTelemetryRow {
-    let row = MinimalTrackingRow {
-        elapsed_s,
-        target_locked,
-    };
+pub fn provider_tracking_row(elapsed_s: f64, target_locked: bool) -> dokime_runtime::transport::ProviderTelemetryRow {
+    let row = MinimalTrackingRow { elapsed_s, target_locked };
     dokime_runtime::transport::ProviderTelemetryRow {
         values: std::collections::BTreeMap::from([
             ("elapsed_s".into(), dokime_runtime::Value::Number(elapsed_s)),
-            (
-                "target_locked".into(),
-                dokime_runtime::Value::Bool(target_locked),
-            ),
+            ("target_locked".into(), dokime_runtime::Value::Bool(target_locked)),
         ]),
         payload: row.encode_to_vec(),
     }
 }
 
-pub fn typed_fixture_sample(
-    mut sample: dokime_runtime::telemetry::TelemetrySample,
-) -> dokime_runtime::telemetry::TelemetrySample {
+pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySample) -> dokime_runtime::telemetry::TelemetrySample {
     if sample.stream.as_str().starts_with("host.") {
         // The host projects its wire timestamp into the row's values.
         let timestamp = Value::from(sample.timestamp.clone());
@@ -227,11 +214,7 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
         template_id: None,
         owner: None,
         storage_schema: fixture_schema("fixture.telemetry"),
-        columns: vec![TelemetryColumn::new(
-            metadata("value", "Value"),
-            ValueType::Number,
-            TelemetryRole::Value,
-        )],
+        columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
         default_x: Some("timestamp".to_owned()),
         interval: None,
         plot_window: None,
@@ -251,10 +234,7 @@ pub fn tracking_warning_contract() -> RecordContract {
         template_id: None,
         owner: None,
         default_severity: RecordSeverity::Warning,
-        fields: vec![RecordField::new(
-            metadata("warning_code", "Warning Code"),
-            ValueType::Text,
-        )],
+        fields: vec![RecordField::new(metadata("warning_code", "Warning Code"), ValueType::Text)],
         validation_mode: None,
         allow_extra_fields: false,
     }
@@ -269,10 +249,7 @@ pub fn custom_record_contract() -> RecordContract {
         template_id: None,
         owner: None,
         default_severity: RecordSeverity::Info,
-        fields: vec![RecordField::new(
-            metadata("value", "Value"),
-            ValueType::Number,
-        )],
+        fields: vec![RecordField::new(metadata("value", "Value"), ValueType::Number)],
         validation_mode: None,
         allow_extra_fields: false,
     }
@@ -280,19 +257,9 @@ pub fn custom_record_contract() -> RecordContract {
 
 pub fn tracking_record_contracts() -> Vec<RecordContract> {
     let mut contracts = vec![custom_record_contract()];
-    contracts.extend(
-        dokime_runtime::records::builtin_record_contracts()
-            .into_iter()
-            .filter(|contract| {
-                matches!(
-                    contract.record_type.as_str(),
-                    "target.lost"
-                        | "target.acquired"
-                        | "tool.connection.lost"
-                        | "tool.connection.acquired"
-                )
-            }),
-    );
+    contracts.extend(dokime_runtime::records::builtin_record_contracts().into_iter().filter(|contract| {
+        matches!(contract.record_type.as_str(), "target.lost" | "target.acquired" | "tool.connection.lost" | "tool.connection.acquired")
+    }));
     contracts
 }
 
@@ -325,11 +292,7 @@ pub fn fixture_host_contracts() -> Vec<TelemetryContract> {
                 fixture_host_column("wifi_network_congestion_score", "WiFi Congestion"),
             ],
         ),
-        fixture_host_contract(
-            "host.wifi.latency",
-            "Host WiFi Latency",
-            vec![fixture_host_column("wifi_latency_ms", "WiFi Latency")],
-        ),
+        fixture_host_contract("host.wifi.latency", "Host WiFi Latency", vec![fixture_host_column("wifi_latency_ms", "WiFi Latency")]),
         fixture_host_contract(
             "host.wifi.channel_occupancy",
             "Host WiFi Channel Occupancy",
@@ -346,24 +309,14 @@ pub fn fixture_host_contracts() -> Vec<TelemetryContract> {
             "Host Bluetooth",
             vec![
                 fixture_host_column("bluetooth_adapter_count", "Bluetooth Adapters"),
-                fixture_host_column(
-                    "bluetooth_connected_device_count",
-                    "Connected Bluetooth Devices",
-                ),
-                fixture_host_column(
-                    "bluetooth_present_device_count",
-                    "Present Bluetooth Devices",
-                ),
+                fixture_host_column("bluetooth_connected_device_count", "Connected Bluetooth Devices"),
+                fixture_host_column("bluetooth_present_device_count", "Present Bluetooth Devices"),
             ],
         ),
     ]
 }
 
-pub fn fixture_host_contract(
-    stream: &str,
-    label: &str,
-    columns: Vec<TelemetryColumn>,
-) -> TelemetryContract {
+pub fn fixture_host_contract(stream: &str, label: &str, columns: Vec<TelemetryColumn>) -> TelemetryContract {
     TelemetryContract {
         stream: identifier(stream),
         schema_version: 1,
@@ -385,12 +338,7 @@ pub fn fixture_host_contract(
 }
 
 pub fn fixture_host_column(name: &str, label: &str) -> TelemetryColumn {
-    TelemetryColumn::new(
-        metadata(name, label),
-        ValueType::Number,
-        TelemetryRole::Value,
-    )
-    .optional()
+    TelemetryColumn::new(metadata(name, label), ValueType::Number, TelemetryRole::Value).optional()
 }
 
 pub fn tracking_contract() -> TelemetryContract {
@@ -402,65 +350,17 @@ pub fn tracking_contract() -> TelemetryContract {
         owner: None,
         storage_schema: fixture_schema("tracking"),
         columns: vec![
-            TelemetryColumn::new(
-                metadata("elapsed_s", "Elapsed"),
-                ValueType::Number,
-                TelemetryRole::Value,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("distance_m", "Distance"),
-                ValueType::Number,
-                TelemetryRole::Distance,
-            ),
-            TelemetryColumn::new(
-                metadata("position_x_m", "Position X"),
-                ValueType::Number,
-                TelemetryRole::Distance,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("position_y_m", "Position Y"),
-                ValueType::Number,
-                TelemetryRole::Distance,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("speed_m_per_s", "Speed"),
-                ValueType::Number,
-                TelemetryRole::Value,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("velocity_x_m_per_s", "Velocity X"),
-                ValueType::Number,
-                TelemetryRole::Value,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("velocity_y_m_per_s", "Velocity Y"),
-                ValueType::Number,
-                TelemetryRole::Value,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("target_locked", "Target Locked"),
-                ValueType::Boolean,
-                TelemetryRole::State,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("tool_connected", "Tool Connected"),
-                ValueType::Boolean,
-                TelemetryRole::State,
-            )
-            .optional(),
-            TelemetryColumn::new(
-                metadata("target_reacquire_time_s", "Target Reacquire Time"),
-                ValueType::Number,
-                TelemetryRole::Latency,
-            )
-            .optional(),
+            TelemetryColumn::new(metadata("elapsed_s", "Elapsed"), ValueType::Number, TelemetryRole::Value).optional(),
+            TelemetryColumn::new(metadata("distance_m", "Distance"), ValueType::Number, TelemetryRole::Distance),
+            TelemetryColumn::new(metadata("position_x_m", "Position X"), ValueType::Number, TelemetryRole::Distance).optional(),
+            TelemetryColumn::new(metadata("position_y_m", "Position Y"), ValueType::Number, TelemetryRole::Distance).optional(),
+            TelemetryColumn::new(metadata("speed_m_per_s", "Speed"), ValueType::Number, TelemetryRole::Value).optional(),
+            TelemetryColumn::new(metadata("velocity_x_m_per_s", "Velocity X"), ValueType::Number, TelemetryRole::Value).optional(),
+            TelemetryColumn::new(metadata("velocity_y_m_per_s", "Velocity Y"), ValueType::Number, TelemetryRole::Value).optional(),
+            TelemetryColumn::new(metadata("target_locked", "Target Locked"), ValueType::Boolean, TelemetryRole::State).optional(),
+            TelemetryColumn::new(metadata("tool_connected", "Tool Connected"), ValueType::Boolean, TelemetryRole::State).optional(),
+            TelemetryColumn::new(metadata("target_reacquire_time_s", "Target Reacquire Time"), ValueType::Number, TelemetryRole::Latency)
+                .optional(),
             TelemetryColumn::new(
                 metadata("connection_acquired_time_s", "Connection Acquired Time"),
                 ValueType::Number,
@@ -474,10 +374,7 @@ pub fn tracking_contract() -> TelemetryContract {
             )
             .optional(),
             TelemetryColumn::new(
-                metadata(
-                    "connection_acquired_distance_m",
-                    "Connection Acquired Distance",
-                ),
+                metadata("connection_acquired_distance_m", "Connection Acquired Distance"),
                 ValueType::Number,
                 TelemetryRole::Distance,
             )
@@ -495,26 +392,12 @@ pub fn tracking_contract() -> TelemetryContract {
 
 pub fn minimal_tracking_contract() -> TelemetryContract {
     TelemetryContract {
-        storage_schema: Some(
-            Schema::from_declaration(
-                MinimalTrackingRow::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .unwrap(),
-        ),
+        storage_schema: Some(Schema::from_declaration(MinimalTrackingRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()),
         columns: tracking_contract()
             .columns
             .into_iter()
-            .filter(|column| {
-                matches!(
-                    column.metadata.identifier.as_str(),
-                    "elapsed_s" | "target_locked"
-                )
-            })
-            .map(|column| TelemetryColumn {
-                required: true,
-                ..column
-            })
+            .filter(|column| matches!(column.metadata.identifier.as_str(), "elapsed_s" | "target_locked"))
+            .map(|column| TelemetryColumn { required: true, ..column })
             .collect(),
         default_x: Some("elapsed_s".to_owned()),
         ..tracking_contract()
@@ -523,11 +406,7 @@ pub fn minimal_tracking_contract() -> TelemetryContract {
 
 pub fn conflicting_tracking_contract() -> TelemetryContract {
     TelemetryContract {
-        columns: vec![TelemetryColumn::new(
-            metadata("distance_m", "Distance"),
-            ValueType::Text,
-            TelemetryRole::Distance,
-        )],
+        columns: vec![TelemetryColumn::new(metadata("distance_m", "Distance"), ValueType::Text, TelemetryRole::Distance)],
         ..tracking_contract()
     }
 }
@@ -541,21 +420,9 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
         owner: None,
         storage_schema: fixture_schema("host.wifi.channel_occupancy"),
         columns: vec![
-            TelemetryColumn::new(
-                metadata("sample_index", "Sample Index"),
-                ValueType::Integer,
-                TelemetryRole::Value,
-            ),
-            TelemetryColumn::new(
-                metadata("wifi_channel", "WiFi Channel"),
-                ValueType::Integer,
-                TelemetryRole::Value,
-            ),
-            TelemetryColumn::new(
-                metadata("network_count", "Network Count"),
-                ValueType::Integer,
-                TelemetryRole::Value,
-            ),
+            TelemetryColumn::new(metadata("sample_index", "Sample Index"), ValueType::Integer, TelemetryRole::Value),
+            TelemetryColumn::new(metadata("wifi_channel", "WiFi Channel"), ValueType::Integer, TelemetryRole::Value),
+            TelemetryColumn::new(metadata("network_count", "Network Count"), ValueType::Integer, TelemetryRole::Value),
         ],
         default_x: Some("sample_index".to_owned()),
         interval: None,
@@ -572,32 +439,16 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
 fn host_fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
     sample: &dokime_runtime::telemetry::TelemetrySample,
 ) -> Vec<u8> {
-    let mut values = Value::Object(sample.values.clone())
-        .to_plain_json()
-        .unwrap();
-    values.as_object_mut().unwrap().insert(
-        "timestamp".into(),
-        serde_json::json!({ "value": sample.timestamp.as_str() }),
-    );
+    let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
+    values.as_object_mut().unwrap().insert("timestamp".into(), serde_json::json!({ "value": sample.timestamp.as_str() }));
     serde_json::from_value::<T>(values).unwrap().encode_to_vec()
 }
 
-fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
-    sample: &dokime_runtime::telemetry::TelemetrySample,
-) -> Vec<u8> {
-    let mut values = Value::Object(sample.values.clone())
-        .to_plain_json()
-        .unwrap();
-    let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
-        .unwrap();
-    if graph.definitions[graph.root]
-        .iter()
-        .any(|field| field.name == "timestamp")
-    {
-        values.as_object_mut().unwrap().insert(
-            "timestamp".into(),
-            serde_json::Value::String(sample.timestamp.as_str().to_owned()),
-        );
+fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample: &dokime_runtime::telemetry::TelemetrySample) -> Vec<u8> {
+    let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
+    let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
+    if graph.definitions[graph.root].iter().any(|field| field.name == "timestamp") {
+        values.as_object_mut().unwrap().insert("timestamp".into(), serde_json::Value::String(sample.timestamp.as_str().to_owned()));
     } else {
         values.as_object_mut().unwrap().remove("timestamp");
     }

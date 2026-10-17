@@ -50,11 +50,7 @@ impl GetStatus {
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
         let stopped = dokime_runtime::plugin::refusal(self.resources.app().stopped().await)?;
-        Ok(StatusResponse::new(if stopped {
-            "disconnected"
-        } else {
-            "connected"
-        }))
+        Ok(StatusResponse::new(if stopped { "disconnected" } else { "connected" }))
     }
 }
 

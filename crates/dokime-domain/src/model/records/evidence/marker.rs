@@ -48,32 +48,14 @@ pub struct RecordMarker {
 impl harmos::MemorySize for RecordMarker {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.timestamp),
-                std::mem::size_of_val(&self.timestamp),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.record_type),
-                std::mem::size_of_val(&self.record_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
+            (harmos::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
+            (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -83,10 +65,7 @@ impl RecordMarker {
             sequence: record.sequence,
             timestamp: record.timestamp.clone(),
             record_type: record.record_type.clone(),
-            label: record
-                .message
-                .clone()
-                .unwrap_or_else(|| record.record_type.as_str().to_owned()),
+            label: record.message.clone().unwrap_or_else(|| record.record_type.as_str().to_owned()),
             severity: record.severity,
             scope: record.scope.clone(),
         }

@@ -21,13 +21,11 @@ use std::time::Duration;
 use tokio::sync::watch;
 use tracing::Instrument;
 // Local Imports
-use super::template::SidecarTemplate;
-use super::unwind::caught;
 use super::Environment;
 use super::ExecutionEvidence;
-use dokime_domain::model::execution::termination::TerminationReason;
+use super::template::SidecarTemplate;
+use super::unwind::caught;
 use crate::artifacts::Artifacts;
-use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
 use crate::diagnostics::Diagnostic;
 use crate::parameters::FromParameters;
@@ -35,10 +33,10 @@ use crate::records::Deliveries;
 use crate::telemetry::{SampleSink, Streams};
 use crate::transport::ExecutionTransport;
 use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
-use crate::transport::frame::{
-    ExecutionSampleSink, FrameArtifactSink, FrameRecordSource, FrameTransport,
-};
+use crate::transport::frame::{ExecutionSampleSink, FrameArtifactSink, FrameRecordSource, FrameTransport};
 use crate::transport::{SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome};
+use dokime_domain::model::execution::termination::TerminationReason;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const CRITERION_BUDGET: Duration = Duration::from_secs(1);
@@ -69,13 +67,8 @@ pub(super) struct Inputs {
 /* === Enums === */
 enum Ended {
     Completed,
-    Cancelled {
-        step: String,
-    },
-    Failed {
-        step: String,
-        diagnostic: Box<Diagnostic>,
-    },
+    Cancelled { step: String },
+    Failed { step: String, diagnostic: Box<Diagnostic> },
 }
 
 /* === Traits === */
@@ -84,12 +77,7 @@ enum Ended {
 
 /* === Public Functions === */
 pub(crate) async fn run<T: SidecarTemplate>(
-    executions: Executions,
-    token: String,
-    source: String,
-    declaration: TestCaseTemplate,
-    inputs: Inputs,
-    cancel: watch::Receiver<bool>,
+    executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs, cancel: watch::Receiver<bool>,
     observer_tasks: Tasks,
 ) {
     let span = tracing::info_span!(
@@ -99,28 +87,13 @@ pub(crate) async fn run<T: SidecarTemplate>(
         plugin = %source,
     );
 
-    execute::<T>(
-        executions,
-        token,
-        source,
-        declaration,
-        inputs,
-        cancel,
-        observer_tasks,
-    )
-    .instrument(span)
-    .await;
+    execute::<T>(executions, token, source, declaration, inputs, cancel, observer_tasks).instrument(span).await;
 }
 
 /* === Private Functions === */
 async fn execute<T: SidecarTemplate>(
-    executions: Executions,
-    token: String,
-    source: String,
-    declaration: TestCaseTemplate,
-    inputs: Inputs,
-    mut cancel: watch::Receiver<bool>,
-    observer_tasks: Tasks,
+    executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs,
+    mut cancel: watch::Receiver<bool>, observer_tasks: Tasks,
 ) {
     let Inputs {
         controls,
@@ -135,18 +108,9 @@ async fn execute<T: SidecarTemplate>(
         host,
         publisher,
     } = inputs;
-    let host_managed_subscriptions = host.is_some()
-        || lock(&executions)
-            .get(&token)
-            .is_some_and(|state| state.local_inputs);
+    let host_managed_subscriptions = host.is_some() || lock(&executions).get(&token).is_some_and(|state| state.local_inputs);
     let mut transport = FrameTransport::new(Arc::clone(&executions), token.clone());
-    let artifacts = Artifacts::new(
-        token.clone(),
-        Arc::new(FrameArtifactSink::new(
-            Arc::clone(&executions),
-            token.clone(),
-        )),
-    );
+    let artifacts = Artifacts::new(token.clone(), Arc::new(FrameArtifactSink::new(Arc::clone(&executions), token.clone())));
     // Watching starts before the first stage does, because the hook that asks
     // for a directory is itself a stage, and it ends after cleanup, because a
     // template that writes its last evidence while releasing what it held is
@@ -163,14 +127,8 @@ async fn execute<T: SidecarTemplate>(
         Ok(typed) => typed,
         Err(refusal) => {
             super::scanning::settle(scanning, &watched, &executions, &token).await;
-            if let Err(diagnostic) = finalize_record_inputs(
-                &executions,
-                &token,
-                &mut cancel,
-                &mut evidence,
-                host_managed_subscriptions,
-            )
-            .await
+            if let Err(diagnostic) =
+                finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await
             {
                 transport.log(super::log::Level::Error, diagnostic.redacted().to_string());
             }
@@ -179,10 +137,7 @@ async fn execute<T: SidecarTemplate>(
                 None,
                 &transport,
                 &evidence,
-                Ended::Failed {
-                    step: PARAMETERS.into(),
-                    diagnostic: Box::new(Diagnostic::of(refusal.to_string())),
-                },
+                Ended::Failed { step: PARAMETERS.into(), diagnostic: Box::new(Diagnostic::of(refusal.to_string())) },
                 None,
                 false,
             )
@@ -200,47 +155,25 @@ async fn execute<T: SidecarTemplate>(
     // One grant for every row this execution produces, shared by the steps that
     // push and by the observers that measure, so both are counted, sequenced and
     // seen by whatever is listening in the same place.
-    let sink = Arc::new(ExecutionSampleSink::<T>::new(
-        Arc::clone(&executions),
-        token.clone(),
-        source.clone(),
-        host,
-        publisher,
-    ));
-    let listening = lock(&executions)
-        .get(&token)
-        .expect("a running execution retains its state")
-        .listening
-        .clone();
-    let streams = Streams::new(Arc::clone(&sink) as Arc<dyn SampleSink>)
-        .with_listening(listening)
-        .restricted(
-            declaration.metadata.identifier.as_str(),
-            streams
-                .iter()
-                .map(|contract| contract.stream.to_string())
-                // An observer's identifier is its own name, never a stream, so
-                // the streams it may publish on come off the contracts it
-                // declared beside it.
-                .chain(declared_observers.iter().flat_map(|observer| {
-                    observer
-                        .streams
-                        .iter()
-                        .map(|contract| contract.stream.to_string())
-                })),
-        );
+    let sink = Arc::new(ExecutionSampleSink::<T>::new(Arc::clone(&executions), token.clone(), source.clone(), host, publisher));
+    let listening = lock(&executions).get(&token).expect("a running execution retains its state").listening.clone();
+    let streams = Streams::new(Arc::clone(&sink) as Arc<dyn SampleSink>).with_listening(listening).restricted(
+        declaration.metadata.identifier.as_str(),
+        streams
+            .iter()
+            .map(|contract| contract.stream.to_string())
+            // An observer's identifier is its own name, never a stream, so
+            // the streams it may publish on come off the contracts it
+            // declared beside it.
+            .chain(declared_observers.iter().flat_map(|observer| observer.streams.iter().map(|contract| contract.stream.to_string()))),
+    );
     // What the host files into this run's reach, read by a step that is waiting
     // for something this run does not produce itself.
-    let deliveries = Deliveries::new(Arc::new(FrameRecordSource::new(
-        Arc::clone(&executions),
-        token.clone(),
-    )));
+    let deliveries = Deliveries::new(Arc::new(FrameRecordSource::new(Arc::clone(&executions), token.clone())));
     // One index per attempt, over the document this template declared: every
     // stage and every observer tick decides "already there" against the same
     // value, so a section one of them added is one none of them can add again.
-    let document = Arc::new(std::sync::Mutex::new(super::document::DocumentIndex::new(
-        declaration.document.clone(),
-    )));
+    let document = Arc::new(std::sync::Mutex::new(super::document::DocumentIndex::new(declaration.document.clone())));
     // Who this run is, for the processes its steps start.
     let identity = lock(&executions)
         .get(&token)
@@ -251,51 +184,29 @@ async fn execute<T: SidecarTemplate>(
             plugin_id: source.clone(),
         })
         .unwrap_or_default();
-    let environment = Environment::new(
-        typed.as_ref(),
-        parameters.as_ref(),
-        bindings.as_ref(),
-        artifacts.clone(),
-        streams.clone(),
-        deliveries.clone(),
-    )
-    .identified(identity)
-    .calling(caller.clone())
-    .declaring(Arc::clone(&document))
-    .with_callbacks(callbacks);
+    let environment =
+        Environment::new(typed.as_ref(), parameters.as_ref(), bindings.as_ref(), artifacts.clone(), streams.clone(), deliveries.clone())
+            .identified(identity)
+            .calling(caller.clone())
+            .declaring(Arc::clone(&document))
+            .with_callbacks(callbacks);
     let environment = match binding.clone() {
         Some(binding) => environment.bound(binding),
         None => environment,
     };
 
-    let (mut template, own) = match initialize::<T>(&environment, &mut transport, &mut cancel).await
-    {
+    let (mut template, own) = match initialize::<T>(&environment, &mut transport, &mut cancel).await {
         Ok(template) => template,
         Err(ended) => {
             let cleanup_error = settle_callbacks(&environment, &transport).await;
             environment.streams().flush().await;
             super::scanning::settle(scanning, &watched, &executions, &token).await;
-            if let Err(diagnostic) = finalize_record_inputs(
-                &executions,
-                &token,
-                &mut cancel,
-                &mut evidence,
-                host_managed_subscriptions,
-            )
-            .await
+            if let Err(diagnostic) =
+                finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await
             {
                 transport.log(super::log::Level::Error, diagnostic.redacted().to_string());
             }
-            let outcome = conclude::<T>(
-                &declaration,
-                None,
-                &transport,
-                &evidence,
-                ended,
-                cleanup_error,
-                false,
-            )
-            .await;
+            let outcome = conclude::<T>(&declaration, None, &transport, &evidence, ended, cleanup_error, false).await;
             report(&executions, &token, outcome);
             return;
         }
@@ -331,16 +242,7 @@ async fn execute<T: SidecarTemplate>(
                 &records,
                 &observer_tasks,
             );
-            let ended = walk::<T>(
-                &mut template,
-                &declaration,
-                &environment,
-                &mut transport,
-                &mut evidence,
-                &mut cancel,
-                &controls,
-            )
-            .await;
+            let ended = walk::<T>(&mut template, &declaration, &environment, &mut transport, &mut evidence, &mut cancel, &controls).await;
             controls.stop_accepting();
             // Observing stops before the evidence is read, so a criterion
             // decides over a set of facts that is not still growing underneath
@@ -355,10 +257,7 @@ async fn execute<T: SidecarTemplate>(
     if let Some(diagnostic) = settle_callbacks(&environment, &transport).await
         && matches!(ended, Ended::Completed)
     {
-        ended = Ended::Failed {
-            step: "settling callbacks".into(),
-            diagnostic: Box::new(diagnostic),
-        };
+        ended = Ended::Failed { step: "settling callbacks".into(), diagnostic: Box::new(diagnostic) };
     }
 
     let reason = match &ended {
@@ -390,60 +289,31 @@ async fn execute<T: SidecarTemplate>(
     }
 
     if let Some(diagnostic) = environment.streams().failure() {
-        ended = Ended::Failed {
-            step: "publishing stream evidence".into(),
-            diagnostic: Box::new(diagnostic),
-        };
+        ended = Ended::Failed { step: "publishing stream evidence".into(), diagnostic: Box::new(diagnostic) };
     }
 
     // Gaps join the evidence where the observers' rows did: after everything
     // that could still be measured has stopped, and before the first criterion
     // decides anything. A criterion reading `ctx.gaps` is reading a settled
     // fact about the run, not a running count.
-    let inputs_settled = match finalize_record_inputs(
-        &executions,
-        &token,
-        &mut cancel,
-        &mut evidence,
-        host_managed_subscriptions,
-    )
-    .await
-    {
+    let inputs_settled = match finalize_record_inputs(&executions, &token, &mut cancel, &mut evidence, host_managed_subscriptions).await {
         Ok(()) => true,
         Err(diagnostic) => {
-            ended = Ended::Failed {
-                step: "settling record subscriptions".into(),
-                diagnostic: Box::new(diagnostic),
-            };
+            ended = Ended::Failed { step: "settling record subscriptions".into(), diagnostic: Box::new(diagnostic) };
             false
         }
     };
     evidence.record_gaps(transport.gaps());
-    let outcome = conclude::<T>(
-        &declaration,
-        inputs_settled.then_some(&environment),
-        &transport,
-        &evidence,
-        ended,
-        cleanup_error,
-        !inputs_settled,
-    )
-    .await;
+    let outcome =
+        conclude::<T>(&declaration, inputs_settled.then_some(&environment), &transport, &evidence, ended, cleanup_error, !inputs_settled)
+            .await;
     report(&executions, &token, outcome);
 }
 
 async fn finalize_record_inputs(
-    executions: &Executions,
-    token: &str,
-    cancel: &mut watch::Receiver<bool>,
-    evidence: &mut ExecutionEvidence,
-    host_managed: bool,
+    executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>, evidence: &mut ExecutionEvidence, host_managed: bool,
 ) -> Result<(), Diagnostic> {
-    let result = if host_managed {
-        settle_record_inputs(executions, token, cancel).await
-    } else {
-        Ok(())
-    };
+    let result = if host_managed { settle_record_inputs(executions, token, cancel).await } else { Ok(()) };
     if let Some(state) = lock(executions).get_mut(token) {
         evidence.subscribed_records = state.captured_records();
         for sample in state.take_staged() {
@@ -453,20 +323,12 @@ async fn finalize_record_inputs(
     result
 }
 
-async fn settle_record_inputs(
-    executions: &Executions,
-    token: &str,
-    cancel: &mut watch::Receiver<bool>,
-) -> Result<(), Diagnostic> {
+async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>) -> Result<(), Diagnostic> {
     if let Some(state) = lock(executions).get_mut(token) {
         state.begin_record_settle();
     }
     let was_cancelled = *cancel.borrow();
-    let bound = if was_cancelled {
-        Duration::from_secs(1)
-    } else {
-        Duration::from_secs(35)
-    };
+    let bound = if was_cancelled { Duration::from_secs(1) } else { Duration::from_secs(35) };
     // The host settles by handing the whole capture back, which takes as long
     // as the capture is long; the bound is on a host that stops making
     // progress, not on the length of what it is replaying.
@@ -483,9 +345,7 @@ async fn settle_record_inputs(
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
-            return Err(Diagnostic::of(
-                "host did not settle execution inputs before the deadline",
-            ));
+            return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
         }
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_millis(5)) => {},
@@ -497,9 +357,7 @@ async fn settle_record_inputs(
 }
 
 async fn initialize<T: SidecarTemplate>(
-    environment: &Environment<'_, T, T::Own, T::Parameters>,
-    transport: &mut dyn ExecutionTransport,
-    cancel: &mut watch::Receiver<bool>,
+    environment: &Environment<'_, T, T::Own, T::Parameters>, transport: &mut dyn ExecutionTransport, cancel: &mut watch::Receiver<bool>,
 ) -> Result<(T, T::Own), Ended> {
     let mut ctx = environment.initialize(transport);
     ctx.info("execution initialization started");
@@ -518,9 +376,7 @@ async fn initialize<T: SidecarTemplate>(
 }
 
 async fn state<T: SidecarTemplate>(
-    template: &mut T,
-    environment: &Environment<'_, T, T::Own, T::Parameters>,
-    transport: &mut dyn ExecutionTransport,
+    template: &mut T, environment: &Environment<'_, T, T::Own, T::Parameters>, transport: &mut dyn ExecutionTransport,
     cancel: &mut watch::Receiver<bool>,
 ) -> Result<(), Ended> {
     let sections = {
@@ -543,12 +399,8 @@ async fn state<T: SidecarTemplate>(
 }
 
 async fn walk<T: SidecarTemplate>(
-    template: &mut T,
-    declaration: &TestCaseTemplate,
-    environment: &Environment<'_, T, T::Own, T::Parameters>,
-    transport: &mut dyn ExecutionTransport,
-    evidence: &mut ExecutionEvidence,
-    cancel: &mut watch::Receiver<bool>,
+    template: &mut T, declaration: &TestCaseTemplate, environment: &Environment<'_, T, T::Own, T::Parameters>,
+    transport: &mut dyn ExecutionTransport, evidence: &mut ExecutionEvidence, cancel: &mut watch::Receiver<bool>,
     controls: &crate::transport::control::Controls,
 ) -> Ended {
     use crate::transport::control::Action;
@@ -559,9 +411,7 @@ async fn walk<T: SidecarTemplate>(
         let command = if interactive {
             loop {
                 if *cancel.borrow() {
-                    return Ended::Cancelled {
-                        step: "waiting for command".into(),
-                    };
+                    return Ended::Cancelled { step: "waiting for command".into() };
                 }
                 if let Some(command) = controls.take() {
                     break Some(command);
@@ -580,17 +430,10 @@ async fn walk<T: SidecarTemplate>(
         };
         let declared = match command.as_ref().map(|command| &command.action) {
             Some(Action::Finish) => return Ended::Completed,
-            Some(Action::Step(identifier)) => declaration
-                .phases
-                .iter()
-                .find(|step| &step.metadata.identifier == identifier),
+            Some(Action::Step(identifier)) => declaration.phases.iter().find(|step| &step.metadata.identifier == identifier),
             Some(Action::Next) => {
-                let selected =
-                    dokime_domain::model::execution::result::effective_attempts(declaration, &evidence.attempts, None);
-                declaration
-                    .phases
-                    .iter()
-                    .find(|step| !selected.contains_key(&step.step_id))
+                let selected = dokime_domain::model::execution::result::effective_attempts(declaration, &evidence.attempts, None);
+                declaration.phases.iter().find(|step| !selected.contains_key(&step.step_id))
             }
             None => {
                 let step = declaration.phases.get(automatic);
@@ -600,11 +443,7 @@ async fn walk<T: SidecarTemplate>(
         };
         let Some(declared) = declared else {
             if let Some(command) = &command {
-                controls.complete(
-                    &command.id,
-                    None,
-                    Some("no declared step is selected by this command".into()),
-                );
+                controls.complete(&command.id, None, Some("no declared step is selected by this command".into()));
                 continue;
             }
             return Ended::Completed;
@@ -616,10 +455,7 @@ async fn walk<T: SidecarTemplate>(
                 controls.complete(&command.id, None, Some(message.into()));
                 continue;
             }
-            return Ended::Failed {
-                step: declared.metadata.identifier.to_string(),
-                diagnostic: Box::new(Diagnostic::of(message)),
-            };
+            return Ended::Failed { step: declared.metadata.identifier.to_string(), diagnostic: Box::new(Diagnostic::of(message)) };
         }
         let step = declared.metadata.identifier.clone();
         // Progress is recorded here, before the step's own code can run, so a
@@ -644,14 +480,9 @@ async fn walk<T: SidecarTemplate>(
                 controls.complete(&command.id, None, Some(diagnostic.redacted().to_string()));
             }
             if *cancel.borrow() {
-                return Ended::Cancelled {
-                    step: step.to_string(),
-                };
+                return Ended::Cancelled { step: step.to_string() };
             }
-            return Ended::Failed {
-                step: step.to_string(),
-                diagnostic: Box::new(diagnostic),
-            };
+            return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
         }
         evidence.record_step(step.clone());
         environment.handles().begin(super::StepIdentity {
@@ -659,13 +490,10 @@ async fn walk<T: SidecarTemplate>(
             step_id: declared.step_id.to_string(),
             attempt: attempt_id.to_string(),
         });
-        let mut ctx = environment
-            .step(transport)
-            .calling_stage(format!("step/{}", declared.step_id));
+        let mut ctx = environment.step(transport).calling_stage(format!("step/{}", declared.step_id));
 
         let stepped = {
-            let work = caught(template.run_step(step.as_str(), &mut ctx))
-                .instrument(tracing::info_span!("step", step = %step));
+            let work = caught(template.run_step(step.as_str(), &mut ctx)).instrument(tracing::info_span!("step", step = %step));
             tokio::select! {
                 biased;
                 _ = cancel.wait_for(|cancelled| *cancelled) => None,
@@ -715,15 +543,10 @@ async fn walk<T: SidecarTemplate>(
         }
         match stepped {
             None => {
-                return Ended::Cancelled {
-                    step: step.to_string(),
-                };
+                return Ended::Cancelled { step: step.to_string() };
             }
             Some(Err(diagnostic)) => {
-                return Ended::Failed {
-                    step: step.to_string(),
-                    diagnostic: Box::new(diagnostic),
-                };
+                return Ended::Failed { step: step.to_string(), diagnostic: Box::new(diagnostic) };
             }
             Some(Ok(())) => {}
         }
@@ -731,9 +554,7 @@ async fn walk<T: SidecarTemplate>(
 }
 
 async fn clean_up<T: SidecarTemplate>(
-    template: &mut T,
-    environment: &Environment<'_, T, T::Own, T::Parameters>,
-    transport: &mut dyn ExecutionTransport,
+    template: &mut T, environment: &Environment<'_, T, T::Own, T::Parameters>, transport: &mut dyn ExecutionTransport,
     reason: TerminationReason,
 ) -> Option<Diagnostic> {
     let mut ctx = environment.cleanup(transport, reason);
@@ -742,13 +563,8 @@ async fn clean_up<T: SidecarTemplate>(
 }
 
 async fn conclude<T: SidecarTemplate>(
-    declaration: &TestCaseTemplate,
-    environment: Option<&Environment<'_, T, T::Own, T::Parameters>>,
-    transport: &dyn ExecutionTransport,
-    evidence: &ExecutionEvidence,
-    ended: Ended,
-    cleanup_error: Option<Diagnostic>,
-    inputs_unsettled: bool,
+    declaration: &TestCaseTemplate, environment: Option<&Environment<'_, T, T::Own, T::Parameters>>, transport: &dyn ExecutionTransport,
+    evidence: &ExecutionEvidence, ended: Ended, cleanup_error: Option<Diagnostic>, inputs_unsettled: bool,
 ) -> SidecarExecutionOutcome {
     let initialized = environment.is_some();
     let selected_attempts = Arc::new(
@@ -762,17 +578,11 @@ async fn conclude<T: SidecarTemplate>(
         let identifier = criterion.metadata.identifier.to_string();
         let label = criterion.metadata.label.clone();
         let decided = if let Some(environment) = environment {
-            let ctx = environment
-                .criterion(evidence)
-                .selecting(Arc::clone(&selected_attempts))
-                .deciding(transport, &identifier);
-            let work = caught(T::evaluate(&identifier, &ctx))
-                .instrument(tracing::info_span!("criterion", criterion = %identifier));
+            let ctx = environment.criterion(evidence).selecting(Arc::clone(&selected_attempts)).deciding(transport, &identifier);
+            let work = caught(T::evaluate(&identifier, &ctx)).instrument(tracing::info_span!("criterion", criterion = %identifier));
             let result = match tokio::time::timeout(CRITERION_BUDGET, work).await {
                 Ok(result) => result.transpose(),
-                Err(_) => Some(Err(Diagnostic::of(
-                    "criterion evaluation exceeded one second",
-                ))),
+                Err(_) => Some(Err(Diagnostic::of("criterion evaluation exceeded one second"))),
             };
             let callback_error = settle_callbacks(environment, transport).await;
 
@@ -785,19 +595,13 @@ async fn conclude<T: SidecarTemplate>(
         };
         let (status, message) = match decided {
             Some(Ok(true)) => (SidecarCriterionStatus::Passed, None),
-            Some(Ok(false)) => (
-                SidecarCriterionStatus::Failed,
-                Some(format!(
-                    "`{label}` did not hold for the evidence this execution produced"
-                )),
-            ),
+            Some(Ok(false)) => {
+                (SidecarCriterionStatus::Failed, Some(format!("`{label}` did not hold for the evidence this execution produced")))
+            }
             // A criterion answered nothing about the run, so the run says so
             // in the criterion's own words. The whole diagnostic travels on
             // the outcome's detail, which carries one failure, not five.
-            Some(Err(diagnostic)) => (
-                SidecarCriterionStatus::Indeterminate,
-                Some(diagnostic.message),
-            ),
+            Some(Err(diagnostic)) => (SidecarCriterionStatus::Indeterminate, Some(diagnostic.message)),
             None => (
                 SidecarCriterionStatus::Indeterminate,
                 Some(if inputs_unsettled {
@@ -810,32 +614,17 @@ async fn conclude<T: SidecarTemplate>(
             ),
         };
 
-        criteria.push(SidecarCriterionOutcome {
-            identifier,
-            label,
-            status: status as i32,
-            message,
-        });
+        criteria.push(SidecarCriterionOutcome { identifier, label, status: status as i32, message });
     }
 
-    let passed = criteria
-        .iter()
-        .filter(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32)
-        .count();
+    let passed = criteria.iter().filter(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32).count();
     let template = declaration.metadata.identifier.as_str();
     // One failure carries the detail. A run that both failed a step and failed
     // to clean up is reported by the step: the cleanup failure is a consequence
     // of it, and the step is where the operator has to look.
     let detail = match &ended {
-        Ended::Failed { step, diagnostic } => Some(
-            diagnostic
-                .as_ref()
-                .clone()
-                .context(format!("{} failed in {template}", staged(step))),
-        ),
-        _ => cleanup_error
-            .clone()
-            .map(|diagnostic| diagnostic.context(format!("cleanup failed in {template}"))),
+        Ended::Failed { step, diagnostic } => Some(diagnostic.as_ref().clone().context(format!("{} failed in {template}", staged(step)))),
+        _ => cleanup_error.clone().map(|diagnostic| diagnostic.context(format!("cleanup failed in {template}"))),
     };
     // The outcome carries one primary failure, but the execution log must tell
     // the whole story even when a failed step is followed by failed cleanup.
@@ -846,14 +635,7 @@ async fn conclude<T: SidecarTemplate>(
     if matches!(ended, Ended::Failed { .. })
         && let Some(diagnostic) = &cleanup_error
     {
-        transport.log(
-            super::log::Level::Error,
-            diagnostic
-                .clone()
-                .context(format!("cleanup failed in {template}"))
-                .redacted()
-                .to_string(),
-        );
+        transport.log(super::log::Level::Error, diagnostic.clone().context(format!("cleanup failed in {template}")).redacted().to_string());
     }
 
     let mut message = match &ended {
@@ -871,9 +653,7 @@ async fn conclude<T: SidecarTemplate>(
     }
 
     SidecarExecutionOutcome {
-        passed: matches!(ended, Ended::Completed)
-            && cleanup_error.is_none()
-            && passed == criteria.len(),
+        passed: matches!(ended, Ended::Completed) && cleanup_error.is_none() && passed == criteria.len(),
         message: Some(message),
         criteria,
         detail_json: detail.as_ref().map(encoded),
@@ -884,10 +664,7 @@ async fn conclude<T: SidecarTemplate>(
     }
 }
 
-async fn settle_callbacks<P, O, I>(
-    environment: &Environment<'_, P, O, I>,
-    transport: &dyn ExecutionTransport,
-) -> Option<Diagnostic> {
+async fn settle_callbacks<P, O, I>(environment: &Environment<'_, P, O, I>, transport: &dyn ExecutionTransport) -> Option<Diagnostic> {
     let failures = environment.callbacks().settle().await;
     for failure in &failures {
         transport.log(super::log::Level::Error, failure.redacted().to_string());
@@ -904,8 +681,7 @@ fn staged(step: &str) -> String {
 }
 
 fn encoded(detail: &Diagnostic) -> String {
-    serde_json::to_string(detail)
-        .expect("a diagnostic is five owned strings and two string vectors")
+    serde_json::to_string(detail).expect("a diagnostic is five owned strings and two string vectors")
 }
 
 fn report(executions: &Executions, token: &str, outcome: SidecarExecutionOutcome) {

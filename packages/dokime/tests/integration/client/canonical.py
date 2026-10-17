@@ -68,13 +68,9 @@ def _construct(descriptor, fields: Mapping[str, Any]) -> Message:
             if isinstance(value, Mapping):
                 value = [{"key": key, "value": item} for key, item in value.items()]
             for item in value:
-                getattr(result, name).add().CopyFrom(
-                    _construct(field.message_type, _contracts.values(item))
-                )
+                getattr(result, name).add().CopyFrom(_construct(field.message_type, _contracts.values(item)))
         else:
-            getattr(result, name).CopyFrom(
-                _construct(field.message_type, _contracts.values(value))
-            )
+            getattr(result, name).CopyFrom(_construct(field.message_type, _contracts.values(value)))
     return result
 
 
@@ -94,9 +90,7 @@ def _value(**fields: Any) -> Message:
         item = _wire.decode(item)
     elif kind == "array_value":
         item = [_wire.decode(value) for value in item]
-    return _message(
-        "Evidence", "ListRecords", path="records.details", **_wire.encode(item)
-    )
+    return _message("Evidence", "ListRecords", path="records.details", **_wire.encode(item))
 
 
 def _value_object(*, fields: Mapping[str, Message]) -> Message:
@@ -113,9 +107,7 @@ def _value_list(*, values: list[Message]) -> list[Message]:
 
 
 def register(server, implementation) -> None:
-    operations = [
-        value for value in vars(dokime).values() if isinstance(value, Operation)
-    ]
+    operations = [value for value in vars(dokime).values() if isinstance(value, Operation)]
     handlers = {}
     providers = []
     for operation in operations:
@@ -137,9 +129,7 @@ def register(server, implementation) -> None:
 
             async def unary(request, context, callback=callback, operation=operation):
                 result = await callback(request, context)
-                return _construct(
-                    operation.response.DESCRIPTOR, _contracts.values(result)
-                )
+                return _construct(operation.response.DESCRIPTOR, _contracts.values(result))
 
             handler = grpc.unary_unary_rpc_method_handler(
                 unary,
@@ -173,12 +163,7 @@ def register(server, implementation) -> None:
         request_deserializer=discovery.request.FromString,
         response_serializer=lambda result: result.SerializeToString(),
     )
-    server.add_generic_rpc_handlers(
-        [
-            grpc.method_handlers_generic_handler(service, methods)
-            for service, methods in handlers.items()
-        ]
-    )
+    server.add_generic_rpc_handlers([grpc.method_handlers_generic_handler(service, methods) for service, methods in handlers.items()])
 
 
 # === Private Functions === #

@@ -18,9 +18,8 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use dokime_runtime::definition::{
-    CaseMaterializationOptions, CaseMaterializationSelection, ParameterDefinition, ParameterExpr,
-    ParameterList, ParameterResolverError, ParameterSelection, ParameterSource, TemplateContext,
-    authored_metadata, materialize_template_cases, materialized_parameter,
+    CaseMaterializationOptions, CaseMaterializationSelection, ParameterDefinition, ParameterExpr, ParameterList, ParameterResolverError,
+    ParameterSelection, ParameterSource, TemplateContext, authored_metadata, materialize_template_cases, materialized_parameter,
     resolve_parameter_spaces,
 };
 use dokime_runtime::expressions::DataExpression;
@@ -71,11 +70,7 @@ struct SweepSelected {
     sweep: Sweep,
 }
 
-#[dokime_runtime::stream(
-    id = "parameters.sweep_samples",
-    window = 4096,
-    label = "Sweep Samples"
-)]
+#[dokime_runtime::stream(id = "parameters.sweep_samples", window = 4096, label = "Sweep Samples")]
 #[derive(Debug)]
 struct SweepSample {
     sweep: Sweep,
@@ -125,10 +120,7 @@ fn case() -> BTreeMap<String, Value> {
         ("target_c".to_owned(), Value::Number(60.0)),
         ("hold_samples".to_owned(), Value::Integer(5)),
         ("operator".to_owned(), Value::Null),
-        (
-            "ports".to_owned(),
-            Value::Array(vec![Value::from("/dev/ttyUSB0")]),
-        ),
+        ("ports".to_owned(), Value::Array(vec![Value::from("/dev/ttyUSB0")])),
         ("sweep".to_owned(), Value::from("fast")),
     ])
 }
@@ -142,50 +134,23 @@ fn optional_values() {
     assert_eq!(Value::from(Some("")), Value::Text(String::new()));
     assert_eq!(Value::from(Some(false)), Value::Bool(false));
     assert_eq!(Value::from(Some(0)), Value::Integer(0));
-    assert_eq!(
-        serde_json::to_string(&Value::from(None::<String>)).unwrap(),
-        r#"{"type":"null"}"#
-    );
+    assert_eq!(serde_json::to_string(&Value::from(None::<String>)).unwrap(), r#"{"type":"null"}"#);
 
-    for kind in [
-        ValueType::Boolean,
-        ValueType::Integer,
-        ValueType::Number,
-        ValueType::Text,
-        ValueType::File,
-        ValueType::Array,
-        ValueType::Object,
-    ] {
-        let mut parameter = Parameter::new("input", "Input", kind)
-            .optional()
-            .default(None::<String>)
-            .try_into_definition()
-            .unwrap();
-        parameter.selection = Some(ParameterSelection {
-            choices: vec![Value::from("choice")],
-        });
-        assert_eq!(
-            resolve_parameter_spaces(&[parameter.clone()], &|_| None).unwrap()["input"].values,
-            vec![Value::Null]
-        );
-        assert_eq!(
-            materialized_parameter(&parameter, ParameterSource::Operator, Value::Null)
-                .unwrap()
-                .value,
-            Value::Null
-        );
+    for kind in
+        [ValueType::Boolean, ValueType::Integer, ValueType::Number, ValueType::Text, ValueType::File, ValueType::Array, ValueType::Object]
+    {
+        let mut parameter = Parameter::new("input", "Input", kind).optional().default(None::<String>).try_into_definition().unwrap();
+        parameter.selection = Some(ParameterSelection { choices: vec![Value::from("choice")] });
+        assert_eq!(resolve_parameter_spaces(&[parameter.clone()], &|_| None).unwrap()["input"].values, vec![Value::Null]);
+        assert_eq!(materialized_parameter(&parameter, ParameterSource::Operator, Value::Null).unwrap().value, Value::Null);
         parameter.required = true;
         assert!(matches!(
             resolve_parameter_spaces(&[parameter.clone()], &|_| None),
-            Err(dokime_runtime::ApiError::Parameter(
-                ParameterResolverError::MissingValue { .. }
-            ))
+            Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::MissingValue { .. }))
         ));
         assert!(matches!(
             materialized_parameter(&parameter, ParameterSource::Operator, Value::Null),
-            Err(dokime_runtime::ApiError::Parameter(
-                ParameterResolverError::MissingValue { .. }
-            ))
+            Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::MissingValue { .. }))
         ));
     }
 }
@@ -198,30 +163,14 @@ fn overrides_and_sweeps() {
         .unwrap();
     let dependent = Parameter::number("copy", "Copy")
         .expansion(dokime_runtime::definition::ParameterExpansion::Cartesian)
-        .default(ParameterExpr::Reference {
-            parameter: "voltage".into(),
-        })
+        .default(ParameterExpr::Reference { parameter: "voltage".into() })
         .try_into_definition()
         .unwrap();
-    let optional = Parameter::text("serial", "Serial")
-        .optional()
-        .try_into_definition()
-        .unwrap();
+    let optional = Parameter::text("serial", "Serial").optional().try_into_definition().unwrap();
     let template = template(vec![required, dependent, optional]);
-    assert!(
-        materialize_template_cases(
-            "fixture.registration",
-            &template,
-            Default::default(),
-            Default::default()
-        )
-        .is_err()
-    );
+    assert!(materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).is_err());
     let selection = CaseMaterializationSelection {
-        case_overrides: BTreeMap::from([(
-            "voltage".into(),
-            vec![Value::from(12.0), Value::from(24.0)],
-        )]),
+        case_overrides: BTreeMap::from([("voltage".into(), vec![Value::from(12.0), Value::from(24.0)])]),
         ..Default::default()
     };
     let output = materialize_template_cases(
@@ -237,34 +186,17 @@ fn overrides_and_sweeps() {
     )
     .unwrap();
     assert_eq!(output.case_count, 4);
-    let labels = output
-        .test_cases
-        .iter()
-        .map(|case| case.metadata.label.as_str())
-        .collect::<Vec<_>>();
+    let labels = output.test_cases.iter().map(|case| case.metadata.label.as_str()).collect::<Vec<_>>();
     let label = &template.metadata.label;
-    assert_eq!(
-        labels,
-        (1..=4).map(|n| format!("{label} #{n}")).collect::<Vec<_>>()
-    );
+    assert_eq!(labels, (1..=4).map(|n| format!("{label} #{n}")).collect::<Vec<_>>());
     for case in &output.test_cases {
         assert_eq!(case.parameters["serial"], Value::Null);
         assert!([Value::from(12.0), Value::from(24.0)].contains(&case.parameters["copy"]));
     }
     for bad in [Value::Null, Value::from("invalid")] {
-        let selection = CaseMaterializationSelection {
-            case_overrides: BTreeMap::from([("voltage".into(), vec![bad])]),
-            ..Default::default()
-        };
-        assert!(
-            materialize_template_cases(
-                "fixture.registration",
-                &template,
-                selection,
-                Default::default()
-            )
-            .is_err()
-        );
+        let selection =
+            CaseMaterializationSelection { case_overrides: BTreeMap::from([("voltage".into(), vec![bad])]), ..Default::default() };
+        assert!(materialize_template_cases("fixture.registration", &template, selection, Default::default()).is_err());
     }
     let sweep = Parameter::integer("count", "Count")
         .optional()
@@ -279,60 +211,26 @@ fn overrides_and_sweeps() {
 
 #[test]
 fn optional_choices() {
-    let mut parameter = Parameter::text("mode", "Mode")
-        .optional()
-        .default("fast")
-        .try_into_definition()
-        .unwrap();
-    parameter.selection = Some(ParameterSelection {
-        choices: vec![Value::from("fast")],
-    });
+    let mut parameter = Parameter::text("mode", "Mode").optional().default("fast").try_into_definition().unwrap();
+    parameter.selection = Some(ParameterSelection { choices: vec![Value::from("fast")] });
     for multiple in [false, true] {
         parameter.list = multiple.then_some(dokime_runtime::definition::ParameterList {
             element_type: ValueType::Text,
             min_items: None,
             max_items: None,
         });
-        parameter.value_type = if multiple {
-            ValueType::Array
-        } else {
-            ValueType::Text
-        };
-        parameter.expression = ParameterExpr::Literal {
-            value: if multiple {
-                Value::Array(vec![Value::from("fast")])
-            } else {
-                Value::from("fast")
-            },
-        };
+        parameter.value_type = if multiple { ValueType::Array } else { ValueType::Text };
+        parameter.expression =
+            ParameterExpr::Literal { value: if multiple { Value::Array(vec![Value::from("fast")]) } else { Value::from("fast") } };
         let template = template(vec![parameter.clone()]);
-        let filter = CaseMaterializationSelection {
-            case_filter: BTreeMap::from([("mode".into(), vec![Value::Null])]),
-            ..Default::default()
-        };
-        assert!(
-            materialize_template_cases(
-                "fixture.registration",
-                &template,
-                filter,
-                Default::default()
-            )
-            .is_err()
-        );
-        let selection = CaseMaterializationSelection {
-            case_overrides: BTreeMap::from([("mode".into(), vec![Value::Null])]),
-            ..Default::default()
-        };
+        let filter =
+            CaseMaterializationSelection { case_filter: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
+        assert!(materialize_template_cases("fixture.registration", &template, filter, Default::default()).is_err());
+        let selection =
+            CaseMaterializationSelection { case_overrides: BTreeMap::from([("mode".into(), vec![Value::Null])]), ..Default::default() };
         assert_eq!(
-            materialize_template_cases(
-                "fixture.registration",
-                &template,
-                selection,
-                Default::default()
-            )
-            .unwrap()
-            .test_cases[0]
-                .parameters["mode"],
+            materialize_template_cases("fixture.registration", &template, selection, Default::default()).unwrap().test_cases[0].parameters
+                ["mode"],
             Value::Null
         );
     }
@@ -348,127 +246,62 @@ fn list_param_vec() {
         .unwrap();
 
     assert_eq!(definition.value_type, ValueType::Array);
-    assert_eq!(
-        definition.list,
-        Some(ParameterList {
-            element_type: ValueType::Integer,
-            min_items: Some(1),
-            max_items: Some(8),
-        })
-    );
+    assert_eq!(definition.list, Some(ParameterList { element_type: ValueType::Integer, min_items: Some(1), max_items: Some(8) }));
 
     let template = template(vec![definition]);
-    let output = materialize_template_cases(
-        "fixture.registration",
-        &template,
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
+    let output = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).unwrap();
     assert_eq!(output.case_count, 1);
 
     let parameters = output.test_cases[0].parameters.clone();
-    assert_eq!(
-        parameters["hold_times"],
-        Value::Array(vec![
-            Value::Integer(30),
-            Value::Integer(60),
-            Value::Integer(120),
-        ])
-    );
+    assert_eq!(parameters["hold_times"], Value::Array(vec![Value::Integer(30), Value::Integer(60), Value::Integer(120),]));
 
     // The same declaration a `Vec<i64>` field writes, and the same value it
     // decodes into: the builder is the programmatic path to one declaration,
     // not a second one.
     assert_eq!(
-        HoldTimes::declaration()
-            .into_iter()
-            .map(|parameter| parameter.try_into_definition().unwrap().list)
-            .collect::<Vec<_>>(),
-        vec![Some(ParameterList {
-            element_type: ValueType::Integer,
-            min_items: Some(1),
-            max_items: Some(8),
-        })]
+        HoldTimes::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap().list).collect::<Vec<_>>(),
+        vec![Some(ParameterList { element_type: ValueType::Integer, min_items: Some(1), max_items: Some(8) })]
     );
-    assert_eq!(
-        HoldTimes::from_parameters(&parameters).unwrap().hold_times,
-        vec![30, 60, 120]
-    );
+    assert_eq!(HoldTimes::from_parameters(&parameters).unwrap().hold_times, vec![30, 60, 120]);
 }
 
 #[test]
 fn list_refuses_value() {
-    let definition = Parameter::list("hold_times", "Hold times", ValueType::Integer)
-        .try_into_definition()
-        .unwrap();
+    let definition = Parameter::list("hold_times", "Hold times", ValueType::Integer).try_into_definition().unwrap();
 
-    let error = materialized_parameter(&definition, ParameterSource::Operator, Value::Integer(30))
-        .unwrap_err();
+    let error = materialized_parameter(&definition, ParameterSource::Operator, Value::Integer(30)).unwrap_err();
 
-    assert_eq!(
-        error.to_string(),
-        "list parameter \"hold_times\" expects a list of values, got Integer(30)"
-    );
+    assert_eq!(error.to_string(), "list parameter \"hold_times\" expects a list of values, got Integer(30)");
 
     // The untyped array parameter this does not change still wraps a scalar.
-    let untyped = Parameter::array("bands", "Bands")
-        .try_into_definition()
-        .unwrap();
+    let untyped = Parameter::array("bands", "Bands").try_into_definition().unwrap();
     assert_eq!(
-        materialized_parameter(&untyped, ParameterSource::Operator, Value::from("2.4"))
-            .unwrap()
-            .value,
+        materialized_parameter(&untyped, ParameterSource::Operator, Value::from("2.4")).unwrap().value,
         Value::Array(vec![Value::from("2.4")])
     );
 }
 
 #[test]
 fn list_choices_optionality() {
-    let definition = Parameter::list("bands", "Bands", ValueType::Text)
-        .choices(["2.4", "5"])
-        .default(vec!["2.4", "5"])
-        .try_into_definition()
-        .unwrap();
+    let definition =
+        Parameter::list("bands", "Bands", ValueType::Text).choices(["2.4", "5"]).default(vec!["2.4", "5"]).try_into_definition().unwrap();
 
     assert_eq!(
-        materialized_parameter(
-            &definition,
-            ParameterSource::Operator,
-            Value::from(vec!["2.4"]),
-        )
-        .unwrap()
-        .value,
+        materialized_parameter(&definition, ParameterSource::Operator, Value::from(vec!["2.4"]),).unwrap().value,
         Value::Array(vec![Value::from("2.4")])
     );
     assert!(matches!(
-        materialized_parameter(
-            &definition,
-            ParameterSource::Operator,
-            Value::from(vec!["6"]),
-        ),
-        Err(dokime_runtime::ApiError::Parameter(
-            ParameterResolverError::InvalidChoice { .. }
-        ))
+        materialized_parameter(&definition, ParameterSource::Operator, Value::from(vec!["6"]),),
+        Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::InvalidChoice { .. }))
     ));
 
-    let optional = Parameter::list("bands", "Bands", ValueType::Text)
-        .optional()
-        .default(None::<String>)
-        .try_into_definition()
-        .unwrap();
-    assert_eq!(
-        resolve_parameter_spaces(&[optional], &|_| None).unwrap()["bands"].values,
-        vec![Value::Null]
-    );
+    let optional = Parameter::list("bands", "Bands", ValueType::Text).optional().default(None::<String>).try_into_definition().unwrap();
+    assert_eq!(resolve_parameter_spaces(&[optional], &|_| None).unwrap()["bands"].values, vec![Value::Null]);
 }
 
 #[test]
 fn struct_declaration() {
-    let declared = Soak::declaration()
-        .into_iter()
-        .map(|parameter| parameter.try_into_definition().unwrap())
-        .collect::<Vec<_>>();
+    let declared = Soak::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap()).collect::<Vec<_>>();
     let by_name = |name: &str| {
         declared
             .iter()
@@ -483,17 +316,9 @@ fn struct_declaration() {
     assert_eq!(target.value_type, ValueType::Number);
     assert_eq!(target.min, Some(-50.0));
     assert_eq!(target.max, Some(200.0));
-    assert_eq!(
-        target.unit.as_ref().map(|unit| unit.symbol.as_str()),
-        Some("°C")
-    );
+    assert_eq!(target.unit.as_ref().map(|unit| unit.symbol.as_str()), Some("°C"));
     assert!(target.required);
-    assert_eq!(
-        target.expression,
-        ParameterExpr::Literal {
-            value: Value::Number(60.0)
-        }
-    );
+    assert_eq!(target.expression, ParameterExpr::Literal { value: Value::Number(60.0) });
     // A field with no label is read by its own name, titled.
     assert_eq!(by_name("hold_samples").metadata.label, "Hold Samples");
     assert_eq!(by_name("hold_samples").value_type, ValueType::Integer);
@@ -502,17 +327,8 @@ fn struct_declaration() {
     assert_eq!(by_name("ports").value_type, ValueType::Array);
     // A choice declares the closed set it admits and the label of each value.
     let sweep = by_name("sweep");
-    assert_eq!(
-        sweep
-            .selection
-            .as_ref()
-            .map(|selection| selection.choices.clone()),
-        Some(vec![Value::from("fast"), Value::from("slow")])
-    );
-    assert_eq!(
-        sweep.expansion,
-        dokime_runtime::definition::ParameterExpansion::Single
-    );
+    assert_eq!(sweep.selection.as_ref().map(|selection| selection.choices.clone()), Some(vec![Value::from("fast"), Value::from("slow")]));
+    assert_eq!(sweep.expansion, dokime_runtime::definition::ParameterExpansion::Single);
     assert_eq!(
         sweep.extensions.get("choice_labels"),
         Some(&Value::Object(BTreeMap::from([
@@ -537,30 +353,17 @@ fn same_struct_decodes() {
 fn value_refuses_name() {
     for (name, value, said) in [
         ("target_c", Value::from("warm"), "declared Number"),
-        (
-            "target_c",
-            Value::Number(1_000.0),
-            "highest it may be is 200",
-        ),
+        ("target_c", Value::Number(1_000.0), "highest it may be is 200"),
         ("hold_samples", Value::from("five"), "declared Integer"),
         ("hold_samples", Value::Integer(0), "lowest it may be is 1"),
         ("ports", Value::from("not-a-list"), "is not a list"),
-        (
-            "sweep",
-            Value::from("sideways"),
-            "is not one of: fast, slow",
-        ),
+        ("sweep", Value::from("sideways"), "is not one of: fast, slow"),
     ] {
         let mut values = case();
         values.insert(name.to_owned(), value.clone());
-        let refused = Soak::from_parameters(&values)
-            .err()
-            .unwrap_or_else(|| panic!("{name} accepted {value:?}"));
+        let refused = Soak::from_parameters(&values).err().unwrap_or_else(|| panic!("{name} accepted {value:?}"));
 
-        assert!(
-            matches!(&refused, dokime_runtime::Error::Parameter { name: field, .. } if field == name),
-            "{refused}"
-        );
+        assert!(matches!(&refused, dokime_runtime::Error::Parameter { name: field, .. } if field == name), "{refused}");
         assert!(refused.to_string().contains(said), "{refused}");
     }
     // A run that never resolved a declared input is refused too: the case and
@@ -572,41 +375,22 @@ fn value_refuses_name() {
 
 #[test]
 fn list_choice_multiple() {
-    let declared = Sweeps::declaration()
-        .into_iter()
-        .map(|parameter| parameter.try_into_definition().unwrap())
-        .collect::<Vec<_>>();
+    let declared = Sweeps::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap()).collect::<Vec<_>>();
 
     assert_eq!(declared[0].value_type, ValueType::Array);
     // A list of a choice is the same closed set, more than one of it: the list
     // is what says "more than one", and the resolver restricts every element by
     // the choices beside it.
-    assert_eq!(
-        declared[0].list,
-        Some(ParameterList {
-            element_type: ValueType::Text,
-            min_items: Some(1),
-            max_items: None,
-        })
-    );
+    assert_eq!(declared[0].list, Some(ParameterList { element_type: ValueType::Text, min_items: Some(1), max_items: None }));
     let selection = declared[0].selection.as_ref().expect("a closed set");
-    assert_eq!(
-        selection.choices,
-        vec![Value::from("fast"), Value::from("slow")]
-    );
+    assert_eq!(selection.choices, vec![Value::from("fast"), Value::from("slow")]);
     // The optional single choice is the same set, one of it, and may be null.
     assert_eq!(declared[1].value_type, ValueType::Text);
-    assert_eq!(
-        declared[1].expansion,
-        dokime_runtime::definition::ParameterExpansion::Single
-    );
+    assert_eq!(declared[1].expansion, dokime_runtime::definition::ParameterExpansion::Single);
     assert!(!declared[1].required);
 
     let values = BTreeMap::from([
-        (
-            "sweeps".to_owned(),
-            Value::Array(vec![Value::from("slow"), Value::from("fast")]),
-        ),
+        ("sweeps".to_owned(), Value::Array(vec![Value::from("slow"), Value::from("fast")])),
         ("fallback".to_owned(), Value::Null),
     ]);
     let decoded = Sweeps::from_parameters(&values).unwrap();
@@ -615,31 +399,17 @@ fn list_choice_multiple() {
 
     // A list shorter than its declaration allows is the host's refusal, made
     // against the declaration before anything runs.
-    let definition = Sweeps::declaration()
-        .into_iter()
-        .next()
-        .unwrap()
-        .try_into_definition()
-        .unwrap();
+    let definition = Sweeps::declaration().into_iter().next().unwrap().try_into_definition().unwrap();
     assert!(matches!(
-        materialized_parameter(
-            &definition,
-            ParameterSource::Operator,
-            Value::Array(Vec::new())
-        ),
-        Err(dokime_runtime::ApiError::Parameter(
-            ParameterResolverError::TooFewItems { .. }
-        ))
+        materialized_parameter(&definition, ParameterSource::Operator, Value::Array(Vec::new())),
+        Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::TooFewItems { .. }))
     ));
 }
 
 #[test]
 fn field_handle_references() {
     assert_eq!(Soak::target_c().name(), "target_c");
-    assert_eq!(
-        DataExpression::from(Soak::sweep()),
-        dokime_runtime::expressions::parameter("sweep")
-    );
+    assert_eq!(DataExpression::from(Soak::sweep()), dokime_runtime::expressions::parameter("sweep"));
 }
 
 #[test]
@@ -649,10 +419,7 @@ fn choices_round_fields() {
 
     let details = SweepSelected { sweep: Sweep::Slow }.into_details();
     assert_eq!(details["sweep"], Value::from("slow"));
-    assert_eq!(
-        SweepSelected::from_details(&details).unwrap().sweep,
-        Sweep::Slow
-    );
+    assert_eq!(SweepSelected::from_details(&details).unwrap().sweep, Sweep::Slow);
 
     let row = SweepSample { sweep: Sweep::Fast }.into_row();
     assert_eq!(SweepSample::from_row(&row).unwrap().sweep, Sweep::Fast);
@@ -663,56 +430,27 @@ fn choices_round_fields() {
 
 #[test]
 fn numeric_bounds_params() {
-    let scalar = Parameter::number("temperature", "Temperature")
-        .min(-50.0)
-        .max(200.0)
-        .default(60.0)
-        .try_into_definition()
-        .unwrap();
+    let scalar = Parameter::number("temperature", "Temperature").min(-50.0).max(200.0).default(60.0).try_into_definition().unwrap();
     for value in [-50.0, 200.0] {
-        assert!(
-            materialized_parameter(&scalar, ParameterSource::Operator, Value::Number(value))
-                .is_ok()
-        );
+        assert!(materialized_parameter(&scalar, ParameterSource::Operator, Value::Number(value)).is_ok());
     }
     assert!(matches!(
         materialized_parameter(&scalar, ParameterSource::Operator, Value::Number(201.0)),
-        Err(dokime_runtime::ApiError::Parameter(
-            ParameterResolverError::OutOfBounds { .. }
-        ))
+        Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::OutOfBounds { .. }))
     ));
-    let list = Parameter::list("holds", "Holds", ValueType::Integer)
-        .min(1.0)
-        .max(5.0)
-        .default(vec![1, 5])
-        .try_into_definition()
-        .unwrap();
+    let list = Parameter::list("holds", "Holds", ValueType::Integer).min(1.0).max(5.0).default(vec![1, 5]).try_into_definition().unwrap();
     assert!(resolve_parameter_spaces(std::slice::from_ref(&list), &|_| None).is_ok());
     assert!(matches!(
-        materialized_parameter(
-            &list,
-            ParameterSource::Operator,
-            Value::Array(vec![Value::Integer(1), Value::Integer(6)])
-        ),
-        Err(dokime_runtime::ApiError::Parameter(
-            ParameterResolverError::OutOfBounds { .. }
-        ))
+        materialized_parameter(&list, ParameterSource::Operator, Value::Array(vec![Value::Integer(1), Value::Integer(6)])),
+        Err(dokime_runtime::ApiError::Parameter(ParameterResolverError::OutOfBounds { .. }))
     ));
 }
 
 #[test]
 fn macro_expansion_groups() {
-    let definitions = ExpansionInputs::declaration()
-        .into_iter()
-        .map(|parameter| parameter.try_into_definition().unwrap())
-        .collect();
-    let output = materialize_template_cases(
-        "fixture.registration",
-        &template(definitions),
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
+    let definitions = ExpansionInputs::declaration().into_iter().map(|parameter| parameter.try_into_definition().unwrap()).collect();
+    let output =
+        materialize_template_cases("fixture.registration", &template(definitions), Default::default(), Default::default()).unwrap();
     assert_eq!(output.case_count, 8);
     for case in output.test_cases {
         let input = ExpansionInputs::from_parameters(&case.parameters).unwrap();

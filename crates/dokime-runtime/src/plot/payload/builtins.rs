@@ -20,8 +20,7 @@ use std::{sync::Arc, time::Duration};
 
 // Local Imports
 use crate::analysis::{
-    Analysis, Axis, Definition, Definitions, Error, Handler, Limits, MAX_SAMPLES, Output, Response,
-    ResultData, Samples, Values,
+    Analysis, Axis, Definition, Definitions, Error, Handler, Limits, MAX_SAMPLES, Output, Response, ResultData, Samples, Values,
 };
 use crate::catalog::Catalog;
 
@@ -80,40 +79,18 @@ enum FourierOperations {
 /* === Implementations === */
 impl ResultData for Scalar {
     fn outputs() -> Vec<Output> {
-        vec![Output {
-            key: "value".into(),
-            label: "Value".into(),
-            unit: None,
-            axis: None,
-        }]
+        vec![Output { key: "value".into(), label: "Value".into(), unit: None, axis: None }]
     }
     fn into_response(self) -> Response {
-        Response {
-            outputs: vec![Values {
-                key: "value".into(),
-                unit: self.unit,
-                values: vec![self.value],
-                ..Default::default()
-            }],
-        }
+        Response { outputs: vec![Values { key: "value".into(), unit: self.unit, values: vec![self.value], ..Default::default() }] }
     }
 }
 impl ResultData for Curve {
     fn outputs() -> Vec<Output> {
-        vec![Output {
-            key: "signal".into(),
-            label: "Signal".into(),
-            unit: None,
-            axis: Some(Axis {
-                key: "source".into(),
-                unit: None,
-            }),
-        }]
+        vec![Output { key: "signal".into(), label: "Signal".into(), unit: None, axis: Some(Axis { key: "source".into(), unit: None }) }]
     }
     fn into_response(self) -> Response {
-        Response {
-            outputs: vec![self.0],
-        }
+        Response { outputs: vec![self.0] }
     }
 }
 #[cfg(feature = "fft")]
@@ -123,16 +100,11 @@ impl ResultData for Spectrum {
             key: "spectrum".into(),
             label: "Spectrum".into(),
             unit: None,
-            axis: Some(Axis {
-                key: "frequency".into(),
-                unit: Some("Hz".into()),
-            }),
+            axis: Some(Axis { key: "frequency".into(), unit: Some("Hz".into()) }),
         }]
     }
     fn into_response(self) -> Response {
-        Response {
-            outputs: vec![self.0],
-        }
+        Response { outputs: vec![self.0] }
     }
 }
 
@@ -145,18 +117,12 @@ impl Analysis for Mean {
     const LABEL: &'static str = "Mean";
     const DESCRIPTION: &'static str = "Arithmetic Mean Of Original Samples";
     const TIMEOUT: Duration = Duration::from_secs(10);
-    const LIMITS: Limits = Limits {
-        max_samples: MAX_SAMPLES,
-        max_output_values: 1,
-    };
+    const LIMITS: Limits = Limits { max_samples: MAX_SAMPLES, max_output_values: 1 };
     fn evaluate(samples: &Samples, _: &()) -> Result<Scalar, Error> {
         // Divide Before Summation To Avoid Overflow Of Finite Same-Sign Inputs.
         let count = samples.values.len() as f64;
         let value = samples.values.iter().map(|value| value / count).sum();
-        Ok(Scalar {
-            value,
-            unit: samples.unit.clone(),
-        })
+        Ok(Scalar { value, unit: samples.unit.clone() })
     }
 }
 impl Analysis for Lttb {
@@ -168,13 +134,9 @@ impl Analysis for Lttb {
     const LABEL: &'static str = "LTTB Downsampling";
     const DESCRIPTION: &'static str = "Select Original Samples Preserving Line Shape";
     const TIMEOUT: Duration = Duration::from_secs(10);
-    const LIMITS: Limits = Limits {
-        max_samples: MAX_SAMPLES,
-        max_output_values: MAX_SAMPLES,
-    };
+    const LIMITS: Limits = Limits { max_samples: MAX_SAMPLES, max_output_values: MAX_SAMPLES };
     fn evaluate(samples: &Samples, parameters: &Reduction) -> Result<Curve, Error> {
-        let indexes =
-            harmos::signal::lttb(&samples.axis, &samples.values, parameters.points as usize);
+        let indexes = harmos::signal::lttb(&samples.axis, &samples.values, parameters.points as usize);
         Ok(selected(samples, indexes))
     }
 }
@@ -218,32 +180,15 @@ impl Analysis for Fft {
             key: "spectrum".into(),
             label: "Spectrum".into(),
             unit: Some(samples.unit.clone()),
-            points: samples
-                .axis
-                .iter()
-                .zip(&samples.values)
-                .map(|(&x, &y)| PlotPoint {
-                    x: x.into(),
-                    y: Some(y),
-                    z: None,
-                })
-                .collect(),
+            points: samples.axis.iter().zip(&samples.values).map(|(&x, &y)| PlotPoint { x: x.into(), y: Some(y), z: None }).collect(),
             raw_points: samples.values.len(),
             downsampled: false,
             format: None,
         };
         let request = PlotPayloadRequest {
             fft: FftOptions {
-                window: if parameters.hann {
-                    FftWindow::Hann
-                } else {
-                    FftWindow::Rectangular
-                },
-                detrend: if parameters.detrend {
-                    FftDetrend::Mean
-                } else {
-                    FftDetrend::None
-                },
+                window: if parameters.hann { FftWindow::Hann } else { FftWindow::Rectangular },
+                detrend: if parameters.detrend { FftDetrend::Mean } else { FftDetrend::None },
                 include_dc: parameters.include_dc,
                 ..Default::default()
             },
@@ -254,16 +199,8 @@ impl Analysis for Fft {
             key: "spectrum".into(),
             unit: samples.unit.clone(),
             axis_unit: "Hz".into(),
-            axis: series
-                .points
-                .iter()
-                .map(|point| point.x.as_f64().expect("numeric spectrum axis"))
-                .collect(),
-            values: series
-                .points
-                .iter()
-                .map(|point| point.y.expect("finite spectrum amplitude"))
-                .collect(),
+            axis: series.points.iter().map(|point| point.x.as_f64().expect("numeric spectrum axis")).collect(),
+            values: series.points.iter().map(|point| point.y.expect("finite spectrum amplitude")).collect(),
         }))
     }
 }
@@ -272,26 +209,16 @@ impl Analysis for Fft {
 pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     let entries = <Operations as Catalog<Definitions>>::ENTRIES;
     #[cfg(feature = "fft")]
-    let entries = entries
-        .into_iter()
-        .chain(<FourierOperations as Catalog<Definitions>>::ENTRIES);
+    let entries = entries.into_iter().chain(<FourierOperations as Catalog<Definitions>>::ENTRIES);
     #[cfg(not(feature = "fft"))]
     let entries = entries.into_iter();
     entries.map(|entry| entry()).collect()
 }
 
 pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
-    operations.register_wire_operations::<Operations, _>(
-        "dokime.analysis",
-        crate::app::Lanes::Open,
-        Arc::new(()),
-    )?;
+    operations.register_wire_operations::<Operations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
     #[cfg(feature = "fft")]
-    operations.register_wire_operations::<FourierOperations, _>(
-        "dokime.analysis",
-        crate::app::Lanes::Open,
-        Arc::new(()),
-    )?;
+    operations.register_wire_operations::<FourierOperations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
     Ok(())
 }
 

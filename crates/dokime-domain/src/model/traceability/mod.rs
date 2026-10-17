@@ -32,32 +32,18 @@ use crate::model::identity::TraceabilityId;
 /* === Constants === */
 const TRACEABILITY_SOURCE_PREFIX: &str = "traceability.";
 
-pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
-    source: "traceability.test_definition",
-    label: "Test Definition",
-};
+pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup =
+    DerivedTraceabilityGroup { source: "traceability.test_definition", label: "Test Definition" };
 
-pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
-    source: "traceability.test_execution",
-    label: "Test Execution",
-};
+pub const TEST_EXECUTION_TRACEABILITY: DerivedTraceabilityGroup =
+    DerivedTraceabilityGroup { source: "traceability.test_execution", label: "Test Execution" };
 
-pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
-    source: "traceability.leases",
-    label: "Leases",
-};
+pub const LEASES_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.leases", label: "Leases" };
 
-pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
-    source: "traceability.host",
-    label: "Host",
-};
+pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup { source: "traceability.host", label: "Host" };
 
-pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] = &[
-    TEST_DEFINITION_TRACEABILITY,
-    TEST_EXECUTION_TRACEABILITY,
-    LEASES_TRACEABILITY,
-    HOST_TRACEABILITY,
-];
+pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
+    &[TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY, LEASES_TRACEABILITY, HOST_TRACEABILITY];
 
 /* === Macros === */
 
@@ -115,74 +101,34 @@ pub struct TraceabilityEntry {
 impl harmos::MemorySize for TraceabilitySection {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.identifier),
-                std::mem::size_of_val(&self.identifier),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.rows),
-                std::mem::size_of_val(&self.rows),
-            ),
+            (harmos::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.rows), std::mem::size_of_val(&self.rows)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TraceabilityRow {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.identifier),
-                std::mem::size_of_val(&self.identifier),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
+            (harmos::MemorySize::memory_size(&self.identifier), std::mem::size_of_val(&self.identifier)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl TraceabilitySection {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            identifier: Identifier::declared(identifier, "traceability section"),
-            label: label.into(),
-            rows: Vec::new(),
-        }
+        Self { identifier: Identifier::declared(identifier, "traceability section"), label: label.into(), rows: Vec::new() }
     }
 
     // Sections grow by statements, as a document `Section` does; a row is
@@ -198,20 +144,10 @@ impl TraceabilitySection {
 
 impl TraceabilityRow {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, value: Value) -> Self {
-        Self {
-            identifier: Identifier::declared(identifier, "traceability row"),
-            label: label.into(),
-            value,
-            unit: None,
-            source: None,
-        }
+        Self { identifier: Identifier::declared(identifier, "traceability row"), label: label.into(), value, unit: None, source: None }
     }
 
-    pub fn text(
-        identifier: impl Into<String>,
-        label: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Self {
+    pub fn text(identifier: impl Into<String>, label: impl Into<String>, value: impl Into<String>) -> Self {
         Self::new(identifier, label, Value::Text(value.into()))
     }
 
@@ -242,76 +178,35 @@ impl TraceabilityRow {
 impl harmos::MemorySize for TraceabilitySnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.traceability_id),
-                std::mem::size_of_val(&self.traceability_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.entries),
-                std::mem::size_of_val(&self.entries),
-            ),
+            (harmos::MemorySize::memory_size(&self.traceability_id), std::mem::size_of_val(&self.traceability_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.entries), std::mem::size_of_val(&self.entries)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TraceabilityEntry {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl DerivedTraceabilityGroup {
     pub fn identifier(&self) -> &'static str {
-        self.source
-            .strip_prefix(TRACEABILITY_SOURCE_PREFIX)
-            .expect("a derived traceability source sits in the host's namespace")
+        self.source.strip_prefix(TRACEABILITY_SOURCE_PREFIX).expect("a derived traceability source sits in the host's namespace")
     }
 }
 
@@ -325,15 +220,9 @@ impl DerivedTraceabilityGroup {
 pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGroup> {
     let name = source.strip_prefix(TRACEABILITY_SOURCE_PREFIX)?;
     let name = name.split('.').next()?;
-    DERIVED_TRACEABILITY_GROUPS
-        .iter()
-        .copied()
-        .find(|group| group.identifier() == name)
+    DERIVED_TRACEABILITY_GROUPS.iter().copied().find(|group| group.identifier() == name)
 }
 
 pub fn derived_traceability_group_named(identifier: &str) -> Option<DerivedTraceabilityGroup> {
-    DERIVED_TRACEABILITY_GROUPS
-        .iter()
-        .copied()
-        .find(|group| group.identifier() == identifier)
+    DERIVED_TRACEABILITY_GROUPS.iter().copied().find(|group| group.identifier() == identifier)
 }

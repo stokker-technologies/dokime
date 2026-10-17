@@ -52,13 +52,9 @@ def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
         assert "dokime/dynamic.py" in names
         assert "dokime/contracts.json" in names
         assert "dokime/descriptors.bin" in names
-        assert any(
-            name.startswith("dokime/_wire/") and name.endswith(".pyi") for name in names
-        )
+        assert any(name.startswith("dokime/_wire/") and name.endswith(".pyi") for name in names)
         assert not any(name.startswith("dokime/client/_generated/") for name in names)
-        assert not any(
-            name.endswith((".so", ".pyd", ".dll", ".dylib")) for name in names
-        )
+        assert not any(name.endswith((".so", ".pyd", ".dll", ".dylib")) for name in names)
         assert "dokime/client/cli.py" not in names
         assert "dokime/client/_console.py" not in names
         assert not any(name.startswith("dokime_client/") for name in names)
@@ -71,26 +67,17 @@ def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
                 expected_digest = hashlib.sha256()
                 for block in iter(lambda: expected.read(1024 * 1024), b""):
                     expected_digest.update(block)
-                assert (
-                    hashlib.file_digest(actual, "sha256").digest()
-                    == expected_digest.digest()
-                ), f"Installed payload differs from selected wheel: {name}"
+                assert hashlib.file_digest(actual, "sha256").digest() == expected_digest.digest(), (
+                    f"Installed payload differs from selected wheel: {name}"
+                )
 
     assert not any(
-        requirement.startswith(("dokime-client", "dokime-python", "rich", "typer"))
-        for requirement in distribution.requires or []
+        requirement.startswith(("dokime-client", "dokime-python", "rich", "typer")) for requirement in distribution.requires or []
     )
     assert importlib.util.find_spec("dokime_client") is None
-    assert any(
-        requirement.startswith("grpcio") for requirement in distribution.requires or []
-    )
-    assert any(
-        requirement.startswith("protobuf")
-        for requirement in distribution.requires or []
-    )
-    assert not any(
-        entry.group == "console_scripts" for entry in distribution.entry_points
-    )
+    assert any(requirement.startswith("grpcio") for requirement in distribution.requires or [])
+    assert any(requirement.startswith("protobuf") for requirement in distribution.requires or [])
+    assert not any(entry.group == "console_scripts" for entry in distribution.entry_points)
     subprocess.run(
         [
             sys.executable,

@@ -21,12 +21,12 @@ use harmos::{
 };
 // Local Imports
 use super::html::HtmlReport;
+use crate::storage::Manager;
 use crate::{
     runtime::Result,
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
 use dokime_domain::model::identity::Identifier;
-use crate::storage::Manager;
 
 /* === Constants === */
 
@@ -48,16 +48,12 @@ pub(crate) struct CycleReport {
 /* === Implementations === */
 impl CycleReport {
     pub(crate) async fn prepare(
-        manager: &Manager,
-        snapshot: CycleSnapshot,
-        captured_members: Vec<super::CapturedExecutionReportInput>,
-        operation: &Operation,
+        manager: &Manager, snapshot: CycleSnapshot, captured_members: Vec<super::CapturedExecutionReportInput>, operation: &Operation,
     ) -> Result<Self> {
         let source = HtmlReport::from_cycle(snapshot, captured_members, operation)?;
         let cycle = source.header().cycle.test_cycle_id.to_string();
         let metadata = FileMetadata {
-            id: Identifier::new(format!("{cycle}.{}.cycle-report", uuid::Uuid::now_v7()))
-                .map_err(crate::storage::Error::from)?,
+            id: Identifier::new(format!("{cycle}.{}.cycle-report", uuid::Uuid::now_v7())).map_err(crate::storage::Error::from)?,
             scope: Some(Identifier::new(cycle).map_err(crate::storage::Error::from)?),
             media_type: "text/html".into(),
             expected_length: None,
@@ -71,10 +67,7 @@ impl CycleReport {
         .await?
     }
 
-    pub(crate) async fn finish(
-        mut self,
-        operations: &impl Host<Error = harmos::Error>,
-    ) -> Result<FileReference> {
+    pub(crate) async fn finish(mut self, operations: &impl Host<Error = harmos::Error>) -> Result<FileReference> {
         self.file.finish(&self.manager, operations).await
     }
 }

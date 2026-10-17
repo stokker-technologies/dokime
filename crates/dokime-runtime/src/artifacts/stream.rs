@@ -68,11 +68,7 @@ impl Artifacts {
         let token: Arc<str> = Arc::from(token.into());
         let next_ordinal = Arc::new(AtomicU64::new(0));
         Self {
-            directories: Arc::new(Mutex::new(Directories::new(
-                Arc::clone(&token),
-                Arc::clone(&sink),
-                Arc::clone(&next_ordinal),
-            ))),
+            directories: Arc::new(Mutex::new(Directories::new(Arc::clone(&token), Arc::clone(&sink), Arc::clone(&next_ordinal)))),
             sink,
             token,
             next_ordinal,
@@ -113,9 +109,7 @@ impl Artifacts {
     }
 
     fn locked(&self) -> std::sync::MutexGuard<'_, Directories> {
-        self.directories
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.directories.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn opened(&self, name: String, mime: String) -> io::Result<ArtifactWriter> {
@@ -267,27 +261,19 @@ pub(super) fn transfer_identity(token: &str, ordinals: &AtomicU64) -> String {
 }
 
 pub(super) fn validated(name: &str) -> io::Result<String> {
-    let escapes = name.is_empty()
-        || name.contains('\\')
-        || name
-            .split('/')
-            .any(|segment| segment.is_empty() || segment == "." || segment == "..");
+    let escapes =
+        name.is_empty() || name.contains('\\') || name.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..");
     if escapes {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!(
-                "artifact name {name:?} must be a non-empty relative `/`-separated path with no empty, `.`, or `..` segment"
-            ),
+            format!("artifact name {name:?} must be a non-empty relative `/`-separated path with no empty, `.`, or `..` segment"),
         ));
     }
     Ok(name.to_owned())
 }
 
 pub(crate) fn inferred_mime(name: &str) -> io::Result<String> {
-    let extension = Path::new(name)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase);
+    let extension = Path::new(name).extension().and_then(|extension| extension.to_str()).map(str::to_ascii_lowercase);
     let mime = match extension.as_deref() {
         Some("json") => "application/json",
         Some("csv") => "text/csv",
@@ -323,10 +309,7 @@ pub(crate) fn inferred_mime(name: &str) -> io::Result<String> {
 
 /* === Private Functions === */
 fn closed(operation: &str) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::BrokenPipe,
-        format!("cannot {operation} an artifact that has already been closed"),
-    )
+    io::Error::new(io::ErrorKind::BrokenPipe, format!("cannot {operation} an artifact that has already been closed"))
 }
 
 /* === Tests === */

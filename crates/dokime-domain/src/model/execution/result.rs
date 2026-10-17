@@ -275,380 +275,149 @@ pub enum ResultStatus {
 impl harmos::MemorySize for CycleView {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.saved),
-                std::mem::size_of_val(&self.saved),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_cycle_id),
-                std::mem::size_of_val(&self.test_cycle_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.session_id),
-                std::mem::size_of_val(&self.session_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.updated_at),
-                std::mem::size_of_val(&self.updated_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_executions),
-                std::mem::size_of_val(&self.test_executions),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.records),
-                std::mem::size_of_val(&self.records),
-            ),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos::MemorySize::memory_size(&self.test_executions), std::mem::size_of_val(&self.test_executions)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TestExecution {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.saved),
-                std::mem::size_of_val(&self.saved),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_cycle_id),
-                std::mem::size_of_val(&self.test_cycle_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_execution_id),
-                std::mem::size_of_val(&self.test_execution_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_case_id),
-                std::mem::size_of_val(&self.test_case_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.suite),
-                std::mem::size_of_val(&self.suite),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.snapshot),
-                std::mem::size_of_val(&self.snapshot),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.invalidation),
-                std::mem::size_of_val(&self.invalidation),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.output_parameters),
-                std::mem::size_of_val(&self.output_parameters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.documents),
-                std::mem::size_of_val(&self.documents),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.records),
-                std::mem::size_of_val(&self.records),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.finished_at),
-                std::mem::size_of_val(&self.finished_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.steps),
-                std::mem::size_of_val(&self.steps),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.step_attempts),
-                std::mem::size_of_val(&self.step_attempts),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.active_step_attempt),
-                std::mem::size_of_val(&self.active_step_attempt),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.traceability),
-                std::mem::size_of_val(&self.traceability),
-            ),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
+            (harmos::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
+            (harmos::MemorySize::memory_size(&self.suite), std::mem::size_of_val(&self.suite)),
+            (harmos::MemorySize::memory_size(&self.snapshot), std::mem::size_of_val(&self.snapshot)),
+            (harmos::MemorySize::memory_size(&self.invalidation), std::mem::size_of_val(&self.invalidation)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.output_parameters), std::mem::size_of_val(&self.output_parameters)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.steps), std::mem::size_of_val(&self.steps)),
+            (harmos::MemorySize::memory_size(&self.step_attempts), std::mem::size_of_val(&self.step_attempts)),
+            (harmos::MemorySize::memory_size(&self.active_step_attempt), std::mem::size_of_val(&self.active_step_attempt)),
+            (harmos::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for StepAttemptStart {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.attempt_id),
-                std::mem::size_of_val(&self.attempt_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.step_id),
-                std::mem::size_of_val(&self.step_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TestStepAttempt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.attempt_id),
-                std::mem::size_of_val(&self.attempt_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.step_id),
-                std::mem::size_of_val(&self.step_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.finished_at),
-                std::mem::size_of_val(&self.finished_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.detail),
-                std::mem::size_of_val(&self.detail),
-            ),
+            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for MeasurementRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for CriterionResult {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.criterion_id),
-                std::mem::size_of_val(&self.criterion_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.observed),
-                std::mem::size_of_val(&self.observed),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
+            (harmos::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.observed), std::mem::size_of_val(&self.observed)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for StepRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.step_id),
-                std::mem::size_of_val(&self.step_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.finished_at),
-                std::mem::size_of_val(&self.finished_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.measurements),
-                std::mem::size_of_val(&self.measurements),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.criteria),
-                std::mem::size_of_val(&self.criteria),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.detail),
-                std::mem::size_of_val(&self.detail),
-            ),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.measurements), std::mem::size_of_val(&self.measurements)),
+            (harmos::MemorySize::memory_size(&self.criteria), std::mem::size_of_val(&self.criteria)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ExecutionInvalidation {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.previous),
-                std::mem::size_of_val(&self.previous),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.current),
-                std::mem::size_of_val(&self.current),
-            ),
+            (harmos::MemorySize::memory_size(&self.previous), std::mem::size_of_val(&self.previous)),
+            (harmos::MemorySize::memory_size(&self.current), std::mem::size_of_val(&self.current)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TestCycle {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.saved),
-                std::mem::size_of_val(&self.saved),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_cycle_id),
-                std::mem::size_of_val(&self.test_cycle_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.session_id),
-                std::mem::size_of_val(&self.session_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.started_at),
-                std::mem::size_of_val(&self.started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.updated_at),
-                std::mem::size_of_val(&self.updated_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.execution_ids),
-                std::mem::size_of_val(&self.execution_ids),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.records),
-                std::mem::size_of_val(&self.records),
-            ),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos::MemorySize::memory_size(&self.execution_ids), std::mem::size_of_val(&self.execution_ids)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -689,28 +458,14 @@ impl CycleStatus {
         )
     }
 
-    pub fn try_transition(
-        self,
-        target: CycleStatus,
-    ) -> Result<CycleStatus, IllegalCycleTransition> {
-        if self.allows(target) {
-            Ok(target)
-        } else {
-            Err(IllegalCycleTransition {
-                from: self,
-                to: target,
-            })
-        }
+    pub fn try_transition(self, target: CycleStatus) -> Result<CycleStatus, IllegalCycleTransition> {
+        if self.allows(target) { Ok(target) } else { Err(IllegalCycleTransition { from: self, to: target }) }
     }
 }
 
 impl TestStepAttempt {
     pub fn start(&self) -> StepAttemptStart {
-        StepAttemptStart {
-            attempt_id: self.attempt_id.clone(),
-            step_id: self.step_id.clone(),
-            started_at: self.started_at.clone(),
-        }
+        StepAttemptStart { attempt_id: self.attempt_id.clone(), step_id: self.step_id.clone(), started_at: self.started_at.clone() }
     }
 }
 
@@ -721,15 +476,10 @@ impl TestExecution {
         scope.test_case_id = Some(self.test_case_id.clone());
         scope.test_execution_id = Some(self.test_execution_id.clone());
         scope.criterion_id = None;
-        scope.step_id = self
-            .active_step_attempt
-            .as_ref()
-            .map(|start| start.step_id.clone());
+        scope.step_id = self.active_step_attempt.as_ref().map(|start| start.step_id.clone());
         scope.origin = self.active_step_attempt.as_ref().map_or_else(
             || self.capture_phase.into(),
-            |start| crate::model::execution::EvidenceOrigin::Step {
-                attempt_id: start.attempt_id.clone(),
-            },
+            |start| crate::model::execution::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() },
         );
         scope
     }
@@ -738,19 +488,9 @@ impl TestExecution {
         self.validate_step_origin(&start.step_id, &start.started_at)
     }
 
-    fn validate_step_origin(
-        &self,
-        step_id: &StepId,
-        started_at: &Timestamp,
-    ) -> Result<(), &'static str> {
-        started_at
-            .to_datetime()
-            .map_err(|_| "invalid step attempt start time")?;
-        if !self
-            .snapshot
-            .template()
-            .is_some_and(|template| template.phases.iter().any(|step| &step.step_id == step_id))
-        {
+    fn validate_step_origin(&self, step_id: &StepId, started_at: &Timestamp) -> Result<(), &'static str> {
+        started_at.to_datetime().map_err(|_| "invalid step attempt start time")?;
+        if !self.snapshot.template().is_some_and(|template| template.phases.iter().any(|step| &step.step_id == step_id)) {
             return Err("step attempt has no frozen definition");
         }
         Ok(())
@@ -758,10 +498,7 @@ impl TestExecution {
 
     pub fn validate_step_invocation(&self, start: &StepAttemptStart) -> Result<(), &'static str> {
         self.validate_step_start(start)?;
-        let template = self
-            .snapshot
-            .template()
-            .ok_or("step has no frozen template")?;
+        let template = self.snapshot.template().ok_or("step has no frozen template")?;
         validate_invocation(template, &self.step_attempts, &start.step_id)
     }
 
@@ -769,11 +506,7 @@ impl TestExecution {
         let Some(template) = self.snapshot.template() else {
             return BTreeMap::new();
         };
-        effective_attempts(
-            template,
-            &self.step_attempts,
-            self.active_step_attempt.as_ref(),
-        )
+        effective_attempts(template, &self.step_attempts, self.active_step_attempt.as_ref())
     }
 
     /// Present each template phase from its effective step attempt. Once an
@@ -789,66 +522,41 @@ impl TestExecution {
         let mut steps = self.steps.clone();
         for phase in &template.phases {
             let selected = selected.get(&phase.step_id).copied();
-            let active = self
-                .active_step_attempt
-                .as_ref()
-                .filter(|start| start.step_id == phase.step_id);
+            let active = self.active_step_attempt.as_ref().filter(|start| start.step_id == phase.step_id);
             let (status, started_at, finished_at, detail) = if let Some(active) = active {
-                (
-                    StepStatus::Running,
-                    Some(active.started_at.clone()),
-                    None,
-                    None,
-                )
+                (StepStatus::Running, Some(active.started_at.clone()), None, None)
             } else if let Some(attempt) = selected {
                 let status = match attempt.termination {
                     super::TerminationReason::Completed => StepStatus::Passed,
                     super::TerminationReason::Cancelled => StepStatus::Cancelled,
-                    super::TerminationReason::Failed | super::TerminationReason::Interrupted => {
-                        StepStatus::Failed
-                    }
+                    super::TerminationReason::Failed | super::TerminationReason::Interrupted => StepStatus::Failed,
                 };
-                (
-                    status,
-                    Some(attempt.started_at.clone()),
-                    attempt.finished_at.clone(),
-                    attempt.detail.clone(),
-                )
+                (status, Some(attempt.started_at.clone()), attempt.finished_at.clone(), attempt.detail.clone())
             } else if let Some(row) = steps
                 .iter()
                 .find(|step| step.step_id == phase.step_id)
                 .filter(|row| !ledger && recorded_outcome(&row.status, self.finished_at.is_some()))
             {
-                (
-                    row.status.clone(),
-                    row.started_at.clone(),
-                    row.finished_at.clone(),
-                    row.detail.clone(),
-                )
+                (row.status.clone(), row.started_at.clone(), row.finished_at.clone(), row.detail.clone())
             } else {
-                let status = if self.finished_at.is_some() {
-                    StepStatus::Skipped
-                } else {
-                    StepStatus::Pending
-                };
+                let status = if self.finished_at.is_some() { StepStatus::Skipped } else { StepStatus::Pending };
                 (status, None, None, None)
             };
-            let row =
-                if let Some(index) = steps.iter().position(|step| step.step_id == phase.step_id) {
-                    &mut steps[index]
-                } else {
-                    steps.push(StepRecord {
-                        step_id: phase.step_id.clone(),
-                        metadata: phase.metadata.clone(),
-                        status: StepStatus::Pending,
-                        started_at: None,
-                        finished_at: None,
-                        measurements: Vec::new(),
-                        criteria: Vec::new(),
-                        detail: None,
-                    });
-                    steps.last_mut().expect("inserted step presentation")
-                };
+            let row = if let Some(index) = steps.iter().position(|step| step.step_id == phase.step_id) {
+                &mut steps[index]
+            } else {
+                steps.push(StepRecord {
+                    step_id: phase.step_id.clone(),
+                    metadata: phase.metadata.clone(),
+                    status: StepStatus::Pending,
+                    started_at: None,
+                    finished_at: None,
+                    measurements: Vec::new(),
+                    criteria: Vec::new(),
+                    detail: None,
+                });
+                steps.last_mut().expect("inserted step presentation")
+            };
             if active.is_some() || row.started_at != started_at {
                 row.measurements.clear();
                 row.criteria.clear();
@@ -865,25 +573,15 @@ impl TestExecution {
     pub fn validate_step_attempt(&self, attempt: &TestStepAttempt) -> Result<(), &'static str> {
         self.validate_step_origin(&attempt.step_id, &attempt.started_at)?;
         if let Some(finished) = &attempt.finished_at
-            && finished
-                .to_datetime()
-                .map_err(|_| "invalid step attempt finish time")?
-                < attempt
-                    .started_at
-                    .to_datetime()
-                    .map_err(|_| "invalid step attempt start time")?
+            && finished.to_datetime().map_err(|_| "invalid step attempt finish time")?
+                < attempt.started_at.to_datetime().map_err(|_| "invalid step attempt start time")?
         {
             return Err("step attempt finishes before it starts");
         }
-        if (attempt.termination == super::TerminationReason::Interrupted)
-            != attempt.finished_at.is_none()
-        {
+        if (attempt.termination == super::TerminationReason::Interrupted) != attempt.finished_at.is_none() {
             return Err("step attempt completion time differs from its termination");
         }
-        let diagnostic = matches!(
-            attempt.termination,
-            super::TerminationReason::Failed | super::TerminationReason::Interrupted
-        );
+        let diagnostic = matches!(attempt.termination, super::TerminationReason::Failed | super::TerminationReason::Interrupted);
         if diagnostic != attempt.detail.is_some() {
             return Err("step attempt diagnostic differs from its termination");
         }
@@ -917,15 +615,9 @@ impl TestExecution {
 
 /* === Private Functions === */
 pub fn validate_invocation(
-    template: &crate::model::definition::TestCaseTemplate,
-    attempts: &[TestStepAttempt],
-    step_id: &StepId,
+    template: &crate::model::definition::TestCaseTemplate, attempts: &[TestStepAttempt], step_id: &StepId,
 ) -> Result<(), &'static str> {
-    let position = template
-        .phases
-        .iter()
-        .position(|step| step.step_id == *step_id)
-        .ok_or("step has no frozen definition")?;
+    let position = template.phases.iter().position(|step| step.step_id == *step_id).ok_or("step has no frozen definition")?;
     let mut invoked = BTreeSet::new();
     for attempt in attempts {
         if attempt.termination != super::TerminationReason::Completed {
@@ -936,10 +628,7 @@ pub fn validate_invocation(
     if invoked.contains(step_id) && !template.phases[position].repeatable {
         return Err("step does not permit repeated invocation");
     }
-    if template.phases[position + 1..]
-        .iter()
-        .any(|step| !step.repeatable && invoked.contains(&step.step_id))
-    {
+    if template.phases[position + 1..].iter().any(|step| !step.repeatable && invoked.contains(&step.step_id)) {
         return Err("step would invalidate an invoked non-repeatable downstream step");
     }
     Ok(())
@@ -956,16 +645,9 @@ fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
 }
 
 pub fn effective_attempts<'a>(
-    template: &crate::model::definition::TestCaseTemplate,
-    attempts: &'a [TestStepAttempt],
-    active: Option<&StepAttemptStart>,
+    template: &crate::model::definition::TestCaseTemplate, attempts: &'a [TestStepAttempt], active: Option<&StepAttemptStart>,
 ) -> BTreeMap<StepId, &'a TestStepAttempt> {
-    let positions: BTreeMap<_, _> = template
-        .phases
-        .iter()
-        .enumerate()
-        .map(|(position, step)| (&step.step_id, position))
-        .collect();
+    let positions: BTreeMap<_, _> = template.phases.iter().enumerate().map(|(position, step)| (&step.step_id, position)).collect();
     let mut selected = BTreeMap::new();
     for attempt in attempts {
         let Some(&position) = positions.get(&attempt.step_id) else {
@@ -979,10 +661,7 @@ pub fn effective_attempts<'a>(
     {
         selected.split_off(position);
     }
-    selected
-        .into_values()
-        .map(|attempt| (attempt.step_id.clone(), attempt))
-        .collect()
+    selected.into_values().map(|attempt| (attempt.step_id.clone(), attempt)).collect()
 }
 
 /* === Tests === */

@@ -25,8 +25,8 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 // Local Imports
 use super::source::{Entry, Listing};
 use super::{SCAN_ENTRIES, capped, invalid, unreachable_source};
-use crate::runtime::Result;
 use crate::files::FileMatcher;
+use crate::runtime::Result;
 
 /* === Constants === */
 
@@ -52,20 +52,11 @@ impl LocalSource {
         if !path.is_absolute() {
             return Err(invalid("a local watch root must be an absolute path"));
         }
-        let root = tokio::fs::canonicalize(path)
-            .await
-            .map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?;
-        if !tokio::fs::metadata(&root)
-            .await
-            .map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?
-            .is_dir()
-        {
+        let root = tokio::fs::canonicalize(path).await.map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?;
+        if !tokio::fs::metadata(&root).await.map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?.is_dir() {
             return Err(invalid("a local watch root must be a directory"));
         }
-        Ok(Self {
-            root,
-            depth: usize::MAX,
-        })
+        Ok(Self { root, depth: usize::MAX })
     }
 
     /// Scan only the root's own entries, as a watch over one named file does.
@@ -81,23 +72,12 @@ impl LocalSource {
         tokio::task::spawn_blocking(move || walk(&root, depth, &matcher)).await?
     }
 
-    pub(super) async fn read_range(
-        &self,
-        relative: &str,
-        offset: u64,
-        length: u64,
-        sink: &mut tokio::fs::File,
-    ) -> Result<u64> {
+    pub(super) async fn read_range(&self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File) -> Result<u64> {
         let path = self.root.join(relative);
-        let mut file = tokio::fs::File::open(&path)
-            .await
-            .map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
-        file.seek(std::io::SeekFrom::Start(offset))
-            .await
-            .map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
-        let copied = tokio::io::copy(&mut file.take(length), sink)
-            .await
-            .map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
+        let mut file = tokio::fs::File::open(&path).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
+        file.seek(std::io::SeekFrom::Start(offset)).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
+        let copied =
+            tokio::io::copy(&mut file.take(length), sink).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
         Ok(copied)
     }
 }
@@ -108,25 +88,15 @@ impl LocalSource {
 fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
     let mut listing = Listing::new();
     let mut visited = 0_usize;
-    for entry in walkdir::WalkDir::new(root)
-        .follow_links(false)
-        .min_depth(1)
-        .max_depth(depth)
-    {
+    for entry in walkdir::WalkDir::new(root).follow_links(false).min_depth(1).max_depth(depth) {
         visited += 1;
         if visited > SCAN_ENTRIES {
-            return Err(capped(format!(
-                "the watch root holds more than {SCAN_ENTRIES} entries"
-            )));
+            return Err(capped(format!("the watch root holds more than {SCAN_ENTRIES} entries")));
         }
         let entry = match entry {
             Ok(entry) => entry,
             // A Concurrently Removed Entry Is Simply Absent From This Pass
-            Err(source)
-                if source
-                    .io_error()
-                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
-            {
+            Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
                 continue;
             }
             Err(source) => return Err(unreachable_source(source)),
@@ -145,14 +115,7 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
             Ok(metadata) => metadata,
             Err(_) => continue,
         };
-        listing.insert(
-            relative,
-            Entry {
-                size: metadata.len(),
-                modified: metadata.modified().ok(),
-                identity: identity(&metadata),
-            },
-        );
+        listing.insert(relative, Entry { size: metadata.len(), modified: metadata.modified().ok(), identity: identity(&metadata) });
     }
     Ok(listing)
 }

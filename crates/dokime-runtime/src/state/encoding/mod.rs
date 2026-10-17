@@ -20,9 +20,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // Local Imports
 use super::{
-    DokimeIdentity, EvidenceRecords, InstalledPluginErrorRecord, MaterializedParameter,
-    PluginOwner, PromptDefinition, PromptId, PromptInstance, PromptResponse, ResourceRegistry,
-    RuntimeState, SessionId, TestCycleId, record_history,
+    DokimeIdentity, EvidenceRecords, InstalledPluginErrorRecord, MaterializedParameter, PluginOwner, PromptDefinition, PromptId,
+    PromptInstance, PromptResponse, ResourceRegistry, RuntimeState, SessionId, TestCycleId, record_history,
 };
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::Identifier;
@@ -61,8 +60,7 @@ struct Encoded<'a> {
     #[serde(serialize_with = "executions::serialize")]
     executions: &'a BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     run_requests: &'a BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
-    cycle_report_finalizations:
-        &'a BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
+    cycle_report_finalizations: &'a BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     report_finalizations: &'a BTreeMap<TestExecutionId, crate::transactions::ReportFinalization>,
     note_admissions: &'a BTreeMap<NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     records: &'a EvidenceRecords,
@@ -196,9 +194,7 @@ impl<'de> Deserialize<'de> for RuntimeState {
         let decoded = Decoded::deserialize(deserializer)?;
 
         let state = decoded.restore().map_err(serde::de::Error::custom)?;
-        state
-            .validate_execution_ownership()
-            .map_err(serde::de::Error::custom)?;
+        state.validate_execution_ownership().map_err(serde::de::Error::custom)?;
         Ok(state)
     }
 }
@@ -235,8 +231,7 @@ impl Decoded {
             archived_cycles,
             archived_executions,
         } = self;
-        let record_history =
-            record_history::RecordHistory::from_contracts(catalog.history(record_history)?);
+        let record_history = record_history::RecordHistory::from_contracts(catalog.history(record_history)?);
 
         Ok(RuntimeState {
             session_id,
@@ -286,18 +281,12 @@ fn intern<'a, T: PartialEq + ?Sized>(values: &mut Vec<&'a T>, value: &'a T) -> u
 }
 
 fn position<T: PartialEq + ?Sized>(values: &[&T], value: &T) -> u32 {
-    let index = values
-        .iter()
-        .position(|candidate| *candidate == value)
-        .expect("shared values were collected from this state");
+    let index = values.iter().position(|candidate| *candidate == value).expect("shared values were collected from this state");
     u32::try_from(index).expect("shared value count fits u32")
 }
 
 fn resolve<T: Clone>(values: &[T], index: u32, kind: &str) -> Result<T, String> {
-    values
-        .get(index as usize)
-        .cloned()
-        .ok_or_else(|| format!("state references a missing shared {kind}"))
+    values.get(index as usize).cloned().ok_or_else(|| format!("state references a missing shared {kind}"))
 }
 
 /* === Tests === */

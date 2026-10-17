@@ -95,34 +95,15 @@ pub fn snapshot_policy() -> harmos::state::SnapshotPolicy {
 /// one recovery entry is a fixed share of that checkpoint.
 pub fn state_settings() -> harmos::config::StorageStateSettings {
     let policy = snapshot_policy();
-    let checkpoint = policy
-        .max_bytes
-        .get()
-        .div_ceil(3)
-        .saturating_mul(4)
-        .saturating_add(STATE_ENVELOPE_BYTES);
-    let bytes = |bytes: usize| {
-        std::num::NonZeroUsize::new(bytes).expect("the envelope keeps encoded records nonempty")
-    };
-    harmos::config::StorageStateSettings {
-        max_entry_bytes: bytes(checkpoint / STATE_ENTRY_SHARE),
-        max_checkpoint_bytes: bytes(checkpoint),
-    }
+    let checkpoint = policy.max_bytes.get().div_ceil(3).saturating_mul(4).saturating_add(STATE_ENVELOPE_BYTES);
+    let bytes = |bytes: usize| std::num::NonZeroUsize::new(bytes).expect("the envelope keeps encoded records nonempty");
+    harmos::config::StorageStateSettings { max_entry_bytes: bytes(checkpoint / STATE_ENTRY_SHARE), max_checkpoint_bytes: bytes(checkpoint) }
 }
 
 /// Read a finished file whole; the reader verifies its length and digest.
-pub async fn read_file_bytes(
-    storage: &Manager,
-    file: &harmos::storage::FileReference,
-) -> Result<Vec<u8>> {
+pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<Vec<u8>> {
     let mut reader = storage
-        .read_file(harmos::storage::ReadFile {
-            file: file.clone(),
-            range: harmos::storage::ByteRange {
-                offset: 0,
-                limit: None,
-            },
-        })
+        .read_file(harmos::storage::ReadFile { file: file.clone(), range: harmos::storage::ByteRange { offset: 0, limit: None } })
         .await?;
     let mut bytes = Vec::new();
     while let Some(batch) = reader.next().await? {

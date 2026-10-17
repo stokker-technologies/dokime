@@ -42,11 +42,7 @@ use super::{Client, Error, ResponseStream, Result, request, stream::Input};
 
 /* === Implementations === */
 impl Client {
-    pub(super) async fn download<O>(
-        &self,
-        path: &'static str,
-        message: O,
-    ) -> Result<ResponseStream<O::Item>>
+    pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<O::Item>>
     where
         O: OutputDeclaration,
         O: Protobuf + Sync,
@@ -54,19 +50,13 @@ impl Client {
         O::Item: Protobuf + MemorySize,
     {
         self.require(path)?;
-        let codec = codec::<OutputEnvelope<O::Item, O::Response>, O>(
-            self.response_limit(),
-            self.request_limit(),
-        )?;
+        let codec = codec::<OutputEnvelope<O::Item, O::Response>, O>(self.response_limit(), self.request_limit())?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(self.response_limit())
             .max_encoding_message_size(self.request_limit());
         let incoming = self
             .execute(async {
-                client
-                    .ready()
-                    .await
-                    .map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
                 client
                     .server_streaming(
                         self.request(Response::new(message)),
@@ -81,27 +71,15 @@ impl Client {
             let mut incoming = state?;
             match incoming.next().await {
                 Some(Err(status)) => Some((Err(status), None)),
-                None => Some((
-                    Err(tonic::Status::data_loss(
-                        "operation stream has no completion",
-                    )),
-                    None,
-                )),
+                None => Some((Err(tonic::Status::data_loss("operation stream has no completion")), None)),
                 Some(Ok(frame)) => match OutputEnvelope::project(frame) {
                     Err(error) => Some((Err(tonic::Status::data_loss(error.to_string())), None)),
-                    Ok(OutputEnvelope::Item(item)) => {
-                        Some((value(item).map_err(status), Some(incoming)))
-                    }
+                    Ok(OutputEnvelope::Item(item)) => Some((value(item).map_err(status), Some(incoming))),
                     Ok(OutputEnvelope::Response(_)) => {
                         // Final Status Must Be Observed Before Reporting End Of Stream.
                         match incoming.next().await {
                             Some(Err(status)) => Some((Err(status), None)),
-                            Some(Ok(_)) => Some((
-                                Err(tonic::Status::data_loss(
-                                    "operation stream continued after completion",
-                                )),
-                                None,
-                            )),
+                            Some(Ok(_)) => Some((Err(tonic::Status::data_loss("operation stream continued after completion")), None)),
                             None => None,
                         }
                     }
@@ -111,12 +89,7 @@ impl Client {
         ResponseStream::new(self, frames)
     }
 
-    pub(super) async fn upload<O, S>(
-        &self,
-        path: &'static str,
-        message: O,
-        items: S,
-    ) -> Result<O::Response>
+    pub(super) async fn upload<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
     where
         O: InputDeclaration,
         O: Protobuf + Sync,
@@ -125,10 +98,7 @@ impl Client {
         S: tokio_stream::Stream<Item = O::Item> + Send + 'static,
     {
         self.require(path)?;
-        let codec = codec::<O::Response, InputEnvelope<O, O::Item>>(
-            self.response_limit(),
-            self.request_limit(),
-        )?;
+        let codec = codec::<O::Response, InputEnvelope<O, O::Item>>(self.response_limit(), self.request_limit())?;
         let cancellation = self.inner.cancellation.child_token();
         let _cancel = cancellation.clone().drop_guard();
         let opening = stream::once(async move { Response::new(InputEnvelope::Request(message)) });
@@ -139,16 +109,9 @@ impl Client {
             .max_encoding_message_size(self.request_limit());
         let reply = self
             .execute(async {
+                client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
                 client
-                    .ready()
-                    .await
-                    .map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                client
-                    .client_streaming(
-                        self.request(frames),
-                        tonic::codegen::http::uri::PathAndQuery::from_static(path),
-                        codec,
-                    )
+                    .client_streaming(self.request(frames), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
                     .await
                     .map(tonic::Response::into_inner)
             })
@@ -162,16 +125,10 @@ impl Client {
 /* === Private Functions === */
 pub(super) fn value<T>(reply: StreamItem<T>) -> Result<T> {
     // Transfer The Decoded Allocation; Never Clone A Payload To Drop Its Owner.
-    reply
-        .into_request()
-        .map(|(value, _claims)| value)
-        .map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
+    reply.into_request().map(|(value, _claims)| value).map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
 }
 
-pub(super) fn codec<D, E>(
-    response_bytes: usize,
-    request_bytes: usize,
-) -> Result<Codec<D, Response<E>>>
+pub(super) fn codec<D, E>(response_bytes: usize, request_bytes: usize) -> Result<Codec<D, Response<E>>>
 where
     D: Protobuf + MemorySize + 'static,
     E: Protobuf + Send + Sync + 'static,
@@ -179,24 +136,14 @@ where
     let response_bytes = NonZeroUsize::new(response_bytes).ok_or(Error::IncompatibleApi)?;
     let request_bytes = NonZeroUsize::new(request_bytes).ok_or(Error::IncompatibleApi)?;
     Codec::new(
-        DecodeSettings {
-            message_bytes: response_bytes,
-            retained_bytes: response_bytes,
-        },
-        EncodeSettings {
-            message_bytes: request_bytes,
-            buffer_bytes: NonZeroUsize::new(request_bytes.get().min(8192)).unwrap(),
-        },
+        DecodeSettings { message_bytes: response_bytes, retained_bytes: response_bytes },
+        EncodeSettings { message_bytes: request_bytes, buffer_bytes: NonZeroUsize::new(request_bytes.get().min(8192)).unwrap() },
     )
     .map_err(Error::Rpc)
 }
 
 pub(super) async fn unary<R, Q>(
-    channel: Channel,
-    authorization: Option<&MetadataValue<Ascii>>,
-    path: &'static str,
-    message: Q,
-    response_bytes: usize,
+    channel: Channel, authorization: Option<&MetadataValue<Ascii>>, path: &'static str, message: Q, response_bytes: usize,
     request_bytes: usize,
 ) -> Result<StreamItem<R>>
 where
@@ -204,19 +151,10 @@ where
     Q: Protobuf + Send + Sync + 'static,
 {
     let codec = codec::<R, Q>(response_bytes, request_bytes)?;
-    let mut client = tonic::client::Grpc::new(channel)
-        .max_decoding_message_size(response_bytes)
-        .max_encoding_message_size(request_bytes);
+    let mut client = tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
+    client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
     client
-        .ready()
-        .await
-        .map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
-    client
-        .unary(
-            request(Response::new(message), authorization),
-            tonic::codegen::http::uri::PathAndQuery::from_static(path),
-            codec,
-        )
+        .unary(request(Response::new(message), authorization), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
         .await
         .map(tonic::Response::into_inner)
         .map_err(Error::Rpc)

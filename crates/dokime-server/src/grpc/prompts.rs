@@ -75,51 +75,28 @@ impl Operation for ListDefinitions {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _context: Self::Context<'a>,
-        request: &mut wire::ListDefinitions,
-        _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status>
-    {
+        &mut self, _context: Self::Context<'a>, request: &mut wire::ListDefinitions, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
-        let limit = page(
-            request.limit,
-            &request.after_prompt_type,
-            request.cursor.as_ref(),
-            &snapshot,
-        )?;
+        let limit = page(request.limit, &request.after_prompt_type, request.cursor.as_ref(), &snapshot)?;
         let definitions = &snapshot.state().prompt_definitions;
-        if !request.after_prompt_type.is_empty()
-            && !definitions
-                .values()
-                .any(|d| d.prompt_type.as_str() == request.after_prompt_type)
-        {
+        if !request.after_prompt_type.is_empty() && !definitions.values().any(|d| d.prompt_type.as_str() == request.after_prompt_type) {
             return Err(Status::invalid_argument("after prompt type not found"));
         }
-        let mut entries = definitions
-            .values()
-            .filter(|d| d.prompt_type.as_str() > request.after_prompt_type.as_str());
+        let mut entries = definitions.values().filter(|d| d.prompt_type.as_str() > request.after_prompt_type.as_str());
         let selected: Vec<_> = entries.by_ref().take(limit).collect();
         self.resources.produce(|| {
             let definitions: Vec<_> = selected.into_iter().map(canonical::identity).collect();
-            let next_after_prompt_type = entries
-                .next()
-                .is_some()
-                .then(|| definitions.last().unwrap().prompt_type.clone());
-            Ok(
-                dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
-                    definitions,
-                    next_after_prompt_type,
-                    cursor: Some(values::cursor(&snapshot)),
-                },
-            )
+            let next_after_prompt_type = entries.next().is_some().then(|| definitions.last().unwrap().prompt_type.clone());
+            Ok(dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
+                definitions,
+                next_after_prompt_type,
+                cursor: Some(values::cursor(&snapshot)),
+            })
         })
     }
 }
@@ -129,17 +106,11 @@ impl Operation for GetDefinition {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _context: Self::Context<'a>,
-        request: &mut wire::GetDefinition,
-        _: &mut (),
+        &mut self, _context: Self::Context<'a>, request: &mut wire::GetDefinition, _: &mut (),
     ) -> Result<Response<dokime_domain::model::prompts::wire::PromptDefinition>, Status> {
         value::text(&request.prompt_type)?;
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -158,79 +129,44 @@ impl Operation for ListPending {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _context: Self::Context<'a>,
-        request: &mut wire::ListPending,
-        _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status>
-    {
+        &mut self, _context: Self::Context<'a>, request: &mut wire::ListPending, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status> {
         let cycle = request
             .cycle_id
             .take()
-            .map(|id| {
-                TestCycleId::from_uuid(id)
-                    .map_err(|_| Status::invalid_argument("invalid cycle UUID"))
-            })
+            .map(|id| TestCycleId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid cycle UUID")))
             .transpose()?;
         let execution = request
             .execution_id
             .take()
-            .map(|id| {
-                TestExecutionId::from_uuid(id)
-                    .map_err(|_| Status::invalid_argument("invalid execution UUID"))
-            })
+            .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
             .transpose()?;
         let selection = dokime_runtime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
         let snapshot = self.resources.runtime.watch_state().latest();
         let mut supplied = request.cursor.take();
         if let Some(cursor) = &mut supplied {
             if cursor.stream != selection {
-                return Err(Status::failed_precondition(
-                    "prompt cursor selection mismatch; restart pagination",
-                ));
+                return Err(Status::failed_precondition("prompt cursor selection mismatch; restart pagination"));
             }
             cursor.stream = STREAM.into();
         }
-        let limit = page(
-            request.limit,
-            &request.after_prompt_id,
-            supplied.as_ref(),
-            &snapshot,
-        )?;
+        let limit = page(request.limit, &request.after_prompt_id, supplied.as_ref(), &snapshot)?;
         let selected = |prompt: &&dokime_runtime::domains::prompts::PromptInstance| {
             snapshot.state().prompt_open(prompt)
-                && cycle
-                    .as_ref()
-                    .is_none_or(|id| prompt.scope.test_cycle_id.as_ref() == Some(id))
-                && execution
-                    .as_ref()
-                    .is_none_or(|id| prompt.scope.test_execution_id.as_ref() == Some(id))
+                && cycle.as_ref().is_none_or(|id| prompt.scope.test_cycle_id.as_ref() == Some(id))
+                && execution.as_ref().is_none_or(|id| prompt.scope.test_execution_id.as_ref() == Some(id))
         };
         if !request.after_prompt_id.is_empty()
-            && !snapshot
-                .state()
-                .prompt_requests
-                .values()
-                .filter(selected)
-                .any(|p| p.prompt_id.as_str() == request.after_prompt_id)
+            && !snapshot.state().prompt_requests.values().filter(selected).any(|p| p.prompt_id.as_str() == request.after_prompt_id)
         {
-            return Err(Status::invalid_argument(
-                "after prompt ID not found in selection",
-            ));
+            return Err(Status::invalid_argument("after prompt ID not found in selection"));
         }
-        let mut entries = snapshot
-            .state()
-            .prompt_requests
-            .values()
-            .filter(selected)
-            .filter(|p| p.prompt_id.as_str() > request.after_prompt_id.as_str());
+        let mut entries =
+            snapshot.state().prompt_requests.values().filter(selected).filter(|p| p.prompt_id.as_str() > request.after_prompt_id.as_str());
         let selected: Vec<_> = entries.by_ref().take(limit).collect();
         self.resources.produce(|| {
             let prompts: Vec<_> = selected
@@ -244,19 +180,10 @@ impl Operation for ListPending {
                     })
                 })
                 .collect::<Result<_, Status>>()?;
-            let next_after_prompt_id = entries
-                .next()
-                .is_some()
-                .then(|| prompts.last().unwrap().prompt_id.clone());
+            let next_after_prompt_id = entries.next().is_some().then(|| prompts.last().unwrap().prompt_id.clone());
             let mut cursor = values::cursor(&snapshot);
             cursor.stream = selection;
-            Ok(
-                dokime_domain::model::prompts::wire::ListPendingPromptsReply {
-                    prompts,
-                    next_after_prompt_id,
-                    cursor: Some(cursor),
-                },
-            )
+            Ok(dokime_domain::model::prompts::wire::ListPendingPromptsReply { prompts, next_after_prompt_id, cursor: Some(cursor) })
         })
     }
 }
@@ -266,25 +193,15 @@ impl Operation for GetPrompt {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _context: Self::Context<'a>,
-        request: &mut wire::GetPrompt,
-        _: &mut (),
+        &mut self, _context: Self::Context<'a>, request: &mut wire::GetPrompt, _: &mut (),
     ) -> Result<Response<dokime_domain::model::prompts::wire::PromptView>, Status> {
         let id = prompt_id(&request.prompt_id)?;
         let snapshot = self.resources.runtime.watch_state().latest();
-        let prompt = snapshot
-            .state()
-            .prompt_requests
-            .get(&id)
-            .ok_or_else(|| Status::not_found("prompt not found"))?;
+        let prompt = snapshot.state().prompt_requests.get(&id).ok_or_else(|| Status::not_found("prompt not found"))?;
         let response = snapshot.state().prompt_responses.get(&id);
         self.resources.produce(|| {
             let response = response.map(canonical::response).transpose()?;
@@ -302,31 +219,18 @@ impl Operation for Respond {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        context: Self::Context<'a>,
-        request: &mut wire::Respond,
-        _: &mut (),
+        &mut self, context: Self::Context<'a>, request: &mut wire::Respond, _: &mut (),
     ) -> Result<Response<dokime_domain::model::prompts::wire::PromptResponseReceipt>, Status> {
         let context = execution::command_context(&context, request.context.as_ref())?;
-        let responder = context
-            .submitted_by
-            .clone()
-            .ok_or_else(|| Status::unauthenticated("authentication required"))?;
+        let responder = context.submitted_by.clone().ok_or_else(|| Status::unauthenticated("authentication required"))?;
 
         let id = prompt_id(&request.prompt_id)?;
         value::text(&request.action)?;
-        let decoded = request
-            .values
-            .take()
-            .map(|value| values::decode(value, &mut value::Budget::new(), 0))
-            .transpose()?;
+        let decoded = request.values.take().map(|value| values::decode(value, &mut value::Budget::new(), 0)).transpose()?;
         let values = match decoded {
             None => Default::default(),
             Some(dokime_domain::model::values::Value::Object(fields)) => fields,
@@ -335,14 +239,7 @@ impl Operation for Respond {
         let receipt = self
             .resources
             .runtime
-            .submit_prompt_response_command(
-                id.clone(),
-                std::mem::take(&mut request.action),
-                responder,
-                values,
-                request.accepted,
-                context,
-            )
+            .submit_prompt_response_command(id.clone(), std::mem::take(&mut request.action), responder, values, request.accepted, context)
             .await
             .map_err(execution::status)?;
         let snapshot = self.resources.runtime.watch_state().latest();
@@ -360,14 +257,11 @@ impl Operation for Respond {
 
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
-        &self,
-        build: impl FnOnce() -> Result<T, Status>,
+        &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;
         if output.encoded_len() > self.maximum {
-            return Err(Status::resource_exhausted(
-                "prompt response exceeds wire budget",
-            ));
+            return Err(Status::resource_exhausted("prompt response exceeds wire budget"));
         }
         Ok(output.into())
     }
@@ -375,61 +269,20 @@ impl Resources {
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-    });
-    runtime
-        .operations()
-        .register_wire_operation::<ListDefinitions>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<GetDefinition>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<ListPending>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime.operations().register_wire_operation::<GetPrompt>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<Respond>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    runtime.operations().register_wire_operation::<ListDefinitions>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetDefinition>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListPending>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetPrompt>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Respond>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
     Ok(())
 }
 
 /* === Private Functions === */
-fn page(
-    limit: u32,
-    after: &str,
-    given: Option<&Cursor>,
-    snapshot: &RuntimeStateSnapshot,
-) -> Result<usize, Status> {
-    let current = NativeCursor {
-        epoch: snapshot.state().process_epoch().to_string(),
-        stream: STREAM.into(),
-        position: snapshot.revision(),
-    };
-    let given = given.map(|value| NativeCursor {
-        epoch: value.epoch.clone(),
-        stream: value.stream.clone(),
-        position: value.position,
-    });
+fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeStateSnapshot) -> Result<usize, Status> {
+    let current =
+        NativeCursor { epoch: snapshot.state().process_epoch().to_string(), stream: STREAM.into(), position: snapshot.revision() };
+    let given = given.map(|value| NativeCursor { epoch: value.epoch.clone(), stream: value.stream.clone(), position: value.position });
     current.page(limit, after, given.as_ref()).map_err(|error| {
         let code = match error {
             CursorError::Selection => tonic::Code::FailedPrecondition,

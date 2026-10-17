@@ -19,10 +19,10 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
+use crate::domains::{OrganizationIdentity, ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 use crate::installed_plugins::{RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeThemeFamily};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
-use crate::domains::{OrganizationIdentity, ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 
 /* === Constants === */
 
@@ -136,10 +136,7 @@ impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
                 ThemeModePolicy::ForceDark => 4,
             },
             mode_locked: frame.mode_locked,
-            source_plugin_id: frame
-                .source_plugin_id
-                .as_ref()
-                .map(|id| id.as_str().to_owned()),
+            source_plugin_id: frame.source_plugin_id.as_ref().map(|id| id.as_str().to_owned()),
         })
     }
 }
@@ -163,21 +160,15 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
                 .logo
                 .map(|value| -> Result<RuntimeAppLogo> {
                     Ok(RuntimeAppLogo {
-                        plugin_id: Identifier::new(value.plugin_id)
-                            .map_err(|_| invalid("logo artifact identifier is invalid"))?,
-                        asset_id: Identifier::new(value.asset_id)
-                            .map_err(|_| invalid("logo asset identifier is invalid"))?,
+                        plugin_id: Identifier::new(value.plugin_id).map_err(|_| invalid("logo artifact identifier is invalid"))?,
+                        asset_id: Identifier::new(value.asset_id).map_err(|_| invalid("logo asset identifier is invalid"))?,
                         url: value.url,
                         alt: value.alt,
                     })
                 })
                 .transpose()?,
             themes,
-            active_theme: frame
-                .active_theme
-                .map(Identifier::new)
-                .transpose()
-                .map_err(|_| invalid("active theme identifier is invalid"))?,
+            active_theme: frame.active_theme.map(Identifier::new).transpose().map_err(|_| invalid("active theme identifier is invalid"))?,
             theme_family_locked: frame.theme_family_locked,
             mode_policy: mode(frame.mode_policy)?,
             mode_locked: frame.mode_locked,
@@ -214,26 +205,15 @@ impl TryFrom<Theme> for RuntimeThemeFamily {
     type Error = Error;
     fn try_from(theme: Theme) -> Result<Self> {
         Ok(Self {
-            plugin_id: Identifier::new(theme.plugin_id)
-                .map_err(|_| invalid("theme artifact identifier is invalid"))?,
-            theme_id: Identifier::new(theme.theme_id)
-                .map_err(|_| invalid("theme identifier is invalid"))?,
+            plugin_id: Identifier::new(theme.plugin_id).map_err(|_| invalid("theme artifact identifier is invalid"))?,
+            theme_id: Identifier::new(theme.theme_id).map_err(|_| invalid("theme identifier is invalid"))?,
             label: theme.label,
             description: theme.description,
             stylesheet: theme.stylesheet,
             variables: property_map(theme.variables)?,
-            corner_radii: theme
-                .radii
-                .ok_or_else(|| invalid("theme radii are missing"))?
-                .into(),
-            light: theme
-                .light
-                .ok_or_else(|| invalid("light theme is missing"))?
-                .try_into()?,
-            dark: theme
-                .dark
-                .ok_or_else(|| invalid("dark theme is missing"))?
-                .try_into()?,
+            corner_radii: theme.radii.ok_or_else(|| invalid("theme radii are missing"))?.into(),
+            light: theme.light.ok_or_else(|| invalid("light theme is missing"))?.try_into()?,
+            dark: theme.dark.ok_or_else(|| invalid("dark theme is missing"))?.try_into()?,
         })
     }
 }
@@ -242,19 +222,13 @@ impl TryFrom<&ThemeVariant> for Variant {
     fn try_from(variant: &ThemeVariant) -> Result<Self> {
         let mut palette = slots(variant.plot_palette.len())?;
         palette.extend(variant.plot_palette.iter().cloned());
-        Ok(Self {
-            variables: properties(&variant.variables)?,
-            plot_palette: palette,
-        })
+        Ok(Self { variables: properties(&variant.variables)?, plot_palette: palette })
     }
 }
 impl TryFrom<Variant> for ThemeVariant {
     type Error = Error;
     fn try_from(variant: Variant) -> Result<Self> {
-        Ok(Self {
-            variables: property_map(variant.variables)?,
-            plot_palette: variant.plot_palette,
-        })
+        Ok(Self { variables: property_map(variant.variables)?, plot_palette: variant.plot_palette })
     }
 }
 
@@ -293,9 +267,7 @@ impl From<Radii> for ThemeCornerRadii {
 /* === Private Functions === */
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("appearance slot allocation failed"))?;
+    values.try_reserve_exact(count).map_err(|_| invalid("appearance slot allocation failed"))?;
     if values.capacity() > count {
         return Err(invalid("appearance slots exceed admission"));
     }
@@ -309,21 +281,13 @@ fn property_projection(values: &[Property]) -> Result<usize> {
     if nodes == usize::MAX {
         return Ok(usize::MAX);
     }
-    Ok(values.iter().fold(
-        nodes.saturating_sub(std::mem::size_of::<BTreeMap<String, String>>()),
-        |bytes, property| {
-            bytes
-                .saturating_add(property.key.capacity())
-                .saturating_add(property.value.capacity())
-        },
-    ))
+    Ok(values.iter().fold(nodes.saturating_sub(std::mem::size_of::<BTreeMap<String, String>>()), |bytes, property| {
+        bytes.saturating_add(property.key.capacity()).saturating_add(property.value.capacity())
+    }))
 }
 fn properties(values: &BTreeMap<String, String>) -> Result<Vec<Property>> {
     let mut result = slots(values.len())?;
-    result.extend(values.iter().map(|(key, value)| Property {
-        key: key.clone(),
-        value: value.clone(),
-    }));
+    result.extend(values.iter().map(|(key, value)| Property { key: key.clone(), value: value.clone() }));
     Ok(result)
 }
 fn property_map(values: Vec<Property>) -> Result<BTreeMap<String, String>> {

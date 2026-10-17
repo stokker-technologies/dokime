@@ -102,24 +102,12 @@ impl MemorySize for ExecutionMetadata {
 impl MemorySize for ExecutionCycle {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                self.cycle_id.memory_size(),
-                std::mem::size_of_val(&self.cycle_id),
-            ),
-            (
-                self.metadata.memory_size(),
-                std::mem::size_of_val(&self.metadata),
-            ),
+            (self.cycle_id.memory_size(), std::mem::size_of_val(&self.cycle_id)),
+            (self.metadata.memory_size(), std::mem::size_of_val(&self.metadata)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -127,20 +115,11 @@ impl MemorySize for ExecutionDocument {
     fn memory_size(&self) -> usize {
         let fields = [
             (self.cycle.memory_size(), std::mem::size_of_val(&self.cycle)),
-            (
-                self.execution.memory_size(),
-                std::mem::size_of_val(&self.execution),
-            ),
+            (self.execution.memory_size(), std::mem::size_of_val(&self.execution)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -152,23 +131,12 @@ impl ExecutionMetadata {
             execution.test_cycle_id.as_str().len(),
             execution.test_case_id.as_str().len(),
             case.metadata.label.len(),
-            execution
-                .started_at
-                .as_ref()
-                .map_or(0, |at| at.as_str().len()),
-            execution
-                .finished_at
-                .as_ref()
-                .map_or(0, |at| at.as_str().len()),
+            execution.started_at.as_ref().map_or(0, |at| at.as_str().len()),
+            execution.finished_at.as_ref().map_or(0, |at| at.as_str().len()),
             case.test_case_template_id.as_str().len(),
-            execution
-                .snapshot
-                .suite()
-                .map_or(0, |suite| suite.label.len()),
+            execution.snapshot.suite().map_or(0, |suite| suite.label.len()),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add)
+        fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add)
     }
 
     pub fn new(execution: &TestExecution) -> Self {
@@ -178,23 +146,10 @@ impl ExecutionMetadata {
             case_id: execution.test_case_id.clone(),
             title: execution.snapshot.case().metadata.label.clone(),
             status: execution.status.clone(),
-            started_at: execution
-                .started_at
-                .as_ref()
-                .map(|at| Timestamp::new(at.as_str().to_owned())),
-            finished_at: execution
-                .finished_at
-                .as_ref()
-                .map(|at| Timestamp::new(at.as_str().to_owned())),
+            started_at: execution.started_at.as_ref().map(|at| Timestamp::new(at.as_str().to_owned())),
+            finished_at: execution.finished_at.as_ref().map(|at| Timestamp::new(at.as_str().to_owned())),
             result: execution.result.clone(),
-            template_id: Some(
-                execution
-                    .snapshot
-                    .case()
-                    .test_case_template_id
-                    .as_str()
-                    .to_owned(),
-            ),
+            template_id: Some(execution.snapshot.case().test_case_template_id.as_str().to_owned()),
             suite_label: execution.snapshot.suite().map(|suite| suite.label.clone()),
         }
     }
@@ -203,15 +158,10 @@ impl ExecutionMetadata {
 impl ExecutionDocument {
     pub fn new(cycle: &CycleView, execution: &TestExecution) -> crate::runtime::Result<Self> {
         if cycle.test_cycle_id != execution.test_cycle_id {
-            return Err(crate::runtime::Error::Operation(
-                "execution document belongs to another cycle".into(),
-            ));
+            return Err(crate::runtime::Error::Operation("execution document belongs to another cycle".into()));
         }
         Ok(Self {
-            cycle: ExecutionCycle {
-                cycle_id: cycle.test_cycle_id.clone(),
-                metadata: cycle.metadata.clone(),
-            },
+            cycle: ExecutionCycle { cycle_id: cycle.test_cycle_id.clone(), metadata: cycle.metadata.clone() },
             execution: execution.clone(),
         })
     }

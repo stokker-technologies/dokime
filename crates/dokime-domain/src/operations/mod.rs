@@ -192,12 +192,7 @@ pub fn artifacts() -> Result<harmos::grpc::Artifacts, DescriptorError> {
 
 /* === Private Functions === */
 const fn policy(timeout: Duration) -> OperationPolicy {
-    OperationPolicy {
-        timeout,
-        attempt_timeout: timeout,
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    }
+    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
 }
 
 /* === Tests === */

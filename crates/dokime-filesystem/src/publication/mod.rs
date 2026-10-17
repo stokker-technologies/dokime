@@ -56,10 +56,7 @@ pub enum ConfirmError<E> {
 impl Staging {
     fn file(directory: &Path) -> io::Result<(Self, File)> {
         let staging = Self(directory.join(format!(".{}", Uuid::now_v7())));
-        let file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staging.0)?;
+        let file = OpenOptions::new().write(true).create_new(true).open(&staging.0)?;
         Ok((staging, file))
     }
 }
@@ -72,36 +69,25 @@ impl Drop for Staging {
 
 /* === Public Functions === */
 pub fn create_dir_all(path: &Path) -> crate::Result<()> {
-    platform::create_dir_all(path)
-        .map_err(|error| crate::Error::publication("create directory", path, error))
+    platform::create_dir_all(path).map_err(|error| crate::Error::publication("create directory", path, error))
 }
 
 pub fn move_directory(source: &Path, destination: &Path) -> crate::Result<()> {
-    let metadata = fs::symlink_metadata(source)
-        .map_err(|error| crate::Error::publication("inspect directory", source, error))?;
+    let metadata = fs::symlink_metadata(source).map_err(|error| crate::Error::publication("inspect directory", source, error))?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
-        return Err(crate::Error::publication(
-            "move directory",
-            source,
-            io::Error::other("source must be a regular directory"),
-        ));
+        return Err(crate::Error::publication("move directory", source, io::Error::other("source must be a regular directory")));
     }
-    platform::move_directory(source, destination)
-        .map_err(|error| crate::Error::publication("move directory", destination, error))
+    platform::move_directory(source, destination).map_err(|error| crate::Error::publication("move directory", destination, error))
 }
 
 pub fn install(source: &Path, destination: &Path) -> crate::Result<()> {
-    sync_file(source)
-        .map_err(|error| crate::Error::publication("flush staged file", source, error))?;
-    platform::install(source, destination)
-        .map_err(|error| crate::Error::publication("install file", destination, error))
+    sync_file(source).map_err(|error| crate::Error::publication("flush staged file", source, error))?;
+    platform::install(source, destination).map_err(|error| crate::Error::publication("install file", destination, error))
 }
 
 pub fn replace(source: &Path, destination: &Path) -> crate::Result<()> {
-    sync_file(source)
-        .map_err(|error| crate::Error::publication("flush staged file", source, error))?;
-    platform::replace(source, destination)
-        .map_err(|error| crate::Error::publication("replace file", destination, error))
+    sync_file(source).map_err(|error| crate::Error::publication("flush staged file", source, error))?;
+    platform::replace(source, destination).map_err(|error| crate::Error::publication("replace file", destination, error))
 }
 
 pub fn remove(path: &Path) -> crate::Result<()> {
@@ -110,10 +96,7 @@ pub fn remove(path: &Path) -> crate::Result<()> {
             return Err(crate::Error::publication(
                 "remove file",
                 path,
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "parent must be a regular directory",
-                ),
+                io::Error::new(io::ErrorKind::InvalidInput, "parent must be a regular directory"),
             ));
         }
         Ok(_) => (),
@@ -143,17 +126,13 @@ pub fn confirm(path: &Path) -> crate::Result<()> {
     }
 }
 
-pub fn confirm_with_checkpoint<E>(
-    path: &Path,
-    mut checkpoint: impl FnMut() -> Result<(), E>,
-) -> Result<(), ConfirmError<E>> {
+pub fn confirm_with_checkpoint<E>(path: &Path, mut checkpoint: impl FnMut() -> Result<(), E>) -> Result<(), ConfirmError<E>> {
     platform::confirm_with_checkpoint(path, &mut checkpoint)
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
 pub fn write(path: &Path, bytes: &[u8]) -> crate::Result<()> {
-    write_document(path, bytes)
-        .map_err(|error| crate::Error::publication("write document", path, error))
+    write_document(path, bytes).map_err(|error| crate::Error::publication("write document", path, error))
 }
 
 /* === Private Functions === */
@@ -174,17 +153,11 @@ fn write_document(path: &Path, bytes: &[u8]) -> io::Result<()> {
 fn sync_file(path: &Path) -> io::Result<()> {
     // FlushFileBuffers requires GENERIC_WRITE. Read-only File::open is not a
     // portable way to confirm file durability, even if no bytes are changed.
-    OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(path)?
-        .sync_all()
+    OpenOptions::new().read(true).write(true).open(path)?.sync_all()
 }
 
 fn parent(path: &Path) -> &Path {
-    path.parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or(Path::new("."))
+    path.parent().filter(|parent| !parent.as_os_str().is_empty()).unwrap_or(Path::new("."))
 }
 
 /* === Tests === */

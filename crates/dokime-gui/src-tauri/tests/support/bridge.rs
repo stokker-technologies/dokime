@@ -87,12 +87,7 @@ impl Writer {
 impl Frames {
     fn push(&self, channel: u32, bytes: Vec<u8>) {
         let (frames, ready) = &*self.0;
-        frames
-            .lock()
-            .expect("harness frames poisoned")
-            .entry(channel)
-            .or_default()
-            .push(bytes);
+        frames.lock().expect("harness frames poisoned").entry(channel).or_default().push(bytes);
         ready.notify_all();
     }
 }
@@ -122,26 +117,12 @@ impl Harness {
             })
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();
-        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-            .build()
-            .unwrap();
-        Self {
-            app,
-            window,
-            writer,
-            frames,
-            channels: AtomicU32::new(1),
-        }
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        Self { app, window, writer, frames, channels: AtomicU32::new(1) }
     }
 
     /// Opens One Bridge Stream From Rust, Returning Its Stream And Channel.
-    pub fn open(
-        &self,
-        generation: u64,
-        path: &str,
-        opening: &[u8],
-        keep_input: bool,
-    ) -> Result<(u64, u32), Value> {
+    pub fn open(&self, generation: u64, path: &str, opening: &[u8], keep_input: bool) -> Result<(u64, u32), Value> {
         let channel = self.channels.fetch_add(1, Ordering::Relaxed);
         let reply = invoke(
             &self.window,
@@ -157,21 +138,13 @@ impl Harness {
             panic!("a stream opens with a raw handle");
         };
         assert_eq!(reply.len(), 16);
-        assert_eq!(
-            u64::from_le_bytes(reply[..8].try_into().unwrap()),
-            generation
-        );
+        assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
         Ok((u64::from_le_bytes(reply[8..].try_into().unwrap()), channel))
     }
 
     /// Sends A Stream Control Command (`send`, `finish`, `cancel`, `ack`).
     pub fn control(
-        &self,
-        command: &str,
-        generation: u64,
-        stream: u64,
-        payload: &[u8],
-        extra: Value,
+        &self, command: &str, generation: u64, stream: u64, payload: &[u8], extra: Value,
     ) -> Result<tauri::ipc::InvokeResponseBody, Value> {
         let mut headers = json!({ "dokime-rpc-stream": stream.to_string() });
         if let (Some(headers), Some(extra)) = (headers.as_object_mut(), extra.as_object()) {
@@ -185,22 +158,13 @@ impl Harness {
         let (frames, ready) = &*self.frames.0;
         let guard = frames.lock().expect("harness frames poisoned");
         let guard = ready
-            .wait_while(guard, |frames| {
-                !frames
-                    .get(&channel)
-                    .is_some_and(|frames| frames.iter().any(|frame| frame[8] != 0))
-            })
+            .wait_while(guard, |frames| !frames.get(&channel).is_some_and(|frames| frames.iter().any(|frame| frame[8] != 0)))
             .expect("harness frames poisoned");
         guard[&channel].clone()
     }
 
     /// Serves The Child's Invokes Until It Exits; Each Runs On Its Own Thread.
-    pub fn drive(
-        &self,
-        child: &mut Child,
-        mut local: impl FnMut(&str, &[u8]) -> Local,
-        mut observe: impl FnMut(&Value),
-    ) -> ExitStatus {
+    pub fn drive(&self, child: &mut Child, mut local: impl FnMut(&str, &[u8]) -> Local, mut observe: impl FnMut(&Value)) -> ExitStatus {
         *self.writer.0.lock().expect("harness writer poisoned") = child.stdin.take();
         let output = BufReader::new(child.stdout.take().expect("piped child output"));
         let mut calls = Vec::new();
@@ -238,11 +202,7 @@ impl Harness {
             }
         }
         let status = child.wait().unwrap();
-        self.writer
-            .0
-            .lock()
-            .expect("harness writer poisoned")
-            .take();
+        self.writer.0.lock().expect("harness writer poisoned").take();
         for call in calls {
             call.join().unwrap();
         }
@@ -252,12 +212,7 @@ impl Harness {
 
 /* === Public Functions === */
 /// Dispatches One Raw-Body Command With Optional Headers, As The WebView Would.
-pub fn invoke(
-    window: &Window,
-    cmd: &str,
-    bytes: Vec<u8>,
-    headers: &Value,
-) -> Result<tauri::ipc::InvokeResponseBody, Value> {
+pub fn invoke(window: &Window, cmd: &str, bytes: Vec<u8>, headers: &Value) -> Result<tauri::ipc::InvokeResponseBody, Value> {
     let headers = headers
         .as_object()
         .into_iter()
@@ -275,13 +230,7 @@ pub fn invoke(
             cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
-            url: if cfg!(windows) {
-                "http://tauri.localhost"
-            } else {
-                "tauri://localhost"
-            }
-            .parse()
-            .unwrap(),
+            url: if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" }.parse().unwrap(),
             body: tauri::ipc::InvokeBody::Raw(bytes),
             headers,
             invoke_key: tauri::test::INVOKE_KEY.into(),
@@ -303,9 +252,7 @@ fn encode(bytes: &[u8]) -> String {
 }
 
 fn decode(text: &str) -> Vec<u8> {
-    base64::engine::general_purpose::STANDARD
-        .decode(text)
-        .expect("the harness sends base64 bytes")
+    base64::engine::general_purpose::STANDARD.decode(text).expect("the harness sends base64 bytes")
 }
 
 /* === Tests === */

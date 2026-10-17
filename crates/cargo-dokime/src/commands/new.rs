@@ -68,28 +68,14 @@ pub fn run(args: Args) -> Result<(), Error> {
         .or_else(|| args.path.file_name()?.to_str())
         .ok_or_else(|| Error::Invalid("provide a package name with --name".into()))?;
     validate_name(name)?;
-    let leaf = args
-        .path
-        .file_name()
-        .ok_or_else(|| Error::Invalid("provide a new directory path".into()))?;
-    let parent = args
-        .path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
+    let leaf = args.path.file_name().ok_or_else(|| Error::Invalid("provide a new directory path".into()))?;
+    let parent = args.path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let target = parent.canonicalize()?.join(leaf);
     if target.symlink_metadata().is_ok() {
-        return Err(Error::Invalid(format!(
-            "refusing to overwrite {}",
-            target.display()
-        )));
+        return Err(Error::Invalid(format!("refusing to overwrite {}", target.display())));
     }
     let (workspace, detached) = workspace(&target)?;
-    let selection = if workspace.is_some() {
-        format!(" -p {name}")
-    } else {
-        String::new()
-    };
+    let selection = if workspace.is_some() { format!(" -p {name}") } else { String::new() };
     let crate_name = name.replace('-', "_");
     let owner = name.replace('_', "-");
     // Reserve the target exclusively. On failure only this newly created tree
@@ -100,8 +86,7 @@ pub fn run(args: Args) -> Result<(), Error> {
             let path = target.join(path);
             fs::create_dir_all(path.parent().expect("template has a parent"))?;
             if template.text {
-                let contents = std::str::from_utf8(template.bytes)
-                    .expect("the asset inventory identifies UTF-8 text");
+                let contents = std::str::from_utf8(template.bytes).expect("the asset inventory identifies UTF-8 text");
                 let mut contents = contents
                     .replace("{{package}}", name)
                     .replace("{{crate}}", &crate_name)
@@ -109,9 +94,7 @@ pub fn run(args: Args) -> Result<(), Error> {
                     .replace("{{repository}}", REPOSITORY)
                     .replace("{{selection}}", &selection);
                 if detached && path.file_name().is_some_and(|name| name == "Cargo.toml") {
-                    contents.push_str(
-                        "\n# This package is excluded from the enclosing workspace.\n[workspace]\n",
-                    );
+                    contents.push_str("\n# This package is excluded from the enclosing workspace.\n[workspace]\n");
                 }
                 fs::write(path, finalize_managed(contents))?;
             } else {
@@ -122,29 +105,19 @@ pub fn run(args: Args) -> Result<(), Error> {
             && workspace.original != workspace.updated
         {
             if fs::read_to_string(&workspace.manifest)? != workspace.original {
-                return Err(Error::Invalid(
-                    "workspace manifest changed during generation; retry".into(),
-                ));
+                return Err(Error::Invalid("workspace manifest changed during generation; retry".into()));
             }
-            let mut temporary =
-                tempfile::NamedTempFile::new_in(workspace.manifest.parent().unwrap())?;
-            temporary
-                .as_file()
-                .set_permissions(fs::metadata(&workspace.manifest)?.permissions())?;
+            let mut temporary = tempfile::NamedTempFile::new_in(workspace.manifest.parent().unwrap())?;
+            temporary.as_file().set_permissions(fs::metadata(&workspace.manifest)?.permissions())?;
             temporary.write_all(workspace.updated.as_bytes())?;
             temporary.flush()?;
-            temporary
-                .persist(&workspace.manifest)
-                .map_err(|error| Error::Io(error.error))?;
+            temporary.persist(&workspace.manifest).map_err(|error| Error::Io(error.error))?;
         }
         Ok(())
     })();
     if let Err(error) = result {
         if let Err(rollback) = fs::remove_dir_all(&target) {
-            return Err(Error::Invalid(format!(
-                "{error}; cleanup of {} failed: {rollback}",
-                target.display()
-            )));
+            return Err(Error::Invalid(format!("{error}; cleanup of {} failed: {rollback}", target.display())));
         }
         return Err(error);
     }
@@ -161,9 +134,7 @@ pub fn run(args: Args) -> Result<(), Error> {
 fn finalize_managed(contents: String) -> String {
     let normalized = contents.replace("\r\n", "\n");
     let at = if normalized.starts_with("#!") {
-        normalized
-            .find('\n')
-            .map_or(normalized.len(), |index| index + 1)
+        normalized.find('\n').map_or(normalized.len(), |index| index + 1)
     } else if let Some(rest) = normalized.strip_prefix("---\n")
         && let Some(index) = rest.find("\n---\n")
     {
@@ -171,9 +142,7 @@ fn finalize_managed(contents: String) -> String {
     } else {
         0
     };
-    let end = normalized[at..]
-        .find('\n')
-        .map_or(normalized.len(), |index| at + index + 1);
+    let end = normalized[at..].find('\n').map_or(normalized.len(), |index| at + index + 1);
     let line = normalized[at..end].trim_end();
     if !line.contains("Rendered by stkr project update from ") {
         return contents;
@@ -190,29 +159,21 @@ fn finalize_managed(contents: String) -> String {
     };
     let body = format!("{}{}", &normalized[..at], &normalized[end..]);
     let digest = Sha256::digest(body.as_bytes());
-    format!(
-        "{}{prefix}; sha256:{digest:x}{close}\n{}",
-        &normalized[..at],
-        &normalized[end..]
-    )
+    format!("{}{prefix}; sha256:{digest:x}{close}\n{}", &normalized[..at], &normalized[end..])
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {
     const RESERVED: &[&str] = &[
-        "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
-        "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move",
-        "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
-        "true", "type", "unsafe", "use", "where", "while", "abstract", "become", "box", "do",
-        "final", "gen", "macro", "override", "priv", "try", "typeof", "unsized", "virtual",
-        "yield", "test",
+        "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern", "false", "fn", "for", "if", "impl",
+        "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
+        "true", "type", "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "gen", "macro", "override", "priv",
+        "try", "typeof", "unsized", "virtual", "yield", "test",
     ];
     let crate_name = name.replace('-', "_");
     let windows_name = name.to_ascii_lowercase();
     if name.is_empty()
         || !name.as_bytes()[0].is_ascii_lowercase()
-        || !name
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+        || !name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
         || RESERVED.contains(&crate_name.as_str())
         || ["con", "prn", "aux", "nul"].contains(&windows_name.as_str())
         || (1..=9).any(|n| windows_name == format!("com{n}") || windows_name == format!("lpt{n}"))
@@ -231,9 +192,8 @@ fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
             continue;
         }
         let original = fs::read_to_string(&manifest)?;
-        let mut document = original
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|error| Error::Invalid(format!("{}: {error}", manifest.display())))?;
+        let mut document =
+            original.parse::<toml_edit::DocumentMut>().map_err(|error| Error::Invalid(format!("{}: {error}", manifest.display())))?;
         let Some(table) = document.get_mut("workspace") else {
             continue;
         };
@@ -253,19 +213,9 @@ fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
             if table.get("members").is_none() {
                 table["members"] = toml_edit::value(toml_edit::Array::new());
             }
-            table["members"]
-                .as_array_mut()
-                .ok_or_else(|| Error::Invalid("workspace.members must be an array".into()))?
-                .push(&relative);
+            table["members"].as_array_mut().ok_or_else(|| Error::Invalid("workspace.members must be an array".into()))?.push(&relative);
         }
-        return Ok((
-            Some(Workspace {
-                manifest,
-                updated: document.to_string(),
-                original,
-            }),
-            false,
-        ));
+        return Ok((Some(Workspace { manifest, updated: document.to_string(), original }), false));
     }
     Ok((None, false))
 }
@@ -274,22 +224,12 @@ fn matches(item: Option<&toml_edit::Item>, relative: &str) -> Result<bool, Error
     let Some(item) = item else {
         return Ok(false);
     };
-    let entries = item
-        .as_array()
-        .ok_or_else(|| Error::Invalid("workspace members/exclude must be arrays".into()))?;
+    let entries = item.as_array().ok_or_else(|| Error::Invalid("workspace members/exclude must be arrays".into()))?;
     for entry in entries {
-        let pattern = entry
-            .as_str()
-            .ok_or_else(|| Error::Invalid("workspace member must be a string".into()))?;
+        let pattern = entry.as_str().ok_or_else(|| Error::Invalid("workspace member must be a string".into()))?;
         let pattern = glob::Pattern::new(pattern.trim_start_matches("./").trim_end_matches('/'))
             .map_err(|error| Error::Invalid(error.to_string()))?;
-        if pattern.matches_with(
-            relative,
-            glob::MatchOptions {
-                require_literal_separator: true,
-                ..Default::default()
-            },
-        ) {
+        if pattern.matches_with(relative, glob::MatchOptions { require_literal_separator: true, ..Default::default() }) {
             return Ok(true);
         }
     }

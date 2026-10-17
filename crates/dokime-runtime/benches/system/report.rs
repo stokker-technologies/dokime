@@ -30,10 +30,7 @@ use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::{CommandId, TestCycleId, TestExecutionId, Value};
-use dokime_runtime::{
-    Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext,
-    transactions::CycleDefinition,
-};
+use dokime_runtime::{Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext, transactions::CycleDefinition};
 
 /* === Constants === */
 const STEADY_SUITE: &str = "obc.charger.steady";
@@ -58,11 +55,7 @@ const POLL: Duration = Duration::from_millis(20);
 /// Measures fresh materialization at admission limits 1/2/4 separately from
 /// rendering immutable saved reports. Fixture acquisition and cleanup are untimed.
 pub fn benchmark(criterion: &mut Criterion) {
-    let executor = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-        .unwrap();
+    let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
     fresh_materialization(criterion, &executor);
     let root = tempfile::tempdir().unwrap();
     let (mut owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
@@ -72,10 +65,7 @@ pub fn benchmark(criterion: &mut Criterion) {
         bencher.iter(|| {
             executor.block_on(async {
                 for execution in &executions {
-                    let html = runtime
-                        .render_saved_execution_report(execution)
-                        .await
-                        .unwrap();
+                    let html = runtime.render_saved_execution_report(execution).await.unwrap();
                     black_box(html);
                 }
             })
@@ -94,20 +84,17 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
     group.throughput(Throughput::Elements(1));
     for duration in [0.5, 2.0] {
         for concurrency in [1, 2, 4] {
-            group.bench_function(
-                BenchmarkId::new(format!("{duration}s"), concurrency),
-                |bencher| {
-                    bencher.iter_custom(|iterations| {
-                        executor.block_on(async {
-                            let mut elapsed = Duration::ZERO;
-                            for _ in 0..iterations {
-                                elapsed += materialization(concurrency, duration).await;
-                            }
-                            elapsed
-                        })
-                    });
-                },
-            );
+            group.bench_function(BenchmarkId::new(format!("{duration}s"), concurrency), |bencher| {
+                bencher.iter_custom(|iterations| {
+                    executor.block_on(async {
+                        let mut elapsed = Duration::ZERO;
+                        for _ in 0..iterations {
+                            elapsed += materialization(concurrency, duration).await;
+                        }
+                        elapsed
+                    })
+                });
+            });
         }
     }
     group.finish();
@@ -116,49 +103,23 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
 /// Runs one steady execution to its inspection prompt and times only the
 /// report materialization of the unsealed execution.
 async fn materialization(concurrency: usize, duration: f64) -> Duration {
-    use {
-    dokime_runtime::operations::reports::MaterializeReport,
-    model::reports::wire::ReportSubject,
-};
+    use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wire::ReportSubject};
     let root = tempfile::tempdir().unwrap();
-    let (mut owner, runtime, cycle, request) =
-        started_cycle(root.path(), concurrency, duration).await;
-    let execution = tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle))
-        .await
-        .expect("steady execution reaches inspection");
+    let (mut owner, runtime, cycle, request) = started_cycle(root.path(), concurrency, duration).await;
+    let execution = tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
     let at = runtime.storage().flush().await.unwrap();
-    let materialize = MaterializeReport {
-        subject: ReportSubject::Execution(execution.to_string()),
-        at,
-    };
+    let materialize = MaterializeReport { subject: ReportSubject::Execution(execution.to_string()), at };
     let started = Instant::now();
-    let report = runtime
-        .operations()
-        .call_as::<MaterializeReport>(materialize)
-        .await
-        .unwrap();
+    let report = runtime.operations().call_as::<MaterializeReport>(materialize).await.unwrap();
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
-    let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report)
-        .await
-        .unwrap();
+    let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();
     let html = String::from_utf8(bytes).unwrap();
-    let json = html
-        .split_once(r#"<script id="hub-report-data" type="application/json">"#)
-        .unwrap()
-        .1
-        .split_once("</script>")
-        .unwrap()
-        .0;
+    let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
     let payload: serde_json::Value = serde_json::from_str(json).unwrap();
-    assert!(
-        plot_payload_count(&payload) >= 5,
-        "steady report must materialize its five measurement plots"
-    );
+    assert!(plot_payload_count(&payload) >= 5, "steady report must materialize its five measurement plots");
     drop(report);
-    tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request))
-        .await
-        .expect("benchmark cycle seals after measurement");
+    tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request)).await.expect("benchmark cycle seals after measurement");
     drop(runtime);
     owner.shutdown().await.unwrap();
     elapsed
@@ -184,13 +145,7 @@ fn plot_payload_count(value: &serde_json::Value) -> usize {
     match value {
         serde_json::Value::Object(fields) => fields
             .iter()
-            .map(|(key, value)| {
-                if key == "plots" {
-                    value.as_object().map_or(0, |plots| plots.len())
-                } else {
-                    plot_payload_count(value)
-                }
-            })
+            .map(|(key, value)| if key == "plots" { value.as_object().map_or(0, |plots| plots.len()) } else { plot_payload_count(value) })
             .sum(),
         serde_json::Value::Array(values) => values.iter().map(plot_payload_count).sum(),
         _ => 0,
@@ -199,26 +154,16 @@ fn plot_payload_count(value: &serde_json::Value) -> usize {
 
 async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecutionId>) {
     let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S).await;
-    let executions = tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request))
-        .await
-        .expect("the steady cycle seals");
+    let executions = tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request)).await.expect("the steady cycle seals");
     (owner, runtime, executions)
 }
 
-async fn started_cycle(
-    root: &Path,
-    concurrency: usize,
-    duration: f64,
-) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
+async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
     let bundle = root.join("obc-plugin.dokime");
     std::fs::copy(super::plugin_bundle(), &bundle).unwrap();
     let mut config = dokime_runtime::RuntimeConfig::new(
         root,
-        dokime_runtime::Metadata::new(
-            dokime_runtime::Identifier::new("bench.report").unwrap(),
-            "Report Bench",
-            None,
-        ),
+        dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("bench.report").unwrap(), "Report Bench", None),
     )
     .with_plugins([PluginBundle::new(bundle)]);
     config.storage.request.max_active_queries = NonZeroUsize::new(concurrency).unwrap();
@@ -238,48 +183,31 @@ async fn started_cycle(
     };
     let mut cases = Vec::new();
     for template in &registration.suite.test_case_templates {
-        for mut case in dokime_runtime::definition::materialize_template_cases(
-            &registration.suite_id,
-            template,
-            Default::default(),
-            options.clone(),
-        )
-        .unwrap()
-        .test_cases
+        for mut case in
+            dokime_runtime::definition::materialize_template_cases(&registration.suite_id, template, Default::default(), options.clone())
+                .unwrap()
+                .test_cases
         {
             case.suite = Some(registration.suite.metadata.clone());
-            case.parameters
-                .insert("duration_s".into(), Value::from(duration));
+            case.parameters.insert("duration_s".into(), Value::from(duration));
             cases.push(case);
         }
     }
     let test_cycle_id = runtime
         .create_cycle(
-            CycleDefinition {
-                metadata: registration.suite.metadata.clone(),
-                continue_on_failure: true,
-            },
+            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_on_failure: true },
             CommandContext::default(),
         )
         .await
         .unwrap();
-    runtime
-        .append_cycle_cases(test_cycle_id.clone(), cases, CommandContext::default())
-        .await
-        .unwrap();
-    let receipt = runtime
-        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
-        .await;
+    runtime.append_cycle_cases(test_cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
+    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
     (owner, runtime, test_cycle_id, receipt.command_id)
 }
 
 /// Accepts every steady inspection until the cycle report is sealed and its
 /// run has settled, so no finalization still holds storage reads.
-async fn settle(
-    runtime: &RuntimeHandle,
-    test_cycle_id: &TestCycleId,
-    request: &CommandId,
-) -> Vec<TestExecutionId> {
+async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &CommandId) -> Vec<TestExecutionId> {
     loop {
         for prompt in runtime.pending_prompt_projection().await {
             let _ = runtime
@@ -287,31 +215,16 @@ async fn settle(
                     prompt.prompt_id.clone(),
                     "submit".to_owned(),
                     "operator".to_owned(),
-                    BTreeMap::from([
-                        ("operator_note".to_owned(), Value::from("steady")),
-                        ("accepted".to_owned(), Value::from(true)),
-                    ]),
+                    BTreeMap::from([("operator_note".to_owned(), Value::from("steady")), ("accepted".to_owned(), Value::from(true))]),
                     true,
                 )
                 .await;
         }
-        let cycle = runtime
-            .cycles()
-            .await
-            .into_iter()
-            .find(|cycle| &cycle.test_cycle_id == test_cycle_id)
-            .expect("the steady cycle exists");
-        let settled = runtime
-            .run_request(request)
-            .await
-            .unwrap()
-            .is_some_and(|receipt| receipt.summary.phase.terminal());
+        let cycle =
+            runtime.cycles().await.into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).expect("the steady cycle exists");
+        let settled = runtime.run_request(request).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal());
         if cycle.saved.is_some() && settled {
-            return cycle
-                .test_executions
-                .into_iter()
-                .map(|execution| execution.test_execution_id)
-                .collect();
+            return cycle.test_executions.into_iter().map(|execution| execution.test_execution_id).collect();
         }
         tokio::time::sleep(POLL).await;
     }

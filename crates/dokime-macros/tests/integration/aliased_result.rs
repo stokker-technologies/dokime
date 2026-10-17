@@ -59,9 +59,7 @@ impl std::error::Error for Error {}
 
 #[sdk::template(id = "aliased.checks.probe", label = "Probe")]
 impl Probe {
-    async fn initialize(
-        _ctx: &mut sdk::execution::InitializationContext<'_>,
-    ) -> Result<(Self, Handles)> {
+    async fn initialize(_ctx: &mut sdk::execution::InitializationContext<'_>) -> Result<(Self, Handles)> {
         let template = Self;
         let shared = Handles;
         Ok((template, shared))

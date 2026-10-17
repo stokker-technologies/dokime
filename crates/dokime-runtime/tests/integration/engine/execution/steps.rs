@@ -26,17 +26,13 @@ use dokime_runtime::harmos::operations::Host;
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::host::StepHandleCancelled;
-use {
-    model::files::wire::FileWatchPolicy,
-    model::files::wire::FileWatchSource,
-    model::files::wire::FileWatchSourcePayload,
-    model::files::wire::LineMarker,
-    model::files::wire::LineMatcher,
-    model::files::wire::LocalWatchSource,
-    dokime_runtime::operations::files::WatchFile,
-};
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
+use {
+    dokime_runtime::operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSource,
+    model::files::wire::FileWatchSourcePayload, model::files::wire::LineMarker, model::files::wire::LineMatcher,
+    model::files::wire::LocalWatchSource,
+};
 
 /* === Constants === */
 const SUITE: &str = "steps.checks";
@@ -65,11 +61,7 @@ struct DeviceLog {
     state: String,
 }
 
-#[dokime_runtime::record(
-    id = "steps.checks.fault",
-    label = "Device Fault",
-    description = "The device logged a fault."
-)]
+#[dokime_runtime::record(id = "steps.checks.fault", label = "Device Fault", description = "The device logged a fault.")]
 #[derive(Clone, Debug)]
 struct Fault {
     #[record(description = "The fault code the device logged.")]
@@ -123,10 +115,7 @@ impl Checks {}
     id = TAIL, label = "Leave a Watch Running",
     parameters = TailParameters, streams = Streams, records = Records)]
 impl LeaveWatch {
-    async fn initialize(
-        _: &TailParameters,
-        _ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(_: &TailParameters, _ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
 
@@ -137,33 +126,21 @@ impl LeaveWatch {
             .host()
             .submit_as::<WatchFile>(WatchFile {
                 execution_id: None,
-                source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                        root: path.clone(),
-                    })),
-                }),
+                source: Some(FileWatchSource { payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })) }),
                 output: "logs".into(),
                 artifact: Some("logs/device.log".into()),
                 policy: FileWatchPolicy::Stream,
                 poll_interval_ms: Some(50),
                 maximum_seconds: None,
                 maximum_bytes: None,
-                matchers: vec![LineMatcher::publishing::<DeviceLog>(
-                    r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)",
-                )],
-                markers: vec![LineMarker::new(
-                    r"FAULT (?P<code>\w+)",
-                    "steps.checks.fault",
-                )],
+                matchers: vec![LineMatcher::publishing::<DeviceLog>(r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)")],
+                markers: vec![LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault")],
             })
             .await?;
         // The device writes once the watch has taken its baseline.
         // TODO(source-hook): a watch handle event that reports its baseline was taken.
         tokio::time::sleep(Duration::from_millis(150)).await;
-        std::fs::OpenOptions::new()
-            .append(true)
-            .open(&path)?
-            .write_all(APPENDED)?;
+        std::fs::OpenOptions::new().append(true).open(&path)?.write_all(APPENDED)?;
         // TODO(source-hook): a watch handle event that reports the lines it captured.
         tokio::time::sleep(Duration::from_millis(150)).await;
         // Left running: the step-end sweep cancels it.
@@ -186,20 +163,12 @@ async fn swept_watch_warning() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("device.log");
     std::fs::write(&path, BEFORE).unwrap();
-    let report = Harness::template(TAIL)
-        .parameter("path", path.to_str().unwrap())
-        .run::<Suites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TAIL).parameter("path", path.to_str().unwrap()).run::<Suites>().await.expect("the run completes");
 
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(
         report.records::<StepHandleCancelled>(),
-        vec![StepHandleCancelled {
-            step: "tail".into(),
-            kind: "watch".into(),
-            name: "logs/device.log".into(),
-        }]
+        vec![StepHandleCancelled { step: "tail".into(), kind: "watch".into(), name: "logs/device.log".into() }]
     );
     let rows = report.samples::<DeviceLog>();
     assert_eq!(rows.len(), 1, "{}", report.diagnostics());

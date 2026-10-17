@@ -57,10 +57,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
         ("transform_computes_rms", rms()),
         (
             "transform_bins_histogram",
-            Transform::Histogram(Histogram {
-                field: "payload.value".into(),
-                edges: vec![-325.0, -162.5, 0.0, 162.5, 325.0],
-            }),
+            Transform::Histogram(Histogram { field: "payload.value".into(), edges: vec![-325.0, -162.5, 0.0, 162.5, 325.0] }),
         ),
         (
             "transform_downsamples_extrema",
@@ -77,9 +74,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
             group.throughput(Throughput::Elements(*rows as u64));
             group.bench_function(BenchmarkId::from_parameter(rows), |bencher| {
                 bencher.iter(|| {
-                    std::hint::black_box(executor.block_on(
-                        fixture.collect(fixture.plan(vec![transform.clone()], RowSlice::default())),
-                    ))
+                    std::hint::black_box(executor.block_on(fixture.collect(fixture.plan(vec![transform.clone()], RowSlice::default()))))
                 });
             });
         }
@@ -94,29 +89,17 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
 fn rms() -> Transform {
     Transform::Aggregate(Aggregate {
         groups: vec![],
-        measures: vec![Measure {
-            field: "payload.value".into(),
-            statistic: harmos::Aggregate::Rms,
-            name: "rms".into(),
-        }],
+        measures: vec![Measure { field: "payload.value".into(), statistic: harmos::Aggregate::Rms, name: "rms".into() }],
     })
 }
 
 /// The fixture's sine samples have the RMS of a 325 V amplitude.
 async fn assert_rms(fixture: &Fixture) {
-    let mut reader = fixture
-        .storage
-        .query(fixture.plan(vec![rms()], RowSlice::default()))
-        .await
-        .unwrap();
+    let mut reader = fixture.storage.query(fixture.plan(vec![rms()], RowSlice::default())).await.unwrap();
     let mut actual = None;
     while let Some(output) = reader.next().await.unwrap() {
         if let QueryOutput::Batch(batch) = output {
-            actual = Some(
-                FieldPath::from("rms")
-                    .value(batch.as_record_batch(), 0)
-                    .unwrap(),
-            );
+            actual = Some(FieldPath::from("rms").value(batch.as_record_batch(), 0).unwrap());
         }
     }
     match actual.unwrap() {

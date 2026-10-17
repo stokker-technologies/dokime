@@ -68,11 +68,8 @@ fn executable_declares_routes() {
 
     assert_eq!(declared.id, "obc-plugin");
     assert_eq!(declared.version.to_string(), "0.1.0");
-    let operations = declared
-        .operations
-        .iter()
-        .map(|operation| operation.id.as_str().to_owned())
-        .collect::<std::collections::BTreeSet<_>>();
+    let operations =
+        declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         operations,
         std::collections::BTreeSet::from(
@@ -98,11 +95,7 @@ fn executable_declares_routes() {
             .map(str::to_owned)
         )
     );
-    let streams = declared
-        .streams
-        .iter()
-        .map(|stream| stream.id.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let streams = declared.streams.iter().map(|stream| stream.id.as_str().to_owned()).collect::<Vec<_>>();
     assert_eq!(
         streams,
         [

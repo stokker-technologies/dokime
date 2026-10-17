@@ -42,11 +42,7 @@ pub(crate) struct ReducedItems<T> {
 
 /* === Public Functions === */
 pub(crate) fn reduce_timestamped_items<T, F, S>(
-    items: Vec<T>,
-    window: &RuntimeWindow,
-    resolution: &RuntimeResolution,
-    timestamp: F,
-    sequence: S,
+    items: Vec<T>, window: &RuntimeWindow, resolution: &RuntimeResolution, timestamp: F, sequence: S,
 ) -> ReducedItems<T>
 where
     T: Clone,
@@ -58,34 +54,23 @@ where
     let high_water = items.iter().filter_map(&sequence).max();
     let returned = apply_resolution(items, resolution);
 
-    ReducedItems {
-        total,
-        returned,
-        high_water,
-    }
+    ReducedItems { total, returned, high_water }
 }
 
 /* === Private Functions === */
-fn apply_window<T, F, S>(
-    items: Vec<T>,
-    window: &RuntimeWindow,
-    timestamp: &F,
-    sequence: &S,
-) -> Vec<T>
+fn apply_window<T, F, S>(items: Vec<T>, window: &RuntimeWindow, timestamp: &F, sequence: &S) -> Vec<T>
 where
     F: Fn(&T) -> &Timestamp,
     S: Fn(&T) -> Option<u64>,
 {
     match window {
         RuntimeWindow::Full => items,
-        RuntimeWindow::Since { cursor } => items
-            .into_iter()
-            .filter(|item| sequence(item).is_none_or(|sequence| sequence > cursor.0))
-            .collect(),
-        RuntimeWindow::TimeRange { start, end } => items
-            .into_iter()
-            .filter(|item| timestamp_in_range(timestamp(item), start, end))
-            .collect(),
+        RuntimeWindow::Since { cursor } => {
+            items.into_iter().filter(|item| sequence(item).is_none_or(|sequence| sequence > cursor.0)).collect()
+        }
+        RuntimeWindow::TimeRange { start, end } => {
+            items.into_iter().filter(|item| timestamp_in_range(timestamp(item), start, end)).collect()
+        }
         RuntimeWindow::Tail { duration } => tail_items(items, *duration, timestamp),
         RuntimeWindow::LastSamples { count } => last_items(items, *count),
     }
@@ -104,23 +89,12 @@ fn timestamp_in_range(timestamp: &Timestamp, start: &Timestamp, end: &Timestamp)
     start.millis_until(timestamp).is_some() && timestamp.millis_until(end).is_some()
 }
 
-fn tail_items<T>(
-    items: Vec<T>,
-    duration: DurationMillis,
-    timestamp: impl Fn(&T) -> &Timestamp,
-) -> Vec<T> {
+fn tail_items<T>(items: Vec<T>, duration: DurationMillis, timestamp: impl Fn(&T) -> &Timestamp) -> Vec<T> {
     let Some(end) = items.last().map(|item| timestamp(item).clone()) else {
         return items;
     };
 
-    items
-        .into_iter()
-        .filter(|item| {
-            timestamp(item)
-                .millis_until(&end)
-                .is_some_and(|elapsed| elapsed.0 <= duration.0)
-        })
-        .collect()
+    items.into_iter().filter(|item| timestamp(item).millis_until(&end).is_some_and(|elapsed| elapsed.0 <= duration.0)).collect()
 }
 
 fn last_items<T>(items: Vec<T>, count: usize) -> Vec<T> {
@@ -128,23 +102,14 @@ fn last_items<T>(items: Vec<T>, count: usize) -> Vec<T> {
         return Vec::new();
     }
 
-    items
-        .into_iter()
-        .rev()
-        .take(count)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect()
+    items.into_iter().rev().take(count).collect::<Vec<_>>().into_iter().rev().collect()
 }
 
 fn downsample<T>(items: Vec<T>, count: usize) -> Vec<T> {
     if items.len() <= count {
         return items;
     }
-    let mut selected = harmos::signal::decimate(items.len(), count)
-        .into_iter()
-        .peekable();
+    let mut selected = harmos::signal::decimate(items.len(), count).into_iter().peekable();
     items
         .into_iter()
         .enumerate()

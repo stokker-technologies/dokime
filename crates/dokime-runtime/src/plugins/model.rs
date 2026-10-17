@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 // Local Imports
 use super::PluginMetadata;
-use dokime_domain::model::time::Timestamp;
 use crate::settings::SettingValues;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -99,12 +99,7 @@ pub enum PluginLastBoot {
 /* === Implementations === */
 impl PluginSettings {
     pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.digest.len() != 64
-            || !self
-                .digest
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
+        if self.digest.len() != 64 || !self.digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
             return Err("digest must be lowercase hexadecimal SHA-256".into());
         }
         Ok(())

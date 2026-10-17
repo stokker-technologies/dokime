@@ -17,12 +17,12 @@
 // Third Party Imports
 
 // Local Imports
+use crate::{RuntimeHandle, exports::cycle::ArtifactContent, runtime::Error, runtime::Result};
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
-use crate::{runtime::Error, runtime::Result, RuntimeHandle, exports::cycle::ArtifactContent};
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::HealthItemId;
-use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 
@@ -38,15 +38,11 @@ use dokime_domain::model::execution::RecordScope;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn add_operator_note(
-        &self,
-        mut request: crate::evidence_runtime::OperatorNoteRequest,
-    ) -> Result<OperatorNote> {
+    pub async fn add_operator_note(&self, mut request: crate::evidence_runtime::OperatorNoteRequest) -> Result<OperatorNote> {
         let runtime = self.clone();
         tokio::spawn(async move {
             let _admission = runtime.evidence_admission.lock().await;
-            request.scope =
-                Some(runtime.resolve_evidence_scope(&request.scope.clone().unwrap_or_default())?);
+            request.scope = Some(runtime.resolve_evidence_scope(&request.scope.clone().unwrap_or_default())?);
             let scope = request.scope.as_ref().expect("resolved note scope");
             let guards = runtime.execution_storage.admit_annotations(scope).await?;
             let note = runtime.add_operator_note_inner(request).await?;
@@ -58,16 +54,10 @@ impl RuntimeHandle {
         .map_err(|error| Error::Operation(error.to_string()))?
     }
 
-    async fn add_operator_note_inner(
-        &self,
-        request: crate::evidence_runtime::OperatorNoteRequest,
-    ) -> Result<OperatorNote> {
+    async fn add_operator_note_inner(&self, request: crate::evidence_runtime::OperatorNoteRequest) -> Result<OperatorNote> {
         let note = OperatorNote {
             note_id: crate::model::identity::new_id::<dokime_domain::model::identity::NoteId>(),
-            scope: self
-                .state_read()
-                .canonical_note_scope(&request.scope.unwrap_or_default())
-                .map_err(Error::Operation)?,
+            scope: self.state_read().canonical_note_scope(&request.scope.unwrap_or_default()).map_err(Error::Operation)?,
             author: request.author,
             message: request.message,
             created_at: crate::model::time::now_utc(),
@@ -78,11 +68,7 @@ impl RuntimeHandle {
         Ok(note)
     }
 
-    pub async fn read_artifact_content(
-        &self,
-        artifact_id: &ArtifactId,
-        max_bytes: usize,
-    ) -> Result<Option<ArtifactContent>> {
+    pub async fn read_artifact_content(&self, artifact_id: &ArtifactId, max_bytes: usize) -> Result<Option<ArtifactContent>> {
         if let Some(mut reader) = self.open_artifact_stream(artifact_id).await? {
             let record = reader.record().clone();
             let bytes = collect_artifact(&mut reader, max_bytes).await?;
@@ -92,11 +78,7 @@ impl RuntimeHandle {
     }
 
     pub async fn add_health_item(
-        &self,
-        scope: RecordScope,
-        severity: HealthSeverity,
-        message: String,
-        detail: Option<String>,
+        &self, scope: RecordScope, severity: HealthSeverity, message: String, detail: Option<String>,
     ) -> Result<()> {
         self.record_health_item(dokime_domain::model::execution::health::HealthItem {
             scope,
@@ -113,15 +95,8 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn collect_artifact(
-    reader: &mut crate::runtime::ArtifactReader,
-    max_bytes: usize,
-) -> Result<Vec<u8>> {
-    let too_large = || {
-        Error::Operation(format!(
-            "artifact exceeds the {max_bytes}-byte materialization limit; use streaming access"
-        ))
-    };
+async fn collect_artifact(reader: &mut crate::runtime::ArtifactReader, max_bytes: usize) -> Result<Vec<u8>> {
+    let too_large = || Error::Operation(format!("artifact exceeds the {max_bytes}-byte materialization limit; use streaming access"));
     if reader.record().size_bytes > max_bytes as u64 {
         return Err(too_large());
     }

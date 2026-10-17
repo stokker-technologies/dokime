@@ -32,9 +32,7 @@ _MAX_RANK = 100
 
 # === Types === #
 
-type Member = Literal[
-    "Count", "Sum", "Mean", "Median", "Min", "Max", "Rms", "Std", "Percentile"
-]
+type Member = Literal["Count", "Sum", "Mean", "Median", "Min", "Max", "Rms", "Std", "Percentile"]
 
 # === Classes === #
 

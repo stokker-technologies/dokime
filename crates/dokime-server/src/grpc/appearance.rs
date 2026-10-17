@@ -62,55 +62,30 @@ impl Operation for Read {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut wire::GetAppearance,
-        _: &mut (),
-    ) -> Result<
-        harmos::operations::Response<dokime_domain::model::appearance::wire::AppearanceSnapshot>,
-        Status,
-    > {
+        &mut self, _: Self::Context<'a>, _: &mut wire::GetAppearance, _: &mut (),
+    ) -> Result<harmos::operations::Response<dokime_domain::model::appearance::wire::AppearanceSnapshot>, Status> {
         let captured = self
             .resources
             .runtime
             .capture_appearance(source_budget(self.resources.max_message_bytes))
-            .map_err(|_| {
-                failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
-            })?;
+            .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         let logo = match captured.frame.logo.as_ref() {
             Some(logo) => {
-                let source = captured.logo.ok_or_else(|| {
-                    failure(
-                        dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing,
-                    )
-                })?;
-                let asset = assets::capture(
-                    source,
-                    logo.plugin_id.to_string(),
-                    logo.asset_id.to_string(),
-                )
-                .await?;
-                Some(dokime_domain::model::appearance::wire::AppearanceLogo {
-                    asset: Some(asset.metadata),
-                    alt: logo.alt.clone(),
-                })
+                let source =
+                    captured.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+                let asset = assets::capture(source, logo.plugin_id.to_string(), logo.asset_id.to_string()).await?;
+                Some(dokime_domain::model::appearance::wire::AppearanceLogo { asset: Some(asset.metadata), alt: logo.alt.clone() })
             }
             None => None,
         };
-        let frame = convert::appearance(captured.frame, logo).map_err(|_| {
-            failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
-        })?;
+        let frame = convert::appearance(captured.frame, logo)
+            .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         if harmos::Protobuf::encoded_len(&frame) > self.resources.max_message_bytes {
-            return Err(failure(
-                dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge,
-            ));
+            return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
         }
         Ok((frame).into())
     }
@@ -122,56 +97,32 @@ impl Operation for Download {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::content::wire::AppearanceAssetFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut content::DownloadAppearanceAsset,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut content::DownloadAppearanceAsset, output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
-        assets::download(
-            &self.resources.runtime,
-            std::mem::take(request),
-            self.resources.max_message_bytes,
-            output,
-        )
-        .await?;
+        assets::download(&self.resources.runtime, std::mem::take(request), self.resources.max_message_bytes, output).await?;
         Ok(().into())
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(
-    runtime: &RuntimeHandle,
-    max_message_bytes: usize,
-) -> Result<(), super::Error> {
-    runtime
-        .operations()
-        .register_wire_operations::<Operations, Resources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            Arc::new(Resources {
-                runtime: runtime.clone(),
-                max_message_bytes,
-            }),
-        )?;
+pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operations::<Operations, Resources>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+    )?;
     Ok(())
 }
 
 pub(super) fn historical(
     frame: dokime_runtime::domains::installed_plugins::RuntimeAppearanceFrame,
 ) -> Result<dokime_domain::model::appearance::wire::AppearanceSnapshot, Status> {
-    convert::historical_memory(&frame).map_err(|_| {
-        failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
-    })?;
-    convert::appearance(frame, None).map_err(|_| {
-        failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge)
-    })
+    convert::historical_memory(&frame).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+    convert::appearance(frame, None).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
 }
 
 /* === Private Functions === */
@@ -182,22 +133,10 @@ fn source_budget(max_message_bytes: usize) -> usize {
 fn failure(kind: dokime_domain::model::appearance::wire::AppearanceFailureKind) -> Status {
     use dokime_domain::model::appearance::wire::AppearanceFailureKind::*;
     let (code, message) = match kind {
-        AssetMissing => (
-            tonic::Code::NotFound,
-            "appearance asset is unavailable; refresh appearance",
-        ),
-        AssetChanged => (
-            tonic::Code::FailedPrecondition,
-            "appearance asset changed; refresh appearance",
-        ),
-        TooLarge => (
-            tonic::Code::ResourceExhausted,
-            "appearance exceeds its size budget",
-        ),
-        InvalidReference => (
-            tonic::Code::InvalidArgument,
-            "invalid appearance asset reference",
-        ),
+        AssetMissing => (tonic::Code::NotFound, "appearance asset is unavailable; refresh appearance"),
+        AssetChanged => (tonic::Code::FailedPrecondition, "appearance asset changed; refresh appearance"),
+        TooLarge => (tonic::Code::ResourceExhausted, "appearance exceeds its size budget"),
+        InvalidReference => (tonic::Code::InvalidArgument, "invalid appearance asset reference"),
         _ => (tonic::Code::Unavailable, "appearance asset cannot be read"),
     };
     let envelope = tonic_types::Status {
@@ -205,9 +144,7 @@ fn failure(kind: dokime_domain::model::appearance::wire::AppearanceFailureKind) 
         message: message.into(),
         details: vec![prost_types::Any {
             type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(),
-            value: harmos::Protobuf::encode_to_vec(
-                &dokime_domain::model::appearance::wire::AppearanceFailure { kind },
-            ),
+            value: harmos::Protobuf::encode_to_vec(&dokime_domain::model::appearance::wire::AppearanceFailure { kind }),
         }],
     };
     Status::with_details(code, message, envelope.encode_to_vec().into())

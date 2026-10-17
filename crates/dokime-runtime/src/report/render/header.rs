@@ -24,15 +24,15 @@ use crate::{
     report::{input::CycleReportInput, value::Value},
     runtime::storage::cycle::CycleSnapshot,
 };
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::result::CycleStatus;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::ResultStatus;
-use dokime_domain::model::execution::result::ResultSummary;
 
 /* === Constants === */
 
@@ -66,10 +66,7 @@ pub(in crate::report) struct Cycle<'a> {
 
 /* === Implementations === */
 impl<'a> Header<'a> {
-    pub(in crate::report) fn cycle(
-        snapshot: &'a CycleSnapshot,
-        documents: &'a BTreeMap<DocumentId, Capture>,
-    ) -> Self {
+    pub(in crate::report) fn cycle(snapshot: &'a CycleSnapshot, documents: &'a BTreeMap<DocumentId, Capture>) -> Self {
         let source = snapshot.source();
         Self {
             session_id: snapshot.session_id(),
@@ -112,12 +109,7 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
 /* === Private Functions === */
 // A Captured Report States Its Cycle By Its Members: Running, Else Its Result.
 fn captured_status(input: &CycleReportInput) -> CycleStatus {
-    if input
-        .cycle
-        .test_executions
-        .iter()
-        .any(|execution| matches!(execution.status, ExecutionStatus::Running))
-    {
+    if input.cycle.test_executions.iter().any(|execution| matches!(execution.status, ExecutionStatus::Running)) {
         return CycleStatus::Running;
     }
     match input.cycle.result.as_ref().map(|result| &result.status) {

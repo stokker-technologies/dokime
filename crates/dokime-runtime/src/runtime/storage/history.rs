@@ -21,9 +21,9 @@ use harmos::storage::{ObjectRead, ObjectRevision, query::ObjectVersions};
 // Local Imports
 use super::execution::check_seal_position;
 use crate::runtime::Result;
-use dokime_domain::model::execution::result::TestExecution;
 use crate::storage::Manager;
 use crate::storage::objects::execution::Execution;
+use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
 
@@ -58,11 +58,7 @@ pub(crate) async fn executions(storage: &Manager) -> Result<Vec<ObjectRevision<T
         if let Some(seal) = &execution.saved {
             check_seal_position(&row.position, &seal.dependencies_saved)?;
         }
-        selected.push(ObjectRevision {
-            value: execution,
-            position: row.position,
-            version: row.version,
-        });
+        selected.push(ObjectRevision { value: execution, position: row.position, version: row.version });
     }
     Ok(selected)
 }

@@ -25,12 +25,8 @@ use harmos::{
 
 // Local Imports
 use {
-    dokime_runtime::Identifier,
-    dokime_runtime::TestCycleId,
-    dokime_runtime::Timestamp,
-    dokime_runtime::storage::Backend,
-    dokime_runtime::storage::Manager,
-    dokime_runtime::storage::reports,
+    dokime_runtime::Identifier, dokime_runtime::TestCycleId, dokime_runtime::Timestamp, dokime_runtime::storage::Backend,
+    dokime_runtime::storage::Manager, dokime_runtime::storage::reports,
 };
 
 /* === Constants === */
@@ -70,18 +66,8 @@ async fn report_publication_reopens() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let storage = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        super::sqlite::storage::storage_settings(),
-    )
-    .unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
     let owner = TestCycleId::from_seed("report-owner");
     let other = TestCycleId::from_seed("another-owner");
     let evidence = storage.cursor_saved();
@@ -95,9 +81,7 @@ async fn report_publication_reopens() {
         })
         .await
         .unwrap();
-    file.write_all(b"<html>verified report</html>")
-        .await
-        .unwrap();
+    file.write_all(b"<html>verified report</html>").await.unwrap();
     let file = file.finish().await.unwrap();
     let saved = storage.flush_until(&file.position).await.unwrap();
     let at = Timestamp::new("2026-10-09T09:00:00Z");
@@ -105,11 +89,7 @@ async fn report_publication_reopens() {
         saved: None,
         test_cycle_id: owner.clone(),
         session_id: None,
-        metadata: dokime_runtime::Metadata::new(
-            Identifier::new("report.cycle").unwrap(),
-            "Report Cycle",
-            None,
-        ),
+        metadata: dokime_runtime::Metadata::new(Identifier::new("report.cycle").unwrap(), "Report Cycle", None),
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Completed,
         created_at: at.clone(),
         started_at: None,
@@ -147,18 +127,8 @@ async fn report_publication_reopens() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let storage = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        super::sqlite::storage::storage_settings(),
-    )
-    .unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
     let published = |owner, report_id| {
         let storage = storage.clone();
         async move {
@@ -185,10 +155,6 @@ async fn report_publication_reopens() {
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
         assert_eq!(page[0].item, file.metadata.id);
     }
-    assert!(
-        published(reports::Owner::Cycle(&other), None)
-            .await
-            .is_empty()
-    );
+    assert!(published(reports::Owner::Cycle(&other), None).await.is_empty());
     runtime.stop().await.unwrap();
 }

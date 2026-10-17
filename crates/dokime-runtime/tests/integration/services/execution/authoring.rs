@@ -15,14 +15,12 @@
 // Standard Library Imports
 use std::{collections::BTreeMap, time::Duration};
 // Third Party Imports
-use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 use dokime_runtime::definition::ParameterSource;
+use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 use tempfile::tempdir;
 // Local Imports
 use dokime_runtime::domains::evidence::RecordSelection;
-use dokime_runtime::domains::execution::authoring::{
-    RuntimeResource, SidecarStepContext, StepContextError,
-};
+use dokime_runtime::domains::execution::authoring::{RuntimeResource, SidecarStepContext, StepContextError};
 
 /* === Constants === */
 
@@ -62,43 +60,18 @@ async fn resource_store_handle() {
     .await
     .unwrap();
     let runtime = runtime_owner.handle();
-    let mut ctx = SidecarStepContext::with_source(
-        runtime.clone(),
-        RecordScope::default(),
-        "example.tracking",
-    );
+    let mut ctx = SidecarStepContext::with_source(runtime.clone(), RecordScope::default(), "example.tracking");
 
-    ctx.resources()
-        .set_async(RuntimeResource::new(
-            "tooling.session",
-            "tooling",
-            "Tooling Session",
-            42_i64,
-        ))
-        .await
-        .unwrap();
+    ctx.resources().set_async(RuntimeResource::new("tooling.session", "tooling", "Tooling Session", 42_i64)).await.unwrap();
     assert_eq!(ctx.resources().get::<i64>("tooling.session"), Some(&42));
 
-    ctx.resources()
-        .mark_opened_async("tooling.session", BTreeMap::new())
-        .await
-        .unwrap();
-    let removed = ctx
-        .resources()
-        .remove_async::<i64>("tooling.session", BTreeMap::new())
-        .await
-        .unwrap();
+    ctx.resources().mark_opened_async("tooling.session", BTreeMap::new()).await.unwrap();
+    let removed = ctx.resources().remove_async::<i64>("tooling.session", BTreeMap::new()).await.unwrap();
 
     assert_eq!(removed, Some(42));
     assert!(!ctx.resources().contains("tooling.session"));
-    let records = runtime
-        .selected_records(RecordSelection::default())
-        .await
-        .unwrap();
-    let record_types = records
-        .iter()
-        .map(|record| record.record_type.as_str())
-        .collect::<Vec<_>>();
+    let records = runtime.selected_records(RecordSelection::default()).await.unwrap();
+    let record_types = records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>();
 
     assert!(record_types.contains(&"resource.registered"));
     assert!(record_types.contains(&"resource.opened"));
@@ -123,20 +96,8 @@ async fn resource_store_removal() {
     let runtime = runtime_owner.handle();
     let mut ctx = SidecarStepContext::new(runtime, RecordScope::default());
 
-    ctx.resources()
-        .set_async(RuntimeResource::new(
-            "resource.answer",
-            "fixture",
-            "Answer",
-            42_i64,
-        ))
-        .await
-        .unwrap();
-    let error = ctx
-        .resources()
-        .remove_async::<String>("resource.answer", BTreeMap::new())
-        .await
-        .unwrap_err();
+    ctx.resources().set_async(RuntimeResource::new("resource.answer", "fixture", "Answer", 42_i64)).await.unwrap();
+    let error = ctx.resources().remove_async::<String>("resource.answer", BTreeMap::new()).await.unwrap_err();
 
     assert!(matches!(
         error,
@@ -155,10 +116,8 @@ async fn resource_store_removal() {
 async fn wait_completes_duration() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = crate::service_support::budgets::runtime_config(
-            root.path(),
-            Metadata::new(identifier("runtime.wait"), "Runtime Wait", None),
-        );
+        let runtime_config =
+            crate::service_support::budgets::runtime_config(root.path(), Metadata::new(identifier("runtime.wait"), "Runtime Wait", None));
         dokime_runtime::Runtime::start(runtime_config)
     }
     .await
@@ -176,10 +135,8 @@ async fn wait_completes_duration() {
 async fn wait_until_shutdown() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = crate::service_support::budgets::runtime_config(
-            root.path(),
-            Metadata::new(identifier("runtime.wait"), "Runtime Wait", None),
-        );
+        let runtime_config =
+            crate::service_support::budgets::runtime_config(root.path(), Metadata::new(identifier("runtime.wait"), "Runtime Wait", None));
         dokime_runtime::Runtime::start(runtime_config)
     }
     .await
@@ -198,10 +155,8 @@ async fn wait_until_shutdown() {
 async fn file_helpers_scope() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = crate::service_support::budgets::runtime_config(
-            root.path(),
-            Metadata::new(identifier("runtime.files"), "Runtime Files", None),
-        );
+        let runtime_config =
+            crate::service_support::budgets::runtime_config(root.path(), Metadata::new(identifier("runtime.files"), "Runtime Files", None));
         dokime_runtime::Runtime::start(runtime_config)
     }
     .await
@@ -211,12 +166,7 @@ async fn file_helpers_scope() {
 
     let error = ctx.target_async("logs/run.log").await.unwrap_err();
 
-    assert!(matches!(
-        error,
-        StepContextError::MissingExecutionScope {
-            accessor: "execution files"
-        }
-    ));
+    assert!(matches!(error, StepContextError::MissingExecutionScope { accessor: "execution files" }));
 
     drop(ctx);
     runtime_owner.shutdown().await.unwrap();
@@ -237,16 +187,8 @@ async fn param_helpers_values() {
     let runtime = runtime_owner.handle();
     let ctx = SidecarStepContext::new(runtime.clone(), RecordScope::default());
 
-    assert!(
-        ctx.set_runtime_parameter_async("fixture.result", "passed")
-            .await
-            .unwrap()
-    );
-    assert!(
-        !ctx.set_runtime_parameter_async("fixture.result", "passed")
-            .await
-            .unwrap()
-    );
+    assert!(ctx.set_runtime_parameter_async("fixture.result", "passed").await.unwrap());
+    assert!(!ctx.set_runtime_parameter_async("fixture.result", "passed").await.unwrap());
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();
     assert!(state.run_parameters.contains_key("fixture.result"));
@@ -264,11 +206,7 @@ async fn traceability_param_group() {
     let mut runtime_owner = {
         let runtime_config = crate::service_support::budgets::runtime_config(
             root.path(),
-            Metadata::new(
-                identifier("runtime.traceability"),
-                "Runtime Traceability",
-                None,
-            ),
+            Metadata::new(identifier("runtime.traceability"), "Runtime Traceability", None),
         );
         dokime_runtime::Runtime::start(runtime_config)
     }
@@ -277,20 +215,13 @@ async fn traceability_param_group() {
     let runtime = runtime_owner.handle();
     let ctx = SidecarStepContext::new(runtime.clone(), RecordScope::default());
 
-    assert!(
-        ctx.set_traceability_parameter_async("fixture.serial_number", "SN-123")
-            .await
-            .unwrap()
-    );
+    assert!(ctx.set_traceability_parameter_async("fixture.serial_number", "SN-123").await.unwrap());
 
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();
     let parameter = state.run_parameters.get("fixture.serial_number").unwrap();
     assert_eq!(parameter.source, ParameterSource::Traceability);
-    assert_eq!(
-        parameter.group_id.as_ref().map(Identifier::as_str),
-        Some("traceability.runtime")
-    );
+    assert_eq!(parameter.group_id.as_ref().map(Identifier::as_str), Some("traceability.runtime"));
     assert_eq!(parameter.value, Value::from("SN-123"));
 
     drop(ctx);

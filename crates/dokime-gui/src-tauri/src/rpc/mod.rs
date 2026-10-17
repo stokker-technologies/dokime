@@ -15,8 +15,8 @@ mod calls;
 pub use crate::Error as RpcError;
 pub use artifact_upload::RecordingHandle;
 pub use calls::{
-    CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE,
-    INPUT_HEADER, PATH_HEADER, STREAM_CREDIT, STREAM_HEADER,
+    CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, INPUT_HEADER, PATH_HEADER, STREAM_CREDIT,
+    STREAM_HEADER,
 };
 
 /* === Imports === */
@@ -37,8 +37,7 @@ use artifact_upload::{ArtifactUploads, RecordingSinks};
 use calls::Streams;
 
 /* === Constants === */
-pub const FILE_DESCRIPTOR_SET: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
+pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 pub const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 /// Every Raw-Body Command This Module Answers; The Shell Routes Them Here.
 pub const COMMANDS: &[&str] = &[
@@ -122,15 +121,10 @@ impl From<dokime_client::Error> for RpcError {
 
 impl Context {
     fn client(&self) -> dokime_client::Client {
-        self.lease.client().with_frame_limit(
-            std::num::NonZeroUsize::new(MAX_FRAME_BYTES).expect("positive desktop frame bound"),
-        )
+        self.lease.client().with_frame_limit(std::num::NonZeroUsize::new(MAX_FRAME_BYTES).expect("positive desktop frame bound"))
     }
 
-    async fn execute<T, E: Into<RpcError>>(
-        &self,
-        future: impl Future<Output = Result<T, E>>,
-    ) -> Result<T, RpcError> {
+    async fn execute<T, E: Into<RpcError>>(&self, future: impl Future<Output = Result<T, E>>) -> Result<T, RpcError> {
         let result: Result<T, RpcError> = tokio::select! {
             biased;
             _ = self.owner_cancel.cancelled() => Err(RpcError::Cancelled),
@@ -180,12 +174,7 @@ impl Context {
 
 impl Bridge {
     pub fn cancel_owner(&self, owner: &str) {
-        if let Some(token) = self
-            .owners
-            .lock()
-            .expect("RPC owners poisoned")
-            .remove(owner)
-        {
+        if let Some(token) = self.owners.lock().expect("RPC owners poisoned").remove(owner) {
             token.cancel();
         }
         self.streams.cancel_owner(owner);
@@ -193,54 +182,29 @@ impl Bridge {
         self.recordings.cancel_owner(owner);
     }
 
-    pub async fn take_recording(
-        &self,
-        owner: &str,
-        generation: u64,
-    ) -> Result<artifact_upload::RecordingHandle, RpcError> {
+    pub async fn take_recording(&self, owner: &str, generation: u64) -> Result<artifact_upload::RecordingHandle, RpcError> {
         self.recordings.take(owner, generation).await
     }
 
     /// Binds One Call To The Main Window's Current Generation.
     fn context(
-        &self,
-        session: &ConnectionSession,
-        owner: &str,
-        generation: u64,
-        permit: Option<OwnedSemaphorePermit>,
+        &self, session: &ConnectionSession, owner: &str, generation: u64, permit: Option<OwnedSemaphorePermit>,
     ) -> Result<Context, RpcError> {
         if owner != "main" {
             return Err(ConnectionError::PermissionDenied.into());
         }
         let lease = session.lease(&generation.to_string())?;
-        let owner_cancel = self
-            .owners
-            .lock()
-            .expect("RPC owners poisoned")
-            .entry(owner.into())
-            .or_default()
-            .clone();
-        Ok(Context {
-            generation,
-            owner: owner.into(),
-            owner_cancel,
-            lease,
-            _permit: permit,
-        })
+        let owner_cancel = self.owners.lock().expect("RPC owners poisoned").entry(owner.into()).or_default().clone();
+        Ok(Context { generation, owner: owner.into(), owner_cancel, lease, _permit: permit })
     }
 
     /// Takes A Permit Without Waiting: An Exhausted Budget Answers `Busy`.
     fn admit(&self, budget: &Arc<Semaphore>) -> Result<OwnedSemaphorePermit, RpcError> {
-        Arc::clone(budget)
-            .try_acquire_owned()
-            .map_err(|_| RpcError::Busy)
+        Arc::clone(budget).try_acquire_owned().map_err(|_| RpcError::Busy)
     }
 
     fn prepare<M: Protobuf + MemorySize>(
-        &self,
-        session: &ConnectionSession,
-        owner: &str,
-        body: &tauri::ipc::InvokeBody,
+        &self, session: &ConnectionSession, owner: &str, body: &tauri::ipc::InvokeBody,
     ) -> Result<(Context, M), RpcError> {
         let (generation, payload) = request(body)?;
         let permit = self.admit(self.streams.budget())?;
@@ -251,8 +215,7 @@ impl Bridge {
 }
 
 /* === Public Functions === */
-pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static
-{
+pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         calls::rpc,
         calls::rpc_stream_open,
@@ -275,11 +238,7 @@ fn rpc_error(status: tonic::Status) -> RpcError {
     if status.message().len() + status.details().len() > MAX_FRAME_BYTES {
         return RpcError::LimitExceeded;
     }
-    RpcError::Grpc {
-        code: status.code() as i32,
-        message: status.message().into(),
-        details: status.details().to_vec(),
-    }
+    RpcError::Grpc { code: status.code() as i32, message: status.message().into(), details: status.details().to_vec() }
 }
 
 /// Splits A Fenced Request Into Its Connection Generation And Payload.
@@ -304,20 +263,12 @@ fn request(body: &tauri::ipc::InvokeBody) -> Result<(u64, &[u8]), RpcError> {
 }
 
 fn read_u64(bytes: &[u8]) -> Result<u64, RpcError> {
-    Ok(u64::from_le_bytes(
-        bytes
-            .get(..8)
-            .ok_or(RpcError::InvalidRequest)?
-            .try_into()
-            .map_err(|_| RpcError::InvalidRequest)?,
-    ))
+    Ok(u64::from_le_bytes(bytes.get(..8).ok_or(RpcError::InvalidRequest)?.try_into().map_err(|_| RpcError::InvalidRequest)?))
 }
 
 /// Native Transfer Input Is Bounded Before Any Message Allocation.
 fn decode<M: Protobuf + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
-    if bytes.len() > MAX_FRAME_BYTES
-        || M::decoding_memory(bytes).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8
-    {
+    if bytes.len() > MAX_FRAME_BYTES || M::decoding_memory(bytes).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8 {
         return Err(RpcError::LimitExceeded);
     }
     M::decode(bytes).map_err(|_| RpcError::InvalidRequest)

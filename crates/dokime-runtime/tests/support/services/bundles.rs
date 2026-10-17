@@ -34,13 +34,10 @@ use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 
 /* === Public Functions === */
 pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
-    let identity = Identity {
-        name: package.into(),
-        version: version.parse().unwrap(),
-        description: "A fixture.".into(),
-        package: Default::default(),
-    };
-    let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
+    let identity =
+        Identity { name: package.into(), version: version.parse().unwrap(), description: "A fixture.".into(), package: Default::default() };
+    let declaration =
+        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
@@ -48,23 +45,14 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
         restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(
-            harmos::operations::lifecycle::Action::Initialize,
-            policy,
-        )
-        .unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(
-            harmos::operations::lifecycle::Action::Shutdown,
-            policy,
-        )
-        .unwrap(),
+        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
-    let contracts = serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
+    let contracts =
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
-    let publications =
-        serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
-    let observers =
-        serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
+    let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
+    let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
         prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()

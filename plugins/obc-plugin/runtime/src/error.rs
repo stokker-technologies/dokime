@@ -36,9 +36,7 @@ pub enum Error {
     Stopped,
     #[error(transparent)]
     StateManager(#[from] harmos::Error),
-    #[error(
-        "supply requires 0..300 V RMS, positive load/current limit, 1..1000 Hz and phase within (-90,90) degrees"
-    )]
+    #[error("supply requires 0..300 V RMS, positive load/current limit, 1..1000 Hz and phase within (-90,90) degrees")]
     InvalidSupply,
     #[error("clear the latched fault before starting")]
     FaultLatched,

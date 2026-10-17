@@ -75,12 +75,8 @@ pub enum InstalledPluginPhase {
 /* === Implementations === */
 impl InstalledPluginErrorRecord {
     pub fn new(
-        plugin_id: Identifier,
-        contribution_id: Option<Identifier>,
-        phase: InstalledPluginPhase,
-        level: DebugLevel,
-        message: impl Into<String>,
-        recorded_at: Timestamp,
+        plugin_id: Identifier, contribution_id: Option<Identifier>, phase: InstalledPluginPhase, level: DebugLevel,
+        message: impl Into<String>, recorded_at: Timestamp,
     ) -> Self {
         Self {
             plugin_id,
@@ -114,9 +110,7 @@ impl InstalledPluginErrorRecord {
     pub fn with_scope(mut self, session_id: SessionId, scope: Option<RecordScope>) -> Self {
         self.session_id = Some(session_id);
         self.test_cycle_id = scope.as_ref().and_then(|scope| scope.test_cycle_id.clone());
-        self.test_execution_id = scope
-            .as_ref()
-            .and_then(|scope| scope.test_execution_id.clone());
+        self.test_execution_id = scope.as_ref().and_then(|scope| scope.test_execution_id.clone());
         self.scope = scope;
         self
     }

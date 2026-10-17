@@ -24,11 +24,8 @@ use harmos::state::{Records, Transaction};
 // Local Imports
 use dokime_domain::model;
 use {
-    model::records::product::ProductCalibrationDetails,
-    model::records::product::ProductCalibrationKind,
-    model::records::product::ProductCalibrationPhase,
-    dokime_runtime::state::RuntimeState,
-    dokime_runtime::transactions::PublishRecord,
+    dokime_runtime::state::RuntimeState, dokime_runtime::transactions::PublishRecord, model::records::product::ProductCalibrationDetails,
+    model::records::product::ProductCalibrationKind, model::records::product::ProductCalibrationPhase,
 };
 
 /* === Constants === */
@@ -55,11 +52,7 @@ pub fn benchmark(criterion: &mut Criterion) {
     for count in [500_u64, 1_000, 2_000] {
         group.throughput(Throughput::Elements(count));
         group.bench_function(BenchmarkId::from_parameter(count), |bencher| {
-            bencher.iter_batched(
-                || prepared(count),
-                |input| black_box(fold(input)),
-                BatchSize::LargeInput,
-            );
+            bencher.iter_batched(|| prepared(count), |input| black_box(fold(input)), BatchSize::LargeInput);
         });
     }
     group.finish();
@@ -72,13 +65,9 @@ fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
     let transactions = (0..count)
         .map(|_| {
             PublishRecord::host(
-                ProductCalibrationDetails::new(
-                    "benchmark-charger",
-                    ProductCalibrationKind::Field,
-                    ProductCalibrationPhase::Completed,
-                )
-                .into_draft("benchmark.charger")
-                .into(),
+                ProductCalibrationDetails::new("benchmark-charger", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                    .into_draft("benchmark.charger")
+                    .into(),
                 dokime_runtime::model::time::now_utc(),
             )
         })

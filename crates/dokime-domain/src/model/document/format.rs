@@ -36,9 +36,7 @@ use crate::model::values::ValueFormat;
 
 /* === Public Functions === */
 pub fn normal() -> ValueFormat {
-    ValueFormat::Normal {
-        max_fraction_digits: None,
-    }
+    ValueFormat::Normal { max_fraction_digits: None }
 }
 
 pub fn fixed(decimals: u8) -> ValueFormat {
@@ -46,27 +44,19 @@ pub fn fixed(decimals: u8) -> ValueFormat {
 }
 
 pub fn engineering() -> ValueFormat {
-    ValueFormat::Engineering {
-        significant_digits: 3,
-    }
+    ValueFormat::Engineering { significant_digits: 3 }
 }
 
 pub fn clock(pattern: impl Into<String>) -> ValueFormat {
-    ValueFormat::AbsoluteTime {
-        pattern: pattern.into(),
-    }
+    ValueFormat::AbsoluteTime { pattern: pattern.into() }
 }
 
 pub fn elapsed_seconds() -> ValueFormat {
-    ValueFormat::ElapsedSinceRun {
-        unit: ElapsedUnit::Seconds,
-    }
+    ValueFormat::ElapsedSinceRun { unit: ElapsedUnit::Seconds }
 }
 
 pub fn elapsed_ms() -> ValueFormat {
-    ValueFormat::ElapsedSinceRun {
-        unit: ElapsedUnit::Milliseconds,
-    }
+    ValueFormat::ElapsedSinceRun { unit: ElapsedUnit::Milliseconds }
 }
 
 /* === Private Functions === */

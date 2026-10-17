@@ -22,11 +22,9 @@ use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 // Local Imports
-use dokime_domain::model::identity::PromptId;
 use crate::prompts::PromptResponse;
-use crate::transport::{
-    ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome,
-};
+use crate::transport::{ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome};
+use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
 pub(crate) const MAX_BUFFERED_FRAMES: usize = 1024;
@@ -124,26 +122,19 @@ pub(crate) enum LeaseOutcome {
 
 /* === Implementations === */
 impl ExecutionState {
-    pub(crate) fn local_sample(
-        &mut self,
-        mut sample: crate::telemetry::TelemetrySample,
-    ) -> Result<(), String> {
+    pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
         if self.local_samples.len() >= MAX_LOCAL_SAMPLES {
-            return Err(
-                "local sample buffer is full; consume local evidence while executing".into(),
-            );
+            return Err("local sample buffer is full; consume local evidence while executing".into());
         }
         if self.local_inputs {
             sample.scope = Some(self.local_scope.clone());
             sample.received_at = sample.timestamp.clone();
             if !sample.values.contains_key("timestamp") {
-                let timestamp = sample.timestamp.unix_millis().ok_or_else(|| {
-                    "local sample timestamp is not an RFC 3339 instant at or after the Unix epoch".to_owned()
-                })?;
-                sample.values.insert(
-                    "timestamp".to_owned(),
-                    dokime_domain::model::values::Value::Number(timestamp as f64 / 1_000.0),
-                );
+                let timestamp = sample
+                    .timestamp
+                    .unix_millis()
+                    .ok_or_else(|| "local sample timestamp is not an RFC 3339 instant at or after the Unix epoch".to_owned())?;
+                sample.values.insert("timestamp".to_owned(), dokime_domain::model::values::Value::Number(timestamp as f64 / 1_000.0));
             }
             if !self.receive(sample.clone())? {
                 return Err("local sample evidence is closed or duplicated".into());
@@ -161,12 +152,8 @@ impl ExecutionState {
         Self {
             local_inputs: false,
             local_scope: dokime_domain::model::execution::RecordScope {
-                test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(request.test_cycle_id.clone())
-                    .ok(),
-                test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
-                    request.test_execution_id.clone(),
-                )
-                .ok(),
+                test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(request.test_cycle_id.clone()).ok(),
+                test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(request.test_execution_id.clone()).ok(),
                 origin: dokime_domain::model::execution::EvidenceOrigin::Initialization,
                 ..Default::default()
             },
@@ -207,34 +194,22 @@ impl ExecutionState {
         !self.terminal && !self.samples_closed
     }
 
-    pub(crate) fn receive(
-        &mut self,
-        sample: crate::telemetry::TelemetrySample,
-    ) -> Result<bool, String> {
+    pub(crate) fn receive(&mut self, sample: crate::telemetry::TelemetrySample) -> Result<bool, String> {
         self.stage(sample)
     }
 
-    pub(crate) fn validate_sample(
-        &self,
-        sample: &crate::telemetry::TelemetrySample,
-    ) -> Result<(), String> {
+    pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
         if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && let Some(field) =
-                sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
+            && let Some(field) = sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
         {
             let key = (field == "values")
                 .then(|| {
                     let previous = &self.stream_rows[*position].values;
-                    previous
-                        .keys()
-                        .chain(sample.values.keys())
-                        .find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
+                    previous.keys().chain(sample.values.keys()).find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
                 })
                 .flatten();
             let suffix = key.map_or_else(String::new, |key| format!(".{key}"));
-            return Err(format!(
-                "sample identity was reused with different admitted contents: {field}{suffix}"
-            ));
+            return Err(format!("sample identity was reused with different admitted contents: {field}{suffix}"));
         }
         Ok(())
     }
@@ -254,14 +229,10 @@ impl ExecutionState {
         let Ok(encoded) = serde_json::to_string(request) else {
             // A request that cannot be encoded can never be answered, so it is
             // refused here rather than left pending forever.
-            self.leases.insert(
-                request.lease_token.clone(),
-                LeaseOutcome::Refused("the lease request could not be encoded".to_owned()),
-            );
+            self.leases.insert(request.lease_token.clone(), LeaseOutcome::Refused("the lease request could not be encoded".to_owned()));
             return;
         };
-        self.leases
-            .insert(request.lease_token.clone(), LeaseOutcome::Pending);
+        self.leases.insert(request.lease_token.clone(), LeaseOutcome::Pending);
         self.push(BufferedFrame::lease_request(encoded));
     }
 
@@ -279,9 +250,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn lease_settled(&self, lease_token: &str) -> Option<&LeaseOutcome> {
-        self.leases
-            .get(lease_token)
-            .filter(|outcome| !matches!(outcome, LeaseOutcome::Pending))
+        self.leases.get(lease_token).filter(|outcome| !matches!(outcome, LeaseOutcome::Pending))
     }
 
     pub(crate) fn release_lease(&mut self, lease_token: &str) {
@@ -292,11 +261,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn subscribe(&mut self, subscriptions: &[crate::definition::Subscription]) {
-        self.subscriptions = subscriptions
-            .iter()
-            .filter_map(crate::definition::Subscription::record)
-            .cloned()
-            .collect();
+        self.subscriptions = subscriptions.iter().filter_map(crate::definition::Subscription::record).cloned().collect();
     }
 
     pub(crate) fn begin_record_settle(&mut self) {
@@ -325,9 +290,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn deliver_captured(
-        &mut self,
-        record: &dokime_domain::model::records::evidence::Record,
-        owner: &str,
+        &mut self, record: &dokime_domain::model::records::evidence::Record, owner: &str,
         capture: Option<&dokime_domain::model::execution::RecordScope>,
     ) -> bool {
         let own = record.source == owner
@@ -340,10 +303,7 @@ impl ExecutionState {
             || self.subscriptions_settled
             || (capture.is_none() && !self.subscriptions.contains(&record.record_type))
             || (own && capture.is_none())
-            || self
-                .captured_records
-                .iter()
-                .any(|captured| captured.record_id == record.record_id)
+            || self.captured_records.iter().any(|captured| captured.record_id == record.record_id)
         {
             return false;
         }
@@ -364,17 +324,12 @@ impl ExecutionState {
     }
 
     pub(crate) fn observer_record(
-        &mut self,
-        mut request: dokime_domain::model::records::publication::RecordPublishRequest,
-        source: &str,
-        schema_version: u32,
+        &mut self, mut request: dokime_domain::model::records::publication::RecordPublishRequest, source: &str, schema_version: u32,
     ) -> bool {
         if self.terminal || self.cancelled() {
             return false;
         }
-        request
-            .timestamp
-            .get_or_insert_with(crate::model::time::now_utc);
+        request.timestamp.get_or_insert_with(crate::model::time::now_utc);
         // The host attaches this drain's execution scope. An authored payload
         // cannot redirect evidence to another execution or broaden it globally.
         request.scope = None;
@@ -385,12 +340,8 @@ impl ExecutionState {
             source,
         );
         record.scope = Some(dokime_domain::model::execution::RecordScope {
-            test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(self.request.test_cycle_id.clone())
-                .ok(),
-            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
-                self.request.test_execution_id.clone(),
-            )
-            .ok(),
+            test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(self.request.test_cycle_id.clone()).ok(),
+            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(self.request.test_execution_id.clone()).ok(),
             ..Default::default()
         });
         if self.delivered.len() == MAX_DELIVERED_RECORDS {
@@ -406,15 +357,12 @@ impl ExecutionState {
         if self.terminal {
             return;
         }
-        let encoded =
-            serde_json::to_string(&request).expect("a record request contains serializable values");
+        let encoded = serde_json::to_string(&request).expect("a record request contains serializable values");
         self.push(BufferedFrame::record(encoded));
     }
 
     pub(crate) fn delivered(&self, index: usize) -> Option<dokime_domain::model::records::evidence::Record> {
-        self.delivered
-            .get(index.checked_sub(self.dropped)?)
-            .cloned()
+        self.delivered.get(index.checked_sub(self.dropped)?).cloned()
     }
 
     pub(crate) fn next_record(&self, cursor: &mut usize) -> Option<dokime_domain::model::records::evidence::Record> {
@@ -434,13 +382,8 @@ impl ExecutionState {
         };
         let names = |filed: Option<&str>, mine: &str| filed.is_none_or(|filed| filed == mine);
 
-        names(
-            scope.test_cycle_id.as_ref().map(|id| id.as_str()),
-            &self.request.test_cycle_id,
-        ) && names(
-            scope.test_execution_id.as_ref().map(|id| id.as_str()),
-            &self.request.test_execution_id,
-        )
+        names(scope.test_cycle_id.as_ref().map(|id| id.as_str()), &self.request.test_cycle_id)
+            && names(scope.test_execution_id.as_ref().map(|id| id.as_str()), &self.request.test_execution_id)
     }
 
     pub(crate) fn terminal(&self) -> bool {
@@ -477,21 +420,11 @@ impl ExecutionState {
         *self.cancel.borrow()
     }
 
-    pub(crate) fn request_step(
-        &mut self,
-        step: &str,
-        start: &dokime_domain::model::execution::result::StepAttemptStart,
-        encoded: String,
-    ) {
-        self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Step {
-            attempt_id: start.attempt_id.clone(),
-        };
+    pub(crate) fn request_step(&mut self, step: &str, start: &dokime_domain::model::execution::result::StepAttemptStart, encoded: String) {
+        self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
         self.step_admission = Some((start.attempt_id.clone(), None));
         self.phase = step.to_owned();
-        self.push(BufferedFrame {
-            step_begin: Some(encoded),
-            ..Default::default()
-        });
+        self.push(BufferedFrame { step_begin: Some(encoded), ..Default::default() });
     }
 
     pub(crate) fn acknowledge_step(&mut self, request: &crate::transport::StepAdmission) {
@@ -499,18 +432,12 @@ impl ExecutionState {
             return;
         };
         if id.as_str() == request.attempt_id && answer.is_none() {
-            *answer = Some(if request.accepted {
-                Ok(())
-            } else {
-                Err(request.message.clone())
-            });
+            *answer = Some(if request.accepted { Ok(()) } else { Err(request.message.clone()) });
         }
     }
 
     pub(crate) fn step_answer(&self) -> Option<Result<(), String>> {
-        self.step_admission
-            .as_ref()
-            .and_then(|(_, answer)| answer.clone())
+        self.step_admission.as_ref().and_then(|(_, answer)| answer.clone())
     }
 
     pub(crate) fn push(&mut self, mut frame: BufferedFrame) {
@@ -535,9 +462,7 @@ impl ExecutionState {
             // producer's backlog gate: it is gone from the buffer outright,
             // not merely acknowledged, so nothing will ever drain it.
             if let Some(chunk) = &evicted.artifact_chunk {
-                self.buffered_artifact_bytes = self
-                    .buffered_artifact_bytes
-                    .saturating_sub(chunk.bytes.len() as u64);
+                self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_sub(chunk.bytes.len() as u64);
             }
         }
         frame.cursor = self.next_cursor;
@@ -550,9 +475,7 @@ impl ExecutionState {
             self.captured_records.clear();
         }
         if let Some(chunk) = &frame.artifact_chunk {
-            self.buffered_artifact_bytes = self
-                .buffered_artifact_bytes
-                .saturating_add(chunk.bytes.len() as u64);
+            self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_add(chunk.bytes.len() as u64);
         }
         self.frames.push_back(frame);
         self.changed.notify_one();
@@ -563,14 +486,8 @@ impl ExecutionState {
     }
 
     pub(crate) fn raise(&mut self, prompt_id: PromptId, request: String) {
-        self.prompt = Some(PromptExchange {
-            prompt_id,
-            outcome: None,
-        });
-        self.push(BufferedFrame {
-            prompt_request: Some(request),
-            ..BufferedFrame::default()
-        });
+        self.prompt = Some(PromptExchange { prompt_id, outcome: None });
+        self.push(BufferedFrame { prompt_request: Some(request), ..BufferedFrame::default() });
     }
 
     pub(crate) fn answer(&mut self, prompt_id: &str, response: PromptResponse) {
@@ -583,16 +500,10 @@ impl ExecutionState {
     }
 
     pub(crate) fn settled(&self, prompt_id: &PromptId) -> Option<&PromptOutcome> {
-        self.prompt
-            .as_ref()
-            .filter(|exchange| &exchange.prompt_id == prompt_id)
-            .and_then(|exchange| exchange.outcome.as_ref())
+        self.prompt.as_ref().filter(|exchange| &exchange.prompt_id == prompt_id).and_then(|exchange| exchange.outcome.as_ref())
     }
 
-    pub(crate) fn stage(
-        &mut self,
-        sample: crate::telemetry::TelemetrySample,
-    ) -> Result<bool, String> {
+    pub(crate) fn stage(&mut self, sample: crate::telemetry::TelemetrySample) -> Result<bool, String> {
         if !self.samples_open() {
             return Ok(false);
         }
@@ -601,8 +512,7 @@ impl ExecutionState {
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
-        self.sample_positions
-            .insert(sample.sample_id.clone(), self.stream_rows.len());
+        self.sample_positions.insert(sample.sample_id.clone(), self.stream_rows.len());
         self.stream_rows.push(sample);
         Ok(true)
     }
@@ -618,30 +528,20 @@ impl ExecutionState {
     }
 
     pub(crate) fn admit_local_inputs(
-        &mut self,
-        through: u64,
-        source: &str,
-        contracts: &[crate::records::RecordContract],
+        &mut self, through: u64, source: &str, contracts: &[crate::records::RecordContract],
         admitted_at: &dokime_domain::model::time::Timestamp,
     ) -> Result<(), Refusal> {
         if !self.local_inputs {
             return Ok(());
         }
         if self.local_admitted.saturating_add(1) < self.oldest_cursor {
-            return Err(Refusal::of(
-                "local input admission expired before retained publications",
-            ));
+            return Err(Refusal::of("local input admission expired before retained publications"));
         }
         let frames = self
             .frames
             .iter()
             .filter(|frame| frame.cursor > self.local_admitted && frame.cursor <= through)
-            .filter_map(|frame| {
-                frame
-                    .record
-                    .as_ref()
-                    .map(|encoded| (frame.cursor, encoded.clone(), frame.local_scope.clone()))
-            })
+            .filter_map(|frame| frame.record.as_ref().map(|encoded| (frame.cursor, encoded.clone(), frame.local_scope.clone())))
             .collect::<Vec<_>>();
         let mut admitted = Vec::with_capacity(frames.len());
         for (cursor, encoded, scope) in frames {
@@ -649,33 +549,20 @@ impl ExecutionState {
                 serde_json::from_str(&encoded).map_err(|error| Refusal::of(error.to_string()))?;
             // The host's own record types, such as `process.exited`, are
             // registered wherever a run is, beside the template's.
-            let contract = contracts
-                .iter()
-                .find(|contract| contract.record_type == request.record_type)
-                .cloned()
-                .or_else(|| {
-                    crate::records::builtin_record_contracts()
-                        .into_iter()
-                        .find(|contract| contract.record_type == request.record_type)
-                });
+            let contract = contracts.iter().find(|contract| contract.record_type == request.record_type).cloned().or_else(|| {
+                crate::records::builtin_record_contracts().into_iter().find(|contract| contract.record_type == request.record_type)
+            });
             let contract = contract.as_ref();
             let version = contract.map_or(1, |contract| contract.schema_version);
             request.scope = scope.clone();
             let mut record = request.into_record(
-                dokime_domain::model::identity::RecordId::from_seed(format!(
-                    "{}:local:{cursor}",
-                    self.request.execution_token
-                )),
+                dokime_domain::model::identity::RecordId::from_seed(format!("{}:local:{cursor}", self.request.execution_token)),
                 version,
                 admitted_at.clone(),
                 source,
             );
-            record.details = crate::records::validate_record(
-                contract,
-                &record,
-                dokime_domain::model::validation::ValidationMode::Strict,
-            )
-            .map_err(|error| Refusal::of(error.to_string()))?;
+            record.details = crate::records::validate_record(contract, &record, dokime_domain::model::validation::ValidationMode::Strict)
+                .map_err(|error| Refusal::of(error.to_string()))?;
             admitted.push((record, scope));
         }
         for (record, scope) in admitted {
@@ -686,27 +573,16 @@ impl ExecutionState {
     }
 
     pub(crate) fn settle_local_inputs(
-        &mut self,
-        source: &str,
-        contracts: &[crate::records::RecordContract],
-        admitted_at: &dokime_domain::model::time::Timestamp,
+        &mut self, source: &str, contracts: &[crate::records::RecordContract], admitted_at: &dokime_domain::model::time::Timestamp,
     ) -> Result<(), Refusal> {
-        self.admit_local_inputs(
-            self.next_cursor.saturating_sub(1),
-            source,
-            contracts,
-            admitted_at,
-        )?;
+        self.admit_local_inputs(self.next_cursor.saturating_sub(1), source, contracts, admitted_at)?;
         self.settle_record_subscriptions();
         Ok(())
     }
 
     pub(crate) fn drain_after(&mut self, cursor: u64) -> Result<EvidenceBatch, Refusal> {
         if cursor.saturating_add(1) < self.oldest_cursor {
-            return Err(Refusal::of(format!(
-                "execution cursor {cursor} expired before buffered cursor {}",
-                self.oldest_cursor
-            )));
+            return Err(Refusal::of(format!("execution cursor {cursor} expired before buffered cursor {}", self.oldest_cursor)));
         }
 
         let mut reply = EvidenceBatch {
@@ -802,13 +678,8 @@ impl ExecutionState {
             // A lone item may use the whole frame; pages of several stay
             // inside the admission budget.
             let alone = previous_cursor == cursor;
-            if page_fits(&reply)
-                || (alone && Frame::request_fits::<crate::transport::PushEvidence>(&reply))
-            {
-                if frame.step_attempt.is_some()
-                    || frame.step_begin.is_some()
-                    || frame.capture_phase.is_some()
-                {
+            if page_fits(&reply) || (alone && Frame::request_fits::<crate::transport::PushEvidence>(&reply)) {
+                if frame.step_attempt.is_some() || frame.step_begin.is_some() || frame.capture_phase.is_some() {
                     break;
                 }
                 continue;
@@ -831,9 +702,7 @@ impl ExecutionState {
             reply.progress = previous_progress;
 
             if reply.cursor == cursor {
-                return Err(Refusal::of(
-                    "one execution output item exceeds the Harmos transport frame",
-                ));
+                return Err(Refusal::of("one execution output item exceeds the Harmos transport frame"));
             }
             break;
         }
@@ -844,13 +713,9 @@ impl ExecutionState {
         // subtract the same bytes twice.
         let previously_acknowledged = self.acknowledged_cursor;
         if reply.cursor > previously_acknowledged {
-            for frame in self.frames.iter().filter(|frame| {
-                frame.cursor > previously_acknowledged && frame.cursor <= reply.cursor
-            }) {
+            for frame in self.frames.iter().filter(|frame| frame.cursor > previously_acknowledged && frame.cursor <= reply.cursor) {
                 if let Some(chunk) = &frame.artifact_chunk {
-                    self.buffered_artifact_bytes = self
-                        .buffered_artifact_bytes
-                        .saturating_sub(chunk.bytes.len() as u64);
+                    self.buffered_artifact_bytes = self.buffered_artifact_bytes.saturating_sub(chunk.bytes.len() as u64);
                 }
             }
             self.acknowledged_cursor = reply.cursor;
@@ -860,92 +725,57 @@ impl ExecutionState {
             self.artifact_condvar.notify_all();
         }
 
-        reply.record_subscriptions_settling =
-            self.subscriptions_settling && reply.cursor.saturating_add(1) == self.next_cursor;
+        reply.record_subscriptions_settling = self.subscriptions_settling && reply.cursor.saturating_add(1) == self.next_cursor;
         Ok(reply)
     }
 }
 
 impl BufferedFrame {
     pub(crate) fn capture_phase(phase: String) -> Self {
-        Self {
-            capture_phase: Some(phase),
-            ..Default::default()
-        }
+        Self { capture_phase: Some(phase), ..Default::default() }
     }
 
     pub(crate) fn step_attempt(attempt: String) -> Self {
-        Self {
-            step_attempt: Some(attempt),
-            ..Default::default()
-        }
+        Self { step_attempt: Some(attempt), ..Default::default() }
     }
 
     pub(crate) fn progress(progress: crate::execution::ExecutionProgress) -> Self {
-        Self {
-            progress: Some(progress),
-            ..Self::default()
-        }
+        Self { progress: Some(progress), ..Self::default() }
     }
 
     pub(crate) fn record(record: String) -> Self {
-        Self {
-            record: Some(record),
-            ..Self::default()
-        }
+        Self { record: Some(record), ..Self::default() }
     }
 
     pub(crate) fn log(level: crate::execution::log::Level, message: String) -> Self {
-        Self {
-            diagnostic: Some(crate::execution::log::Entry::new(level, message)),
-            ..Self::default()
-        }
+        Self { diagnostic: Some(crate::execution::log::Entry::new(level, message)), ..Self::default() }
     }
 
     pub(crate) fn artifact(artifact_chunk: ArtifactChunk) -> Self {
-        Self {
-            artifact_chunk: Some(artifact_chunk),
-            ..Self::default()
-        }
+        Self { artifact_chunk: Some(artifact_chunk), ..Self::default() }
     }
 
     pub(crate) fn traceability(section: String) -> Self {
-        Self {
-            traceability: Some(section),
-            ..Self::default()
-        }
+        Self { traceability: Some(section), ..Self::default() }
     }
 
     pub(crate) fn document(change: String) -> Self {
-        Self {
-            document: Some(change),
-            ..Self::default()
-        }
+        Self { document: Some(change), ..Self::default() }
     }
 
     pub(crate) fn lease_request(request: String) -> Self {
-        Self {
-            lease_request: Some(request),
-            ..Self::default()
-        }
+        Self { lease_request: Some(request), ..Self::default() }
     }
 
     pub(crate) fn lease_release(lease_token: String) -> Self {
-        Self {
-            lease_release: Some(lease_token),
-            ..Self::default()
-        }
+        Self { lease_release: Some(lease_token), ..Self::default() }
     }
 
     pub(crate) fn terminal(outcome: SidecarExecutionOutcome) -> Self {
         Self {
             diagnostic: outcome.message.clone().map(|message| {
                 crate::execution::log::Entry::new(
-                    if outcome.passed {
-                        crate::execution::log::Level::Info
-                    } else {
-                        crate::execution::log::Level::Error
-                    },
+                    if outcome.passed { crate::execution::log::Level::Info } else { crate::execution::log::Level::Error },
                     message,
                 )
             }),
@@ -965,9 +795,7 @@ pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, E
 // Host Admission Adds Receipt Time And Full Ownership To Locally Produced Rows.
 // Canonical Payload Bytes Are Internal And May Be Absent After Wire Decoding.
 fn sample_difference(
-    previous: &crate::telemetry::TelemetrySample,
-    incoming: &crate::telemetry::TelemetrySample,
-    local: bool,
+    previous: &crate::telemetry::TelemetrySample, incoming: &crate::telemetry::TelemetrySample, local: bool,
 ) -> Option<&'static str> {
     let scope_matches = if local {
         match (&previous.scope, &incoming.scope) {
@@ -985,22 +813,13 @@ fn sample_difference(
     [
         ("sample_id", previous.sample_id == incoming.sample_id),
         ("stream", previous.stream == incoming.stream),
-        (
-            "schema_version",
-            previous.schema_version == incoming.schema_version,
-        ),
+        ("schema_version", previous.schema_version == incoming.schema_version),
         ("sequence", previous.sequence == incoming.sequence),
         ("timestamp", previous.timestamp == incoming.timestamp),
-        (
-            "received_at",
-            local || previous.received_at == incoming.received_at,
-        ),
+        ("received_at", local || previous.received_at == incoming.received_at),
         ("source", previous.source == incoming.source),
         ("scope", scope_matches),
-        (
-            "values",
-            values_equivalent(&previous.values, &incoming.values),
-        ),
+        ("values", values_equivalent(&previous.values, &incoming.values)),
         ("summary", previous.summary == incoming.summary),
         ("metadata", previous.metadata == incoming.metadata),
         (
@@ -1018,12 +837,9 @@ fn sample_difference(
 // A typed sample's absent optional field and its null are the same datum: the
 // live sample omits it, its stored projection names it null.
 fn values_equivalent(
-    left: &BTreeMap<String, dokime_domain::model::values::Value>,
-    right: &BTreeMap<String, dokime_domain::model::values::Value>,
+    left: &BTreeMap<String, dokime_domain::model::values::Value>, right: &BTreeMap<String, dokime_domain::model::values::Value>,
 ) -> bool {
-    left.keys()
-        .chain(right.keys())
-        .all(|key| value_equivalent(left.get(key), right.get(key)))
+    left.keys().chain(right.keys()).all(|key| value_equivalent(left.get(key), right.get(key)))
 }
 
 fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: Option<&dokime_domain::model::values::Value>) -> bool {
@@ -1032,11 +848,7 @@ fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: O
         (None | Some(Value::Null), None | Some(Value::Null)) => true,
         (Some(Value::Object(left)), Some(Value::Object(right))) => values_equivalent(left, right),
         (Some(Value::Array(left)), Some(Value::Array(right))) => {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| value_equivalent(Some(left), Some(right)))
+            left.len() == right.len() && left.iter().zip(right).all(|(left, right)| value_equivalent(Some(left), Some(right)))
         }
         (left, right) => left == right,
     }
@@ -1044,8 +856,7 @@ fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: O
 
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
     use harmos::Message;
-    page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES
-        && Frame::request_fits::<crate::transport::PushEvidence>(page)
+    page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES && Frame::request_fits::<crate::transport::PushEvidence>(page)
 }
 
 /* === Tests === */
@@ -1053,12 +864,12 @@ fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
 #[cfg(test)]
 mod tests {
     use super::sample_difference;
-    use dokime_domain::model::identity::Identifier;
+    use crate::telemetry::TelemetrySample;
     use dokime_domain::model::execution::RecordScope;
+    use dokime_domain::model::identity::Identifier;
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
-    use crate::telemetry::TelemetrySample;
 
     #[test]
     fn sample_replay_preserves_producer_identity() {
@@ -1070,12 +881,9 @@ mod tests {
             "fixture",
         )
         .with_storage_payload(vec![1, 2]);
-        original.scope = Some(RecordScope {
-            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
-            ..Default::default()
-        });
-        let wire: TelemetrySample =
-            serde_json::from_value(serde_json::to_value(&original).unwrap()).unwrap();
+        original.scope =
+            Some(RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() });
+        let wire: TelemetrySample = serde_json::from_value(serde_json::to_value(&original).unwrap()).unwrap();
         assert!(sample_difference(&original, &wire, false).is_none());
         let mut admitted = wire.clone();
         admitted.received_at = Timestamp::new("2000-01-01T00:00:00Z");
@@ -1093,10 +901,8 @@ mod tests {
         changed.storage_payload = Some(vec![3]);
         assert!(sample_difference(&original, &changed, true).is_some());
         let mut changed = wire;
-        changed.scope = Some(RecordScope {
-            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
-            ..Default::default()
-        });
+        changed.scope =
+            Some(RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() });
         assert!(sample_difference(&original, &changed, true).is_some());
     }
 
@@ -1129,20 +935,12 @@ mod tests {
             }
             state.local_sample(sample).unwrap();
             let admitted = state.take_local_samples().pop().unwrap();
-            assert_eq!(
-                admitted.values["timestamp"],
-                explicit.unwrap_or(Value::Number(946684800.0))
-            );
+            assert_eq!(admitted.values["timestamp"], explicit.unwrap_or(Value::Number(946684800.0)));
             let mut replay = admitted.clone();
             replay.received_at = crate::model::time::now_utc();
             state.validate_sample(&replay).unwrap();
             replay.values.insert("timestamp".into(), Value::Number(0.0));
-            assert!(
-                state
-                    .validate_sample(&replay)
-                    .unwrap_err()
-                    .ends_with(": values.timestamp")
-            );
+            assert!(state.validate_sample(&replay).unwrap_err().ends_with(": values.timestamp"));
         }
     }
 }

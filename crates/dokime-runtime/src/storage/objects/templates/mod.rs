@@ -237,12 +237,7 @@ impl Template {
     pub(super) fn encoding_memory(value: &crate::definition::TestCaseTemplate) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
         let attributes = Map::encoding_memory(&value.attributes)?;
-        let document = value
-            .document
-            .as_ref()
-            .map(documents::Document::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let document = value.document.as_ref().map(documents::Document::encoding_memory).transpose()?.unwrap_or(0);
         if [metadata, attributes, document].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
@@ -251,14 +246,9 @@ impl Template {
             metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
             attributes.saturating_sub(std::mem::size_of::<Map>()),
             document.saturating_sub(std::mem::size_of::<documents::Document>()),
-            value
-                .tags
-                .len()
-                .saturating_mul(std::mem::size_of::<String>()),
+            value.tags.len().saturating_mul(std::mem::size_of::<String>()),
         ];
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
         for tag in &value.tags {
             bytes = bytes.saturating_add(tag.len());
         }
@@ -288,11 +278,7 @@ impl Template {
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("template metadata is missing"))?
-            .projection_memory()?;
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("template metadata is missing"))?.projection_memory()?;
         let mut bytes = std::mem::size_of::<crate::definition::TestCaseTemplate>()
             .saturating_add(self.test_case_template_id.capacity())
             .saturating_add(metadata)
@@ -341,30 +327,22 @@ impl TryFrom<&crate::definition::TestCaseTemplate> for Template {
             parameter_groups.push(Group::try_from(group)?);
         }
         let mut parameters = Vec::new();
-        parameters
-            .try_reserve_exact(value.parameters.len())
-            .map_err(|_| Error::Invalid("template parameters allocation failed"))?;
+        parameters.try_reserve_exact(value.parameters.len()).map_err(|_| Error::Invalid("template parameters allocation failed"))?;
         for parameter in &value.parameters {
             parameters.push(Parameter::try_from(parameter)?);
         }
         let mut files = Vec::new();
-        files
-            .try_reserve_exact(value.files.len())
-            .map_err(|_| Error::Invalid("template files allocation failed"))?;
+        files.try_reserve_exact(value.files.len()).map_err(|_| Error::Invalid("template files allocation failed"))?;
         for file in &value.files {
             files.push(File::try_from(file)?);
         }
         let mut phases = Vec::new();
-        phases
-            .try_reserve_exact(value.phases.len())
-            .map_err(|_| Error::Invalid("template phases allocation failed"))?;
+        phases.try_reserve_exact(value.phases.len()).map_err(|_| Error::Invalid("template phases allocation failed"))?;
         for phase in &value.phases {
             phases.push(Phase::try_from(phase)?);
         }
         let mut criteria = Vec::new();
-        criteria
-            .try_reserve_exact(value.criteria.len())
-            .map_err(|_| Error::Invalid("template criteria allocation failed"))?;
+        criteria.try_reserve_exact(value.criteria.len()).map_err(|_| Error::Invalid("template criteria allocation failed"))?;
         for criterion in &value.criteria {
             criteria.push(Criterion::try_from(criterion)?);
         }
@@ -389,11 +367,7 @@ impl TryFrom<&crate::definition::TestCaseTemplate> for Template {
             parameter_groups,
             parameters,
             files,
-            document: value
-                .document
-                .as_ref()
-                .map(documents::Document::try_from)
-                .transpose()?,
+            document: value.document.as_ref().map(documents::Document::try_from).transpose()?,
             phases,
             criteria,
             continue_on_failure: value.continue_on_failure,
@@ -419,30 +393,22 @@ impl TryFrom<Template> for crate::definition::TestCaseTemplate {
             parameter_groups.push(value.try_into()?);
         }
         let mut parameters = Vec::new();
-        parameters
-            .try_reserve_exact(row.parameters.len())
-            .map_err(|_| Error::Invalid("template parameters allocation failed"))?;
+        parameters.try_reserve_exact(row.parameters.len()).map_err(|_| Error::Invalid("template parameters allocation failed"))?;
         for value in row.parameters {
             parameters.push(value.try_into()?);
         }
         let mut files = Vec::new();
-        files
-            .try_reserve_exact(row.files.len())
-            .map_err(|_| Error::Invalid("template files allocation failed"))?;
+        files.try_reserve_exact(row.files.len()).map_err(|_| Error::Invalid("template files allocation failed"))?;
         for value in row.files {
             files.push(value.try_into()?);
         }
         let mut phases = Vec::new();
-        phases
-            .try_reserve_exact(row.phases.len())
-            .map_err(|_| Error::Invalid("template phases allocation failed"))?;
+        phases.try_reserve_exact(row.phases.len()).map_err(|_| Error::Invalid("template phases allocation failed"))?;
         for value in row.phases {
             phases.push(value.try_into()?);
         }
         let mut criteria = Vec::new();
-        criteria
-            .try_reserve_exact(row.criteria.len())
-            .map_err(|_| Error::Invalid("template criteria allocation failed"))?;
+        criteria.try_reserve_exact(row.criteria.len()).map_err(|_| Error::Invalid("template criteria allocation failed"))?;
         for value in row.criteria {
             criteria.push(value.try_into()?);
         }
@@ -454,18 +420,13 @@ impl TryFrom<Template> for crate::definition::TestCaseTemplate {
             prompt_definitions.push(value.try_into()?);
         }
         let mut subscriptions = Vec::new();
-        subscriptions
-            .try_reserve_exact(row.subscriptions.len())
-            .map_err(|_| Error::Invalid("template subscriptions allocation failed"))?;
+        subscriptions.try_reserve_exact(row.subscriptions.len()).map_err(|_| Error::Invalid("template subscriptions allocation failed"))?;
         for value in row.subscriptions {
             subscriptions.push(value.try_into()?);
         }
         Ok(Self {
             test_case_template_id: dokime_domain::model::identity::TemplateId::from_uuid(row.test_case_template_id)?,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("template metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("template metadata is missing"))?.try_into()?,
             tags: row.tags,
             parameter_groups,
             parameters,
@@ -491,26 +452,14 @@ impl File {
         let bytes = std::mem::size_of::<Self>()
             .saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>()))
             .saturating_add(value.default.as_deref().map_or(0, str::len))
-            .saturating_add(
-                value
-                    .media_types
-                    .len()
-                    .saturating_mul(std::mem::size_of::<String>()),
-            )
+            .saturating_add(value.media_types.len().saturating_mul(std::mem::size_of::<String>()))
             .saturating_add(attributes.saturating_sub(std::mem::size_of::<Map>()));
-        Ok(value
-            .media_types
-            .iter()
-            .fold(bytes, |bytes, media| bytes.saturating_add(media.len())))
+        Ok(value.media_types.iter().fold(bytes, |bytes, media| bytes.saturating_add(media.len())))
     }
 
     fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("file metadata is missing"))?
-            .projection_memory()?;
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("file metadata is missing"))?.projection_memory()?;
         let media_types = self.media_types.memory_size();
         if media_types == usize::MAX {
             return Ok(usize::MAX);
@@ -545,15 +494,10 @@ impl TryFrom<File> for crate::definition::FileDefinition {
 
     fn try_from(row: File) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "file definition projection memory overflows",
-            ));
+            return Err(Error::Invalid("file definition projection memory overflows"));
         }
         Ok(Self {
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("file metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("file metadata is missing"))?.try_into()?,
             default: row.default,
             required: row.required,
             media_types: row.media_types,
@@ -574,16 +518,10 @@ impl Phase {
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("phase metadata is missing"))?
-            .projection_memory()?;
-        Ok(
-            std::mem::size_of::<crate::definition::ExecutionPhaseDefinition>()
-                .saturating_add(self.step_id.capacity())
-                .saturating_add(metadata),
-        )
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("phase metadata is missing"))?.projection_memory()?;
+        Ok(std::mem::size_of::<crate::definition::ExecutionPhaseDefinition>()
+            .saturating_add(self.step_id.capacity())
+            .saturating_add(metadata))
     }
 }
 
@@ -612,10 +550,7 @@ impl TryFrom<Phase> for crate::definition::ExecutionPhaseDefinition {
         Ok(Self {
             step_id: dokime_domain::model::identity::StepId::from_uuid(row.step_id)?,
             repeatable: row.repeatable,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("phase metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("phase metadata is missing"))?.try_into()?,
         })
     }
 }
@@ -623,12 +558,7 @@ impl TryFrom<Phase> for crate::definition::ExecutionPhaseDefinition {
 impl Criterion {
     fn encoding_memory(value: &crate::definition::CriterionDefinition) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let expected = value
-            .expected
-            .as_ref()
-            .map(Value::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let expected = value.expected.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
         if [metadata, expected].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
@@ -639,23 +569,12 @@ impl Criterion {
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("criterion metadata is missing"))?
-            .projection_memory()?;
-        let expected = self
-            .expected
-            .as_ref()
-            .map(Value::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
-        Ok(
-            std::mem::size_of::<crate::definition::CriterionDefinition>()
-                .saturating_add(self.criterion_id.capacity())
-                .saturating_add(metadata)
-                .saturating_add(expected),
-        )
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("criterion metadata is missing"))?.projection_memory()?;
+        let expected = self.expected.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
+        Ok(std::mem::size_of::<crate::definition::CriterionDefinition>()
+            .saturating_add(self.criterion_id.capacity())
+            .saturating_add(metadata)
+            .saturating_add(expected))
     }
 }
 
@@ -664,9 +583,7 @@ impl TryFrom<&crate::definition::CriterionDefinition> for Criterion {
 
     fn try_from(value: &crate::definition::CriterionDefinition) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid(
-                "criterion definition encoding memory overflows",
-            ));
+            return Err(Error::Invalid("criterion definition encoding memory overflows"));
         }
         Ok(Self {
             criterion_id: value.criterion_id.as_str().to_owned(),
@@ -681,16 +598,11 @@ impl TryFrom<Criterion> for crate::definition::CriterionDefinition {
 
     fn try_from(row: Criterion) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "criterion definition projection memory overflows",
-            ));
+            return Err(Error::Invalid("criterion definition projection memory overflows"));
         }
         Ok(Self {
             criterion_id: dokime_domain::model::identity::CriterionId::from_uuid(row.criterion_id)?,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("criterion metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("criterion metadata is missing"))?.try_into()?,
             expected: row.expected.map(TryInto::try_into).transpose()?,
         })
     }
@@ -703,17 +615,14 @@ impl Subscription {
             Subscription::Stream(id) => ("stream", id),
             Subscription::Record(id) => ("record", id),
         };
-        std::mem::size_of::<Self>()
-            .saturating_add(kind.len())
-            .saturating_add(identifier.as_str().len())
+        std::mem::size_of::<Self>().saturating_add(kind.len()).saturating_add(identifier.as_str().len())
     }
 
     fn projection_memory(&self) -> Result<usize> {
         if !matches!(self.kind.as_str(), "stream" | "record") {
             return Err(Error::Invalid("invalid subscription kind"));
         }
-        Ok(std::mem::size_of::<crate::definition::Subscription>()
-            .saturating_add(self.identifier.capacity()))
+        Ok(std::mem::size_of::<crate::definition::Subscription>().saturating_add(self.identifier.capacity()))
     }
 }
 
@@ -729,10 +638,7 @@ impl TryFrom<&crate::definition::Subscription> for Subscription {
             Subscription::Stream(id) => ("stream", id),
             Subscription::Record(id) => ("record", id),
         };
-        Ok(Self {
-            kind: kind.to_owned(),
-            identifier: identifier.as_str().to_owned(),
-        })
+        Ok(Self { kind: kind.to_owned(), identifier: identifier.as_str().to_owned() })
     }
 }
 
@@ -752,40 +658,17 @@ impl TryFrom<Subscription> for crate::definition::Subscription {
 
 impl Parameter {
     pub(super) fn encoding_memory(value: &crate::definition::ParameterDefinition) -> Result<usize> {
-        if [value.min, value.max]
-            .into_iter()
-            .flatten()
-            .any(|value| !value.is_finite())
-        {
+        if [value.min, value.max].into_iter().flatten().any(|value| !value.is_finite()) {
             return Err(Error::Invalid("parameter bounds are nonfinite"));
         }
         let expansion = Expansion::encoding_memory(&value.expansion);
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let unit = value
-            .unit
-            .as_ref()
-            .map(Unit::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let unit = value.unit.as_ref().map(Unit::encoding_memory).transpose()?.unwrap_or(0);
         let expression = expressions::Parameter::encoding_memory(&value.expression)?;
-        let selection = value
-            .selection
-            .as_ref()
-            .map(Selection::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
-        let list = value
-            .list
-            .as_ref()
-            .map(List::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let selection = value.selection.as_ref().map(Selection::encoding_memory).transpose()?.unwrap_or(0);
+        let list = value.list.as_ref().map(List::encoding_memory).transpose()?.unwrap_or(0);
         let extensions = Map::encoding_memory(&value.extensions)?;
-        if [
-            expansion, metadata, unit, expression, selection, list, extensions,
-        ]
-        .contains(&usize::MAX)
-        {
+        if [expansion, metadata, unit, expression, selection, list, extensions].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
         let fields = [
@@ -800,50 +683,29 @@ impl Parameter {
             list.saturating_sub(std::mem::size_of::<List>()),
             extensions.saturating_sub(std::mem::size_of::<Map>()),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
     }
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
-        if [self.min, self.max]
-            .into_iter()
-            .flatten()
-            .any(|value| !value.is_finite())
-        {
+        if [self.min, self.max].into_iter().flatten().any(|value| !value.is_finite()) {
             return Err(Error::Invalid("parameter bounds are nonfinite"));
         }
         value_type(&self.value_type)?;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("parameter definition metadata is missing"))?
-            .projection_memory()?;
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("parameter definition metadata is missing"))?.projection_memory()?;
         let fields = [
             self.parameter_id.capacity(),
             self.group_id.as_ref().map_or(0, String::capacity),
             self.expansion.projection_memory()?,
             metadata,
-            self.unit
-                .as_ref()
-                .map(Unit::projection_memory)
-                .transpose()?
-                .unwrap_or(0),
+            self.unit.as_ref().map(Unit::projection_memory).transpose()?.unwrap_or(0),
             self.expression.projection_memory()?,
-            self.selection
-                .as_ref()
-                .map(Selection::projection_memory)
-                .transpose()?
-                .unwrap_or(0),
+            self.selection.as_ref().map(Selection::projection_memory).transpose()?.unwrap_or(0),
             self.extensions.projection_memory()?,
         ];
         if let Some(list) = &self.list {
             list.validate()?;
         }
-        Ok(fields.into_iter().fold(
-            std::mem::size_of::<crate::definition::ParameterDefinition>(),
-            usize::saturating_add,
-        ))
+        Ok(fields.into_iter().fold(std::mem::size_of::<crate::definition::ParameterDefinition>(), usize::saturating_add))
     }
 }
 
@@ -852,9 +714,7 @@ impl TryFrom<&crate::definition::ParameterDefinition> for Parameter {
 
     fn try_from(value: &crate::definition::ParameterDefinition) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter definition encoding memory overflows",
-            ));
+            return Err(Error::Invalid("parameter definition encoding memory overflows"));
         }
         Ok(Self {
             expansion: Expansion::try_from(&value.expansion)?,
@@ -868,11 +728,7 @@ impl TryFrom<&crate::definition::ParameterDefinition> for Parameter {
             required: value.required,
             expression: expressions::Parameter::try_from(&value.expression)?,
             runtime_writable: value.runtime_writable,
-            selection: value
-                .selection
-                .as_ref()
-                .map(Selection::try_from)
-                .transpose()?,
+            selection: value.selection.as_ref().map(Selection::try_from).transpose()?,
             list: value.list.as_ref().map(List::try_from).transpose()?,
             extensions: Map::try_from(&value.extensions)?,
         })
@@ -884,17 +740,12 @@ impl TryFrom<Parameter> for crate::definition::ParameterDefinition {
 
     fn try_from(row: Parameter) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter definition projection memory overflows",
-            ));
+            return Err(Error::Invalid("parameter definition projection memory overflows"));
         }
         Ok(Self {
             expansion: row.expansion.try_into()?,
             parameter_id: dokime_domain::model::identity::ParameterId::from_uuid(row.parameter_id)?,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("parameter definition metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("parameter definition metadata is missing"))?.try_into()?,
             group_id: row.group_id.map(dokime_domain::model::identity::Identifier::new).transpose()?,
             value_type: value_type(&row.value_type)?,
             unit: row.unit.map(TryInto::try_into).transpose()?,
@@ -918,9 +769,7 @@ impl Expansion {
             ParameterExpansion::Cartesian => ("cartesian", 0),
             ParameterExpansion::Zip { group } => ("zip", group.as_str().len()),
         };
-        std::mem::size_of::<Self>()
-            .saturating_add(kind.len())
-            .saturating_add(group)
+        std::mem::size_of::<Self>().saturating_add(kind.len()).saturating_add(group)
     }
 
     fn projection_memory(&self) -> Result<usize> {
@@ -938,19 +787,14 @@ impl TryFrom<&crate::definition::ParameterExpansion> for Expansion {
     fn try_from(value: &crate::definition::ParameterExpansion) -> Result<Self> {
         use crate::definition::ParameterExpansion;
         if Self::encoding_memory(value) == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter expansion encoding memory overflows",
-            ));
+            return Err(Error::Invalid("parameter expansion encoding memory overflows"));
         }
         let (kind, group) = match value {
             ParameterExpansion::Single => ("single", None),
             ParameterExpansion::Cartesian => ("cartesian", None),
             ParameterExpansion::Zip { group } => ("zip", Some(group.as_str().to_owned())),
         };
-        Ok(Self {
-            kind: kind.to_owned(),
-            group,
-        })
+        Ok(Self { kind: kind.to_owned(), group })
     }
 }
 
@@ -962,9 +806,7 @@ impl TryFrom<Expansion> for crate::definition::ParameterExpansion {
         match row.kind.as_str() {
             "single" => Ok(Self::Single),
             "cartesian" => Ok(Self::Cartesian),
-            "zip" => Ok(Self::Zip {
-                group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())?,
-            }),
+            "zip" => Ok(Self::Zip { group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())? }),
             _ => Err(Error::Invalid("invalid parameter expansion")),
         }
     }
@@ -972,12 +814,7 @@ impl TryFrom<Expansion> for crate::definition::ParameterExpansion {
 
 impl Selection {
     fn encoding_memory(value: &crate::definition::ParameterSelection) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>().saturating_add(
-            value
-                .choices
-                .len()
-                .saturating_mul(std::mem::size_of::<Value>()),
-        );
+        let mut bytes = std::mem::size_of::<Self>().saturating_add(value.choices.len().saturating_mul(std::mem::size_of::<Value>()));
         for choice in &value.choices {
             let memory = Value::encoding_memory(choice)?;
             if memory == usize::MAX {
@@ -1002,14 +839,10 @@ impl TryFrom<&crate::definition::ParameterSelection> for Selection {
 
     fn try_from(value: &crate::definition::ParameterSelection) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter choices encoding memory overflows",
-            ));
+            return Err(Error::Invalid("parameter choices encoding memory overflows"));
         }
         let mut choices = Vec::new();
-        choices
-            .try_reserve_exact(value.choices.len())
-            .map_err(|_| Error::Invalid("parameter choices allocation failed"))?;
+        choices.try_reserve_exact(value.choices.len()).map_err(|_| Error::Invalid("parameter choices allocation failed"))?;
         for choice in &value.choices {
             choices.push(Value::try_from(choice)?);
         }
@@ -1022,14 +855,10 @@ impl TryFrom<Selection> for crate::definition::ParameterSelection {
 
     fn try_from(row: Selection) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter choices projection memory overflows",
-            ));
+            return Err(Error::Invalid("parameter choices projection memory overflows"));
         }
         let mut choices = Vec::new();
-        choices
-            .try_reserve_exact(row.choices.len())
-            .map_err(|_| Error::Invalid("parameter choices allocation failed"))?;
+        choices.try_reserve_exact(row.choices.len()).map_err(|_| Error::Invalid("parameter choices allocation failed"))?;
         for choice in row.choices {
             choices.push(choice.try_into()?);
         }
@@ -1063,16 +892,8 @@ impl TryFrom<&crate::definition::ParameterList> for List {
         }
         Ok(Self {
             element_type: value_type_name(&value.element_type).to_owned(),
-            min_items: value
-                .min_items
-                .map(u64::try_from)
-                .transpose()
-                .map_err(|_| Error::Invalid("parameter list count overflows"))?,
-            max_items: value
-                .max_items
-                .map(u64::try_from)
-                .transpose()
-                .map_err(|_| Error::Invalid("parameter list count overflows"))?,
+            min_items: value.min_items.map(u64::try_from).transpose().map_err(|_| Error::Invalid("parameter list count overflows"))?,
+            max_items: value.max_items.map(u64::try_from).transpose().map_err(|_| Error::Invalid("parameter list count overflows"))?,
         })
     }
 }
@@ -1084,16 +905,8 @@ impl TryFrom<List> for crate::definition::ParameterList {
         row.validate()?;
         Ok(Self {
             element_type: value_type(&row.element_type)?,
-            min_items: row
-                .min_items
-                .map(usize::try_from)
-                .transpose()
-                .map_err(|_| Error::Invalid("parameter list count overflows"))?,
-            max_items: row
-                .max_items
-                .map(usize::try_from)
-                .transpose()
-                .map_err(|_| Error::Invalid("parameter list count overflows"))?,
+            min_items: row.min_items.map(usize::try_from).transpose().map_err(|_| Error::Invalid("parameter list count overflows"))?,
+            max_items: row.max_items.map(usize::try_from).transpose().map_err(|_| Error::Invalid("parameter list count overflows"))?,
         })
     }
 }
@@ -1110,14 +923,8 @@ impl Group {
     }
 
     pub(super) fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("parameter group metadata is missing"))?
-            .projection_memory()?;
-        Ok(std::mem::size_of::<crate::definition::ParameterGroup>()
-            .saturating_add(self.group_id.capacity())
-            .saturating_add(metadata))
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("parameter group metadata is missing"))?.projection_memory()?;
+        Ok(std::mem::size_of::<crate::definition::ParameterGroup>().saturating_add(self.group_id.capacity()).saturating_add(metadata))
     }
 }
 
@@ -1128,10 +935,7 @@ impl TryFrom<&crate::definition::ParameterGroup> for Group {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("parameter group encoding memory overflows"));
         }
-        Ok(Self {
-            group_id: value.group_id.as_str().to_owned(),
-            metadata: Some(metadata::Row::try_from(&value.metadata)?),
-        })
+        Ok(Self { group_id: value.group_id.as_str().to_owned(), metadata: Some(metadata::Row::try_from(&value.metadata)?) })
     }
 }
 
@@ -1140,16 +944,11 @@ impl TryFrom<Group> for crate::definition::ParameterGroup {
 
     fn try_from(row: Group) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "parameter group projection memory overflows",
-            ));
+            return Err(Error::Invalid("parameter group projection memory overflows"));
         }
         Ok(Self {
             group_id: dokime_domain::model::identity::Identifier::new(row.group_id)?,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("parameter group metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("parameter group metadata is missing"))?.try_into()?,
         })
     }
 }
@@ -1182,11 +981,7 @@ impl Unit {
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("unit metadata is missing"))?
-            .projection_memory()?;
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("unit metadata is missing"))?.projection_memory()?;
         if metadata == usize::MAX {
             return Ok(usize::MAX);
         }
@@ -1216,14 +1011,7 @@ impl TryFrom<Unit> for dokime_domain::model::values::MeasurementUnit {
             "custom" => UnitFamily::Custom,
             _ => return Err(Error::Invalid("invalid unit family")),
         };
-        Ok(Self {
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("unit metadata is missing"))?
-                .try_into()?,
-            family,
-            symbol: row.symbol,
-        })
+        Ok(Self { metadata: row.metadata.ok_or(Error::Invalid("unit metadata is missing"))?.try_into()?, family, symbol: row.symbol })
     }
 }
 
@@ -1240,15 +1028,12 @@ impl TryFrom<Value> for dokime_domain::model::values::Value {
     type Error = Error;
     fn try_from(value: Value) -> Result<Self> {
         let bound = value.projection_memory()?;
-        let allowance =
-            NonZeroUsize::new(bound).ok_or(Error::Invalid("scalar projection is empty"))?;
+        let allowance = NonZeroUsize::new(bound).ok_or(Error::Invalid("scalar projection is empty"))?;
         let mut values = values::decode_owned(value.cells, allowance)?;
         if values.len() != 1 {
             return Err(Error::Invalid("scalar value must have one member"));
         }
-        values
-            .remove("value")
-            .ok_or(Error::Invalid("scalar value is missing"))
+        values.remove("value").ok_or(Error::Invalid("scalar value is missing"))
     }
 }
 impl Value {
@@ -1258,9 +1043,7 @@ impl Value {
 
     pub fn projection_memory(&self) -> Result<usize> {
         let bound = values::owned_memory(&self.cells)?;
-        if self.cells[0].children != 1
-            || self.cells.get(1).and_then(|cell| cell.name.as_deref()) != Some("value")
-        {
+        if self.cells[0].children != 1 || self.cells.get(1).and_then(|cell| cell.name.as_deref()) != Some("value") {
             return Err(Error::Invalid("scalar value must have one value member"));
         }
         Ok(bound)
@@ -1268,9 +1051,7 @@ impl Value {
 }
 
 impl Map {
-    pub fn encoding_memory(
-        value: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
-    ) -> Result<usize> {
+    pub fn encoding_memory(value: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<usize> {
         values::encoding_memory(value)
     }
 
@@ -1283,9 +1064,7 @@ impl TryFrom<&std::collections::BTreeMap<String, dokime_domain::model::values::V
     type Error = Error;
 
     fn try_from(value: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<Self> {
-        Ok(Self {
-            cells: values::encode(value)?,
-        })
+        Ok(Self { cells: values::encode(value)? })
     }
 }
 
@@ -1294,45 +1073,34 @@ impl TryFrom<Map> for std::collections::BTreeMap<String, dokime_domain::model::v
 
     fn try_from(map: Map) -> Result<Self> {
         let bound = map.projection_memory()?;
-        let allowance =
-            NonZeroUsize::new(bound).ok_or(Error::Invalid("map projection is empty"))?;
+        let allowance = NonZeroUsize::new(bound).ok_or(Error::Invalid("map projection is empty"))?;
         values::decode_owned(map.cells, allowance)
     }
 }
 
 impl serde::Serialize for Value {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
-        let value: dokime_domain::model::values::Value =
-            self.clone().try_into().map_err(serde::ser::Error::custom)?;
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let value: dokime_domain::model::values::Value = self.clone().try_into().map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 }
 impl<'de> serde::Deserialize<'de> for Value {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let value = <dokime_domain::model::values::Value as serde::Deserialize>::deserialize(deserializer)?;
         Self::try_from(&value).map_err(serde::de::Error::custom)
     }
 }
 impl serde::Serialize for Map {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let values: std::collections::BTreeMap<String, dokime_domain::model::values::Value> =
             self.clone().try_into().map_err(serde::ser::Error::custom)?;
         values.serialize(serializer)
     }
 }
 impl<'de> serde::Deserialize<'de> for Map {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
-        let value = <std::collections::BTreeMap<String, dokime_domain::model::values::Value> as serde::Deserialize>::deserialize(deserializer)?;
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let value =
+            <std::collections::BTreeMap<String, dokime_domain::model::values::Value> as serde::Deserialize>::deserialize(deserializer)?;
         let cells = values::encode(&value).map_err(serde::de::Error::custom)?;
         Ok(Self { cells })
     }
@@ -1341,11 +1109,7 @@ impl<'de> serde::Deserialize<'de> for Map {
 /* === Public Functions === */
 pub(super) fn normalize_document(document: &mut crate::document::DocumentDefinition) {
     let cards = document.cards.iter_mut().map(|card| &mut card.body);
-    let section_cards = document
-        .sections
-        .iter_mut()
-        .flat_map(|section| &mut section.cards)
-        .map(|card| &mut card.body);
+    let section_cards = document.sections.iter_mut().flat_map(|section| &mut section.cards).map(|card| &mut card.body);
     for body in cards.chain(section_cards) {
         if let crate::document::DocumentCardBody::Plot { plot } = body {
             // This Builder Flag Is Excluded From The Portable Contract
@@ -1354,9 +1118,7 @@ pub(super) fn normalize_document(document: &mut crate::document::DocumentDefinit
     }
 }
 
-pub(super) fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(
-    source: &T,
-) -> Result<U> {
+pub(super) fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(source: &T) -> Result<U> {
     let value = serde_json::to_value(source)?;
     Ok(serde_json::from_value(value)?)
 }
@@ -1378,9 +1140,7 @@ fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static 
 
 fn copied_strings(values: &[String]) -> Result<Vec<String>> {
     let mut copied = Vec::new();
-    copied
-        .try_reserve_exact(values.len())
-        .map_err(|_| Error::Invalid("template text allocation failed"))?;
+    copied.try_reserve_exact(values.len()).map_err(|_| Error::Invalid("template text allocation failed"))?;
     for value in values {
         copied.push(value.as_str().to_owned());
     }

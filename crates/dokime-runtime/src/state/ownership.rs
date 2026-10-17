@@ -69,29 +69,19 @@ pub enum ProviderCatalog {
 
 /* === Implementations === */
 impl RuntimeState {
-    pub(crate) fn execution_identity(
-        &self,
-        source: &str,
-    ) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
+    pub(crate) fn execution_identity(&self, source: &str) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
         use dokime_domain::model::execution::snapshot::ExecutionImplementation;
         use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
 
         let implementation = match self.plugin_owners.get(source)? {
             PluginOwner::Host => return None,
-            PluginOwner::Bundle { content_digest, .. } => ExecutionImplementation::Bundle {
-                content_digest: content_digest.clone(),
-            },
-            PluginOwner::Embedded { generation } => ExecutionImplementation::Embedded {
-                generation: generation.clone(),
-            },
+            PluginOwner::Bundle { content_digest, .. } => ExecutionImplementation::Bundle { content_digest: content_digest.clone() },
+            PluginOwner::Embedded { generation } => ExecutionImplementation::Embedded { generation: generation.clone() },
         };
 
         Some(ExecutionPluginIdentity {
             source: source.to_owned(),
-            version: self
-                .installed_plugins
-                .get(source)
-                .map(|plugin| plugin.version.clone()),
+            version: self.installed_plugins.get(source).map(|plugin| plugin.version.clone()),
             implementation,
         })
     }
@@ -126,9 +116,7 @@ impl ProviderCatalog {
                 installation: bundle.installation.clone(),
                 content_digest: bundle.content_digest.clone(),
             },
-            Self::Embedded { generation, .. } => PluginOwner::Embedded {
-                generation: generation.clone(),
-            },
+            Self::Embedded { generation, .. } => PluginOwner::Embedded { generation: generation.clone() },
         }
     }
 
@@ -142,14 +130,8 @@ impl ProviderCatalog {
 
 impl RuntimeState {
     pub fn install_host_plugin(&mut self, installation: InstalledPlugin) -> Result<(), String> {
-        if matches!(
-            self.plugin_owners.get(&installation.source),
-            Some(PluginOwner::Bundle { .. } | PluginOwner::Embedded { .. })
-        ) {
-            return Err(format!(
-                "source `{}` belongs to a registered provider",
-                installation.source
-            ));
+        if matches!(self.plugin_owners.get(&installation.source), Some(PluginOwner::Bundle { .. } | PluginOwner::Embedded { .. })) {
+            return Err(format!("source `{}` belongs to a registered provider", installation.source));
         }
         let source = installation.source.clone();
         self.install_plugin(installation)?;
@@ -166,56 +148,34 @@ impl RuntimeState {
 
     /// Whether reconciling these catalogs would leave the state unchanged.
     /// Boot skips such commits: each one journals every catalog in full.
-    pub(crate) fn providers_current<C: Clone + Into<ProviderCatalog>>(
-        &self,
-        catalogs: &[C],
-    ) -> bool {
-        self.provider_candidate(catalogs, None)
-            .is_ok_and(|candidate| candidate == *self)
+    pub(crate) fn providers_current<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C]) -> bool {
+        self.provider_candidate(catalogs, None).is_ok_and(|candidate| candidate == *self)
     }
 
-    pub fn reconcile_providers<C: Clone + Into<ProviderCatalog>>(
-        &mut self,
-        catalogs: &[C],
-    ) -> Result<(), String> {
+    pub fn reconcile_providers<C: Clone + Into<ProviderCatalog>>(&mut self, catalogs: &[C]) -> Result<(), String> {
         *self = self.provider_candidate(catalogs, None)?;
         Ok(())
     }
 
-    pub fn validate_providers<C: Clone + Into<ProviderCatalog>>(
-        &self,
-        catalogs: &[C],
-    ) -> Result<(), String> {
+    pub fn validate_providers<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C]) -> Result<(), String> {
         self.provider_candidate(catalogs, None).map(|_| ())
     }
 
-    pub(crate) fn validate_provider_reload<C: Clone + Into<ProviderCatalog>>(
-        &self,
-        catalogs: &[C],
-        package: &str,
-    ) -> Result<(), String> {
+    pub(crate) fn validate_provider_reload<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C], package: &str) -> Result<(), String> {
         self.provider_candidate(catalogs, Some(package)).map(|_| ())
     }
 
     pub(crate) fn reload_provider_catalog<C: Clone + Into<ProviderCatalog>>(
-        &mut self,
-        catalogs: &[C],
-        package: &str,
+        &mut self, catalogs: &[C], package: &str,
     ) -> Result<(), String> {
         *self = self.provider_candidate(catalogs, Some(package))?;
         Ok(())
     }
 
-    fn provider_candidate<C: Clone + Into<ProviderCatalog>>(
-        &self,
-        catalogs: &[C],
-        redefine: Option<&str>,
-    ) -> Result<Self, String> {
+    fn provider_candidate<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C], redefine: Option<&str>) -> Result<Self, String> {
         let providers: Vec<ProviderCatalog> = catalogs.iter().cloned().map(Into::into).collect();
         if let Some(package) = redefine
-            && !providers
-                .iter()
-                .any(|provider| provider.id() == package && provider.allows_redefinition())
+            && !providers.iter().any(|provider| provider.id() == package && provider.allows_redefinition())
         {
             return Err("record redefinition requires a configured or embedded provider".into());
         }
@@ -223,12 +183,7 @@ impl RuntimeState {
         let old: Vec<_> = candidate
             .installed_plugins
             .keys()
-            .filter(|source| {
-                !matches!(
-                    candidate.plugin_owners.get(*source),
-                    Some(PluginOwner::Host)
-                )
-            })
+            .filter(|source| !matches!(candidate.plugin_owners.get(*source), Some(PluginOwner::Host)))
             .cloned()
             .collect();
         for source in old {
@@ -247,25 +202,14 @@ impl RuntimeState {
                 return Err("an embedded provider requires a registration generation".into());
             }
             for plugin in provider.plugins() {
-                if !sources.insert(&plugin.source)
-                    || candidate.plugin_owners.contains_key(&plugin.source)
-                {
-                    return Err(format!(
-                        "provider source `{}` is already owned",
-                        plugin.source
-                    ));
+                if !sources.insert(&plugin.source) || candidate.plugin_owners.contains_key(&plugin.source) {
+                    return Err(format!("provider source `{}` is already owned", plugin.source));
                 }
                 candidate.install_plugin_with_redefinition(
                     plugin.clone(),
-                    if redefine == Some(provider.id()) {
-                        super::Redefinition::Supersede
-                    } else {
-                        super::Redefinition::Refuse
-                    },
+                    if redefine == Some(provider.id()) { super::Redefinition::Supersede } else { super::Redefinition::Refuse },
                 )?;
-                candidate
-                    .plugin_owners
-                    .insert(plugin.source.clone(), provider.owner());
+                candidate.plugin_owners.insert(plugin.source.clone(), provider.owner());
             }
         }
         // Asked once, of the finished catalog. A template may name a stream

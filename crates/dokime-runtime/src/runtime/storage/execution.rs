@@ -20,19 +20,20 @@ use std::sync::Arc;
 use harmos::storage::{FileReader, FileReference, ObjectRevision, ObjectVersion, StorageCursor};
 
 // Local Imports
+use crate::storage::Manager;
 use crate::{
-    runtime::Error, runtime::Result,
     execution::context::{ExecutionContext, source::CapturedSource},
+    runtime::Error,
+    runtime::Result,
 };
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::execution::saved::ExecutionSource;
 use dokime_domain::model::execution::saved::validate_outputs;
-use crate::storage::Manager;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -57,35 +58,19 @@ pub struct ExecutionView {
 
 /* === Implementations === */
 impl ExecutionView {
-    pub async fn open(
-        storage: &Manager,
-        id: &TestExecutionId,
-        version: ObjectVersion,
-    ) -> Result<Option<Self>> {
+    pub async fn open(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<Self>> {
         let saved = storage.cursor_saved();
-        let Some(execution) =
-            crate::storage::objects::execution::read(storage, id, version).await?
-        else {
+        let Some(execution) = crate::storage::objects::execution::read(storage, id, version).await? else {
             return Ok(None);
         };
         if let Some(seal) = &execution.value.saved {
             check_seal_position(&execution.position, &seal.dependencies_saved)?;
         }
-        Ok(Some(Self {
-            storage: storage.clone(),
-            saved,
-            execution: Some(Arc::new(execution)),
-            captured: None,
-        }))
+        Ok(Some(Self { storage: storage.clone(), saved, execution: Some(Arc::new(execution)), captured: None }))
     }
 
-    pub async fn open_checkpoint(
-        storage: &Manager,
-        checkpoint: &ExecutionCheckpoint,
-    ) -> Result<Option<Self>> {
-        checkpoint
-            .validate()
-            .map_err(crate::storage::Error::from)?;
+    pub async fn open_checkpoint(storage: &Manager, checkpoint: &ExecutionCheckpoint) -> Result<Option<Self>> {
+        checkpoint.validate().map_err(crate::storage::Error::from)?;
         let version = ObjectVersion::Exact(checkpoint.version.clone());
         let Some(inspection) = Self::open(storage, &checkpoint.execution_id, version).await? else {
             return Ok(None);
@@ -95,9 +80,7 @@ impl ExecutionView {
             || inspection.revision()?.value.test_execution_id != checkpoint.execution_id
             || inspection.source()?.evidence_through != checkpoint.evidence_through
         {
-            return Err(Error::Storage(crate::storage::Error::Invalid(
-                "checkpoint differs from its inspected execution seal",
-            )));
+            return Err(Error::Storage(crate::storage::Error::Invalid("checkpoint differs from its inspected execution seal")));
         }
         Ok(Some(inspection))
     }
@@ -105,9 +88,7 @@ impl ExecutionView {
     pub fn checkpoint(&self) -> Result<ExecutionCheckpoint> {
         // A Snapshot Of A Sealed Revision Keeps Its Seal; Only Pre-Report Captures Lack One.
         if self.captured.is_some() && self.execution().saved.is_none() {
-            return Err(Error::Storage(crate::storage::Error::Invalid(
-                "captured pre-report execution has no sealed checkpoint",
-            )));
+            return Err(Error::Storage(crate::storage::Error::Invalid("captured pre-report execution has no sealed checkpoint")));
         }
         let revision = self.revision()?;
         let checkpoint = ExecutionCheckpoint {
@@ -116,57 +97,37 @@ impl ExecutionView {
             version: revision.version.clone(),
             evidence_through: self.source()?.evidence_through.clone(),
         };
-        checkpoint
-            .validate()
-            .map_err(crate::storage::Error::from)?;
+        checkpoint.validate().map_err(crate::storage::Error::from)?;
         Ok(checkpoint)
     }
 
     /// Binds a captured pre-report source to the saved evidence it reads.
-    pub(crate) async fn captured(
-        storage: &Manager,
-        captured: Arc<CapturedSource>,
-        owner: &NodeId,
-    ) -> Result<Self> {
+    pub(crate) async fn captured(storage: &Manager, captured: Arc<CapturedSource>, owner: &NodeId) -> Result<Self> {
         if &captured.owner_node_id != owner {
-            return Err(Error::Storage(crate::storage::Error::Invalid(
-                "captured execution source belongs to another node",
-            )));
+            return Err(Error::Storage(crate::storage::Error::Invalid("captured execution source belongs to another node")));
         }
         let saved = storage.cursor_saved();
         if !saved.covers(&captured.evidence_through)? {
-            return Err(Error::InvalidReportInputs(
-                "captured evidence exceeds saved view".into(),
-            ));
+            return Err(Error::InvalidReportInputs("captured evidence exceeds saved view".into()));
         }
         captured.validate_header()?;
         if let Some(anchor) = &captured.execution
             && !saved.covers(&anchor.position)?
         {
-            return Err(Error::InvalidReportInputs(
-                "captured anchor exceeds saved view".into(),
-            ));
+            return Err(Error::InvalidReportInputs("captured anchor exceeds saved view".into()));
         }
-        validate_outputs(&captured.execution_id, &saved, &captured.outputs)
-            .map_err(crate::storage::Error::from)?;
+        validate_outputs(&captured.execution_id, &saved, &captured.outputs).map_err(crate::storage::Error::from)?;
         let execution = if let Some(anchor) = &captured.execution {
-            let revision = crate::storage::objects::execution::read(
-                storage,
-                &captured.execution_id,
-                ObjectVersion::Exact(anchor.version.clone()),
-            )
-            .await?
-            .ok_or_else(|| {
-                Error::InvalidReportInputs("captured primary anchor is missing".into())
-            })?;
+            let revision =
+                crate::storage::objects::execution::read(storage, &captured.execution_id, ObjectVersion::Exact(anchor.version.clone()))
+                    .await?
+                    .ok_or_else(|| Error::InvalidReportInputs("captured primary anchor is missing".into()))?;
             if revision.position != anchor.position
                 || revision.version != anchor.version
                 || revision.value.test_execution_id != captured.execution_id
                 || revision.value.saved.is_some()
             {
-                return Err(Error::InvalidReportInputs(
-                    "captured primary anchor differs from stored revision".into(),
-                ));
+                return Err(Error::InvalidReportInputs("captured primary anchor differs from stored revision".into()));
             }
             Some(Arc::new(revision))
         } else {
@@ -178,28 +139,15 @@ impl ExecutionView {
             let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
                 continue;
             };
-            if record
-                .scope
-                .test_cycle_id
-                .as_ref()
-                .is_some_and(|id| id != &captured.lifecycle.test_cycle_id)
-                || record
-                    .scope
-                    .test_case_id
-                    .as_ref()
-                    .is_some_and(|id| id != &captured.lifecycle.test_case_id)
+            if record.scope.test_cycle_id.as_ref().is_some_and(|id| id != &captured.lifecycle.test_cycle_id)
+                || record.scope.test_case_id.as_ref().is_some_and(|id| id != &captured.lifecycle.test_case_id)
             {
                 return Err(Error::Storage(crate::storage::Error::Invalid(
                     "captured artifact scope differs from its pre-report execution owner",
                 )));
             }
         }
-        let inspection = Self {
-            storage: storage.clone(),
-            saved,
-            execution,
-            captured: Some(captured),
-        };
+        let inspection = Self { storage: storage.clone(), saved, execution, captured: Some(captured) };
         for output in inspection.outputs()? {
             verify_file(inspection.read_file(&output.file, whole()).await?).await?;
         }
@@ -211,38 +159,23 @@ impl ExecutionView {
             return Ok(self.clone());
         }
         let captured = Arc::new(self.read_source().await?);
-        Ok(Self {
-            captured: Some(captured),
-            ..self.clone()
-        })
+        Ok(Self { captured: Some(captured), ..self.clone() })
     }
 
     pub fn context(&self) -> Result<&ExecutionContext> {
         self.captured_source()
             .map(|source| &source.context)
-            .ok_or_else(|| {
-                Error::Storage(crate::storage::Error::Invalid(
-                    "execution context requires a snapshot",
-                ))
-            })
+            .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("execution context requires a snapshot")))
     }
 
     pub fn captured_at(&self) -> Result<&dokime_domain::model::time::Timestamp> {
         self.captured_source()
             .map(|source| &source.captured_at)
-            .ok_or_else(|| {
-                Error::Storage(crate::storage::Error::Invalid(
-                    "execution capture time requires a snapshot",
-                ))
-            })
+            .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("execution capture time requires a snapshot")))
     }
 
     pub(crate) fn source_snapshot(&self) -> Result<&CapturedSource> {
-        self.captured_source().ok_or_else(|| {
-            Error::Storage(crate::storage::Error::Invalid(
-                "execution evidence requires a snapshot",
-            ))
-        })
+        self.captured_source().ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("execution evidence requires a snapshot")))
     }
 
     /// The storage this execution was read from.
@@ -256,9 +189,7 @@ impl ExecutionView {
     }
 
     pub fn revision(&self) -> Result<&ObjectRevision<TestExecution>> {
-        self.execution.as_deref().ok_or_else(|| {
-            Error::InvalidReportInputs("execution has no persisted primary anchor".into())
-        })
+        self.execution.as_deref().ok_or_else(|| Error::InvalidReportInputs("execution has no persisted primary anchor".into()))
     }
 
     pub fn execution(&self) -> &TestExecution {
@@ -267,11 +198,7 @@ impl ExecutionView {
         {
             return &execution.value;
         }
-        &self
-            .captured
-            .as_ref()
-            .expect("captured view has lifecycle metadata")
-            .lifecycle
+        &self.captured.as_ref().expect("captured view has lifecycle metadata").lifecycle
     }
 
     pub(crate) async fn read_source(&self) -> Result<CapturedSource> {
@@ -284,9 +211,7 @@ impl ExecutionView {
             .saved
             .as_ref()
             .map(|seal| &seal.source)
-            .ok_or_else(|| {
-                Error::InvalidReportInputs("execution has no captured source dependencies".into())
-            })
+            .ok_or_else(|| Error::InvalidReportInputs("execution has no captured source dependencies".into()))
     }
 
     pub(crate) fn captured_source(&self) -> Option<&CapturedSource> {
@@ -316,37 +241,16 @@ impl ExecutionView {
     }
 
     /// Read `range` of one exact captured dependency of this execution.
-    pub async fn read_file(
-        &self,
-        file: &FileReference,
-        range: harmos::storage::ByteRange,
-    ) -> Result<FileReader> {
-        let owned = self
-            .captured
-            .as_ref()
-            .is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
-            || self
-                .execution()
-                .saved
-                .as_ref()
-                .is_some_and(|seal| seal.files().any(|owned| owned == file));
+    pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {
+        let owned = self.captured.as_ref().is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
+            || self.execution().saved.as_ref().is_some_and(|seal| seal.files().any(|owned| owned == file));
         if !owned {
-            return Err(Error::Storage(crate::storage::Error::Invalid(
-                "file is not an exact captured dependency of this execution",
-            )));
+            return Err(Error::Storage(crate::storage::Error::Invalid("file is not an exact captured dependency of this execution")));
         }
         if !self.saved.covers(&file.position)? {
-            return Err(Error::Storage(crate::storage::Error::Invalid(
-                "execution file exceeds the original saved view",
-            )));
+            return Err(Error::Storage(crate::storage::Error::Invalid("execution file exceeds the original saved view")));
         }
-        Ok(self
-            .storage
-            .read_file(harmos::storage::ReadFile {
-                file: file.clone(),
-                range,
-            })
-            .await?)
+        Ok(self.storage.read_file(harmos::storage::ReadFile { file: file.clone(), range }).await?)
     }
 }
 
@@ -356,24 +260,16 @@ pub(super) async fn verify_file(mut reader: FileReader) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn check_seal_position(
-    position: &StorageCursor,
-    dependencies: &StorageCursor,
-) -> Result<()> {
+pub(crate) fn check_seal_position(position: &StorageCursor, dependencies: &StorageCursor) -> Result<()> {
     if !position.covers(dependencies)? || position.sequence == dependencies.sequence {
-        return Err(Error::Storage(crate::storage::Error::Invalid(
-            "seal revision does not follow saved dependencies",
-        )));
+        return Err(Error::Storage(crate::storage::Error::Invalid("seal revision does not follow saved dependencies")));
     }
     Ok(())
 }
 
 /* === Private Functions === */
 fn whole() -> harmos::storage::ByteRange {
-    harmos::storage::ByteRange {
-        offset: 0,
-        limit: None,
-    }
+    harmos::storage::ByteRange { offset: 0, limit: None }
 }
 
 /* === Tests === */

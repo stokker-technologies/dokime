@@ -40,14 +40,7 @@ pub struct HostTelemetryTaskSpec {
 /* === Implementations === */
 impl HostTelemetryTaskSpec {
     pub fn from_config(config: &HostTelemetryConfig) -> Vec<Self> {
-        config
-            .task_streams()
-            .into_iter()
-            .map(|stream| Self {
-                stream,
-                interval: config.interval_for(stream),
-            })
-            .collect()
+        config.task_streams().into_iter().map(|stream| Self { stream, interval: config.interval_for(stream) }).collect()
     }
 }
 

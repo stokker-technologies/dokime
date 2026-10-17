@@ -18,16 +18,13 @@
 
 // Local Imports
 use crate::RuntimeState;
-use dokime_domain::model::execution::result::CycleView;
 use crate::{
     RuntimeConfig,
     evidence_runtime::EvidenceCounts,
-    queries::{
-        RuntimeCycleSummary, RuntimeOverviewFrame, RuntimeOverviewSnapshot,
-        RuntimeRetentionDiagnostics,
-    },
+    queries::{RuntimeCycleSummary, RuntimeOverviewFrame, RuntimeOverviewSnapshot, RuntimeRetentionDiagnostics},
     runtime::state::contracts::RuntimeContractLookup,
 };
+use dokime_domain::model::execution::result::CycleView;
 
 /* === Constants === */
 
@@ -44,10 +41,7 @@ use crate::{
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn overview_entity_counts(
-    state: &RuntimeState,
-    artifact_records: usize,
-) -> RuntimeOverviewFrame {
+pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usize) -> RuntimeOverviewFrame {
     RuntimeOverviewFrame {
         shell: None,
         suites: state.suites.suites().count(),
@@ -61,11 +55,7 @@ pub(crate) fn overview_entity_counts(
         health: state.health_items().len(),
         traceability: traceability_snapshot_count(state),
         notes: state.notes().len(),
-        documents: state
-            .executions
-            .values()
-            .map(|execution| execution.documents.len())
-            .sum::<usize>(),
+        documents: state.executions.values().map(|execution| execution.documents.len()).sum::<usize>(),
         record_definitions: state.record_definitions.len(),
         telemetry_definitions: state.telemetry_definitions.len(),
         artifacts: artifact_records,
@@ -92,11 +82,7 @@ pub(crate) fn contract_lookup(state: &RuntimeState) -> RuntimeContractLookup {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn runtime_overview_snapshot(
-    state: &RuntimeState,
-    config: &RuntimeConfig,
-    revision: u64,
-    cycles: Vec<CycleView>,
-    evidence_counts: EvidenceCounts,
+    state: &RuntimeState, config: &RuntimeConfig, revision: u64, cycles: Vec<CycleView>, evidence_counts: EvidenceCounts,
     telemetry_cursor_entries: usize,
 ) -> RuntimeOverviewSnapshot {
     let cycle_summaries = cycles.iter().map(RuntimeCycleSummary::from_cycle).collect();
@@ -116,10 +102,7 @@ pub(crate) fn runtime_overview_snapshot(
 }
 
 /* === Private Functions === */
-fn retention_diagnostics(
-    state: &RuntimeState,
-    telemetry_cursor_entries: usize,
-) -> RuntimeRetentionDiagnostics {
+fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) -> RuntimeRetentionDiagnostics {
     RuntimeRetentionDiagnostics {
         state_cycles: state.cycles.len(),
         state_executions_total: state.executions.len(),

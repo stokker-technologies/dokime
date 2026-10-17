@@ -106,20 +106,14 @@ fn histogram_requires_x() {
         },
     ] {
         let message = refusal(&plot);
-        assert!(
-            message.contains("histogram plots must declare exactly one x field or x expression"),
-            "{message}"
-        );
+        assert!(message.contains("histogram plots must declare exactly one x field or x expression"), "{message}");
     }
 
     let mut clock = Plot::histogram("Voltage Distribution");
     clock.x(reconnection("voltage_v"));
     clock.x_format(format::clock("%H:%M:%S"));
     let message = refusal(&clock);
-    assert!(
-        message.contains("`x_format` on a histogram plot"),
-        "{message}"
-    );
+    assert!(message.contains("`x_format` on a histogram plot"), "{message}");
 }
 
 // A box summary keeps its value on y, and its refusal names the plot and the axis.
@@ -130,8 +124,5 @@ fn box_keeps_y() {
     validate_plot_definition(&plot).unwrap();
 
     let message = refusal(&Plot::box_summary("Voltage By Phase"));
-    assert!(
-        message.contains("box_summary plots must declare exactly one y field or y expression"),
-        "{message}"
-    );
+    assert!(message.contains("box_summary plots must declare exactly one y field or y expression"), "{message}");
 }

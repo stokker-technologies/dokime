@@ -8,12 +8,12 @@
  */
 
 /* === Modules === */
-pub mod error;
-pub(crate) mod operations;
 pub mod command;
 mod embedded;
+pub mod error;
 pub(crate) mod handle;
 mod native_telemetry;
+pub(crate) mod operations;
 mod plugins;
 pub mod progress;
 pub mod query;
@@ -23,9 +23,9 @@ pub mod state;
 pub(crate) mod storage;
 
 /* === Re-Exports === */
-pub use error::{Error, Result};
 pub use crate::execution::context::ExecutionCycleContext;
 pub use embedded::EmbeddedProvider;
+pub use error::{Error, Result};
 pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;
 pub use state::RuntimeState;
@@ -37,10 +37,7 @@ pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 pub use handle::RecordSubscription;
 
-pub use storage::{
-    context_records::ContextRecord, execution::ExecutionView, records::RecordReader,
-    telemetry::TelemetryReader,
-};
+pub use storage::{context_records::ContextRecord, execution::ExecutionView, records::RecordReader, telemetry::TelemetryReader};
 
 // Named by this crate's own domain modules, by nobody outside it.
 
@@ -105,22 +102,15 @@ impl Runtime {
             let provider = embedded::Active::prepare(provider)?;
             let source = provider.definition.id.clone();
             if providers.insert(source.clone(), provider).is_some() {
-                return Err(crate::runtime::Error::Operation(format!(
-                    "duplicate embedded provider `{source}`"
-                )));
+                return Err(crate::runtime::Error::Operation(format!("duplicate embedded provider `{source}`")));
             }
         }
 
-        let mut runtime =
-            Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
+        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
         runtime.embedded = providers;
         let plugins_started = std::time::Instant::now();
         let outcome = runtime.install_plugins().await;
-        tracing::info!(
-            phase = "plugins",
-            elapsed_ms = plugins_started.elapsed().as_millis() as u64,
-            "plugin installation complete"
-        );
+        tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
         if let Err(error) = outcome {
             return Err(runtime.rollback(error).await);
         }
@@ -128,42 +118,31 @@ impl Runtime {
     }
 
     pub async fn with_execution_fixture(
-        config: RuntimeConfig,
-        source: impl Into<String>,
-        fixture: Arc<dyn ExecutionFixture>,
+        config: RuntimeConfig, source: impl Into<String>, fixture: Arc<dyn ExecutionFixture>,
     ) -> Result<Self> {
         Self::with_execution_fixtures(config, [(source.into(), fixture)]).await
     }
 
     pub async fn with_execution_fixtures(
-        config: RuntimeConfig,
-        fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
+        config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
     ) -> Result<Self> {
         Self::with_execution_fixtures_inner(config, fixtures, true).await
     }
 
     pub async fn with_execution_fixtures_without_builtins(
-        config: RuntimeConfig,
-        fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
+        config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
     ) -> Result<Self> {
         Self::with_execution_fixtures_inner(config, fixtures, false).await
     }
 
     async fn with_execution_fixtures_inner(
-        config: RuntimeConfig,
-        fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
-        install_builtins: bool,
+        config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>, install_builtins: bool,
     ) -> Result<Self> {
         let fixtures = fixtures.into_iter().collect();
-        let mut runtime =
-            Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
         let plugins_started = std::time::Instant::now();
         let outcome = runtime.install_plugins().await;
-        tracing::info!(
-            phase = "plugins",
-            elapsed_ms = plugins_started.elapsed().as_millis() as u64,
-            "plugin installation complete"
-        );
+        tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
         if let Err(error) = outcome {
             return Err(runtime.rollback(error).await);
         }
@@ -183,14 +162,10 @@ impl Runtime {
 
     fn from_parts((harmos, handle): (HarmosRuntime, RuntimeHandle)) -> Self {
         let (publications, ingest) = sidecars::spawn_publication_ingest(handle.clone());
-        assert!(
-            handle.publication_ingest.set(publications.clone()).is_ok(),
-            "publication ingest initializes once"
-        );
+        assert!(handle.publication_ingest.set(publications.clone()).is_ok(), "publication ingest initializes once");
         let forwarding = sidecars::spawn_record_forwarding(handle.clone());
         handle.record_ingress.attach(handle.clone());
-        let lease_gaps =
-            sidecars::spawn_lease_gap_watch(handle.clone(), harmos.operations.watch_residents());
+        let lease_gaps = sidecars::spawn_lease_gap_watch(handle.clone(), harmos.operations.watch_residents());
         Self {
             handle,
             harmos,
@@ -206,10 +181,8 @@ impl Runtime {
     }
 
     pub fn fixture_operation_caller(&self, owner: &str) -> Result<harmos::operations::Caller> {
-        let manager = self
-            .plugin_manager
-            .as_ref()
-            .ok_or_else(|| crate::runtime::Error::Operation("plugin manager is not installed".into()))?;
+        let manager =
+            self.plugin_manager.as_ref().ok_or_else(|| crate::runtime::Error::Operation("plugin manager is not installed".into()))?;
         let source = manager.caller(owner)?;
         self.harmos.operations.caller(&source).map_err(Into::into)
     }
@@ -231,12 +204,7 @@ impl Runtime {
                     source: source.clone(),
                 }));
             }
-            return Ok(self
-                .shutdown
-                .overview
-                .as_ref()
-                .expect("completed checkpoint")
-                .clone());
+            return Ok(self.shutdown.overview.as_ref().expect("completed checkpoint").clone());
         }
 
         let shutdown_started = std::time::Instant::now();
@@ -267,9 +235,7 @@ impl Runtime {
             drop(admission);
 
             loop {
-                self.shutdown.providers.extend(std::mem::take(
-                    &mut *self.handle.provider_tasks.lock().unwrap(),
-                ));
+                self.shutdown.providers.extend(std::mem::take(&mut *self.handle.provider_tasks.lock().unwrap()));
                 if self.shutdown.providers.is_empty() {
                     break;
                 }
@@ -325,10 +291,7 @@ impl Runtime {
 
         if !self.shutdown.stopped {
             if self.shutdown.overview.is_none() {
-                let participant = self
-                    .shutdown
-                    .participant
-                    .get_or_insert_with(|| self.harmos.stop_participant());
+                let participant = self.shutdown.participant.get_or_insert_with(|| self.harmos.stop_participant());
                 let stopping = self.harmos.stop();
                 tokio::pin!(stopping);
                 let checkpoint = async {
@@ -336,10 +299,7 @@ impl Runtime {
                     let _evidence = self.handle.evidence_admission.lock().await;
                     let _admission = self.handle.telemetry_admission.lock().await;
                     self.handle.execution_storage.checkpoint_shutdown().await?;
-                    self.handle
-                        .streams
-                        .seal::<crate::telemetry_runtime::TelemetryRow>()
-                        .await;
+                    self.handle.streams.seal::<crate::telemetry_runtime::TelemetryRow>().await;
                     self.handle.runtime_overview().await
                 };
                 let overview = tokio::select! {
@@ -352,11 +312,7 @@ impl Runtime {
                     }
                 };
                 self.shutdown.overview = Some(overview);
-                self.shutdown
-                    .participant
-                    .take()
-                    .expect("checkpoint participant")
-                    .finish();
+                self.shutdown.participant.take().expect("checkpoint participant").finish();
                 stopping.await?;
             } else {
                 self.harmos.stop().await?;
@@ -365,18 +321,16 @@ impl Runtime {
         }
 
         while let Some((name, package)) = self.plugins.iter_mut().next() {
-            package.close().await.map_err(|error| {
-                crate::runtime::Error::Operation(format!(
-                    "failed to remove extracted plugin `{name}`: {error}",
-                ))
-            })?;
+            package
+                .close()
+                .await
+                .map_err(|error| crate::runtime::Error::Operation(format!("failed to remove extracted plugin `{name}`: {error}",)))?;
             self.plugins.pop_first();
         }
-        self.pending_plugins.close().await.map_err(|error| {
-            crate::runtime::Error::Operation(format!(
-                "failed to remove staged plugin extraction: {error}",
-            ))
-        })?;
+        self.pending_plugins
+            .close()
+            .await
+            .map_err(|error| crate::runtime::Error::Operation(format!("failed to remove staged plugin extraction: {error}",)))?;
 
         self.handle.local_storage.close().await?;
 
@@ -388,12 +342,7 @@ impl Runtime {
                 source: source.clone(),
             }));
         }
-        let overview = self
-            .shutdown
-            .overview
-            .as_ref()
-            .expect("completed checkpoint")
-            .clone();
+        let overview = self.shutdown.overview.as_ref().expect("completed checkpoint").clone();
         tracing::info!(
             revision = overview.revision,
             elapsed_ms = shutdown_started.elapsed().as_millis() as u64,

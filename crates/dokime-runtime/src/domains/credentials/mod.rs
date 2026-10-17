@@ -78,26 +78,19 @@ trait CredentialBackend: Send + Sync {
 
 /* === Implementations === */
 impl CredentialStore {
-    pub(crate) fn from_config(
-        config: &RuntimeCredentialConfig,
-    ) -> Result<Self, CredentialStoreError> {
+    pub(crate) fn from_config(config: &RuntimeCredentialConfig) -> Result<Self, CredentialStoreError> {
         match config.backend {
-            CredentialBackendKind::OsKeyring => Ok(Self {
-                backend: Arc::new(OsKeyringCredentialBackend),
-                backend_kind: CredentialBackendKind::OsKeyring,
-            }),
+            CredentialBackendKind::OsKeyring => {
+                Ok(Self { backend: Arc::new(OsKeyringCredentialBackend), backend_kind: CredentialBackendKind::OsKeyring })
+            }
             CredentialBackendKind::Memory => Ok(Self::memory()),
             CredentialBackendKind::LocalFile => {
-                let path = config.local_file.clone().ok_or_else(|| {
-                    CredentialStoreError::Backend(
-                        "local-file credential backend requires a file path".to_owned(),
-                    )
-                })?;
+                let path = config
+                    .local_file
+                    .clone()
+                    .ok_or_else(|| CredentialStoreError::Backend("local-file credential backend requires a file path".to_owned()))?;
                 Ok(Self {
-                    backend: Arc::new(LocalFileCredentialBackend {
-                        path,
-                        lock: Mutex::new(()),
-                    }),
+                    backend: Arc::new(LocalFileCredentialBackend { path, lock: Mutex::new(()) }),
                     backend_kind: CredentialBackendKind::LocalFile,
                 })
             }
@@ -105,25 +98,15 @@ impl CredentialStore {
     }
 
     pub(crate) fn memory() -> Self {
-        Self {
-            backend: Arc::new(MemoryCredentialBackend::default()),
-            backend_kind: CredentialBackendKind::Memory,
-        }
+        Self { backend: Arc::new(MemoryCredentialBackend::default()), backend_kind: CredentialBackendKind::Memory }
     }
 
-    pub(crate) fn set_secret(
-        &self,
-        credential_id: &str,
-        secret: &str,
-    ) -> Result<(), CredentialStoreError> {
+    pub(crate) fn set_secret(&self, credential_id: &str, secret: &str) -> Result<(), CredentialStoreError> {
         validate_credential_id(credential_id)?;
         self.backend.set(credential_id, secret)
     }
 
-    pub(crate) fn get_secret(
-        &self,
-        credential_id: &str,
-    ) -> Result<Option<CredentialSecret>, CredentialStoreError> {
+    pub(crate) fn get_secret(&self, credential_id: &str) -> Result<Option<CredentialSecret>, CredentialStoreError> {
         validate_credential_id(credential_id)?;
         self.backend.get(credential_id)
     }
@@ -132,16 +115,9 @@ impl CredentialStore {
         Ok(self.get_secret(credential_id)?.is_some())
     }
 
-    pub(crate) fn redacted_binding(
-        &self,
-        credential_id: impl Into<String>,
-    ) -> Result<RedactedCredentialBinding, CredentialStoreError> {
+    pub(crate) fn redacted_binding(&self, credential_id: impl Into<String>) -> Result<RedactedCredentialBinding, CredentialStoreError> {
         let credential_id = credential_id.into();
-        Ok(RedactedCredentialBinding {
-            configured: self.contains(&credential_id)?,
-            backend: self.backend_kind,
-            credential_id,
-        })
+        Ok(RedactedCredentialBinding { configured: self.contains(&credential_id)?, backend: self.backend_kind, credential_id })
     }
 }
 
@@ -159,56 +135,38 @@ impl CredentialSecret {
 
 impl MemoryCredentialBackend {
     fn secrets(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, String>> {
-        self.secrets
-            .lock()
-            .expect("memory credential backend lock is poisoned")
+        self.secrets.lock().expect("memory credential backend lock is poisoned")
     }
 }
 
 impl CredentialBackend for MemoryCredentialBackend {
     fn set(&self, credential_id: &str, secret: &str) -> Result<(), CredentialStoreError> {
-        self.secrets()
-            .insert(credential_id.to_owned(), secret.to_owned());
+        self.secrets().insert(credential_id.to_owned(), secret.to_owned());
         Ok(())
     }
 
     fn get(&self, credential_id: &str) -> Result<Option<CredentialSecret>, CredentialStoreError> {
-        Ok(self
-            .secrets()
-            .get(credential_id)
-            .cloned()
-            .map(CredentialSecret))
+        Ok(self.secrets().get(credential_id).cloned().map(CredentialSecret))
     }
 }
 
 impl CredentialBackend for LocalFileCredentialBackend {
     fn set(&self, credential_id: &str, secret: &str) -> Result<(), CredentialStoreError> {
-        let _guard = self
-            .lock
-            .lock()
-            .expect("local credential backend lock is poisoned");
+        let _guard = self.lock.lock().expect("local credential backend lock is poisoned");
         let mut secrets = read_local_file(&self.path)?;
         secrets.insert(credential_id.to_owned(), secret.to_owned());
         write_local_file(&self.path, &secrets)
     }
 
     fn get(&self, credential_id: &str) -> Result<Option<CredentialSecret>, CredentialStoreError> {
-        let _guard = self
-            .lock
-            .lock()
-            .expect("local credential backend lock is poisoned");
-        Ok(read_local_file(&self.path)?
-            .get(credential_id)
-            .cloned()
-            .map(CredentialSecret))
+        let _guard = self.lock.lock().expect("local credential backend lock is poisoned");
+        Ok(read_local_file(&self.path)?.get(credential_id).cloned().map(CredentialSecret))
     }
 }
 
 impl CredentialBackend for OsKeyringCredentialBackend {
     fn set(&self, credential_id: &str, secret: &str) -> Result<(), CredentialStoreError> {
-        keyring_entry(credential_id)?
-            .set_password(secret)
-            .map_err(keyring_error)
+        keyring_entry(credential_id)?.set_password(secret).map_err(keyring_error)
     }
 
     fn get(&self, credential_id: &str) -> Result<Option<CredentialSecret>, CredentialStoreError> {
@@ -245,21 +203,15 @@ fn read_local_file(path: &Path) -> Result<BTreeMap<String, String>, CredentialSt
     if !path.is_file() {
         return Ok(BTreeMap::new());
     }
-    let content = fs::read_to_string(path)
-        .map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
+    let content = fs::read_to_string(path).map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
     serde_json::from_str(&content).map_err(|error| CredentialStoreError::Backend(error.to_string()))
 }
 
-fn write_local_file(
-    path: &Path,
-    secrets: &BTreeMap<String, String>,
-) -> Result<(), CredentialStoreError> {
+fn write_local_file(path: &Path, secrets: &BTreeMap<String, String>) -> Result<(), CredentialStoreError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
+        fs::create_dir_all(parent).map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
     }
-    let content = serde_json::to_string_pretty(secrets)
-        .map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
+    let content = serde_json::to_string_pretty(secrets).map_err(|error| CredentialStoreError::Backend(error.to_string()))?;
     fs::write(path, content).map_err(|error| CredentialStoreError::Backend(error.to_string()))
 }
 

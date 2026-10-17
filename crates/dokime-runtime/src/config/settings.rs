@@ -111,10 +111,7 @@ pub enum Density {
 /* === Implementations === */
 impl Default for ReportDefaults {
     fn default() -> Self {
-        Self {
-            plot_points: crate::document::DEFAULT_PLOT_MAX_POINTS as u32,
-            plot_downsample: crate::document::DownsampleTechnique::Auto,
-        }
+        Self { plot_points: crate::document::DEFAULT_PLOT_MAX_POINTS as u32, plot_downsample: crate::document::DownsampleTechnique::Auto }
     }
 }
 
@@ -122,20 +119,16 @@ impl ReportDefaults {
     /// Fills every plot of `document` its author and operator left unset:
     /// absent points take the default points, and `Auto` the default strategy.
     pub fn apply(&self, document: &mut crate::document::DocumentDefinition) {
-        let bodies = document.cards.iter_mut().map(|card| &mut card.body).chain(
-            document
-                .sections
-                .iter_mut()
-                .flat_map(|section| section.cards.iter_mut().map(|card| &mut card.body)),
-        );
+        let bodies = document
+            .cards
+            .iter_mut()
+            .map(|card| &mut card.body)
+            .chain(document.sections.iter_mut().flat_map(|section| section.cards.iter_mut().map(|card| &mut card.body)));
         for body in bodies {
             if let crate::document::DocumentCardBody::Plot { plot } = body {
                 plot.display_points.get_or_insert(self.plot_points);
-                if matches!(
-                    plot.downsample,
-                    crate::document::DownsampleTechnique::Auto
-                        | crate::document::DownsampleTechnique::Unspecified
-                ) {
+                if matches!(plot.downsample, crate::document::DownsampleTechnique::Auto | crate::document::DownsampleTechnique::Unspecified)
+                {
                     plot.downsample = self.plot_downsample;
                 }
             }
@@ -146,26 +139,14 @@ impl ReportDefaults {
 impl Settings {
     pub fn load(application_root: impl Into<PathBuf>) -> std::io::Result<Self> {
         let root = application_root.into();
-        let root = if root.is_absolute() {
-            root
-        } else {
-            std::env::current_dir()?.join(root)
-        };
+        let root = if root.is_absolute() { root } else { std::env::current_dir()?.join(root) };
         let paths = ApplicationPaths::new(root);
         let path = paths.settings();
         let document = match read(&path)? {
             Some(document) => document,
             None => create(&path)?,
         };
-        Ok(Self {
-            inner: Arc::new(Inner {
-                paths,
-                current: Mutex::new(Current {
-                    document,
-                    stamp: stamp(&path),
-                }),
-            }),
-        })
+        Ok(Self { inner: Arc::new(Inner { paths, current: Mutex::new(Current { document, stamp: stamp(&path) }) }) })
     }
 
     pub fn paths(&self) -> &ApplicationPaths {
@@ -181,14 +162,10 @@ impl Settings {
     }
 
     pub fn data_root(&self) -> PathBuf {
-        self.read(|document| document.data_root.clone())
-            .unwrap_or_else(|| self.paths().default_data())
+        self.read(|document| document.data_root.clone()).unwrap_or_else(|| self.paths().default_data())
     }
 
-    pub fn edit<T, E>(
-        &self,
-        change: impl FnOnce(&mut SettingsDocument) -> Result<T, E>,
-    ) -> Result<T, E>
+    pub fn edit<T, E>(&self, change: impl FnOnce(&mut SettingsDocument) -> Result<T, E>) -> Result<T, E>
     where
         E: From<std::io::Error>,
     {
@@ -212,10 +189,7 @@ impl Settings {
     fn lock(&self) -> MutexGuard<'_, Current> {
         // The document is replaced only after a successful write, so a
         // panicking reader cannot leave it half-changed.
-        self.inner
-            .current
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.inner.current.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn refresh(&self, current: &mut Current) -> std::io::Result<()> {
@@ -224,8 +198,7 @@ impl Settings {
         if observed.is_some() && observed == current.stamp {
             return Ok(());
         }
-        let document =
-            read(&path)?.ok_or_else(|| invalid("settings file disappeared while in use"))?;
+        let document = read(&path)?.ok_or_else(|| invalid("settings file disappeared while in use"))?;
         if document.identity != current.document.identity {
             return Err(invalid("the node identity changed while in use"));
         }
@@ -237,22 +210,14 @@ impl Settings {
 
 impl SettingsDocument {
     fn validate(&self) -> std::io::Result<()> {
-        if self
-            .data_root
-            .as_ref()
-            .is_some_and(|root| !root.is_absolute())
-        {
+        if self.data_root.as_ref().is_some_and(|root| !root.is_absolute()) {
             return Err(invalid("data root must be an absolute path"));
         }
         if let Some(storage) = &self.storage {
-            storage
-                .validate()
-                .map_err(|error| invalid(error.to_string()))?;
+            storage.validate().map_err(|error| invalid(error.to_string()))?;
         }
         for (id, plugin) in &self.plugins {
-            plugin
-                .validate()
-                .map_err(|error| invalid(format!("plugin `{id}`: {error}")))?;
+            plugin.validate().map_err(|error| invalid(format!("plugin `{id}`: {error}")))?;
         }
         Ok(())
     }
@@ -328,10 +293,7 @@ fn hostname_label() -> Option<String> {
 }
 
 fn invalid(error: impl std::fmt::Display) -> std::io::Error {
-    std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        format!("settings.json: {error}"),
-    )
+    std::io::Error::new(std::io::ErrorKind::InvalidData, format!("settings.json: {error}"))
 }
 
 /* === Tests === */

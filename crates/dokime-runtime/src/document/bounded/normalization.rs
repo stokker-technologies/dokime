@@ -20,9 +20,7 @@ use std::mem::size_of;
 use harmos::MemorySize;
 
 // Local Imports
-use crate::document::{
-    DocumentCardDefinition, DocumentDefinition, DocumentNode, DocumentSectionNode,
-};
+use crate::document::{DocumentCardDefinition, DocumentDefinition, DocumentNode, DocumentSectionNode};
 
 /* === Constants === */
 
@@ -40,10 +38,7 @@ use crate::document::{
 
 /* === Public Functions === */
 pub(super) fn memory(definition: &DocumentDefinition) -> usize {
-    let mut bytes = definition
-        .cards
-        .memory_size()
-        .saturating_add(definition.layout.memory_size());
+    let mut bytes = definition.cards.memory_size().saturating_add(definition.layout.memory_size());
     let mut added_cards = 0usize;
     for section in &definition.sections {
         // merge_authored_sections_into_layout clones every card definition,
@@ -56,30 +51,14 @@ pub(super) fn memory(definition: &DocumentDefinition) -> usize {
             .saturating_add(section.memory_size())
             .saturating_add(size_of::<DocumentSectionNode>())
             .saturating_add(section.metadata.identifier.as_str().len())
-            .saturating_add(
-                section
-                    .cards
-                    .len()
-                    .saturating_mul(size_of::<DocumentNode>()),
-            );
+            .saturating_add(section.cards.len().saturating_mul(size_of::<DocumentNode>()));
     }
-    bytes = bytes.saturating_add(growth::<DocumentCardDefinition>(
-        definition.cards.len(),
-        added_cards,
-    ));
-    bytes = bytes.saturating_add(growth::<DocumentNode>(
-        definition.layout.nodes.len(),
-        definition.sections.len(),
-    ));
+    bytes = bytes.saturating_add(growth::<DocumentCardDefinition>(definition.cards.len(), added_cards));
+    bytes = bytes.saturating_add(growth::<DocumentNode>(definition.layout.nodes.len(), definition.sections.len()));
 
     // An empty authored layout receives one placement for each card definition.
     if definition.layout.nodes.is_empty() && definition.sections.is_empty() {
-        bytes = bytes.saturating_add(
-            definition
-                .cards
-                .len()
-                .saturating_mul(size_of::<DocumentNode>()),
-        );
+        bytes = bytes.saturating_add(definition.cards.len().saturating_mul(size_of::<DocumentNode>()));
         for card in &definition.cards {
             bytes = bytes.saturating_add(card.metadata.identifier.as_str().len());
         }

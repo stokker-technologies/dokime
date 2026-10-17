@@ -38,12 +38,7 @@ pub(crate) fn document_warnings(input: &CycleReportInput) -> impl Iterator<Item 
     input
         .documents
         .values()
-        .chain(
-            input
-                .case_documents
-                .iter()
-                .flat_map(|case| case.documents.values()),
-        )
+        .chain(input.case_documents.iter().flat_map(|case| case.documents.values()))
         .flat_map(|document| document.warnings.iter())
         .map(|warning| (warning.code.as_str(), warning.message.as_str()))
 }

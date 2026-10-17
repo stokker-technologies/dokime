@@ -19,8 +19,8 @@ use std::ops::Deref;
 use harmos::signal::Series;
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -58,10 +58,7 @@ impl ExecutionEvidence {
     }
 
     pub fn record_sample(&mut self, sample: TelemetrySample) {
-        self.samples
-            .entry(sample.stream.to_string())
-            .or_default()
-            .push(sample);
+        self.samples.entry(sample.stream.to_string()).or_default().push(sample);
     }
 
     pub fn record_gaps(&mut self, gaps: Vec<crate::telemetry::LeaseGap>) {

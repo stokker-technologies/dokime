@@ -93,14 +93,9 @@ pub enum StartupDoctorCheckKey {
 
 /* === Implementations === */
 impl DiagnosticsSnapshot {
-    pub fn from_runtime(
-        snapshot: RuntimeOverviewSnapshot,
-        storage_root: &Path,
-        application_root: &Path,
-    ) -> Self {
+    pub fn from_runtime(snapshot: RuntimeOverviewSnapshot, storage_root: &Path, application_root: &Path) -> Self {
         let captured_at = dokime_runtime::model::time::now_utc();
-        let startup_doctor =
-            StartupDoctorSnapshot::from_runtime(&snapshot, storage_root, captured_at.clone());
+        let startup_doctor = StartupDoctorSnapshot::from_runtime(&snapshot, storage_root, captured_at.clone());
         let counts = DiagnosticsCounts::from_runtime(&snapshot);
 
         Self {
@@ -134,22 +129,11 @@ impl DiagnosticsCounts {
 }
 
 impl StartupDoctorSnapshot {
-    fn from_runtime(
-        snapshot: &RuntimeOverviewSnapshot,
-        storage_root: &Path,
-        checked_at: Timestamp,
-    ) -> Self {
-        let checks = vec![
-            storage_root_check(storage_root),
-            shutdown_state_check(snapshot.shutting_down),
-        ];
+    fn from_runtime(snapshot: &RuntimeOverviewSnapshot, storage_root: &Path, checked_at: Timestamp) -> Self {
+        let checks = vec![storage_root_check(storage_root), shutdown_state_check(snapshot.shutting_down)];
         let status = aggregate_status(&checks);
 
-        Self {
-            checked_at,
-            status,
-            checks,
-        }
+        Self { checked_at, status, checks }
     }
 }
 
@@ -204,15 +188,9 @@ fn shutdown_state_check(shutting_down: bool) -> StartupDoctorCheck {
 }
 
 fn aggregate_status(checks: &[StartupDoctorCheck]) -> DiagnosticCheckStatus {
-    if checks
-        .iter()
-        .any(|check| check.status == DiagnosticCheckStatus::Failed)
-    {
+    if checks.iter().any(|check| check.status == DiagnosticCheckStatus::Failed) {
         DiagnosticCheckStatus::Failed
-    } else if checks
-        .iter()
-        .any(|check| check.status == DiagnosticCheckStatus::Warning)
-    {
+    } else if checks.iter().any(|check| check.status == DiagnosticCheckStatus::Warning) {
         DiagnosticCheckStatus::Warning
     } else {
         DiagnosticCheckStatus::Ok
@@ -220,9 +198,7 @@ fn aggregate_status(checks: &[StartupDoctorCheck]) -> DiagnosticCheckStatus {
 }
 
 fn parent_exists(path: &Path) -> bool {
-    path.parent()
-        .map(|parent| parent.as_os_str().is_empty() || parent.exists())
-        .unwrap_or(true)
+    path.parent().map(|parent| parent.as_os_str().is_empty() || parent.exists()).unwrap_or(true)
 }
 
 fn path_to_string(path: &Path) -> String {

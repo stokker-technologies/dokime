@@ -76,15 +76,10 @@ impl Drop for Partial {
 
 impl Client {
     pub async fn download_artifact(
-        &self,
-        request: contracts::content::DownloadArtifact,
-        destination: PathBuf,
+        &self, request: contracts::content::DownloadArtifact, destination: PathBuf,
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
         let identity = request.artifact_id.clone();
-        let stream = self
-            .content_download_artifact(request)
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.content_download_artifact(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -109,15 +104,10 @@ impl Client {
     }
 
     pub async fn download_execution_file(
-        &self,
-        request: contracts::content::DownloadExecutionFile,
-        destination: PathBuf,
+        &self, request: contracts::content::DownloadExecutionFile, destination: PathBuf,
     ) -> Result<Download<contracts::content::ExecutionFileDownloadMetadata>, Error> {
         let identity = request.relative_path.clone();
-        let stream = self
-            .content_download_execution_file(request)
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.content_download_execution_file(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -142,16 +132,10 @@ impl Client {
     }
 
     pub async fn download_checkpoint_artifact(
-        &self,
-        request: contracts::history::DownloadCheckpointArtifact,
-        destination: PathBuf,
-        expected: (u64, String),
+        &self, request: contracts::history::DownloadCheckpointArtifact, destination: PathBuf, expected: (u64, String),
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
         let id = request.artifact_id.clone();
-        let stream = self
-            .history_download_checkpoint_artifact(request)
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.history_download_checkpoint_artifact(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -159,10 +143,7 @@ impl Client {
                 use contracts::content::ArtifactFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Metadata(metadata) => {
-                        if metadata.artifact_id != id
-                            || metadata.size_bytes != expected.0
-                            || metadata.sha256 != expected.1
-                        {
+                        if metadata.artifact_id != id || metadata.size_bytes != expected.0 || metadata.sha256 != expected.1 {
                             return Err(Error::Invalid("artifact identity or inventory changed"));
                         }
                         Frame::Header(metadata, None)
@@ -183,15 +164,10 @@ impl Client {
     }
 
     pub async fn download_cycle_report(
-        &self,
-        request: contracts::reports::DownloadCycleReport,
-        destination: PathBuf,
+        &self, request: contracts::reports::DownloadCycleReport, destination: PathBuf,
     ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
         let id = request.cycle_id.clone();
-        let stream = self
-            .reports_download_cycle_report(request)
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.reports_download_cycle_report(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -215,15 +191,10 @@ impl Client {
     }
 
     pub async fn download_execution_report(
-        &self,
-        request: contracts::reports::DownloadExecutionReport,
-        destination: PathBuf,
+        &self, request: contracts::reports::DownloadExecutionReport, destination: PathBuf,
     ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
         let id = request.execution_id.clone();
-        let stream = self
-            .reports_download_execution_report(request)
-            .await
-            .map_err(Error::Request)?;
+        let stream = self.reports_download_execution_report(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -251,22 +222,14 @@ impl Client {
 
 /* === Private Functions === */
 async fn receive<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
-    next: impl FnMut() -> F,
-    destination: PathBuf,
-    frame: impl Fn(T) -> Result<Frame<M>, Error>,
+    next: impl FnMut() -> F, destination: PathBuf, frame: impl Fn(T) -> Result<Frame<M>, Error>,
 ) -> Result<Download<M>, Error> {
-    let filename = destination
-        .file_name()
-        .ok_or(Error::Invalid("destination has no filename"))?;
+    let filename = destination.file_name().ok_or(Error::Invalid("destination has no filename"))?;
     let mut partial_name = filename.to_os_string();
     partial_name.push(".part");
     let partial = destination.with_file_name(partial_name);
     let mut cleanup = Partial(None);
-    let mut output = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&partial)
-        .await?;
+    let mut output = tokio::fs::OpenOptions::new().write(true).create_new(true).open(&partial).await?;
     cleanup.0 = Some(partial.clone());
     let (offset, sha256, metadata) = consume(next, &mut output, frame).await?;
     output.flush().await?;
@@ -277,18 +240,11 @@ async fn receive<T, M, F: std::future::Future<Output = super::Result<Option<T>>>
     cleanup.0 = None;
     let target = destination.clone();
     tokio::task::spawn_blocking(move || publish(&partial, &target)).await??;
-    Ok(Download {
-        path: destination,
-        size_bytes: offset,
-        sha256,
-        metadata,
-    })
+    Ok(Download { path: destination, size_bytes: offset, sha256, metadata })
 }
 
 async fn consume<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
-    mut next: impl FnMut() -> F,
-    mut output: impl tokio::io::AsyncWrite + Unpin,
-    frame: impl Fn(T) -> Result<Frame<M>, Error>,
+    mut next: impl FnMut() -> F, mut output: impl tokio::io::AsyncWrite + Unpin, frame: impl Fn(T) -> Result<Frame<M>, Error>,
 ) -> Result<(u64, String, M), Error> {
     let mut metadata = None;
     let mut expected = None;
@@ -308,24 +264,13 @@ async fn consume<T, M, F: std::future::Future<Output = super::Result<Option<T>>>
                 if position != offset || bytes.is_empty() {
                     return Err(Error::Invalid("chunks are not contiguous"));
                 }
-                offset = offset
-                    .checked_add(bytes.len() as u64)
-                    .ok_or(Error::Invalid("file size overflow"))?;
+                offset = offset.checked_add(bytes.len() as u64).ok_or(Error::Invalid("file size overflow"))?;
                 output.write_all(&bytes).await?;
                 digest.update(&bytes);
             }
             Frame::Complete(size, hash) if metadata.is_some() => {
-                let actual = digest
-                    .clone()
-                    .finalize()
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
-                if size != offset
-                    || hash != actual
-                    || expected
-                        .as_ref()
-                        .is_some_and(|(length, digest)| *length != size || digest != &hash)
+                let actual = digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+                if size != offset || hash != actual || expected.as_ref().is_some_and(|(length, digest)| *length != size || digest != &hash)
                 {
                     return Err(Error::Invalid("size or SHA-256 mismatch"));
                 }

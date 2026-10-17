@@ -52,9 +52,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     let payloads = samples(4096);
     let update = samples(256);
-    let update_items = (4096..4352)
-        .map(|index| id(&format!("sample-{index}")))
-        .collect::<Vec<_>>();
+    let update_items = (4096..4352).map(|index| id(&format!("sample-{index}"))).collect::<Vec<_>>();
     group.throughput(Throughput::Elements(4096));
     for concurrency in [1usize, 2, 4] {
         group.bench_function(BenchmarkId::from_parameter(concurrency), |bencher| {
@@ -83,9 +81,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
                         .collect::<Vec<_>>();
                     let started = std::time::Instant::now();
                     executor.block_on(async {
-                        let reads = futures_util::future::join_all(
-                            plans.into_iter().map(|plan| fixture.collect(plan)),
-                        );
+                        let reads = futures_util::future::join_all(plans.into_iter().map(|plan| fixture.collect(plan)));
                         let write = async {
                             fixture.append_with_ids(4096, &update, &update_items).await;
                             fixture.storage.flush().await.unwrap();

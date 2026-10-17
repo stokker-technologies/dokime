@@ -21,9 +21,7 @@ use serde::de;
 // Local Imports
 
 /* === Constants === */
-const DOKIME_ID_NAMESPACE: [u8; 16] = [
-    0xd0, 0x11, 0xed, 0x1d, 0x5e, 0xed, 0x4d, 0xa7, 0x9c, 0x0f, 0xe1, 0xd5, 0xea, 0x11, 0xab, 0x1e,
-];
+const DOKIME_ID_NAMESPACE: [u8; 16] = [0xd0, 0x11, 0xed, 0x1d, 0x5e, 0xed, 0x4d, 0xa7, 0x9c, 0x0f, 0xe1, 0xd5, 0xea, 0x11, 0xab, 0x1e];
 
 /* === Macros === */
 macro_rules! typed_uuid {
@@ -210,24 +208,16 @@ pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
 /* === Private Functions === */
 fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), HubIdError> {
     let valid = value.len() == 36
-        && value.bytes().enumerate().all(|(index, byte)| {
-            if matches!(index, 8 | 13 | 18 | 23) {
-                byte == b'-'
-            } else {
-                byte.is_ascii_hexdigit()
-            }
-        });
-    if valid {
-        Ok(())
-    } else {
-        Err(HubIdError::InvalidUuid { type_name })
-    }
+        && value.bytes().enumerate().all(
+            |(index, byte)| {
+                if matches!(index, 8 | 13 | 18 | 23) { byte == b'-' } else { byte.is_ascii_hexdigit() }
+            },
+        );
+    if valid { Ok(()) } else { Err(HubIdError::InvalidUuid { type_name }) }
 }
 
 fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
-    bytes.iter().fold(seed, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
-    })
+    bytes.iter().fold(seed, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3))
 }
 
 fn format_uuid(left: u64, right: u64, version: u8) -> String {
@@ -260,33 +250,18 @@ fn validate_materialized_case_id(value: &str) -> Result<(), HubIdError> {
     let Some((template, digest)) = value.rsplit_once(':') else {
         return Err(HubIdError::InvalidCaseId);
     };
-    let template_valid = !template.is_empty()
-        && template.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
-        });
-    let digest_valid = digest.len() == 10
-        && digest
-            .chars()
-            .all(|character| character.is_ascii_hexdigit());
+    let template_valid =
+        !template.is_empty() && template.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'));
+    let digest_valid = digest.len() == 10 && digest.chars().all(|character| character.is_ascii_hexdigit());
 
-    if template_valid && digest_valid {
-        Ok(())
-    } else {
-        Err(HubIdError::InvalidCaseId)
-    }
+    if template_valid && digest_valid { Ok(()) } else { Err(HubIdError::InvalidCaseId) }
 }
 
 fn validate_document_id(value: &str) -> Result<(), HubIdError> {
-    let valid = !value.is_empty()
-        && value.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
-        });
+    let valid =
+        !value.is_empty() && value.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'));
 
-    if valid {
-        Ok(())
-    } else {
-        Err(HubIdError::InvalidDocumentId)
-    }
+    if valid { Ok(()) } else { Err(HubIdError::InvalidDocumentId) }
 }
 
 /* === Tests === */

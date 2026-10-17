@@ -31,11 +31,7 @@ use std::{net::IpAddr, path::PathBuf};
 pub struct NetworkArgs {
     #[arg(long, default_value = "127.0.0.1")]
     pub host: IpAddr,
-    #[arg(
-        long,
-        default_value_t = 8765,
-        help = "Listen on this exact port; use zero to allocate an available port."
-    )]
+    #[arg(long, default_value_t = 8765, help = "Listen on this exact port; use zero to allocate an available port.")]
     pub port: u16,
     #[arg(long, requires_all = ["tls_cert", "tls_key", "auth_file"], conflicts_with = "dev_control", help = "Explicitly permit remote clients. Requires TLS and authenticated grants.")]
     pub allow_remote: bool,
@@ -43,17 +39,11 @@ pub struct NetworkArgs {
     pub tls_cert: Option<PathBuf>,
     #[arg(long, requires = "allow_remote")]
     pub tls_key: Option<PathBuf>,
-    #[arg(
-        long,
-        help = "JSON file containing subject, role and token grants. Never pass tokens in arguments."
-    )]
+    #[arg(long, help = "JSON file containing subject, role and token grants. Never pass tokens in arguments.")]
     pub auth_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub message_limit_mib: usize,
-    #[arg(
-        long,
-        help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it."
-    )]
+    #[arg(long, help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it.")]
     pub grpc_web: bool,
     #[arg(
         long = "allowed-origin",
@@ -67,17 +57,9 @@ pub struct NetworkArgs {
 #[command(about = "Server process flags shared by the standalone runtime and Cargo wrapper.")]
 #[group(id = "server-runtime-arguments")]
 pub struct Args {
-    #[arg(
-        long,
-        help = "Shut down when the controlling process closes standard input."
-    )]
+    #[arg(long, help = "Shut down when the controlling process closes standard input.")]
     pub shutdown_stdin: bool,
-    #[arg(
-        long,
-        hide = true,
-        requires = "shutdown_stdin",
-        help = "Private development supervisor protocol."
-    )]
+    #[arg(long, hide = true, requires = "shutdown_stdin", help = "Private development supervisor protocol.")]
     pub dev_control: bool,
     #[command(flatten)]
     pub network: NetworkArgs,
@@ -106,10 +88,7 @@ pub struct Args {
     )]
     pub env_file: Option<PathBuf>,
 
-    #[arg(
-        long = "plugin",
-        help = "Load this trusted .dokime bundle for this process; repeat for multiple plugins."
-    )]
+    #[arg(long = "plugin", help = "Load this trusted .dokime bundle for this process; repeat for multiple plugins.")]
     pub plugins: Vec<PathBuf>,
 
     #[arg(

@@ -204,18 +204,13 @@ impl Fields {
         match Role::of(name) {
             Role::Message => self.message = Some(value),
             Role::Line => self.line = Some(value),
-            Role::Timestamp => {
-                match OffsetDateTime::parse(&value, &time::format_description::well_known::Rfc3339)
-                {
-                    Ok(time) => self.time = Some(time),
-                    Err(_) => self.other(name, value),
-                }
-            }
+            Role::Timestamp => match OffsetDateTime::parse(&value, &time::format_description::well_known::Rfc3339) {
+                Ok(time) => self.time = Some(time),
+                Err(_) => self.other(name, value),
+            },
             Role::Plugin => self.scope.plugin = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
             Role::Cycle => self.scope.cycle = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
-            Role::Execution => {
-                self.scope.execution = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES))
-            }
+            Role::Execution => self.scope.execution = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
             Role::Other => self.other(name, value),
         }
     }
@@ -224,11 +219,8 @@ impl Fields {
         if self.fields.len() >= MAX_FIELDS {
             return;
         }
-        let value = if redaction::is_secret_name(name) {
-            redaction::REDACTED.to_owned()
-        } else {
-            truncated(&scrubbed(&value), MAX_VALUE_BYTES)
-        };
+        let value =
+            if redaction::is_secret_name(name) { redaction::REDACTED.to_owned() } else { truncated(&scrubbed(&value), MAX_VALUE_BYTES) };
         self.fields.push((truncated(name, MAX_NAME_BYTES), value));
     }
 }
@@ -290,9 +282,7 @@ pub fn scrubbed(text: &str) -> String {
     while let Some(found) = folded[search..].find(BEARER) {
         let start = search + found + BEARER.len();
         let end = text[start..]
-            .find(|character: char| {
-                character.is_whitespace() || matches!(character, '"' | '\'' | ',' | ';')
-            })
+            .find(|character: char| character.is_whitespace() || matches!(character, '"' | '\'' | ',' | ';'))
             .map_or(text.len(), |offset| start + offset);
         if end > start {
             result.push_str(&text[copied..start]);
@@ -315,12 +305,8 @@ fn secret_assignments(text: &str) -> String {
         }
         let key_end = text[..delimiter].trim_end_matches(['\"', '\'']).len();
         let key_start = text[..key_end]
-            .rfind(|character: char| {
-                !character.is_ascii_alphanumeric() && !matches!(character, '_' | '-')
-            })
-            .map_or(0, |position| {
-                position + text[position..].chars().next().map_or(0, char::len_utf8)
-            });
+            .rfind(|character: char| !character.is_ascii_alphanumeric() && !matches!(character, '_' | '-'))
+            .map_or(0, |position| position + text[position..].chars().next().map_or(0, char::len_utf8));
         if !redaction::is_secret_name(&text[key_start..key_end]) {
             continue;
         }
@@ -330,17 +316,12 @@ fn secret_assignments(text: &str) -> String {
         let (start, end) = match trimmed.chars().next() {
             Some(quote @ ('\"' | '\'')) => {
                 let start = start + 1;
-                let end = text[start..]
-                    .find(quote)
-                    .map_or(text.len(), |offset| start + offset);
+                let end = text[start..].find(quote).map_or(text.len(), |offset| start + offset);
                 (start, end)
             }
             _ => {
                 let end = trimmed
-                    .find(|character: char| {
-                        character.is_whitespace()
-                            || matches!(character, ',' | ';' | '&' | '}' | ']')
-                    })
+                    .find(|character: char| character.is_whitespace() || matches!(character, ',' | ';' | '&' | '}' | ']'))
                     .map_or(text.len(), |offset| start + offset);
                 (start, end)
             }

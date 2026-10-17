@@ -47,24 +47,12 @@ pub struct Rule {
 impl harmos::MemorySize for Rule {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.predicate),
-                std::mem::size_of_val(&self.predicate),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
+            (harmos::MemorySize::memory_size(&self.predicate), std::mem::size_of_val(&self.predicate)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -95,10 +83,7 @@ pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
 
 /* === Private Functions === */
 fn expression_type(
-    expression: &Expression,
-    definition: &PromptDefinition,
-    depth: usize,
-    remaining: &mut usize,
+    expression: &Expression, definition: &PromptDefinition, depth: usize, remaining: &mut usize,
 ) -> Result<ValueType, &'static str> {
     if depth > 16 || *remaining == 0 {
         return Err("a rule exceeds 16 levels or 128 expression nodes");
@@ -121,11 +106,7 @@ fn expression_type(
             if !field.required {
                 return Err("rule selectors must name required answer fields");
             }
-            Ok(if field.multiple {
-                ValueType::Array
-            } else {
-                field.value_type.clone()
-            })
+            Ok(if field.multiple { ValueType::Array } else { field.value_type.clone() })
         }
         ExpressionKind::Call { .. } => Err("function calls are not supported in answer rules"),
         ExpressionKind::Unary { value, .. } => {
@@ -142,28 +123,17 @@ fn expression_type(
                 Eq | Ne => true, // Preserve structural equality, including unlike types.
                 And | Or => left == ValueType::Boolean && right == ValueType::Boolean,
                 Gt | Gte | Lt | Lte => {
-                    matches!(left, ValueType::Integer | ValueType::Number)
-                        && matches!(right, ValueType::Integer | ValueType::Number)
+                    matches!(left, ValueType::Integer | ValueType::Number) && matches!(right, ValueType::Integer | ValueType::Number)
                 }
-                Contains | StartsWith | EndsWith => {
-                    left == ValueType::Text && right == ValueType::Text
-                }
+                Contains | StartsWith | EndsWith => left == ValueType::Text && right == ValueType::Text,
             };
-            if valid {
-                Ok(ValueType::Boolean)
-            } else {
-                Err("rule operator has incompatible operand types")
-            }
+            if valid { Ok(ValueType::Boolean) } else { Err("rule operator has incompatible operand types") }
         }
     }
 }
 
 fn issue(index: usize, message: &str) -> ValidationIssue {
-    ValidationIssue {
-        path: format!("rules.{index}"),
-        message: message.into(),
-        expected: None,
-    }
+    ValidationIssue { path: format!("rules.{index}"), message: message.into(), expected: None }
 }
 
 /* === Tests === */

@@ -27,23 +27,11 @@ use crate::arguments::Shape;
 /* === Constants === */
 const SECTION_ARGUMENTS: &[&str] = &["label", "description", "status"];
 
-const FIELD_ARGUMENTS: &[&str] = &[
-    "label",
-    "description",
-    "default",
-    "min",
-    "max",
-    "step",
-    "from_environment",
-    "options",
-    "discovered",
-];
+const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "from_environment", "options", "discovered"];
 
 const FIELD_FLAGS: &[&str] = &["secret"];
 
-const NUMBERS: &[&str] = &[
-    "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64",
-];
+const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64"];
 
 /* === Macros === */
 
@@ -133,10 +121,7 @@ fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, 
     let input: DeriveInput = syn::parse2(item.clone())?;
     let name = &input.ident;
     if !input.generics.params.is_empty() {
-        return Err(Error::new(
-            input.generics.span(),
-            "a settings aggregate is concrete: one plugin is opened from one card",
-        ));
+        return Err(Error::new(input.generics.span(), "a settings aggregate is concrete: one plugin is opened from one card"));
     }
     let named = crate::arguments::named_struct_fields(
         &input,
@@ -145,21 +130,8 @@ fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, 
         "a settings aggregate names its fields: the field order is the card order, and a plugin \
          with nothing to configure writes `dokime_runtime::plugin::NoSettings` in `initialize` instead",
     )?;
-    let fields = named
-        .named
-        .iter()
-        .map(|field| {
-            field
-                .ident
-                .clone()
-                .expect("a named field carries an identifier")
-        })
-        .collect::<Vec<_>>();
-    let sections = named
-        .named
-        .iter()
-        .map(|field| field.ty.clone())
-        .collect::<Vec<_>>();
+    let fields = named.named.iter().map(|field| field.ident.clone().expect("a named field carries an identifier")).collect::<Vec<_>>();
+    let sections = named.named.iter().map(|field| field.ty.clone()).collect::<Vec<_>>();
     let section = quote!(#sdk::plugin::settings::SettingsSection);
     Ok(quote! {
         #input
@@ -210,22 +182,17 @@ fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, 
 
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let arguments =
-        crate::arguments::Arguments::read(attribute, "a settings section", SECTION_ARGUMENTS)?;
+    let arguments = crate::arguments::Arguments::read(attribute, "a settings section", SECTION_ARGUMENTS)?;
     let input: DeriveInput = syn::parse2(item.clone())?;
     if !input.generics.params.is_empty() {
-        return Err(Error::new(
-            input.generics.span(),
-            "a settings section is concrete: its fields are the settings an operator fills in",
-        ));
+        return Err(Error::new(input.generics.span(), "a settings section is concrete: its fields are the settings an operator fills in"));
     }
     let fields = declarations(&input)?;
     let name = &input.ident;
-    let described = crate::arguments::description(arguments.value("description"), &input.attrs)
-        .unwrap_or_else(|| {
-            let empty = String::new();
-            quote!(#empty)
-        });
+    let described = crate::arguments::description(arguments.value("description"), &input.attrs).unwrap_or_else(|| {
+        let empty = String::new();
+        quote!(#empty)
+    });
     let label = match arguments.value("label") {
         Some(label) => label.to_token_stream(),
         None => {
@@ -329,26 +296,13 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     })
 }
 
-fn linked<'a>(
-    fields: &'a [SettingDeclaration],
-    status: Option<&'a Type>,
-) -> impl Iterator<Item = (String, &'a Type, TokenStream)> {
+fn linked<'a>(fields: &'a [SettingDeclaration], status: Option<&'a Type>) -> impl Iterator<Item = (String, &'a Type, TokenStream)> {
     let sdk = crate::facade::root();
-    let probe = status.map(|request| {
-        (
-            "its readiness probe".to_owned(),
-            request,
-            quote!(#sdk::domains::StatusResponse),
-        )
-    });
+    let probe = status.map(|request| ("its readiness probe".to_owned(), request, quote!(#sdk::domains::StatusResponse)));
     let offered = fields.iter().filter_map(move |field| {
         let sdk = crate::facade::root();
 
-        Some((
-            format!("the choices of `{}`", field.name.unraw()),
-            field.written.options.as_ref()?,
-            quote!(#sdk::domains::OptionsResponse),
-        ))
+        Some((format!("the choices of `{}`", field.name.unraw()), field.written.options.as_ref()?, quote!(#sdk::domains::OptionsResponse)))
     });
     let found = fields.iter().filter_map(move |field| {
         let sdk = crate::facade::root();
@@ -365,10 +319,7 @@ fn linked<'a>(
 
 fn request(written: &Expr) -> Result<Type, Error> {
     let Expr::Path(path) = written else {
-        return Err(Error::new(
-            written.span(),
-            "a link names the operation type, as `status = GetStatus`",
-        ));
+        return Err(Error::new(written.span(), "a link names the operation type, as `status = GetStatus`"));
     };
     let path = &path.path;
 
@@ -381,19 +332,13 @@ fn declarations(input: &DeriveInput) -> Result<Vec<SettingDeclaration>, Error> {
         "a settings section is a struct: its fields are the settings it declares",
         "a settings section names its fields: a field's name is its setting's id",
     )?;
-    let siblings = named
-        .named
-        .iter()
-        .filter_map(|field| field.ident.as_ref().map(|name| name.unraw().to_string()))
-        .collect::<BTreeSet<_>>();
+    let siblings =
+        named.named.iter().filter_map(|field| field.ident.as_ref().map(|name| name.unraw().to_string())).collect::<BTreeSet<_>>();
     named
         .named
         .iter()
         .map(|field| {
-            let name = field
-                .ident
-                .clone()
-                .expect("a named field carries an identifier");
+            let name = field.ident.clone().expect("a named field carries an identifier");
             let written = arguments(field)?;
             let (shape, leaf) = crate::arguments::shape(&field.ty);
             let kind = kind(&leaf, &written);
@@ -421,11 +366,7 @@ fn declarations(input: &DeriveInput) -> Result<Vec<SettingDeclaration>, Error> {
 
 fn kind(leaf: &Type, written: &FieldArguments) -> Kind {
     let named = match leaf {
-        Type::Path(path) => path
-            .path
-            .segments
-            .last()
-            .map(|segment| segment.ident.to_string()),
+        Type::Path(path) => path.path.segments.last().map(|segment| segment.ident.to_string()),
         _ => None,
     };
     match named.as_deref() {
@@ -442,66 +383,31 @@ fn kind(leaf: &Type, written: &FieldArguments) -> Kind {
     }
 }
 
-fn validate(
-    name: &Ident,
-    kind: Kind,
-    shape: Shape,
-    written: &FieldArguments,
-    siblings: &BTreeSet<String>,
-) -> Result<(), Error> {
+fn validate(name: &Ident, kind: Kind, shape: Shape, written: &FieldArguments, siblings: &BTreeSet<String>) -> Result<(), Error> {
     if written.secret && !matches!(kind, Kind::Secret) {
-        return Err(Error::new(
-            name.span(),
-            "a secret is declared by its type: write the field as `dokime_runtime::plugin::Secret`",
-        ));
+        return Err(Error::new(name.span(), "a secret is declared by its type: write the field as `dokime_runtime::plugin::Secret`"));
     }
     if written.from_environment.is_some() && !matches!(kind, Kind::Secret) {
-        return Err(Error::new(
-            name.span(),
-            "only a secret reads its default from the environment",
-        ));
+        return Err(Error::new(name.span(), "only a secret reads its default from the environment"));
     }
-    if (written.min.is_some() || written.max.is_some() || written.step.is_some())
-        && !matches!(kind, Kind::Number)
-    {
-        return Err(Error::new(
-            name.span(),
-            format!(
-                "min, max and step bound a number, and this field declares {}",
-                kind.named()
-            ),
-        ));
+    if (written.min.is_some() || written.max.is_some() || written.step.is_some()) && !matches!(kind, Kind::Number) {
+        return Err(Error::new(name.span(), format!("min, max and step bound a number, and this field declares {}", kind.named())));
     }
     if written.options.is_some() && !matches!(kind, Kind::Choice) {
-        return Err(Error::new(
-            name.span(),
-            format!(
-                "`options = …` fills a choice, and this field declares {}",
-                kind.named()
-            ),
-        ));
+        return Err(Error::new(name.span(), format!("`options = …` fills a choice, and this field declares {}", kind.named())));
     }
     if matches!(kind, Kind::Secret) && !matches!(shape, Shape::Required | Shape::Optional) {
-        return Err(Error::new(
-            name.span(),
-            "a secret is one binding: declare it as `Secret` or `Option<Secret>`",
-        ));
+        return Err(Error::new(name.span(), "a secret is one binding: declare it as `Secret` or `Option<Secret>`"));
     }
     // A plugin has to be able to initialize before discovery has ever run, so
     // what discovery fills in is a field the plugin can hold empty.
     if written.discovered.is_some() && !matches!(shape, Shape::Optional | Shape::OptionalList) {
-        return Err(Error::new(
-            name.span(),
-            "a discovered setting is filled in after the plugin opens: declare it as `Option<T>`",
-        ));
+        return Err(Error::new(name.span(), "a discovered setting is filled in after the plugin opens: declare it as `Option<T>`"));
     }
     if let Some((sibling, _)) = &written.visible_when
         && !siblings.contains(&sibling.unraw().to_string())
     {
-        return Err(Error::new(
-            sibling.span(),
-            format!("`{sibling}` is not a field of this section: visible_when names a sibling"),
-        ));
+        return Err(Error::new(sibling.span(), format!("`{sibling}` is not a field of this section: visible_when names a sibling")));
     }
 
     Ok(())
@@ -525,16 +431,9 @@ fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
             }
             let pairs = crate::arguments::pairs(list)?;
             let [(sibling, value)] = pairs.as_slice() else {
-                return Err(Error::new(
-                    list.span(),
-                    "visible_when names one sibling and the value that shows this field",
-                ));
+                return Err(Error::new(list.span(), "visible_when names one sibling and the value that shows this field"));
             };
-            if written
-                .visible_when
-                .replace((sibling.clone(), value.clone()))
-                .is_some()
-            {
+            if written.visible_when.replace((sibling.clone(), value.clone())).is_some() {
                 return Err(Error::new(list.span(), "a field states one visibility"));
             }
         }
@@ -550,22 +449,10 @@ fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    written.secret = crate::arguments::field_arguments(
-        &without,
-        "setting",
-        "a setting argument",
-        FIELD_ARGUMENTS,
-        FIELD_FLAGS,
-    )?
-    .flag("secret");
-    for (name, value) in crate::arguments::field_arguments(
-        &without,
-        "setting",
-        "a setting argument",
-        FIELD_ARGUMENTS,
-        FIELD_FLAGS,
-    )?
-    .values()
+    written.secret =
+        crate::arguments::field_arguments(&without, "setting", "a setting argument", FIELD_ARGUMENTS, FIELD_FLAGS)?.flag("secret");
+    for (name, value) in
+        crate::arguments::field_arguments(&without, "setting", "a setting argument", FIELD_ARGUMENTS, FIELD_FLAGS)?.values()
     {
         match name.to_string().as_str() {
             "label" => written.label = Some(value.to_token_stream()),

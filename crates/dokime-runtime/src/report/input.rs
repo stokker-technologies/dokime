@@ -20,16 +20,16 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::value::Value;
 use crate::document::capture::Capture;
+use crate::telemetry::TelemetrySample;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-use crate::telemetry::TelemetrySample;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
 
@@ -96,144 +96,54 @@ pub struct ReportArtifactLink {
 impl harmos::MemorySize for CycleReportInput {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.session_id),
-                std::mem::size_of_val(&self.session_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cycle),
-                std::mem::size_of_val(&self.cycle),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.documents),
-                std::mem::size_of_val(&self.documents),
-            ),
-            (
-                json_map_memory(&self.plots),
-                std::mem::size_of_val(&self.plots),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.case_documents),
-                std::mem::size_of_val(&self.case_documents),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.records),
-                std::mem::size_of_val(&self.records),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.telemetry),
-                std::mem::size_of_val(&self.telemetry),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.traceability),
-                std::mem::size_of_val(&self.traceability),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.artifact_links),
-                std::mem::size_of_val(&self.artifact_links),
-            ),
-            (
-                json_optional_memory(&self.appearance),
-                std::mem::size_of_val(&self.appearance),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.generated_at),
-                std::mem::size_of_val(&self.generated_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.cycle), std::mem::size_of_val(&self.cycle)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
+            (json_map_memory(&self.plots), std::mem::size_of_val(&self.plots)),
+            (harmos::MemorySize::memory_size(&self.case_documents), std::mem::size_of_val(&self.case_documents)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.telemetry), std::mem::size_of_val(&self.telemetry)),
+            (harmos::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
+            (harmos::MemorySize::memory_size(&self.artifact_links), std::mem::size_of_val(&self.artifact_links)),
+            (json_optional_memory(&self.appearance), std::mem::size_of_val(&self.appearance)),
+            (harmos::MemorySize::memory_size(&self.generated_at), std::mem::size_of_val(&self.generated_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ReportCaseDocument {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.test_case_id),
-                std::mem::size_of_val(&self.test_case_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.test_execution_id),
-                std::mem::size_of_val(&self.test_execution_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.documents),
-                std::mem::size_of_val(&self.documents),
-            ),
-            (
-                json_map_memory(&self.plots),
-                std::mem::size_of_val(&self.plots),
-            ),
+            (harmos::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
+            (harmos::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
+            (json_map_memory(&self.plots), std::mem::size_of_val(&self.plots)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ReportArtifactLink {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.artifact_id),
-                std::mem::size_of_val(&self.artifact_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.href),
-                std::mem::size_of_val(&self.href),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.path),
-                std::mem::size_of_val(&self.path),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.media_type),
-                std::mem::size_of_val(&self.media_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.description),
-                std::mem::size_of_val(&self.description),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.group_id),
-                std::mem::size_of_val(&self.group_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.group_label),
-                std::mem::size_of_val(&self.group_label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
+            (harmos::MemorySize::memory_size(&self.artifact_id), std::mem::size_of_val(&self.artifact_id)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.href), std::mem::size_of_val(&self.href)),
+            (harmos::MemorySize::memory_size(&self.path), std::mem::size_of_val(&self.path)),
+            (harmos::MemorySize::memory_size(&self.media_type), std::mem::size_of_val(&self.media_type)),
+            (harmos::MemorySize::memory_size(&self.description), std::mem::size_of_val(&self.description)),
+            (harmos::MemorySize::memory_size(&self.group_id), std::mem::size_of_val(&self.group_id)),
+            (harmos::MemorySize::memory_size(&self.group_label), std::mem::size_of_val(&self.group_label)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -252,24 +162,18 @@ fn json_optional_memory(value: &Option<Value>) -> usize {
     if owned == usize::MAX {
         return usize::MAX;
     }
-    std::mem::size_of::<Option<Value>>()
-        .saturating_add(owned.saturating_sub(std::mem::size_of::<Value>()))
+    std::mem::size_of::<Option<Value>>().saturating_add(owned.saturating_sub(std::mem::size_of::<Value>()))
 }
 
 fn json_map_memory(values: &BTreeMap<String, Value>) -> usize {
-    values.iter().fold(
-        harmos::btree_map_memory::<String, Value>(values.len()),
-        |bytes, (key, value)| {
-            let owned = json_memory(value, 0);
-            if owned == usize::MAX {
-                usize::MAX
-            } else {
-                bytes
-                    .saturating_add(key.capacity())
-                    .saturating_add(owned.saturating_sub(std::mem::size_of::<Value>()))
-            }
-        },
-    )
+    values.iter().fold(harmos::btree_map_memory::<String, Value>(values.len()), |bytes, (key, value)| {
+        let owned = json_memory(value, 0);
+        if owned == usize::MAX {
+            usize::MAX
+        } else {
+            bytes.saturating_add(key.capacity()).saturating_add(owned.saturating_sub(std::mem::size_of::<Value>()))
+        }
+    })
 }
 
 /* === Tests === */

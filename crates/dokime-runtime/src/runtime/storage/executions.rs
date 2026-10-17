@@ -27,25 +27,25 @@ use harmos::{
 use tokio::sync::Mutex;
 
 // Local Imports
-use crate::runtime::Error;
-use crate::runtime::Result;
 use crate::app::StateManager;
-use dokime_domain::model::execution::result::CycleView;
 use crate::installed_plugins::RuntimeAppearanceFrame;
 use crate::report::PreparedExecutionReport;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::storage::Manager;
+use crate::storage::objects::execution::Execution;
+use crate::storage::reports;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::execution::saved::validate_outputs;
-use crate::storage::Manager;
-use crate::storage::objects::execution::Execution;
-use crate::storage::reports;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 const MAX_ACTIVE_OWNERS: usize = 10_000;
@@ -68,9 +68,8 @@ pub(crate) struct ExecutionStorage {
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(crate) cycle_save: Arc<Mutex<()>>,
-    pub(super) cycle_reports: Mutex<
-        BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
-    >,
+    pub(super) cycle_reports:
+        Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) captures: super::captures::Captures,
@@ -130,9 +129,7 @@ struct PublishedReport {
 /* === Implementations === */
 impl TailStopPreparation {
     pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
-        let stop = TailStop {
-            lease: Mutex::new(Some(lease)),
-        };
+        let stop = TailStop { lease: Mutex::new(Some(lease)) };
         (self.name, Arc::new(stop))
     }
 }
@@ -140,27 +137,18 @@ impl TailStopPreparation {
 impl Acquisition {
     pub(super) async fn settle_outputs(&mut self) -> Result<Arc<Vec<ExecutionOutput>>> {
         if !self.finish_requested || !self.outputs_sealed || !self.outputs_quiescent {
-            return Err(invalid(
-                "execution output settlement requires closed producer admission",
-            ));
+            return Err(invalid("execution output settlement requires closed producer admission"));
         }
         if let Some(outputs) = &self.settled_outputs {
             return Ok(outputs.clone());
         }
         super::artifacts::abandon_dropped(self).await?;
         if super::artifacts::has_live_upload(self) {
-            return Err(Error::conflict(
-                "execution_uploads_open",
-                "execution still has live artifact producers",
-            ));
+            return Err(Error::conflict("execution_uploads_open", "execution still has live artifact producers"));
         }
         super::artifacts::close_incomplete(self).await?;
         super::native_outputs::capture(self).await?;
-        if self
-            .artifacts
-            .values()
-            .any(|source| source.descriptor().is_none())
-        {
+        if self.artifacts.values().any(|source| source.descriptor().is_none()) {
             return Err(invalid("settled artifact descriptor is missing"));
         }
         let outputs = self.capture_outputs().await?;
@@ -180,43 +168,26 @@ impl Acquisition {
             .native_outputs
             .values()
             .map(|source| source.descriptor())
-            .chain(
-                self.artifacts
-                    .values()
-                    .filter_map(|source| source.descriptor())
-                    .map(Some),
-            );
+            .chain(self.artifacts.values().filter_map(|source| source.descriptor()).map(Some));
         for output in descriptors {
-            captured.push(
-                output
-                    .ok_or_else(|| invalid("captured output descriptor is missing"))?
-                    .clone(),
-            );
+            captured.push(output.ok_or_else(|| invalid("captured output descriptor is missing"))?.clone());
         }
         let through = self.storage.status().accepted;
         let saved = self.storage.flush_until(&through).await?;
         if !saved.covers(&through)? {
-            return Err(invalid(
-                "captured output save does not cover original files",
-            ));
+            return Err(invalid("captured output save does not cover original files"));
         }
-        validate_outputs(&self.execution_id, &through, &captured)
-            .map_err(crate::storage::Error::from)?;
+        validate_outputs(&self.execution_id, &through, &captured).map_err(crate::storage::Error::from)?;
         Ok(Arc::new(captured))
     }
 }
 
 impl ExecutionStorage {
     pub(crate) fn prepare_tail_stop(&self, name: &str) -> Result<TailStopPreparation> {
-        Ok(TailStopPreparation {
-            name: name.to_owned(),
-        })
+        Ok(TailStopPreparation { name: name.to_owned() })
     }
 
-    pub(crate) async fn tail_names(
-        &self,
-        execution: Option<&TestExecutionId>,
-    ) -> Result<Vec<String>> {
+    pub(crate) async fn tail_names(&self, execution: Option<&TestExecutionId>) -> Result<Vec<String>> {
         let stops = self.tail_stops.lock().await;
         Ok(stops
             .keys()
@@ -232,9 +203,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn new(
-        storage: Manager,
-        state_manager: StateManager,
-        context_epoch: SessionId,
+        storage: Manager, state_manager: StateManager, context_epoch: SessionId,
         brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     ) -> Result<Self> {
         Ok(Self {
@@ -251,37 +220,18 @@ impl ExecutionStorage {
     }
 
     /// The seal `id` saved durably, which an open cycle's state does not yet hold.
-    pub(crate) async fn durable_seal(
-        &self,
-        id: &TestExecutionId,
-    ) -> Result<Option<dokime_domain::model::execution::saved::ExecutionSeal>> {
-        let latest = super::execution::ExecutionView::open(
-            &self.storage,
-            id,
-            harmos::storage::ObjectVersion::Latest,
-        )
-        .await?;
+    pub(crate) async fn durable_seal(&self, id: &TestExecutionId) -> Result<Option<dokime_domain::model::execution::saved::ExecutionSeal>> {
+        let latest = super::execution::ExecutionView::open(&self.storage, id, harmos::storage::ObjectVersion::Latest).await?;
         Ok(latest.and_then(|latest| latest.execution().saved.clone()))
     }
 
-    pub(crate) async fn acquisition(
-        &self,
-        id: &TestExecutionId,
-    ) -> Option<Arc<Mutex<Acquisition>>> {
+    pub(crate) async fn acquisition(&self, id: &TestExecutionId) -> Option<Arc<Mutex<Acquisition>>> {
         self.active.lock().await.get(id).cloned()
     }
 
     pub(super) async fn original_cycle_member(
-        &self,
-        id: &TestExecutionId,
-        saved: &StorageCursor,
-    ) -> Result<
-        Option<(
-            Arc<CycleMemberContext>,
-            Arc<ExecutionRevision>,
-            Arc<TestExecution>,
-        )>,
-    > {
+        &self, id: &TestExecutionId, saved: &StorageCursor,
+    ) -> Result<Option<(Arc<CycleMemberContext>, Arc<ExecutionRevision>, Arc<TestExecution>)>> {
         let Some(owner) = self.acquisition(id).await else {
             return Ok(None);
         };
@@ -292,41 +242,20 @@ impl ExecutionStorage {
         let revision = final_revision(&acquisition)?;
         if !saved.covers(&revision.position)?
             || &revision.execution_id != id
-            || Some(&context.context)
-                != acquisition
-                    .execution
-                    .saved
-                    .as_ref()
-                    .map(|seal| &seal.source.context)
+            || Some(&context.context) != acquisition.execution.saved.as_ref().map(|seal| &seal.source.context)
         {
-            return Err(invalid(
-                "original cycle member differs from saved producer proof",
-            ));
+            return Err(invalid("original cycle member differs from saved producer proof"));
         }
-        Ok(Some((
-            context.clone(),
-            revision,
-            acquisition.execution.clone(),
-        )))
+        Ok(Some((context.clone(), revision, acquisition.execution.clone())))
     }
 
-    pub(crate) async fn retained_report_view(
-        &self,
-        id: &TestExecutionId,
-    ) -> Option<super::execution::ExecutionView> {
+    pub(crate) async fn retained_report_view(&self, id: &TestExecutionId) -> Option<super::execution::ExecutionView> {
         let owner = self.acquisition(id).await?;
         let acquisition = owner.lock().await;
-        acquisition
-            .published
-            .as_ref()
-            .map(|report| report.inspection.clone())
+        acquisition.published.as_ref().map(|report| report.inspection.clone())
     }
 
-    pub(crate) async fn prepare_execution(
-        self: &Arc<Self>,
-        cycle: &CycleView,
-        execution: &TestExecution,
-    ) -> Result<()> {
+    pub(crate) async fn prepare_execution(self: &Arc<Self>, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
         let owner = self.acquire(cycle, execution).await?;
         tokio::spawn(async move {
             let mut acquisition = owner.lock().await;
@@ -339,37 +268,23 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
-    pub(crate) async fn materialization_gate(
-        &self,
-        execution: &TestExecutionId,
-    ) -> Result<Arc<Mutex<()>>> {
-        let owner = self
-            .acquisition(execution)
-            .await
-            .ok_or_else(|| invalid("report has no acquisition owner"))?;
+    pub(crate) async fn materialization_gate(&self, execution: &TestExecutionId) -> Result<Arc<Mutex<()>>> {
+        let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report has no acquisition owner"))?;
         let gate = owner.lock().await.materialization_gate.clone();
         Ok(gate)
     }
 
     pub(crate) async fn prepare_capture(
-        self: &Arc<Self>,
-        cycle: &CycleView,
-        execution: &TestExecution,
-        at: &StorageCursor,
-        final_report: bool,
+        self: &Arc<Self>, cycle: &CycleView, execution: &TestExecution, at: &StorageCursor, final_report: bool,
     ) -> Result<CaptureInputs> {
         validate_owner(cycle, execution)?;
         if execution.saved.is_some()
             || (final_report
-                && (matches!(
-                    execution.status,
-                    ExecutionStatus::Pending | ExecutionStatus::Running
-                ) || execution.finished_at.is_none()
+                && (matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                    || execution.finished_at.is_none()
                     || execution.active_step_attempt.is_some()))
         {
-            return Err(invalid(
-                "execution finalization requires an unsealed settled input",
-            ));
+            return Err(invalid("execution finalization requires an unsealed settled input"));
         }
         let owner = match self.acquisition(&execution.test_execution_id).await {
             Some(owner) => owner,
@@ -379,17 +294,8 @@ impl ExecutionStorage {
         if !self.storage.cursor_saved().covers(at)? {
             return Err(invalid("report cursor is not durable"));
         }
-        let intent = self
-            .state_manager
-            .state()
-            .read(|state| {
-                state
-                    .report_finalizations
-                    .get(&execution.test_execution_id)
-                    .cloned()
-            })
-            .await?
-            .value;
+        let intent =
+            self.state_manager.state().read(|state| state.report_finalizations.get(&execution.test_execution_id).cloned()).await?.value;
         let report_boundary = intent.as_ref().map(|intent| intent.evidence_at.clone());
         let (lifecycle_id, anchor) = match intent.and_then(|intent| intent.lifecycle) {
             Some(lifecycle) => {
@@ -397,19 +303,12 @@ impl ExecutionStorage {
                 (lifecycle.id.to_string(), Some(lifecycle.execution))
             }
             None if final_report => {
-                return Err(invalid(
-                    "final report requires an immutable lifecycle intent",
-                ));
+                return Err(invalid("final report requires an immutable lifecycle intent"));
             }
             None => (uuid::Uuid::now_v7().to_string(), None),
         };
-        if report_boundary
-            .as_ref()
-            .is_some_and(|boundary| boundary != at)
-        {
-            return Err(invalid(
-                "report request differs from its persisted finalization boundary",
-            ));
+        if report_boundary.as_ref().is_some_and(|boundary| boundary != at) {
+            return Err(invalid("report request differs from its persisted finalization boundary"));
         }
         let report_boundary = at.clone();
         let operation = async move {
@@ -420,38 +319,20 @@ impl ExecutionStorage {
             if acquisition.published.is_some() || acquisition.execution.saved.is_some() {
                 return Err(invalid("final report is already published"));
             }
-            if acquisition
-                .finalizing
-                .as_ref()
-                .is_some_and(|original| **original != *frozen)
-            {
-                return Err(invalid(
-                    "report capture changed the original finalization input",
-                ));
+            if acquisition.finalizing.as_ref().is_some_and(|original| **original != *frozen) {
+                return Err(invalid("report capture changed the original finalization input"));
             }
             if final_report && acquisition.finalizing.is_none() {
                 // Retain The Exact Input Before Closing Admission Or Awaiting A Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
             }
-            let frozen = if final_report {
-                acquisition
-                    .finalizing
-                    .as_ref()
-                    .expect("original finalization retained")
-                    .clone()
-            } else {
-                frozen
-            };
-            let outputs = if final_report {
-                acquisition.settle_outputs().await?
-            } else {
-                acquisition.snapshot_outputs().await?
-            };
+            let frozen =
+                if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
+            let outputs = if final_report { acquisition.settle_outputs().await? } else { acquisition.snapshot_outputs().await? };
             // A Final Report Seals Every Settled Output; Settlement May Follow The Evidence Cut.
-            let pending = |output: &ExecutionOutput| -> harmos::Result<bool> {
-                Ok(!final_report && !report_boundary.covers(&output.file.position)?)
-            };
+            let pending =
+                |output: &ExecutionOutput| -> harmos::Result<bool> { Ok(!final_report && !report_boundary.covers(&output.file.position)?) };
             let mut unavailable_outputs = Vec::new();
             let mut included = Vec::with_capacity(outputs.len());
             for output in outputs.iter() {
@@ -471,39 +352,25 @@ impl ExecutionStorage {
                 through: report_boundary,
             })
         };
-        tokio::spawn(operation)
-            .await
-            .map_err(|source| Error::Join { source })?
+        tokio::spawn(operation).await.map_err(|source| Error::Join { source })?
     }
 
     pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {
         Ok(self
             .state_manager
             .state()
-            .read(|state| {
-                state
-                    .report_finalizations
-                    .get(id)
-                    .is_some_and(|intent| intent.lifecycle.is_some())
-            })
+            .read(|state| state.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some()))
             .await?
             .value)
     }
 
     /// Save `execution` as its owner's revision and return it: the durable
     /// terminal snapshot a report lifecycle references instead of copying.
-    pub(crate) async fn freeze_revision(
-        &self,
-        execution: &TestExecution,
-    ) -> Result<Arc<ExecutionRevision>> {
-        let owner = self
-            .acquisition(&execution.test_execution_id)
-            .await
-            .ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
-        if matches!(
-            execution.status,
-            ExecutionStatus::Pending | ExecutionStatus::Running
-        ) || execution.finished_at.is_none()
+    pub(crate) async fn freeze_revision(&self, execution: &TestExecution) -> Result<Arc<ExecutionRevision>> {
+        let owner =
+            self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+        if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+            || execution.finished_at.is_none()
             || execution.saved.is_some()
         {
             return Err(invalid("report lifecycle must be terminal and unsealed"));
@@ -515,18 +382,11 @@ impl ExecutionStorage {
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
             validate_identity(&acquisition, &execution)?;
-            if acquisition
-                .finalizing
-                .as_ref()
-                .is_some_and(|frozen| **frozen != *execution)
-            {
+            if acquisition.finalizing.as_ref().is_some_and(|frozen| **frozen != *execution) {
                 return Err(invalid("report lifecycle differs from its frozen input"));
             }
             bind_publication_revision(&mut acquisition, &execution).await?;
-            acquisition
-                .working
-                .clone()
-                .ok_or_else(|| invalid("report lifecycle has no saved revision"))
+            acquisition.working.clone().ok_or_else(|| invalid("report lifecycle has no saved revision"))
         })
         .await
         .map_err(|source| Error::Join { source })?
@@ -534,10 +394,7 @@ impl ExecutionStorage {
 
     /// The terminal execution a report lifecycle froze, read from its owner
     /// when that owner saved it, otherwise from its durable revision.
-    pub(crate) async fn frozen_execution(
-        &self,
-        revision: &ExecutionRevision,
-    ) -> Result<TestExecution> {
+    pub(crate) async fn frozen_execution(&self, revision: &ExecutionRevision) -> Result<TestExecution> {
         if let Some(owner) = self.acquisition(&revision.execution_id).await {
             let acquisition = owner.lock().await;
             if acquisition.working.as_deref() == Some(revision) && acquisition.pending.is_none() {
@@ -551,28 +408,17 @@ impl ExecutionStorage {
         )
         .await?
         .ok_or_else(|| invalid("report lifecycle revision is missing"))?;
-        if stored.position != revision.position
-            || stored.value.test_execution_id != revision.execution_id
-            || stored.value.saved.is_some()
-        {
-            return Err(invalid(
-                "report lifecycle revision differs from its reference",
-            ));
+        if stored.position != revision.position || stored.value.test_execution_id != revision.execution_id || stored.value.saved.is_some() {
+            return Err(invalid("report lifecycle revision differs from its reference"));
         }
         Ok(stored.value)
     }
 
     /// Bind the owner of `execution` to the revision its lifecycle froze,
     /// reading it back when this owner has not saved it (after a restart).
-    pub(crate) async fn adopt_revision(
-        &self,
-        execution: &TestExecution,
-        revision: &ExecutionRevision,
-    ) -> Result<()> {
-        let owner = self
-            .acquisition(&execution.test_execution_id)
-            .await
-            .ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+    pub(crate) async fn adopt_revision(&self, execution: &TestExecution, revision: &ExecutionRevision) -> Result<()> {
+        let owner =
+            self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
         let gate = owner.lock().await.gate.clone();
         let _boundary = gate.lock().await;
         let mut acquisition = owner.lock().await;
@@ -580,18 +426,12 @@ impl ExecutionStorage {
         if acquisition.execution.saved.is_some() {
             return Err(invalid("final report is already published"));
         }
-        if acquisition.working.as_deref() == Some(revision)
-            && *acquisition.execution == *execution
-            && acquisition.pending.is_none()
-        {
+        if acquisition.working.as_deref() == Some(revision) && *acquisition.execution == *execution && acquisition.pending.is_none() {
             return Ok(());
         }
         let stored = acquisition
             .storage
-            .read_object::<Execution>(
-                revision.execution_id.as_str(),
-                harmos::storage::ObjectVersion::Exact(revision.version.clone()),
-            )
+            .read_object::<Execution>(revision.execution_id.as_str(), harmos::storage::ObjectVersion::Exact(revision.version.clone()))
             .await?
             .ok_or_else(|| invalid("report lifecycle revision is missing"))?;
         if revision.execution_id != execution.test_execution_id
@@ -607,14 +447,8 @@ impl ExecutionStorage {
         Ok(())
     }
 
-    pub(crate) async fn publication_revision(
-        &self,
-        execution: &TestExecution,
-    ) -> Result<Arc<ExecutionRevision>> {
-        let owner = self
-            .acquisition(&execution.test_execution_id)
-            .await
-            .ok_or_else(|| invalid("report has no acquisition"))?;
+    pub(crate) async fn publication_revision(&self, execution: &TestExecution) -> Result<Arc<ExecutionRevision>> {
+        let owner = self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report has no acquisition"))?;
         let gate = owner.lock().await.gate.clone();
         let _guard = gate.lock().await;
         let mut acquisition = owner.lock().await;
@@ -622,22 +456,14 @@ impl ExecutionStorage {
         if acquisition.pending.is_some() || acquisition.working.is_none() {
             save_working_revision(&mut acquisition).await?;
         }
-        acquisition
-            .working
-            .clone()
-            .ok_or_else(|| invalid("publication has no native revision"))
+        acquisition.working.clone().ok_or_else(|| invalid("publication has no native revision"))
     }
 
     pub(crate) async fn materialize_final_report(
-        self: &Arc<Self>,
-        ctx: &harmos::operations::Context<'_>,
-        inspection: super::execution::ExecutionView,
-        prepared: PreparedExecutionReport,
-        sealed_at: Timestamp,
+        self: &Arc<Self>, ctx: &harmos::operations::Context<'_>, inspection: super::execution::ExecutionView,
+        prepared: PreparedExecutionReport, sealed_at: Timestamp,
     ) -> Result<crate::runtime::operations::reports::MaterializedReport> {
-        inspection
-            .captured_source()
-            .ok_or_else(|| invalid("report requires an original captured source"))?;
+        inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
         let storage = self.clone();
         let work = async move {
             let owner = storage
@@ -647,8 +473,7 @@ impl ExecutionStorage {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
-            bind_publication_revision(&mut acquisition, prepared.captured_input().execution()?)
-                .await?;
+            bind_publication_revision(&mut acquisition, prepared.captured_input().execution()?).await?;
             validate_report(&acquisition, &inspection, &prepared)?;
             if acquisition.published.is_some() {
                 return Err(invalid("final report is already published"));
@@ -668,9 +493,7 @@ impl ExecutionStorage {
 
     /// The final report already published for `execution` at `at`, awaiting its seal.
     pub(crate) async fn published_final_report(
-        &self,
-        execution: &TestExecutionId,
-        at: &StorageCursor,
+        &self, execution: &TestExecutionId, at: &StorageCursor,
     ) -> Result<Option<crate::runtime::operations::reports::MaterializedReport>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
@@ -682,20 +505,12 @@ impl ExecutionStorage {
         if published.seal.source.evidence_through != *at {
             return Err(invalid("report request changes the frozen evidence cursor"));
         }
-        Ok(Some(crate::runtime::operations::reports::MaterializedReport {
-            report: published.seal.report.clone(),
-        }))
+        Ok(Some(crate::runtime::operations::reports::MaterializedReport { report: published.seal.report.clone() }))
     }
 
     /// Seal `execution` with its published final report.
-    pub(crate) async fn seal_final_report(
-        &self,
-        execution: &TestExecutionId,
-    ) -> Result<Arc<ExecutionRevision>> {
-        let owner = self
-            .acquisition(execution)
-            .await
-            .ok_or_else(|| invalid("report seal has no acquisition owner"))?;
+    pub(crate) async fn seal_final_report(&self, execution: &TestExecutionId) -> Result<Arc<ExecutionRevision>> {
+        let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report seal has no acquisition owner"))?;
         // Saving Survives Caller Cancellation So A Started Seal Always Settles.
         tokio::spawn(async move {
             let gate = owner.lock().await.gate.clone();
@@ -707,23 +522,13 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
-    pub(crate) async fn checkpoint_targets(
-        self: &Arc<Self>,
-        cycle: &CycleView,
-        targets: &[TestExecutionId],
-    ) -> Result<()> {
+    pub(crate) async fn checkpoint_targets(self: &Arc<Self>, cycle: &CycleView, targets: &[TestExecutionId]) -> Result<()> {
         if cycle.test_executions.len() > MAX_ACTIVE_OWNERS || targets.len() > MAX_ACTIVE_OWNERS {
-            return Err(invalid(
-                "execution checkpoint fanout exceeds its source bound",
-            ));
+            return Err(invalid("execution checkpoint fanout exceeds its source bound"));
         }
         let mut members = BTreeMap::new();
         for execution in &cycle.test_executions {
-            if execution.test_cycle_id != cycle.test_cycle_id
-                || members
-                    .insert(&execution.test_execution_id, execution)
-                    .is_some()
-            {
+            if execution.test_cycle_id != cycle.test_cycle_id || members.insert(&execution.test_execution_id, execution).is_some() {
                 return Err(invalid("execution checkpoint membership is inconsistent"));
             }
         }
@@ -734,10 +539,7 @@ impl ExecutionStorage {
             }
         }
         for id in targets {
-            let owner = self
-                .acquisition(id)
-                .await
-                .ok_or_else(|| invalid("execution checkpoint has no admitted producer owner"))?;
+            let owner = self.acquisition(id).await.ok_or_else(|| invalid("execution checkpoint has no admitted producer owner"))?;
             let storage = self.clone();
             let expected = members[id];
             validate_identity(&*owner.lock().await, expected)?;
@@ -756,15 +558,8 @@ impl ExecutionStorage {
                             .get(&acquisition.execution_id)
                             .ok_or_else(|| invalid("execution checkpoint member is missing"))?;
                         validate_identity(&acquisition, current)?;
-                        if current.saved.is_some()
-                            || acquisition
-                                .finalizing
-                                .as_ref()
-                                .is_some_and(|frozen| **frozen != *current)
-                        {
-                            return Err(invalid(
-                                "execution checkpoint changed its frozen ownership",
-                            ));
+                        if current.saved.is_some() || acquisition.finalizing.as_ref().is_some_and(|frozen| **frozen != *current) {
+                            return Err(invalid("execution checkpoint changed its frozen ownership"));
                         }
                         Ok(Arc::new(current.clone()))
                     })
@@ -785,19 +580,14 @@ impl ExecutionStorage {
     }
 
     pub(crate) fn active_ids(&self) -> Result<Vec<TestExecutionId>> {
-        let active = self.active.try_lock().map_err(|_| {
-            Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "active execution inventory registry busy",
-            })
-        })?;
+        let active = self
+            .active
+            .try_lock()
+            .map_err(|_| Error::Harmos(harmos::Error::ResourceExhausted { resource: "active execution inventory registry busy" }))?;
         Ok(active.keys().cloned().collect())
     }
 
-    pub(crate) async fn acquire(
-        &self,
-        cycle: &CycleView,
-        execution: &TestExecution,
-    ) -> Result<Arc<Mutex<Acquisition>>> {
+    pub(crate) async fn acquire(&self, cycle: &CycleView, execution: &TestExecution) -> Result<Arc<Mutex<Acquisition>>> {
         validate_owner(cycle, execution)?;
         if execution.saved.is_some() {
             return Err(invalid("sealed execution cannot acquire mutable producers"));
@@ -849,26 +639,13 @@ impl ExecutionStorage {
 
 /* === Private Functions === */
 fn validate_report(
-    acquisition: &Acquisition,
-    inspection: &super::execution::ExecutionView,
-    prepared: &PreparedExecutionReport,
+    acquisition: &Acquisition, inspection: &super::execution::ExecutionView, prepared: &PreparedExecutionReport,
 ) -> Result<()> {
-    let source = inspection
-        .captured_source()
-        .ok_or_else(|| invalid("report requires the original pre-report inspection"))?;
+    let source = inspection.captured_source().ok_or_else(|| invalid("report requires the original pre-report inspection"))?;
     let captured = prepared.captured_input();
-    let terminal = acquisition
-        .finalizing
-        .as_ref()
-        .ok_or_else(|| invalid("report has no original frozen finalization input"))?;
-    let revision = acquisition
-        .working
-        .as_ref()
-        .ok_or_else(|| invalid("report has no saved pre-report revision"))?;
-    let outputs = acquisition
-        .settled_outputs
-        .as_ref()
-        .ok_or_else(|| invalid("report has no settled native output closure"))?;
+    let terminal = acquisition.finalizing.as_ref().ok_or_else(|| invalid("report has no original frozen finalization input"))?;
+    let revision = acquisition.working.as_ref().ok_or_else(|| invalid("report has no saved pre-report revision"))?;
+    let outputs = acquisition.settled_outputs.as_ref().ok_or_else(|| invalid("report has no settled native output closure"))?;
     if !acquisition.finish_requested
         || !acquisition.outputs_sealed
         || !acquisition.outputs_quiescent
@@ -882,36 +659,23 @@ fn validate_report(
         || captured.context != source.context
         || captured.telemetry_contracts != source.telemetry_contracts
         || captured.record_contracts != source.record_contracts
-        || source
-            .outputs
-            .iter()
-            .any(|output| !outputs.contains(output))
+        || source.outputs.iter().any(|output| !outputs.contains(output))
         || prepared.settled_outputs().as_slice() != source.outputs.as_slice()
         || captured.input.cycle.test_executions.as_slice() != std::slice::from_ref(&**terminal)
         || inspection.execution() != &**terminal
         || *acquisition.execution != **terminal
     {
-        return Err(invalid(
-            "report differs from its frozen acquisition and settled closure",
-        ));
+        return Err(invalid("report differs from its frozen acquisition and settled closure"));
     }
     Ok(())
 }
 
 async fn publish_final(
-    ctx: &harmos::operations::Context<'_>,
-    acquisition: &mut Acquisition,
-    mut prepared: PreparedExecutionReport,
-    inspection: super::execution::ExecutionView,
-    sealed_at: &Timestamp,
+    ctx: &harmos::operations::Context<'_>, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
+    inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
 ) -> Result<crate::runtime::operations::reports::MaterializedReport> {
-    let revision = acquisition
-        .working
-        .as_ref()
-        .ok_or_else(|| invalid("publication has no real native revision"))?;
-    let seal = prepared
-        .save_dependencies(&acquisition.storage, ctx, sealed_at, revision)
-        .await?;
+    let revision = acquisition.working.as_ref().ok_or_else(|| invalid("publication has no real native revision"))?;
+    let seal = prepared.save_dependencies(&acquisition.storage, ctx, sealed_at, revision).await?;
     let captured = prepared.captured_input();
     if seal.source.execution.execution_id != captured.execution_id
         || seal.source.owner_node_id != captured.owner_node_id
@@ -938,11 +702,7 @@ async fn publish_final(
     .finish()
     .await?;
     let report = seal.report.clone();
-    acquisition.published = Some(PublishedReport {
-        seal: Arc::new(seal),
-        inspection,
-        appearance: captured.context.appearance.clone(),
-    });
+    acquisition.published = Some(PublishedReport { seal: Arc::new(seal), inspection, appearance: captured.context.appearance.clone() });
     Ok(crate::runtime::operations::reports::MaterializedReport { report })
 }
 
@@ -958,23 +718,12 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
         .and_then(|published| published.inspection.captured_source())
         .and_then(|source| source.execution.clone());
     if acquisition.pending.is_none() {
-        let seal = acquisition
-            .published
-            .as_ref()
-            .ok_or_else(|| invalid("seal requires a published final report"))?
-            .seal
-            .clone();
-        let terminal = acquisition
-            .finalizing
-            .as_ref()
-            .ok_or_else(|| invalid("seal has no frozen terminal execution"))?;
+        let seal = acquisition.published.as_ref().ok_or_else(|| invalid("seal requires a published final report"))?.seal.clone();
+        let terminal = acquisition.finalizing.as_ref().ok_or_else(|| invalid("seal has no frozen terminal execution"))?;
         let mut sealed = (**terminal).clone();
         sealed.saved = Some((*seal).clone());
         // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
-        acquisition.pending = Some(PendingRevision {
-            execution: Arc::new(sealed),
-            receipt: None,
-        });
+        acquisition.pending = Some(PendingRevision { execution: Arc::new(sealed), receipt: None });
     }
     save_working_revision(acquisition).await?;
     if let Some(anchor) = anchor {
@@ -991,17 +740,9 @@ async fn release_before(storage: &Manager, anchor: &ExecutionRevision) -> Result
         return Ok(());
     };
     let schema = <ObjectDefinitions as Member<Execution>>::ENTRY.schema()?;
-    let key = ObjectKey::new(
-        anchor.execution_id.as_str(),
-        std::num::NonZeroUsize::new(1024).unwrap(),
-    )?;
-    let through = StorageCursor {
-        history: anchor.position.history.clone(),
-        sequence: predecessor,
-    };
-    storage
-        .release_object_history(&schema, &key, &through)
-        .await?;
+    let key = ObjectKey::new(anchor.execution_id.as_str(), std::num::NonZeroUsize::new(1024).unwrap())?;
+    let through = StorageCursor { history: anchor.position.history.clone(), sequence: predecessor };
+    storage.release_object_history(&schema, &key, &through).await?;
     Ok(())
 }
 
@@ -1013,17 +754,8 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
     if acquisition.cycle_context.is_none()
         && let Some(published) = &acquisition.published
     {
-        let file = &acquisition
-            .execution
-            .saved
-            .as_ref()
-            .expect("saved original seal")
-            .source
-            .context;
-        acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
-            context: file.clone(),
-            appearance: published.appearance.clone(),
-        }));
+        let file = &acquisition.execution.saved.as_ref().expect("saved original seal").source.context;
+        acquisition.cycle_context = Some(Arc::new(CycleMemberContext { context: file.clone(), appearance: published.appearance.clone() }));
     }
     acquisition.published = None;
     acquisition.finalizing = None;
@@ -1032,34 +764,17 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
 }
 
 fn final_revision(acquisition: &Acquisition) -> Result<Arc<ExecutionRevision>> {
-    let revision = acquisition
-        .working
-        .as_ref()
-        .ok_or_else(|| invalid("sealed owner has no saved original revision"))?;
-    let seal = acquisition
-        .execution
-        .saved
-        .as_ref()
-        .ok_or_else(|| invalid("original final seal has not been saved"))?;
+    let revision = acquisition.working.as_ref().ok_or_else(|| invalid("sealed owner has no saved original revision"))?;
+    let seal = acquisition.execution.saved.as_ref().ok_or_else(|| invalid("original final seal has not been saved"))?;
     revision.version.check_position(&revision.position)?;
-    if !acquisition
-        .storage
-        .status()
-        .saved
-        .covers(&revision.position)?
-    {
-        return Err(invalid(
-            "original final seal has not reached native durability",
-        ));
+    if !acquisition.storage.status().saved.covers(&revision.position)? {
+        return Err(invalid("original final seal has not reached native durability"));
     }
     super::execution::check_seal_position(&revision.position, &seal.dependencies_saved)?;
     Ok(revision.clone())
 }
 
-async fn bind_publication_revision(
-    acquisition: &mut Acquisition,
-    execution: &TestExecution,
-) -> Result<()> {
+async fn bind_publication_revision(acquisition: &mut Acquisition, execution: &TestExecution) -> Result<()> {
     if acquisition.pending.is_some() {
         save_working_revision(acquisition).await?;
     }
@@ -1075,45 +790,30 @@ async fn bind_publication_revision(
 
 async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
     if acquisition.pending.is_none() {
-        acquisition.pending = Some(PendingRevision {
-            execution: acquisition.execution.clone(),
-            receipt: None,
-        });
+        acquisition.pending = Some(PendingRevision { execution: acquisition.execution.clone(), receipt: None });
     }
-    let pending = acquisition
-        .pending
-        .as_mut()
-        .expect("original execution save retained");
+    let pending = acquisition.pending.as_mut().expect("original execution save retained");
     if pending.receipt.is_none() {
         if acquisition.storage.status().failure.is_some() {
             acquisition.storage.flush().await?;
         }
         let native = Execution::try_from(&*pending.execution)?;
-        let receipt = acquisition
-            .storage
-            .write_object(&native)
-            .await
-            .inspect_err(|error| {
-                tracing::error!(
-                    ?error,
-                    execution_id = %pending.execution.test_execution_id,
-                    sealed = pending.execution.saved.is_some(),
-                    "execution revision admission failed"
-                );
-            })?;
+        let receipt = acquisition.storage.write_object(&native).await.inspect_err(|error| {
+            tracing::error!(
+                ?error,
+                execution_id = %pending.execution.test_execution_id,
+                sealed = pending.execution.saved.is_some(),
+                "execution revision admission failed"
+            );
+        })?;
         let receipts = [receipt];
         pending.receipt = receipts.into_iter().next();
     }
-    let receipt = pending
-        .receipt
-        .as_ref()
-        .expect("original execution receipt retained");
+    let receipt = pending.receipt.as_ref().expect("original execution receipt retained");
     receipt.version.check_position(&receipt.position)?;
     let saved = acquisition.storage.flush_until(&receipt.position).await?;
     if !saved.covers(&receipt.position)? {
-        return Err(invalid(
-            "execution save does not cover its original admission",
-        ));
+        return Err(invalid("execution save does not cover its original admission"));
     }
     let revision = Arc::new(ExecutionRevision {
         execution_id: pending.execution.test_execution_id.clone(),
@@ -1129,36 +829,17 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
 fn validate_owner(cycle: &CycleView, execution: &TestExecution) -> Result<()> {
     if execution.test_cycle_id != cycle.test_cycle_id
         || execution.test_case_id != execution.snapshot.case().test_case_id
-        || cycle
-            .test_executions
-            .iter()
-            .filter(|member| member.test_execution_id == execution.test_execution_id)
-            .count()
-            != 1
+        || cycle.test_executions.iter().filter(|member| member.test_execution_id == execution.test_execution_id).count() != 1
         || cycle
             .test_executions
             .iter()
             .find(|member| member.test_execution_id == execution.test_execution_id)
             .is_some_and(|member| member != execution)
-        || execution
-            .scope
-            .test_execution_id
-            .as_ref()
-            .is_some_and(|id| id != &execution.test_execution_id)
-        || execution
-            .scope
-            .test_cycle_id
-            .as_ref()
-            .is_some_and(|id| id != &execution.test_cycle_id)
-        || execution
-            .scope
-            .test_case_id
-            .as_ref()
-            .is_some_and(|id| id != &execution.test_case_id)
+        || execution.scope.test_execution_id.as_ref().is_some_and(|id| id != &execution.test_execution_id)
+        || execution.scope.test_cycle_id.as_ref().is_some_and(|id| id != &execution.test_cycle_id)
+        || execution.scope.test_case_id.as_ref().is_some_and(|id| id != &execution.test_case_id)
     {
-        return Err(invalid(
-            "execution acquisition differs from its admitted owner",
-        ));
+        return Err(invalid("execution acquisition differs from its admitted owner"));
     }
     Ok(())
 }
@@ -1171,9 +852,7 @@ fn validate_identity(owner: &Acquisition, execution: &TestExecution) -> Result<(
         || owner.execution.snapshot != execution.snapshot
         || owner.execution.scope != execution.scope
     {
-        return Err(invalid(
-            "execution identity was reused with different frozen inputs",
-        ));
+        return Err(invalid("execution identity was reused with different frozen inputs"));
     }
     Ok(())
 }

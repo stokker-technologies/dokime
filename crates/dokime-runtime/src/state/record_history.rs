@@ -59,9 +59,7 @@ pub(crate) enum Redefinition {
 
 /* === Implementations === */
 impl RecordHistory {
-    pub(super) fn from_contracts(
-        contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>,
-    ) -> Self {
+    pub(super) fn from_contracts(contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>) -> Self {
         Self(contracts)
     }
 
@@ -82,9 +80,7 @@ impl RecordHistory {
     }
 
     fn store(&mut self, contract: &RecordContract, policy: Redefinition) -> Result<(), String> {
-        let exists = self
-            .get(&contract.record_type, contract.schema_version)
-            .is_some();
+        let exists = self.get(&contract.record_type, contract.schema_version).is_some();
         if let Some(previous) = self.get(&contract.record_type, contract.schema_version) {
             if previous.record_schema() == contract.record_schema() {
                 return Ok(());
@@ -100,22 +96,12 @@ impl RecordHistory {
             return Err("exceeds 4096 definitions".into());
         }
         // Preserve The Serialized Quota Before Copying Or Mutating Any Declaration
-        let candidate = Candidate {
-            history: self,
-            contract,
-        };
+        let candidate = Candidate { history: self, contract };
         let mut count = SerializedBytes::default();
         if let Err(failure) = serde_json::to_writer(&mut count, &candidate) {
-            return Err(if count.exceeded {
-                "exceeds 4 MiB".into()
-            } else {
-                failure.to_string()
-            });
+            return Err(if count.exceeded { "exceeds 4 MiB".into() } else { failure.to_string() });
         }
-        self.0
-            .entry(contract.record_type.clone())
-            .or_default()
-            .insert(contract.schema_version, contract.clone());
+        self.0.entry(contract.record_type.clone()).or_default().insert(contract.schema_version, contract.clone());
         Ok(())
     }
 }
@@ -123,29 +109,16 @@ impl RecordHistory {
 impl Serialize for Candidate<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let present = self.history.0.contains_key(&self.contract.record_type);
-        let mut map =
-            serializer.serialize_map(Some(self.history.0.len() + usize::from(!present)))?;
+        let mut map = serializer.serialize_map(Some(self.history.0.len() + usize::from(!present)))?;
         for (kind, versions) in &self.history.0 {
             if kind == &self.contract.record_type {
-                map.serialize_entry(
-                    kind,
-                    &Versions {
-                        saved: Some(versions),
-                        contract: self.contract,
-                    },
-                )?;
+                map.serialize_entry(kind, &Versions { saved: Some(versions), contract: self.contract })?;
             } else {
                 map.serialize_entry(kind, versions)?;
             }
         }
         if !present {
-            map.serialize_entry(
-                &self.contract.record_type,
-                &Versions {
-                    saved: None,
-                    contract: self.contract,
-                },
-            )?;
+            map.serialize_entry(&self.contract.record_type, &Versions { saved: None, contract: self.contract })?;
         }
         map.end()
     }
@@ -153,9 +126,7 @@ impl Serialize for Candidate<'_> {
 
 impl Serialize for Versions<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let present = self
-            .saved
-            .is_some_and(|saved| saved.contains_key(&self.contract.schema_version));
+        let present = self.saved.is_some_and(|saved| saved.contains_key(&self.contract.schema_version));
         let count = self.saved.map_or(0, BTreeMap::len) + usize::from(!present);
         let mut map = serializer.serialize_map(Some(count))?;
         if let Some(saved) = self.saved {
@@ -176,11 +147,7 @@ impl Serialize for Versions<'_> {
 
 impl Write for SerializedBytes {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        let Some(total) = self
-            .bytes
-            .checked_add(bytes.len())
-            .filter(|total| *total <= MAX_BYTES)
-        else {
+        let Some(total) = self.bytes.checked_add(bytes.len()).filter(|total| *total <= MAX_BYTES) else {
             self.exceeded = true;
             return Err(std::io::Error::other("exceeds 4 MiB"));
         };

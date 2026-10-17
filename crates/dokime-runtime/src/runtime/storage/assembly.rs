@@ -38,10 +38,7 @@ use crate::runtime::state::RuntimeState;
 
 /* === Public Functions === */
 pub(crate) async fn build(
-    fresh: RuntimeState,
-    records: Arc<super::record_capture::Source>,
-    storage: &crate::storage::Manager,
-    resources: crate::app::Resources,
+    fresh: RuntimeState, records: Arc<super::record_capture::Source>, storage: &crate::storage::Manager, resources: crate::app::Resources,
 ) -> std::result::Result<HarmosRuntime, harmos::runtime::Incompatible> {
     let session_id = fresh.session_id.clone();
     let record_namespace = fresh.process_epoch().clone();
@@ -68,16 +65,11 @@ pub(crate) async fn build(
             records.initialize().await.map_err(reconciliation_error)?;
 
             state_manager
-                .commit(crate::transactions::MarkRuntimeStarted {
-                    session_id,
-                    record_namespace,
-                })
+                .commit(crate::transactions::MarkRuntimeStarted { session_id, record_namespace })
                 .await
                 .map_err(reconciliation_error)?;
             state_manager
-                .commit(crate::transactions::RecoverInterruptedCycles {
-                    at: crate::model::time::now_utc(),
-                })
+                .commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() })
                 .await
                 .map_err(reconciliation_error)?;
             Ok(())
@@ -88,11 +80,7 @@ pub(crate) async fn build(
 
 /* === Private Functions === */
 fn reconciliation_error(source: impl std::error::Error + Send + Sync + 'static) -> harmos::Error {
-    harmos::Error::backend(
-        "reconcile native Dokime storage",
-        harmos::BackendFailure::Permanent,
-        source,
-    )
+    harmos::Error::backend("reconcile native Dokime storage", harmos::BackendFailure::Permanent, source)
 }
 
 /* === Tests === */

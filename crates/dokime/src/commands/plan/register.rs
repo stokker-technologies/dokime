@@ -62,16 +62,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
             let request = serde_json::from_slice::<RegisterSelection>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
-            (
-                super::input::Planned::canonical(request.plan)?,
-                request.idempotency_key,
-            )
+            (super::input::Planned::canonical(request.plan)?, request.idempotency_key)
         }
-        None => (
-            input.plan()?,
-            args.request_key
-                .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
-        ),
+        None => (input.plan()?, args.request_key.ok_or_else(|| crate::Error::Input("request key is required".into()))?),
     };
     dokime_domain::model::execution::command::validate_idempotency_key(&idempotency_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
@@ -81,12 +74,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
     let result = async {
         let plan = planned.resolve(&client).await?;
-        let reply = client
-            .register_selection(RegisterSelection {
-                plan,
-                idempotency_key,
-            })
-            .await?;
+        let reply = client.register_selection(RegisterSelection { plan, idempotency_key }).await?;
         super::input::print(&client, &reply, args.json).await
     }
     .await;

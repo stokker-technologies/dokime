@@ -18,7 +18,7 @@ pub use crate::storage::sqlite::Source as StorageSource;
 // Third Party Imports
 
 // Local Imports
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 
 /* === Constants === */
 
@@ -44,20 +44,11 @@ impl RuntimeHandle {
         }
         if identifiers.is_empty()
             || identifiers.len() > 1024
-            || identifiers
-                .iter()
-                .any(|identifier| identifier.is_empty() || identifier.len() > 256)
+            || identifiers.iter().any(|identifier| identifier.is_empty() || identifier.len() > 256)
         {
-            return Err(Error::validation(
-                "invalid_storage_sources",
-                "provide 1 to 1024 source identifiers of 1 to 256 bytes",
-                Vec::new(),
-            ));
+            return Err(Error::validation("invalid_storage_sources", "provide 1 to 1024 source identifiers of 1 to 256 bytes", Vec::new()));
         }
-        self.local_storage
-            .reorder_sources(identifiers)
-            .await
-            .map_err(settings_error)
+        self.local_storage.reorder_sources(identifiers).await.map_err(settings_error)
     }
 
     pub async fn set_storage_source_enabled(&self, identifier: &str, enabled: bool) -> Result<()> {
@@ -65,16 +56,9 @@ impl RuntimeHandle {
             return Err(Error::ShuttingDown);
         }
         if identifier.is_empty() || identifier.len() > 256 {
-            return Err(Error::validation(
-                "invalid_storage_source",
-                "provide a source identifier of 1 to 256 bytes",
-                Vec::new(),
-            ));
+            return Err(Error::validation("invalid_storage_source", "provide a source identifier of 1 to 256 bytes", Vec::new()));
         }
-        self.local_storage
-            .set_source_enabled(identifier, enabled)
-            .await
-            .map_err(settings_error)
+        self.local_storage.set_source_enabled(identifier, enabled).await.map_err(settings_error)
     }
 }
 
@@ -83,9 +67,7 @@ impl RuntimeHandle {
 /* === Private Functions === */
 fn settings_error(error: crate::storage::sqlite::Error) -> Error {
     match error {
-        crate::storage::sqlite::Error::Catalog(message) => {
-            Error::validation("invalid_storage_sources", message, Vec::new())
-        }
+        crate::storage::sqlite::Error::Catalog(message) => Error::validation("invalid_storage_sources", message, Vec::new()),
         error => error.into(),
     }
 }

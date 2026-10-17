@@ -42,11 +42,8 @@ fn main() {
     let bundle = brand_text("tauri.brand.json", "productName");
     println!("cargo:rustc-env=DOKIME_BUNDLE_NAME={bundle}");
 
-    let artifacts =
-        dokime_domain::operations::artifacts().expect("canonical desktop transfer contracts");
-    artifacts
-        .export_build("operations")
-        .expect("desktop transfer descriptors");
+    let artifacts = dokime_domain::operations::artifacts().expect("canonical desktop transfer contracts");
+    artifacts.export_build("operations").expect("desktop transfer descriptors");
     tauri_build::build();
 
     // Tauri embeds its manifest in binaries only. Library test executables also
@@ -60,17 +57,11 @@ fn main() {
 
 /// One nonblank text field of a generated brand file, tracked for rebuilds.
 fn brand_text(file: &str, field: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../branding/generated")
-        .join(file);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../branding/generated").join(file);
     println!("cargo:rerun-if-changed={}", path.display());
     let bytes = std::fs::read(&path).expect("generated brand file");
     let manifest: serde_json::Value = serde_json::from_slice(&bytes).expect("generated brand JSON");
-    manifest[field]
-        .as_str()
-        .filter(|text| !text.trim().is_empty())
-        .expect("generated brand text field")
-        .to_owned()
+    manifest[field].as_str().filter(|text| !text.trim().is_empty()).expect("generated brand text field").to_owned()
 }
 
 /* === Tests === */

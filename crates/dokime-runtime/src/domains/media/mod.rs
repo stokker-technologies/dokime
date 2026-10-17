@@ -25,9 +25,9 @@ pub use audio::AudioRecording;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
@@ -58,47 +58,27 @@ const CHUNK_BYTES: usize = 1024 * 1024;
 /* === Implementations === */
 impl RuntimeHandle {
     // Captures one display as `screenshots/<UTC timestamp>.png`.
-    pub async fn capture_screenshot(
-        &self,
-        scope: RecordScope,
-        display: Option<u32>,
-    ) -> Result<ArtifactRecord> {
+    pub async fn capture_screenshot(&self, scope: RecordScope, display: Option<u32>) -> Result<ArtifactRecord> {
         require_execution(&scope)?;
         let png = screen::capture_png(display).await?;
-        self.store_capture(scope, capture_name("screenshots", "png"), "image/png", png)
-            .await
+        self.store_capture(scope, capture_name("screenshots", "png"), "image/png", png).await
     }
 
     // Captures one camera frame as `photos/<UTC timestamp>.jpg`.
-    pub async fn capture_photo(
-        &self,
-        scope: RecordScope,
-        camera: Option<u32>,
-    ) -> Result<ArtifactRecord> {
+    pub async fn capture_photo(&self, scope: RecordScope, camera: Option<u32>) -> Result<ArtifactRecord> {
         require_execution(&scope)?;
         let jpeg = tokio::task::spawn_blocking(move || camera::capture_jpeg(camera)).await??;
-        self.store_capture(scope, capture_name("photos", "jpg"), "image/jpeg", jpeg)
-            .await
+        self.store_capture(scope, capture_name("photos", "jpg"), "image/jpeg", jpeg).await
     }
 
     // Starts recording one audio input into `audio/<UTC timestamp>.wav`.
-    pub async fn start_audio_recording(
-        &self,
-        scope: RecordScope,
-        input: Option<u32>,
-    ) -> Result<AudioRecording> {
+    pub async fn start_audio_recording(&self, scope: RecordScope, input: Option<u32>) -> Result<AudioRecording> {
         require_execution(&scope)?;
         let filename = capture_name("audio", "wav");
         AudioRecording::start(self.clone(), scope, filename, input).await
     }
 
-    async fn store_capture(
-        &self,
-        scope: RecordScope,
-        filename: String,
-        content_type: &str,
-        bytes: Vec<u8>,
-    ) -> Result<ArtifactRecord> {
+    async fn store_capture(&self, scope: RecordScope, filename: String, content_type: &str, bytes: Vec<u8>) -> Result<ArtifactRecord> {
         let input = ArtifactUploadInput {
             scope,
             filename,
@@ -151,18 +131,12 @@ fn capture_name(folder: &str, extension: &str) -> String {
 
 #[cfg_attr(not(feature = "media-native"), allow(dead_code))]
 fn unavailable(message: impl std::fmt::Display) -> Error {
-    Error::Admission(AdmissionFailure::Unavailable {
-        code: UNAVAILABLE.into(),
-        message: message.to_string(),
-    })
+    Error::Admission(AdmissionFailure::Unavailable { code: UNAVAILABLE.into(), message: message.to_string() })
 }
 
 #[cfg_attr(feature = "media-native", allow(dead_code))]
 fn not_compiled() -> Error {
-    Error::Admission(AdmissionFailure::Unavailable {
-        code: NOT_COMPILED.into(),
-        message: "capture not available in this build".into(),
-    })
+    Error::Admission(AdmissionFailure::Unavailable { code: NOT_COMPILED.into(), message: "capture not available in this build".into() })
 }
 
 /* === Tests === */

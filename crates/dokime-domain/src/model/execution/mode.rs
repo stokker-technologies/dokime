@@ -68,8 +68,7 @@ impl harmos::MemorySize for StepCommand {
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
-                std::mem::size_of::<Self>()
-                    .saturating_add(owned.saturating_sub(std::mem::size_of_val(step_id)))
+                std::mem::size_of::<Self>().saturating_add(owned.saturating_sub(std::mem::size_of_val(step_id)))
             }
             Self::Next | Self::Finish => std::mem::size_of::<Self>(),
         }

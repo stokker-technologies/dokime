@@ -105,23 +105,15 @@ pub(super) struct Scan {
 
 /* === Implementations === */
 impl State {
-    pub(crate) async fn data_open(
-        &self,
-        expected: Option<StoreHistory>,
-    ) -> Result<SavedData, Error> {
-        self.call(move |connection| Ok(open(connection, expected)))
-            .await?
+    pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
+        self.call(move |connection| Ok(open(connection, expected))).await?
     }
 
     pub(crate) async fn data_saved(&self) -> Result<SavedData, Error> {
         self.call(|connection| Ok(saved(connection))).await?
     }
 
-    pub(crate) async fn data_write(
-        &self,
-        root: &std::path::Path,
-        batch: StorageBatch<'_>,
-    ) -> Result<SavedData, Error> {
+    pub(crate) async fn data_write(&self, root: &std::path::Path, batch: StorageBatch<'_>) -> Result<SavedData, Error> {
         let root = root.to_path_buf();
         let mut prepared = Vec::with_capacity(batch.len());
         for value in batch.entries() {
@@ -130,37 +122,21 @@ impl State {
             prepared.push(Encoded::new(value, length)?);
         }
         let history = batch.first().history.clone();
-        self.call(move |connection| Ok(write(connection, &root, &history, &prepared)))
-            .await?
+        self.call(move |connection| Ok(write(connection, &root, &history, &prepared))).await?
     }
 
-    pub(crate) async fn data_object(
-        &self,
-        at: u64,
-        generation: u64,
-        point: ObjectPoint,
-    ) -> Result<Option<ObjectEntry>, Error> {
-        self.read(move |connection| Ok(read_object(connection, at, generation, &point)))
-            .await?
+    pub(crate) async fn data_object(&self, at: u64, generation: u64, point: ObjectPoint) -> Result<Option<ObjectEntry>, Error> {
+        self.read(move |connection| Ok(read_object(connection, at, generation, &point))).await?
     }
 
     pub(super) async fn data_scan(&self, scan: Scan) -> Result<Vec<Entry>, Error> {
-        self.read(move |connection| Ok(read_scan(connection, &scan)))
-            .await?
+        self.read(move |connection| Ok(read_scan(connection, &scan))).await?
     }
 }
 
 impl Scan {
     pub(super) fn new(kind: &'static str, at: u64, generation: u64, page: ScanPage) -> Self {
-        Self {
-            kind,
-            at,
-            generation,
-            filters: Vec::new(),
-            source_window: None,
-            latest_objects: false,
-            page,
-        }
+        Self { kind, at, generation, filters: Vec::new(), source_window: None, latest_objects: false, page }
     }
 
     pub(super) fn filter(mut self, column: &'static str, value: Option<String>) -> Self {
@@ -175,18 +151,11 @@ impl Scan {
 
 /* === Private Functions === */
 pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
-    let exists: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')",
-        [],
-        |row| row.get(0),
-    )?;
+    let exists: bool =
+        connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let format: Option<String> = connection
-            .query_row(
-                "SELECT format FROM storage_data_head WHERE singleton=1",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT format FROM storage_data_head WHERE singleton=1", [], |row| row.get(0))
             .map(Some)
             .or_else(|error| match error {
                 rusqlite::Error::QueryReturnedNoRows => Ok(None),
@@ -207,34 +176,21 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
-    let exists = transaction.query_row(
-        "SELECT EXISTS(SELECT 1 FROM storage_data_head)",
-        [],
-        |row| row.get::<_, bool>(0),
-    )?;
+    let exists = transaction.query_row("SELECT EXISTS(SELECT 1 FROM storage_data_head)", [], |row| row.get::<_, bool>(0))?;
     if !exists {
-        let initialized: bool = transaction.query_row(
-            "SELECT EXISTS(SELECT 1 FROM storage_data_entries)",
-            [],
-            |row| row.get(0),
-        )?;
+        let initialized: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM storage_data_entries)", [], |row| row.get(0))?;
         if initialized {
             return Err(Error::Corrupt("initialized data owner has no saved head"));
         }
         let history = expected.clone().unwrap_or_else(|| StoreHistory {
-            store: harmos::Identifier::new(uuid::Uuid::now_v7().to_string())
-                .expect("UUID identifier"),
-            epoch: harmos::Identifier::new(uuid::Uuid::now_v7().to_string())
-                .expect("UUID identifier"),
+            store: harmos::Identifier::new(uuid::Uuid::now_v7().to_string()).expect("UUID identifier"),
+            epoch: harmos::Identifier::new(uuid::Uuid::now_v7().to_string()).expect("UUID identifier"),
         });
         let encoded = serde_json::to_vec(&history)?;
         if encoded.len() > HISTORY_BYTES {
             return Err(Error::Data("history identity exceeds its bound"));
         }
-        transaction.execute(
-            "INSERT INTO storage_data_head VALUES (1,?1,?2,?3,?3)",
-            params![FORMAT, encoded, position(0)],
-        )?;
+        transaction.execute("INSERT INTO storage_data_head VALUES (1,?1,?2,?3,?3)", params![FORMAT, encoded, position(0)])?;
     }
     let head = saved(&transaction)?;
     if let Some(expected) = expected {
@@ -245,13 +201,9 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
 }
 
 pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
-    let mut statement = connection.prepare(
-        "SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1",
-    )?;
+    let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
     let mut rows = statement.query([])?;
-    let row = rows
-        .next()?
-        .ok_or(Error::Corrupt("missing saved data head"))?;
+    let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;
     if row.get::<_, String>(0)? != FORMAT {
         return Err(Error::Data("unsupported SQLite data format"));
     }
@@ -266,12 +218,7 @@ pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
     })
 }
 
-fn write(
-    connection: &mut Connection,
-    root: &std::path::Path,
-    history: &StoreHistory,
-    entries: &[Encoded],
-) -> Result<SavedData, Error> {
+fn write(connection: &mut Connection, root: &std::path::Path, history: &StoreHistory, entries: &[Encoded]) -> Result<SavedData, Error> {
     let transaction = connection.transaction()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
@@ -283,14 +230,10 @@ fn write(
         if head.sequence.checked_add(1) != Some(entry.position) {
             return Err(Error::Data("data write has a gap or pruned retry"));
         }
-        if transaction.query_row(
-            "SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)",
-            [&entry.identity],
-            |row| row.get::<_, bool>(0),
-        )? {
-            return Err(Error::Conflict(
-                "data identity already belongs to another position",
-            ));
+        if transaction.query_row("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)", [&entry.identity], |row| {
+            row.get::<_, bool>(0)
+        })? {
+            return Err(Error::Conflict("data identity already belongs to another position"));
         }
         if entry.kind == "file" {
             let reference: FileReference = serde_json::from_slice(&entry.body)?;
@@ -315,23 +258,13 @@ fn write(
         )?;
         head.sequence = entry.position;
     }
-    transaction.execute(
-        "UPDATE storage_data_head SET saved=?1 WHERE singleton=1",
-        [position(head.sequence)],
-    )?;
+    transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
     transaction.commit()?;
     Ok(head)
 }
 
-fn retried(
-    connection: &Connection,
-    root: &std::path::Path,
-    entry: &Encoded,
-    saved: u64,
-) -> Result<bool, Error> {
-    let mut statement = connection.prepare(
-        "SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1",
-    )?;
+fn retried(connection: &Connection, root: &std::path::Path, entry: &Encoded, saved: u64) -> Result<bool, Error> {
+    let mut statement = connection.prepare("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
     let mut rows = statement.query([position(entry.position)])?;
     let Some(row) = rows.next()? else {
         return Ok(false);
@@ -358,12 +291,7 @@ fn retried(
     Ok(true)
 }
 
-fn read_object(
-    connection: &Connection,
-    at: u64,
-    generation: u64,
-    point: &ObjectPoint,
-) -> Result<Option<ObjectEntry>, Error> {
+fn read_object(connection: &Connection, at: u64, generation: u64, point: &ObjectPoint) -> Result<Option<ObjectEntry>, Error> {
     let schema = key(point.schema.as_str())?;
     let item = key(point.item.as_str())?;
     let exact = match &point.version {
@@ -376,13 +304,7 @@ fn read_object(
          AND (?4 IS NULL OR object_version=?4) AND (retired_at IS NULL OR retired_at>?5)
          ORDER BY position DESC LIMIT 1",
     )?;
-    let mut rows = statement.query(params![
-        schema,
-        item,
-        position(at),
-        exact,
-        position(generation)
-    ])?;
+    let mut rows = statement.query(params![schema, item, position(at), exact, position(generation)])?;
     let Some(row) = rows.next()? else {
         return Ok(None);
     };
@@ -415,10 +337,7 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
         "(entries.retired_at IS NULL OR entries.retired_at>?4)".to_owned(),
     ];
     if scan.kind == "file" {
-        clauses.push(
-            "NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE storage_deleted_files.id=entries.item)"
-                .to_owned(),
-        );
+        clauses.push("NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE storage_deleted_files.id=entries.item)".to_owned());
     }
     for (column, value) in &scan.filters {
         arguments.push(value.clone());
@@ -440,14 +359,9 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
                 .to_owned(),
         );
     }
-    let rows = i64::try_from(scan.page.rows.get())
-        .map_err(|_| Error::Data("page row limit exceeds SQLite range"))?;
+    let rows = i64::try_from(scan.page.rows.get()).map_err(|_| Error::Data("page row limit exceeds SQLite range"))?;
     // A Scoped Selection Walks Only Its Owner's Entries In Position Order.
-    let index = if scan.filters.iter().any(|(column, _)| *column == "scope") {
-        "storage_data_scope"
-    } else {
-        "storage_data_kind_position"
-    };
+    let index = if scan.filters.iter().any(|(column, _)| *column == "scope") { "storage_data_scope" } else { "storage_data_kind_position" };
     let sql = format!(
         "SELECT entries.position,entries.body,entries.digest FROM storage_data_entries AS entries
          INDEXED BY {index} WHERE {} ORDER BY entries.position ASC LIMIT {rows}",
@@ -476,13 +390,9 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
 }
 
 pub(super) fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error> {
-    row.get_ref(column)?.as_blob().map_err(|source| {
-        Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(
-            column,
-            rusqlite::types::Type::Blob,
-            Box::new(source),
-        ))
-    })
+    row.get_ref(column)?
+        .as_blob()
+        .map_err(|source| Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(column, rusqlite::types::Type::Blob, Box::new(source))))
 }
 
 pub(super) fn check_digest(body: &[u8], digest: &[u8]) -> Result<(), Error> {
@@ -497,11 +407,7 @@ pub(super) fn position(sequence: u64) -> String {
 }
 
 pub(super) fn sequence(value: &str) -> Result<u64, Error> {
-    if value.len() != 16
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
+    if value.len() != 16 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
         return Err(Error::Corrupt("invalid saved sequence"));
     }
     u64::from_str_radix(value, 16).map_err(|_| Error::Corrupt("invalid saved sequence"))

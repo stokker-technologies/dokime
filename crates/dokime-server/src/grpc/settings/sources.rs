@@ -43,17 +43,11 @@ impl Operation for ListStorageSources {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut wire::ListStorageSources,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut wire::ListStorageSources, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         sources(&self.resources).await
     }
@@ -64,17 +58,11 @@ impl Operation for ReorderStorageSources {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::ReorderStorageSources,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::ReorderStorageSources, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         self.resources
             .runtime
@@ -90,17 +78,11 @@ impl Operation for SetStorageSourceEnabled {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::SetStorageSourceEnabled,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::SetStorageSourceEnabled, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         self.resources
             .runtime
@@ -112,42 +94,19 @@ impl Operation for SetStorageSourceEnabled {
 }
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum: maximum.min(MAX_RESPONSE_BYTES),
-    });
-    runtime
-        .operations()
-        .register_wire_operation::<ListStorageSources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<ReorderStorageSources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<SetStorageSourceEnabled>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(MAX_RESPONSE_BYTES) });
+    runtime.operations().register_wire_operation::<ListStorageSources>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ReorderStorageSources>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<SetStorageSourceEnabled>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        resources.clone(),
+    )?;
     Ok(())
 }
 /* === Private Functions === */
-async fn sources(
-    resources: &Resources,
-) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
-    let sources = resources
-        .runtime
-        .storage_sources()
-        .await
-        .map_err(super::super::execution::status)?;
+async fn sources(resources: &Resources) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
+    let sources = resources.runtime.storage_sources().await.map_err(super::super::execution::status)?;
     resources.produce(|| {
         let mut output = Vec::with_capacity(sources.len());
         for source in sources {

@@ -11,9 +11,7 @@
 pub mod pulse;
 
 /* === Re-Exports === */
-pub use pulse::{
-    DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value,
-};
+pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
 /* === Imports === */
 // Standard Library Imports

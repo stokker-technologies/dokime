@@ -51,8 +51,7 @@ macro_rules! json_message {
 
             fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
                 let json = <String as harmos::Message>::decode(bytes)?;
-                serde_json::from_str(&json)
-                    .map_err(|_| harmos::MessageError::borrowed("invalid authored JSON payload"))
+                serde_json::from_str(&json).map_err(|_| harmos::MessageError::borrowed("invalid authored JSON payload"))
             }
         }
 
@@ -78,18 +77,14 @@ macro_rules! json_message {
 
             #[allow(deprecated)]
             fn merge_field(
-                &mut self,
-                tag: u32,
-                wire_type: prost::encoding::WireType,
-                buffer: &mut impl prost::bytes::Buf,
+                &mut self, tag: u32, wire_type: prost::encoding::WireType, buffer: &mut impl prost::bytes::Buf,
                 context: prost::encoding::DecodeContext,
             ) -> ::core::result::Result<(), prost::DecodeError> {
                 match tag {
                     1 => {
                         let mut json = Vec::new();
                         prost::encoding::bytes::merge(wire_type, &mut json, buffer, context)?;
-                        *self = serde_json::from_slice(&json)
-                            .map_err(|error| prost::DecodeError::new(error.to_string()))?;
+                        *self = serde_json::from_slice(&json).map_err(|error| prost::DecodeError::new(error.to_string()))?;
 
                         Ok(())
                     }

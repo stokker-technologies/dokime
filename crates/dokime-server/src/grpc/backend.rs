@@ -55,9 +55,7 @@ impl Collector<'_> {
             .operations()
             .submit_as::<GetHealth>(GetHealth {})
             .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
-        let health = harmos::grpc::response(instance)
-            .await
-            .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
+        let health = harmos::grpc::response(instance).await.map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         Ok(dokime_domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
             epoch: health.epoch.clone(),
@@ -67,20 +65,14 @@ impl Collector<'_> {
                 Readiness::Degraded => dokime_domain::model::backend::wire::Readiness::Degraded,
                 Readiness::Stopping => dokime_domain::model::backend::wire::Readiness::Stopping,
             },
-            observed_at: Some(Timestamp {
-                seconds: health.observed_at_seconds,
-                nanos: health.observed_at_nanoseconds as i32,
-            }),
+            observed_at: Some(Timestamp { seconds: health.observed_at_seconds, nanos: health.observed_at_nanoseconds as i32 }),
             message: health.message.clone(),
         })
     }
 
     async fn collect(&self, log_tail_bytes: u64) -> Result<bundle::Bundle, Status> {
         let diagnostics = DiagnosticsSnapshot::from_runtime(
-            self.runtime
-                .runtime_overview()
-                .await
-                .map_err(|error| Status::internal(error.to_string()))?,
+            self.runtime.runtime_overview().await.map_err(|error| Status::internal(error.to_string()))?,
             &self.runtime.storage_root(),
             &self.runtime.application_root(),
         );
@@ -107,38 +99,21 @@ impl Collector<'_> {
                     "runtime": encoded(&diagnostics)?,
                 }),
             ),
-            bundle::Part::json("settings/settings-frame.json", {
-                encoded(&self.runtime.settings_frame().await)?
-            }),
+            bundle::Part::json("settings/settings-frame.json", { encoded(&self.runtime.settings_frame().await)? }),
         ];
         if let Some(path) = source(DiagnosticPathKey::StartupDoctor) {
-            parts.push(bundle::Part::file(
-                "diagnostics/startup-doctor.json",
-                path,
-                bundle::MAX_LOG_TAIL_BYTES,
-            ));
+            parts.push(bundle::Part::file("diagnostics/startup-doctor.json", path, bundle::MAX_LOG_TAIL_BYTES));
         }
         if let Some(path) = source(DiagnosticPathKey::HubLog) {
-            parts.push(bundle::Part::tail(
-                "logs/dokime.jsonl",
-                path,
-                log_tail_bytes,
-            ));
+            parts.push(bundle::Part::tail("logs/dokime.jsonl", path, log_tail_bytes));
         }
         for artifact_id in self.artifact_ids() {
             // `plugin_settings` is the settings surface's own read: its
             // credential bindings arrive already reduced to an identifier, a
             // backend kind and whether it is configured. Nothing here consults
             // the credential store, so no secret exists to leak.
-            let settings = self
-                .runtime
-                .plugin_settings(&artifact_id)
-                .await
-                .map_err(|error| Status::internal(error.to_string()))?;
-            parts.push(bundle::Part::json(
-                format!("settings/artifacts/{artifact_id}.json"),
-                encoded(&settings)?,
-            ));
+            let settings = self.runtime.plugin_settings(&artifact_id).await.map_err(|error| Status::internal(error.to_string()))?;
+            parts.push(bundle::Part::json(format!("settings/artifacts/{artifact_id}.json"), encoded(&settings)?));
         }
 
         bundle::build(
@@ -168,13 +143,9 @@ impl Collector<'_> {
 
 /* === Public Functions === */
 pub(super) async fn collect(
-    runtime: &RuntimeHandle,
-    identity: &dokime_domain::model::backend::wire::BackendIdentity,
-    log_tail_bytes: u64,
+    runtime: &RuntimeHandle, identity: &dokime_domain::model::backend::wire::BackendIdentity, log_tail_bytes: u64,
 ) -> Result<bundle::Bundle, Status> {
-    Collector { runtime, identity }
-        .collect(log_tail_bytes)
-        .await
+    Collector { runtime, identity }.collect(log_tail_bytes).await
 }
 
 /* === Private Functions === */
@@ -183,15 +154,11 @@ pub(super) fn hub_log_path(application_root: &std::path::Path) -> std::path::Pat
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)
-        .map_or_else(
-            || application_root.join("logs").join("dokime.jsonl"),
-            std::path::PathBuf::from,
-        )
+        .map_or_else(|| application_root.join("logs").join("dokime.jsonl"), std::path::PathBuf::from)
 }
 
 fn encoded<T: serde::Serialize>(value: &T) -> Result<Json, Status> {
-    serde_json::to_value(value)
-        .map_err(|_| Status::internal("diagnostics document could not be encoded"))
+    serde_json::to_value(value).map_err(|_| Status::internal("diagnostics document could not be encoded"))
 }
 
 fn identity_json(identity: &dokime_domain::model::backend::wire::BackendIdentity) -> Json {

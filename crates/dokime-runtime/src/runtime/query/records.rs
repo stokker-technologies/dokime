@@ -26,11 +26,11 @@ use harmos::storage::query::{
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
-use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::execution::EvidenceOrigin;
-use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::scope_visible_in;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -55,9 +55,7 @@ pub struct RuntimeRecordFrame {
 /* === Public Functions === */
 
 pub(crate) fn record_frame<'a, 'b>(
-    records: impl Iterator<Item = &'a RecordEntry>,
-    window: &RuntimeWindow,
-    resolution: &RuntimeResolution,
+    records: impl Iterator<Item = &'a RecordEntry>, window: &RuntimeWindow, resolution: &RuntimeResolution,
     captured: impl Fn(&RecordEntry) -> Option<&'b RecordScope>,
 ) -> RuntimeRecordFrame {
     let mut records = records
@@ -69,28 +67,13 @@ pub(crate) fn record_frame<'a, 'b>(
             projected
         })
         .collect::<Vec<_>>();
-    records.sort_by(|left, right| {
-        left.timestamp
-            .cmp(&right.timestamp)
-            .then_with(|| left.sequence.cmp(&right.sequence))
-    });
-    let records = reduce_timestamped_items(
-        records,
-        window,
-        resolution,
-        |record| &record.timestamp,
-        |record| Some(record.sequence),
-    );
+    records.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| left.sequence.cmp(&right.sequence)));
+    let records = reduce_timestamped_items(records, window, resolution, |record| &record.timestamp, |record| Some(record.sequence));
     let returned_records = records.returned.len();
     let mut returned = records.returned;
     returned.reverse();
 
-    RuntimeRecordFrame {
-        records: returned,
-        total_records: records.total,
-        returned_records,
-        truncated: returned_records < records.total,
-    }
+    RuntimeRecordFrame { records: returned, total_records: records.total, returned_records, truncated: returned_records < records.total }
 }
 
 pub(crate) fn execution_capture<'a>(
@@ -98,14 +81,11 @@ pub(crate) fn execution_capture<'a>(
     execution_id: Option<&dokime_domain::model::identity::TestExecutionId>,
 ) -> Option<&'a dokime_domain::state::records::set::TestRecordSet> {
     let execution_id = execution_id?;
-    executions
-        .find(|execution| &execution.test_execution_id == execution_id)
-        .map(|execution| &execution.records)
+    executions.find(|execution| &execution.test_execution_id == execution_id).map(|execution| &execution.records)
 }
 
 pub(crate) fn view_filter(
-    snapshot: &crate::queries::RuntimeStateSnapshot,
-    scope: Option<&RecordScope>,
+    snapshot: &crate::queries::RuntimeStateSnapshot, scope: Option<&RecordScope>,
     captured: Option<&dokime_domain::state::records::set::TestRecordSet>,
 ) -> harmos::Result<Filter> {
     let visible = snapshot
@@ -114,70 +94,37 @@ pub(crate) fn view_filter(
         .record_visibility
         .iter()
         .map(|record| &record.record_id)
-        .chain(
-            snapshot
-                .state()
-                .executions
-                .values()
-                .flat_map(|execution| execution.records.subscribed_records().keys()),
-        )
+        .chain(snapshot.state().executions.values().flat_map(|execution| execution.records.subscribed_records().keys()))
         .collect::<BTreeSet<_>>();
     let mut native = Vec::new();
     let selected = scope.filter(|scope| !scope.is_empty());
     if let Some(scope) = selected {
         let fields = [
-            (
-                "session_id",
-                scope.session_id.as_ref().map(|id| id.as_str()),
-            ),
-            (
-                "test_cycle_id",
-                scope.test_cycle_id.as_ref().map(|id| id.as_str()),
-            ),
-            (
-                "test_case_id",
-                scope.test_case_id.as_ref().map(|id| id.as_str()),
-            ),
-            (
-                "test_execution_id",
-                scope.test_execution_id.as_ref().map(|id| id.as_str()),
-            ),
+            ("session_id", scope.session_id.as_ref().map(|id| id.as_str())),
+            ("test_cycle_id", scope.test_cycle_id.as_ref().map(|id| id.as_str())),
+            ("test_case_id", scope.test_case_id.as_ref().map(|id| id.as_str())),
+            ("test_execution_id", scope.test_execution_id.as_ref().map(|id| id.as_str())),
             ("step_id", scope.step_id.as_ref().map(|id| id.as_str())),
-            (
-                "criterion_id",
-                scope.criterion_id.as_ref().map(|id| id.as_str()),
-            ),
-            (
-                "template_id",
-                scope.template_id.as_ref().map(|id| id.as_str()),
-            ),
+            ("criterion_id", scope.criterion_id.as_ref().map(|id| id.as_str())),
+            ("template_id", scope.template_id.as_ref().map(|id| id.as_str())),
             ("suite_id", scope.suite_id.as_ref().map(|id| id.as_str())),
         ];
         for (name, value) in fields {
             if let Some(value) = value {
-                native.push(equal(
-                    &format!("payload.scope.{name}"),
-                    ScalarValue::Text(value.to_owned()),
-                ));
+                native.push(equal(&format!("payload.scope.{name}"), ScalarValue::Text(value.to_owned())));
             }
         }
         let phase = match &scope.origin {
             EvidenceOrigin::Default => None,
             EvidenceOrigin::Initialization => Some(1),
             EvidenceOrigin::Step { attempt_id } => {
-                native.push(equal(
-                    "payload.scope.origin.attempt_id",
-                    ScalarValue::Text(attempt_id.as_str().to_owned()),
-                ));
+                native.push(equal("payload.scope.origin.attempt_id", ScalarValue::Text(attempt_id.as_str().to_owned())));
                 Some(2)
             }
             EvidenceOrigin::Cleanup => Some(3),
         };
         if let Some(phase) = phase {
-            native.push(equal(
-                "payload.scope.origin.phase",
-                ScalarValue::Unsigned(phase),
-            ));
+            native.push(equal("payload.scope.origin.phase", ScalarValue::Unsigned(phase)));
         }
     }
     let mut overrides = Vec::new();
@@ -187,11 +134,7 @@ pub(crate) fn view_filter(
         let ids = captured.subscribed_records().keys().collect::<Vec<_>>();
         if !ids.is_empty() {
             // An Override Replaces Native Scope, Even When It Does Not Match.
-            native.push(Term {
-                field: FieldPath::from("_storage.item"),
-                condition: membership(&ids),
-                negate: true,
-            });
+            native.push(Term { field: FieldPath::from("_storage.item"), condition: membership(&ids), negate: true });
         }
         for (id, override_scope) in captured.subscribed_records() {
             if selected.is_none_or(|scope| scope_visible_in(Some(override_scope), scope)) {
@@ -203,11 +146,7 @@ pub(crate) fn view_filter(
     let visible = visible.into_iter().collect::<Vec<_>>();
     if !visible.is_empty() {
         let mut terms = native.clone();
-        terms.push(Term {
-            field: FieldPath::from("_storage.item"),
-            condition: membership(&visible),
-            negate: false,
-        });
+        terms.push(Term { field: FieldPath::from("_storage.item"), condition: membership(&visible), negate: false });
         clauses.push(Clause { terms });
     }
     let mut context = native;
@@ -216,11 +155,7 @@ pub(crate) fn view_filter(
     clauses.push(Clause { terms: context });
     if !overrides.is_empty() {
         clauses.push(Clause {
-            terms: vec![Term {
-                field: FieldPath::from("_storage.item"),
-                condition: membership(&overrides),
-                negate: false,
-            }],
+            terms: vec![Term { field: FieldPath::from("_storage.item"), condition: membership(&overrides), negate: false }],
         });
     }
     Ok(Filter { clauses })
@@ -228,31 +163,15 @@ pub(crate) fn view_filter(
 
 /* === Private Functions === */
 fn equal(path: &str, value: ScalarValue) -> Term {
-    Term {
-        field: FieldPath::from(path),
-        condition: Condition::Compare {
-            op: Compare::Eq,
-            value,
-        },
-        negate: false,
-    }
+    Term { field: FieldPath::from(path), condition: Condition::Compare { op: Compare::Eq, value }, negate: false }
 }
 
 fn absent(path: &str) -> Term {
-    Term {
-        field: FieldPath::from(path),
-        condition: Condition::IsNull,
-        negate: false,
-    }
+    Term { field: FieldPath::from(path), condition: Condition::IsNull, negate: false }
 }
 
 fn membership(ids: &[&RecordId]) -> Condition {
-    Condition::In {
-        values: ids
-            .iter()
-            .map(|id| ScalarValue::Text(id.as_str().to_owned()))
-            .collect(),
-    }
+    Condition::In { values: ids.iter().map(|id| ScalarValue::Text(id.as_str().to_owned())).collect() }
 }
 
 /* === Tests === */

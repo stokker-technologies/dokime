@@ -59,8 +59,7 @@ const IW_DEVICES: &str = "phy#0
 ";
 
 #[cfg(target_os = "linux")]
-const PROC_WIRELESS: &str =
-    "Inter-| sta-|   Quality        |   Discarded packets               | Missed | WE
+const PROC_WIRELESS: &str = "Inter-| sta-|   Quality        |   Discarded packets               | Missed | WE
  face | tus | link level noise |  nwid  crypt   frag  retry   misc | beacon | 22
 wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
   wlan1: 0000    0.  -256.  -256        0      0      0      0      0        0
@@ -90,21 +89,13 @@ fn iw_link_parsing() {
     // HE 160 MHz Link Captured From A Live Association
     assert_eq!(
         WifiLinkReport::parse_iw_link(HE_160_LINK),
-        Some(WifiLinkReport {
-            rssi_dbm: Some(-46.0),
-            rx_phy_mbps: Some(2401.9),
-            tx_phy_mbps: Some(2401.9),
-        })
+        Some(WifiLinkReport { rssi_dbm: Some(-46.0), rx_phy_mbps: Some(2401.9), tx_phy_mbps: Some(2401.9) })
     );
 
     // Legacy Rates With Per-Chain Signal And A Signal Average
     assert_eq!(
         WifiLinkReport::parse_iw_link(LEGACY_LINK),
-        Some(WifiLinkReport {
-            rssi_dbm: Some(-67.0),
-            rx_phy_mbps: Some(54.0),
-            tx_phy_mbps: Some(24.0),
-        })
+        Some(WifiLinkReport { rssi_dbm: Some(-67.0), rx_phy_mbps: Some(54.0), tx_phy_mbps: Some(24.0) })
     );
 
     // Disconnected Interface And Non-Netdev Devices
@@ -119,21 +110,14 @@ fn proc_wireless_level() {
 
     assert_eq!(link.rssi_dbm, Some(-40.0));
     assert_eq!(link.rx_phy_mbps, None);
-    assert_eq!(
-        WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlan1"),
-        None
-    );
-    assert_eq!(
-        WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlan2"),
-        None
-    );
+    assert_eq!(WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlan1"), None);
+    assert_eq!(WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlan2"), None);
 }
 
 #[cfg(target_os = "linux")]
 #[test]
 fn nmcli_row_fields() {
-    let row = NmcliWifiRow::parse("yes:Arcadia:A4\\:CE\\:DA\\:C0\\:83\\:F0:108:99:WPA2:wlp5s0")
-        .expect("row");
+    let row = NmcliWifiRow::parse("yes:Arcadia:A4\\:CE\\:DA\\:C0\\:83\\:F0:108:99:WPA2:wlp5s0").expect("row");
 
     assert!(row.active);
     assert_eq!(row.bssid.as_deref(), Some("A4:CE:DA:C0:83:F0"));
@@ -146,14 +130,8 @@ fn nmcli_row_fields() {
 #[cfg(windows)]
 #[test]
 fn rssi_long_conversion() {
-    assert_eq!(
-        WifiLink::rssi_dbm_from_query(&(-46_i32).to_ne_bytes()),
-        Some(-46.0)
-    );
+    assert_eq!(WifiLink::rssi_dbm_from_query(&(-46_i32).to_ne_bytes()), Some(-46.0));
     assert_eq!(WifiLink::rssi_dbm_from_query(&[0xd2, 0xff]), None);
     assert_eq!(WifiLink::rssi_dbm_from_query(&12_i32.to_ne_bytes()), None);
-    assert_eq!(
-        WifiLink::rssi_dbm_from_query(&(-256_i32).to_ne_bytes()),
-        None
-    );
+    assert_eq!(WifiLink::rssi_dbm_from_query(&(-256_i32).to_ne_bytes()), None);
 }

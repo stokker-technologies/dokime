@@ -45,32 +45,17 @@ use dokime_runtime::storage::sqlite::Backend;
 
 /* === Private Functions === */
 fn metadata(name: &str) -> FileMetadata {
-    FileMetadata {
-        id: id(name),
-        scope: None,
-        media_type: "text/plain".into(),
-        expected_length: None,
-        expected_sha256: None,
-    }
+    FileMetadata { id: id(name), scope: None, media_type: "text/plain".into(), expected_length: None, expected_sha256: None }
 }
 
 fn bound(value: usize) -> NonZeroUsize {
     NonZeroUsize::new(value).unwrap()
 }
-fn checkpoint(
-    metadata: FileMetadata,
-    file: &StagedFile,
-    generation: u64,
-    bytes: &[u8],
-) -> FileCheckpoint {
+fn checkpoint(metadata: FileMetadata, file: &StagedFile, generation: u64, bytes: &[u8]) -> FileCheckpoint {
     let hash = Sha256::new().chain_update(bytes);
     FileCheckpoint {
         metadata,
-        session: FileSession {
-            history: file.history.clone(),
-            id: file.id.clone(),
-            generation,
-        },
+        session: FileSession { history: file.history.clone(), id: file.id.clone(), generation },
         length: bytes.len() as u64,
         hash_format: 1,
         hash_state: hash.serialize().to_vec(),
@@ -78,10 +63,7 @@ fn checkpoint(
 }
 
 fn limits() -> ReadLimits {
-    ReadLimits {
-        rows: bound(8),
-        bytes: bound(32 * 1024),
-    }
+    ReadLimits { rows: bound(8), bytes: bound(32 * 1024) }
 }
 
 /* === Tests === */
@@ -89,9 +71,7 @@ fn limits() -> ReadLimits {
 #[tokio::test]
 async fn checkpoint_recovery_fence() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let metadata = metadata("production");
     let file = backend.create_production(&metadata).await.unwrap();
     assert!(backend.delete_file(&file).await.is_err());
@@ -103,44 +83,22 @@ async fn checkpoint_recovery_fence() {
     backend.fence_production(&file, 1, 2).await.unwrap();
     assert!(backend.save_production(&checkpoint).await.is_err());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
     assert_eq!(recovered.len(), 1);
     assert_eq!(recovered[0].session.generation, 2);
     assert_eq!(recovered[0].length, 3);
-    assert_eq!(
-        backend.read_production(&file, 0, bound(2)).await.unwrap(),
-        b"ab"
-    );
-    assert_eq!(
-        backend.file_progress(&file).await.unwrap(),
-        FileProgress {
-            length: 3,
-            phase: FilePhase::Producing
-        }
-    );
-    assert_eq!(
-        backend.recover_productions(limits()).await.unwrap(),
-        recovered
-    );
+    assert_eq!(backend.read_production(&file, 0, bound(2)).await.unwrap(), b"ab");
+    assert_eq!(backend.file_progress(&file).await.unwrap(), FileProgress { length: 3, phase: FilePhase::Producing });
+    assert_eq!(backend.recover_productions(limits()).await.unwrap(), recovered);
     assert!(backend.fence_production(&file, 1, 3).await.is_err());
     backend.abandon_file(&file).await.unwrap();
-    assert_eq!(
-        backend.file_progress(&file).await.unwrap().phase,
-        FilePhase::Abandoned
-    );
+    assert_eq!(backend.file_progress(&file).await.unwrap().phase, FilePhase::Abandoned);
     assert!(backend.create_production(&metadata).await.is_err());
     assert!(backend.write_file(&file, 3, b"d").await.is_err());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
-    assert_eq!(
-        backend.read_production(&file, 1, bound(8)).await.unwrap(),
-        b"bc"
-    );
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    assert_eq!(backend.read_production(&file, 1, bound(8)).await.unwrap(), b"bc");
     backend.delete_file(&file).await.unwrap();
     backend.delete_file(&file).await.unwrap();
     assert!(backend.read_production(&file, 0, bound(1)).await.is_err());
@@ -151,9 +109,7 @@ async fn checkpoint_recovery_fence() {
 #[tokio::test]
 async fn shared_sha_identity() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let first = metadata("first");
     let second = metadata("second");
     let a = backend.create_production(&first).await.unwrap();
@@ -168,120 +124,53 @@ async fn shared_sha_identity() {
     let mut refs = Vec::new();
     for (index, file) in [&a, &b].into_iter().enumerate() {
         backend.write_file(file, 0, b"same").await.unwrap();
-        let position = StorageCursor {
-            history: file.history.clone(),
-            sequence: index as u64 + 1,
-        };
+        let position = StorageCursor { history: file.history.clone(), sequence: index as u64 + 1 };
         let append = MutationReceipt {
-            mutation: MutationId {
-                window: id("append"),
-                key: file.id.clone(),
-            },
+            mutation: MutationId { window: id("append"), key: file.id.clone() },
             fingerprint: [index as u8; 32],
             expires_at: SystemTime::now() + Duration::from_secs(3600),
             value: MutationValue::Producer(FileProducer {
-                session: FileSession {
-                    history: file.history.clone(),
-                    id: file.id.clone(),
-                    generation: 1,
-                },
+                session: FileSession { history: file.history.clone(), id: file.id.clone(), generation: 1 },
                 length: 4,
             }),
         };
-        assert!(
-            backend
-                .save_mutations(std::slice::from_ref(&append))
-                .await
-                .is_err()
-        );
+        assert!(backend.save_mutations(std::slice::from_ref(&append)).await.is_err());
         let reference = backend.finish_file(file, &position, 4, hash).await.unwrap();
-        backend
-            .save_mutations(std::slice::from_ref(&append))
-            .await
-            .unwrap();
+        backend.save_mutations(std::slice::from_ref(&append)).await.unwrap();
         for (window, length, generation) in [("past-end", 5, 1), ("future-owner", 4, 2)] {
             let mut invalid = append.clone();
             invalid.mutation.window = id(window);
-            let MutationValue::Producer(producer) = &mut invalid.value else {
-                unreachable!()
-            };
+            let MutationValue::Producer(producer) = &mut invalid.value else { unreachable!() };
             producer.length = length;
             producer.session.generation = generation;
             assert!(backend.save_mutations(&[invalid]).await.is_err());
         }
         let receipt = MutationReceipt {
-            mutation: MutationId {
-                window: id("capture"),
-                key: file.id.clone(),
-            },
+            mutation: MutationId { window: id("capture"), key: file.id.clone() },
             fingerprint: [index as u8; 32],
             expires_at: SystemTime::now() + Duration::from_secs(3600),
             value: MutationValue::Reference(Box::new(reference.clone())),
         };
-        assert!(
-            backend
-                .save_mutations(std::slice::from_ref(&receipt))
-                .await
-                .is_err()
-        );
-        backend
-            .write(
-                StorageBatch::new(
-                    &[StoragePart::Files(std::slice::from_ref(&reference))],
-                    bound(4096),
-                )
-                .unwrap(),
-            )
-            .await
-            .unwrap();
-        backend
-            .save_mutations(std::slice::from_ref(&receipt))
-            .await
-            .unwrap();
+        assert!(backend.save_mutations(std::slice::from_ref(&receipt)).await.is_err());
+        backend.write(StorageBatch::new(&[StoragePart::Files(std::slice::from_ref(&reference))], bound(4096)).unwrap()).await.unwrap();
+        backend.save_mutations(std::slice::from_ref(&receipt)).await.unwrap();
         refs.push(reference);
     }
-    let physical = std::fs::read_dir(root.path().join("files"))
-        .unwrap()
-        .map(|value| value.unwrap().path())
-        .collect::<Vec<_>>();
+    let physical = std::fs::read_dir(root.path().join("files")).unwrap().map(|value| value.unwrap().path()).collect::<Vec<_>>();
     assert_eq!(physical.len(), 1);
     let name = physical[0].file_name().unwrap().to_string_lossy();
     assert_eq!(name.len(), 64);
-    assert!(
-        name.bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    );
-    let fixed = backend
-        .open_snapshot(&backend.cursor_saved().await.unwrap())
-        .await
-        .unwrap();
+    assert!(name.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+    let fixed = backend.open_snapshot(&backend.cursor_saved().await.unwrap()).await.unwrap();
     backend.delete_file(&a).await.unwrap();
     assert!(physical[0].is_file());
-    assert!(
-        backend
-            .read_file(&fixed, &refs[0], 0, bound(4))
-            .await
-            .is_err()
-    );
-    assert_eq!(
-        backend
-            .read_file(&fixed, &refs[1], 0, bound(4))
-            .await
-            .unwrap(),
-        b"same"
-    );
+    assert!(backend.read_file(&fixed, &refs[0], 0, bound(4)).await.is_err());
+    assert_eq!(backend.read_file(&fixed, &refs[1], 0, bound(4)).await.unwrap(), b"same");
     let page = backend
         .read_files(
             &fixed,
-            &query::FileSelection {
-                scope: None,
-                item: None,
-            },
-            ScanPage {
-                after: 0,
-                rows: bound(8),
-                bytes: bound(32 * 1024),
-            },
+            &query::FileSelection { scope: None, item: None },
+            ScanPage { after: 0, rows: bound(8), bytes: bound(32 * 1024) },
         )
         .await
         .unwrap();
@@ -290,9 +179,7 @@ async fn shared_sha_identity() {
     backend.delete_file(&b).await.unwrap();
     assert!(!physical[0].exists());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     assert!(backend.create_file(&first).await.is_err());
     backend.close().await.unwrap();
 }
@@ -300,79 +187,37 @@ async fn shared_sha_identity() {
 #[tokio::test]
 async fn mutation_receipts_outcomes() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let receipt = MutationReceipt {
-        mutation: MutationId {
-            window: id("window"),
-            key: id("save"),
-        },
+        mutation: MutationId { window: id("window"), key: id("save") },
         fingerprint: [3; 32],
         expires_at: SystemTime::now() + Duration::from_secs(60),
         value: MutationValue::Cursor(backend.cursor_saved().await.unwrap()),
     };
-    backend
-        .save_mutations(std::slice::from_ref(&receipt))
-        .await
-        .unwrap();
-    backend
-        .save_mutations(std::slice::from_ref(&receipt))
-        .await
-        .unwrap();
+    backend.save_mutations(std::slice::from_ref(&receipt)).await.unwrap();
+    backend.save_mutations(std::slice::from_ref(&receipt)).await.unwrap();
     let mut changed = receipt.clone();
     changed.fingerprint[0] = 4;
     assert!(backend.save_mutations(&[changed]).await.is_err());
     let newer = MutationReceipt {
-        mutation: MutationId {
-            window: id("window"),
-            key: id("later"),
-        },
+        mutation: MutationId { window: id("window"), key: id("later") },
         expires_at: receipt.expires_at + Duration::from_secs(60),
         ..receipt.clone()
     };
-    backend
-        .save_mutations(std::slice::from_ref(&newer))
-        .await
-        .unwrap();
+    backend.save_mutations(std::slice::from_ref(&newer)).await.unwrap();
     // Recovery Keeps The Newest Receipts That Fit Its Bounds, Omitting Older Ones.
-    assert!(
-        backend
-            .recover_mutations(ReadLimits {
-                bytes: bound(1),
-                ..limits()
-            })
-            .await
-            .unwrap()
-            .is_empty()
-    );
-    assert_eq!(
-        backend
-            .recover_mutations(ReadLimits {
-                rows: bound(1),
-                ..limits()
-            })
-            .await
-            .unwrap(),
-        std::slice::from_ref(&newer)
-    );
+    assert!(backend.recover_mutations(ReadLimits { bytes: bound(1), ..limits() }).await.unwrap().is_empty());
+    assert_eq!(backend.recover_mutations(ReadLimits { rows: bound(1), ..limits() }).await.unwrap(), std::slice::from_ref(&newer));
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
-    assert_eq!(
-        backend.recover_mutations(limits()).await.unwrap(),
-        [newer, receipt]
-    );
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    assert_eq!(backend.recover_mutations(limits()).await.unwrap(), [newer, receipt]);
     backend.close().await.unwrap();
 }
 
 #[tokio::test]
 async fn checkpoints_advance_boundaries() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let metadata = metadata("boundaries");
     let file = backend.create_production(&metadata).await.unwrap();
     let bytes = (0..129).collect::<Vec<u8>>();
@@ -383,15 +228,10 @@ async fn checkpoints_advance_boundaries() {
         backend.save_production(&value).await.unwrap();
     }
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
     assert_eq!(recovered, [checkpoint(metadata, &file, 1, &bytes)]);
-    assert_eq!(
-        backend.read_production(&file, 0, bound(129)).await.unwrap(),
-        bytes
-    );
+    assert_eq!(backend.read_production(&file, 0, bound(129)).await.unwrap(), bytes);
     backend.close().await.unwrap();
 }
 
@@ -402,9 +242,7 @@ async fn checkpoints_advance_boundaries() {
 #[tokio::test]
 async fn late_checkpoints_settle() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let bytes = b"abcdef";
 
     let metadata = metadata("late-longer");
@@ -421,29 +259,17 @@ async fn late_checkpoints_settle() {
     let finished = backend.create_production(&finished_metadata).await.unwrap();
     backend.write_file(&finished, 0, bytes).await.unwrap();
     let staged = checkpoint(finished_metadata.clone(), &finished, 1, &bytes[..3]);
-    let position = StorageCursor {
-        history: finished.history.clone(),
-        sequence: 1,
-    };
-    backend
-        .finish_file(&finished, &position, 6, Sha256::digest(bytes).into())
-        .await
-        .unwrap();
+    let position = StorageCursor { history: finished.history.clone(), sequence: 1 };
+    backend.finish_file(&finished, &position, 6, Sha256::digest(bytes).into()).await.unwrap();
     backend.save_production(&staged).await.unwrap();
-    backend
-        .save_production(&checkpoint(finished_metadata.clone(), &finished, 1, bytes))
-        .await
-        .unwrap();
+    backend.save_production(&checkpoint(finished_metadata.clone(), &finished, 1, bytes)).await.unwrap();
     let beyond = checkpoint(finished_metadata.clone(), &finished, 1, b"abcdefg");
     assert!(backend.save_production(&beyond).await.is_err());
     let fenced = checkpoint(finished_metadata, &finished, 2, &bytes[..3]);
     assert!(backend.save_production(&fenced).await.is_err());
 
     let abandoned_metadata = self::metadata("late-abandoned");
-    let abandoned = backend
-        .create_production(&abandoned_metadata)
-        .await
-        .unwrap();
+    let abandoned = backend.create_production(&abandoned_metadata).await.unwrap();
     backend.write_file(&abandoned, 0, bytes).await.unwrap();
     backend.abandon_file(&abandoned).await.unwrap();
     let staged = checkpoint(abandoned_metadata, &abandoned, 1, bytes);
@@ -452,9 +278,7 @@ async fn late_checkpoints_settle() {
     backend.save_production(&staged).await.unwrap();
     backend.close().await.unwrap();
 
-    let backend = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
     assert_eq!(recovered, [longer]);
     backend.close().await.unwrap();

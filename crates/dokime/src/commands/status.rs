@@ -50,18 +50,13 @@ pub(super) async fn run(args: Args) -> crate::Result<()> {
 pub(super) async fn check(connection: crate::connection::Args, json: bool) -> crate::Result<()> {
     let resolved = connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint();
-    let result = connection
-        .connect_selected(&resolved, connection.provided_token()?)
-        .await;
+    let result = connection.connect_selected(&resolved, connection.provided_token()?).await;
     match result {
         Ok(client) => {
             let backend = client.backend().clone();
             client.close_and_wait().await;
             if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"status": "ready", "endpoint": endpoint, "backend": backend})
-                );
+                println!("{}", serde_json::json!({"status": "ready", "endpoint": endpoint, "backend": backend}));
             } else {
                 println!("Ready: {} ({endpoint})", backend.display_name);
                 println!("Backend: {}", backend.backend_id);
@@ -80,10 +75,7 @@ pub(super) async fn check(connection: crate::connection::Args, json: bool) -> cr
                 _ => serde_json::json!("failed"),
             };
             if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"status": status, "endpoint": endpoint, "error": error.to_string()})
-                );
+                println!("{}", serde_json::json!({"status": status, "endpoint": endpoint, "error": error.to_string()}));
             } else {
                 let label = match status.as_str() {
                     Some("configuration") => "Invalid Configuration",

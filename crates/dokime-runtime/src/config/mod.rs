@@ -17,9 +17,9 @@ mod settings;
 mod view;
 
 /* === Re-Exports === */
+pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
 pub use crate::runtime::storage::config::storage_defaults;
 pub use application::ApplicationOptions;
-pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
 pub use harmos::storage::StorageSettings;
 pub use launch::Config;
 pub use policy::{StoragePolicy, StoragePolicyView};

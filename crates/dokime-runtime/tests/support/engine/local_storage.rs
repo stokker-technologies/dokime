@@ -62,10 +62,7 @@ impl<C: ObjectCatalog> Store<C> {
     }
 
     pub(crate) fn at(&self, sequence: u64) -> StorageCursor {
-        StorageCursor {
-            history: self.history.clone(),
-            sequence,
-        }
+        StorageCursor { history: self.history.clone(), sequence }
     }
 
     /// The fixture record schema, written at position one.
@@ -73,12 +70,7 @@ impl<C: ObjectCatalog> Store<C> {
         StorageSchema::new(
             self.at(1),
             key(),
-            graph(vec![Field {
-                name: "counter".into(),
-                tag: 1,
-                kind: Kind::U64,
-                cardinality: Cardinality::Required,
-            }]),
+            graph(vec![Field { name: "counter".into(), tag: 1, kind: Kind::U64, cardinality: Cardinality::Required }]),
         )
     }
 
@@ -97,9 +89,7 @@ impl<C: ObjectCatalog> Store<C> {
     /// Every fixture record visible at `through`, read in small pages.
     pub(crate) async fn records(&self, through: u64) -> Vec<StoredRecord> {
         let snapshot = self.backend.open_snapshot(&self.at(through)).await.unwrap();
-        let records = read_records(&self.backend, &snapshot, rows(2))
-            .await
-            .unwrap();
+        let records = read_records(&self.backend, &snapshot, rows(2)).await.unwrap();
         self.backend.release_snapshot(&snapshot).await.unwrap();
         records
     }
@@ -109,9 +99,7 @@ impl<C: ObjectCatalog> Store<C> {
 /// Shipped-shape storage settings sized for scenarios.
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
-        budget: StorageBudget {
-            read_memory_bytes: nonzero(16 * 1024 * 1024),
-        },
+        budget: StorageBudget { read_memory_bytes: nonzero(16 * 1024 * 1024) },
         request: StorageRequestSettings {
             max_pending_queries: nonzero(64),
             max_active_queries: nonzero(4),
@@ -128,23 +116,13 @@ pub fn storage_settings() -> StorageSettings {
 
 /// Every record of the fixture schema in `snapshot`, paged ascending.
 pub(crate) async fn read_records<C: ObjectCatalog>(
-    backend: &Backend<C>,
-    snapshot: &BackendSnapshot,
-    rows: NonZeroUsize,
+    backend: &Backend<C>, snapshot: &BackendSnapshot, rows: NonZeroUsize,
 ) -> harmos::Result<Vec<StoredRecord>> {
-    let selection = RecordSelection {
-        schema: key(),
-        scope: None,
-        item: None,
-        source_start: None,
-        source_end: None,
-    };
+    let selection = RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
     let mut records = Vec::new();
     let mut after = 0;
     loop {
-        let entries = backend
-            .read_records(snapshot, &selection, page(after, rows))
-            .await?;
+        let entries = backend.read_records(snapshot, &selection, page(after, rows)).await?;
         let Some(last) = entries.last() else {
             return Ok(records);
         };
@@ -154,11 +132,7 @@ pub(crate) async fn read_records<C: ObjectCatalog>(
 }
 
 pub(crate) fn page(after: u64, rows: NonZeroUsize) -> ScanPage {
-    ScanPage {
-        after,
-        rows,
-        bytes: nonzero(64 * 1024),
-    }
+    ScanPage { after, rows, bytes: nonzero(64 * 1024) }
 }
 
 pub(crate) fn rows(rows: usize) -> NonZeroUsize {
@@ -170,19 +144,12 @@ pub(crate) fn id(value: &str) -> Identifier {
 }
 
 pub(crate) fn key() -> SchemaKey {
-    SchemaKey {
-        payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
-        id: id("charger"),
-        version: NonZeroU32::new(1).unwrap(),
-    }
+    SchemaKey { payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1, id: id("charger"), version: NonZeroU32::new(1).unwrap() }
 }
 
 // A Single-Definition Row Graph For Fixture Schemas
 pub(crate) fn graph(fields: Vec<Field>) -> Schema {
-    Schema {
-        root: 0,
-        definitions: vec![fields],
-    }
+    Schema { root: 0, definitions: vec![fields] }
 }
 
 // The Prepared Row Graph Of A Described Message

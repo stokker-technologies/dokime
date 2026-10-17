@@ -18,30 +18,25 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
 use crate::service_support::reports::{parse, payload_text, render, render_annotated};
-use dokime_runtime::{TraceabilityId, Value};
+use dokime_domain::model;
+use dokime_domain::state::records::set::TestRecordSet;
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::document::capture::{Capture, SectionBinding};
 use dokime_runtime::document::{
-    ArtifactListDescriptor, DocumentCardBodyPayload, DocumentCardLayout, DocumentCardPayload,
-    DocumentCardPlacementPayload, DocumentLayoutPayload, DocumentNodePayload, DocumentPayload,
-    DocumentSectionNodePayload, DocumentSelection, DocumentWarning, PlotAxisKind, PlotDescriptor,
-    PlotInput, PlotStyle, PlotType, TelemetrySummaryFormat, TelemetrySummaryGroupPayload,
+    ArtifactListDescriptor, DocumentCardBodyPayload, DocumentCardLayout, DocumentCardPayload, DocumentCardPlacementPayload,
+    DocumentLayoutPayload, DocumentNodePayload, DocumentPayload, DocumentSectionNodePayload, DocumentSelection, DocumentWarning,
+    PlotAxisKind, PlotDescriptor, PlotInput, PlotStyle, PlotType, TelemetrySummaryFormat, TelemetrySummaryGroupPayload,
     TelemetrySummaryPresentation, TelemetrySummaryStat, TelemetrySummaryTilePayload,
 };
+use dokime_runtime::report::{CycleReportInput, ReportCaseDocument};
+use dokime_runtime::{TraceabilityId, Value};
 use {
-    dokime_domain::model::execution::result::CycleStatus,
-    dokime_domain::model::execution::result::CycleView,
+    dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::CycleView,
     dokime_domain::model::execution::result::TestExecution,
 };
-use dokime_domain::state::records::set::TestRecordSet;
-use dokime_runtime::report::{CycleReportInput, ReportCaseDocument};
-use {
-    dokime_domain::model::traceability::TraceabilityEntry,
-    dokime_domain::model::traceability::TraceabilitySnapshot,
-};
+use {dokime_domain::model::traceability::TraceabilityEntry, dokime_domain::model::traceability::TraceabilitySnapshot};
 
 /* === Constants === */
 
@@ -124,14 +119,8 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
     }
 }
 
-fn insert_report_document(
-    input: &mut CycleReportInput,
-    document_id_value: &str,
-    document: DocumentPayload,
-) {
-    input
-        .documents
-        .insert(document_id(document_id_value), report_document(document));
+fn insert_report_document(input: &mut CycleReportInput, document_id_value: &str, document: DocumentPayload) {
+    input.documents.insert(document_id(document_id_value), report_document(document));
 }
 
 fn document_id(value: &str) -> dokime_runtime::DocumentId {
@@ -141,8 +130,7 @@ fn document_id(value: &str) -> dokime_runtime::DocumentId {
 fn report_document(document: DocumentPayload) -> Capture {
     use dokime_runtime::document::capture::{CardBinding, CardBindingResult};
     use dokime_runtime::document::{
-        DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentLayout, DocumentNode,
-        DocumentSectionNode,
+        DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentLayout, DocumentNode, DocumentSectionNode,
     };
     let mut definitions = Vec::new();
     let mut bindings = Vec::new();
@@ -151,35 +139,27 @@ fn report_document(document: DocumentPayload) -> Capture {
             DocumentCardBodyPayload::TelemetrySummary { groups } => {
                 let definitions = groups
                     .iter()
-                    .map(
-                        |group| dokime_runtime::document::TelemetrySummaryGroupDefinition {
-                            metadata: group.metadata.clone(),
-                            tiles: group
-                                .tiles
-                                .iter()
-                                .map(
-                                    |tile| dokime_runtime::document::TelemetrySummaryTileDefinition {
-                                        metadata: tile.metadata.clone(),
-                                        value: dokime_runtime::expressions::telemetry(
-                                            "progress", "distance",
-                                        ),
-                                        filters: Vec::new(),
-                                        stat: tile.stat.clone(),
-                                        format: tile.format.clone(),
-                                        presentation: tile.presentation.clone(),
-                                        unit: tile.unit.clone(),
-                                        conditions: Vec::new(),
-                                    },
-                                )
-                                .collect(),
-                        },
-                    )
+                    .map(|group| dokime_runtime::document::TelemetrySummaryGroupDefinition {
+                        metadata: group.metadata.clone(),
+                        tiles: group
+                            .tiles
+                            .iter()
+                            .map(|tile| dokime_runtime::document::TelemetrySummaryTileDefinition {
+                                metadata: tile.metadata.clone(),
+                                value: dokime_runtime::expressions::telemetry("progress", "distance"),
+                                filters: Vec::new(),
+                                stat: tile.stat.clone(),
+                                format: tile.format.clone(),
+                                presentation: tile.presentation.clone(),
+                                unit: tile.unit.clone(),
+                                conditions: Vec::new(),
+                            })
+                            .collect(),
+                    })
                     .collect();
                 (
                     DocumentCardBody::TelemetrySummary {
-                        summary: dokime_runtime::document::TelemetrySummaryDefinition {
-                            groups: definitions,
-                        },
+                        summary: dokime_runtime::document::TelemetrySummaryDefinition { groups: definitions },
                     },
                     CardBindingResult::Summary { groups },
                 )
@@ -188,24 +168,13 @@ fn report_document(document: DocumentPayload) -> Capture {
                 let mut value = serde_json::to_value(&descriptor.input).unwrap();
                 value["metadata"] = serde_json::to_value(&descriptor.metadata).unwrap();
                 value["y"] = value["series_fields"].clone();
-                value["x"] = if descriptor.plot_type == PlotType::TimeSeries {
-                    serde_json::Value::Null
-                } else {
-                    value["x_field"].clone()
-                };
+                value["x"] = if descriptor.plot_type == PlotType::TimeSeries { serde_json::Value::Null } else { value["x_field"].clone() };
                 let plot = serde_json::from_value(value).unwrap();
-                (
-                    DocumentCardBody::Plot {
-                        plot: Box::new(plot),
-                    },
-                    CardBindingResult::Plot { descriptor },
-                )
+                (DocumentCardBody::Plot { plot: Box::new(plot) }, CardBindingResult::Plot { descriptor })
             }
             body => {
                 let body = match body {
-                    DocumentCardBodyPayload::Text { markdown } => {
-                        DocumentCardBody::Text { markdown }
-                    }
+                    DocumentCardBodyPayload::Text { markdown } => DocumentCardBody::Text { markdown },
                     DocumentCardBodyPayload::Table { rows } => DocumentCardBody::Table { rows },
                     DocumentCardBodyPayload::Steps => DocumentCardBody::Steps,
                     DocumentCardBodyPayload::Criteria => DocumentCardBody::Criteria,
@@ -221,38 +190,18 @@ fn report_document(document: DocumentPayload) -> Capture {
                 (body, CardBindingResult::Static)
             }
         };
-        definitions.push(DocumentCardDefinition {
-            metadata: card.metadata.clone(),
-            filters: Vec::new(),
-            body,
-        });
-        bindings.push(CardBinding {
-            source_id: card.metadata.identifier.clone(),
-            metadata: card.metadata,
-            result,
-        });
+        definitions.push(DocumentCardDefinition { metadata: card.metadata.clone(), filters: Vec::new(), body });
+        bindings.push(CardBinding { source_id: card.metadata.identifier.clone(), metadata: card.metadata, result });
     }
-    fn layout(
-        nodes: Vec<DocumentNodePayload>,
-        sections: &mut BTreeMap<Identifier, SectionBinding>,
-    ) -> Vec<DocumentNode> {
+    fn layout(nodes: Vec<DocumentNodePayload>, sections: &mut BTreeMap<Identifier, SectionBinding>) -> Vec<DocumentNode> {
         nodes
             .into_iter()
             .map(|node| match node {
                 DocumentNodePayload::Card(card) => {
-                    DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement {
-                        card_id: card.card_id,
-                        layout: card.layout,
-                    })
+                    DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement { card_id: card.card_id, layout: card.layout })
                 }
                 DocumentNodePayload::Section(section) => {
-                    sections.insert(
-                        section.node_id.clone(),
-                        SectionBinding {
-                            metadata: section.metadata.clone(),
-                            unavailable: None,
-                        },
-                    );
+                    sections.insert(section.node_id.clone(), SectionBinding { metadata: section.metadata.clone(), unavailable: None });
                     DocumentNode::Section(Box::new(DocumentSectionNode {
                         node_id: section.node_id,
                         metadata: section.metadata,
@@ -264,9 +213,7 @@ fn report_document(document: DocumentPayload) -> Capture {
             .collect()
     }
     let mut sections = BTreeMap::new();
-    let layout = DocumentLayout {
-        nodes: layout(document.layout.nodes, &mut sections),
-    };
+    let layout = DocumentLayout { nodes: layout(document.layout.nodes, &mut sections) };
     Capture {
         definition: DocumentDefinition {
             document_id: document.document_id,
@@ -284,17 +231,10 @@ fn report_document(document: DocumentPayload) -> Capture {
 }
 
 fn materialization_shape_is_raw(value: &serde_json::Value) -> bool {
-    value.get("selected").is_none()
-        && value.get("layout").is_none()
-        && value["definition"].get("layout").is_some()
+    value.get("selected").is_none() && value.get("layout").is_none() && value["definition"].get("layout").is_some()
 }
 
-fn fixture_plot_payload(
-    stream: &str,
-    series_key: &str,
-    y_value: f64,
-    raw_points: usize,
-) -> dokime_runtime::report::value::Value {
+fn fixture_plot_payload(stream: &str, series_key: &str, y_value: f64, raw_points: usize) -> dokime_runtime::report::value::Value {
     dokime_runtime::report::value::Value::try_from(serde_json::json!({
         "stream": stream,
         "x_key": "timestamp",
@@ -318,20 +258,13 @@ fn fixture_plot_payload(
 }
 
 fn fixture_test_execution(
-    test_execution_id: dokime_runtime::TestExecutionId,
-    test_case_id: dokime_runtime::CaseId,
-    scope: RecordScope,
-    status: ExecutionStatus,
+    test_execution_id: dokime_runtime::TestExecutionId, test_case_id: dokime_runtime::CaseId, scope: RecordScope, status: ExecutionStatus,
 ) -> TestExecution {
     let case = dokime_runtime::definition::TestCase {
         suite_id: "fixture.registration".to_owned(),
         test_case_id: test_case_id.clone(),
         test_case_template_id: dokime_runtime::TemplateId::from_seed("fixture.template"),
-        metadata: dokime_runtime::Metadata::new(
-            dokime_runtime::Identifier::new("fixture.case").unwrap(),
-            "Fixture Case",
-            None,
-        ),
+        metadata: dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("fixture.case").unwrap(), "Fixture Case", None),
         suite: None,
         parameters: Default::default(),
         generation_index: 0,
@@ -344,10 +277,7 @@ fn fixture_test_execution(
         active_step_attempt: None,
         capture_phase: Default::default(),
         step_attempts: Vec::new(),
-        test_cycle_id: scope
-            .test_cycle_id
-            .clone()
-            .expect("fixture execution has an owning cycle"),
+        test_cycle_id: scope.test_cycle_id.clone().expect("fixture execution has an owning cycle"),
         test_execution_id,
         test_case_id,
         suite: None,
@@ -412,20 +342,13 @@ fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotTy
 }
 
 fn fixture_plot_document(
-    document_identifier: &str,
-    document_label: &str,
-    section_identifier: &str,
-    section_label: &str,
-    card_label: &str,
-    descriptor: PlotDescriptor,
-    scope: RecordScope,
+    document_identifier: &str, document_label: &str, section_identifier: &str, section_label: &str, card_label: &str,
+    descriptor: PlotDescriptor, scope: RecordScope,
 ) -> DocumentPayload {
     let cards = vec![document_card(
         &format!("{}.card", descriptor.plot_id),
         card_label,
-        DocumentCardBodyPayload::Plot {
-            descriptor: Box::new(descriptor),
-        },
+        DocumentCardBodyPayload::Plot { descriptor: Box::new(descriptor) },
     )];
 
     DocumentPayload {
@@ -445,19 +368,9 @@ fn fixture_plot_document(
 fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
     let scope = RecordScope::default().with_cycle(test_cycle_id);
     let plot_id = Identifier::new("cycle.telemetry").unwrap();
-    let artifact_descriptor = ArtifactListDescriptor {
-        scope: scope.clone(),
-        artifact_count: 3,
-        completed_count: 2,
-    };
+    let artifact_descriptor = ArtifactListDescriptor { scope: scope.clone(), artifact_count: 3, completed_count: 2 };
     let cards = vec![
-        document_card(
-            "summary.text",
-            "Summary",
-            DocumentCardBodyPayload::Text {
-                markdown: "Cycle summary".to_owned(),
-            },
-        ),
+        document_card("summary.text", "Summary", DocumentCardBodyPayload::Text { markdown: "Cycle summary".to_owned() }),
         document_card(
             "summary.telemetry",
             "Telemetry Summary",
@@ -491,29 +404,19 @@ fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPaylo
                         marker_count: 1,
                         // A duration x column: what the frozen report has to
                         // carry for its axis to read as elapsed seconds.
-                        x_axis: Some(PlotAxisKind::Elapsed {
-                            unit: "s".to_owned(),
-                        }),
+                        x_axis: Some(PlotAxisKind::Elapsed { unit: "s".to_owned() }),
                         ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
                     },
                 }),
             },
         ),
-        document_card(
-            "artifacts",
-            "Artifacts",
-            DocumentCardBodyPayload::Artifacts {
-                descriptor: Box::new(artifact_descriptor.clone()),
-            },
-        ),
+        document_card("artifacts", "Artifacts", DocumentCardBodyPayload::Artifacts { descriptor: Box::new(artifact_descriptor.clone()) }),
     ];
 
     DocumentPayload {
         document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
         metadata: metadata("document.fixture", "Fixture Document"),
-        selection: DocumentSelection {
-            scope: scope.clone(),
-        },
+        selection: DocumentSelection { scope: scope.clone() },
         cards: cards.clone(),
         layout: document_layout("result", "Summary", &cards),
         plot_descriptors: Vec::new(),
@@ -579,29 +482,19 @@ fn fixture_tracking_case_document(scope: RecordScope) -> DocumentPayload {
 }
 
 fn fixture_evidence_case_document(scope: RecordScope) -> DocumentPayload {
-    let records = document_card(
-        "events.timeline",
-        "Records",
-        DocumentCardBodyPayload::Records,
-    );
+    let records = document_card("events.timeline", "Records", DocumentCardBodyPayload::Records);
     let media = document_card(
         "traceability.media",
         "Media",
         DocumentCardBodyPayload::Media {
-            descriptor: Box::new(ArtifactListDescriptor {
-                scope: scope.clone(),
-                artifact_count: 1,
-                completed_count: 1,
-            }),
+            descriptor: Box::new(ArtifactListDescriptor { scope: scope.clone(), artifact_count: 1, completed_count: 1 }),
         },
     );
 
     DocumentPayload {
         document_id: document_id("default"),
         metadata: metadata("document.evidence", "Evidence"),
-        selection: DocumentSelection {
-            scope: scope.clone(),
-        },
+        selection: DocumentSelection { scope: scope.clone() },
         cards: vec![records.clone(), media.clone()],
         layout: DocumentLayoutPayload {
             nodes: vec![
@@ -621,36 +514,15 @@ fn metadata(identifier: &str, label: &str) -> Metadata {
     Metadata::new(Identifier::new(identifier).unwrap(), label, None)
 }
 
-fn document_card(
-    identifier: &str,
-    label: &str,
-    body: DocumentCardBodyPayload,
-) -> DocumentCardPayload {
-    DocumentCardPayload {
-        metadata: metadata(identifier, label),
-        body,
-    }
+fn document_card(identifier: &str, label: &str, body: DocumentCardBodyPayload) -> DocumentCardPayload {
+    DocumentCardPayload { metadata: metadata(identifier, label), body }
 }
 
-fn document_layout(
-    section_identifier: &str,
-    section_label: &str,
-    cards: &[DocumentCardPayload],
-) -> DocumentLayoutPayload {
-    DocumentLayoutPayload {
-        nodes: vec![document_section_node(
-            section_identifier,
-            section_label,
-            cards,
-        )],
-    }
+fn document_layout(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentLayoutPayload {
+    DocumentLayoutPayload { nodes: vec![document_section_node(section_identifier, section_label, cards)] }
 }
 
-fn document_section_node(
-    section_identifier: &str,
-    section_label: &str,
-    cards: &[DocumentCardPayload],
-) -> DocumentNodePayload {
+fn document_section_node(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentNodePayload {
     DocumentNodePayload::Section(DocumentSectionNodePayload {
         node_id: Identifier::new(section_identifier).unwrap(),
         metadata: metadata(section_identifier, section_label),
@@ -683,10 +555,7 @@ async fn rendered_html_data() {
     assert!(!html.contains("href=\"http"));
 
     let payload = parse(&html);
-    assert_eq!(
-        payload["test_cycle_plan"]["test_cycle"]["title"],
-        "<script>alert('x')</script>"
-    );
+    assert_eq!(payload["test_cycle_plan"]["test_cycle"]["title"], "<script>alert('x')</script>");
     assert_eq!(payload["test_executions"].as_array().unwrap().len(), 1);
 }
 
@@ -696,30 +565,19 @@ async fn rendered_html_payload() {
     let test_cycle_id = input.cycle.test_cycle_id.clone();
     let document = fixture_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
-    input.plots.insert(
-        "cycle.telemetry".to_owned(),
-        fixture_plot_payload("progress", "distance", 12.5, 1),
-    );
+    input.plots.insert("cycle.telemetry".to_owned(), fixture_plot_payload("progress", "distance", 12.5, 1));
 
     let html = render(&input).await;
 
     let payload_text = payload_text(&html);
     let payload = parse(&html);
 
-    assert_eq!(
-        payload["documents"]["default"]["definition"]["metadata"]["label"],
-        "Fixture Document"
-    );
+    assert_eq!(payload["documents"]["default"]["definition"]["metadata"]["label"], "Fixture Document");
     assert!(payload_text.contains("Max Distance"));
     assert!(payload_text.contains("Cycle Telemetry"));
-    assert!(materialization_shape_is_raw(
-        &payload["documents"]["default"]
-    ));
+    assert!(materialization_shape_is_raw(&payload["documents"]["default"]));
     assert!(payload_text.contains("Telemetry is not available yet."));
-    assert_eq!(
-        payload["plots"]["cycle.telemetry"]["series"][0]["points"][0]["y"],
-        12.5
-    );
+    assert_eq!(payload["plots"]["cycle.telemetry"]["series"][0]["points"][0]["y"], 12.5);
     assert_eq!(payload["warnings"].as_array().unwrap().len(), 2);
 
     // One document, resolved once, embedded once — and the selection is a scope
@@ -732,38 +590,17 @@ async fn rendered_html_payload() {
             .keys()
             .map(String::as_str)
             .collect::<std::collections::BTreeSet<_>>(),
-        std::collections::BTreeSet::from([
-            "cards",
-            "definition",
-            "repeats",
-            "sections",
-            "selection",
-            "warnings"
-        ])
+        std::collections::BTreeSet::from(["cards", "definition", "repeats", "sections", "selection", "warnings"])
     );
     let selected = materialization;
     assert_eq!(
-        selected["selection"]
-            .as_object()
-            .expect("a selection is an object")
-            .keys()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
+        selected["selection"].as_object().expect("a selection is an object").keys().map(String::as_str).collect::<Vec<_>>(),
         vec!["scope"]
     );
-    assert_eq!(
-        selected["selection"]["scope"]["test_cycle_id"],
-        test_cycle_id.to_string()
-    );
+    assert_eq!(selected["selection"]["scope"]["test_cycle_id"], test_cycle_id.to_string());
     assert!(selected.get("views").is_none());
-    assert_eq!(
-        selected["definition"]["layout"]["nodes"][0]["data"]["node_id"],
-        "result"
-    );
-    assert_eq!(
-        payload["plots"]["cycle.telemetry"]["series"][0]["raw_points"],
-        1
-    );
+    assert_eq!(selected["definition"]["layout"]["nodes"][0]["data"]["node_id"], "result");
+    assert_eq!(payload["plots"]["cycle.telemetry"]["series"][0]["raw_points"], 1);
 }
 
 #[tokio::test]
@@ -781,10 +618,7 @@ async fn materialized_report_axis() {
         .iter()
         .find(|card| card["result"]["type"] == "plot")
         .expect("one plot card");
-    assert_eq!(
-        card["result"]["data"]["descriptor"]["input"]["x_axis"],
-        serde_json::json!({"kind": "elapsed", "unit": "s"})
-    );
+    assert_eq!(card["result"]["data"]["descriptor"]["input"]["x_axis"], serde_json::json!({"kind": "elapsed", "unit": "s"}));
 }
 
 // rendered cycle payload keeps cycle document plots out of case runs.
@@ -794,10 +628,7 @@ async fn rendered_cycle_out() {
     let mut input = fixture_input("WiFi Cycle");
     let document = fixture_wifi_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
-    input.plots.insert(
-        "wifi.channel_occupancy".to_owned(),
-        fixture_plot_payload("host.wifi.channel_occupancy", "6", 4.0, 1),
-    );
+    input.plots.insert("wifi.channel_occupancy".to_owned(), fixture_plot_payload("host.wifi.channel_occupancy", "6", 4.0, 1));
 
     let html = render(&input).await;
     let payload = parse(&html);
@@ -820,8 +651,7 @@ async fn execution_template_cases() {
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
         .with_test_execution(id.clone());
-    let mut execution =
-        fixture_test_execution(id, case.test_case_id, scope, ExecutionStatus::Passed);
+    let mut execution = fixture_test_execution(id, case.test_case_id, scope, ExecutionStatus::Passed);
     execution.steps.push(dokime_domain::model::execution::result::StepRecord {
         step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
         metadata: metadata("fixture.step", "Fixture Step"),
@@ -849,10 +679,7 @@ async fn execution_template_cases() {
     assert_eq!(steps[0]["record_type"], "step");
     assert_eq!(steps[1]["record_type"], "criterion");
     assert_eq!(steps[1]["result"]["reason"], "original criterion reason");
-    assert_eq!(
-        steps[1]["result"]["details"]["observed"],
-        "original measurement"
-    );
+    assert_eq!(steps[1]["result"]["details"]["observed"], "original measurement");
     assert_eq!(steps[0]["started_at"], steps[1]["started_at"]);
     assert_eq!(steps[0]["scope"]["step_id"], steps[1]["scope"]["step_id"]);
     assert!(steps[0]["scope"]["criterion_id"].is_null());
@@ -875,19 +702,12 @@ async fn rendered_case_plots() {
 
     let document = fixture_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
-    input.cycle.test_executions = vec![fixture_test_execution(
-        test_execution_id.clone(),
-        case_id.clone(),
-        scope.clone(),
-        ExecutionStatus::Passed,
-    )];
+    input.cycle.test_executions =
+        vec![fixture_test_execution(test_execution_id.clone(), case_id.clone(), scope.clone(), ExecutionStatus::Passed)];
     input.case_documents = vec![ReportCaseDocument {
         test_case_id: case_id,
         test_execution_id: Some(test_execution_id.clone()),
-        documents: BTreeMap::from([(
-            document_id("default"),
-            report_document(fixture_tracking_case_document(scope.clone())),
-        )]),
+        documents: BTreeMap::from([(document_id("default"), report_document(fixture_tracking_case_document(scope.clone())))]),
         plots: BTreeMap::from([(
             "tracking.distance".to_owned(),
             fixture_plot_payload("plt400.ract.tracking.tracking", "distance_m", 7.5, 1),
@@ -901,10 +721,7 @@ async fn rendered_case_plots() {
 
     assert_eq!(case_run["queue_item_id"], case_run["case_id"]);
     assert_eq!(case_run["test_execution_id"], test_execution_id.to_string());
-    assert_eq!(
-        case_run["documents"]["default"]["definition"]["metadata"]["label"],
-        "Tracking Case Document"
-    );
+    assert_eq!(case_run["documents"]["default"]["definition"]["metadata"]["label"], "Tracking Case Document");
     assert_eq!(case_plot["stream"], "plt400.ract.tracking.tracking");
     assert_eq!(case_plot["series"][0]["points"][0]["y"], 7.5);
     assert!(case_run["plots"]["cycle.telemetry"].is_null());
@@ -918,25 +735,14 @@ async fn rendered_case_plots() {
             .keys()
             .map(String::as_str)
             .collect::<std::collections::BTreeSet<_>>(),
-        std::collections::BTreeSet::from([
-            "cards",
-            "definition",
-            "repeats",
-            "sections",
-            "selection",
-            "warnings"
-        ])
+        std::collections::BTreeSet::from(["cards", "definition", "repeats", "sections", "selection", "warnings"])
     );
     // The plot the one document carries is the plot the case precomputed: the
     // card's descriptor and the precomputed plot map agree on the plot id.
-    let plot_id = materialization["cards"][0]["result"]["data"]["descriptor"]["plot_id"]
-        .as_str()
-        .expect("the plot card carries its descriptor");
+    let plot_id =
+        materialization["cards"][0]["result"]["data"]["descriptor"]["plot_id"].as_str().expect("the plot card carries its descriptor");
     assert_eq!(plot_id, "tracking.distance");
-    assert_eq!(
-        case_run["plots"][plot_id]["series"][0]["points"][0]["y"],
-        7.5
-    );
+    assert_eq!(case_run["plots"][plot_id]["series"][0]["points"][0]["y"], 7.5);
 }
 
 // rendered case payload embeds every evidence card of the one case document.
@@ -951,19 +757,12 @@ async fn rendered_case_one() {
         .with_test_case(case_id.clone())
         .with_test_execution(test_execution_id.clone());
 
-    input.cycle.test_executions = vec![fixture_test_execution(
-        test_execution_id.clone(),
-        case_id.clone(),
-        scope.clone(),
-        ExecutionStatus::Passed,
-    )];
+    input.cycle.test_executions =
+        vec![fixture_test_execution(test_execution_id.clone(), case_id.clone(), scope.clone(), ExecutionStatus::Passed)];
     input.case_documents = vec![ReportCaseDocument {
         test_case_id: case_id,
         test_execution_id: Some(test_execution_id.clone()),
-        documents: BTreeMap::from([(
-            document_id("default"),
-            report_document(fixture_evidence_case_document(scope)),
-        )]),
+        documents: BTreeMap::from([(document_id("default"), report_document(fixture_evidence_case_document(scope)))]),
         plots: BTreeMap::new(),
     }];
 
@@ -984,10 +783,7 @@ async fn rendered_case_one() {
         .iter()
         .map(|node| node["data"]["node_id"].as_str().unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(
-        sections,
-        ["execution.events", "execution.traceability.media"]
-    );
+    assert_eq!(sections, ["execution.events", "execution.traceability.media"]);
 }
 
 // rendered report bounds telemetry without truncating the interval.
@@ -998,18 +794,14 @@ async fn rendered_report_interval() {
     let stream = Identifier::new("synthetic.samples").unwrap();
     input.telemetry = (0..2_501)
         .map(|index| {
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                stream.clone(),
                 index,
-                Timestamp::new(format!(
-                    "2026-01-01T00:{:02}:{:02}Z",
-                    index / 60,
-                    index % 60
-                )),
+                Timestamp::new(format!("2026-01-01T00:{:02}:{:02}Z", index / 60, index % 60)),
                 "fixture",
             );
-            sample
-                .values
-                .insert("sample_index".to_owned(), Value::from(index as i64));
+            sample.values.insert("sample_index".to_owned(), Value::from(index as i64));
             crate::service_support::contracts::typed_fixture_sample(sample)
         })
         .collect();
@@ -1038,12 +830,7 @@ async fn rendered_html_groups() {
         .with_test_case(case.test_case_id.clone())
         .with_test_execution(execution_id.clone())
         .with_template(case.test_case_template_id.clone());
-    let mut execution = fixture_test_execution(
-        execution_id,
-        case.test_case_id.clone(),
-        execution_scope.clone(),
-        ExecutionStatus::Passed,
-    );
+    let mut execution = fixture_test_execution(execution_id, case.test_case_id.clone(), execution_scope.clone(), ExecutionStatus::Passed);
     execution.started_at = None;
     input.cycle.test_executions = vec![execution];
     input.traceability = vec![
@@ -1091,21 +878,9 @@ async fn rendered_html_groups() {
     assert!(payload["snapshot"]["traceability"].is_null());
     // The four derived families carry stable labels — "Cycle", "Environment",
     // "Host", "Execution" — rather than titles inferred from a source string.
-    assert_eq!(
-        payload["case_runs"][0]["traceability"]["groups"][0]["title"],
-        "Host"
-    );
-    assert_eq!(
-        payload["case_runs"][0]["traceability"]["groups"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    assert_eq!(
-        payload["case_runs"][0]["traceability"]["groups"][0]["items"][0]["value"],
-        "H17842"
-    );
+    assert_eq!(payload["case_runs"][0]["traceability"]["groups"][0]["title"], "Host");
+    assert_eq!(payload["case_runs"][0]["traceability"]["groups"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["case_runs"][0]["traceability"]["groups"][0]["items"][0]["value"], "H17842");
     let group_titles = payload["case_runs"][0]["traceability"]["groups"]
         .as_array()
         .unwrap()
@@ -1124,12 +899,7 @@ async fn stated_section_wrote() {
         .with_cycle(input.cycle.test_cycle_id.clone())
         .with_test_case(case.test_case_id.clone())
         .with_test_execution(execution_id.clone());
-    let mut execution = fixture_test_execution(
-        execution_id,
-        case.test_case_id.clone(),
-        execution_scope.clone(),
-        ExecutionStatus::Passed,
-    );
+    let mut execution = fixture_test_execution(execution_id, case.test_case_id.clone(), execution_scope.clone(), ExecutionStatus::Passed);
     execution.started_at = None;
     input.cycle.test_executions = vec![execution];
     // Every word in this section — "instrument", "device" — steers the derived
@@ -1158,13 +928,8 @@ async fn stated_section_wrote() {
     let html = render(&input).await;
     let payload = parse(&html);
 
-    assert_eq!(
-        payload["case_runs"][0]["traceability"]["groups"][0]["title"],
-        "Device Under Test"
-    );
-    let items = payload["case_runs"][0]["traceability"]["groups"][0]["items"]
-        .as_array()
-        .expect("a stated section renders its rows");
+    assert_eq!(payload["case_runs"][0]["traceability"]["groups"][0]["title"], "Device Under Test");
+    let items = payload["case_runs"][0]["traceability"]["groups"][0]["items"].as_array().expect("a stated section renders its rows");
     assert_eq!(items.len(), 2);
     assert_eq!(items[0]["label"], "Instrument serial");
     assert_eq!(items[0]["value"], "SN-7");
@@ -1191,10 +956,7 @@ async fn rendered_report_happened() {
             error: None,
             details: BTreeMap::from([
                 ("stage".to_owned(), Value::from("sidecar_execution")),
-                (
-                    "location".to_owned(),
-                    Value::from("plugins/thermo/src/suites/soak/hold.rs:71"),
-                ),
+                ("location".to_owned(), Value::from("plugins/thermo/src/suites/soak/hold.rs:71")),
                 (
                     "chain".to_owned(),
                     Value::Array(vec![
@@ -1216,25 +978,14 @@ async fn rendered_report_happened() {
 
     // Why it failed, one cause at a time, and where in the plugin's own source.
     assert_eq!(details["chain"][0], "sensor: read timed out after 1s");
-    assert_eq!(
-        details["chain"][1],
-        "serial port: Resource temporarily unavailable"
-    );
-    assert_eq!(
-        details["location"],
-        "plugins/thermo/src/suites/soak/hold.rs:71"
-    );
+    assert_eq!(details["chain"][1], "serial port: Resource temporarily unavailable");
+    assert_eq!(details["location"], "plugins/thermo/src/suites/soak/hold.rs:71");
     // A report is durable evidence that leaves the bench, and it renders a
     // record's details verbatim. What it can show is therefore decided where
     // the record is written — which carries the causes and the location, and
     // no frames. Those three keys are the whole of it.
     assert_eq!(
-        details
-            .as_object()
-            .expect("details render as an object")
-            .keys()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
+        details.as_object().expect("details render as an object").keys().map(String::as_str).collect::<Vec<_>>(),
         vec!["chain", "location", "stage"]
     );
 }
@@ -1249,12 +1000,7 @@ async fn failed_step_frames() {
         .with_test_case(case_id.clone())
         .with_test_execution(test_execution_id.clone());
 
-    let mut execution = fixture_test_execution(
-        test_execution_id.clone(),
-        case_id,
-        scope,
-        ExecutionStatus::Failed,
-    );
+    let mut execution = fixture_test_execution(test_execution_id.clone(), case_id, scope, ExecutionStatus::Failed);
     execution.finished_at = Some(Timestamp::new("2026-01-01T00:00:01Z"));
     execution.steps = vec![dokime_domain::model::execution::result::StepRecord {
         step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
@@ -1266,10 +1012,7 @@ async fn failed_step_frames() {
         criteria: Vec::new(),
         detail: Some(dokime_runtime::plugin::Diagnostic {
             message: "step `hold` failed in thermo.soak.hold".to_owned(),
-            chain: vec![
-                "sensor: read timed out after 1s".to_owned(),
-                "serial port: Resource temporarily unavailable".to_owned(),
-            ],
+            chain: vec!["sensor: read timed out after 1s".to_owned(), "serial port: Resource temporarily unavailable".to_owned()],
             location: "plugins/thermo/src/suites/soak/hold.rs:71".to_owned(),
             span_trace: vec!["step  step=hold".to_owned()],
             backtrace: "   0: thermo_bench::suites::soak::hold".to_owned(),
@@ -1289,14 +1032,8 @@ async fn failed_step_frames() {
 
     assert_eq!(details["message"], "step `hold` failed in thermo.soak.hold");
     assert_eq!(details["causes"][0], "sensor: read timed out after 1s");
-    assert_eq!(
-        details["causes"][1],
-        "serial port: Resource temporarily unavailable"
-    );
-    assert_eq!(
-        details["location"],
-        "plugins/thermo/src/suites/soak/hold.rs:71"
-    );
+    assert_eq!(details["causes"][1], "serial port: Resource temporarily unavailable");
+    assert_eq!(details["location"], "plugins/thermo/src/suites/soak/hold.rs:71");
     // A report is durable evidence that leaves the bench. The frames stay in
     // the console the failure was logged to.
     assert!(details.get("backtrace").is_none());
@@ -1305,8 +1042,8 @@ async fn failed_step_frames() {
 
 #[tokio::test]
 async fn normalised_report_rows() {
-    use model::execution::{HealthItem, HealthSeverity, OperatorNote};
     use dokime_runtime::report::ReportArtifactLink;
+    use model::execution::{HealthItem, HealthSeverity, OperatorNote};
 
     let mut input = fixture_input("Normalised Rows");
     let execution = &mut input.cycle.test_executions[0];
@@ -1384,10 +1121,7 @@ async fn normalised_report_rows() {
     assert!(payload.get("test_steps").is_none());
     let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
     assert_eq!(
-        steps
-            .iter()
-            .map(|row| format!("{}:{}", row["record_type"].as_str().unwrap(), row["order"]))
-            .collect::<Vec<_>>(),
+        steps.iter().map(|row| format!("{}:{}", row["record_type"].as_str().unwrap(), row["order"])).collect::<Vec<_>>(),
         ["step:0", "criterion:0", "step:1"]
     );
     assert!(steps.iter().all(|row| row["test_execution_id"] == owner));
@@ -1400,28 +1134,22 @@ async fn normalised_report_rows() {
 #[tokio::test]
 async fn latest_member_annotations() {
     use dokime_runtime::CommandId;
-    use model::execution::{HealthItem, HealthSeverity};
     use dokime_runtime::domains::evidence::notes::CreateNote;
     use model::execution::notes::NoteOwner;
+    use model::execution::{HealthItem, HealthSeverity};
 
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    let members = cycle_snapshot(&runtime, &cycle_id)
-        .await
-        .test_executions
-        .iter()
-        .map(|member| member.test_execution_id.clone())
-        .collect::<Vec<_>>();
+    let members =
+        cycle_snapshot(&runtime, &cycle_id).await.test_executions.iter().map(|member| member.test_execution_id.clone()).collect::<Vec<_>>();
     let note = runtime
         .create_current_note(CreateNote {
             epoch: runtime.process_epoch(),
             mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
-            owner: NoteOwner::Cycle {
-                cycle_id: cycle_id.clone(),
-            },
+            owner: NoteOwner::Cycle { cycle_id: cycle_id.clone() },
             actor: "operator".into(),
             message: "Bench ambient 23 °C.".into(),
         })
@@ -1440,13 +1168,8 @@ async fn latest_member_annotations() {
     };
     // Each Run Settles With Its Member's Seal Before The Next Observation
     let run = async |member: &dokime_runtime::TestExecutionId| {
-        let receipt = runtime
-            .run_execution(
-                member.clone(),
-                dokime_runtime::execution::ExecutionMode::Automatic,
-                CommandContext::default(),
-            )
-            .await;
+        let receipt =
+            runtime.run_execution(member.clone(), dokime_runtime::execution::ExecutionMode::Automatic, CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
         let checkpoint = crate::service_support::native::checkpoint(&runtime, member).await;
         let view = crate::service_support::native::open(&runtime, &checkpoint).await;
@@ -1461,35 +1184,22 @@ async fn latest_member_annotations() {
             .map(|item| item.message.clone())
             .collect::<Vec<_>>()
     };
-    runtime
-        .record_health_item(health("Degraded", "2026-01-01T00:00:03Z"))
-        .await
-        .unwrap();
+    runtime.record_health_item(health("Degraded", "2026-01-01T00:00:03Z")).await.unwrap();
     assert_eq!(run(&members[1]).await, ["Degraded"]);
-    runtime
-        .record_health_item(health("Recovered", "2026-01-01T00:00:04Z"))
-        .await
-        .unwrap();
+    runtime.record_health_item(health("Recovered", "2026-01-01T00:00:04Z")).await.unwrap();
     assert_eq!(run(&members[0]).await, ["Recovered"]);
 
     let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
     let payload = parse(std::str::from_utf8(&report.html).unwrap());
     let health = payload["snapshot"]["health"].as_array().unwrap();
     assert_eq!(
-        health
-            .iter()
-            .filter(|row| row["health_id"] == health_id.as_str())
-            .map(|row| row["title"].as_str().unwrap())
-            .collect::<Vec<_>>(),
+        health.iter().filter(|row| row["health_id"] == health_id.as_str()).map(|row| row["title"].as_str().unwrap()).collect::<Vec<_>>(),
         ["Recovered"],
         "the cycle keeps the latest observation once: {health:?}"
     );
     let notes = payload["snapshot"]["notes"].as_array().unwrap();
     assert_eq!(
-        notes
-            .iter()
-            .filter(|row| row["note_id"] == note.note_id.as_str())
-            .count(),
+        notes.iter().filter(|row| row["note_id"] == note.note_id.as_str()).count(),
         1,
         "a repeated cycle note appears once: {notes:?}"
     );
@@ -1503,19 +1213,17 @@ async fn telemetry_index_endpoints() {
 
     let mut input = fixture_input("Telemetry Ties");
     let time = Timestamp::new("2026-01-01T00:00:00Z");
-    let sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), Identifier::new("fixture.telemetry").unwrap(),
+    let sample = TelemetrySample::new(
+        dokime_runtime::model::identity::new_id(),
+        Identifier::new("fixture.telemetry").unwrap(),
         0,
         time.clone(),
         "fixture",
     );
     for ordinal in 0..2_001 {
         let mut sample = sample.clone();
-        sample
-            .values
-            .insert("ordinal".into(), Value::Unsigned(ordinal));
-        input
-            .telemetry
-            .push(crate::service_support::contracts::typed_fixture_sample(sample));
+        sample.values.insert("ordinal".into(), Value::Unsigned(ordinal));
+        input.telemetry.push(crate::service_support::contracts::typed_fixture_sample(sample));
     }
     // All Sort Keys Tie; Input Order Must Still Select The Same Endpoints.
     let html = render(&input).await;

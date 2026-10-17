@@ -19,10 +19,10 @@ use std::{fmt, path::PathBuf, sync::Arc};
 // Local Imports
 use crate::RuntimeCredentialConfig;
 use crate::config::RuntimeConfig;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
 use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::plugins::PluginBundle;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 const HUB_IDENTIFIER: &str = "dokime.test_hub";
@@ -63,10 +63,7 @@ struct Registrations(Vec<Arc<dyn crate::runtime::EmbeddedProvider>>);
 /* === Implementations === */
 impl fmt::Debug for Registrations {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("Registrations")
-            .field(&self.0.len())
-            .finish()
+        formatter.debug_tuple("Registrations").field(&self.0.len()).finish()
     }
 }
 
@@ -94,17 +91,9 @@ impl Config {
     }
 
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
-        let startup = ShellStartup {
-            brand: self.brand,
-            native_host_telemetry: self.seed_plugins,
-        };
-        let metadata = Metadata::new(
-            Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"),
-            self.title,
-            self.label,
-        );
-        let mut config = RuntimeConfig::new(&self.output_root, metadata)
-            .with_credential_backend(self.credential_backend);
+        let startup = ShellStartup { brand: self.brand, native_host_telemetry: self.seed_plugins };
+        let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
+        let mut config = RuntimeConfig::new(&self.output_root, metadata).with_credential_backend(self.credential_backend);
         config.compaction_interval = self.compaction_interval;
         config.local_retention = self.local_retention;
         if let Some(root) = self.application_root {
@@ -112,12 +101,7 @@ impl Config {
         }
         config.plugin_lookup = self.plugin_lookup;
         let mut config = config
-            .with_installed_plugins(
-                startup
-                    .native_host_telemetry
-                    .then(builtin_plugins)
-                    .unwrap_or_default(),
-            )
+            .with_installed_plugins(startup.native_host_telemetry.then(builtin_plugins).unwrap_or_default())
             .with_plugins(PluginBundle::all(&self.explicit_plugins));
 
         for provider in self.registrations.0 {

@@ -19,13 +19,8 @@ use std::time::Duration;
 // Third-Party Imports
 use harmos::sidecar::Refusal;
 // Local Imports
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::values::Value;
 use crate::definition::{
-    CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate,
-    materialize_template_cases, parameter_name,
+    CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate, materialize_template_cases, parameter_name,
 };
 use crate::document::{DocumentAddition, DocumentDefinition};
 use crate::execution::log;
@@ -33,17 +28,19 @@ use crate::execution::{ExecutionHost, Runnable};
 use crate::plugin::Diagnostic;
 use crate::prompts::{PromptDefinition, PromptRequest, PromptResponse};
 use crate::records::DeclaredRecord;
+use crate::telemetry::{TelemetryRow, TelemetrySample, TelemetryStream};
+use crate::transport::{
+    ArtifactChunk, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution,
+    OperatorAnswer, OperatorQuestion, RunExecution, SidecarCriterionOutcome, SidecarExecutionOutcome, StepAdmission, TransportFuture,
+};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::publication::RecordPublishRequest;
-use crate::telemetry::{TelemetryRow, TelemetrySample, TelemetryStream};
 use dokime_domain::model::traceability::TraceabilityRow;
 use dokime_domain::model::traceability::TraceabilitySection;
-use crate::transport::{
-    ArtifactChunk, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt,
-    ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
-    RunExecution, SidecarCriterionOutcome, SidecarExecutionOutcome, StepAdmission,
-    TransportFuture,
-};
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -137,10 +134,7 @@ struct Transfer {
 #[derive(Debug)]
 pub enum HarnessError {
     UnknownTemplate(String),
-    AmbiguousTemplate {
-        template: String,
-        workflows: Vec<String>,
-    },
+    AmbiguousTemplate { template: String, workflows: Vec<String> },
     Parameters(String),
     Start(Refusal),
     Deliver(Refusal),
@@ -174,8 +168,7 @@ impl Harness {
         <O::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
         F: Fn(
                 <O::Declaration as harmos::operations::OperationDeclaration>::Request,
-            )
-                -> <O::Declaration as harmos::operations::OperationDeclaration>::Response
+            ) -> <O::Declaration as harmos::operations::OperationDeclaration>::Response
             + Send
             + Sync
             + 'static,
@@ -186,11 +179,12 @@ impl Harness {
             std::sync::Arc::new(move |payload: Vec<u8>| {
                 let answer = std::sync::Arc::clone(&answer);
                 Box::pin(async move {
-                    let request = <<O::Declaration as harmos::operations::OperationDeclaration>::Request as harmos::Message>::decode(payload.as_slice())
-                        .map_err(|error| error.to_string())?;
+                    let request = <<O::Declaration as harmos::operations::OperationDeclaration>::Request as harmos::Message>::decode(
+                        payload.as_slice(),
+                    )
+                    .map_err(|error| error.to_string())?;
                     Ok(harmos::Message::encode_to_vec(&answer(request)))
-                })
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
+                }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
             }),
         );
         self
@@ -234,33 +228,19 @@ impl Harness {
 
     #[must_use]
     pub fn answer(
-        mut self,
-        prompt_type: impl Into<String>,
-        action: impl Into<String>,
+        mut self, prompt_type: impl Into<String>, action: impl Into<String>,
         values: impl IntoIterator<Item = (impl Into<String>, impl Into<Value>)>,
     ) -> Self {
         self.answers.insert(
             prompt_type.into(),
-            Answer {
-                action: action.into(),
-                values: values
-                    .into_iter()
-                    .map(|(name, value)| (name.into(), value.into()))
-                    .collect(),
-            },
+            Answer { action: action.into(), values: values.into_iter().map(|(name, value)| (name.into(), value.into())).collect() },
         );
         self
     }
 
     #[must_use]
-    pub fn measuring<C: crate::telemetry::TelemetryStream>(
-        mut self,
-        rows: impl IntoIterator<Item = C::Row>,
-    ) -> Self {
-        self.measured.entry(C::ID.to_owned()).or_default().extend(
-            rows.into_iter()
-                .map(crate::telemetry::TelemetryRow::into_row),
-        );
+    pub fn measuring<C: crate::telemetry::TelemetryStream>(mut self, rows: impl IntoIterator<Item = C::Row>) -> Self {
+        self.measured.entry(C::ID.to_owned()).or_default().extend(rows.into_iter().map(crate::telemetry::TelemetryRow::into_row));
         self
     }
 
@@ -272,26 +252,17 @@ impl Harness {
 
     pub async fn run<S>(self) -> Result<Report, HarnessError>
     where
-        S: crate::catalog::Catalog<crate::catalog::Suites>
-            + crate::catalog::Catalog<crate::catalog::SuiteRunners>,
+        S: crate::catalog::Catalog<crate::catalog::Suites> + crate::catalog::Catalog<crate::catalog::SuiteRunners>,
     {
-        let declarations = crate::catalog::entries::<S, crate::catalog::Suites>()
-            .into_iter()
-            .map(|definition| definition())
-            .collect::<Vec<_>>();
-        let runners = crate::catalog::entries::<S, crate::catalog::SuiteRunners>()
-            .into_iter()
-            .flat_map(|runners| runners())
-            .collect::<Vec<_>>();
-        tokio::spawn(self.execute(declarations, runners))
-            .await
-            .map_err(HarnessError::Task)?
+        let declarations =
+            crate::catalog::entries::<S, crate::catalog::Suites>().into_iter().map(|definition| definition()).collect::<Vec<_>>();
+        let runners =
+            crate::catalog::entries::<S, crate::catalog::SuiteRunners>().into_iter().flat_map(|runners| runners()).collect::<Vec<_>>();
+        tokio::spawn(self.execute(declarations, runners)).await.map_err(HarnessError::Task)?
     }
 
     async fn execute(
-        self,
-        suites: Vec<crate::domains::TestSuiteDefinition>,
-        runners: Vec<std::sync::Arc<dyn Runnable>>,
+        self, suites: Vec<crate::domains::TestSuiteDefinition>, runners: Vec<std::sync::Arc<dyn Runnable>>,
     ) -> Result<Report, HarnessError> {
         let (suite_id, workflow, template) = self.declaration(&suites)?;
         let runner = runners
@@ -305,17 +276,10 @@ impl Harness {
         let mut parameters = self.resolved(&suite_id, &template)?;
         for (key, value) in self.settings.clone() {
             if parameters.insert(key.clone(), value).is_some() {
-                return Err(HarnessError::Parameters(format!(
-                    "plugin setting {key:?} collides with a case parameter"
-                )));
+                return Err(HarnessError::Parameters(format!("plugin setting {key:?} collides with a case parameter")));
             }
         }
-        let record_inputs = template
-            .subscriptions
-            .iter()
-            .filter_map(crate::definition::Subscription::record)
-            .cloned()
-            .collect::<Vec<_>>();
+        let record_inputs = template.subscriptions.iter().filter_map(crate::definition::Subscription::record).cloned().collect::<Vec<_>>();
         let execution_id = crate::model::identity::new_id::<TestExecutionId>().to_string();
         let start = RunExecution {
             mode: "automatic".into(),
@@ -324,27 +288,18 @@ impl Harness {
             test_execution_id: execution_id.clone(),
             workflow,
             template_identifier: self.template.clone(),
-            parameters_json: serde_json::to_string(&parameters)
-                .expect("resolved parameter values serialize"),
+            parameters_json: serde_json::to_string(&parameters).expect("resolved parameter values serialize"),
             secrets_json: serde_json::to_string(&self.secrets).expect("secret bindings serialize"),
         };
         let capture = dokime_domain::model::execution::RecordScope {
             test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(start.test_cycle_id.clone()).ok(),
-            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
-                start.test_execution_id.clone(),
-            )
-            .ok(),
+            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(start.test_execution_id.clone()).ok(),
             origin: dokime_domain::model::execution::EvidenceOrigin::Initialization,
             ..Default::default()
         };
         let host = std::sync::Arc::new(Host {
             pages: std::sync::Mutex::new(Pages {
-                subscribed_records: self
-                    .published
-                    .iter()
-                    .filter(|record| record_inputs.contains(&record.record_type))
-                    .cloned()
-                    .collect(),
+                subscribed_records: self.published.iter().filter(|record| record_inputs.contains(&record.record_type)).cloned().collect(),
                 ..Pages::default()
             }),
             answers: self.answers,
@@ -352,12 +307,7 @@ impl Harness {
             measured: self.measured.keys().cloned().collect(),
         });
         let caller = crate::execution::Caller::local(self.operations);
-        let run = runner.run(
-            start,
-            std::sync::Arc::clone(&host) as std::sync::Arc<dyn ExecutionHost>,
-            None,
-            caller,
-        );
+        let run = runner.run(start, std::sync::Arc::clone(&host) as std::sync::Arc<dyn ExecutionHost>, None, caller);
         let deliveries = async {
             // The rows a global stream would have measured, and the records
             // another party filed, handed over once the run exists and before
@@ -380,18 +330,9 @@ impl Harness {
         }
         runner.shutdown().await;
         let samples = runner.take_local_samples(&execution_id).unwrap_or_default();
-        let mut pages = std::mem::take(
-            &mut *host
-                .pages
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
+        let mut pages = std::mem::take(&mut *host.pages.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
         for sample in samples {
-            pages
-                .samples
-                .entry(sample.stream.to_string())
-                .or_default()
-                .push(sample.values);
+            pages.samples.entry(sample.stream.to_string()).or_default().push(sample.values);
         }
 
         ran.map(|outcome| pages.report(outcome, declared_document))
@@ -401,24 +342,13 @@ impl Harness {
 impl Host {
     fn respond(&self, request: &PromptRequest) -> PromptResponse {
         let prompt_type = request.prompt_type.as_str();
-        let declared = self
-            .prompts
-            .iter()
-            .find(|prompt| prompt.prompt_type.as_str() == prompt_type);
+        let declared = self.prompts.iter().find(|prompt| prompt.prompt_type.as_str() == prompt_type);
         let answer = self.answers.get(prompt_type);
-        let action = answer
-            .map(|answer| answer.action.clone())
-            .unwrap_or_else(|| {
-                declared
-                    .and_then(|prompt| {
-                        prompt
-                            .actions
-                            .iter()
-                            .find(|action| action.id != CANCEL)
-                            .map(|action| action.id.clone())
-                    })
-                    .unwrap_or_else(|| CANCEL.to_owned())
-            });
+        let action = answer.map(|answer| answer.action.clone()).unwrap_or_else(|| {
+            declared
+                .and_then(|prompt| prompt.actions.iter().find(|action| action.id != CANCEL).map(|action| action.id.clone()))
+                .unwrap_or_else(|| CANCEL.to_owned())
+        });
         let mut values = request.values.clone();
         if let Some(answer) = answer {
             values.extend(answer.values.clone());
@@ -436,16 +366,10 @@ impl Host {
 }
 
 impl Harness {
-    fn declaration(
-        &self,
-        suites: &[crate::domains::TestSuiteDefinition],
-    ) -> Result<(String, String, TestCaseTemplate), HarnessError> {
+    fn declaration(&self, suites: &[crate::domains::TestSuiteDefinition]) -> Result<(String, String, TestCaseTemplate), HarnessError> {
         let mut found: Vec<(String, String, TestCaseTemplate)> = Vec::new();
         for suite in suites.iter().cloned() {
-            let workflow = suite
-                .workflow
-                .clone()
-                .unwrap_or_else(|| suite.suite_id.clone());
+            let workflow = suite.workflow.clone().unwrap_or_else(|| suite.suite_id.clone());
             for template in suite.suite.test_case_templates {
                 if template.metadata.identifier.as_str() == self.template {
                     found.push((suite.suite_id.clone(), workflow.clone(), template));
@@ -462,16 +386,9 @@ impl Harness {
         }
     }
 
-    fn resolved(
-        &self,
-        suite_id: &str,
-        template: &TestCaseTemplate,
-    ) -> Result<ParameterValues, HarnessError> {
-        let declared = template
-            .parameters
-            .iter()
-            .map(|parameter| parameter_name(parameter).to_owned())
-            .collect::<std::collections::BTreeSet<_>>();
+    fn resolved(&self, suite_id: &str, template: &TestCaseTemplate) -> Result<ParameterValues, HarnessError> {
+        let declared =
+            template.parameters.iter().map(|parameter| parameter_name(parameter).to_owned()).collect::<std::collections::BTreeSet<_>>();
         let selection = CaseMaterializationSelection {
             case_overrides: self
                 .parameters
@@ -493,12 +410,7 @@ impl Harness {
             },
         )
         .map_err(|error| HarnessError::Parameters(error.to_string()))?;
-        let mut parameters = generated
-            .test_cases
-            .into_iter()
-            .next()
-            .map(|case| case.parameters)
-            .unwrap_or_default();
+        let mut parameters = generated.test_cases.into_iter().next().map(|case| case.parameters).unwrap_or_default();
         parameters.extend(self.parameters.clone());
 
         Ok(parameters)
@@ -507,12 +419,8 @@ impl Harness {
 
 impl Host {
     fn lease(&self, ask: &LeaseAsk) -> LeaseResolution {
-        let Ok(request) = serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json)
-        else {
-            return LeaseResolution {
-                granted: false,
-                message: "the lease request could not be read".into(),
-            };
+        let Ok(request) = serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) else {
+            return LeaseResolution { granted: false, message: "the lease request could not be read".into() };
         };
         let granted = self.measured.contains(request.stream.as_str());
         LeaseResolution {
@@ -534,36 +442,18 @@ impl ExecutionHost for Host {
         let admitted = batch
             .step_begins
             .iter()
-            .filter_map(|encoded| {
-                serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
-            })
-            .map(|start| StepAdmission {
-                attempt_id: start.attempt_id.to_string(),
-                accepted: true,
-                message: String::new(),
-            })
+            .filter_map(|encoded| serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok())
+            .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() })
             .collect();
         let settled = batch.record_subscriptions_settling;
-        self.pages
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take(batch);
-        Box::pin(std::future::ready(Ok(EvidenceReceipt {
-            admitted,
-            settled,
-        })))
+        self.pages.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take(batch);
+        Box::pin(std::future::ready(Ok(EvidenceReceipt { admitted, settled })))
     }
 
-    fn ask(
-        &self,
-        question: OperatorQuestion,
-    ) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        let answered = serde_json::from_str::<PromptRequest>(&question.prompt_json)
-            .map_err(|error| error.to_string())
-            .map(|request| OperatorAnswer {
-                response_json: serde_json::to_string(&self.respond(&request))
-                    .expect("an operator answer serializes"),
-            });
+    fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
+        let answered = serde_json::from_str::<PromptRequest>(&question.prompt_json).map_err(|error| error.to_string()).map(|request| {
+            OperatorAnswer { response_json: serde_json::to_string(&self.respond(&request)).expect("an operator answer serializes") }
+        });
         Box::pin(std::future::ready(answered))
     }
 
@@ -599,22 +489,13 @@ impl Pages {
     }
 
     fn piece(&mut self, chunk: ArtifactChunk) {
-        let transfer = match self
-            .transfers
-            .iter_mut()
-            .find(|transfer| transfer.transfer_id == chunk.transfer_id)
-        {
+        let transfer = match self.transfers.iter_mut().find(|transfer| transfer.transfer_id == chunk.transfer_id) {
             Some(transfer) => transfer,
             None => {
                 self.transfers.push(Transfer {
                     transfer_id: chunk.transfer_id.clone(),
                     next: 0,
-                    artifact: Artifact {
-                        name: chunk.name.clone(),
-                        media_type: chunk.mime.clone(),
-                        bytes: Vec::new(),
-                        abandoned: false,
-                    },
+                    artifact: Artifact { name: chunk.name.clone(), media_type: chunk.mime.clone(), bytes: Vec::new(), abandoned: false },
                 });
                 self.transfers.last_mut().expect("the transfer was pushed")
             }
@@ -632,13 +513,8 @@ impl Pages {
         transfer.artifact.abandoned |= chunk.aborted;
     }
 
-    fn report(
-        self,
-        outcome: SidecarExecutionOutcome,
-        declared: Option<DocumentDefinition>,
-    ) -> Report {
-        let mut document =
-            declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document"));
+    fn report(self, outcome: SidecarExecutionOutcome, declared: Option<DocumentDefinition>) -> Report {
+        let mut document = declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document"));
         for addition in self.documents {
             let _ = document.add(addition);
         }
@@ -650,11 +526,7 @@ impl Pages {
             records: self.records,
             subscribed_records: self.subscribed_records,
             traceability: self.traceability,
-            artifacts: self
-                .transfers
-                .into_iter()
-                .map(|transfer| transfer.artifact)
-                .collect(),
+            artifacts: self.transfers.into_iter().map(|transfer| transfer.artifact).collect(),
             log: self.log,
         }
     }
@@ -679,12 +551,8 @@ impl Report {
             .unwrap_or_default()
             .iter()
             .map(|values| {
-                <C::Row as TelemetryRow>::from_row(values).unwrap_or_else(|error| {
-                    panic!(
-                        "the run published a row on {:?} the declaration cannot read: {error}",
-                        C::ID
-                    )
-                })
+                <C::Row as TelemetryRow>::from_row(values)
+                    .unwrap_or_else(|error| panic!("the run published a row on {:?} the declaration cannot read: {error}", C::ID))
             })
             .collect()
     }
@@ -700,36 +568,24 @@ impl Report {
             .filter(|record| record.record_type.as_str() == R::RECORD_TYPE)
             .map(|record| &record.details)
             .chain(
-                self.subscribed_records
-                    .iter()
-                    .filter(|record| record.record_type.as_str() == R::RECORD_TYPE)
-                    .map(|record| &record.details),
+                self.subscribed_records.iter().filter(|record| record.record_type.as_str() == R::RECORD_TYPE).map(|record| &record.details),
             )
             .map(|details| {
-                R::from_details(details).unwrap_or_else(|error| {
-                    panic!(
-                        "the run published a {:?} the declaration cannot read: {error}",
-                        R::RECORD_TYPE
-                    )
-                })
+                R::from_details(details)
+                    .unwrap_or_else(|error| panic!("the run published a {:?} the declaration cannot read: {error}", R::RECORD_TYPE))
             })
             .collect()
     }
 
     pub fn record_types(&self) -> impl Iterator<Item = &str> {
-        self.records
-            .iter()
-            .map(|record| record.record_type.as_str())
+        self.records.iter().map(|record| record.record_type.as_str())
     }
 
     #[must_use]
     pub fn traceability(&self, section_id: &str) -> Section<'_> {
         Section {
             identifier: section_id.to_owned(),
-            section: self
-                .traceability
-                .iter()
-                .find(|section| section.identifier.as_str() == section_id),
+            section: self.traceability.iter().find(|section| section.identifier.as_str() == section_id),
         }
     }
 
@@ -749,18 +605,12 @@ impl Report {
 
     #[must_use]
     pub fn artifact(&self, name: &str) -> &Artifact {
-        self.artifacts
-            .iter()
-            .find(|artifact| artifact.name == name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "the run handed over no artifact named {name:?}; it produced {:?}",
-                    self.artifacts
-                        .iter()
-                        .map(|artifact| artifact.name.as_str())
-                        .collect::<Vec<_>>()
-                )
-            })
+        self.artifacts.iter().find(|artifact| artifact.name == name).unwrap_or_else(|| {
+            panic!(
+                "the run handed over no artifact named {name:?}; it produced {:?}",
+                self.artifacts.iter().map(|artifact| artifact.name.as_str()).collect::<Vec<_>>()
+            )
+        })
     }
 
     #[must_use]
@@ -775,12 +625,7 @@ impl Report {
             rendered.push_str(message);
             rendered.push('\n');
         }
-        if let Some(detail) = self
-            .outcome
-            .detail_json
-            .as_deref()
-            .and_then(|encoded| serde_json::from_str::<Diagnostic>(encoded).ok())
-        {
+        if let Some(detail) = self.outcome.detail_json.as_deref().and_then(|encoded| serde_json::from_str::<Diagnostic>(encoded).ok()) {
             rendered.push_str(&detail.to_string());
         }
         for criterion in &self.outcome.criteria {
@@ -789,11 +634,7 @@ impl Report {
                 criterion.identifier,
                 crate::transport::SidecarCriterionStatus::try_from(criterion.status)
                     .unwrap_or(crate::transport::SidecarCriterionStatus::Unspecified),
-                criterion
-                    .message
-                    .as_deref()
-                    .map(|message| format!(" — {message}"))
-                    .unwrap_or_default()
+                criterion.message.as_deref().map(|message| format!(" — {message}")).unwrap_or_default()
             ));
         }
         for entry in &self.log {
@@ -820,21 +661,12 @@ impl<'a> Section<'a> {
         Row {
             section: self.identifier.clone(),
             identifier: row_id.to_owned(),
-            row: self
-                .found()
-                .rows
-                .iter()
-                .find(|row| row.identifier.as_str() == row_id),
+            row: self.found().rows.iter().find(|row| row.identifier.as_str() == row_id),
         }
     }
 
     fn found(&self) -> &'a TraceabilitySection {
-        self.section.unwrap_or_else(|| {
-            panic!(
-                "the template stated no traceability section {:?}",
-                self.identifier
-            )
-        })
+        self.section.unwrap_or_else(|| panic!("the template stated no traceability section {:?}", self.identifier))
     }
 }
 
@@ -883,19 +715,11 @@ impl<'a> Row<'a> {
     }
 
     fn found(&self) -> &'a TraceabilityRow {
-        self.row.unwrap_or_else(|| {
-            panic!(
-                "traceability section {:?} states no row {:?}",
-                self.section, self.identifier
-            )
-        })
+        self.row.unwrap_or_else(|| panic!("traceability section {:?} states no row {:?}", self.section, self.identifier))
     }
 
     fn mistyped(&self, wanted: &str, found: &Value) -> ! {
-        panic!(
-            "traceability row {:?}.{:?} is not {wanted}: {found:?}",
-            self.section, self.identifier
-        )
+        panic!("traceability row {:?}.{:?} is not {wanted}: {found:?}", self.section, self.identifier)
     }
 }
 
@@ -914,17 +738,10 @@ impl std::fmt::Debug for Artifact {
 impl std::fmt::Display for HarnessError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownTemplate(template) => write!(
-                formatter,
-                "no suite in this catalog declares the template {template:?}"
-            ),
-            Self::AmbiguousTemplate {
-                template,
-                workflows,
-            } => write!(
-                formatter,
-                "the template {template:?} is declared by more than one workflow: {workflows:?}"
-            ),
+            Self::UnknownTemplate(template) => write!(formatter, "no suite in this catalog declares the template {template:?}"),
+            Self::AmbiguousTemplate { template, workflows } => {
+                write!(formatter, "the template {template:?} is declared by more than one workflow: {workflows:?}")
+            }
             Self::Parameters(reason) => {
                 write!(formatter, "the case could not be resolved: {reason}")
             }
@@ -950,9 +767,7 @@ impl std::error::Error for HarnessError {
 
 /* === Public Functions === */
 fn deliveries(
-    measured: &BTreeMap<String, Vec<BTreeMap<String, Value>>>,
-    published: &[Record],
-    execution_id: &str,
+    measured: &BTreeMap<String, Vec<BTreeMap<String, Value>>>, published: &[Record], execution_id: &str,
     scope: &dokime_domain::model::execution::RecordScope,
 ) -> Vec<ExecutionSignal> {
     let mut signals = Vec::new();
@@ -990,11 +805,8 @@ fn deliveries(
         signals.push(ExecutionSignal {
             execution_token: execution_id.to_owned(),
             record: Some(DeliverRecordRequest {
-                record_json: serde_json::to_string(delivered)
-                    .expect("a host-filed record serializes"),
-                captured_scopes: vec![
-                    serde_json::to_string(scope).expect("capture scope serializes"),
-                ],
+                record_json: serde_json::to_string(delivered).expect("a host-filed record serializes"),
+                captured_scopes: vec![serde_json::to_string(scope).expect("capture scope serializes")],
             }),
             ..ExecutionSignal::default()
         });

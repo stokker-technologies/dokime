@@ -45,12 +45,8 @@ thread_local! {
 pub fn install_panic_hook() {
     HOOK.call_once(|| {
         std::panic::set_hook(Box::new(|info| {
-            let mut diagnostic =
-                Diagnostic::of(format!("plugin panicked: {}", payload(info.payload())));
-            diagnostic.location = info
-                .location()
-                .map(|location| format!("{}:{}", location.file(), location.line()))
-                .unwrap_or_default();
+            let mut diagnostic = Diagnostic::of(format!("plugin panicked: {}", payload(info.payload())));
+            diagnostic.location = info.location().map(|location| format!("{}:{}", location.file(), location.line())).unwrap_or_default();
             // stderr Is Separate From The Sidecar Protocol On stdout.
             eprint!("{diagnostic}");
             PANIC.with(|panicked| panicked.replace(Some(diagnostic)));
@@ -64,25 +60,16 @@ pub fn install_subscriber() {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
 
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     let _ = tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .without_time()
-                .with_writer(std::io::stderr)
-                .with_filter(filter),
-        )
+        .with(tracing_subscriber::fmt::layer().with_ansi(false).without_time().with_writer(std::io::stderr).with_filter(filter))
         // Preserve Execution Spans Independently Of Console Verbosity.
         .with(tracing_error::ErrorLayer::default())
         .try_init();
 }
 
 pub fn panicked(carried: &(dyn Any + Send)) -> Diagnostic {
-    PANIC
-        .with(|panicked| panicked.take())
-        .unwrap_or_else(|| Diagnostic::of(format!("plugin panicked: {}", payload(carried))))
+    PANIC.with(|panicked| panicked.take()).unwrap_or_else(|| Diagnostic::of(format!("plugin panicked: {}", payload(carried))))
 }
 
 /* === Private Functions === */

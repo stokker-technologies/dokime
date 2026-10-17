@@ -18,24 +18,17 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use crate::service_support::prelude::*;
-use std::sync::Arc;
 use async_trait::async_trait;
-use harmos::sidecar::StreamDeclaration;
+use dokime_domain::model;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
+use harmos::sidecar::StreamDeclaration;
+use std::sync::Arc;
+use {dokime_runtime::InstalledPlugin, dokime_runtime::ValueType};
 use {
-    dokime_runtime::InstalledPlugin,
-    dokime_runtime::ValueType,
-};
-use {
-    dokime_runtime::records::PublishRecord,
-    dokime_runtime::records::RecordContract,
-    dokime_runtime::records::RecordField,
-    dokime_runtime::records::RecordPublication,
-    model::records::publication::RecordPublishRequest,
-    dokime_runtime::records::RecordSeverity,
+    dokime_runtime::records::PublishRecord, dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField,
+    dokime_runtime::records::RecordPublication, dokime_runtime::records::RecordSeverity, model::records::publication::RecordPublishRequest,
 };
 
 /* === Constants === */
@@ -74,11 +67,16 @@ impl EmbeddedProvider for Publisher {
             ..Default::default()
         }
     }
-    fn streams(&self) -> Vec<StreamDeclaration> { Vec::new() }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> { Ok(Vec::new()) }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> { Ok(()) }
+    fn streams(&self) -> Vec<StreamDeclaration> {
+        Vec::new()
+    }
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
+        Ok(Vec::new())
+    }
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+        Ok(())
+    }
 }
-
 
 /* === Public Functions === */
 
@@ -89,49 +87,25 @@ impl EmbeddedProvider for Publisher {
 #[tokio::test]
 async fn native_publications_order() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = Runtime::start(
-        config(root.path()).register(Arc::new(Publisher)),
-    )
-    .await
-    .unwrap();
+    let mut owner = Runtime::start(config(root.path()).register(Arc::new(Publisher))).await.unwrap();
     let runtime = owner.handle();
     let caller = owner.fixture_operation_caller("fixture.records").unwrap();
     let mut records = runtime.subscribe_records();
-    let mut request = RecordPublishRequest::new(
-        Identifier::new("fixture.sidecar.observed").unwrap(),
-        RecordSeverity::Info,
-    );
-    request
-        .details
-        .insert("value".into(), dokime_runtime::Value::Number(7.0));
+    let mut request = RecordPublishRequest::new(Identifier::new("fixture.sidecar.observed").unwrap(), RecordSeverity::Info);
+    request.details.insert("value".into(), dokime_runtime::Value::Number(7.0));
     request.scope = Some(dokime_runtime::RecordScope::default().with_cycle(dokime_runtime::model::identity::new_id::<TestCycleId>()));
     let timestamp = "2026-09-17T10:00:00Z";
-    let first = RecordPublication {
-        request_json: serde_json::to_string(&request).unwrap(),
-        produced_at: timestamp.into(),
-    };
+    let first = RecordPublication { request_json: serde_json::to_string(&request).unwrap(), produced_at: timestamp.into() };
     let mut forged = serde_json::to_value(&request).unwrap();
     forged["source"] = "foreign.owner".into();
     let mut undeclared = request.clone();
     undeclared.record_type = Identifier::new("undeclared.record").unwrap();
     let publications = [
         first.clone(),
-        RecordPublication {
-            request_json: serde_json::to_string(&forged).unwrap(),
-            produced_at: timestamp.into(),
-        },
-        RecordPublication {
-            request_json: serde_json::to_string(&undeclared).unwrap(),
-            produced_at: timestamp.into(),
-        },
-        RecordPublication {
-            request_json: "garbled".into(),
-            produced_at: timestamp.into(),
-        },
-        RecordPublication {
-            request_json: first.request_json,
-            produced_at: String::new(),
-        },
+        RecordPublication { request_json: serde_json::to_string(&forged).unwrap(), produced_at: timestamp.into() },
+        RecordPublication { request_json: serde_json::to_string(&undeclared).unwrap(), produced_at: timestamp.into() },
+        RecordPublication { request_json: "garbled".into(), produced_at: timestamp.into() },
+        RecordPublication { request_json: first.request_json, produced_at: String::new() },
     ];
     let arrival = dokime_runtime::model::time::now_utc();
     // The host files what the plugin relays under the caller's own identity,
@@ -139,11 +113,7 @@ async fn native_publications_order() {
     // source, an undeclared record type and a payload that is no request.
     for (index, publication) in publications.into_iter().enumerate() {
         let filed = caller.call_as::<PublishRecord>(publication).await;
-        assert_eq!(
-            filed.is_ok(),
-            matches!(index, 0 | 4),
-            "publication {index}: {filed:?}"
-        );
+        assert_eq!(filed.is_ok(), matches!(index, 0 | 4), "publication {index}: {filed:?}");
     }
     let mut admitted = Vec::new();
     while admitted.len() < 2 {

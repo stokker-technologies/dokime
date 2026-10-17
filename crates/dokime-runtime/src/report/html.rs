@@ -37,7 +37,7 @@ use super::{
 use crate::document::capture::Capture;
 use crate::execution::context::captured::source::CapturedSource;
 use crate::{
-    runtime::Error, runtime::Result, installed_plugins::RuntimeAppearanceFrame, runtime::progress::Operation,
+    installed_plugins::RuntimeAppearanceFrame, runtime::Error, runtime::Result, runtime::progress::Operation,
     runtime::storage::cycle::CycleSnapshot,
 };
 use dokime_domain::model::identity::DocumentId;
@@ -60,15 +60,8 @@ pub(super) struct HtmlReport {
 
 /* === Enums === */
 enum Source {
-    Saved {
-        snapshot: CycleSnapshot,
-        documents: BTreeMap<DocumentId, Capture>,
-        members: Vec<Arc<CapturedExecutionReportInput>>,
-    },
-    Captured {
-        input: Arc<CapturedExecutionReportInput>,
-        evidence: Arc<CapturedSource>,
-    },
+    Saved { snapshot: CycleSnapshot, documents: BTreeMap<DocumentId, Capture>, members: Vec<Arc<CapturedExecutionReportInput>> },
+    Captured { input: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource> },
 }
 
 pub(super) enum Member {
@@ -89,9 +82,7 @@ impl Deref for Member {
 
 impl HtmlReport {
     pub(super) fn from_cycle(
-        snapshot: CycleSnapshot,
-        captured_members: Vec<CapturedExecutionReportInput>,
-        operation: &Operation,
+        snapshot: CycleSnapshot, captured_members: Vec<CapturedExecutionReportInput>, operation: &Operation,
     ) -> Result<Self> {
         let count = captured_members.len();
         let documents = cycle_document(&snapshot)?;
@@ -117,53 +108,29 @@ impl HtmlReport {
         }
         operation.progress(count as u64, count as u64);
         index.sort();
-        Ok(Self {
-            index,
-            source: Source::Saved {
-                snapshot,
-                documents,
-                members,
-            },
-            counted: AtomicUsize::new(0),
-        })
+        Ok(Self { index, source: Source::Saved { snapshot, documents, members }, counted: AtomicUsize::new(0) })
     }
 
-    pub(super) fn from_capture(
-        captured: Arc<CapturedExecutionReportInput>,
-        evidence: Arc<CapturedSource>,
-    ) -> Result<Self> {
+    pub(super) fn from_capture(captured: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource>) -> Result<Self> {
         let mut index = Index::new();
         index.push_capture(&captured)?;
         index.sort();
-        Ok(Self {
-            index,
-            source: Source::Captured {
-                input: captured,
-                evidence,
-            },
-            counted: AtomicUsize::new(0),
-        })
+        Ok(Self { index, source: Source::Captured { input: captured, evidence }, counted: AtomicUsize::new(0) })
     }
 
     fn read(&self, member: usize) -> Result<Member> {
         match &self.source {
             Source::Captured { input, .. } if member == 0 => Ok(Member::Captured(input.clone())),
             Source::Captured { .. } => Err(invalid("captured report has only one member")),
-            Source::Saved { members, .. } => members
-                .get(member)
-                .cloned()
-                .map(Member::Captured)
-                .ok_or_else(|| invalid("cycle report member is missing")),
+            Source::Saved { members, .. } => {
+                members.get(member).cloned().map(Member::Captured).ok_or_else(|| invalid("cycle report member is missing"))
+            }
         }
     }
 
     pub(super) fn header(&self) -> Header<'_> {
         match &self.source {
-            Source::Saved {
-                snapshot,
-                documents,
-                ..
-            } => Header::cycle(snapshot, documents),
+            Source::Saved { snapshot, documents, .. } => Header::cycle(snapshot, documents),
             Source::Captured { input, .. } => (&input.input).into(),
         }
     }
@@ -200,16 +167,13 @@ impl HtmlReport {
                 self.counted.store(count.len(), Ordering::Relaxed);
                 Ok(count.len())
             }
-            Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "report output size",
-            })),
+            Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted { resource: "report output size" })),
             Err(error) => Err(error),
         }
     }
 
     pub(super) fn bytes(&self, length: usize) -> Result<Vec<u8>> {
-        let mut buffer =
-            super::output::Buffer::new(length).map_err(|source| invalid(&source.to_string()))?;
+        let mut buffer = super::output::Buffer::new(length).map_err(|source| invalid(&source.to_string()))?;
         self.write(&mut buffer)?;
         let bytes = buffer.into_bytes();
         if bytes.len() != length {
@@ -228,12 +192,7 @@ impl HtmlReport {
                 Err(Error::InvalidReportInputs(message))
             }
         };
-        let report = Report {
-            header: self.header(),
-            index: &self.index,
-            appearance: self.appearance(),
-            read: &read,
-        };
+        let report = Report { header: self.header(), index: &self.index, appearance: self.appearance(), read: &read };
         let outcome = report.write(writer);
         if let Some(source) = failure.into_inner() {
             return Err(source);
@@ -254,14 +213,8 @@ fn cycle_document(snapshot: &CycleSnapshot) -> Result<BTreeMap<DocumentId, Captu
         selection: crate::document::DocumentSelection { scope },
         data: Default::default(),
     };
-    let capture = crate::document::bounded::capture_document_borrowed(
-        declaration.borrowed(),
-        Default::default(),
-    )?;
-    Ok(BTreeMap::from([(
-        capture.definition.document_id.clone(),
-        capture,
-    )]))
+    let capture = crate::document::bounded::capture_document_borrowed(declaration.borrowed(), Default::default())?;
+    Ok(BTreeMap::from([(capture.definition.document_id.clone(), capture)]))
 }
 
 fn invalid(message: &str) -> Error {

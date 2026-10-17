@@ -23,9 +23,7 @@ use std::time::Duration;
 use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 // Local Imports
-use dokime_runtime::execution::{
-    Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow,
-};
+use dokime_runtime::execution::{Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::{Harness, HarnessError};
 use dokime_runtime::{Refusal, Supervisor};
@@ -39,8 +37,7 @@ const WATCHED_CONTENT: &str = "the chamber log, rewritten in place\n";
 
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
 
-static DOUBLES: LazyLock<Mutex<BTreeMap<String, Arc<Observations>>>> =
-    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+static DOUBLES: LazyLock<Mutex<BTreeMap<String, Arc<Observations>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
 
@@ -190,18 +187,11 @@ impl Observations {
 
 impl Device {
     fn open(token: &str) -> Arc<Self> {
-        Arc::new(Self {
-            observations: double(token),
-            runs: Mutex::new(0),
-            token: token.to_owned(),
-        })
+        Arc::new(Self { observations: double(token), runs: Mutex::new(0), token: token.to_owned() })
     }
 
     fn describe(self: &Arc<Self>) -> GetDeviceResponse {
-        GetDeviceResponse {
-            identity: Arc::as_ptr(self) as u64,
-            token: self.token.clone(),
-        }
+        GetDeviceResponse { identity: Arc::as_ptr(self) as u64, token: self.token.clone() }
     }
 
     fn start_run(&self) -> StartRunResponse {
@@ -236,8 +226,7 @@ impl GetDevice {
     }
 
     async fn run(&mut self, ctx: &Supervisor, _: &()) -> Result<GetDeviceResponse, Refusal> {
-        let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(ctx)
-            .map(|scope| scope.key().into_inner());
+        let key = dokime_runtime::execution::ExecutionScope::serving::<Self>(ctx).map(|scope| scope.key().into_inner());
         self.0.observations.keys.lock().unwrap().push(key);
         Ok(self.0.describe())
     }
@@ -255,8 +244,7 @@ impl StartRun {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Owner {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -311,10 +299,7 @@ impl Checks {}
     requires = ProbeRequired,
     parameters = ProbeParameters)]
 impl Probe {
-    async fn initialize(
-        parameters: &ProbeParameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(parameters: &ProbeParameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         let device = ctx.call::<GetDevice>(()).await?;
         if ctx.call::<GetDevice>(()).await?.identity != device.identity {
             return Err(Error::ResourceChanged);
@@ -333,10 +318,7 @@ impl Probe {
         }
         ctx.call::<StartRun>(()).await?;
 
-        Ok(Self {
-            observations,
-            identity: device.identity,
-        })
+        Ok(Self { observations, identity: device.identity })
     }
 
     #[dokime_runtime::step(label = "Use device")]
@@ -380,8 +362,7 @@ impl Probe {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for CatalogOnly {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -428,30 +409,18 @@ impl dokime_runtime::Plugin for CatalogOnly {
 fn registered(observations: &Arc<Observations>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("observations-{}", NEXT.fetch_add(1, Ordering::SeqCst));
-    DOUBLES
-        .lock()
-        .expect("the double registry is never poisoned")
-        .insert(token.clone(), Arc::clone(observations));
+    DOUBLES.lock().expect("the double registry is never poisoned").insert(token.clone(), Arc::clone(observations));
 
     token
 }
 
 fn double(token: &str) -> Arc<Observations> {
     Arc::clone(
-        DOUBLES
-            .lock()
-            .expect("the double registry is never poisoned")
-            .get(token)
-            .expect("a run names a double this file registered"),
+        DOUBLES.lock().expect("the double registry is never poisoned").get(token).expect("a run names a double this file registered"),
     )
 }
 
-fn resolved(
-    wait: bool,
-    initialize_fail: bool,
-    initialize_wait: bool,
-    watch_directory: bool,
-) -> String {
+fn resolved(wait: bool, initialize_fail: bool, initialize_wait: bool, watch_directory: bool) -> String {
     serde_json::json!({
         "wait": dokime_runtime::Value::Bool(wait),
         "initialize_fail": dokime_runtime::Value::Bool(initialize_fail),
@@ -482,14 +451,9 @@ fn harnessed(device: &Arc<Device>) -> Harness {
         .answering::<StartRun, _>(move |()| counted.start_run())
 }
 
-async fn opened(
-    observations: &Arc<Observations>,
-) -> super::native::Native<dokime_runtime::harmos::sidecar::PluginNative<Owner>> {
+async fn opened(observations: &Arc<Observations>) -> super::native::Native<dokime_runtime::harmos::sidecar::PluginNative<Owner>> {
     let configuration = Configuration {
-        settings: BTreeMap::from([(
-            "token".to_owned(),
-            dokime_runtime::Value::Text(registered(observations)),
-        )]),
+        settings: BTreeMap::from([("token".to_owned(), dokime_runtime::Value::Text(registered(observations)))]),
         ..Configuration::default()
     };
     super::native::Native::initialize(
@@ -512,22 +476,16 @@ async fn shared_within_between() {
     let b = opened(&second).await;
     for token in ["one", "two"] {
         for native in [&a, &b] {
-            let outcome = super::native::call_wire::<Run<Probe>>(
-                &native.runtime.operations,
-                start(token, resolved(false, false, false, false)),
-            )
-            .await
-            .unwrap();
+            let outcome =
+                super::native::call_wire::<Run<Probe>>(&native.runtime.operations, start(token, resolved(false, false, false, false)))
+                    .await
+                    .unwrap();
             assert!(outcome.passed, "{outcome:?}");
         }
     }
     for native in [&a, &b] {
         assert!(
-            native
-                .host
-                .evidence()
-                .iter()
-                .any(|batch| batch.outcome.as_ref().is_some_and(|outcome| outcome.passed)),
+            native.host.evidence().iter().any(|batch| batch.outcome.as_ref().is_some_and(|outcome| outcome.passed)),
             "each served run pushed its outcome to its own host"
         );
     }
@@ -557,9 +515,7 @@ async fn execution_scope_calls() {
     let mut native = opened(&observations).await;
     let operations = &native.runtime.operations;
     let mut context = harmos::operations::CallContext::default();
-    context
-        .insert_portable(dokime_runtime::execution::ExecutionScope::execution("keyed"))
-        .unwrap();
+    context.insert_portable(dokime_runtime::execution::ExecutionScope::execution("keyed")).unwrap();
     let answer = operations
         .with_context(context)
         .call_encoded(
@@ -568,23 +524,15 @@ async fn execution_scope_calls() {
         )
         .await
         .unwrap();
-    let outcome =
-        <dokime_runtime::transport::SidecarExecutionOutcome as harmos::Message>::decode(answer.as_slice())
-            .unwrap();
+    let outcome = <dokime_runtime::transport::SidecarExecutionOutcome as harmos::Message>::decode(answer.as_slice()).unwrap();
     assert!(outcome.passed, "{outcome:?}");
-    super::native::call_wire::<GetDeviceDeclaration>(operations, ())
-        .await
-        .unwrap();
+    super::native::call_wire::<GetDeviceDeclaration>(operations, ()).await.unwrap();
     native.retire().await;
 
     let keys = observations.keys.lock().unwrap().clone();
     let (last, run) = keys.split_last().unwrap();
     assert_eq!(*last, None, "a call outside any run carries no key");
-    assert_eq!(
-        run.len(),
-        4,
-        "initialization replay, the step and cleanup called"
-    );
+    assert_eq!(run.len(), 4, "initialization replay, the step and cleanup called");
     assert_eq!(run[0], run[1], "same-stage calls retain their stable key");
     assert_ne!(run[1], run[2], "the step has its own scope");
     assert_ne!(run[2], run[3], "cleanup has its own scope");
@@ -594,9 +542,7 @@ async fn execution_scope_calls() {
         let mut remaining = key;
         let mut parts = Vec::new();
         for _ in 0..3 {
-            let (length, value) = remaining
-                .split_once(':')
-                .expect("length-prefixed key component");
+            let (length, value) = remaining.split_once(':').expect("length-prefixed key component");
             let length = length.parse::<usize>().expect("component byte length");
             let (component, rest) = value.split_at(length);
             parts.push(component);
@@ -619,13 +565,7 @@ async fn shutdown_joins_cleanup() {
     let observations = Arc::new(Observations::default());
     let device = Device::open(&registered(&observations));
     let workflow = Workflow::<Probe>::new(SUITE, "resource-owner");
-    workflow
-        .start_on(
-            start("cancelled", resolved(true, false, false, false)),
-            None,
-            answered(&device),
-        )
-        .unwrap();
+    workflow.start_on(start("cancelled", resolved(true, false, false, false)), None, answered(&device)).unwrap();
     // Drains between waits admit the step that starts the device.
     let mut cursor = 0;
     loop {
@@ -649,10 +589,7 @@ async fn shutdown_joins_cleanup() {
     workflow.interrupt();
     // Shutdown cancels the step and joins cleanup.
     workflow.shutdown().await;
-    assert_eq!(
-        observations.events(),
-        ["template initialized", "step", "cleanup finished"]
-    );
+    assert_eq!(observations.events(), ["template initialized", "step", "cleanup finished"]);
 }
 
 #[tokio::test]
@@ -661,13 +598,7 @@ async fn unfinished_initialize_handles() {
         let observations = Arc::new(Observations::default());
         let device = Device::open(&registered(&observations));
         let workflow = Workflow::<Probe>::new(SUITE, "resource-owner");
-        workflow
-            .start_on(
-                start("initializing", resolved(false, !cancel, cancel, false)),
-                None,
-                answered(&device),
-            )
-            .unwrap();
+        workflow.start_on(start("initializing", resolved(false, !cancel, cancel, false)), None, answered(&device)).unwrap();
         if cancel {
             // Initialization acquires its handle before cancellation.
             observations.started.notified().await;
@@ -690,29 +621,16 @@ async fn unfinished_initialize_handles() {
 async fn harness_finalizes() {
     let observations = Arc::new(Observations::default());
     let device = Device::open(&registered(&observations));
-    let report = harnessed(&device)
-        .run::<OwnerSuites>()
-        .await
-        .expect("the run completes");
+    let report = harnessed(&device).run::<OwnerSuites>().await.expect("the run completes");
     assert!(report.passed(), "{}", report.diagnostics());
-    assert!(
-        report.criteria().is_empty(),
-        "this template declares no criterion, so the run decides none"
-    );
-    assert_eq!(
-        observations.events(),
-        ["template initialized", "step", "cleanup finished"]
-    );
+    assert!(report.criteria().is_empty(), "this template declares no criterion, so the run decides none");
+    assert_eq!(observations.events(), ["template initialized", "step", "cleanup finished"]);
 }
 
 #[tokio::test]
 async fn harness_files_directory() {
     let device = Device::open(&registered(&Arc::new(Observations::default())));
-    let report = harnessed(&device)
-        .parameter("watch_directory", true)
-        .run::<OwnerSuites>()
-        .await
-        .expect("the run completes");
+    let report = harnessed(&device).parameter("watch_directory", true).run::<OwnerSuites>().await.expect("the run completes");
 
     assert!(report.passed(), "{}", report.diagnostics());
     let watched = report.artifact("capture/chamber.log");
@@ -756,27 +674,17 @@ async fn harness_refuses_opening() {
         .await
         .expect_err("unknown template is refused");
     assert!(matches!(error, HarnessError::UnknownTemplate(_)), "{error}");
-    assert!(
-        observations.events().is_empty(),
-        "nothing was opened, so nothing had to be released"
-    );
+    assert!(observations.events().is_empty(), "nothing was opened, so nothing had to be released");
 }
 
 #[tokio::test]
 async fn harness_preserves_failure() {
     let observations = Arc::new(Observations::default());
     let device = Device::open(&registered(&observations));
-    let report = harnessed(&device)
-        .parameter("initialize_fail", true)
-        .run::<OwnerSuites>()
-        .await
-        .expect("authored failures are execution outcomes");
+    let report =
+        harnessed(&device).parameter("initialize_fail", true).run::<OwnerSuites>().await.expect("authored failures are execution outcomes");
     assert!(!report.passed());
-    assert!(
-        report.diagnostics().contains("initialization refused"),
-        "{}",
-        report.diagnostics()
-    );
+    assert!(report.diagnostics().contains("initialization refused"), "{}", report.diagnostics());
     assert_eq!(observations.events(), ["partial initialization dropped"]);
 }
 
@@ -785,9 +693,7 @@ async fn harness_preserves_failure() {
 async fn harness_caller_settles() {
     let observations = Arc::new(Observations::default());
     let device = Device::open(&registered(&observations));
-    let harness = harnessed(&device)
-        .parameter("wait", true)
-        .timeout(Duration::from_millis(100));
+    let harness = harnessed(&device).parameter("wait", true).timeout(Duration::from_millis(100));
     let caller = tokio::spawn(harness.run::<OwnerSuites>());
     observations.started.notified().await;
     caller.abort();
@@ -801,13 +707,9 @@ fn catalog_is_inert() {
     // A plugin whose preparation panics still exports its registration: the
     // declaration pass reads what was declared and opens nothing.
     let mut registrar = dokime_runtime::harmos::sidecar::Registrar::new();
-    <CatalogOnly as dokime_runtime::Plugin>::register(&mut registrar)
-        .expect("a catalog is exported without opening the plugin");
+    <CatalogOnly as dokime_runtime::Plugin>::register(&mut registrar).expect("a catalog is exported without opening the plugin");
     let registrations = registrar.finish();
-    let suites = registrations
-        .iter()
-        .find(|entry| entry.namespace == dokime_runtime::plugin::registration::SUITES_NAMESPACE)
-        .unwrap();
+    let suites = registrations.iter().find(|entry| entry.namespace == dokime_runtime::plugin::registration::SUITES_NAMESPACE).unwrap();
     let decoded: dokime_runtime::definition::SuiteSet = serde_json::from_slice(&suites.payload).unwrap();
     assert_eq!(decoded.suites.len(), 1);
     assert_eq!(decoded.suites[0].suite_id, SUITE);

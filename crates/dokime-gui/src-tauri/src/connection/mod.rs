@@ -92,11 +92,7 @@ impl ConnectionSession {
     }
 
     pub fn status(&self) -> ConnectionSnapshot {
-        self.inner
-            .lock()
-            .expect("connection state poisoned")
-            .snapshot
-            .clone()
+        self.inner.lock().expect("connection state poisoned").snapshot.clone()
     }
 
     pub fn lease(&self, generation: &str) -> Result<SessionLease, ConnectionError> {
@@ -116,10 +112,7 @@ impl ConnectionSession {
         Ok(state.snapshot.clone())
     }
 
-    pub async fn connect(
-        &self,
-        request: ConnectRequest,
-    ) -> Result<ConnectionSnapshot, ConnectionError> {
+    pub async fn connect(&self, request: ConnectRequest) -> Result<ConnectionSnapshot, ConnectionError> {
         // Reject malformed targets before disturbing an existing valid connection.
         let target = transport::Target::parse(request.target)?;
         let (generation, cancellation) = {
@@ -156,11 +149,7 @@ impl ConnectionSession {
     }
 
     async fn establish(
-        &self,
-        target: &transport::Target,
-        credentials: ConnectionCredentials,
-        expected_id: Option<&str>,
-        generation: u64,
+        &self, target: &transport::Target, credentials: ConnectionCredentials, expected_id: Option<&str>, generation: u64,
         cancellation: CancellationToken,
     ) -> Result<(SessionLease, BackendSnapshot), ConnectionError> {
         let (token, remember) = match credentials {
@@ -169,37 +158,23 @@ impl ConnectionSession {
                 let endpoint = target.endpoint.clone();
                 let token = self
                     .access_credentials(generation, &cancellation, move |store| {
-                        store
-                            .read(&endpoint)
-                            .map_err(|_| ConnectionError::CredentialsUnavailable)
+                        store.read(&endpoint).map_err(|_| ConnectionError::CredentialsUnavailable)
                     })
                     .await?
                     .ok_or(ConnectionError::CredentialsUnavailable)?;
                 (Some(token), false)
             }
-            ConnectionCredentials::Bearer { token, remember } => {
-                (Some(Zeroizing::new(token)), remember)
-            }
+            ConnectionCredentials::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
         };
-        let client = dokime_client::Client::connect(
-            target.inner.clone(),
-            token.as_ref().map(|token| token.as_str()),
-            expected_id,
-        )
-        .await
-        .map_err(ConnectionError::from)?;
+        let client = dokime_client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
+            .await
+            .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
-        let lease = SessionLease {
-            generation: generation.to_string(),
-            client,
-            cancellation,
-        };
+        let lease = SessionLease { generation: generation.to_string(), client, cancellation };
         if remember && let Some(token) = token {
             let endpoint = target.endpoint.clone();
             self.access_credentials(generation, &lease.cancellation, move |store| {
-                store
-                    .write(&endpoint, token.as_str())
-                    .map_err(|_| ConnectionError::CredentialsUnavailable)
+                store.write(&endpoint, token.as_str()).map_err(|_| ConnectionError::CredentialsUnavailable)
             })
             .await?;
         }
@@ -207,9 +182,7 @@ impl ConnectionSession {
     }
 
     async fn access_credentials<T: Send + 'static>(
-        &self,
-        generation: u64,
-        cancellation: &CancellationToken,
+        &self, generation: u64, cancellation: &CancellationToken,
         operation: impl FnOnce(&dyn SecretStore) -> Result<T, ConnectionError> + Send + 'static,
     ) -> Result<T, ConnectionError> {
         let ownership = Arc::clone(&self.secret_operations).lock_owned().await;
@@ -221,9 +194,7 @@ impl ConnectionSession {
             // Keep serialization owned by the blocking work, even if its caller
             // drops the JoinHandle. Newer writes must run after that operation.
             let _ownership = ownership;
-            if cancellation.is_cancelled()
-                || state.lock().expect("connection state poisoned").generation != generation
-            {
+            if cancellation.is_cancelled() || state.lock().expect("connection state poisoned").generation != generation {
                 return Err(ConnectionError::Superseded);
             }
             operation(store.as_ref())
@@ -235,10 +206,7 @@ impl ConnectionSession {
 
 impl SessionState {
     fn advance(&mut self) -> Result<(), ConnectionError> {
-        let generation = self
-            .generation
-            .checked_add(1)
-            .ok_or(ConnectionError::GenerationExhausted)?;
+        let generation = self.generation.checked_add(1).ok_or(ConnectionError::GenerationExhausted)?;
         self.cancellation.cancel();
         if let Some(lease) = self.lease.take() {
             lease.client.close();
@@ -270,10 +238,7 @@ impl SessionLease {
         &self.generation
     }
 
-    pub(crate) async fn guard<T>(
-        &self,
-        future: impl Future<Output = T>,
-    ) -> Result<T, ConnectionError> {
+    pub(crate) async fn guard<T>(&self, future: impl Future<Output = T>) -> Result<T, ConnectionError> {
         let result = tokio::select! {
             biased;
             _ = self.cancellation.cancelled() => return Err(ConnectionError::Superseded),
@@ -289,10 +254,7 @@ impl SessionLease {
         self.cancellation.clone()
     }
 
-    pub async fn execute<T>(
-        &self,
-        request: impl Future<Output = Result<T, tonic::Status>>,
-    ) -> Result<T, ConnectionError> {
+    pub async fn execute<T>(&self, request: impl Future<Output = Result<T, tonic::Status>>) -> Result<T, ConnectionError> {
         self.guard(request).await?.map_err(errors::rpc_error)
     }
 }

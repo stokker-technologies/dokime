@@ -22,14 +22,10 @@ use criterion::{BenchmarkId, Criterion, Throughput};
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::{Identifier, Timestamp, Value};
-use {
-    model::records::evidence::Record,
-    model::records::evidence::RecordEntry,
-    dokime_runtime::records::RecordSeverity,
-};
-use dokime_runtime::telemetry::TelemetrySample;
 use dokime_runtime::domains::evidence::{RecordSelection, TelemetrySelection};
+use dokime_runtime::telemetry::TelemetrySample;
+use dokime_runtime::{Identifier, Timestamp, Value};
+use {dokime_runtime::records::RecordSeverity, model::records::evidence::Record, model::records::evidence::RecordEntry};
 
 /* === Constants === */
 const COUNTS: [u64; 2] = [1_000, 10_000];
@@ -98,9 +94,7 @@ fn records(count: u64) -> Vec<RecordEntry> {
                     RecordSeverity::Info,
                 ),
             );
-            record
-                .details
-                .insert("value".to_owned(), Value::Number(index as f64));
+            record.details.insert("value".to_owned(), Value::Number(index as f64));
             record
         })
         .collect()
@@ -109,11 +103,14 @@ fn records(count: u64) -> Vec<RecordEntry> {
 fn telemetry_samples(count: u64, stream: &str) -> Vec<TelemetrySample> {
     (0..count)
         .map(|index| {
-            let mut sample =
-                TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier(stream), index + 1, dokime_runtime::model::time::now_utc(), "bench");
-            sample
-                .values
-                .insert("value".to_owned(), Value::Number(index as f64));
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                identifier(stream),
+                index + 1,
+                dokime_runtime::model::time::now_utc(),
+                "bench",
+            );
+            sample.values.insert("value".to_owned(), Value::Number(index as f64));
             sample
         })
         .collect()

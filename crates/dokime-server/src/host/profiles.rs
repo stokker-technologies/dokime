@@ -47,9 +47,7 @@ pub(crate) struct DevProfileGuards {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn dev_profile_layers(
-    root: &Path,
-) -> Result<Option<(Vec<BoxedLayer>, DevProfileGuards)>> {
+pub(crate) fn dev_profile_layers(root: &Path) -> Result<Option<(Vec<BoxedLayer>, DevProfileGuards)>> {
     if !dev_profile_enabled() {
         return Ok(None);
     }
@@ -59,19 +57,13 @@ pub(crate) fn dev_profile_layers(
     std::fs::create_dir_all(&profile_dir)?;
     prune_stale_profile_dirs(&profiles_root);
 
-    let (chrome_layer, chrome_guard) = tracing_chrome::ChromeLayerBuilder::new()
-        .file(profile_dir.join("server.trace.json"))
-        .include_args(true)
-        .build();
-    let (flame_layer, flame_guard) =
-        tracing_flame::FlameLayer::with_file(profile_dir.join("server.folded"))
-            .map_err(|error| Error::Setup(format!("failed to start flame profiling: {error}")))?;
+    let (chrome_layer, chrome_guard) =
+        tracing_chrome::ChromeLayerBuilder::new().file(profile_dir.join("server.trace.json")).include_args(true).build();
+    let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file(profile_dir.join("server.folded"))
+        .map_err(|error| Error::Setup(format!("failed to start flame profiling: {error}")))?;
 
     let layers: Vec<BoxedLayer> = vec![chrome_layer.boxed(), flame_layer.boxed()];
-    let guards = DevProfileGuards {
-        _chrome: chrome_guard,
-        _flame: flame_guard,
-    };
+    let guards = DevProfileGuards { _chrome: chrome_guard, _flame: flame_guard };
     Ok(Some((layers, guards)))
 }
 
@@ -92,10 +84,7 @@ fn profiles_root(root: &Path) -> PathBuf {
 }
 
 fn current_epoch_millis() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_millis())
-        .unwrap_or_default()
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|value| value.as_millis()).unwrap_or_default()
 }
 
 fn prune_stale_profile_dirs(profiles_root: &Path) {
@@ -109,10 +98,7 @@ fn prune_stale_profile_dirs(profiles_root: &Path) {
         .filter_map(|entry| {
             let stamp = entry.file_name().to_str()?.strip_prefix("dev-")?.to_owned();
             let is_digits = !stamp.is_empty() && stamp.bytes().all(|byte| byte.is_ascii_digit());
-            is_digits
-                .then(|| stamp.parse::<u128>().ok())
-                .flatten()
-                .map(|stamp| (stamp, entry.path()))
+            is_digits.then(|| stamp.parse::<u128>().ok()).flatten().map(|stamp| (stamp, entry.path()))
         })
         .collect();
 

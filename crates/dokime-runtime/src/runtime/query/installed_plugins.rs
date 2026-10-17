@@ -62,12 +62,7 @@ impl RuntimeInstalledPluginRecord {
             version: plugin.version.clone(),
             enabled: plugin.enabled,
             runtime: "code".to_owned(),
-            status: if plugin.enabled {
-                "registered"
-            } else {
-                "disabled"
-            }
-            .to_owned(),
+            status: if plugin.enabled { "registered" } else { "disabled" }.to_owned(),
             error: None,
         }
     }
@@ -78,12 +73,7 @@ pub(crate) fn installed_plugin_frame(state: &RuntimeState) -> RuntimeInstalledPl
     let plugins = state
         .installed_plugins
         .values()
-        .map(|plugin| {
-            RuntimeInstalledPluginRecord::from_plugin(
-                plugin,
-                state.plugin_owners.get(&plugin.source).cloned(),
-            )
-        })
+        .map(|plugin| RuntimeInstalledPluginRecord::from_plugin(plugin, state.plugin_owners.get(&plugin.source).cloned()))
         .collect::<Vec<_>>();
     RuntimeInstalledPluginFrame {
         total_plugins: plugins.len(),

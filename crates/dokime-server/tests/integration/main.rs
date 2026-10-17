@@ -48,17 +48,13 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
 // Local Imports
-use {
-    dokime_runtime::Runtime,
-    dokime_runtime::Identifier,
-    dokime_runtime::Metadata,
-};
 use dokime_client::contracts;
 use dokime_server::grpc::{
     Config, Server, TlsIdentity,
     access::{BearerGrant, Role},
 };
 use support::wire::*;
+use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime};
 
 /* === Constants === */
 

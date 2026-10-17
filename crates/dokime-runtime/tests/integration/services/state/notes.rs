@@ -18,14 +18,12 @@
 use harmos::state::Transaction;
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::{
-    CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp,
-};
 use dokime_domain::model::execution::result::CycleView;
-use model::execution::OperatorNote;
-use model::execution::notes::*;
 use dokime_runtime::state::RuntimeState;
 use dokime_runtime::transactions::{AddOperatorNote, CreateOperatorNote};
+use dokime_runtime::{CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp};
+use model::execution::OperatorNote;
+use model::execution::notes::*;
 
 /* === Constants === */
 
@@ -64,9 +62,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
             ).unwrap()
         }]
     })).unwrap();
-    state
-        .replace_cycle(cycle)
-        .expect("cycle projection has valid ownership");
+    state.replace_cycle(cycle).expect("cycle projection has valid ownership");
     let owner = NoteOwner::Case { cycle_id, case_id };
     let mutation_id = dokime_runtime::model::identity::new_id::<CommandId>();
     let admission = NoteAdmission {
@@ -100,11 +96,7 @@ fn note_mutations_restarts() {
     .apply(&mut state);
     assert!(create.check(&state).unwrap_err().contains("epoch/actor"));
 
-    create.admission.note.note_id = note_identity(
-        state.process_epoch(),
-        "operator",
-        &create.admission.mutation_id,
-    );
+    create.admission.note.note_id = note_identity(state.process_epoch(), "operator", &create.admission.mutation_id);
     create.check(&state).unwrap();
     assert_eq!(create.admission.note.scope, scope);
 }
@@ -112,9 +104,7 @@ fn note_mutations_restarts() {
 #[test]
 fn retry_identity_retirement() {
     let (mut state, admission) = fixture();
-    let create = CreateOperatorNote {
-        admission: admission.clone(),
-    };
+    let create = CreateOperatorNote { admission: admission.clone() };
     create.check(&state).unwrap();
     create.apply(&mut state);
     assert_eq!(state.iter_notes().count(), 1);
@@ -132,23 +122,11 @@ fn retry_identity_retirement() {
     retry.admission.note.message.push('!');
     assert!(retry.check(&state).is_err());
     retry = create.clone();
-    retry.admission.owner = NoteOwner::Cycle {
-        cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
-    };
+    retry.admission.owner = NoteOwner::Cycle { cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>() };
     assert!(retry.check(&state).is_err());
     let old_id = create.admission.note.note_id;
-    assert_ne!(
-        old_id,
-        note_identity(&dokime_runtime::model::identity::new_id::<SessionId>(), "operator", &admission.mutation_id)
-    );
-    assert_ne!(
-        old_id,
-        note_identity(
-            state.process_epoch(),
-            "another operator",
-            &admission.mutation_id
-        )
-    );
+    assert_ne!(old_id, note_identity(&dokime_runtime::model::identity::new_id::<SessionId>(), "operator", &admission.mutation_id));
+    assert_ne!(old_id, note_identity(state.process_epoch(), "another operator", &admission.mutation_id));
 }
 
 #[test]
@@ -162,11 +140,7 @@ fn rejects_missing_owners() {
     assert!(state.cycles[&cycle_id].records.notes().is_empty());
     note.scope.test_execution_id = None;
     note.scope.session_id = Some(dokime_runtime::model::identity::new_id::<SessionId>());
-    assert!(
-        AddOperatorNote { note: note.clone() }
-            .check(&state)
-            .is_err()
-    );
+    assert!(AddOperatorNote { note: note.clone() }.check(&state).is_err());
     note.scope = state.note_owner_scope(&admission.owner).unwrap();
     let removed = std::mem::take(&mut state.cycles.get_mut(&cycle_id).unwrap().execution_ids);
     for id in removed {
@@ -182,40 +156,20 @@ fn capacity_preserves_receipts() {
         let mut item = admission.clone();
         item.mutation_id = dokime_runtime::model::identity::new_id::<CommandId>();
         item.note.note_id = note_identity(state.process_epoch(), "operator", &item.mutation_id);
-        state
-            .note_admissions
-            .insert(item.note.note_id.clone(), item);
+        state.note_admissions.insert(item.note.note_id.clone(), item);
     }
     let existing = state.note_admissions.values().next().unwrap().clone();
-    assert!(
-        CreateOperatorNote {
-            admission: admission.clone()
-        }
-        .check(&state)
-        .unwrap_err()
-        .contains("capacity")
-    );
-    CreateOperatorNote {
-        admission: existing.clone(),
-    }
-    .check(&state)
-    .unwrap();
+    assert!(CreateOperatorNote { admission: admission.clone() }.check(&state).unwrap_err().contains("capacity"));
+    CreateOperatorNote { admission: existing.clone() }.check(&state).unwrap();
     assert_eq!(state.note_admissions.len(), NOTE_RECEIPT_LIMIT);
     state.note_admissions.clear();
     for _ in 0..600 {
         let mut item = admission.clone();
         item.note.note_id = dokime_runtime::model::identity::new_id::<NoteId>();
         item.note.message = "x".repeat(NOTE_TEXT_BYTES);
-        state
-            .note_admissions
-            .insert(item.note.note_id.clone(), item);
+        state.note_admissions.insert(item.note.note_id.clone(), item);
     }
-    assert!(
-        CreateOperatorNote { admission }
-            .check(&state)
-            .unwrap_err()
-            .contains("capacity")
-    );
+    assert!(CreateOperatorNote { admission }.check(&state).unwrap_err().contains("capacity"));
 }
 
 #[test]
@@ -229,9 +183,7 @@ fn scoped_read_bounds() {
             execution.test_cycle_id = cycle.test_cycle_id.clone();
             execution.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
         }
-        state
-            .replace_cycle(cycle)
-            .expect("cycle projection has valid ownership");
+        state.replace_cycle(cycle).expect("cycle projection has valid ownership");
     }
     assert!(state.annotation_sets(None, false).is_err());
     assert!(state.annotation_sets(Some(&admission.owner), false).is_ok());

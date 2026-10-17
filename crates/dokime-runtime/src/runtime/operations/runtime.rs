@@ -20,9 +20,9 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation};
 
 // Local Imports
-use crate::{RuntimeHandle, app::Lanes};
 use crate::operations::runtime::GetHealth;
 use crate::operations::runtime::GetIdentity;
+use crate::{RuntimeHandle, app::Lanes};
 use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
 use dokime_domain::model::runtime::wire::Readiness;
@@ -65,38 +65,22 @@ impl Operation for ReadHealth {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut GetHealth,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut GetHealth, _: &mut (),
     ) -> Result<harmos::operations::Response<Health>, Self::Error> {
-        let stopping = *self.resources.shutdown.borrow()
-            || self.resources.state.borrow().state().shutting_down;
+        let stopping = *self.resources.shutdown.borrow() || self.resources.state.borrow().state().shutting_down;
         let observed_at = time::OffsetDateTime::now_utc();
         Ok((Health {
             backend_id: self.resources.identity.backend_id.clone(),
             epoch: self.resources.identity.epoch.clone(),
-            readiness: if stopping {
-                Readiness::Stopping
-            } else {
-                Readiness::Ready
-            },
+            readiness: if stopping { Readiness::Stopping } else { Readiness::Ready },
             observed_at_seconds: observed_at.unix_timestamp(),
             observed_at_nanoseconds: observed_at.nanosecond(),
-            message: if stopping {
-                "Runtime is stopping"
-            } else {
-                "Runtime is running"
-            }
-            .into(),
+            message: if stopping { "Runtime is stopping" } else { "Runtime is running" }.into(),
         })
         .into())
     }
@@ -109,18 +93,12 @@ impl Operation for ReadIdentity {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut GetIdentity,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut GetIdentity, _: &mut (),
     ) -> Result<harmos::operations::Response<Identity>, Self::Error> {
         Ok((self.resources.identity.clone()).into())
     }
@@ -138,20 +116,8 @@ pub(crate) fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
         shutdown: runtime.shutdown_requested.subscribe(),
         state: runtime.state_watch.subscribe(),
     };
-    runtime
-        .operations
-        .register_wire_operations::<Operations, Resources>(
-            "dokime",
-            Lanes::Open,
-            Arc::new(resources),
-        )?;
-    runtime
-        .operations
-        .register_wire_operation::<harmos::operations::discovery::Discovery>(
-            "dokime",
-            Lanes::Open,
-            Arc::new(()),
-        )?;
+    runtime.operations.register_wire_operations::<Operations, Resources>("dokime", Lanes::Open, Arc::new(resources))?;
+    runtime.operations.register_wire_operation::<harmos::operations::discovery::Discovery>("dokime", Lanes::Open, Arc::new(()))?;
     Ok(())
 }
 

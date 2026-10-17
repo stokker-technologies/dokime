@@ -82,49 +82,38 @@ impl ResourceRegistry {
     }
 
     fn record_fields(
-        &mut self,
-        record_type: &Identifier,
-        source: &str,
-        timestamp: &Timestamp,
-        created_at: Option<time::OffsetDateTime>,
-        details: &BTreeMap<String, Value>,
-        record_scope: &Option<RecordScope>,
+        &mut self, record_type: &Identifier, source: &str, timestamp: &Timestamp, created_at: Option<time::OffsetDateTime>,
+        details: &BTreeMap<String, Value>, record_scope: &Option<RecordScope>,
     ) -> Option<RecordScope> {
         let lifecycle = resource_lifecycle(record_type)?;
         let scope = record_scope.clone();
         let resource_id = resource_identifier(details, record_scope);
-        let resource_kind = text_detail(details, "resource_kind")
-            .or_else(|| text_detail(details, "kind"))
-            .unwrap_or_else(|| resource_id.clone());
-        let resource_name = text_detail(details, "resource_name")
-            .or_else(|| text_detail(details, "name"))
-            .unwrap_or_else(|| resource_id.clone());
-        let instance =
-            self.resolve_instance(details, &scope, &resource_id, &resource_name, &lifecycle);
+        let resource_kind =
+            text_detail(details, "resource_kind").or_else(|| text_detail(details, "kind")).unwrap_or_else(|| resource_id.clone());
+        let resource_name =
+            text_detail(details, "resource_name").or_else(|| text_detail(details, "name")).unwrap_or_else(|| resource_id.clone());
+        let instance = self.resolve_instance(details, &scope, &resource_id, &resource_name, &lifecycle);
         let key = registry_key(scope.as_ref(), &instance.instance_id);
 
-        let mut record = self
-            .resources
-            .remove(&key)
-            .unwrap_or_else(|| ResourceRecord {
-                metadata: {
-                    let mut metadata = Metadata::definition(
-                        identifier(&format!("resource.{}", instance.instance_id)),
-                        instance.label.clone(),
-                        Some("Runtime resource observed during test execution.".to_owned()),
-                        ["resource", resource_kind.as_str()],
-                    );
-                    metadata.created_at = created_at;
-                    metadata
-                },
-                resource_id: resource_id.clone(),
-                resource_kind: resource_kind.clone(),
-                source: source.to_owned(),
-                lifecycle: lifecycle.clone(),
-                scope: scope.clone(),
-                details: BTreeMap::new(),
-                updated_at: timestamp.clone(),
-            });
+        let mut record = self.resources.remove(&key).unwrap_or_else(|| ResourceRecord {
+            metadata: {
+                let mut metadata = Metadata::definition(
+                    identifier(&format!("resource.{}", instance.instance_id)),
+                    instance.label.clone(),
+                    Some("Runtime resource observed during test execution.".to_owned()),
+                    ["resource", resource_kind.as_str()],
+                );
+                metadata.created_at = created_at;
+                metadata
+            },
+            resource_id: resource_id.clone(),
+            resource_kind: resource_kind.clone(),
+            source: source.to_owned(),
+            lifecycle: lifecycle.clone(),
+            scope: scope.clone(),
+            details: BTreeMap::new(),
+            updated_at: timestamp.clone(),
+        });
 
         record.resource_id = resource_id.clone();
         record.resource_kind = resource_kind;
@@ -133,37 +122,16 @@ impl ResourceRegistry {
         record.scope = scope.clone().or(record.scope);
         record.updated_at = timestamp.clone();
         merge_details(&mut record.details, details);
-        record
-            .details
-            .entry("resource_name".to_owned())
-            .or_insert_with(|| Value::from(resource_name));
-        record
-            .details
-            .entry("resource_kind".to_owned())
-            .or_insert_with(|| Value::from(record.resource_kind.clone()));
-        record
-            .details
-            .entry("resource_id".to_owned())
-            .or_insert_with(|| Value::from(record.resource_id.clone()));
-        record.details.insert(
-            "resource_instance_id".to_owned(),
-            Value::from(instance.instance_id.clone()),
-        );
+        record.details.entry("resource_name".to_owned()).or_insert_with(|| Value::from(resource_name));
+        record.details.entry("resource_kind".to_owned()).or_insert_with(|| Value::from(record.resource_kind.clone()));
+        record.details.entry("resource_id".to_owned()).or_insert_with(|| Value::from(record.resource_id.clone()));
+        record.details.insert("resource_instance_id".to_owned(), Value::from(instance.instance_id.clone()));
         if text_detail(details, "resource_instance_label").is_some() {
-            record.details.insert(
-                "resource_instance_label".to_owned(),
-                Value::from(instance.label.clone()),
-            );
+            record.details.insert("resource_instance_label".to_owned(), Value::from(instance.label.clone()));
         } else {
-            record
-                .details
-                .entry("resource_instance_label".to_owned())
-                .or_insert_with(|| Value::from(instance.label.clone()));
+            record.details.entry("resource_instance_label".to_owned()).or_insert_with(|| Value::from(instance.label.clone()));
         }
-        record
-            .details
-            .entry("resource_sequence".to_owned())
-            .or_insert_with(|| Value::from(instance.sequence as i64));
+        record.details.entry("resource_sequence".to_owned()).or_insert_with(|| Value::from(instance.sequence as i64));
 
         self.resources.insert(key, record);
         self.update_instance_activity(&scope, &resource_id, &instance.instance_id, &lifecycle);
@@ -174,36 +142,22 @@ impl ResourceRegistry {
         let mut records = self
             .resources
             .values()
-            .filter(|record| {
-                record
-                    .scope
-                    .as_ref()
-                    .is_some_and(|scope| scope_visible_in(Some(scope), selected))
-            })
+            .filter(|record| record.scope.as_ref().is_some_and(|scope| scope_visible_in(Some(scope), selected)))
             .collect::<Vec<_>>();
-        records.sort_by(|left, right| {
-            left.metadata
-                .label
-                .cmp(&right.metadata.label)
-                .then_with(|| left.resource_id.cmp(&right.resource_id))
-        });
+        records
+            .sort_by(|left, right| left.metadata.label.cmp(&right.metadata.label).then_with(|| left.resource_id.cmp(&right.resource_id)));
         records
     }
 
     fn resolve_instance(
-        &mut self,
-        details: &BTreeMap<String, Value>,
-        scope: &Option<RecordScope>,
-        resource_id: &str,
-        resource_name: &str,
+        &mut self, details: &BTreeMap<String, Value>, scope: &Option<RecordScope>, resource_id: &str, resource_name: &str,
         lifecycle: &ResourceLifecycle,
     ) -> ResourceInstance {
         let base_key = registry_key(scope.as_ref(), resource_id);
         if let Some(instance_id) = text_detail(details, "resource_instance_id") {
             let sequence = self.sequence_for_explicit_instance(&base_key, &instance_id);
             return ResourceInstance {
-                label: text_detail(details, "resource_instance_label")
-                    .unwrap_or_else(|| instance_label(resource_name, sequence)),
+                label: text_detail(details, "resource_instance_label").unwrap_or_else(|| instance_label(resource_name, sequence)),
                 instance_id,
                 sequence,
             };
@@ -212,8 +166,7 @@ impl ResourceRegistry {
         if let Some(instance_id) = self.instance_for_existing_record(&base_key, lifecycle) {
             let sequence = instance_sequence(&instance_id).unwrap_or(1);
             return ResourceInstance {
-                label: text_detail(details, "resource_instance_label")
-                    .unwrap_or_else(|| instance_label(resource_name, sequence)),
+                label: text_detail(details, "resource_instance_label").unwrap_or_else(|| instance_label(resource_name, sequence)),
                 instance_id,
                 sequence,
             };
@@ -222,8 +175,7 @@ impl ResourceRegistry {
         let sequence = next_instance_sequence(&mut self.instance_counts, &base_key);
         ResourceInstance {
             instance_id: generated_instance_id(resource_id, sequence),
-            label: text_detail(details, "resource_instance_label")
-                .unwrap_or_else(|| instance_label(resource_name, sequence)),
+            label: text_detail(details, "resource_instance_label").unwrap_or_else(|| instance_label(resource_name, sequence)),
             sequence,
         }
     }
@@ -245,39 +197,24 @@ impl ResourceRegistry {
         sequence
     }
 
-    fn instance_for_existing_record(
-        &self,
-        base_key: &str,
-        lifecycle: &ResourceLifecycle,
-    ) -> Option<String> {
+    fn instance_for_existing_record(&self, base_key: &str, lifecycle: &ResourceLifecycle) -> Option<String> {
         match lifecycle {
             ResourceLifecycle::Closed | ResourceLifecycle::Failed | ResourceLifecycle::Removed => {
-                self.active_instances
-                    .get(base_key)
-                    .or_else(|| self.latest_instances.get(base_key))
-                    .cloned()
+                self.active_instances.get(base_key).or_else(|| self.latest_instances.get(base_key)).cloned()
             }
-            ResourceLifecycle::Registered | ResourceLifecycle::Opened => {
-                self.active_instances.get(base_key).cloned()
-            }
+            ResourceLifecycle::Registered | ResourceLifecycle::Opened => self.active_instances.get(base_key).cloned(),
         }
     }
 
     fn update_instance_activity(
-        &mut self,
-        scope: &Option<RecordScope>,
-        resource_id: &str,
-        instance_id: &str,
-        lifecycle: &ResourceLifecycle,
+        &mut self, scope: &Option<RecordScope>, resource_id: &str, instance_id: &str, lifecycle: &ResourceLifecycle,
     ) {
         let base_key = registry_key(scope.as_ref(), resource_id);
-        self.latest_instances
-            .insert(base_key.clone(), instance_id.to_owned());
+        self.latest_instances.insert(base_key.clone(), instance_id.to_owned());
 
         match lifecycle {
             ResourceLifecycle::Registered | ResourceLifecycle::Opened => {
-                self.active_instances
-                    .insert(base_key, instance_id.to_owned());
+                self.active_instances.insert(base_key, instance_id.to_owned());
             }
             ResourceLifecycle::Closed | ResourceLifecycle::Failed | ResourceLifecycle::Removed => {
                 if self.active_instances.get(&base_key).map(String::as_str) == Some(instance_id) {
@@ -301,18 +238,9 @@ impl ResourceRegistry {
             };
             let base_key = registry_key(record.scope.as_ref(), &record.resource_id);
             let sequence = instance_sequence(&instance_id).unwrap_or(1);
-            self.instance_counts
-                .entry(base_key.clone())
-                .and_modify(|count| *count = (*count).max(sequence))
-                .or_insert(sequence);
-            self.instance_sequences
-                .insert(format!("{base_key}|instance:{instance_id}"), sequence);
-            self.update_instance_activity(
-                &record.scope,
-                &record.resource_id,
-                &instance_id,
-                &record.lifecycle,
-            );
+            self.instance_counts.entry(base_key.clone()).and_modify(|count| *count = (*count).max(sequence)).or_insert(sequence);
+            self.instance_sequences.insert(format!("{base_key}|instance:{instance_id}"), sequence);
+            self.update_instance_activity(&record.scope, &record.resource_id, &instance_id, &record.lifecycle);
         }
     }
 }
@@ -322,9 +250,7 @@ impl ResourceRegistry {
 /* === Private Functions === */
 fn resource_lifecycle(record_type: &Identifier) -> Option<ResourceLifecycle> {
     match record_type.as_str() {
-        "resource.registered" | "resource.attached" | "resource.opening" => {
-            Some(ResourceLifecycle::Registered)
-        }
+        "resource.registered" | "resource.attached" | "resource.opening" => Some(ResourceLifecycle::Registered),
         "resource.opened" | "resource.traceability.updated" => Some(ResourceLifecycle::Opened),
         "resource.closed" => Some(ResourceLifecycle::Closed),
         "resource.failed" => Some(ResourceLifecycle::Failed),
@@ -376,19 +302,9 @@ fn generated_instance_id(resource_id: &str, sequence: usize) -> String {
 fn sanitize_resource_id(value: &str) -> String {
     let sanitized = value
         .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '_' {
-                character
-            } else {
-                '_'
-            }
-        })
+        .map(|character| if character.is_ascii_alphanumeric() || character == '_' { character } else { '_' })
         .collect::<String>();
-    if sanitized.is_empty() {
-        "resource".to_owned()
-    } else {
-        sanitized
-    }
+    if sanitized.is_empty() { "resource".to_owned() } else { sanitized }
 }
 
 fn next_instance_sequence(counts: &mut BTreeMap<String, usize>, base_key: &str) -> usize {
@@ -428,8 +344,7 @@ fn title_label(value: &str) -> String {
 }
 
 fn identifier(value: &str) -> Identifier {
-    Identifier::new(value)
-        .unwrap_or_else(|error| panic!("invalid resource identifier {value}: {error}"))
+    Identifier::new(value).unwrap_or_else(|error| panic!("invalid resource identifier {value}: {error}"))
 }
 
 /* === Tests === */

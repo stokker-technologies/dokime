@@ -20,15 +20,17 @@ use std::{
 // Third Party Imports
 use harmos::operations::Context;
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use crate::{
-    runtime::Error, runtime::Result, RuntimeHandle,
-    plot::{PlotPayload, PlotPayloadCursor, PlotPayloadRequest},
-};
-use dokime_domain::model::identity::Identifier;
 use crate::domains::ActionDispatcher;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
+use crate::{
+    RuntimeHandle,
+    plot::{PlotPayload, PlotPayloadCursor, PlotPayloadRequest},
+    runtime::Error,
+    runtime::Result,
+};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -50,49 +52,24 @@ pub(crate) struct Resources {
 /* === Implementations === */
 impl Resources {
     pub(crate) fn new() -> Self {
-        Self {
-            dispatchers: Arc::new(RwLock::new(BTreeMap::new())),
-            unavailable: Arc::new(RwLock::new(BTreeSet::new())),
-        }
+        Self { dispatchers: Arc::new(RwLock::new(BTreeMap::new())), unavailable: Arc::new(RwLock::new(BTreeSet::new())) }
     }
 
     pub(crate) fn from_runtime(runtime: &RuntimeHandle) -> Self {
-        Self {
-            dispatchers: runtime.action_dispatchers.clone(),
-            unavailable: runtime.unavailable_plugins.clone(),
-        }
+        Self { dispatchers: runtime.action_dispatchers.clone(), unavailable: runtime.unavailable_plugins.clone() }
     }
     pub(crate) fn available(&self, source: &str) -> bool {
-        !self
-            .unavailable
-            .read()
-            .expect("plugin availability lock poisoned")
-            .contains(source)
+        !self.unavailable.read().expect("plugin availability lock poisoned").contains(source)
     }
     pub(crate) fn dispatcher(&self, source: &Identifier) -> Option<Arc<dyn ActionDispatcher>> {
-        self.dispatchers
-            .read()
-            .expect("analysis dispatcher lock poisoned")
-            .get(source)
-            .cloned()
+        self.dispatchers.read().expect("analysis dispatcher lock poisoned").get(source).cloned()
     }
     pub(crate) async fn invoke(
-        &self,
-        source: &Identifier,
-        expected: &Arc<dyn ActionDispatcher>,
-        operation: &str,
-        request: crate::analysis::Request,
+        &self, source: &Identifier, expected: &Arc<dyn ActionDispatcher>, operation: &str, request: crate::analysis::Request,
     ) -> Result<crate::analysis::Response> {
         let invocation = {
-            let dispatchers = self
-                .dispatchers
-                .read()
-                .expect("analysis dispatcher lock poisoned");
-            if !self.available(source.as_str())
-                || !dispatchers
-                    .get(source)
-                    .is_some_and(|current| Arc::ptr_eq(current, expected))
-            {
+            let dispatchers = self.dispatchers.read().expect("analysis dispatcher lock poisoned");
+            if !self.available(source.as_str()) || !dispatchers.get(source).is_some_and(|current| Arc::ptr_eq(current, expected)) {
                 return Err(Error::Admission(AdmissionFailure::Unavailable {
                     code: "analysis_owner_changed".into(),
                     message: "analysis owner changed while its evidence was being selected".into(),
@@ -100,28 +77,21 @@ impl Resources {
             }
             expected.analyze(operation, request)
         };
-        invocation
-            .await
-            .map_err(|error| Error::Operation(error.to_string()))
+        invocation.await.map_err(|error| Error::Operation(error.to_string()))
     }
 }
 
 /* === Public Functions === */
 pub(crate) async fn materialize(
-    ctx: &Context<'_>,
-    request: &PlotPayloadRequest,
-    telemetry: &[TelemetrySample],
-    payload: PlotPayload,
+    ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: PlotPayload,
     contract: Option<&TelemetryContract>,
 ) -> Result<PlotPayload> {
     let resources = &ctx.scope().resources::<crate::app::Dokime>().analysis;
     let state = ctx.scope().state::<crate::app::Dokime>().state();
     let prepared = state
         .read(|state| {
-            crate::runtime::query::plots::analysis::Prepared::resolve_with(
-                resources, state, request,
-            )
-            .map(|prepared| (prepared, state.process_epoch().to_string()))
+            crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request)
+                .map(|prepared| (prepared, state.process_epoch().to_string()))
         })
         .await
         .map_err(|error| Error::Operation(error.to_string()))?
@@ -132,21 +102,15 @@ pub(crate) async fn materialize(
     prepared.check_evidence(telemetry, request)?;
     let mut cursor = PlotPayloadCursor::default();
     for sample in telemetry.iter().filter(|sample| {
-        sample.stream.as_str() == request.stream
-            && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
+        sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
     }) {
-        let stream =
-            crate::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+        let stream = crate::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
         let ordinal = cursor.telemetry_streams.entry(stream).or_default();
         *ordinal = (*ordinal).max(sample.sequence);
     }
     prepared
         .execute_in(
-            crate::runtime::query::plots::analysis::Environment::Report {
-                ctx,
-                resources,
-                epoch: &epoch,
-            },
+            crate::runtime::query::plots::analysis::Environment::Report { ctx, resources, epoch: &epoch },
             request,
             &cursor,
             payload,

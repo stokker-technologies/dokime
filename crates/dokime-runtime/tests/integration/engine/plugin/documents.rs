@@ -109,10 +109,7 @@ impl Probe {
         document
     }
 
-    async fn initialize(
-        _: &ProbeParameters,
-        _ctx: &mut InitializationContext<'_>,
-    ) -> Result<(Self, ProbeResources), Error> {
+    async fn initialize(_: &ProbeParameters, _ctx: &mut InitializationContext<'_>) -> Result<(Self, ProbeResources), Error> {
         let template = Self;
         let shared = ProbeResources::default();
         Ok((template, shared))
@@ -127,8 +124,7 @@ impl Probe {
         discovered.id("documents.checks.discovered");
         discovered.note("The bench answered on one stream.");
         ctx.document().section(discovered);
-        ctx.document()
-            .note("documents.checks.declared", "Measured once.");
+        ctx.document().note("documents.checks.declared", "Measured once.");
 
         if ctx.parameters().repeat {
             let mut replaced = Section::new("Replaced");
@@ -176,8 +172,7 @@ impl Probe {
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        ctx.document()
-            .note("documents.checks.discovered", "The bench was released.");
+        ctx.document().note("documents.checks.discovered", "The bench was released.");
 
         Ok(())
     }
@@ -202,10 +197,7 @@ fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str
 
 #[tokio::test]
 async fn step_adds_declared() {
-    let report = Harness::template(TEMPLATE)
-        .run::<OwnerSuites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TEMPLATE).run::<OwnerSuites>().await.expect("the run completes");
 
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(
@@ -216,12 +208,7 @@ async fn step_adds_declared() {
     // The note the step wrote onto the declared section sits behind the plot
     // that section was declared with, and the one the added section carries
     // travelled with it.
-    let cards = report
-        .document()
-        .cards
-        .iter()
-        .map(|card| card.metadata.identifier.as_str())
-        .collect::<Vec<_>>();
+    let cards = report.document().cards.iter().map(|card| card.metadata.identifier.as_str()).collect::<Vec<_>>();
     assert_eq!(
         cards,
         [
@@ -237,10 +224,7 @@ async fn step_adds_declared() {
 
 #[tokio::test]
 async fn observer_shares_write() {
-    let report = Harness::template(TEMPLATE)
-        .run::<OwnerSuites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TEMPLATE).run::<OwnerSuites>().await.expect("the run completes");
 
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(
@@ -250,8 +234,7 @@ async fn observer_shares_write() {
             .nodes
             .iter()
             .filter_map(|node| match node {
-                DocumentNode::Section(section)
-                    if section.node_id.as_str() == "documents.checks.discovered" =>
+                DocumentNode::Section(section) if section.node_id.as_str() == "documents.checks.discovered" =>
                     Some(section.metadata.label.as_str()),
                 _ => None,
             })
@@ -263,11 +246,7 @@ async fn observer_shares_write() {
 
 #[tokio::test]
 async fn declared_section_so() {
-    let report = Harness::template(TEMPLATE)
-        .parameter("repeat", true)
-        .run::<OwnerSuites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TEMPLATE).parameter("repeat", true).run::<OwnerSuites>().await.expect("the run completes");
 
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(
@@ -282,8 +261,7 @@ async fn declared_section_so() {
             .nodes
             .iter()
             .filter_map(|node| match node {
-                DocumentNode::Section(section)
-                    if section.node_id.as_str() == "documents.checks.declared" =>
+                DocumentNode::Section(section) if section.node_id.as_str() == "documents.checks.declared" =>
                     Some(section.metadata.label.as_str()),
                 _ => None,
             })
@@ -291,11 +269,7 @@ async fn declared_section_so() {
         ["Declared"],
         "the declared label is the one that survives"
     );
-    assert!(
-        report.diagnostics().contains("documents.checks.declared"),
-        "an operator cannot act on {:?}",
-        report.diagnostics()
-    );
+    assert!(report.diagnostics().contains("documents.checks.declared"), "an operator cannot act on {:?}", report.diagnostics());
 }
 
 #[tokio::test]
@@ -304,10 +278,7 @@ async fn typed_columns_compare() {
     // repeat and a plot by the filter it builds.
     let voltage = SampleRow::column_voltage_v();
     let mut readings = Section::new("Readings");
-    readings
-        .each(voltage, "{value} V")
-        .only(voltage.gt(0.5))
-        .id("documents.checks.reading.{value}");
+    readings.each(voltage, "{value} V").only(voltage.gt(0.5)).id("documents.checks.reading.{value}");
     let mut plot = Plot::time_series("Voltage");
     plot.only(voltage.exists());
 
@@ -317,8 +288,5 @@ async fn typed_columns_compare() {
     assert_eq!(filter.operator, dokime_runtime::document::FilterOperator::Gt);
     assert_eq!(filter.value, Some(dokime_runtime::Value::from(0.5)));
     assert_eq!(plot.filters, [voltage.exists()]);
-    assert_eq!(
-        voltage.eq("CP-03").value,
-        Some(dokime_runtime::Value::from("CP-03"))
-    );
+    assert_eq!(voltage.eq("CP-03").value, Some(dokime_runtime::Value::from("CP-03")));
 }

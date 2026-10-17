@@ -46,9 +46,7 @@ pub(crate) struct Args {
 pub(super) fn run(args: Args) -> crate::Result<()> {
     args.config.store()?.update(|document| {
         document.get(&args.name)?;
-        document
-            .profiles
-            .retain(|profile| profile.name != args.name);
+        document.profiles.retain(|profile| profile.name != args.name);
         if document.default.as_deref() == Some(&args.name) {
             document.default = None;
         }

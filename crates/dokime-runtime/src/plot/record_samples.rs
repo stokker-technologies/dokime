@@ -20,8 +20,8 @@ use time::OffsetDateTime;
 // Local Imports
 use crate::document::frame::{Lookup, Side, Strategy};
 use crate::plot::{parse_timestamp, sample_matches_scope, stream_matches_alias};
-use dokime_domain::model::execution::RecordScope;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 
@@ -50,31 +50,19 @@ type Probe = (Option<String>, Option<String>, i128);
 
 /* === Implementations === */
 impl<'a> RecordSampleLookup<'a> {
-    pub(crate) fn for_stream(
-        telemetry: &'a [TelemetrySample],
-        stream: &str,
-        scope: Option<&RecordScope>,
-    ) -> Self {
+    pub(crate) fn for_stream(telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>) -> Self {
         Self::for_stream_matching(telemetry, stream, scope, |_| true)
     }
 
     pub(crate) fn for_stream_matching(
-        telemetry: &'a [TelemetrySample],
-        stream: &str,
-        scope: Option<&RecordScope>,
-        mut keep: impl FnMut(&TelemetrySample) -> bool,
+        telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>, mut keep: impl FnMut(&TelemetrySample) -> bool,
     ) -> Self {
         let samples = telemetry
             .iter()
             .filter(|sample| stream_matches_alias(sample.stream.as_str(), stream))
             .filter(|sample| sample_matches_scope(sample.scope.as_ref(), scope))
             .filter(|sample| keep(sample))
-            .filter_map(|sample| {
-                Some(IndexedRecordSample {
-                    sample,
-                    timestamp: parse_timestamp(sample.timestamp.as_str())?,
-                })
-            })
+            .filter_map(|sample| Some(IndexedRecordSample { sample, timestamp: parse_timestamp(sample.timestamp.as_str())? }))
             .collect::<Vec<_>>();
         let lookup = Lookup::new(
             samples.iter().enumerate().map(|(ordinal, sample)| Side {
@@ -85,17 +73,10 @@ impl<'a> RecordSampleLookup<'a> {
             }),
             Strategy::AtOrBefore,
         );
-        Self {
-            samples,
-            lookup,
-            prepared: BTreeMap::new(),
-        }
+        Self { samples, lookup, prepared: BTreeMap::new() }
     }
 
-    pub(crate) fn prepare<'p>(
-        &mut self,
-        probes: impl IntoIterator<Item = (Option<&'p RecordScope>, OffsetDateTime)>,
-    ) {
+    pub(crate) fn prepare<'p>(&mut self, probes: impl IntoIterator<Item = (Option<&'p RecordScope>, OffsetDateTime)>) {
         let sides = probes
             .into_iter()
             .map(|(scope, time)| side(scope, time))
@@ -107,9 +88,7 @@ impl<'a> RecordSampleLookup<'a> {
     }
 
     pub(crate) fn nearest_at_or_before(
-        &self,
-        record_scope: Option<&RecordScope>,
-        record_time: OffsetDateTime,
+        &self, record_scope: Option<&RecordScope>, record_time: OffsetDateTime,
     ) -> Option<IndexedRecordSample<'a>> {
         let side = side(record_scope, record_time);
         let ordinal = match self.prepared.get(&probe(&side)) {
@@ -124,24 +103,15 @@ impl<'a> RecordSampleLookup<'a> {
 
 /* === Private Functions === */
 fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
-    Side {
-        ordinal: 0,
-        scope,
-        time: Some(time.unix_timestamp_nanos()),
-        present: true,
-    }
+    Side { ordinal: 0, scope, time: Some(time.unix_timestamp_nanos()), present: true }
 }
 
 fn probe(side: &Side<'_>) -> Probe {
     let scope = side.scope;
     (
-        scope
-            .and_then(|scope| scope.test_execution_id.as_ref())
-            .map(|id| id.as_str().to_owned()),
+        scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str().to_owned()),
         scope.and_then(|scope| match &scope.origin {
-            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => {
-                Some(attempt_id.as_str().to_owned())
-            }
+            dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => Some(attempt_id.as_str().to_owned()),
             _ => None,
         }),
         side.time.unwrap_or_default(),

@@ -23,9 +23,9 @@ use std::sync::{
 
 // Third Party Imports
 use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::telemetry::{SamplingScope, TelemetrySamplingRequest, TelemetrySourceKind};
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::domains::telemetry::{Sampler, SamplerSession, SettlementError};
+use dokime_runtime::telemetry::{SamplingScope, TelemetrySamplingRequest, TelemetrySourceKind};
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -66,9 +66,7 @@ struct CollectedSession {
 /* === Implementations === */
 impl ExecutionFixture for QueuedSamples {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -82,21 +80,14 @@ impl ExecutionFixture for QueuedSamples {
             assert_eq!(receipt.accepted, 1);
             // Record A Completed Phase Before Stop: Its Outcome Must Survive Evidence Truncation.
             context
-                .update_execution_phase(
-                    execution.scope.clone(),
-                    identifier("fixture.phase"),
-                    "Fixture Phase".into(),
-                    "passed".into(),
-                )
+                .update_execution_phase(execution.scope.clone(), identifier("fixture.phase"), "Fixture Phase".into(), "passed".into())
                 .await
                 .unwrap();
             let mut waiting = tracking_batch();
             for sample in &mut waiting.samples {
                 sample.scope = Some(execution.scope.clone());
                 sample.sequence = 999;
-                sample
-                    .values
-                    .insert("distance_m".into(), Value::Number(999.0));
+                sample.values.insert("distance_m".into(), Value::Number(999.0));
                 *sample = typed_fixture_sample(sample.clone());
             }
             *self.queue.lock().unwrap() = Some(waiting);
@@ -108,20 +99,14 @@ impl ExecutionFixture for QueuedSamples {
             assert_eq!(receipt.accepted, 0);
             assert_eq!(receipt.dropped, 1);
             self.dropped.store(receipt.dropped, Ordering::SeqCst);
-            Err(dokime_runtime::transport::ProviderExecutionFailure::new(
-                "cancel",
-                "fixture cancelled with unsent samples",
-            ))
+            Err(dokime_runtime::transport::ProviderExecutionFailure::new("cancel", "fixture cancelled with unsent samples"))
         })
     }
 }
 
 impl Sampler for CollectedQueue {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String> {
-        Ok(Box::new(CollectedSession {
-            state: self.state.clone(),
-            settling: false,
-        }))
+        Ok(Box::new(CollectedSession { state: self.state.clone(), settling: false }))
     }
 }
 impl SamplerSession for CollectedSession {
@@ -132,9 +117,7 @@ impl SamplerSession for CollectedSession {
         let mut batch = tracking_batch();
         for sample in &mut batch.samples {
             sample.sequence = 2000;
-            sample
-                .values
-                .insert("distance_m".into(), Value::Number(2000.0));
+            sample.values.insert("distance_m".into(), Value::Number(2000.0));
             *sample = typed_fixture_sample(sample.clone());
         }
         *self.state.samples.lock().unwrap() = Some(batch);
@@ -151,11 +134,7 @@ impl SamplerSession for CollectedSession {
         }
         Ok(batch.into_iter().collect())
     }
-    fn settle(
-        &mut self,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>,
-    > {
+    fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async move {
             self.settling = true;
             Ok(())
@@ -172,26 +151,9 @@ async fn stopped_report_boundary() {
     let suite = fixture_suite(&["passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime
-        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
-        .await;
-    executor
-        .ready
-        .subscribe()
-        .wait_for(|ready| *ready)
-        .await
-        .unwrap();
-    assert_eq!(
-        executor
-            .queue
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .samples
-            .len(),
-        1
-    );
+    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    executor.ready.subscribe().wait_for(|ready| *ready).await.unwrap();
+    assert_eq!(executor.queue.lock().unwrap().as_ref().unwrap().samples.len(), 1);
     let running = cycle_snapshot(&runtime, &cycle_id).await;
     let member = &running.test_executions[0];
     let sampler = CollectedQueue::default();
@@ -215,107 +177,48 @@ async fn stopped_report_boundary() {
         )
         .await
         .unwrap();
-    sampler
-        .state
-        .queued
-        .subscribe()
-        .wait_for(|queued| *queued)
-        .await
-        .unwrap();
+    sampler.state.queued.subscribe().wait_for(|queued| *queued).await.unwrap();
     assert_eq!(sampler.state.delivered.load(Ordering::SeqCst), 0);
     runtime.storage().flush().await.unwrap();
     let persisted_before_stop = runtime.storage().cursor_saved();
-    runtime
-        .stop_cycle(cycle_id.clone(), CommandContext::default())
-        .await
-        .unwrap();
+    runtime.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;
     let execution_id = stopped.test_executions[0].test_execution_id.clone();
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &execution_id).await;
     let settled = cycle_snapshot(&runtime, &cycle_id).await;
     let seal = settled.test_executions[0].saved.as_ref().unwrap();
-    assert!(
-        seal.source
-            .evidence_through
-            .covers(&persisted_before_stop)
-            .unwrap()
-    );
-    assert!(
-        seal.dependencies_saved
-            .covers(&seal.source.evidence_through)
-            .unwrap()
-    );
-    assert!(
-        seal.dependencies_saved
-            .covers(&seal.source.context.position)
-            .unwrap()
-    );
-    let captured = crate::service_support::native::open(&runtime, &checkpoint)
-        .await
-        .snapshot()
-        .await
-        .unwrap();
+    assert!(seal.source.evidence_through.covers(&persisted_before_stop).unwrap());
+    assert!(seal.dependencies_saved.covers(&seal.source.evidence_through).unwrap());
+    assert!(seal.dependencies_saved.covers(&seal.source.context.position).unwrap());
+    let captured = crate::service_support::native::open(&runtime, &checkpoint).await.snapshot().await.unwrap();
     let samples = crate::service_support::native::samples(&runtime, &checkpoint).await;
-    assert_eq!(
-        captured.evidence_through().unwrap(),
-        &seal.source.evidence_through
-    );
+    assert_eq!(captured.evidence_through().unwrap(), &seal.source.evidence_through);
     assert_eq!(captured.execution().test_execution_id, execution_id);
     assert!(captured.execution().saved.is_some());
     assert_eq!(executor.dropped.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        sampler.state.delivered.load(Ordering::SeqCst),
-        1,
-        "stop must settle the same queued physical collection"
-    );
+    assert_eq!(sampler.state.delivered.load(Ordering::SeqCst), 1, "stop must settle the same queued physical collection");
     assert!(sampler.state.samples.lock().unwrap().is_none());
     // TODO(source-hook): telemetry capture release publishes no notification; a lease-closed signal would replace this poll.
     while runtime.telemetry_capture_is_active(&lease.lease_id).await {
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
     assert!(executor.queue.lock().unwrap().is_none());
-    let tracking = samples
-        .iter()
-        .filter(|sample| sample.stream.as_str() == "tracking")
-        .collect::<Vec<_>>();
-    assert_eq!(
-        tracking.len(),
-        1,
-        "only the persisted baseline belongs to the report"
-    );
-    assert_eq!(
-        tracking[0].values.get("distance_m"),
-        Some(&Value::Number(1.0))
-    );
+    let tracking = samples.iter().filter(|sample| sample.stream.as_str() == "tracking").collect::<Vec<_>>();
+    assert_eq!(tracking.len(), 1, "only the persisted baseline belongs to the report");
+    assert_eq!(tracking[0].values.get("distance_m"), Some(&Value::Number(1.0)));
+    assert!(samples.iter().all(|sample| sample.sequence != 999 && sample.sequence != 2000));
     assert!(
-        samples
-            .iter()
-            .all(|sample| sample.sequence != 999 && sample.sequence != 2000)
-    );
-    assert!(
-        captured
-            .context()
-            .unwrap()
-            .health
-            .iter()
-            .all(|item| !format!("{item:?}").contains("Telemetry capture destination failed")),
+        captured.context().unwrap().health.iter().all(|item| !format!("{item:?}").contains("Telemetry capture destination failed")),
         "discarded sampler debt must not become a destination failure"
     );
     let lifecycle = captured.execution();
     assert!(
-        lifecycle
-            .steps
-            .iter()
-            .any(|step| step.metadata.identifier.as_str() == "fixture.phase"
-                && step.status == StepStatus::Passed),
+        lifecycle.steps.iter().any(|step| step.metadata.identifier.as_str() == "fixture.phase" && step.status == StepStatus::Passed),
         "stopping evidence collection must preserve a recorded phase outcome"
     );
     assert_eq!(captured.execution().status, ExecutionStatus::Cancelled);
     let original_html = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
-    assert_eq!(
-        crate::service_support::reports::bytes(runtime.storage(), &seal.report).await,
-        original_html
-    );
+    assert_eq!(crate::service_support::reports::bytes(runtime.storage(), &seal.report).await, original_html);
     drop((captured, checkpoint, runtime));
     owner.shutdown().await.unwrap();
 }

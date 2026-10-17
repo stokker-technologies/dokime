@@ -20,9 +20,7 @@ use std::num::NonZeroUsize;
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
 use harmos::storage::operations::{Query, QueryStorage, QueryStorageRequest};
-use harmos::storage::query::{
-    ObjectSelection, ObjectVersions, Query as QueryRequest, QueryOutput, RowSlice, Source,
-};
+use harmos::storage::query::{ObjectSelection, ObjectVersions, Query as QueryRequest, QueryOutput, RowSlice, Source};
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -55,11 +53,7 @@ async fn storage_operations_view() {
     // An in-process storage client claims the runtime's read budget, as report
     // queries do: one nested object schema expands into far more Arrow fields
     // than any single message-sized budget holds.
-    let budget = config
-        .storage
-        .budget
-        .read_memory_bytes
-        .min(NonZeroUsize::new(u32::MAX as usize).unwrap());
+    let budget = config.storage.budget.read_memory_bytes.min(NonZeroUsize::new(u32::MAX as usize).unwrap());
     let (mut runtime, handle) = started(config).await;
     let maximum = NonZeroUsize::new(64 * 1024).unwrap();
     let suite = Suite::new("fixture.storage.operations", &empty_suite()).unwrap();
@@ -67,20 +61,12 @@ async fn storage_operations_view() {
     let receipt = handle.storage().write_object(&suite).await.unwrap();
     handle.storage().flush().await.unwrap();
 
-    let info = handle
-        .operations()
-        .call_as::<QueryStorage>(QueryStorageRequest)
-        .await
-        .unwrap();
+    let info = handle.operations().call_as::<QueryStorage>(QueryStorageRequest).await.unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());
 
-    let (output, mut input) = stream::<QueryOutput>(StreamSettings {
-        items: NonZeroUsize::MIN,
-        bytes: budget,
-    })
-    .unwrap();
+    let (output, mut input) = stream::<QueryOutput>(StreamSettings { items: NonZeroUsize::MIN, bytes: budget }).unwrap();
     let request = QueryRequest {
         at: info.saved.clone(),
         source: Source::Objects(ObjectSelection {
@@ -91,10 +77,7 @@ async fn storage_operations_view() {
         transforms: Vec::new(),
         slice: RowSlice::default(),
     };
-    let query = handle
-        .operations()
-        .submit_endpoints::<Query, _>(request, output)
-        .unwrap();
+    let query = handle.operations().submit_endpoints::<Query, _>(request, output).unwrap();
     let result = async {
         let Some(schema) = input.recv().await else {
             panic!("query ended before its schema: {:?}", query.await);

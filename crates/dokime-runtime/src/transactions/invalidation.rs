@@ -18,16 +18,14 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::state::RuntimeState;
+use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
+use crate::transactions::records::draft::Drafts;
 use dokime_domain::model::execution::result::ExecutionInvalidation;
-use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::state::RuntimeState;
-use crate::transactions::prompts::{
-    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
-};
-use crate::transactions::records::draft::Drafts;
+use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
@@ -54,29 +52,16 @@ impl InvalidateExecutions {
     fn invalidates(&self, execution: &TestExecution) -> bool {
         execution.snapshot.plugin() == Some(&self.previous)
             && execution.finished_at.is_none()
-            && matches!(
-                execution.status,
-                ExecutionStatus::Pending | ExecutionStatus::Running
-            )
+            && matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
     }
 
     /// An invalidated execution answers nothing: its open prompts expire in
     /// the same transaction.
     fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
         let mut records = Drafts::new(state);
-        let settled = settle_prompts(
-            state,
-            &mut records,
-            PromptSettlement::Ended,
-            &self.invalidated_at,
-            |scope| {
-                scope
-                    .test_execution_id
-                    .as_ref()
-                    .and_then(|id| state.executions.get(id))
-                    .is_some_and(|execution| self.invalidates(execution))
-            },
-        );
+        let settled = settle_prompts(state, &mut records, PromptSettlement::Ended, &self.invalidated_at, |scope| {
+            scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id)).is_some_and(|execution| self.invalidates(execution))
+        });
         (records, settled)
     }
 }
@@ -88,11 +73,7 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
         if self.current.as_ref() == Some(&self.previous) {
             return Err("the admitted executable identity has not changed".into());
         }
-        if self
-            .current
-            .as_ref()
-            .is_some_and(|current| current.source != self.previous.source)
-        {
+        if self.current.as_ref().is_some_and(|current| current.source != self.previous.source) {
             return Err("replacement identity must belong to the same provider".into());
         }
         Ok(())
@@ -109,18 +90,12 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
         for cycle in state.cycles.values_mut() {
             let mut changed = false;
             for id in &cycle.execution_ids {
-                let execution = state
-                    .executions
-                    .get_mut(id)
-                    .expect("cycle execution owner exists");
+                let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
                 if !self.invalidates(execution) {
                     continue;
                 }
                 execution.status = ExecutionStatus::Invalidated;
-                execution.invalidation = Some(ExecutionInvalidation {
-                    previous: self.previous.clone(),
-                    current: self.current.clone(),
-                });
+                execution.invalidation = Some(ExecutionInvalidation { previous: self.previous.clone(), current: self.current.clone() });
                 execution.finished_at = Some(self.invalidated_at.clone());
                 execution.result = None;
                 for step in &mut execution.steps {

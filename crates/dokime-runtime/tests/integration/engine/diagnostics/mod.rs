@@ -56,15 +56,7 @@ fn redacted_diagnostic_directory() {
     if home.is_empty() {
         return;
     }
-    let diagnostic = Diagnostic {
-        message: format!("{home}/secret"),
-        ..Diagnostic::default()
-    }
-    .redacted();
+    let diagnostic = Diagnostic { message: format!("{home}/secret"), ..Diagnostic::default() }.redacted();
 
-    assert!(
-        !diagnostic.message.contains(&home),
-        "{}",
-        diagnostic.message
-    );
+    assert!(!diagnostic.message.contains(&home), "{}", diagnostic.message);
 }

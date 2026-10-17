@@ -20,9 +20,9 @@ use std::process::{Command, Stdio};
 use harmos::Protobuf;
 use serde_json::json;
 // Local Imports
-use dokime_domain::model;
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
+use dokime_domain::model;
 use dokime_domain::operations::{execution, value};
 use dokime_gui::rpc::Bridge;
 
@@ -63,15 +63,9 @@ async fn typescript_facade_bridge() {
     let snapshot = fixture.session.status();
     let mut child = Command::new("node")
         .env("DOKIME_TEST_GENERATION", &snapshot.generation)
-        .env(
-            "DOKIME_TEST_BACKEND_ID",
-            &snapshot.backend.as_ref().unwrap().backend_id,
-        )
+        .env("DOKIME_TEST_BACKEND_ID", &snapshot.backend.as_ref().unwrap().backend_id)
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)
-        .arg(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/test-rpc-interop.mjs"
-        ))
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-rpc-interop.mjs"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -93,21 +87,11 @@ async fn typescript_facade_bridge() {
                     panic!("the fixture value has an object root");
                 };
                 assert_eq!(
-                    fields
-                        .fields
-                        .iter()
-                        .map(|field| (field.key.as_str(), field.value))
-                        .collect::<Vec<_>>(),
+                    fields.fields.iter().map(|field| (field.key.as_str(), field.value)).collect::<Vec<_>>(),
                     vec![("minimum", 1), ("maximum", 2), ("null", 3), ("unset", 4)]
                 );
-                assert!(matches!(
-                    value.nodes[1].kind,
-                    Some(model::values::wire::ValueKind::Integer(i64::MIN))
-                ));
-                assert!(matches!(
-                    value.nodes[2].kind,
-                    Some(model::values::wire::ValueKind::Integer(i64::MAX))
-                ));
+                assert!(matches!(value.nodes[1].kind, Some(model::values::wire::ValueKind::Integer(i64::MIN))));
+                assert!(matches!(value.nodes[2].kind, Some(model::values::wire::ValueKind::Integer(i64::MAX))));
                 assert!(matches!(value.nodes[3].kind, Some(model::values::wire::ValueKind::Null)));
                 assert!(value.nodes[4].kind.is_none());
                 Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))

@@ -172,10 +172,7 @@ impl BuiltinRecordType {
 
     /// Resolves a published record type to its built-in declaration.
     pub fn from_identifier(record_type: &Identifier) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|kind| kind.as_str() == record_type.as_str())
+        Self::ALL.iter().copied().find(|kind| kind.as_str() == record_type.as_str())
     }
 
     /// The schema version its contract declares; product records are v2.
@@ -264,9 +261,7 @@ impl BuiltinRecordType {
             | Self::ResourceClosed
             | Self::ResourceFailed
             | Self::ResourceRemoved => simple_contract(record_type, RecordSeverity::Info),
-            Self::ToolConnectionAcquired | Self::ToolConnectionLost => {
-                product_connection_contract(record_type)
-            }
+            Self::ToolConnectionAcquired | Self::ToolConnectionLost => product_connection_contract(record_type),
             Self::TargetLost | Self::TargetAcquired => product_target_contract(record_type),
             Self::CalibrationFieldStarted
             | Self::CalibrationFieldActivity
@@ -274,54 +269,26 @@ impl BuiltinRecordType {
             | Self::CalibrationTiltStarted
             | Self::CalibrationTiltActivity
             | Self::CalibrationTiltCompleted => product_calibration_contract(record_type),
-            Self::ControlTriggered => contract(
-                record_type,
-                RecordSeverity::Info,
-                vec![
-                    field("control_id", ValueType::Text),
-                    field("values", ValueType::Object),
-                ],
-            ),
-            Self::ControlCallbackCompleted => contract(
-                record_type,
-                RecordSeverity::Info,
-                vec![field("control_id", ValueType::Text)],
-            ),
-            Self::ControlCallbackFailed => contract(
-                record_type,
-                RecordSeverity::Error,
-                vec![
-                    field("control_id", ValueType::Text),
-                    field("error", ValueType::Text),
-                ],
-            ),
-            Self::PromptRequestConfirmation
-            | Self::PromptRequestForm
-            | Self::PromptRequestChoice
-            | Self::PromptRequestStatus => prompt_request_contract(record_type),
-            Self::PromptResponseSubmitted => {
-                prompt_response_contract(record_type, RecordSeverity::Info)
+            Self::ControlTriggered => {
+                contract(record_type, RecordSeverity::Info, vec![field("control_id", ValueType::Text), field("values", ValueType::Object)])
             }
-            Self::PromptResponseCancelled => {
-                prompt_cancel_contract(record_type, RecordSeverity::Info)
+            Self::ControlCallbackCompleted => contract(record_type, RecordSeverity::Info, vec![field("control_id", ValueType::Text)]),
+            Self::ControlCallbackFailed => {
+                contract(record_type, RecordSeverity::Error, vec![field("control_id", ValueType::Text), field("error", ValueType::Text)])
             }
-            Self::PromptResponseExpired => {
-                prompt_cancel_contract(record_type, RecordSeverity::Warning)
+            Self::PromptRequestConfirmation | Self::PromptRequestForm | Self::PromptRequestChoice | Self::PromptRequestStatus => {
+                prompt_request_contract(record_type)
             }
-            Self::OperatorNoteAdded | Self::OperatorNoteEdited => contract(
-                record_type,
-                RecordSeverity::Info,
-                vec![field("note_id", ValueType::Text)],
-            ),
+            Self::PromptResponseSubmitted => prompt_response_contract(record_type, RecordSeverity::Info),
+            Self::PromptResponseCancelled => prompt_cancel_contract(record_type, RecordSeverity::Info),
+            Self::PromptResponseExpired => prompt_cancel_contract(record_type, RecordSeverity::Warning),
+            Self::OperatorNoteAdded | Self::OperatorNoteEdited => {
+                contract(record_type, RecordSeverity::Info, vec![field("note_id", ValueType::Text)])
+            }
             // An operator renamed a cycle or an execution; the record scope names which.
-            Self::OperatorLabelEdited => contract(
-                record_type,
-                RecordSeverity::Info,
-                vec![
-                    field("old_label", ValueType::Text),
-                    field("new_label", ValueType::Text),
-                ],
-            ),
+            Self::OperatorLabelEdited => {
+                contract(record_type, RecordSeverity::Info, vec![field("old_label", ValueType::Text), field("new_label", ValueType::Text)])
+            }
             // A sealed report that left evidence out to fit its budget.
             Self::ReportOmissions => contract(
                 record_type,
@@ -358,19 +325,12 @@ impl BuiltinRecordType {
             Self::TestStepHandleCancelled => contract(
                 record_type,
                 RecordSeverity::Warning,
-                vec![
-                    field("step", ValueType::Text),
-                    field("kind", ValueType::Text),
-                    field("name", ValueType::Text),
-                ],
+                vec![field("step", ValueType::Text), field("kind", ValueType::Text), field("name", ValueType::Text)],
             ),
             Self::ProgressMilestone => contract(
                 record_type,
                 RecordSeverity::Info,
-                vec![
-                    field("phase", ValueType::Text),
-                    field("progress", ValueType::Number).optional(),
-                ],
+                vec![field("phase", ValueType::Text), field("progress", ValueType::Number).optional()],
             ),
         }
     }
@@ -390,21 +350,14 @@ impl std::fmt::Display for BuiltinRecordType {
 
 /* === Public Functions === */
 pub fn builtin_record_types() -> &'static [Identifier] {
-    static TYPES: LazyLock<Vec<Identifier>> = LazyLock::new(|| {
-        builtin_record_contracts()
-            .into_iter()
-            .map(|contract| contract.record_type)
-            .collect()
-    });
+    static TYPES: LazyLock<Vec<Identifier>> =
+        LazyLock::new(|| builtin_record_contracts().into_iter().map(|contract| contract.record_type).collect());
 
     &TYPES
 }
 
 pub fn builtin_record_contracts() -> Vec<RecordContract> {
-    BuiltinRecordType::ALL
-        .iter()
-        .map(|kind| kind.contract())
-        .collect()
+    BuiltinRecordType::ALL.iter().map(|kind| kind.contract()).collect()
 }
 
 /* === Private Functions === */
@@ -412,11 +365,7 @@ fn simple_contract(record_type: &str, severity: RecordSeverity) -> RecordContrac
     contract(record_type, severity, Vec::new())
 }
 
-fn contract(
-    record_type: &str,
-    default_severity: RecordSeverity,
-    fields: Vec<RecordField>,
-) -> RecordContract {
+fn contract(record_type: &str, default_severity: RecordSeverity, fields: Vec<RecordField>) -> RecordContract {
     RecordContract {
         record_type: identifier(record_type),
         schema_version: 1,
@@ -558,9 +507,7 @@ fn prompt_response_contract(record_type: &str, severity: RecordSeverity) -> Reco
 
 fn prompt_cancel_contract(record_type: &str, severity: RecordSeverity) -> RecordContract {
     let mut contract = prompt_response_contract(record_type, severity);
-    contract
-        .fields
-        .push(field("reason", ValueType::Text).optional());
+    contract.fields.push(field("reason", ValueType::Text).optional());
     contract
 }
 
@@ -673,17 +620,11 @@ mod tests {
         let catalog = builtin_record_contracts();
         assert_eq!(catalog.len(), BuiltinRecordType::ALL.len());
         for kind in BuiltinRecordType::ALL {
-            let declared = catalog
-                .iter()
-                .filter(|contract| contract.record_type.as_str() == kind.as_str())
-                .collect::<Vec<_>>();
+            let declared = catalog.iter().filter(|contract| contract.record_type.as_str() == kind.as_str()).collect::<Vec<_>>();
             assert_eq!(declared.len(), 1, "{kind} is registered exactly once");
             assert_eq!(declared[0], &kind.contract());
             assert_eq!(declared[0].schema_version, kind.schema_version());
-            assert_eq!(
-                BuiltinRecordType::from_identifier(&kind.identifier()),
-                Some(*kind)
-            );
+            assert_eq!(BuiltinRecordType::from_identifier(&kind.identifier()), Some(*kind));
             assert!(builtin_record_types().contains(&kind.identifier()));
         }
         for contract in &catalog {

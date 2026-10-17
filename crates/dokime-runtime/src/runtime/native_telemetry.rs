@@ -20,11 +20,11 @@ use std::sync::{Arc, Mutex};
 
 // Local Imports
 use super::RuntimeHandle;
-use dokime_domain::model::identity::Identifier;
+use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use harmos::schema::Validator;
 
 /* === Constants === */
@@ -32,14 +32,8 @@ use harmos::schema::Validator;
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(super) type Subscriptions = Vec<
-    Pin<
-        Box<
-            dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>>
-                + Send,
-        >,
-    >,
->;
+pub(super) type Subscriptions =
+    Vec<Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>>;
 
 /* === Structs === */
 #[derive(Default)]
@@ -68,55 +62,22 @@ pub(crate) struct Admission {
 /* === Implementations === */
 impl Executions {
     pub(crate) fn admit(
-        &self,
-        owner: &str,
-        token: &str,
-        scope: RecordScope,
-        streams: impl IntoIterator<Item = Identifier>,
+        &self, owner: &str, token: &str, scope: RecordScope, streams: impl IntoIterator<Item = Identifier>,
     ) -> Result<Admission, String> {
-        if scope
-            .test_execution_id
-            .as_ref()
-            .map(ToString::to_string)
-            .as_deref()
-            != Some(token)
-        {
+        if scope.test_execution_id.as_ref().map(ToString::to_string).as_deref() != Some(token) {
             return Err("publication context must name its host execution".into());
         }
-        let mut executions = self
-            .0
-            .lock()
-            .expect("execution publication admissions are healthy");
+        let mut executions = self.0.lock().expect("execution publication admissions are healthy");
         if executions.contains_key(token) {
             return Err("execution publication context is already admitted".into());
         }
-        executions.insert(
-            token.to_owned(),
-            Execution {
-                owner: owner.to_owned(),
-                scope,
-                streams: streams.into_iter().collect(),
-            },
-        );
-        Ok(Admission {
-            executions: self.clone(),
-            token: token.to_owned(),
-        })
+        executions.insert(token.to_owned(), Execution { owner: owner.to_owned(), scope, streams: streams.into_iter().collect() });
+        Ok(Admission { executions: self.clone(), token: token.to_owned() })
     }
 
-    pub(super) fn scope(
-        &self,
-        owner: &str,
-        token: &str,
-        stream: &Identifier,
-    ) -> Result<RecordScope, String> {
-        let executions = self
-            .0
-            .lock()
-            .expect("execution publication admissions are healthy");
-        let execution = executions
-            .get(token)
-            .ok_or("execution publication context is not active")?;
+    pub(super) fn scope(&self, owner: &str, token: &str, stream: &Identifier) -> Result<RecordScope, String> {
+        let executions = self.0.lock().expect("execution publication admissions are healthy");
+        let execution = executions.get(token).ok_or("execution publication context is not active")?;
         if execution.owner != owner {
             return Err("publication context belongs to another plugin".into());
         }
@@ -139,19 +100,13 @@ impl Executions {
 
 impl Drop for Admission {
     fn drop(&mut self) {
-        self.executions
-            .0
-            .lock()
-            .expect("execution publication admissions are healthy")
-            .remove(&self.token);
+        self.executions.0.lock().expect("execution publication admissions are healthy").remove(&self.token);
     }
 }
 
 impl Decoder {
     pub(super) async fn ingest_batch(
-        &mut self,
-        handle: &RuntimeHandle,
-        definition: &harmos::streams::Definition,
+        &mut self, handle: &RuntimeHandle, definition: &harmos::streams::Definition,
         rows: &[(harmos::storage::Cursor, &harmos::streams::PublicationRow)],
     ) {
         if rows.len() > 1
@@ -159,10 +114,7 @@ impl Decoder {
             && let Ok(stream) = Identifier::new(definition.id())
         {
             let scope = match rows[0].1.context.as_deref() {
-                Some(token) => handle
-                    .native_executions
-                    .scope(owner, token, &stream)
-                    .map(Some),
+                Some(token) => handle.native_executions.scope(owner, token, &stream).map(Some),
                 None if handle.streams_owned_by(owner).contains(&stream) => Ok(None),
                 None => Err("stream owner is unavailable".into()),
             };
@@ -194,10 +146,7 @@ impl Decoder {
                             owner,
                             &stream,
                             scope.as_ref(),
-                            receipt
-                                .message
-                                .as_deref()
-                                .unwrap_or("native telemetry was dropped at admission"),
+                            receipt.message.as_deref().unwrap_or("native telemetry was dropped at admission"),
                         )
                         .await;
                     }
@@ -211,11 +160,7 @@ impl Decoder {
     }
 
     pub(super) async fn ingest(
-        &mut self,
-        handle: &RuntimeHandle,
-        definition: &harmos::streams::Definition,
-        sequence: u64,
-        row: &harmos::streams::PublicationRow,
+        &mut self, handle: &RuntimeHandle, definition: &harmos::streams::Definition, sequence: u64, row: &harmos::streams::PublicationRow,
     ) {
         let Some(owner) = definition.owner() else {
             return;
@@ -234,9 +179,9 @@ impl Decoder {
             None if handle.streams_owned_by(owner).contains(&stream) => None,
             None => return,
         };
-        let result = self.decode(definition, &row.payload).and_then(|values| {
-            publication_time(row.published_unix_micros).map(|timestamp| (values, timestamp))
-        });
+        let result = self
+            .decode(definition, &row.payload)
+            .and_then(|values| publication_time(row.published_unix_micros).map(|timestamp| (values, timestamp)));
         match result {
             Ok((mut values, now)) => {
                 values.insert("timestamp".into(), Value::from(now.clone()));
@@ -260,10 +205,7 @@ impl Decoder {
                             owner,
                             &stream,
                             scope.as_ref(),
-                            receipt
-                                .message
-                                .as_deref()
-                                .unwrap_or("native telemetry was dropped at admission"),
+                            receipt.message.as_deref().unwrap_or("native telemetry was dropped at admission"),
                         )
                         .await;
                     }
@@ -281,102 +223,50 @@ impl Decoder {
         }
     }
 
-    fn decode(
-        &mut self,
-        definition: &harmos::streams::Definition,
-        bytes: &[u8],
-    ) -> Result<BTreeMap<String, Value>, String> {
+    fn decode(&mut self, definition: &harmos::streams::Definition, bytes: &[u8]) -> Result<BTreeMap<String, Value>, String> {
         let key = (definition.id().to_owned(), definition.version());
         if !self.descriptors.contains_key(&key) {
-            let schema = definition
-                .schema()
-                .ok_or("native stream has no inspected schema")?;
+            let schema = definition.schema().ok_or("native stream has no inspected schema")?;
             let descriptor =
-                Validator::from_schema(schema, &harmos::config::SchemaSettings::default())
-                    .map_err(|error| error.to_string())?;
+                Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
             self.descriptors.insert(key.clone(), descriptor);
         }
-        crate::storage::telemetry::decode_stream_values(
-            definition.id(),
-            &self.descriptors[&key],
-            bytes,
-        )
-        .map_err(|error| error.to_string())
+        crate::storage::telemetry::decode_stream_values(definition.id(), &self.descriptors[&key], bytes).map_err(|error| error.to_string())
     }
 }
 
 /* === Public Functions === */
-pub(super) fn validate(
-    artifact: &crate::InstalledPlugin,
-    streams: &[harmos::sidecar::StreamDeclaration],
-) -> Result<(), String> {
-    let contracts = artifact.telemetry_contracts.iter().chain(
-        artifact
-            .suites
-            .suites
-            .iter()
-            .flat_map(|suite| &suite.telemetry_contracts),
-    );
+pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration]) -> Result<(), String> {
+    let contracts = artifact.telemetry_contracts.iter().chain(artifact.suites.suites.iter().flat_map(|suite| &suite.telemetry_contracts));
     for contract in contracts.filter(|contract| !contract.foreign) {
-        let stream = streams
-            .iter()
-            .find(|stream| stream.id == contract.stream.as_str())
-            .ok_or_else(|| {
-                format!(
-                    "telemetry `{}` is declared by `{}` but the plugin does not register it \
+        let stream = streams.iter().find(|stream| stream.id == contract.stream.as_str()).ok_or_else(|| {
+            format!(
+                "telemetry `{}` is declared by `{}` but the plugin does not register it \
                      as a native stream: rebuild the plugin so `#[crate::plugin]` derives its \
                      streams from its suites' templates, its observers and its evidence",
-                    contract.stream, artifact.source
-                )
-            })?;
-        let declared = contract.storage_schema.as_ref().ok_or_else(|| {
-            format!(
-                "telemetry `{}` has no authoritative storage row schema",
-                contract.stream
+                contract.stream, artifact.source
             )
         })?;
+        let declared = contract
+            .storage_schema
+            .as_ref()
+            .ok_or_else(|| format!("telemetry `{}` has no authoritative storage row schema", contract.stream))?;
         if !stream
             .row
-            .equivalent(
-                stream.row.root,
-                declared,
-                declared.root,
-                &harmos::config::SchemaSettings::default(),
-            )
+            .equivalent(stream.row.root, declared, declared.root, &harmos::config::SchemaSettings::default())
             .map_err(|error| error.to_string())?
         {
-            return Err(format!(
-                "telemetry `{}` storage graph differs from its native stream",
-                contract.stream
-            ));
+            return Err(format!("telemetry `{}` storage graph differs from its native stream", contract.stream));
         }
         if stream.schema != contract.schema_version {
-            return Err(format!(
-                "telemetry `{}` disagrees with its native stream schema version",
-                contract.stream
-            ));
+            return Err(format!("telemetry `{}` disagrees with its native stream schema version", contract.stream));
         }
-        stream
-            .row
-            .prepare(&harmos::config::SchemaSettings::default())
-            .map_err(|error| error.to_string())?;
-        let fields = stream
-            .row
-            .root()
-            .map_err(|error| error.to_string())?
-            .fields();
+        stream.row.prepare(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
+        let fields = stream.row.root().map_err(|error| error.to_string())?.fields();
         if !contract.allow_extra_fields
-            && fields.iter().any(|field| {
-                !contract
-                    .columns
-                    .iter()
-                    .any(|column| column.metadata.identifier.as_str() == field.name)
-            })
+            && fields.iter().any(|field| !contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field.name))
         {
-            return Err(format!(
-                "telemetry `{}` omits fields from its native stream",
-                contract.stream
-            ));
+            return Err(format!("telemetry `{}` omits fields from its native stream", contract.stream));
         }
         for column in &contract.columns {
             let name = column.metadata.identifier.as_str();
@@ -386,14 +276,9 @@ pub(super) fn validate(
             let field = fields
                 .iter()
                 .find(|field| field.name == name)
-                .ok_or_else(|| {
-                    format!(
-                        "telemetry `{}` declares missing native field `{name}`",
-                        contract.stream
-                    )
-                })?;
-            use dokime_domain::model::values::ValueType;
+                .ok_or_else(|| format!("telemetry `{}` declares missing native field `{name}`", contract.stream))?;
             use crate::schema::{Cardinality, graph::Kind};
+            use dokime_domain::model::values::ValueType;
             let expected = if field.cardinality == Cardinality::Repeated {
                 ValueType::Array
             } else {
@@ -407,10 +292,7 @@ pub(super) fn validate(
                 }
             };
             if column.value_type != expected {
-                return Err(format!(
-                    "telemetry `{}` disagrees with native field `{name}`",
-                    contract.stream
-                ));
+                return Err(format!("telemetry `{}` disagrees with native field `{name}`", contract.stream));
             }
         }
     }
@@ -418,44 +300,26 @@ pub(super) fn validate(
 }
 
 pub(super) fn observe(handle: &RuntimeHandle, owner: &str) -> Subscriptions {
-    let contracts = handle
-        .installed_plugins()
-        .get(owner)
-        .map(|artifact| artifact.telemetry_contracts.clone())
-        .unwrap_or_default();
+    let contracts = handle.installed_plugins().get(owner).map(|artifact| artifact.telemetry_contracts.clone()).unwrap_or_default();
     handle
         .streams()
         .definitions()
         .into_iter()
         .filter(|definition| {
             definition.owner() == Some(owner)
-                && contracts.iter().any(|contract| {
-                    contract.stream.as_str() == definition.id()
-                        && contract.schema_version == definition.version()
-                })
+                && contracts
+                    .iter()
+                    .any(|contract| contract.stream.as_str() == definition.id() && contract.schema_version == definition.version())
         })
         .filter_map(|definition| {
-            let stream = handle
-                .streams()
-                .publication(definition.id(), definition.version())?;
+            let stream = handle.streams().publication(definition.id(), definition.version())?;
             Some(Box::pin(stream.watch())
-                as Pin<
-                    Box<
-                        dyn futures_util::Stream<
-                                Item = harmos::streams::Item<harmos::streams::PublicationRow>,
-                            > + Send,
-                    >,
-                >)
+                as Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>)
         })
         .collect()
 }
 
-pub(super) async fn incomplete(
-    handle: &RuntimeHandle,
-    owner: &str,
-    stream: &Identifier,
-    reason: &str,
-) {
+pub(super) async fn incomplete(handle: &RuntimeHandle, owner: &str, stream: &Identifier, reason: &str) {
     if handle.streams_owned_by(owner).contains(stream) {
         refuse(handle, owner, stream, None, reason).await;
     }
@@ -465,17 +329,9 @@ pub(super) async fn incomplete(
 }
 
 /* === Private Functions === */
-async fn refuse(
-    handle: &RuntimeHandle,
-    owner: &str,
-    stream: &Identifier,
-    scope: Option<&RecordScope>,
-    reason: &str,
-) {
+async fn refuse(handle: &RuntimeHandle, owner: &str, stream: &Identifier, scope: Option<&RecordScope>, reason: &str) {
     if let Some(scope) = scope {
-        handle
-            .refuse_execution_stream(stream, scope, owner, reason)
-            .await;
+        handle.refuse_execution_stream(stream, scope, owner, reason).await;
     } else {
         handle.stream_leases().mark_gap(stream);
         handle.forward_lease_gap(stream, reason).await;

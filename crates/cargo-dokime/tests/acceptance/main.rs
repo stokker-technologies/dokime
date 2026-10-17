@@ -13,7 +13,6 @@ mod development_environment;
 mod new;
 mod scaffold;
 
-
 #[path = "../support/mod.rs"]
 mod support;
 

@@ -30,10 +30,10 @@ use super::{
         execution::{Revision, Seal},
     },
 };
+use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::saved::ExecutionRevision;
 
 /* === Constants === */
 
@@ -93,9 +93,7 @@ pub enum Owner<'a> {
 impl Prepared {
     pub fn new(manager: &Manager, input: &Input<'_>) -> Result<Self> {
         if !manager.cursor_saved().covers(input.dependencies_saved)? {
-            return Err(Error::Invalid(
-                "report dependencies are not durable in this manager",
-            ));
+            return Err(Error::Invalid("report dependencies are not durable in this manager"));
         }
         let row = Publication::new(input)?;
         let payload = row.encode_to_vec();
@@ -112,17 +110,9 @@ impl Prepared {
 
     pub async fn finish(&mut self) -> Result<StorageCursor> {
         if self.schema_position.is_none() {
-            let graph = harmos::schema::graph::Schema::from_declaration(
-                Publication::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .map_err(|error| {
-                harmos::Error::backend(
-                    "prepare report schema",
-                    harmos::BackendFailure::Permanent,
-                    error,
-                )
-            })?;
+            let graph =
+                harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, &harmos::config::SchemaSettings::default())
+                    .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;
             self.schema_position = Some(self.manager.write_schema(&self.schema, &graph).await?);
         }
         if self.position.is_none() {
@@ -163,10 +153,7 @@ impl Publication {
     pub fn from_record(record: StoredRecord<Self>) -> Result<Self> {
         let publication = record.payload;
         publication.check()?;
-        let dependencies = publication
-            .dependencies_saved
-            .as_ref()
-            .expect("checked publication dependencies");
+        let dependencies = publication.dependencies_saved.as_ref().expect("checked publication dependencies");
         if record.schema != schema()
             || record.scope.as_ref().map(Identifier::as_str) != Some(publication.owner())
             || record.item != publication.file()?.metadata.id
@@ -175,9 +162,7 @@ impl Publication {
             || !record.position.covers(dependencies)?
             || record.position == *dependencies
         {
-            return Err(Error::Invalid(
-                "report publication envelope differs from payload",
-            ));
+            return Err(Error::Invalid("report publication envelope differs from payload"));
         }
         Ok(publication)
     }
@@ -203,9 +188,7 @@ impl Publication {
     }
 
     pub fn file(&self) -> Result<&FileReference> {
-        self.file
-            .as_ref()
-            .ok_or(Error::Invalid("report publication has no file"))
+        self.file.as_ref().ok_or(Error::Invalid("report publication has no file"))
     }
 
     pub fn files(&self) -> impl Iterator<Item = &FileReference> {
@@ -221,10 +204,7 @@ impl Publication {
     }
 
     fn check(&self) -> Result<()> {
-        let (kind, owner) = self
-            .owner
-            .split_once('.')
-            .ok_or(Error::Invalid("invalid report owner"))?;
+        let (kind, owner) = self.owner.split_once('.').ok_or(Error::Invalid("invalid report owner"))?;
         if !matches!(kind, "cycle" | "execution")
             || owner.len() != 36
             || owner.bytes().any(|byte| byte.is_ascii_uppercase())
@@ -232,18 +212,9 @@ impl Publication {
         {
             return Err(Error::Invalid("invalid report owner"));
         }
-        time::OffsetDateTime::parse(
-            &self.generated_at,
-            &time::format_description::well_known::Rfc3339,
-        )?;
-        let evidence = self
-            .evidence_through
-            .as_ref()
-            .ok_or(Error::Invalid("missing report evidence cut"))?;
-        let saved = self
-            .dependencies_saved
-            .as_ref()
-            .ok_or(Error::Invalid("missing report durability cut"))?;
+        time::OffsetDateTime::parse(&self.generated_at, &time::format_description::well_known::Rfc3339)?;
+        let evidence = self.evidence_through.as_ref().ok_or(Error::Invalid("missing report evidence cut"))?;
+        let saved = self.dependencies_saved.as_ref().ok_or(Error::Invalid("missing report durability cut"))?;
         let file = self.file()?;
         if !saved.covers(evidence)?
             || !saved.covers(&file.position)?
@@ -261,33 +232,27 @@ impl Publication {
                 cycle.check_report_source(
                     owner,
                     self.final_report.then_some(self.generated_at.as_str()),
-                    self.executions
-                        .iter()
-                        .map(|source| source.check_cut(evidence)),
+                    self.executions.iter().map(|source| source.check_cut(evidence)),
                 )?;
             }
             ("execution", None) => {}
             _ => return Err(Error::Invalid("report owner differs from its cycle header")),
         }
         match (kind, self.final_report, &self.execution) {
-            ("execution", true, Some(seal)) => {
-                seal.check_publication(super::objects::execution::PublicationCheck {
-                    source: &self.executions[0],
-                    input: &self.inputs[0],
-                    report: file,
-                    evidence,
-                    saved,
-                    at: &self.generated_at,
-                })?
-            }
+            ("execution", true, Some(seal)) => seal.check_publication(super::objects::execution::PublicationCheck {
+                source: &self.executions[0],
+                input: &self.inputs[0],
+                report: file,
+                evidence,
+                saved,
+                at: &self.generated_at,
+            })?,
             ("execution", true, None) => {
                 return Err(Error::Invalid("final execution report has no seal"));
             }
             (_, _, None) => {}
             _ => {
-                return Err(Error::Invalid(
-                    "execution seal requires a final execution report",
-                ));
+                return Err(Error::Invalid("execution seal requires a final execution report"));
             }
         }
         for (source, input) in self.executions.iter().zip(&self.inputs) {
@@ -297,8 +262,7 @@ impl Publication {
             if (kind == "execution" && execution != owner)
                 || !saved.covers(&input.position)?
                 || input.metadata.scope.as_ref().map(Identifier::as_str) != Some(execution)
-                || input.metadata.media_type
-                    != dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
+                || input.metadata.media_type != dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
             {
                 return Err(Error::Invalid("report captured input differs from source"));
             }
@@ -317,10 +281,7 @@ pub fn schema() -> SchemaKey {
 }
 
 /// The record selection holding one owner's publications, optionally one report.
-pub fn selection(
-    owner: Owner<'_>,
-    report: Option<Identifier>,
-) -> harmos::storage::query::RecordSelection {
+pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storage::query::RecordSelection {
     harmos::storage::query::RecordSelection {
         schema: schema(),
         scope: Some(owner.scope()),
@@ -342,10 +303,7 @@ fn validate(input: &Input<'_>) -> Result<()> {
             if cycle.test_cycle_id == *id
                 && cycle.saved.is_none()
                 && (!input.final_report || cycle.updated_at == *input.generated_at)
-                && cycle
-                    .execution_ids
-                    .iter()
-                    .eq(input.executions.iter().map(|source| &source.execution_id)) => {}
+                && cycle.execution_ids.iter().eq(input.executions.iter().map(|source| &source.execution_id)) => {}
         (Owner::Execution(_), None) => {}
         _ => return Err(Error::Invalid("report owner differs from its cycle header")),
     }
@@ -353,17 +311,13 @@ fn validate(input: &Input<'_>) -> Result<()> {
         return Err(Error::Invalid("report file scope differs from owner"));
     }
     if input.executions.len() != input.inputs.len() {
-        return Err(Error::Invalid(
-            "report source and captured input counts differ",
-        ));
+        return Err(Error::Invalid("report source and captured input counts differ"));
     }
     if !input.dependencies_saved.covers(input.evidence_through)?
         || !input.dependencies_saved.covers(&input.file.position)?
         || input.file.metadata.media_type != "text/html"
     {
-        return Err(Error::Invalid(
-            "report dependencies are not saved HTML evidence",
-        ));
+        return Err(Error::Invalid("report dependencies are not saved HTML evidence"));
     }
     if let Owner::Execution(owner) = input.owner
         && (input.executions.len() != 1 || &input.executions[0].execution_id != owner)
@@ -379,33 +333,23 @@ fn validate(input: &Input<'_>) -> Result<()> {
                 && seal.dependencies_saved == *input.dependencies_saved
                 && seal.sealed_at == *input.generated_at => {}
         (Owner::Execution(_), true, _) => {
-            return Err(Error::Invalid(
-                "final execution report differs from its seal",
-            ));
+            return Err(Error::Invalid("final execution report differs from its seal"));
         }
         (_, _, None) => {}
         _ => {
-            return Err(Error::Invalid(
-                "execution seal requires a final execution report",
-            ));
+            return Err(Error::Invalid("execution seal requires a final execution report"));
         }
     }
     for (source, captured) in input.executions.iter().zip(input.inputs) {
         source.version.check_position(&source.position)?;
 
-        input
-            .evidence_through
-            .history
-            .check(&source.position.history)?;
+        input.evidence_through.history.check(&source.position.history)?;
         if !input.dependencies_saved.covers(&source.position)?
             || !input.dependencies_saved.covers(&captured.position)?
-            || captured.metadata.scope.as_ref().map(Identifier::as_str)
-                != Some(source.execution_id.as_str())
+            || captured.metadata.scope.as_ref().map(Identifier::as_str) != Some(source.execution_id.as_str())
             || captured.metadata.media_type != dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE
         {
-            return Err(Error::Invalid(
-                "report source differs from saved evidence cut",
-            ));
+            return Err(Error::Invalid("report source differs from saved evidence cut"));
         }
     }
     Ok(())

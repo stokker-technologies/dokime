@@ -82,16 +82,13 @@ fn condition_memory(condition: &RuntimeCondition, depth: usize) -> usize {
             owned.saturating_sub(std::mem::size_of_val(condition))
         }
         RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } => {
-            let mut bytes = conditions
-                .capacity()
-                .saturating_mul(std::mem::size_of::<RuntimeCondition>());
+            let mut bytes = conditions.capacity().saturating_mul(std::mem::size_of::<RuntimeCondition>());
             for condition in conditions {
                 let owned = condition_memory(condition, depth + 1);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
-                bytes = bytes
-                    .saturating_add(owned.saturating_sub(std::mem::size_of::<RuntimeCondition>()));
+                bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<RuntimeCondition>()));
             }
             bytes
         }

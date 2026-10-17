@@ -19,46 +19,26 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::{runtime::Error, runtime::Result, runtime::query::aggregate::AggregateSource};
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
 use crate::definition::TestCase;
+use crate::records::RecordSeverity;
+use crate::{runtime::Error, runtime::Result, runtime::query::aggregate::AggregateSource};
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::StepRecord;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::records::evidence::RecordEntry;
-use crate::records::RecordSeverity;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const COMMON: &[&str] = &[
-    "label",
-    "description",
-    "tags",
-    "attributes",
-    "definition_identifier",
-    "definition_created_at",
-    "definition_updated_at",
-];
-const CASE: &[&str] = &[
-    "identifier",
-    "template_identifier",
-    "suite_identifier",
-    "generation_index",
-];
-const CYCLE: &[&str] = &[
-    "identifier",
-    "session_identifier",
-    "status",
-    "created_at",
-    "updated_at",
-    "started_at",
-    "continue_on_failure",
-    "execution_count",
-];
+const COMMON: &[&str] =
+    &["label", "description", "tags", "attributes", "definition_identifier", "definition_created_at", "definition_updated_at"];
+const CASE: &[&str] = &["identifier", "template_identifier", "suite_identifier", "generation_index"];
+const CYCLE: &[&str] =
+    &["identifier", "session_identifier", "status", "created_at", "updated_at", "started_at", "continue_on_failure", "execution_count"];
 const EXECUTION: &[&str] = &[
     "identifier",
     "case_identifier",
@@ -115,11 +95,7 @@ pub(super) enum Row<'a> {
     Case(&'a TestCase),
     Cycle(&'a TestCycle),
     Execution(&'a TestExecution),
-    Step {
-        execution: &'a TestExecution,
-        step: &'a StepRecord,
-        ordinal: usize,
-    },
+    Step { execution: &'a TestExecution, step: &'a StepRecord, ordinal: usize },
     Record(&'a RecordEntry),
 }
 
@@ -178,25 +154,18 @@ impl Row<'_> {
                 "updated_at" => timestamp(Some(&cycle.updated_at))?,
                 "started_at" => timestamp(cycle.started_at.as_ref())?,
                 "continue_on_failure" => Field::Bool(cycle.continue_on_failure),
-                "execution_count" => Field::Unsigned(
-                    u64::try_from(cycle.execution_ids.len())
-                        .map_err(|_| invalid("cycle membership count overflows"))?,
-                ),
+                "execution_count" => {
+                    Field::Unsigned(u64::try_from(cycle.execution_ids.len()).map_err(|_| invalid("cycle membership count overflows"))?)
+                }
                 _ => return Err(invalid("native cycle column has no projection")),
             },
             Self::Execution(execution) => execution_field(execution, name)?,
-            Self::Step {
-                execution,
-                step,
-                ordinal,
-            } => match name {
+            Self::Step { execution, step, ordinal } => match name {
                 "identifier" => Field::Text(step.step_id.as_str()),
                 "execution_identifier" => Field::Text(execution.test_execution_id.as_str()),
                 "execution_status" => Field::Text(execution_status(&execution.status)),
                 "status" => Field::Text(step_status(&step.status)),
-                "ordinal" => Field::Unsigned(
-                    u64::try_from(*ordinal).map_err(|_| invalid("step ordinal overflows"))?,
-                ),
+                "ordinal" => Field::Unsigned(u64::try_from(*ordinal).map_err(|_| invalid("step ordinal overflows"))?),
                 "started_at" => timestamp(step.started_at.as_ref())?,
                 "finished_at" => timestamp(step.finished_at.as_ref())?,
                 "duration_ms" => duration(step.started_at.as_ref(), step.finished_at.as_ref())?,
@@ -218,50 +187,16 @@ impl Row<'_> {
                 }),
                 "message" => text(record.message.as_deref()),
                 "details" => Field::Object(&record.details),
-                "session_identifier" => text(
-                    record
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| scope.session_id.as_ref())
-                        .map(|id| id.as_str()),
-                ),
-                "execution_identifier" => text(
-                    record
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| scope.test_execution_id.as_ref())
-                        .map(|id| id.as_str()),
-                ),
-                "cycle_identifier" => text(
-                    record
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| scope.test_cycle_id.as_ref())
-                        .map(|id| id.as_str()),
-                ),
-                "case_identifier" => text(
-                    record
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| scope.test_case_id.as_ref())
-                        .map(|id| id.as_str()),
-                ),
-                "step_identifier" => text(
-                    record
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| scope.step_id.as_ref())
-                        .map(|id| id.as_str()),
-                ),
-                "related_sample_identifier" => {
-                    text(record.related_sample_id.as_ref().map(|id| id.as_str()))
+                "session_identifier" => text(record.scope.as_ref().and_then(|scope| scope.session_id.as_ref()).map(|id| id.as_str())),
+                "execution_identifier" => {
+                    text(record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str()))
                 }
-                "related_stream_identifier" => {
-                    text(record.related_stream_id.as_ref().map(|id| id.as_str()))
-                }
-                "related_artifact_identifier" => {
-                    text(record.related_artifact_id.as_ref().map(|id| id.as_str()))
-                }
+                "cycle_identifier" => text(record.scope.as_ref().and_then(|scope| scope.test_cycle_id.as_ref()).map(|id| id.as_str())),
+                "case_identifier" => text(record.scope.as_ref().and_then(|scope| scope.test_case_id.as_ref()).map(|id| id.as_str())),
+                "step_identifier" => text(record.scope.as_ref().and_then(|scope| scope.step_id.as_ref()).map(|id| id.as_str())),
+                "related_sample_identifier" => text(record.related_sample_id.as_ref().map(|id| id.as_str())),
+                "related_stream_identifier" => text(record.related_stream_id.as_ref().map(|id| id.as_str())),
+                "related_artifact_identifier" => text(record.related_artifact_id.as_ref().map(|id| id.as_str())),
                 _ => return Err(invalid("native record column has no projection")),
             },
         };
@@ -279,12 +214,7 @@ impl Field<'_> {
             Self::Number(_) => return Err(invalid("aggregate number must be finite")),
             Self::Datetime(value) => Value::Datetime(*value),
             Self::Text(value) => Value::Text((*value).to_owned()),
-            Self::Strings(values) => Value::Array(
-                values
-                    .iter()
-                    .map(|value| Value::Text(value.clone()))
-                    .collect(),
-            ),
+            Self::Strings(values) => Value::Array(values.iter().map(|value| Value::Text(value.clone())).collect()),
             Self::Object(values) => Value::Object((*values).clone()),
         })
     }
@@ -299,11 +229,7 @@ pub(crate) fn columns(source: AggregateSource) -> impl Iterator<Item = &'static 
         AggregateSource::Steps => STEP,
         AggregateSource::Records => RECORD,
     };
-    let common = if source == AggregateSource::Records {
-        &[]
-    } else {
-        COMMON
-    };
+    let common = if source == AggregateSource::Records { &[] } else { COMMON };
     common.iter().chain(specific.iter()).copied()
 }
 
@@ -329,9 +255,7 @@ fn execution_field<'a>(execution: &'a TestExecution, name: &str) -> Result<Field
         "identifier" => Field::Text(execution.test_execution_id.as_str()),
         "case_identifier" => Field::Text(execution.test_case_id.as_str()),
         "cycle_identifier" => Field::Text(execution.test_cycle_id.as_str()),
-        "template_identifier" => {
-            Field::Text(execution.snapshot.case().test_case_template_id.as_str())
-        }
+        "template_identifier" => Field::Text(execution.snapshot.case().test_case_template_id.as_str()),
         "status" => Field::Text(execution_status(&execution.status)),
         "mode" => Field::Text(execution.mode.as_str()),
         "started_at" => timestamp(execution.started_at.as_ref())?,
@@ -345,12 +269,7 @@ fn text(value: Option<&str>) -> Field<'_> {
 }
 fn timestamp(value: Option<&Timestamp>) -> Result<Field<'_>> {
     value
-        .map(|value| {
-            value
-                .to_datetime()
-                .map(Field::Datetime)
-                .map_err(|_| invalid("invalid aggregate timestamp"))
-        })
+        .map(|value| value.to_datetime().map(Field::Datetime).map_err(|_| invalid("invalid aggregate timestamp")))
         .transpose()
         .map(|value| value.unwrap_or(Field::Null))
 }
@@ -358,16 +277,10 @@ fn duration(start: Option<&Timestamp>, finish: Option<&Timestamp>) -> Result<Fie
     let (Some(start), Some(finish)) = (start, finish) else {
         return Ok(Field::Null);
     };
-    let start = start
-        .to_datetime()
-        .map_err(|_| invalid("invalid step start timestamp"))?;
-    let finish = finish
-        .to_datetime()
-        .map_err(|_| invalid("invalid step finish timestamp"))?;
-    let nanos = finish
-        .unix_timestamp_nanos()
-        .checked_sub(start.unix_timestamp_nanos())
-        .ok_or_else(|| invalid("step duration overflows"))?;
+    let start = start.to_datetime().map_err(|_| invalid("invalid step start timestamp"))?;
+    let finish = finish.to_datetime().map_err(|_| invalid("invalid step finish timestamp"))?;
+    let nanos =
+        finish.unix_timestamp_nanos().checked_sub(start.unix_timestamp_nanos()).ok_or_else(|| invalid("step duration overflows"))?;
     if nanos < 0 {
         return Err(invalid("step finished before it started"));
     }

@@ -67,43 +67,26 @@ pub enum Error {
 /* === Implementations === */
 impl Client {
     pub async fn operations(&self) -> Result<Vec<Description>> {
-        let deadline = self
-            .timeout
-            .map(|timeout| tokio::time::Instant::now() + timeout);
+        let deadline = self.timeout.map(|timeout| tokio::time::Instant::now() + timeout);
         let mut entries = Vec::new();
         let mut keys = BTreeSet::new();
         let mut cursors = BTreeSet::new();
         let mut after = None;
         let mut bytes = 0usize;
         loop {
-            let request = self.unary::<HostOperations>(
-                CATALOG_PATH,
-                HostOperations {
-                    after,
-                    rows: Some(64),
-                    bytes: Some(CATALOG_PAGE_BYTES),
-                },
-            );
+            let request =
+                self.unary::<HostOperations>(CATALOG_PATH, HostOperations { after, rows: Some(64), bytes: Some(CATALOG_PAGE_BYTES) });
             let page = match deadline {
-                Some(deadline) => {
-                    tokio::time::timeout_at(deadline, request)
-                        .await
-                        .map_err(|_| {
-                            ClientError::Rpc(tonic::Status::deadline_exceeded(
-                                "catalog deadline exceeded",
-                            ))
-                        })??
-                }
+                Some(deadline) => tokio::time::timeout_at(deadline, request)
+                    .await
+                    .map_err(|_| ClientError::Rpc(tonic::Status::deadline_exceeded("catalog deadline exceeded")))??,
                 None => request.await?,
             };
-            bytes = bytes
-                .checked_add(page.catalog.len())
-                .ok_or(Error::CatalogTooLarge)?;
+            bytes = bytes.checked_add(page.catalog.len()).ok_or(Error::CatalogTooLarge)?;
             if bytes > MAX_CATALOG_BYTES {
                 return Err(Error::CatalogTooLarge);
             }
-            let batch: Vec<DiscoveredOperation> =
-                serde_json::from_slice(&page.catalog).map_err(|_| Error::Catalog)?;
+            let batch: Vec<DiscoveredOperation> = serde_json::from_slice(&page.catalog).map_err(|_| Error::Catalog)?;
             if batch.len() > 64 || entries.len() + batch.len() > MAX_CATALOG_ROWS {
                 return Err(Error::CatalogTooLarge);
             }
@@ -111,10 +94,7 @@ impl Client {
                 return Err(Error::Catalog);
             }
             for entry in batch {
-                let key = (
-                    entry.contract.operation().id.to_string(),
-                    entry.owner.to_string(),
-                );
+                let key = (entry.contract.operation().id.to_string(), entry.owner.to_string());
                 if !keys.insert(key) {
                     return Err(Error::Catalog);
                 }
@@ -130,9 +110,7 @@ impl Client {
                         return Err(Error::Catalog);
                     }
                     // Cursor Memory Counts Against The Same Catalog Budget.
-                    bytes = bytes
-                        .checked_add(cursor.len())
-                        .ok_or(Error::CatalogTooLarge)?;
+                    bytes = bytes.checked_add(cursor.len()).ok_or(Error::CatalogTooLarge)?;
                     if bytes > MAX_CATALOG_BYTES {
                         return Err(Error::CatalogTooLarge);
                     }
@@ -147,15 +125,10 @@ impl Client {
     }
 
     pub async fn identity(&self) -> ClientResult<StreamItem<Identity>> {
-        self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {})
-            .await
+        self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {}).await
     }
 
-    pub(super) async fn unary<O>(
-        &self,
-        path: &'static str,
-        message: O,
-    ) -> ClientResult<StreamItem<O::Response>>
+    pub(super) async fn unary<O>(&self, path: &'static str, message: O) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
         O: Protobuf + Sync,
@@ -164,8 +137,7 @@ impl Client {
         self.require(path)?;
         self.execute(async {
             super::transport::unary::<O::Response, O>(
-                self.channel()
-                    .map_err(|error| tonic::Status::cancelled(error.to_string()))?,
+                self.channel().map_err(|error| tonic::Status::cancelled(error.to_string()))?,
                 self.inner.authorization.as_ref(),
                 path,
                 message,

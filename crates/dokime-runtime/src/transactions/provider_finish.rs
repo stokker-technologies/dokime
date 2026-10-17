@@ -19,46 +19,42 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCase;
+use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
+use crate::records::ValidationMode as RecordValidationMode;
+use crate::records::validate_record;
+use crate::state::RuntimeState;
+use crate::telemetry::{TelemetrySample, ValidationMode as TelemetryValidationMode, validate_telemetry_sample};
+use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
+use crate::transactions::records::draft::BuiltinDraft;
+use crate::transactions::records::draft::Drafts;
+use crate::transport::{ProviderCycleOutcome, ProviderExecutionFailure, ProviderExecutionOutcome};
+use dokime_domain::model::diagnostics::DebugLevel;
+use dokime_domain::model::diagnostics::ErrorCause;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::result::CriterionResult;
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::result::ResultStatus;
 use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::StepRecord;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::records::BuiltinRecordType;
-use dokime_domain::model::records::evidence::Record;
-use crate::records::RecordSeverity;
-use crate::records::ValidationMode as RecordValidationMode;
-use crate::records::validate_record;
-use crate::state::RuntimeState;
-use crate::transactions::prompts::{
-    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
-};
-use crate::transactions::records::draft::BuiltinDraft;
-use crate::transactions::records::draft::Drafts;
 use dokime_domain::model::identity::CriterionId;
-use dokime_domain::model::diagnostics::DebugLevel;
-use dokime_domain::model::diagnostics::ErrorCause;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::identity::TraceId;
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
-use crate::telemetry::{
-    TelemetrySample, ValidationMode as TelemetryValidationMode, validate_telemetry_sample,
-};
-use crate::transport::{ProviderCycleOutcome, ProviderExecutionFailure, ProviderExecutionOutcome};
 
 /* === Constants === */
 
@@ -104,9 +100,7 @@ impl Transaction<RuntimeState> for FinishProvider {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         if state.run_requests.values().any(|request| {
-            request.summary.cycle_id == self.test_cycle_id
-                && !request.summary.phase.terminal()
-                && request.completion_at.is_some()
+            request.summary.cycle_id == self.test_cycle_id && !request.summary.phase.terminal() && request.completion_at.is_some()
         }) {
             return Err("provider work cannot change after completion is staged".into());
         }
@@ -162,12 +156,7 @@ impl FinishPlan {
                 .into_iter()
                 .flat_map(|previous| &previous.execution_ids)
                 .filter_map(|id| state.executions.get(id))
-                .filter(|execution| {
-                    matches!(
-                        execution.status,
-                        ExecutionStatus::Pending | ExecutionStatus::Running
-                    )
-                })
+                .filter(|execution| matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
                 .map(|execution| &execution.test_execution_id)
                 .collect::<BTreeSet<_>>();
             let terminal_scopes = cycle
@@ -175,42 +164,27 @@ impl FinishPlan {
                 .iter()
                 .filter(|execution| {
                     active_ids.contains(&execution.test_execution_id)
-                        && !matches!(
-                            execution.status,
-                            ExecutionStatus::Pending
-                                | ExecutionStatus::Running
-                                | ExecutionStatus::Invalidated
-                        )
+                        && !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running | ExecutionStatus::Invalidated)
                 })
                 .map(|execution| execution.scope.clone())
                 .collect::<Vec<_>>();
-            if let Some(request) = state.run_requests.values_mut().find(|request| {
-                request.summary.cycle_id == cycle.test_cycle_id && !request.summary.phase.terminal()
-            }) {
-                request.conclusion = Some(request.test_execution_id.as_ref().map_or(
-                    cycle.lifecycle,
-                    |id| {
-                        lifecycle_for(Some(&summarize(
-                            cycle
-                                .test_executions
-                                .iter()
-                                .filter(|execution| &execution.test_execution_id == id),
-                        )))
-                    },
-                ));
+            if let Some(request) = state
+                .run_requests
+                .values_mut()
+                .find(|request| request.summary.cycle_id == cycle.test_cycle_id && !request.summary.phase.terminal())
+            {
+                request.conclusion = Some(request.test_execution_id.as_ref().map_or(cycle.lifecycle, |id| {
+                    lifecycle_for(Some(&summarize(cycle.test_executions.iter().filter(|execution| &execution.test_execution_id == id))))
+                }));
                 // An earlier target group's cause outlives a later group's, so
                 // the run reports why it first went wrong.
                 match &finish.outcome {
                     Err(error) => {
-                        request
-                            .failure
-                            .get_or_insert_with(|| format!("{}: {}", error.stage, error.message));
+                        request.failure.get_or_insert_with(|| format!("{}: {}", error.stage, error.message));
                     }
                     Ok(outcome) => {
                         if let Some(error) = outcome.failures.first() {
-                            request.failure.get_or_insert_with(|| {
-                                format!("{}: {}", error.stage, error.message)
-                            });
+                            request.failure.get_or_insert_with(|| format!("{}: {}", error.stage, error.message));
                         }
                     }
                 }
@@ -222,19 +196,14 @@ impl FinishPlan {
                 request.summary.phase = super::provider::request::RunPhase::Finishing;
                 request.summary.finished += terminal_scopes.len() as u64;
                 for execution in &cycle.test_executions {
-                    if terminal_scopes.iter().any(|scope| {
-                        scope.test_execution_id.as_ref() == Some(&execution.test_execution_id)
-                    }) {
+                    if terminal_scopes.iter().any(|scope| scope.test_execution_id.as_ref() == Some(&execution.test_execution_id)) {
                         request.summary.unstarted += u64::from(execution.started_at.is_none());
-                        request.summary.failed +=
-                            u64::from(execution.status == ExecutionStatus::Failed);
+                        request.summary.failed += u64::from(execution.status == ExecutionStatus::Failed);
                     }
                 }
                 cycle.lifecycle = state.cycles[&cycle.test_cycle_id].lifecycle;
             }
-            state
-                .replace_cycle(cycle)
-                .expect("cycle projection has valid ownership");
+            state.replace_cycle(cycle).expect("cycle projection has valid ownership");
         }
         self.terminal.apply(state);
         self.prompts.apply(state);
@@ -247,30 +216,16 @@ impl FinishPlan {
 }
 
 /* === Public Functions === */
-pub(super) fn apply_finish_provider(
-    state: &mut RuntimeState,
-    finish: &FinishProvider,
-) -> ProviderFinishEffects {
+pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
     prepare_finish_provider(state, finish).apply(state, finish)
 }
 
-pub(crate) fn prepare_finish_effects(
-    state: &RuntimeState,
-    finish: &FinishProvider,
-) -> ProviderFinishEffects {
+pub(crate) fn prepare_finish_effects(state: &RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
     prepare_finish_provider(state, finish).effects
 }
 
-pub(super) fn summarize<'a>(
-    executions: impl IntoIterator<Item = &'a TestExecution>,
-) -> ResultSummary {
-    let mut summary = ResultSummary {
-        status: ResultStatus::Pending,
-        passed: 0,
-        failed: 0,
-        blocked: 0,
-        skipped: 0,
-    };
+pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecution>) -> ResultSummary {
+    let mut summary = ResultSummary { status: ResultStatus::Pending, passed: 0, failed: 0, blocked: 0, skipped: 0 };
     for execution in executions {
         if execution.status == ExecutionStatus::Interrupted {
             summary.blocked += 1;
@@ -283,8 +238,7 @@ pub(super) fn summarize<'a>(
         summary.failed += result.failed;
         summary.blocked += result.blocked;
         summary.skipped += result.skipped;
-        if result.status == ResultStatus::Cancelled && execution.status != ExecutionStatus::Skipped
-        {
+        if result.status == ResultStatus::Cancelled && execution.status != ExecutionStatus::Skipped {
             summary.status = ResultStatus::Cancelled;
         }
     }
@@ -306,17 +260,9 @@ fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> Fin
         Ok(outcome) => prepare_provider_outcome(state, finish, outcome),
         Err(error) => prepare_provider_error(state, finish, error),
     };
-    plan.effects.terminal_execution_ids =
-        provider_terminal_executions(plan.cycle.as_ref(), &finish.started_execution_ids);
-    if state.run_requests.values().any(|request| {
-        request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal()
-    }) {
-        plan.terminal.retain(|record| {
-            record
-                .scope
-                .as_ref()
-                .is_some_and(|scope| scope.test_execution_id.is_some())
-        });
+    plan.effects.terminal_execution_ids = provider_terminal_executions(plan.cycle.as_ref(), &finish.started_execution_ids);
+    if state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal()) {
+        plan.terminal.retain(|record| record.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()));
     }
     // A prompt never outlives its execution: whatever this finish ends settles
     // its open prompts in the same transaction.
@@ -324,65 +270,34 @@ fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> Fin
         cycle
             .test_executions
             .iter()
-            .filter(|execution| {
-                !matches!(
-                    execution.status,
-                    ExecutionStatus::Pending | ExecutionStatus::Running
-                )
-            })
+            .filter(|execution| !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
             .map(|execution| execution.test_execution_id.clone())
             .collect()
     });
     plan.prompts = plan.terminal.following();
-    plan.settled = settle_prompts(
-        state,
-        &mut plan.prompts,
-        PromptSettlement::Ended,
-        &finish.finished_at,
-        |scope| {
-            scope
-                .test_execution_id
-                .as_ref()
-                .is_some_and(|id| ended.contains(id))
-        },
-    );
+    plan.settled = settle_prompts(state, &mut plan.prompts, PromptSettlement::Ended, &finish.finished_at, |scope| {
+        scope.test_execution_id.as_ref().is_some_and(|id| ended.contains(id))
+    });
     plan
 }
 
-fn prepare_provider_outcome(
-    state: &RuntimeState,
-    finish: &FinishProvider,
-    outcome: &ProviderCycleOutcome,
-) -> FinishPlan {
+fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outcome: &ProviderCycleOutcome) -> FinishPlan {
     let mut plan = FinishPlan::new(state);
     let Some(mut cycle) = state.cycle_view(&finish.test_cycle_id) else {
         return plan;
     };
-    let stopped = matches!(
-        cycle.lifecycle,
-        CycleStatus::Stopping | CycleStatus::Stopped
-    );
-    let bounded = state.run_requests.values().any(|request| {
-        request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal()
-    });
-    let outcome_ids = outcome
-        .executions
-        .iter()
-        .map(|execution| execution.test_execution_id.as_str())
-        .collect::<BTreeSet<_>>();
+    let stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+    let bounded =
+        state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
+    let outcome_ids = outcome.executions.iter().map(|execution| execution.test_execution_id.as_str()).collect::<BTreeSet<_>>();
     let execution_ids = cycle
         .test_executions
         .iter()
         .filter(|execution| {
             execution.status != ExecutionStatus::Invalidated
-                && (!bounded
-                    || finish
-                        .started_execution_ids
-                        .contains(&execution.test_execution_id))
-                && (matches!(
-                    execution.status,
-                    ExecutionStatus::Pending | ExecutionStatus::Running
-                ) || outcome_ids.contains(execution.test_execution_id.as_str()))
+                && (!bounded || finish.started_execution_ids.contains(&execution.test_execution_id))
+                && (matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                    || outcome_ids.contains(execution.test_execution_id.as_str()))
         })
         .map(|execution| execution.test_execution_id.clone())
         .collect::<Vec<_>>();
@@ -391,12 +306,7 @@ fn prepare_provider_outcome(
     let mut terminal_records = Vec::new();
 
     for (index, execution_id) in execution_ids.iter().enumerate() {
-        let Some(existing) = cycle
-            .test_executions
-            .iter()
-            .find(|execution| &execution.test_execution_id == execution_id)
-            .cloned()
-        else {
+        let Some(existing) = cycle.test_executions.iter().find(|execution| &execution.test_execution_id == execution_id).cloned() else {
             continue;
         };
         let case = existing.snapshot.case();
@@ -404,27 +314,14 @@ fn prepare_provider_outcome(
             .executions
             .iter()
             .find(|candidate| candidate.test_execution_id == existing.test_execution_id.as_str())
-            .or_else(|| {
-                outcome
-                    .executions
-                    .iter()
-                    .find(|candidate| candidate.case_id == existing.test_case_id.as_str())
-            });
+            .or_else(|| outcome.executions.iter().find(|candidate| candidate.case_id == existing.test_case_id.as_str()));
         let mut execution = match projection {
-            Some(projection) => {
-                execution_from_outcome(&existing, case, projection, &finish.finished_at)
-            }
+            Some(projection) => execution_from_outcome(&existing, case, projection, &finish.finished_at),
             None => missing_execution(&existing, &finish.finished_at),
         };
         if let Some(projection) = projection
-            && let Err(error) = append_provider_evidence(
-                state,
-                &execution,
-                projection,
-                finish,
-                &mut plan.evidence,
-                &mut plan.effects.telemetry,
-            )
+            && let Err(error) =
+                append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.effects.telemetry)
         {
             mark_evidence_failure(&mut execution, &error, &finish.finished_at);
             plan.rejected_evidence.push(error.message);
@@ -446,34 +343,18 @@ fn prepare_provider_outcome(
     if let Some(index) = stop_after {
         let unattempted = &execution_ids[index + 1..];
         if !bounded {
-            cycle
-                .test_executions
-                .retain(|execution| !unattempted.contains(&execution.test_execution_id));
+            cycle.test_executions.retain(|execution| !unattempted.contains(&execution.test_execution_id));
         }
     }
     if stopped {
         for execution in &mut cycle.test_executions {
-            if bounded
-                && !finish
-                    .started_execution_ids
-                    .contains(&execution.test_execution_id)
-            {
+            if bounded && !finish.started_execution_ids.contains(&execution.test_execution_id) {
                 continue;
             }
-            if matches!(
-                execution.status,
-                ExecutionStatus::Pending | ExecutionStatus::Running
-            ) || execution
-                .steps
-                .iter()
-                .any(|step| matches!(step.status, StepStatus::Pending | StepStatus::Running))
+            if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                || execution.steps.iter().any(|step| matches!(step.status, StepStatus::Pending | StepStatus::Running))
             {
-                finish_execution(
-                    execution,
-                    ExecutionStatus::Cancelled,
-                    ResultStatus::Cancelled,
-                    finish.finished_at.clone(),
-                );
+                finish_execution(execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
             }
         }
         cycle.lifecycle = CycleStatus::Stopped;
@@ -500,19 +381,9 @@ fn prepare_provider_outcome(
                     BuiltinRecordType::TestCycleFailed
                 },
                 source: "runtime".to_owned(),
-                severity: if succeeded || stopped {
-                    RecordSeverity::Info
-                } else {
-                    RecordSeverity::Error
-                },
-                message: Some(format!(
-                    "Cycle {} finished with {}.",
-                    cycle.metadata.label, outcome.status
-                )),
-                details: BTreeMap::from([(
-                    "status".to_owned(),
-                    Value::from(outcome.status.clone()),
-                )]),
+                severity: if succeeded || stopped { RecordSeverity::Info } else { RecordSeverity::Error },
+                message: Some(format!("Cycle {} finished with {}.", cycle.metadata.label, outcome.status)),
+                details: BTreeMap::from([("status".to_owned(), Value::from(outcome.status.clone()))]),
                 scope: Some(scope.clone()),
             },
             finish.finished_at.clone(),
@@ -528,35 +399,21 @@ fn prepare_provider_outcome(
                 BuiltinRecordType::ProviderExecutionFailed
             },
             source: "provider".to_owned(),
-            severity: if succeeded || stopped {
-                RecordSeverity::Info
-            } else {
-                RecordSeverity::Error
-            },
+            severity: if succeeded || stopped { RecordSeverity::Info } else { RecordSeverity::Error },
             message: Some(if stopped {
                 "Test execution stopped by operator.".to_owned()
             } else {
                 format!("Provider execution finished with {}.", outcome.status)
             }),
-            details: detailed(
-                BTreeMap::new(),
-                first_failure(outcome).and_then(|failure| failure.detail.as_deref()),
-            ),
+            details: detailed(BTreeMap::new(), first_failure(outcome).and_then(|failure| failure.detail.as_deref())),
             scope: Some(scope.clone()),
         },
         finish.finished_at.clone(),
     );
     plan.health = Some((
-        if succeeded {
-            HealthSeverity::Info
-        } else {
-            HealthSeverity::Error
-        },
+        if succeeded { HealthSeverity::Info } else { HealthSeverity::Error },
         format!("Provider execution {}.", outcome.status),
-        outcome
-            .failures
-            .first()
-            .map(|failure| failure.message.clone()),
+        outcome.failures.first().map(|failure| failure.message.clone()),
     ));
     plan.cycle = Some(cycle);
     plan
@@ -573,53 +430,27 @@ fn request_scope(state: &RuntimeState, cycle_id: &TestCycleId) -> RecordScope {
         .unwrap_or_else(|| RecordScope::default().with_cycle(cycle_id.clone()))
 }
 
-fn prepare_provider_error(
-    state: &RuntimeState,
-    finish: &FinishProvider,
-    error: &ProviderExecutionFailure,
-) -> FinishPlan {
+fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: &ProviderExecutionFailure) -> FinishPlan {
     let mut plan = FinishPlan::new(state);
     let scope = request_scope(state, &finish.test_cycle_id);
-    let bounded = state.run_requests.values().any(|request| {
-        request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal()
-    });
+    let bounded =
+        state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
     let mut stopped = false;
     let mut terminal_records = Vec::new();
     plan.cycle = state.cycle_view(&finish.test_cycle_id);
     if let Some(cycle) = plan.cycle.as_mut() {
-        stopped = matches!(
-            cycle.lifecycle,
-            CycleStatus::Stopping | CycleStatus::Stopped
-        );
-        cycle.lifecycle = if stopped {
-            CycleStatus::Stopped
-        } else {
-            CycleStatus::Failed
-        };
+        stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+        cycle.lifecycle = if stopped { CycleStatus::Stopped } else { CycleStatus::Failed };
         for execution in &mut cycle.test_executions {
-            if !finish
-                .started_execution_ids
-                .contains(&execution.test_execution_id)
-            {
+            if !finish.started_execution_ids.contains(&execution.test_execution_id) {
                 continue;
             }
-            let active = matches!(
-                execution.status,
-                ExecutionStatus::Pending | ExecutionStatus::Running
-            );
+            let active = matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running);
             if active {
                 finish_execution(
                     execution,
-                    if stopped {
-                        ExecutionStatus::Cancelled
-                    } else {
-                        ExecutionStatus::Failed
-                    },
-                    if stopped {
-                        ResultStatus::Cancelled
-                    } else {
-                        ResultStatus::Failed
-                    },
+                    if stopped { ExecutionStatus::Cancelled } else { ExecutionStatus::Failed },
+                    if stopped { ResultStatus::Cancelled } else { ResultStatus::Failed },
                     finish.finished_at.clone(),
                 );
             }
@@ -636,26 +467,11 @@ fn prepare_provider_error(
     if !bounded {
         plan.terminal.draft(
             BuiltinDraft {
-                record_type: if stopped {
-                    BuiltinRecordType::TestCycleStopped
-                } else {
-                    BuiltinRecordType::TestCycleFailed
-                },
+                record_type: if stopped { BuiltinRecordType::TestCycleStopped } else { BuiltinRecordType::TestCycleFailed },
                 source: "runtime".to_owned(),
-                severity: if stopped {
-                    RecordSeverity::Info
-                } else {
-                    RecordSeverity::Error
-                },
-                message: Some(if stopped {
-                    "Cycle stopped by operator.".to_owned()
-                } else {
-                    format!("Cycle failed: {}", error.message)
-                }),
-                details: detailed(
-                    BTreeMap::from([("stage".to_owned(), Value::from(error.stage.clone()))]),
-                    error.detail.as_deref(),
-                ),
+                severity: if stopped { RecordSeverity::Info } else { RecordSeverity::Error },
+                message: Some(if stopped { "Cycle stopped by operator.".to_owned() } else { format!("Cycle failed: {}", error.message) }),
+                details: detailed(BTreeMap::from([("stage".to_owned(), Value::from(error.stage.clone()))]), error.detail.as_deref()),
                 scope: Some(scope.clone()),
             },
             finish.finished_at.clone(),
@@ -663,46 +479,26 @@ fn prepare_provider_error(
     }
     plan.terminal.draft(
         BuiltinDraft {
-            record_type: if stopped {
-                BuiltinRecordType::TestExecutionStopped
-            } else {
-                BuiltinRecordType::ProviderExecutionFailed
-            },
+            record_type: if stopped { BuiltinRecordType::TestExecutionStopped } else { BuiltinRecordType::ProviderExecutionFailed },
             source: "provider".to_owned(),
-            severity: if stopped {
-                RecordSeverity::Info
-            } else {
-                RecordSeverity::Error
-            },
+            severity: if stopped { RecordSeverity::Info } else { RecordSeverity::Error },
             message: Some(if stopped {
                 "Provider execution cancelled by operator.".to_owned()
             } else {
                 format!("Provider execution failed: {}", error.message)
             }),
-            details: detailed(
-                BTreeMap::from([("stage".to_owned(), Value::from(error.stage.clone()))]),
-                error.detail.as_deref(),
-            ),
+            details: detailed(BTreeMap::from([("stage".to_owned(), Value::from(error.stage.clone()))]), error.detail.as_deref()),
             scope: Some(scope.clone()),
         },
         finish.finished_at.clone(),
     );
     if !stopped {
-        plan.health = Some((
-            HealthSeverity::Error,
-            "Provider execution failed.".to_owned(),
-            Some(error.message.clone()),
-        ));
+        plan.health = Some((HealthSeverity::Error, "Provider execution failed.".to_owned(), Some(error.message.clone())));
     }
     plan
 }
 
-fn execution_from_outcome(
-    existing: &TestExecution,
-    case: &TestCase,
-    outcome: &ProviderExecutionOutcome,
-    at: &Timestamp,
-) -> TestExecution {
+fn execution_from_outcome(existing: &TestExecution, case: &TestCase, outcome: &ProviderExecutionOutcome, at: &Timestamp) -> TestExecution {
     let status = result_status(&outcome.status);
     let mut execution = TestExecution {
         saved: None,
@@ -718,11 +514,7 @@ fn execution_from_outcome(
         test_execution_id: existing.test_execution_id.clone(),
         test_case_id: case.test_case_id.clone(),
         suite: existing.suite.clone().or_else(|| case.suite.clone()),
-        status: if outcome.status == "skipped" {
-            ExecutionStatus::Skipped
-        } else {
-            execution_status(&status)
-        },
+        status: if outcome.status == "skipped" { ExecutionStatus::Skipped } else { execution_status(&status) },
         scope: existing.scope.clone(),
         snapshot: existing.snapshot.clone(),
         invalidation: existing.invalidation.clone(),
@@ -736,14 +528,7 @@ fn execution_from_outcome(
         },
         finished_at: Some(at.clone()),
         steps: admitted_outcome_steps(existing, outcome, &status, at),
-        result: Some(if outcome.status == "skipped" {
-            ResultSummary {
-                skipped: 1,
-                ..summary(status)
-            }
-        } else {
-            summary(status)
-        }),
+        result: Some(if outcome.status == "skipped" { ResultSummary { skipped: 1, ..summary(status) } } else { summary(status) }),
     };
     if execution.active_step_attempt.is_some() {
         execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail());
@@ -756,20 +541,12 @@ fn execution_from_outcome(
 
 fn missing_execution(existing: &TestExecution, at: &Timestamp) -> TestExecution {
     let mut execution = existing.clone();
-    finish_execution(
-        &mut execution,
-        ExecutionStatus::Blocked,
-        ResultStatus::Blocked,
-        at.clone(),
-    );
+    finish_execution(&mut execution, ExecutionStatus::Blocked, ResultStatus::Blocked, at.clone());
     execution
 }
 
 fn admitted_outcome_steps(
-    existing: &TestExecution,
-    outcome: &ProviderExecutionOutcome,
-    result: &ResultStatus,
-    at: &Timestamp,
+    existing: &TestExecution, outcome: &ProviderExecutionOutcome, result: &ResultStatus, at: &Timestamp,
 ) -> Vec<StepRecord> {
     let Some(template) = existing.snapshot.template() else {
         return outcome_steps(outcome, &existing.test_execution_id, result, at);
@@ -790,10 +567,7 @@ fn admitted_outcome_steps(
         })
         .collect::<Vec<_>>();
     for returned in projected.last().into_iter().flat_map(|step| &step.criteria) {
-        if let Some(admitted) = criteria
-            .iter_mut()
-            .find(|criterion| criterion.metadata.identifier == returned.metadata.identifier)
-        {
+        if let Some(admitted) = criteria.iter_mut().find(|criterion| criterion.metadata.identifier == returned.metadata.identifier) {
             admitted.status = returned.status.clone();
             admitted.observed.clone_from(&returned.observed);
             admitted.message.clone_from(&returned.message);
@@ -806,19 +580,11 @@ fn admitted_outcome_steps(
         // Scheduled placeholders belong to the execution, not the skipped step
         // where admission initially displayed them. Relocate one terminal set.
         step.criteria.clear();
-        if let Some(definition) = template
-            .phases
-            .iter()
-            .find(|phase| phase.metadata.identifier == step.metadata.identifier)
-        {
+        if let Some(definition) = template.phases.iter().find(|phase| phase.metadata.identifier == step.metadata.identifier) {
             step.step_id = definition.step_id.clone();
             step.metadata = definition.metadata.clone();
         }
-        if let Some(phase) = outcome
-            .phases
-            .iter()
-            .find(|phase| phase.identifier == step.metadata.identifier.as_str())
-        {
+        if let Some(phase) = outcome.phases.iter().find(|phase| phase.identifier == step.metadata.identifier.as_str()) {
             step.status = step_status(&phase.status);
             step.started_at.get_or_insert_with(|| at.clone());
             step.finished_at.get_or_insert_with(|| at.clone());
@@ -830,11 +596,7 @@ fn admitted_outcome_steps(
     let criterion_step = outcome
         .phases
         .last()
-        .and_then(|last| {
-            steps
-                .iter()
-                .position(|step| step.metadata.identifier.as_str() == last.identifier)
-        })
+        .and_then(|last| steps.iter().position(|step| step.metadata.identifier.as_str() == last.identifier))
         .or_else(|| steps.iter().rposition(|step| step.started_at.is_some()))
         .unwrap_or(0);
     if let Some(step) = steps.get_mut(criterion_step) {
@@ -845,20 +607,14 @@ fn admitted_outcome_steps(
 }
 
 fn outcome_steps(
-    outcome: &ProviderExecutionOutcome,
-    execution_id: &TestExecutionId,
-    result: &ResultStatus,
-    at: &Timestamp,
+    outcome: &ProviderExecutionOutcome, execution_id: &TestExecutionId, result: &ResultStatus, at: &Timestamp,
 ) -> Vec<StepRecord> {
     let mut steps = outcome
         .phases
         .iter()
         .enumerate()
         .map(|(index, phase)| StepRecord {
-            step_id: StepId::from_seed(format!(
-                "provider-outcome:{execution_id}:phase:{index}:{}",
-                phase.identifier
-            )),
+            step_id: StepId::from_seed(format!("provider-outcome:{execution_id}:phase:{index}:{}", phase.identifier)),
             metadata: Metadata::new(
                 identifier(&format!("provider.{}", phase.identifier)),
                 phase.label.clone(),
@@ -875,11 +631,7 @@ fn outcome_steps(
     if steps.is_empty() {
         steps.push(StepRecord {
             step_id: StepId::from_seed(format!("provider-outcome:{execution_id}:execution")),
-            metadata: Metadata::new(
-                identifier("provider.execution"),
-                "Provider Execution",
-                Some(outcome.module.clone()),
-            ),
+            metadata: Metadata::new(identifier("provider.execution"), "Provider Execution", Some(outcome.module.clone())),
             status: step_status_for_result(result),
             started_at: Some(at.clone()),
             finished_at: Some(at.clone()),
@@ -894,15 +646,8 @@ fn outcome_steps(
             .iter()
             .enumerate()
             .map(|(index, criterion)| CriterionResult {
-                criterion_id: CriterionId::from_seed(format!(
-                    "provider-outcome:{execution_id}:criterion:{index}:{}",
-                    criterion.identifier
-                )),
-                metadata: Metadata::new(
-                    identifier(&criterion.identifier),
-                    criterion.label.clone(),
-                    None,
-                ),
+                criterion_id: CriterionId::from_seed(format!("provider-outcome:{execution_id}:criterion:{index}:{}", criterion.identifier)),
+                metadata: Metadata::new(identifier(&criterion.identifier), criterion.label.clone(), None),
                 status: criterion_status(&criterion.status),
                 observed: Some(Value::from(criterion.status.clone())),
                 message: criterion.message.clone(),
@@ -914,11 +659,7 @@ fn outcome_steps(
 }
 
 fn detail_on_the_step_that_failed(steps: &mut [StepRecord], outcome: &ProviderExecutionOutcome) {
-    let Some(detail) = outcome
-        .failures
-        .iter()
-        .find_map(|failure| failure.detail.as_ref())
-    else {
+    let Some(detail) = outcome.failures.iter().find_map(|failure| failure.detail.as_ref()) else {
         return;
     };
     let failed = steps
@@ -931,33 +672,26 @@ fn detail_on_the_step_that_failed(steps: &mut [StepRecord], outcome: &ProviderEx
 }
 
 fn append_provider_evidence(
-    state: &RuntimeState,
-    execution: &TestExecution,
-    outcome: &ProviderExecutionOutcome,
-    finish: &FinishProvider,
-    records: &mut Drafts,
+    state: &RuntimeState, execution: &TestExecution, outcome: &ProviderExecutionOutcome, finish: &FinishProvider, records: &mut Drafts,
     telemetry: &mut Vec<TelemetrySample>,
 ) -> Result<(), ProviderExecutionFailure> {
     let at = &finish.finished_at;
     let owner = &finish.target.source;
     let record_stage = "evidence_record";
     for (index, draft) in outcome.records.iter().enumerate() {
-        let record_type = Identifier::new(draft.record_type.clone())
-            .map_err(|error| evidence_failure(outcome, record_stage, error.to_string()))?;
+        let record_type =
+            Identifier::new(draft.record_type.clone()).map_err(|error| evidence_failure(outcome, record_stage, error.to_string()))?;
         let native = crate::transactions::records::admission::provider(state, owner, &record_type)
             .map_err(|error| evidence_failure(outcome, record_stage, error))?;
-        let contract = state.record_definitions.get(&record_type).ok_or_else(|| {
-            evidence_failure(
-                outcome,
-                record_stage,
-                format!("Provider record type {record_type} is not registered."),
-            )
-        })?;
+        let contract = state
+            .record_definitions
+            .get(&record_type)
+            .ok_or_else(|| evidence_failure(outcome, record_stage, format!("Provider record type {record_type} is not registered.")))?;
         let mut record = Record::new(
             dokime_domain::model::identity::RecordId::from_seed(format!(
-            "provider-event:{}:{index}:{}:{}",
-            execution.test_execution_id, draft.record_type, draft.timestamp
-        )),
+                "provider-event:{}:{index}:{}:{}",
+                execution.test_execution_id, draft.record_type, draft.timestamp
+            )),
             draft.timestamp.clone(),
             record_type,
             contract.schema_version,
@@ -981,14 +715,10 @@ fn append_provider_evidence(
         if group.samples.is_empty() {
             continue;
         }
-        let stream = Identifier::new(group.stream.clone())
-            .map_err(|error| evidence_failure(outcome, "evidence_telemetry", error.to_string()))?;
+        let stream =
+            Identifier::new(group.stream.clone()).map_err(|error| evidence_failure(outcome, "evidence_telemetry", error.to_string()))?;
         let contract = state.telemetry_definitions.get(&stream).ok_or_else(|| {
-            evidence_failure(
-                outcome,
-                "evidence_telemetry",
-                format!("Provider telemetry stream {stream} is not registered."),
-            )
+            evidence_failure(outcome, "evidence_telemetry", format!("Provider telemetry stream {stream} is not registered."))
         })?;
         for row in &group.samples {
             let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), 0, at.clone(), "provider");
@@ -1003,43 +733,23 @@ fn append_provider_evidence(
             sample
                 .values
                 .entry("timestamp".to_owned())
-                .or_insert_with(|| {
-                    Value::Datetime(at.to_datetime().expect("runtime timestamp is valid"))
-                });
-            sample.summary.insert(
-                "template".to_owned(),
-                Value::from(outcome.template_identifier.clone()),
-            );
-            sample
-                .summary
-                .insert("label".to_owned(), Value::from(group.label.clone()));
+                .or_insert_with(|| Value::Datetime(at.to_datetime().expect("runtime timestamp is valid")));
+            sample.summary.insert("template".to_owned(), Value::from(outcome.template_identifier.clone()));
+            sample.summary.insert("label".to_owned(), Value::from(group.label.clone()));
             validate_telemetry_sample(Some(contract), &sample, TelemetryValidationMode::Strict)
-                .map_err(|error| {
-                    evidence_failure(outcome, "evidence_telemetry", error.to_string())
-                })?;
+                .map_err(|error| evidence_failure(outcome, "evidence_telemetry", error.to_string()))?;
             telemetry.push(sample);
         }
     }
     Ok(())
 }
 
-fn mark_evidence_failure(
-    execution: &mut TestExecution,
-    failure: &ProviderExecutionFailure,
-    at: &Timestamp,
-) {
+fn mark_evidence_failure(execution: &mut TestExecution, failure: &ProviderExecutionFailure, at: &Timestamp) {
     execution.status = ExecutionStatus::Failed;
     execution.result = Some(summary(ResultStatus::Failed));
     let criterion = CriterionResult {
-        criterion_id: CriterionId::from_seed(format!(
-            "provider-evidence:{}:{}",
-            execution.test_execution_id, failure.stage
-        )),
-        metadata: Metadata::new(
-            identifier("provider.evidence_validation"),
-            "Provider Evidence Validation",
-            None,
-        ),
+        criterion_id: CriterionId::from_seed(format!("provider-evidence:{}:{}", execution.test_execution_id, failure.stage)),
+        metadata: Metadata::new(identifier("provider.evidence_validation"), "Provider Evidence Validation", None),
         status: CriterionStatus::Failed,
         observed: Some(Value::from(failure.stage.clone())),
         message: Some(failure.message.clone()),
@@ -1049,15 +759,8 @@ fn mark_evidence_failure(
         step.criteria.push(criterion);
     } else {
         execution.steps.push(StepRecord {
-            step_id: StepId::from_seed(format!(
-                "provider-evidence:{}",
-                execution.test_execution_id
-            )),
-            metadata: Metadata::new(
-                identifier("provider.evidence_validation"),
-                "Provider Evidence Validation",
-                None,
-            ),
+            step_id: StepId::from_seed(format!("provider-evidence:{}", execution.test_execution_id)),
+            metadata: Metadata::new(identifier("provider.evidence_validation"), "Provider Evidence Validation", None),
             status: StepStatus::Failed,
             started_at: Some(at.clone()),
             finished_at: Some(at.clone()),
@@ -1070,11 +773,7 @@ fn mark_evidence_failure(
     }
 }
 
-fn evidence_failure(
-    outcome: &ProviderExecutionOutcome,
-    stage: &str,
-    message: String,
-) -> ProviderExecutionFailure {
+fn evidence_failure(outcome: &ProviderExecutionOutcome, stage: &str, message: String) -> ProviderExecutionFailure {
     ProviderExecutionFailure {
         stage: stage.to_owned(),
         template_identifier: Some(outcome.template_identifier.clone()),
@@ -1087,22 +786,10 @@ fn evidence_failure(
 }
 
 fn first_failure(outcome: &ProviderCycleOutcome) -> Option<&ProviderExecutionFailure> {
-    outcome
-        .failures
-        .iter()
-        .chain(
-            outcome
-                .executions
-                .iter()
-                .flat_map(|execution| &execution.failures),
-        )
-        .next()
+    outcome.failures.iter().chain(outcome.executions.iter().flat_map(|execution| &execution.failures)).next()
 }
 
-fn detailed(
-    mut details: BTreeMap<String, Value>,
-    detail: Option<&crate::plugin::Diagnostic>,
-) -> BTreeMap<String, Value> {
+fn detailed(mut details: BTreeMap<String, Value>, detail: Option<&crate::plugin::Diagnostic>) -> BTreeMap<String, Value> {
     let Some(detail) = detail else {
         return details;
     };
@@ -1110,10 +797,7 @@ fn detailed(
         details.insert("location".to_owned(), Value::from(detail.location.clone()));
     }
     if !detail.chain.is_empty() {
-        details.insert(
-            "chain".to_owned(),
-            Value::Array(detail.chain.iter().cloned().map(Value::from).collect()),
-        );
+        details.insert("chain".to_owned(), Value::Array(detail.chain.iter().cloned().map(Value::from).collect()));
     }
 
     details
@@ -1122,16 +806,9 @@ fn detailed(
 fn record_provider_plugin_errors(state: &mut RuntimeState, finish: &FinishProvider) {
     let session_id = state.session_id.clone();
     let failures = match &finish.outcome {
-        Ok(outcome) => outcome
-            .failures
-            .iter()
-            .chain(
-                outcome
-                    .executions
-                    .iter()
-                    .flat_map(|execution| &execution.failures),
-            )
-            .collect::<Vec<_>>(),
+        Ok(outcome) => {
+            outcome.failures.iter().chain(outcome.executions.iter().flat_map(|execution| &execution.failures)).collect::<Vec<_>>()
+        }
         Err(error) => vec![error],
     };
     for failure in failures {
@@ -1146,11 +823,7 @@ fn record_provider_plugin_errors(state: &mut RuntimeState, finish: &FinishProvid
 }
 
 fn provider_failure_record(
-    cycle_id: &TestCycleId,
-    target: &ExecutionProviderTarget,
-    session_id: &SessionId,
-    failure: &ProviderExecutionFailure,
-    at: &Timestamp,
+    cycle_id: &TestCycleId, target: &ExecutionProviderTarget, session_id: &SessionId, failure: &ProviderExecutionFailure, at: &Timestamp,
 ) -> InstalledPluginErrorRecord {
     let mut record = InstalledPluginErrorRecord::new(
         Identifier::new(target.source.clone()).unwrap_or_else(|_| identifier("provider.unknown")),
@@ -1162,14 +835,8 @@ fn provider_failure_record(
     )
     .with_code(format!("provider_{}", failure.stage))
     .with_source("runtime.provider_execution")
-    .with_scope(
-        session_id.clone(),
-        Some(RecordScope::default().with_cycle(cycle_id.clone())),
-    )
-    .with_trace_id(TraceId::from_seed(format!(
-        "provider-failure:{cycle_id}:{}:{}:{}",
-        target.source, failure.stage, failure.message
-    )));
+    .with_scope(session_id.clone(), Some(RecordScope::default().with_cycle(cycle_id.clone())))
+    .with_trace_id(TraceId::from_seed(format!("provider-failure:{cycle_id}:{}:{}:{}", target.source, failure.stage, failure.message)));
     if let Some(detail) = failure.detail.as_ref() {
         // The record's own shape already holds the two halves of a diagnostic
         // worth reading here: why, one cause at a time, and where in the
@@ -1186,10 +853,7 @@ fn provider_failure_record(
     record
 }
 
-fn provider_terminal_executions(
-    cycle: Option<&CycleView>,
-    started: &[TestExecutionId],
-) -> Vec<TestExecutionId> {
+fn provider_terminal_executions(cycle: Option<&CycleView>, started: &[TestExecutionId]) -> Vec<TestExecutionId> {
     cycle.map_or_else(Vec::new, |cycle| {
         started
             .iter()
@@ -1198,37 +862,19 @@ fn provider_terminal_executions(
                     .test_executions
                     .iter()
                     .find(|execution| &execution.test_execution_id == id)
-                    .filter(|execution| {
-                        !matches!(
-                            execution.status,
-                            ExecutionStatus::Pending | ExecutionStatus::Running
-                        )
-                    })
+                    .filter(|execution| !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
                     .map(|execution| execution.test_execution_id.clone())
             })
             .collect()
     })
 }
 
-fn finish_execution(
-    execution: &mut TestExecution,
-    status: ExecutionStatus,
-    result: ResultStatus,
-    at: Timestamp,
-) {
+fn finish_execution(execution: &mut TestExecution, status: ExecutionStatus, result: ResultStatus, at: Timestamp) {
     let interrupted = execution.active_step_attempt.is_some();
     execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail());
-    execution.status = if interrupted {
-        ExecutionStatus::Interrupted
-    } else {
-        status
-    };
+    execution.status = if interrupted { ExecutionStatus::Interrupted } else { status };
     execution.finished_at = Some(at.clone());
-    execution.result = if interrupted {
-        None
-    } else {
-        Some(summary(result.clone()))
-    };
+    execution.result = if interrupted { None } else { Some(summary(result.clone())) };
     for step in &mut execution.steps {
         if matches!(step.status, StepStatus::Pending | StepStatus::Running) {
             step.status = step_status_for_result(&result);
@@ -1240,35 +886,12 @@ fn finish_execution(
 
 fn terminal_execution_record(execution: &TestExecution, label: &str) -> Option<BuiltinDraft> {
     let (record_type, severity, status) = match execution.status {
-        ExecutionStatus::Passed => (
-            BuiltinRecordType::TestExecutionCompleted,
-            RecordSeverity::Info,
-            "completed",
-        ),
-        ExecutionStatus::Failed => (
-            BuiltinRecordType::TestExecutionFailed,
-            RecordSeverity::Error,
-            "failed",
-        ),
-        ExecutionStatus::Blocked => (
-            BuiltinRecordType::TestExecutionBlocked,
-            RecordSeverity::Warning,
-            "blocked",
-        ),
-        ExecutionStatus::Cancelled => (
-            BuiltinRecordType::TestExecutionStopped,
-            RecordSeverity::Info,
-            "stopped",
-        ),
-        ExecutionStatus::Interrupted => (
-            BuiltinRecordType::TestExecutionInterrupted,
-            RecordSeverity::Warning,
-            "interrupted",
-        ),
-        ExecutionStatus::Skipped
-        | ExecutionStatus::Invalidated
-        | ExecutionStatus::Pending
-        | ExecutionStatus::Running => {
+        ExecutionStatus::Passed => (BuiltinRecordType::TestExecutionCompleted, RecordSeverity::Info, "completed"),
+        ExecutionStatus::Failed => (BuiltinRecordType::TestExecutionFailed, RecordSeverity::Error, "failed"),
+        ExecutionStatus::Blocked => (BuiltinRecordType::TestExecutionBlocked, RecordSeverity::Warning, "blocked"),
+        ExecutionStatus::Cancelled => (BuiltinRecordType::TestExecutionStopped, RecordSeverity::Info, "stopped"),
+        ExecutionStatus::Interrupted => (BuiltinRecordType::TestExecutionInterrupted, RecordSeverity::Warning, "interrupted"),
+        ExecutionStatus::Skipped | ExecutionStatus::Invalidated | ExecutionStatus::Pending | ExecutionStatus::Running => {
             return None;
         }
     };
@@ -1278,10 +901,7 @@ fn terminal_execution_record(execution: &TestExecution, label: &str) -> Option<B
         severity,
         message: Some(format!("Test execution {label} {status}.")),
         details: BTreeMap::from([
-            (
-                "test_execution_id".to_owned(),
-                Value::from(execution.test_execution_id.as_str()),
-            ),
+            ("test_execution_id".to_owned(), Value::from(execution.test_execution_id.as_str())),
             ("status".to_owned(), Value::from(status)),
         ]),
         scope: Some(execution.scope.clone()),
@@ -1289,10 +909,7 @@ fn terminal_execution_record(execution: &TestExecution, label: &str) -> Option<B
 }
 
 fn upsert_execution(executions: &mut Vec<TestExecution>, execution: TestExecution) {
-    if let Some(existing) = executions
-        .iter_mut()
-        .find(|existing| existing.test_execution_id == execution.test_execution_id)
-    {
+    if let Some(existing) = executions.iter_mut().find(|existing| existing.test_execution_id == execution.test_execution_id) {
         *existing = execution;
     } else {
         executions.push(execution);
@@ -1367,9 +984,7 @@ fn summary(status: ResultStatus) -> ResultSummary {
 }
 
 fn identifier(value: &str) -> Identifier {
-    Identifier::new(value).unwrap_or_else(|_| {
-        Identifier::new("provider.invalid_identifier").expect("fallback identifier is valid")
-    })
+    Identifier::new(value).unwrap_or_else(|_| Identifier::new("provider.invalid_identifier").expect("fallback identifier is valid"))
 }
 
 /* === Tests === */

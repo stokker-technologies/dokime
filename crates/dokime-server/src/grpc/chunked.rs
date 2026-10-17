@@ -31,9 +31,7 @@ use dokime_runtime::runtime::ArtifactReader;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct ArtifactFrames(
-    pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>,
-);
+pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -69,9 +67,7 @@ impl Frames for ArtifactFrames {
     type Frame = dokime_domain::model::content::wire::ArtifactFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame {
-            payload: self.0.payload.clone(),
-        }
+        dokime_domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
     }
 
     fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
@@ -80,21 +76,17 @@ impl Frames for ArtifactFrames {
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
         dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(
-                dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(
-                    dokime_domain::model::content::wire::ArtifactChunk { offset, data },
-                ),
-            ),
+            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(
+                dokime_domain::model::content::wire::ArtifactChunk { offset, data },
+            )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
         dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(
-                dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
-                    dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
-                ),
-            ),
+            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
+                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
+            )),
         }
     }
 }
@@ -108,10 +100,7 @@ impl Source {
         Self::Artifact(Box::new(reader))
     }
 
-    async fn next_chunk(
-        &mut self,
-        maximum: NonZeroUsize,
-    ) -> Result<Option<Vec<u8>>, dokime_runtime::runtime::Error> {
+    async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>, dokime_runtime::runtime::Error> {
         match self {
             Self::Artifact(reader) => reader.next_chunk(maximum).await,
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
@@ -128,10 +117,7 @@ impl<F: Frames> Download<F> {
         } else {
             let metadata = self.frames.metadata();
             self.check(&metadata)?;
-            output
-                .send_with(metadata.memory_size(), || Ok(metadata))
-                .await
-                .map_err(stream_failure)?;
+            output.send_with(metadata.memory_size(), || Ok(metadata)).await.map_err(stream_failure)?;
         }
         let mut offset = 0u64;
         let mut digest = Sha256::new();
@@ -155,17 +141,13 @@ impl<F: Frames> Download<F> {
                     output
                         .send_with(frame_bytes, || {
                             let mut payload = Vec::new();
-                            payload.try_reserve_exact(bytes.len()).map_err(|_| {
-                                harmos::Error::ResourceExhausted {
-                                    resource: "file frame allocation",
-                                }
-                            })?;
+                            payload
+                                .try_reserve_exact(bytes.len())
+                                .map_err(|_| harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
                             payload.extend_from_slice(bytes);
                             let frame = frames.chunk(offset, payload);
                             if frame.encoded_len() > limit {
-                                return Err(harmos::Error::ResourceExhausted {
-                                    resource: "file frame encoding",
-                                });
+                                return Err(harmos::Error::ResourceExhausted { resource: "file frame encoding" });
                             }
                             Ok(frame)
                         })
@@ -175,11 +157,7 @@ impl<F: Frames> Download<F> {
                     offset = next;
                 }
                 Source::Artifact(_) => {
-                    let Some(chunk) = self
-                        .source
-                        .next_chunk(maximum)
-                        .await
-                        .map_err(|source| file_failure(source, self.read_failure))?
+                    let Some(chunk) = self.source.next_chunk(maximum).await.map_err(|source| file_failure(source, self.read_failure))?
                     else {
                         break;
                     };
@@ -190,33 +168,18 @@ impl<F: Frames> Download<F> {
                     }
                     let frame = self.frames.chunk(offset, chunk);
                     self.check(&frame)?;
-                    output
-                        .send_owned(frame.into())
-                        .await
-                        .map_err(stream_failure)?;
+                    output.send_owned(frame.into()).await.map_err(stream_failure)?;
                     offset = next;
                 }
             }
         }
         if offset != self.size_bytes {
-            return Err(Status::data_loss(format!(
-                "{} ended before its declared length",
-                self.noun
-            )));
+            return Err(Status::data_loss(format!("{} ended before its declared length", self.noun)));
         }
-        let sha256 = self.sha256.take().unwrap_or_else(|| {
-            digest
-                .finalize()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect()
-        });
+        let sha256 = self.sha256.take().unwrap_or_else(|| digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect());
         let complete = self.frames.complete(offset, sha256);
         self.check(&complete)?;
-        output
-            .send_with(complete.memory_size(), || Ok(complete))
-            .await
-            .map_err(stream_failure)
+        output.send_with(complete.memory_size(), || Ok(complete)).await.map_err(stream_failure)
     }
 
     fn check(&self, frame: &F::Frame) -> Result<(), Status> {
@@ -226,10 +189,7 @@ impl<F: Frames> Download<F> {
         Ok(())
     }
     fn too_large(&self) -> Status {
-        Status::resource_exhausted(format!(
-            "{} exceeds the configured message budget",
-            self.noun
-        ))
+        Status::resource_exhausted(format!("{} exceeds the configured message budget", self.noun))
     }
 }
 
@@ -244,12 +204,8 @@ fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u6
 }
 fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
-            Status::resource_exhausted(message)
-        }
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => {
-            Status::unavailable(message)
-        }
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)

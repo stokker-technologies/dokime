@@ -26,15 +26,11 @@ use unftp_core::auth::{AuthenticationError, Authenticator, Credentials, Principa
 use unftp_sbe_fs::Filesystem;
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use dokime_runtime::config::RuntimeCredentialConfig;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
-use {
-    model::files::wire::FileWatchPolicy,
-    model::files::wire::FileWatchSourcePayload,
-    model::files::wire::FtpWatchSource,
-};
+use {model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload, model::files::wire::FtpWatchSource};
 
 /* === Constants === */
 const USER: &str = "bench";
@@ -56,20 +52,14 @@ struct BenchLogin;
 /* === Implementations === */
 #[async_trait::async_trait]
 impl Authenticator for BenchLogin {
-    async fn authenticate(
-        &self,
-        username: &str,
-        credentials: &Credentials,
-    ) -> Result<Principal, AuthenticationError> {
+    async fn authenticate(&self, username: &str, credentials: &Credentials) -> Result<Principal, AuthenticationError> {
         if username != USER {
             return Err(AuthenticationError::BadUser);
         }
         if credentials.password.as_deref() != Some(PASSWORD) {
             return Err(AuthenticationError::BadPassword);
         }
-        Ok(Principal {
-            username: username.to_owned(),
-        })
+        Ok(Principal { username: username.to_owned() })
     }
 }
 
@@ -78,36 +68,23 @@ impl Authenticator for BenchLogin {
 /* === Private Functions === */
 // Serves `root` on a free loopback port until the runtime stops.
 async fn serve(root: &Path) -> u16 {
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let home = root.to_path_buf();
-    let server = ServerBuilder::with_authenticator(
-        Box::new(move || Filesystem::new(home.clone()).unwrap()),
-        Arc::new(BenchLogin),
-    )
-    .passive_ports(50_000..=60_000)
-    .build()
-    .unwrap();
+    let server = ServerBuilder::with_authenticator(Box::new(move || Filesystem::new(home.clone()).unwrap()), Arc::new(BenchLogin))
+        .passive_ports(50_000..=60_000)
+        .build()
+        .unwrap();
     tokio::spawn(server.listen(format!("127.0.0.1:{port}")));
 
     // The In-Process Server Publishes No Readiness Signal; Yield Until Its Control Port Accepts.
-    while tokio::net::TcpStream::connect(("127.0.0.1", port))
-        .await
-        .is_err()
-    {
+    while tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_err() {
         tokio::task::yield_now().await;
     }
     port
 }
 
 fn ftp(url: String, credential: Option<&str>) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Ftp(FtpWatchSource {
-        url,
-        credential_id: credential.map(str::to_owned),
-    })
+    FileWatchSourcePayload::Ftp(FtpWatchSource { url, credential_id: credential.map(str::to_owned) })
 }
 
 /* === Tests === */
@@ -117,12 +94,10 @@ async fn stream_ftp_source() {
         let credentials = root.join("credentials.json");
         let stored = BTreeMap::from([(CREDENTIAL, PASSWORD)]);
         std::fs::write(&credentials, serde_json::to_string(&stored).unwrap()).unwrap();
-        config
-            .with_trusted_bench(true)
-            .with_credential_backend(RuntimeCredentialConfig {
-                backend: dokime_runtime::CredentialBackendKind::LocalFile,
-                local_file: Some(credentials),
-            })
+        config.with_trusted_bench(true).with_credential_backend(RuntimeCredentialConfig {
+            backend: dokime_runtime::CredentialBackendKind::LocalFile,
+            local_file: Some(credentials),
+        })
     })
     .await;
     let served = tempdir().unwrap();
@@ -136,30 +111,14 @@ async fn stream_ftp_source() {
     // A Wrong Or Missing Credential Is Refused At Open
     let refused = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                ftp(url.clone(), None),
-                rules.clone(),
-                FileWatchPolicy::Stream,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, ftp(url.clone(), None), rules.clone(), FileWatchPolicy::Stream), None)
         .await
         .err()
         .unwrap();
     assert_eq!(refused.code(), Some(UNREACHABLE), "{refused}");
     let missing = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                ftp(url.clone(), Some("absent")),
-                rules.clone(),
-                FileWatchPolicy::Stream,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, ftp(url.clone(), Some("absent")), rules.clone(), FileWatchPolicy::Stream), None)
         .await
         .err()
         .unwrap();
@@ -168,15 +127,7 @@ async fn stream_ftp_source() {
     // The Stored Credential Opens The Watch; Listing Baselines Existing Files
     let mut watch = bench
         .handle
-        .open_file_watch(
-            &request(
-                &bench.execution,
-                ftp(url, Some(CREDENTIAL)),
-                rules,
-                FileWatchPolicy::Stream,
-            ),
-            None,
-        )
+        .open_file_watch(&request(&bench.execution, ftp(url, Some(CREDENTIAL)), rules, FileWatchPolicy::Stream), None)
         .await
         .unwrap();
     let first = poll(&mut watch).await;
@@ -201,16 +152,8 @@ async fn stream_ftp_source() {
     )));
 
     let sealed = sealed(&seal(&mut watch).await);
-    assert_artifact(
-        &sealed["logs/charger.log"],
-        "logs/charger.log",
-        b"line 1\nline 2\n",
-    );
-    assert_artifact(
-        &sealed["logs/new/bms.log"],
-        "logs/new/bms.log",
-        b"born\nx\n",
-    );
+    assert_artifact(&sealed["logs/charger.log"], "logs/charger.log", b"line 1\nline 2\n");
+    assert_artifact(&sealed["logs/new/bms.log"], "logs/new/bms.log", b"born\nx\n");
 
     drop(watch);
     bench.stop().await;

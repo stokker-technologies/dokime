@@ -59,9 +59,7 @@ impl Transaction<RuntimeState> for InstallHostPlugin {
         state.clone().install_host_plugin(self.installation.clone())
     }
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .install_host_plugin(self.installation.clone())
-            .expect("host catalog admission was checked");
+        state.install_host_plugin(self.installation.clone()).expect("host catalog admission was checked");
     }
 }
 
@@ -72,9 +70,7 @@ impl Transaction<RuntimeState> for ReconcileProviders {
         state.validate_providers(&self.providers)
     }
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .reconcile_providers(&self.providers)
-            .expect("provider catalog admission was checked");
+        state.reconcile_providers(&self.providers).expect("provider catalog admission was checked");
     }
 }
 
@@ -85,9 +81,7 @@ impl Transaction<RuntimeState> for ReloadProviderCatalog {
         state.validate_provider_reload(&self.providers, &self.provider)
     }
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .reload_provider_catalog(&self.providers, &self.provider)
-            .expect("development catalog replacement was checked");
+        state.reload_provider_catalog(&self.providers, &self.provider).expect("development catalog replacement was checked");
     }
 }
 
@@ -95,11 +89,7 @@ impl Transaction<RuntimeState> for ReloadProviderCatalog {
 
 /* === Private Functions === */
 fn active(state: &RuntimeState) -> Result<(), String> {
-    if state.shutting_down {
-        Err("runtime is shutting down".into())
-    } else {
-        Ok(())
-    }
+    if state.shutting_down { Err("runtime is shutting down".into()) } else { Ok(()) }
 }
 
 /* === Tests === */

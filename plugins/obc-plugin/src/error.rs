@@ -58,10 +58,7 @@ pub enum Error {
 /* === Implementations === */
 impl From<Error> for dokime_runtime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
-        Self::Refused {
-            code: -32_000,
-            message: error.to_string(),
-        }
+        Self::Refused { code: -32_000, message: error.to_string() }
     }
 }
 

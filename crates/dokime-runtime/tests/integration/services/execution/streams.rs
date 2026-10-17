@@ -20,12 +20,12 @@
 // Local Imports
 use crate::service_support::waits::until_telemetry;
 use async_trait::async_trait;
-use dokime_runtime::{Identifier, Value};
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::schema::Described;
-use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::InstalledPlugin;
+use dokime_runtime::execution::Runnable;
+use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::runtime::Result;
+use dokime_runtime::schema::Described;
+use dokime_runtime::{Identifier, Value};
 use harmos::sidecar::StreamDeclaration;
 use std::sync::{Arc, Mutex};
 
@@ -85,51 +85,28 @@ impl Checks {}
 struct Pulse;
 #[dokime_runtime::template(id = "fixture.embedded.checks.pulse", label = "Pulse", streams = Streams)]
 impl Pulse {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Measure")]
-    async fn measure(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::StepContext<'_>,
-    ) -> dokime_runtime::Result<()> {
-        ctx.publish(Reading {
-            value: 7.0,
-            signed: -2,
-            optional: Some(3),
-            unsigned: 9,
-            samples: vec![1.5, 2.0],
-            label: "live".into(),
-        })
-        .await;
+    async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
+        ctx.publish(Reading { value: 7.0, signed: -2, optional: Some(3), unsigned: 9, samples: vec![1.5, 2.0], label: "live".into() })
+            .await;
         signalled().entered.notify_one();
         signalled().release.notified().await;
         Ok(())
     }
 
-    async fn cleanup(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::CleanupContext<'_>,
-    ) -> dokime_runtime::Result<()> {
+    async fn cleanup(&mut self, ctx: &mut dokime_runtime::execution::CleanupContext<'_>) -> dokime_runtime::Result<()> {
         let _ = ctx;
-        signalled()
-            .events
-            .lock()
-            .unwrap()
-            .push("execution:cleanup".into());
+        signalled().events.lock().unwrap().push("execution:cleanup".into());
         Ok(())
     }
 }
 
 fn signalled() -> Signals {
-    SIGNALLED
-        .lock()
-        .unwrap()
-        .clone()
-        .expect("a case names what its execution signals through")
+    SIGNALLED.lock().unwrap().clone().expect("a case names what its execution signals through")
 }
 
 struct Probe {
@@ -168,30 +145,21 @@ impl EmbeddedProvider for Probe {
     }
 
     async fn start(&self) -> Result<Vec<Arc<dyn Runnable>>> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(format!("start:{}", self.label));
+        self.events.lock().unwrap().push(format!("start:{}", self.label));
         if self.fail {
-            return Err(dokime_runtime::runtime::Error::Operation(
-                "fixture initialization refused".into(),
-            ));
+            return Err(dokime_runtime::runtime::Error::Operation("fixture initialization refused".into()));
         }
         if self.block_start {
             self.signals.entered.notify_one();
             std::future::pending::<()>().await;
         }
-        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Pulse>::new(
-            "fixture.embedded.checks",
-            "fixture.embedded",
-        )) as Arc<dyn Runnable>])
+        Ok(vec![
+            Arc::new(dokime_runtime::execution::Workflow::<Pulse>::new("fixture.embedded.checks", "fixture.embedded")) as Arc<dyn Runnable>
+        ])
     }
 
     async fn stop(&self) -> Result<()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(format!("stop:{}", self.label));
+        self.events.lock().unwrap().push(format!("stop:{}", self.label));
         Ok(())
     }
 }
@@ -206,54 +174,24 @@ async fn live_rows_paths() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
-        Metadata::new(
-            Identifier::new("fixture.live.host").unwrap(),
-            "Embedded Host",
-            None,
-        ),
+        Metadata::new(Identifier::new("fixture.live.host").unwrap(), "Embedded Host", None),
     );
     let events = Arc::new(Mutex::new(Vec::new()));
-    let signals = Signals {
-        events: Arc::clone(&events),
-        ..Default::default()
-    };
+    let signals = Signals { events: Arc::clone(&events), ..Default::default() };
     *SIGNALLED.lock().unwrap() = Some(signals.clone());
-    let provider = |label| {
-        Arc::new(Probe {
-            label,
-            fail: false,
-            block_start: false,
-            events: Arc::clone(&events),
-            signals: signals.clone(),
-        })
-    };
-    let mut runtime = dokime_runtime::Runtime::start(config.register(provider("first")))
-        .await
-        .unwrap();
+    let provider =
+        |label| Arc::new(Probe { label, fail: false, block_start: false, events: Arc::clone(&events), signals: signals.clone() });
+    let mut runtime = dokime_runtime::Runtime::start(config.register(provider("first"))).await.unwrap();
     let handle = runtime.handle();
     let cycle = crate::service_support::suites::start_cases(
         &handle,
-        Metadata::new(
-            Identifier::new("fixture.live.cycle").unwrap(),
-            "Live Cycle",
-            None,
-        ),
-        crate::service_support::suites::materialize_cases(
-            "fixture.embedded.checks",
-            &Checks::definition().suite,
-        ),
+        Metadata::new(Identifier::new("fixture.live.cycle").unwrap(), "Live Cycle", None),
+        crate::service_support::suites::materialize_cases("fixture.embedded.checks", &Checks::definition().suite),
         false,
     )
     .await;
-    let admitted_owner =
-        handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
-    let admitted_identity = handle
-        .cycles()
-        .await
-        .into_iter()
-        .find(|item| item.test_cycle_id == cycle)
-        .unwrap()
-        .test_executions[0]
+    let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
+    let admitted_identity = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
         .snapshot
         .plugin()
         .unwrap()
@@ -262,85 +200,43 @@ async fn live_rows_paths() {
         dokime_domain::model::execution::snapshot::ExecutionImplementation::Embedded { generation } if !generation.is_empty()));
     assert_eq!(admitted_identity.content_digest(), None);
 
-    let receipt = handle
-        .run_cycle_cases(cycle.clone(), CommandContext::default())
-        .await;
+    let receipt = handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     signals.entered.notified().await;
     let rows = until_telemetry(&handle, || async {
         let rows = handle
             .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
                 streams: vec![Identifier::new(Reading::ID).unwrap()],
-                scope: dokime_runtime::domains::evidence::ScopeSelection {
-                    test_cycle_id: Some(cycle.clone()),
-                    ..Default::default()
-                },
+                scope: dokime_runtime::domains::evidence::ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
                 ..Default::default()
             })
             .await;
         (!rows.is_empty()).then_some(rows)
     })
     .await;
-    assert_eq!(
-        rows.len(),
-        1,
-        "embedded rows reach the same retained evidence as sidecar rows"
-    );
+    assert_eq!(rows.len(), 1, "embedded rows reach the same retained evidence as sidecar rows");
     assert_eq!(rows[0].values["value"], Value::Number(7.0));
     assert_eq!(rows[0].values["signed"], Value::Integer(-2));
     assert_eq!(rows[0].values["optional"], Value::Integer(3));
     assert_eq!(rows[0].values["unsigned"], Value::Unsigned(9));
-    assert_eq!(
-        rows[0].values["samples"],
-        Value::Array(vec![Value::Number(1.5), Value::Number(2.0)])
-    );
+    assert_eq!(rows[0].values["samples"], Value::Array(vec![Value::Number(1.5), Value::Number(2.0)]));
     assert_eq!(rows[0].values["label"], Value::Text("live".into()));
     let mut replacement = Box::pin(runtime.register(provider("second")));
     // The Replacement Drains Behind The Held Step, So Its First Poll Stays Pending.
     tokio::task::yield_now().await;
-    let pending = std::future::poll_fn(|context| {
-        std::task::Poll::Ready(replacement.as_mut().poll(context).is_pending())
-    })
-    .await;
-    assert!(
-        pending,
-        "replacement completed before the active step settled"
-    );
-    assert_eq!(
-        *events.lock().unwrap(),
-        ["start:first"],
-        "the active generation must remain owned while draining"
-    );
+    let pending = std::future::poll_fn(|context| std::task::Poll::Ready(replacement.as_mut().poll(context).is_pending())).await;
+    assert!(pending, "replacement completed before the active step settled");
+    assert_eq!(*events.lock().unwrap(), ["start:first"], "the active generation must remain owned while draining");
     signals.release.notify_one();
     (&mut replacement).await.unwrap();
     drop(replacement);
-    let ended = handle
-        .cycles()
-        .await
-        .into_iter()
-        .find(|item| item.test_cycle_id == cycle)
-        .unwrap();
-    assert_eq!(
-        ended.test_executions[0].snapshot.plugin(),
-        Some(&admitted_identity)
-    );
-    let replacement_owner =
-        handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
+    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
+    assert_eq!(ended.test_executions[0].snapshot.plugin(), Some(&admitted_identity));
+    let replacement_owner = handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
     assert_ne!(admitted_owner, replacement_owner);
 
-    assert_eq!(
-        ended.test_executions[0].status,
-        dokime_domain::model::execution::result::ExecutionStatus::Passed
-    );
-    assert_eq!(
-        *events.lock().unwrap(),
-        [
-            "start:first",
-            "execution:cleanup",
-            "stop:first",
-            "start:second"
-        ]
-    );
+    assert_eq!(ended.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Passed);
+    assert_eq!(*events.lock().unwrap(), ["start:first", "execution:cleanup", "stop:first", "start:second"]);
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

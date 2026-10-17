@@ -46,22 +46,14 @@ pub(crate) struct Args {
 /* === Public Functions === */
 pub(super) async fn run(args: Args) -> crate::Result<()> {
     if args.connection.has_token_file() {
-        return Err(crate::Error::Input(
-            "Logout does not use --token-file".into(),
-        ));
+        return Err(crate::Error::Input("Logout does not use --token-file".into()));
     }
     let resolved = args.connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint().to_owned();
     let stored_endpoint = endpoint.clone();
-    crate::connection::credentials(args.connection.timeout(), move || {
-        KeyringStore.remove(&stored_endpoint)
-    })
-    .await?;
+    crate::connection::credentials(args.connection.timeout(), move || KeyringStore.remove(&stored_endpoint)).await?;
     if args.json {
-        println!(
-            "{}",
-            serde_json::json!({"status": "local_credentials_removed", "endpoint": endpoint})
-        );
+        println!("{}", serde_json::json!({"status": "local_credentials_removed", "endpoint": endpoint}));
     } else {
         println!("Local Credentials Removed: {endpoint}");
     }

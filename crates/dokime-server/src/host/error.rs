@@ -58,10 +58,7 @@ pub enum Error {
     #[error("server failed: {0}")]
     Server(#[from] crate::grpc::Error),
     #[error("server failed: {server}; runtime shutdown also failed: {runtime}")]
-    Cleanup {
-        server: Box<crate::grpc::Error>,
-        runtime: Box<dokime_runtime::runtime::Error>,
-    },
+    Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime_runtime::runtime::Error> },
 }
 
 /* === Traits === */
@@ -69,11 +66,7 @@ pub enum Error {
 /* === Implementations === */
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        if error.kind() == std::io::ErrorKind::InvalidInput {
-            Self::Input(error.to_string())
-        } else {
-            Self::Io(error)
-        }
+        if error.kind() == std::io::ErrorKind::InvalidInput { Self::Input(error.to_string()) } else { Self::Io(error) }
     }
 }
 
@@ -104,27 +97,17 @@ impl Error {
         };
         Self::IncompatibleStorage { root, reason }
     }
-    pub(crate) fn startup(
-        server: crate::grpc::Error,
-        cleanup: dokime_runtime::runtime::Result<()>,
-    ) -> Self {
+    pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime_runtime::runtime::Result<()>) -> Self {
         match cleanup {
             Ok(()) => Self::Server(server),
-            Err(runtime) => Self::Cleanup {
-                server: Box::new(server),
-                runtime: Box::new(runtime),
-            },
+            Err(runtime) => Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) },
         }
     }
     pub(crate) fn shutdown(
-        server: std::result::Result<(), crate::grpc::Error>,
-        runtime: dokime_runtime::runtime::Result<()>,
+        server: std::result::Result<(), crate::grpc::Error>, runtime: dokime_runtime::runtime::Result<()>,
     ) -> Result<()> {
         match (server, runtime) {
-            (Err(server), Err(runtime)) => Err(Self::Cleanup {
-                server: Box::new(server),
-                runtime: Box::new(runtime),
-            }),
+            (Err(server), Err(runtime)) => Err(Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) }),
             (Err(server), _) => Err(server.into()),
             (_, Err(runtime)) => Err(runtime.into()),
             _ => Ok(()),
@@ -135,9 +118,7 @@ impl Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn storage_refusal(
-    error: &dokime_runtime::runtime::Error,
-) -> Option<&dokime_runtime::storage::sqlite::Error> {
+fn storage_refusal(error: &dokime_runtime::runtime::Error) -> Option<&dokime_runtime::storage::sqlite::Error> {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
         if let Some(storage) = cause.downcast_ref::<dokime_runtime::storage::sqlite::Error>() {
@@ -152,10 +133,7 @@ fn incompatible(error: &dokime_runtime::storage::sqlite::Error) -> bool {
     use dokime_runtime::storage::sqlite::{Error, rusqlite::ErrorCode};
     match error {
         Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
-        Error::Sqlite(error) => matches!(
-            error.sqlite_error_code(),
-            Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)
-        ),
+        Error::Sqlite(error) => matches!(error.sqlite_error_code(), Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)),
         _ => false,
     }
 }

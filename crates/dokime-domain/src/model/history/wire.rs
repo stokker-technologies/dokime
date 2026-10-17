@@ -246,9 +246,7 @@ pub struct HistoricalExecutionSnapshot {
     pub parameters: Vec<MaterializedParameter>,
     pub documents: Vec<HistoricalDocument>,
     // Captured at admission; never reconstructed from the current suite catalog.
-    #[row(
-        description = "Captured at admission; never reconstructed from the current suite catalog."
-    )]
+    #[row(description = "Captured at admission; never reconstructed from the current suite catalog.")]
     pub case_definition: Option<HistoricalCaseDefinition>,
     pub host_version: Option<String>,
 }

@@ -70,13 +70,7 @@ impl FromStr for ColorMode {
 
 impl Terminal {
     pub fn new(mode: ColorMode) -> Self {
-        Self {
-            mode: if mode == ColorMode::Auto {
-                color_mode()
-            } else {
-                mode
-            },
-        }
+        Self { mode: if mode == ColorMode::Auto { color_mode() } else { mode } }
     }
     pub fn color_enabled(&self) -> bool {
         let choice = match self.mode {
@@ -95,10 +89,7 @@ impl Terminal {
             ColorMode::Always => anstream::ColorChoice::Always,
             ColorMode::Never => anstream::ColorChoice::Never,
         };
-        let _ = writeln!(
-            anstream::AutoStream::new(io::stderr().lock(), choice),
-            "{message}"
-        );
+        let _ = writeln!(anstream::AutoStream::new(io::stderr().lock(), choice), "{message}");
     }
     fn line(&self, label: &str, message: impl Display, color: AnsiColor) {
         let style = Style::new().fg_color(Some(color.into())).bold();
@@ -142,14 +133,8 @@ impl Terminal {
     pub fn progress(&self, message: impl Into<String>) -> Progress {
         let message = message.into();
         let interactive = io::stderr().is_terminal();
-        let bar = ProgressBar::with_draw_target(
-            None,
-            if interactive {
-                ProgressDrawTarget::stderr()
-            } else {
-                ProgressDrawTarget::hidden()
-            },
-        );
+        let bar =
+            ProgressBar::with_draw_target(None, if interactive { ProgressDrawTarget::stderr() } else { ProgressDrawTarget::hidden() });
         bar.set_style(
             ProgressStyle::with_template("{spinner} {msg} [{elapsed_precise}]")
                 .expect("valid progress template")
@@ -161,10 +146,7 @@ impl Terminal {
         } else {
             self.status(&message);
         }
-        Progress {
-            bar,
-            terminal: self.clone(),
-        }
+        Progress { bar, terminal: self.clone() }
     }
 }
 
@@ -176,8 +158,7 @@ impl Default for Terminal {
 
 impl Progress {
     pub fn log(&self, message: impl Display) {
-        self.bar
-            .suspend(|| self.terminal.write(&message.to_string()));
+        self.bar.suspend(|| self.terminal.write(&message.to_string()));
     }
     pub fn finish(self, message: impl Display) {
         self.bar.finish_and_clear();

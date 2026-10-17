@@ -16,21 +16,14 @@
 // Standard Library Imports
 use std::{collections::BTreeMap, fs, sync::Arc};
 // Third Party Imports
-use dokime_runtime::{
-    CredentialBackendKind, HostCardBlock, HostCardTone, Identifier, Metadata,
-    RedactedCredentialBinding, Value,
-};
-use dokime_runtime::domains::{
-    ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse,
-};
+use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
+use dokime_runtime::{CredentialBackendKind, HostCardBlock, HostCardTone, Identifier, Metadata, RedactedCredentialBinding, Value};
 // Local Imports
 use dokime_runtime::domains::settings::RuntimeSettingsCardState;
 use dokime_runtime::{RuntimeCredentialConfig, RuntimeHandle};
 
-use dokime_runtime::settings::{
-    SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea,
-};
 use dokime_runtime::domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate};
+use dokime_runtime::settings::{SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea};
 
 /* === Constants === */
 
@@ -54,44 +47,26 @@ impl ActionDispatcher for FixtureStatusDispatcher {
         Box::pin(async move { self.status.clone() })
     }
 
-    fn query_options<'a>(
-        &'a self,
-        entrypoint: &'a str,
-    ) -> ActionDispatcherFuture<'a, Vec<dokime_runtime::domains::OptionProviderOption>> {
-        Box::pin(async move {
-            Err(ActionDispatcherError::UnknownEntrypoint(
-                entrypoint.to_owned(),
-            ))
-        })
+    fn query_options<'a>(&'a self, entrypoint: &'a str) -> ActionDispatcherFuture<'a, Vec<dokime_runtime::domains::OptionProviderOption>> {
+        Box::pin(async move { Err(ActionDispatcherError::UnknownEntrypoint(entrypoint.to_owned())) })
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn fixture_runtime(
-    module: Option<dokime_runtime::InstalledPlugin>,
-) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
+async fn fixture_runtime(module: Option<dokime_runtime::InstalledPlugin>) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
     fixture_runtime_with_dispatcher(module, None).await
 }
 
 async fn fixture_runtime_with_dispatcher(
-    module: Option<dokime_runtime::InstalledPlugin>,
-    dispatcher: Option<Arc<dyn ActionDispatcher>>,
+    module: Option<dokime_runtime::InstalledPlugin>, dispatcher: Option<Arc<dyn ActionDispatcher>>,
 ) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
     let root = tempfile::tempdir().unwrap();
-    let artifact_id = module
-        .as_ref()
-        .map(|module| Identifier::new(&module.source).unwrap());
-    let mut config = crate::service_support::budgets::runtime_config(
-        root.path(),
-        metadata("runtime.fixture", "Runtime"),
-    )
-    .with_credential_backend(RuntimeCredentialConfig {
-        backend: CredentialBackendKind::Memory,
-        local_file: None,
-    })
-    .with_installed_plugins(module);
+    let artifact_id = module.as_ref().map(|module| Identifier::new(&module.source).unwrap());
+    let mut config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime"))
+        .with_credential_backend(RuntimeCredentialConfig { backend: CredentialBackendKind::Memory, local_file: None })
+        .with_installed_plugins(module);
     if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
         config = config.with_action_dispatcher(artifact_id, dispatcher);
     }
@@ -107,9 +82,7 @@ async fn fixture_runtime_with_dispatcher(
 
 fn fixture_module() -> dokime_runtime::InstalledPlugin {
     let mut module = installed_plugin("fixture.artifact");
-    module.settings_status = Some(dokime_runtime::domains::PluginEntrypoint {
-        name: "fixture.status".into(),
-    });
+    module.settings_status = Some(dokime_runtime::domains::PluginEntrypoint { name: "fixture.status".into() });
     module
 }
 
@@ -120,15 +93,13 @@ fn installed_plugin(identifier: &str) -> dokime_runtime::InstalledPlugin {
         description: "Fixture Settings".to_owned(),
         enabled: true,
         settings: dokime_runtime::settings::Settings {
-            contributions: vec![dokime_runtime::settings::SettingsEntry::TextArea(
-                dokime_runtime::settings::TextArea {
-                    id: "workspace".to_owned(),
-                    title: "Workspace".to_owned(),
-                    description: None,
-                    default: "declared-workspace".to_owned(),
-                    required: true,
-                },
-            )],
+            contributions: vec![dokime_runtime::settings::SettingsEntry::TextArea(dokime_runtime::settings::TextArea {
+                id: "workspace".to_owned(),
+                title: "Workspace".to_owned(),
+                description: None,
+                default: "declared-workspace".to_owned(),
+                required: true,
+            })],
         },
         ..Default::default()
     }
@@ -147,14 +118,10 @@ async fn live_status_answered() {
     let dispatcher = FixtureStatusDispatcher {
         status: Ok(StatusResponse {
             state: "connected".to_owned(),
-            fields: BTreeMap::from([
-                ("Workspace".to_owned(), "Live workspace".into()),
-                ("Sync".to_owned(), "Enabled".into()),
-            ]),
+            fields: BTreeMap::from([("Workspace".to_owned(), "Live workspace".into()), ("Sync".to_owned(), "Enabled".into())]),
         }),
     };
-    let (_root, mut owner, runtime) =
-        fixture_runtime_with_dispatcher(Some(fixture_module()), Some(Arc::new(dispatcher))).await;
+    let (_root, mut owner, runtime) = fixture_runtime_with_dispatcher(Some(fixture_module()), Some(Arc::new(dispatcher))).await;
 
     let frame = runtime.settings_frame().await;
     let card = &frame.cards[0];
@@ -183,18 +150,12 @@ async fn live_status_answered() {
 async fn dispatcher_alone_probe() {
     let mut module = fixture_module();
     module.settings_status = None;
-    let dispatcher = FixtureStatusDispatcher {
-        status: Err(ActionDispatcherError::Unavailable),
-    };
-    let (_root, mut owner, runtime) =
-        fixture_runtime_with_dispatcher(Some(module), Some(Arc::new(dispatcher))).await;
+    let dispatcher = FixtureStatusDispatcher { status: Err(ActionDispatcherError::Unavailable) };
+    let (_root, mut owner, runtime) = fixture_runtime_with_dispatcher(Some(module), Some(Arc::new(dispatcher))).await;
 
     let frame = runtime.settings_frame().await;
 
-    assert!(
-        frame.cards.is_empty(),
-        "the plugin's own section is what declares the probe, not the host's dispatcher"
-    );
+    assert!(frame.cards.is_empty(), "the plugin's own section is what declares the probe, not the host's dispatcher");
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
@@ -213,22 +174,12 @@ async fn discovered_settings_until() {
 
     // The plugin discovered one, and the host stored it with its marker.
     runtime
-        .record_discovered_settings(
-            &artifact_id,
-            BTreeMap::from([("workspace".to_owned(), Value::from("found-workspace"))]),
-        )
+        .record_discovered_settings(&artifact_id, BTreeMap::from([("workspace".to_owned(), Value::from("found-workspace"))]))
         .await
         .unwrap();
     let settings = runtime.plugin_settings(&artifact_id).await.unwrap();
-    assert_eq!(
-        settings.discovered["workspace"],
-        Value::from("found-workspace")
-    );
-    assert_eq!(
-        settings.values["workspace"],
-        "declared-workspace".into(),
-        "a discovered value is used by no run until it is saved"
-    );
+    assert_eq!(settings.discovered["workspace"], Value::from("found-workspace"));
+    assert_eq!(settings.values["workspace"], "declared-workspace".into(), "a discovered value is used by no run until it is saved");
 
     // Saving it as it stands is what makes it an edited value: it moves into
     // the saved values and stops being offered as a suggestion.
@@ -273,13 +224,7 @@ async fn resolves_one_record() {
     artifact.settings = settings;
     let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
     handle
-        .save_plugin_credential_secret(
-            &artifact_id,
-            "access_token",
-            PluginCredentialSecretUpdate {
-                secret: "secret-token".into(),
-            },
-        )
+        .save_plugin_credential_secret(&artifact_id, "access_token", PluginCredentialSecretUpdate { secret: "secret-token".into() })
         .await
         .unwrap();
     handle
@@ -288,13 +233,7 @@ async fn resolves_one_record() {
             PluginSettingsUpdate {
                 values: BTreeMap::from([
                     ("workspace".into(), Value::from("team-prod")),
-                    (
-                        "access_token".into(),
-                        SecretReference::StoredCredential {
-                            credential_id: "fabric.access_token".into(),
-                        }
-                        .into(),
-                    ),
+                    ("access_token".into(), SecretReference::StoredCredential { credential_id: "fabric.access_token".into() }.into()),
                 ]),
             },
         )
@@ -343,74 +282,31 @@ async fn secret_references_file() {
     artifact.settings = catalog;
     let (root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
     handle
-        .save_plugin_credential_secret(
-            &id,
-            "token",
-            PluginCredentialSecretUpdate {
-                secret: "never-persist-plaintext-here".into(),
-            },
-        )
+        .save_plugin_credential_secret(&id, "token", PluginCredentialSecretUpdate { secret: "never-persist-plaintext-here".into() })
         .await
         .unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(resolved.values["name"], "default-name".into());
     assert!(resolved.credential_bindings.missing_required.is_empty());
-    handle
-        .save_plugin_settings(
-            &id,
-            PluginSettingsUpdate {
-                values: resolved.values.clone(),
-            },
-        )
-        .await
-        .unwrap();
+    handle.save_plugin_settings(&id, PluginSettingsUpdate { values: resolved.values.clone() }).await.unwrap();
     let settings_file = root.path().join("application/settings.json");
     let saved = handle.plugin_settings(&id).await.unwrap();
-    assert!(
-        !fs::read_to_string(&settings_file)
-            .unwrap()
-            .contains("never-persist-plaintext-here")
-    );
+    assert!(!fs::read_to_string(&settings_file).unwrap().contains("never-persist-plaintext-here"));
     let mut invalid = resolved.values;
     invalid.insert("token".into(), "never-persist-plaintext-here".into());
-    assert!(
-        handle
-            .save_plugin_settings(&id, PluginSettingsUpdate { values: invalid })
-            .await
-            .is_err()
-    );
-    assert_eq!(
-        handle.plugin_settings(&id).await.unwrap().values,
-        saved.values
-    );
+    assert!(handle.save_plugin_settings(&id, PluginSettingsUpdate { values: invalid }).await.is_err());
+    assert_eq!(handle.plugin_settings(&id).await.unwrap().values, saved.values);
     let environment = SettingValues::from([(
         "token".into(),
-        SecretReference::Environment {
-            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into(),
-        }
-        .into(),
+        SecretReference::Environment { variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into() }.into(),
     )]);
-    handle
-        .save_plugin_settings(
-            &id,
-            PluginSettingsUpdate {
-                values: environment,
-            },
-        )
-        .await
-        .unwrap();
+    handle.save_plugin_settings(&id, PluginSettingsUpdate { values: environment }).await.unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(
         SecretReference::try_from(&resolved.values["token"]).unwrap(),
-        SecretReference::Environment {
-            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into(),
-        }
+        SecretReference::Environment { variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into() }
     );
-    assert!(
-        !fs::read_to_string(settings_file)
-            .unwrap()
-            .contains("never-persist-plaintext-here")
-    );
+    assert!(!fs::read_to_string(settings_file).unwrap().contains("never-persist-plaintext-here"));
     runtime.shutdown().await.unwrap();
 }
 
@@ -429,52 +325,27 @@ async fn local_credentials_state() {
             default: None,
         })],
     };
-    let config = crate::service_support::budgets::runtime_config(
-        root.path(),
-        metadata("runtime.credentials", "Credentials"),
-    )
-    .with_credential_backend(RuntimeCredentialConfig {
-        backend: CredentialBackendKind::LocalFile,
-        local_file: Some(path.clone()),
-    })
-    .with_installed_plugins([artifact]);
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.credentials", "Credentials"))
+        .with_credential_backend(RuntimeCredentialConfig { backend: CredentialBackendKind::LocalFile, local_file: Some(path.clone()) })
+        .with_installed_plugins([artifact]);
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
     let settings = runtime
         .handle()
-        .save_plugin_credential_secret(
-            &id,
-            "api_token",
-            PluginCredentialSecretUpdate {
-                secret: "secret-token".into(),
-            },
-        )
+        .save_plugin_credential_secret(&id, "api_token", PluginCredentialSecretUpdate { secret: "secret-token".into() })
         .await
         .unwrap();
     assert_eq!(
         settings.credential_bindings.bindings["api_token"],
-        RedactedCredentialBinding {
-            credential_id: "zephyr.api_token".into(),
-            backend: CredentialBackendKind::LocalFile,
-            configured: true,
-        }
+        RedactedCredentialBinding { credential_id: "zephyr.api_token".into(), backend: CredentialBackendKind::LocalFile, configured: true }
     );
-    assert!(
-        !serde_json::to_string(&settings)
-            .unwrap()
-            .contains("secret-token")
-    );
+    assert!(!serde_json::to_string(&settings).unwrap().contains("secret-token"));
     runtime.shutdown().await.unwrap();
 
     // The Secret Reopens From The Credential File, Never From Settings
-    let persisted: BTreeMap<String, String> =
-        serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let persisted: BTreeMap<String, String> = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     assert_eq!(persisted["zephyr.api_token"], "secret-token");
     let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
-    assert!(
-        !fs::read_to_string(root.path().join("application/settings.json"))
-            .unwrap()
-            .contains("secret-token")
-    );
+    assert!(!fs::read_to_string(root.path().join("application/settings.json")).unwrap().contains("secret-token"));
     reopened.shutdown().await.unwrap();
 }
 
@@ -485,74 +356,31 @@ async fn source_settings_absent() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
-        dokime_runtime::Metadata::new(
-            dokime_runtime::Identifier::new("storage.settings").unwrap(),
-            "Storage Settings",
-            None,
-        ),
+        dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("storage.settings").unwrap(), "Storage Settings", None),
     );
     {
-        let state = dokime_runtime::storage::sqlite::State::open(root.path())
-            .await
-            .unwrap();
-        state
-            .register_source("fabric", "microsoft.fabric")
-            .await
-            .unwrap();
+        let state = dokime_runtime::storage::sqlite::State::open(root.path()).await.unwrap();
+        state.register_source("fabric", "microsoft.fabric").await.unwrap();
     }
-    let mut runtime = dokime_runtime::Runtime::with_execution_fixtures_without_builtins(
-        config.clone(),
-        std::iter::empty(),
-    )
-    .await
-    .unwrap();
+    let mut runtime = dokime_runtime::Runtime::with_execution_fixtures_without_builtins(config.clone(), std::iter::empty()).await.unwrap();
     let handle = runtime.handle();
-    handle
-        .reorder_storage_sources(vec!["fabric".into(), "local".into()])
-        .await
-        .unwrap();
-    handle
-        .set_storage_source_enabled("fabric", false)
-        .await
-        .unwrap();
+    handle.reorder_storage_sources(vec!["fabric".into(), "local".into()]).await.unwrap();
+    handle.set_storage_source_enabled("fabric", false).await.unwrap();
     let expected = handle.storage_sources().await.unwrap();
     assert_eq!(expected[0].identifier, "fabric");
     assert!(!expected[0].enabled);
     assert_eq!(expected[1].priority, 1);
-    assert!(
-        handle
-            .reorder_storage_sources(vec!["local".into()])
-            .await
-            .is_err()
-    );
-    assert!(
-        handle
-            .set_storage_source_enabled("local", false)
-            .await
-            .is_err()
-    );
+    assert!(handle.reorder_storage_sources(vec!["local".into()]).await.is_err());
+    assert!(handle.set_storage_source_enabled("local", false).await.is_err());
     assert_eq!(handle.storage_sources().await.unwrap(), expected);
-    assert!(
-        handle
-            .browse_executions(Default::default())
-            .await
-            .unwrap()
-            .entries
-            .is_empty()
-    );
+    assert!(handle.browse_executions(Default::default()).await.unwrap().entries.is_empty());
     drop(handle);
     runtime.shutdown().await.unwrap();
 
-    let mut runtime =
-        dokime_runtime::Runtime::with_execution_fixtures_without_builtins(config, std::iter::empty())
-            .await
-            .unwrap();
+    let mut runtime = dokime_runtime::Runtime::with_execution_fixtures_without_builtins(config, std::iter::empty()).await.unwrap();
     let handle = runtime.handle();
     assert_eq!(handle.storage_sources().await.unwrap(), expected);
-    handle
-        .set_storage_source_enabled("fabric", true)
-        .await
-        .unwrap();
+    handle.set_storage_source_enabled("fabric", true).await.unwrap();
     assert!(handle.storage_sources().await.unwrap()[0].enabled);
     drop(handle);
     runtime.shutdown().await.unwrap();

@@ -21,17 +21,17 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::appearance::Appearance;
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
-use dokime_domain::model::traceability::TraceabilityEntry;
-use dokime_domain::model::traceability::TraceabilitySnapshot;
+use crate::storage::objects::{case::Case, cycle::Cycle, presentation as native};
 use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::identity::TraceabilityId;
-use dokime_domain::model::execution::result::CycleView;
-use dokime_domain::model::execution::result::TestCycle;
-use crate::storage::objects::{case::Case, cycle::Cycle, presentation as native};
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::traceability::TraceabilityEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
 
@@ -91,18 +91,12 @@ impl TryFrom<&ExecutionContext> for Context {
     fn try_from(value: &ExecutionContext) -> Result<Self> {
         let mut execution_documents = slots(value.execution_documents.len())?;
         for (key, definition) in &value.execution_documents {
-            execution_documents.push(Document {
-                key: key.as_str().to_owned(),
-                definition: Some(definition.try_into()?),
-            });
+            execution_documents.push(Document { key: key.as_str().to_owned(), definition: Some(definition.try_into()?) });
         }
         Ok(Self {
             scope: Some((&value.scope).into()),
             session_id: value.session_id.as_str().to_owned(),
-            cycle: Some(Cycle::from_view(
-                &value.cycle.cycle,
-                &value.cycle.execution_order,
-            )?),
+            cycle: Some(Cycle::from_view(&value.cycle.cycle, &value.cycle.execution_order)?),
             cases: convert(&value.cycle.cases, |item| Ok(item.try_into()?))?,
             execution_documents,
             prompts: convert(&value.prompts, |item| Ok(item.try_into()?))?,
@@ -117,10 +111,7 @@ impl TryFrom<&ExecutionContext> for Context {
 impl TryFrom<Context> for ExecutionContext {
     type Error = Error;
     fn try_from(value: Context) -> Result<Self> {
-        let cycle: TestCycle = value
-            .cycle
-            .ok_or_else(|| invalid("context cycle is missing"))?
-            .try_into()?;
+        let cycle: TestCycle = value.cycle.ok_or_else(|| invalid("context cycle is missing"))?.try_into()?;
         let cycle_view = CycleView {
             saved: cycle.saved,
             test_cycle_id: cycle.test_cycle_id,
@@ -138,19 +129,12 @@ impl TryFrom<Context> for ExecutionContext {
         let mut documents = BTreeMap::new();
         for item in value.execution_documents {
             let key = DocumentId::from_wire(item.key).map_err(crate::storage::Error::from)?;
-            let definition = item
-                .definition
-                .ok_or_else(|| invalid("context document is missing"))?
-                .try_into()?;
+            let definition = item.definition.ok_or_else(|| invalid("context document is missing"))?.try_into()?;
             documents.insert(key, definition);
         }
         Ok(Self {
-            scope: value
-                .scope
-                .ok_or_else(|| invalid("context scope is missing"))?
-                .try_into()?,
-            session_id: SessionId::from_uuid(value.session_id)
-                .map_err(crate::storage::Error::from)?,
+            scope: value.scope.ok_or_else(|| invalid("context scope is missing"))?.try_into()?,
+            session_id: SessionId::from_uuid(value.session_id).map_err(crate::storage::Error::from)?,
             cycle: ExecutionCycleContext {
                 cycle: cycle_view,
                 cases: convert(value.cases, |item| Ok(item.try_into()?))?,
@@ -161,10 +145,7 @@ impl TryFrom<Context> for ExecutionContext {
             health: convert(value.health, |item| Ok(item.try_into()?))?,
             notes: convert(value.notes, |item| Ok(item.try_into()?))?,
             traceability: convert(value.traceability, TraceabilitySnapshot::try_from)?,
-            appearance: value
-                .appearance
-                .ok_or_else(|| invalid("context appearance is missing"))?
-                .try_into()?,
+            appearance: value.appearance.ok_or_else(|| invalid("context appearance is missing"))?.try_into()?,
         })
     }
 }
@@ -178,11 +159,7 @@ impl TryFrom<&TraceabilitySnapshot> for Traceability {
             traceability_id: value.traceability_id.as_str().to_owned(),
             scope: Some((&value.scope).into()),
             created_at: value.created_at.as_str().to_owned(),
-            metadata: value
-                .metadata
-                .as_ref()
-                .map(native::Metadata::try_from)
-                .transpose()?,
+            metadata: value.metadata.as_ref().map(native::Metadata::try_from).transpose()?,
             entries: convert(&value.entries, Entry::try_from)?,
         })
     }
@@ -191,12 +168,8 @@ impl TryFrom<Traceability> for TraceabilitySnapshot {
     type Error = Error;
     fn try_from(value: Traceability) -> Result<Self> {
         Ok(Self {
-            traceability_id: TraceabilityId::from_uuid(value.traceability_id)
-                .map_err(crate::storage::Error::from)?,
-            scope: value
-                .scope
-                .ok_or_else(|| invalid("traceability scope is missing"))?
-                .try_into()?,
+            traceability_id: TraceabilityId::from_uuid(value.traceability_id).map_err(crate::storage::Error::from)?,
+            scope: value.scope.ok_or_else(|| invalid("traceability scope is missing"))?.try_into()?,
             created_at: Timestamp::new(value.created_at),
             metadata: value.metadata.map(Metadata::try_from).transpose()?,
             entries: convert(value.entries, TraceabilityEntry::try_from)?,
@@ -218,14 +191,8 @@ impl TryFrom<Entry> for TraceabilityEntry {
     type Error = Error;
     fn try_from(value: Entry) -> Result<Self> {
         Ok(Self {
-            metadata: value
-                .metadata
-                .ok_or_else(|| invalid("traceability entry metadata is missing"))?
-                .try_into()?,
-            value: value
-                .value
-                .ok_or_else(|| invalid("traceability entry value is missing"))?
-                .try_into()?,
+            metadata: value.metadata.ok_or_else(|| invalid("traceability entry metadata is missing"))?.try_into()?,
+            value: value.value.ok_or_else(|| invalid("traceability entry value is missing"))?.try_into()?,
             source: value.source,
             unit: value.unit,
         })
@@ -240,18 +207,13 @@ fn invalid(message: &str) -> Error {
 }
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("context collection allocation failed"))?;
+    values.try_reserve_exact(count).map_err(|_| invalid("context collection allocation failed"))?;
     if values.capacity() != count {
         return Err(invalid("context collection exceeds reserved slots"));
     }
     Ok(values)
 }
-fn convert<T, U, I: IntoIterator<Item = T>>(
-    items: I,
-    mut map: impl FnMut(T) -> Result<U>,
-) -> Result<Vec<U>>
+fn convert<T, U, I: IntoIterator<Item = T>>(items: I, mut map: impl FnMut(T) -> Result<U>) -> Result<Vec<U>>
 where
     I::IntoIter: ExactSizeIterator,
 {

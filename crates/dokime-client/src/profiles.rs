@@ -96,11 +96,7 @@ pub enum Error {
 /* === Implementations === */
 impl Default for Document {
     fn default() -> Self {
-        Self {
-            version: 1,
-            default: None,
-            profiles: Vec::new(),
-        }
+        Self { version: 1, default: None, profiles: Vec::new() }
     }
 }
 
@@ -109,16 +105,14 @@ impl Document {
         if bytes.len() > MAX_BYTES {
             return Err(invalid("file exceeds 1 MiB"));
         }
-        let document: Self = serde_json::from_slice(bytes)
-            .map_err(|_| invalid("file does not match the version 1 profile schema"))?;
+        let document: Self = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the version 1 profile schema"))?;
         document.validate()?;
         Ok(document)
     }
 
     pub fn encode(&self) -> Result<Vec<u8>, Error> {
         self.validate()?;
-        let bytes = serde_json::to_vec_pretty(self)
-            .map_err(|_| invalid("cannot encode profile document"))?;
+        let bytes = serde_json::to_vec_pretty(self).map_err(|_| invalid("cannot encode profile document"))?;
         if bytes.len() > MAX_BYTES {
             return Err(invalid("file exceeds 1 MiB"));
         }
@@ -144,35 +138,20 @@ impl Document {
 
     pub fn get(&self, name: &str) -> Result<&Profile, Error> {
         validate_name(name)?;
-        self.profiles
-            .iter()
-            .find(|profile| profile.name == name)
-            .ok_or_else(|| invalid("requested profile does not exist"))
+        self.profiles.iter().find(|profile| profile.name == name).ok_or_else(|| invalid("requested profile does not exist"))
     }
 
     // Selection happens once; subsequent default edits cannot alter a connection.
-    pub fn select(
-        &self,
-        backend: Option<&str>,
-        endpoint: Option<&str>,
-        environment: Option<&str>,
-    ) -> Result<Selection, Error> {
+    pub fn select(&self, backend: Option<&str>, endpoint: Option<&str>, environment: Option<&str>) -> Result<Selection, Error> {
         if backend.is_some() && endpoint.is_some() {
             return Err(invalid("backend and endpoint are mutually exclusive"));
         }
         if let Some(endpoint) = endpoint {
             let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
-            return Ok(Selection {
-                name: None,
-                target,
-                expected_backend_id: None,
-                credential: Credential::None,
-            });
+            return Ok(Selection { name: None, target, expected_backend_id: None, credential: Credential::None });
         }
-        let name = backend
-            .or(environment)
-            .or(self.default.as_deref())
-            .ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
+        let name =
+            backend.or(environment).or(self.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
         self.get(name)?.selection()
     }
 }
@@ -181,9 +160,7 @@ impl Profile {
     pub fn selection(&self) -> Result<Selection, Error> {
         validate_name(&self.name)?;
         if let Some(identity) = &self.expected_backend_id
-            && (identity.is_empty()
-                || identity.len() > 256
-                || identity.chars().any(char::is_control))
+            && (identity.is_empty() || identity.len() > 256 || identity.chars().any(char::is_control))
         {
             return Err(invalid("invalid expected backend identity"));
         }
@@ -241,11 +218,7 @@ impl Store {
         if self.path.file_name().is_none() {
             return Err(invalid("configuration path must name a file"));
         }
-        Ok(self
-            .path
-            .parent()
-            .filter(|path| !path.as_os_str().is_empty())
-            .unwrap_or(Path::new(".")))
+        Ok(self.path.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new(".")))
     }
 
     pub fn load(&self) -> Result<Document, Error> {
@@ -260,30 +233,14 @@ impl Store {
     // Called only after bearer authentication and backend identity negotiation.
     // Protect the original profile association across the preceding network IO.
     // A file publication failure can leave the credential saved separately.
-    pub fn remember(
-        &self,
-        selection: &Selection,
-        token: &str,
-        secrets: &dyn SecretStore,
-    ) -> Result<(), Error> {
-        let name = selection
-            .name
-            .as_deref()
-            .ok_or_else(|| invalid("a named profile is required"))?;
+    pub fn remember(&self, selection: &Selection, token: &str, secrets: &dyn SecretStore) -> Result<(), Error> {
+        let name = selection.name.as_deref().ok_or_else(|| invalid("a named profile is required"))?;
         self.update(|document| {
             let current = document.get(name)?.selection()?;
-            if current.target != selection.target
-                || current.expected_backend_id != selection.expected_backend_id
-            {
-                return Err(invalid(
-                    "profile target changed during login; retry explicitly",
-                ));
+            if current.target != selection.target || current.expected_backend_id != selection.expected_backend_id {
+                return Err(invalid("profile target changed during login; retry explicitly"));
             }
-            let profile = document
-                .profiles
-                .iter_mut()
-                .find(|profile| profile.name == name)
-                .expect("validated profile exists");
+            let profile = document.profiles.iter_mut().find(|profile| profile.name == name).expect("validated profile exists");
             profile.credential = Credential::Keyring;
             // Refuse Schema And Capacity Failures Before Saving A Secret.
             document.encode()?;
@@ -294,20 +251,12 @@ impl Store {
 
     // Edit the latest snapshot while holding a stable sibling lock. Fail fast
     // on contention; never unlink the lock file or hold a lock during network IO.
-    pub fn update<T>(
-        &self,
-        edit: impl FnOnce(&mut Document) -> Result<T, Error>,
-    ) -> Result<T, Error> {
+    pub fn update<T>(&self, edit: impl FnOnce(&mut Document) -> Result<T, Error>) -> Result<T, Error> {
         let parent = self.parent()?;
         dokime_filesystem::publication::create_dir_all(parent)?;
         let mut lock_path = self.path.as_os_str().to_os_string();
         lock_path.push(".lock");
-        let lock = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(PathBuf::from(lock_path))?;
+        let lock = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(PathBuf::from(lock_path))?;
         match lock.try_lock() {
             Ok(()) => (),
             Err(TryLockError::WouldBlock) => return Err(Error::Busy),
@@ -329,15 +278,8 @@ fn invalid(message: &str) -> Error {
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {
-    if name.is_empty()
-        || name.len() > 64
-        || !name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(invalid(
-            "profile names require 1–64 ASCII letters, digits, dots, underscores or hyphens",
-        ));
+    if name.is_empty() || name.len() > 64 || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')) {
+        return Err(invalid("profile names require 1–64 ASCII letters, digits, dots, underscores or hyphens"));
     }
     Ok(())
 }
@@ -346,9 +288,7 @@ fn environment_path(name: &str) -> Result<PathBuf, Error> {
     env::var_os(name)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .ok_or_else(|| {
-            invalid("standard configuration root is unavailable; provide an explicit profile file")
-        })
+        .ok_or_else(|| invalid("standard configuration root is unavailable; provide an explicit profile file"))
 }
 
 /* === Tests === */

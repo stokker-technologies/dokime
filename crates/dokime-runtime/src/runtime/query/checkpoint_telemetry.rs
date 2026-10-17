@@ -16,7 +16,7 @@ pub use crate::storage::telemetry::TelemetryEntry as ExecutionTelemetryRow;
 // Standard Library Imports
 
 // Third Party Imports
-use crate::{runtime::Result, RuntimeHandle};
+use crate::{RuntimeHandle, runtime::Result};
 use dokime_domain::model::identity::Identifier;
 use serde::{Deserialize, Serialize};
 // Local Imports
@@ -60,10 +60,7 @@ pub struct ExecutionTelemetryPage {
 
 impl RuntimeHandle {
     pub async fn execution_checkpoint_telemetry(
-        &self,
-        checkpoint: ExecutionCheckpoint,
-        stream: &Identifier,
-        query: ExecutionTelemetryQuery,
+        &self, checkpoint: ExecutionCheckpoint, stream: &Identifier, query: ExecutionTelemetryQuery,
     ) -> Result<ExecutionTelemetryPage> {
         let view = self.checkpoint_execution(&checkpoint).await?;
         crate::runtime::storage::telemetry_pages::read(&view, stream, query).await

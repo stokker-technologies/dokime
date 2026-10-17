@@ -18,12 +18,12 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::values::Value;
 use crate::domains::{OptionProviderContribution, OptionProviderSource, PluginEntrypoint};
 use crate::parameters::{Bounds, ParameterValue};
 use crate::plugin::{Configuration, Secret};
 use crate::settings::{Choice, SettingValues, Settings, SettingsEntry};
 use crate::values::FieldValue;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 /* === Macros === */
@@ -89,9 +89,7 @@ pub trait Answers<Answered> {}
 /* === Implementations === */
 impl PluginSettings for NoSettings {
     fn catalog() -> Settings {
-        Settings {
-            contributions: Vec::new(),
-        }
+        Settings { contributions: Vec::new() }
     }
 
     fn status_operation() -> Option<&'static str> {
@@ -116,9 +114,7 @@ where
 
 impl Discovered {
     pub fn of(value: impl Into<Value>) -> Self {
-        Self {
-            value_json: serde_json::to_string(&value.into()).expect("a settings value serializes"),
-        }
+        Self { value_json: serde_json::to_string(&value.into()).expect("a settings value serializes") }
     }
 
     pub fn value(&self) -> Result<Value, serde_json::Error> {
@@ -130,18 +126,10 @@ impl Discovered {
 
 pub fn option_provider(operation: &str) -> OptionProviderContribution {
     OptionProviderContribution {
-        metadata: crate::domains::authoring::metadata(
-            operation,
-            &titled(operation),
-            "Offered by this plugin while it is running.",
-        ),
+        metadata: crate::domains::authoring::metadata(operation, &titled(operation), "Offered by this plugin while it is running."),
         input_schema: None,
         permissions: Vec::new(),
-        source: OptionProviderSource::Runtime {
-            entrypoint: PluginEntrypoint {
-                name: operation.to_owned(),
-            },
-        },
+        source: OptionProviderSource::Runtime { entrypoint: PluginEntrypoint { name: operation.to_owned() } },
     }
 }
 
@@ -152,20 +140,14 @@ pub fn operation_of<R: harmos::operations::Declares>() -> &'static str {
 }
 
 pub fn discovery(field: &str, operation: &str) -> Discovery {
-    Discovery {
-        field: field.to_owned(),
-        operation: operation.to_owned(),
-    }
+    Discovery { field: field.to_owned(), operation: operation.to_owned() }
 }
 
 pub fn choices<T: ParameterValue>() -> Vec<Choice> {
     <T as ParameterValue>::choices()
         .unwrap_or_default()
         .into_iter()
-        .map(|choice| Choice {
-            value: text(choice.value),
-            title: choice.label,
-        })
+        .map(|choice| Choice { value: text(choice.value), title: choice.label })
         .collect()
 }
 
@@ -174,11 +156,7 @@ pub fn selected<T: FieldValue>(default: T) -> String {
 }
 
 pub fn first_choice<T: ParameterValue>() -> String {
-    choices::<T>()
-        .into_iter()
-        .next()
-        .map(|choice| choice.value)
-        .unwrap_or_default()
+    choices::<T>().into_iter().next().map(|choice| choice.value).unwrap_or_default()
 }
 
 pub fn written_path(default: impl AsRef<std::path::Path>) -> String {
@@ -199,26 +177,15 @@ pub fn numbers<T: ParameterValue>(values: &SettingValues, id: &str) -> SettingVa
 }
 
 pub fn optional_text(values: &SettingValues, id: &str) -> crate::Result<Option<String>> {
-    Ok(
-        crate::parameters::optional::<String>(values, id, Bounds::default())?
-            .filter(|written| !written.is_empty()),
-    )
+    Ok(crate::parameters::optional::<String>(values, id, Bounds::default())?.filter(|written| !written.is_empty()))
 }
 
 pub fn path(values: &SettingValues, id: &str) -> crate::Result<PathBuf> {
-    Ok(PathBuf::from(crate::parameters::scalar::<String>(
-        values,
-        id,
-        Bounds::default(),
-    )?))
+    Ok(PathBuf::from(crate::parameters::scalar::<String>(values, id, Bounds::default())?))
 }
 
 pub fn optional_path(values: &SettingValues, id: &str) -> crate::Result<Option<PathBuf>> {
-    Ok(
-        crate::parameters::optional::<String>(values, id, Bounds::default())?
-            .filter(|written| !written.is_empty())
-            .map(PathBuf::from),
-    )
+    Ok(crate::parameters::optional::<String>(values, id, Bounds::default())?.filter(|written| !written.is_empty()).map(PathBuf::from))
 }
 
 pub fn secret(configuration: &Configuration, id: &str) -> crate::Result<Secret> {
@@ -247,9 +214,7 @@ fn titled(id: &str) -> String {
 
 fn integral(value: Value) -> Value {
     match value {
-        Value::Number(number)
-            if number.fract() == 0.0 && number >= i64::MIN as f64 && number <= i64::MAX as f64 =>
-        {
+        Value::Number(number) if number.fract() == 0.0 && number >= i64::MIN as f64 && number <= i64::MAX as f64 => {
             Value::Integer(number as i64)
         }
         Value::Array(values) => Value::Array(values.into_iter().map(integral).collect()),

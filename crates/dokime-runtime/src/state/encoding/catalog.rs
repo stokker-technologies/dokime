@@ -18,14 +18,14 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::{intern, resolve};
+use crate::definition::TestSuite;
 use crate::definition::{SuiteRegistry, SuiteSet, SuiteSnapshot, TestCase};
+use crate::domains::TestSuiteDefinition;
 use crate::records::RecordContract;
+use crate::telemetry::TelemetryContract;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::Identifier;
-use crate::definition::TestSuite;
-use crate::domains::TestSuiteDefinition;
-use crate::telemetry::TelemetryContract;
 use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Constants === */
@@ -126,25 +126,17 @@ impl<'a> Pool<'a> {
                         tags: definition.tags.clone(),
                         workflow: definition.workflow.clone(),
                         suite: intern(&mut self.suites, &definition.suite),
-                        contracts: self.contracts(
-                            &definition.record_contracts,
-                            &definition.telemetry_contracts,
-                        ),
+                        contracts: self.contracts(&definition.record_contracts, &definition.telemetry_contracts),
                     })
                     .collect();
-                let contracts =
-                    self.contracts(&plugin.record_contracts, &plugin.telemetry_contracts);
+                let contracts = self.contracts(&plugin.record_contracts, &plugin.telemetry_contracts);
                 let lean = InstalledPlugin {
                     suites: SuiteSet::default(),
                     record_contracts: Vec::new(),
                     telemetry_contracts: Vec::new(),
                     ..plugin.clone()
                 };
-                let encoded = Plugin {
-                    plugin: lean,
-                    suites,
-                    contracts,
-                };
+                let encoded = Plugin { plugin: lean, suites, contracts };
                 (source, encoded)
             })
             .collect()
@@ -160,67 +152,37 @@ impl<'a> Pool<'a> {
                     tags: snapshot.tags.clone(),
                     workflow: snapshot.workflow.clone(),
                     suite: intern(&mut self.suites, &snapshot.suite),
-                    contracts: self
-                        .contracts(&snapshot.record_contracts, &snapshot.telemetry_contracts),
+                    contracts: self.contracts(&snapshot.record_contracts, &snapshot.telemetry_contracts),
                 };
-                let encoded = Snapshot {
-                    source: snapshot.source.clone(),
-                    definition,
-                };
+                let encoded = Snapshot { source: snapshot.source.clone(), definition };
                 (id, encoded)
             })
             .collect();
-        Registry {
-            suites,
-            cases: registry.cases(),
-            registrations: registry.registrations(),
-        }
+        Registry { suites, cases: registry.cases(), registrations: registry.registrations() }
     }
 
     pub(super) fn records(&mut self, records: &'a Records) -> BTreeMap<&'a Identifier, u32> {
-        records
-            .iter()
-            .map(|(id, contract)| (id, intern(&mut self.records, contract)))
-            .collect()
+        records.iter().map(|(id, contract)| (id, intern(&mut self.records, contract))).collect()
     }
 
-    pub(super) fn history(
-        &mut self,
-        history: &'a History,
-    ) -> BTreeMap<&'a Identifier, BTreeMap<u32, u32>> {
+    pub(super) fn history(&mut self, history: &'a History) -> BTreeMap<&'a Identifier, BTreeMap<u32, u32>> {
         history
             .iter()
             .map(|(id, versions)| {
-                let versions = versions
-                    .iter()
-                    .map(|(version, contract)| (*version, intern(&mut self.records, contract)))
-                    .collect();
+                let versions = versions.iter().map(|(version, contract)| (*version, intern(&mut self.records, contract))).collect();
                 (id, versions)
             })
             .collect()
     }
 
     pub(super) fn telemetry(&mut self, telemetry: &'a Telemetry) -> BTreeMap<&'a Identifier, u32> {
-        telemetry
-            .iter()
-            .map(|(id, contract)| (id, intern(&mut self.telemetry, contract)))
-            .collect()
+        telemetry.iter().map(|(id, contract)| (id, intern(&mut self.telemetry, contract))).collect()
     }
 
-    fn contracts(
-        &mut self,
-        records: &'a [RecordContract],
-        telemetry: &'a [TelemetryContract],
-    ) -> Contracts {
+    fn contracts(&mut self, records: &'a [RecordContract], telemetry: &'a [TelemetryContract]) -> Contracts {
         Contracts {
-            records: records
-                .iter()
-                .map(|contract| intern(&mut self.records, contract))
-                .collect(),
-            telemetry: telemetry
-                .iter()
-                .map(|contract| intern(&mut self.telemetry, contract))
-                .collect(),
+            records: records.iter().map(|contract| intern(&mut self.records, contract)).collect(),
+            telemetry: telemetry.iter().map(|contract| intern(&mut self.telemetry, contract)).collect(),
         }
     }
 }
@@ -230,15 +192,8 @@ impl DecodedPool {
         plugins
             .into_iter()
             .map(|(source, encoded)| {
-                let Plugin {
-                    mut plugin,
-                    suites,
-                    contracts,
-                } = encoded;
-                let suites = suites
-                    .into_iter()
-                    .map(|definition| self.definition(definition))
-                    .collect::<Result<Vec<_>, String>>()?;
+                let Plugin { mut plugin, suites, contracts } = encoded;
+                let suites = suites.into_iter().map(|definition| self.definition(definition)).collect::<Result<Vec<_>, String>>()?;
                 let (records, telemetry) = self.contracts(contracts)?;
 
                 plugin.suites = SuiteSet::new(suites);
@@ -250,11 +205,7 @@ impl DecodedPool {
     }
 
     pub(super) fn registry(&self, registry: DecodedRegistry) -> Result<SuiteRegistry, String> {
-        let DecodedRegistry {
-            suites,
-            cases,
-            registrations,
-        } = registry;
+        let DecodedRegistry { suites, cases, registrations } = registry;
         let suites = suites
             .into_iter()
             .map(|(id, encoded)| {
@@ -275,75 +226,39 @@ impl DecodedPool {
     }
 
     pub(super) fn records(&self, records: BTreeMap<Identifier, u32>) -> Result<Records, String> {
-        records
-            .into_iter()
-            .map(|(id, index)| Ok((id, resolve(&self.records, index, "record contract")?)))
-            .collect()
+        records.into_iter().map(|(id, index)| Ok((id, resolve(&self.records, index, "record contract")?))).collect()
     }
 
-    pub(super) fn history(
-        &self,
-        history: BTreeMap<Identifier, BTreeMap<u32, u32>>,
-    ) -> Result<History, String> {
+    pub(super) fn history(&self, history: BTreeMap<Identifier, BTreeMap<u32, u32>>) -> Result<History, String> {
         history
             .into_iter()
             .map(|(id, versions)| {
                 let versions = versions
                     .into_iter()
-                    .map(|(version, index)| {
-                        Ok((version, resolve(&self.records, index, "record contract")?))
-                    })
+                    .map(|(version, index)| Ok((version, resolve(&self.records, index, "record contract")?)))
                     .collect::<Result<_, String>>()?;
                 Ok((id, versions))
             })
             .collect()
     }
 
-    pub(super) fn telemetry(
-        &self,
-        telemetry: BTreeMap<Identifier, u32>,
-    ) -> Result<Telemetry, String> {
-        telemetry
-            .into_iter()
-            .map(|(id, index)| Ok((id, resolve(&self.telemetry, index, "telemetry contract")?)))
-            .collect()
+    pub(super) fn telemetry(&self, telemetry: BTreeMap<Identifier, u32>) -> Result<Telemetry, String> {
+        telemetry.into_iter().map(|(id, index)| Ok((id, resolve(&self.telemetry, index, "telemetry contract")?))).collect()
     }
 
-    fn contracts(
-        &self,
-        contracts: Contracts,
-    ) -> Result<(Vec<RecordContract>, Vec<TelemetryContract>), String> {
-        let records = contracts
-            .records
-            .into_iter()
-            .map(|index| resolve(&self.records, index, "record contract"))
-            .collect::<Result<_, _>>()?;
-        let telemetry = contracts
-            .telemetry
-            .into_iter()
-            .map(|index| resolve(&self.telemetry, index, "telemetry contract"))
-            .collect::<Result<_, _>>()?;
+    fn contracts(&self, contracts: Contracts) -> Result<(Vec<RecordContract>, Vec<TelemetryContract>), String> {
+        let records =
+            contracts.records.into_iter().map(|index| resolve(&self.records, index, "record contract")).collect::<Result<_, _>>()?;
+        let telemetry =
+            contracts.telemetry.into_iter().map(|index| resolve(&self.telemetry, index, "telemetry contract")).collect::<Result<_, _>>()?;
         Ok((records, telemetry))
     }
 
     fn definition(&self, definition: Definition) -> Result<TestSuiteDefinition, String> {
-        let Definition {
-            suite_id,
-            tags,
-            workflow,
-            suite,
-            contracts,
-        } = definition;
+        let Definition { suite_id, tags, workflow, suite, contracts } = definition;
         let suite = resolve(&self.suites, suite, "suite")?;
         let (records, telemetry) = self.contracts(contracts)?;
-        Ok(TestSuiteDefinition {
-            suite_id,
-            tags,
-            workflow,
-            suite,
-            record_contracts: records,
-            telemetry_contracts: telemetry,
-        })
+        Ok(TestSuiteDefinition { suite_id, tags, workflow, suite, record_contracts: records, telemetry_contracts: telemetry })
     }
 }
 

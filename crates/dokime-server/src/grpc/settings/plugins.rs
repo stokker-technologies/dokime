@@ -21,9 +21,7 @@ use crate::grpc::value::{self, Budget, canonical};
 use dokime_domain::operations::settings as wire;
 use dokime_runtime::{
     RuntimeHandle,
-    domains::installed_plugins::{
-        PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings,
-    },
+    domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings},
 };
 /* === Constants === */
 /* === Macros === */
@@ -50,21 +48,14 @@ impl Operation for GetSettings {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut wire::GetSettings,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut wire::GetSettings, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::SettingsFrame>, Status> {
         let frame = self.resources.runtime.settings_frame().await;
-        self.resources
-            .produce_result(|| projection::encode_frame(frame, self.resources.maximum))
+        self.resources.produce_result(|| projection::encode_frame(frame, self.resources.maximum))
     }
 }
 impl Operation for GetPluginSettings {
@@ -73,25 +64,14 @@ impl Operation for GetPluginSettings {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::GetPluginSettings,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::GetPluginSettings, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
-        let settings = self
-            .resources
-            .runtime
-            .plugin_settings(&id)
-            .await
-            .map_err(projection::plugin_error)?;
+        let settings = self.resources.runtime.plugin_settings(&id).await.map_err(projection::plugin_error)?;
         plugin_response(&self.resources, settings)
     }
 }
@@ -101,17 +81,11 @@ impl Operation for UpdatePluginSettings {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginSettings,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdatePluginSettings, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
         let values = match request.values.take() {
@@ -119,18 +93,12 @@ impl Operation for UpdatePluginSettings {
             Some(value) => match canonical::decode(value, &mut Budget::new(), 0)? {
                 dokime_domain::model::values::Value::Object(values) => values,
                 _ => {
-                    return Err(Status::invalid_argument(
-                        "plugin settings values must be an object",
-                    ));
+                    return Err(Status::invalid_argument("plugin settings values must be an object"));
                 }
             },
         };
-        let settings = self
-            .resources
-            .runtime
-            .save_plugin_settings(&id, PluginSettingsUpdate { values })
-            .await
-            .map_err(projection::plugin_error)?;
+        let settings =
+            self.resources.runtime.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.map_err(projection::plugin_error)?;
         plugin_response(&self.resources, settings)
     }
 }
@@ -140,30 +108,19 @@ impl Operation for UpdatePluginCredential {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdatePluginCredential,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdatePluginCredential, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
-        let credential =
-            projection::bounded_text(std::mem::take(&mut request.credential_id), "credential_id")?;
+        let credential = projection::bounded_text(std::mem::take(&mut request.credential_id), "credential_id")?;
         let secret = projection::bounded_text(std::mem::take(&mut request.secret), "secret")?;
         let settings = self
             .resources
             .runtime
-            .save_plugin_credential_secret(
-                &id,
-                &credential,
-                PluginCredentialSecretUpdate { secret },
-            )
+            .save_plugin_credential_secret(&id, &credential, PluginCredentialSecretUpdate { secret })
             .await
             .map_err(projection::plugin_error)?;
         plugin_response(&self.resources, settings)
@@ -171,38 +128,15 @@ impl Operation for UpdatePluginCredential {
 }
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-    });
-    runtime
-        .operations()
-        .register_wire_operation::<GetSettings>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<GetPluginSettings>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdatePluginSettings>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdatePluginCredential>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    runtime.operations().register_wire_operation::<GetSettings>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetPluginSettings>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdatePluginSettings>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdatePluginCredential>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        resources.clone(),
+    )?;
     Ok(())
 }
 /* === Private Functions === */
@@ -211,8 +145,7 @@ fn plugin_id(id: &str) -> Result<dokime_domain::model::identity::Identifier, Sta
     projection::identifier(id.to_owned(), "plugin_id")
 }
 fn plugin_response(
-    resources: &Resources,
-    settings: RuntimePluginSettings,
+    resources: &Resources, settings: RuntimePluginSettings,
 ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
     resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }

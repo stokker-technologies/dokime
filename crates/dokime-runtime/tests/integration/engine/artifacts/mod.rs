@@ -59,16 +59,12 @@ fn io_kind(error: dokime_runtime::Error) -> std::io::ErrorKind {
 #[test]
 fn importing_file_whole() {
     let (artifacts, sink) = grant("import-test");
-    let content = (0..MAX_ARTIFACT_CHUNK_BYTES + 4096)
-        .map(|index| (index % 253) as u8)
-        .collect::<Vec<_>>();
+    let content = (0..MAX_ARTIFACT_CHUNK_BYTES + 4096).map(|index| (index % 253) as u8).collect::<Vec<_>>();
     let directory = tempfile::tempdir().expect("a temporary directory is available");
     let source = directory.path().join("recorded.csv");
     std::fs::write(&source, &content).unwrap();
 
-    artifacts
-        .import(&source, "evidence/imported.csv")
-        .expect("an existing file streams in");
+    artifacts.import(&source, "evidence/imported.csv").expect("an existing file streams in");
 
     let chunks = sink.chunks();
     assert_eq!(chunks.len(), 2);
@@ -87,10 +83,7 @@ fn importing_missing_nothing() {
         .expect_err("a source that is not there cannot be imported");
 
     assert_eq!(io_kind(error), std::io::ErrorKind::NotFound);
-    assert!(
-        sink.chunks().is_empty(),
-        "a failed import never opens a transfer the host would have to discard"
-    );
+    assert!(sink.chunks().is_empty(), "a failed import never opens a transfer the host would have to discard");
 }
 
 #[cfg(unix)]
@@ -99,15 +92,10 @@ fn import_fails_opened() {
     let (artifacts, sink) = grant("import-unreadable");
     let directory = tempfile::tempdir().expect("a temporary directory is available");
 
-    artifacts
-        .import(directory.path(), "evidence/unreadable.bin")
-        .expect_err("a source that cannot be read is not evidence");
+    artifacts.import(directory.path(), "evidence/unreadable.bin").expect_err("a source that cannot be read is not evidence");
 
     let chunks = sink.chunks();
     assert_eq!(chunks.len(), 1);
-    assert!(
-        chunks[0].last && chunks[0].aborted,
-        "the host is told to drop the transfer rather than left holding it"
-    );
+    assert!(chunks[0].last && chunks[0].aborted, "the host is told to drop the transfer rather than left holding it");
     assert!(chunks[0].bytes.is_empty());
 }

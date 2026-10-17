@@ -25,10 +25,7 @@ use std::process::Command;
 // Third Party Imports
 
 // Local Imports
-use crate::{
-    DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, HostOptions, HostStreamSample, HostTelemetryStream,
-    Result, collectors::maybe_insert,
-};
+use crate::{DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::values::Value;
 
@@ -66,20 +63,15 @@ impl BluetoothCollector {
     pub fn collect(&mut self) -> Result<HostStreamSample> {
         self.sample_index += 1;
         let mut values = BTreeMap::from([
-            (
-                "sample_index".to_owned(),
-                Value::Integer(self.sample_index as i64),
-            ),
+            ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
             ("probe_status".to_owned(), Value::from("unsupported")),
         ]);
 
         #[cfg(windows)]
         {
             let now = Instant::now();
-            let should_refresh = self
-                .last_deep_refresh
-                .map(|last_refresh| now.duration_since(last_refresh) >= self.deep_refresh_interval)
-                .unwrap_or(true);
+            let should_refresh =
+                self.last_deep_refresh.map(|last_refresh| now.duration_since(last_refresh) >= self.deep_refresh_interval).unwrap_or(true);
 
             if should_refresh {
                 self.last_deep_refresh = Some(now);
@@ -111,10 +103,8 @@ impl BluetoothCollector {
         #[cfg(not(windows))]
         {
             let now = Instant::now();
-            let should_refresh = self
-                .last_deep_refresh
-                .map(|last_refresh| now.duration_since(last_refresh) >= self.deep_refresh_interval)
-                .unwrap_or(true);
+            let should_refresh =
+                self.last_deep_refresh.map(|last_refresh| now.duration_since(last_refresh) >= self.deep_refresh_interval).unwrap_or(true);
 
             if should_refresh {
                 self.last_deep_refresh = Some(now);
@@ -141,10 +131,7 @@ impl BluetoothCollector {
             }
         }
 
-        Ok(HostStreamSample::new(
-            HostTelemetryStream::Bluetooth,
-            values,
-        ))
+        Ok(HostStreamSample::new(HostTelemetryStream::Bluetooth, values))
     }
 }
 
@@ -158,39 +145,18 @@ impl Default for BluetoothCollector {
 
 /* === Private Functions === */
 #[cfg(windows)]
-fn snapshot_values(
-    snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot,
-) -> BTreeMap<String, Value> {
+fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();
-    maybe_insert(
-        &mut values,
-        "bluetooth_adapter",
-        snapshot.adapter_name.map(Value::from),
-    );
-    values.insert(
-        "bluetooth_adapter_count".to_owned(),
-        Value::Integer(snapshot.adapter_count as i64),
-    );
+    maybe_insert(&mut values, "bluetooth_adapter", snapshot.adapter_name.map(Value::from));
+    values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(snapshot.adapter_count as i64));
     maybe_insert(
         &mut values,
         "bluetooth_connected_device_count",
-        snapshot
-            .connected_device_count
-            .map(|count| Value::Integer(count as i64)),
+        snapshot.connected_device_count.map(|count| Value::Integer(count as i64)),
     );
-    values.insert(
-        "bluetooth_present_device_count".to_owned(),
-        Value::Integer(snapshot.present_device_count as i64),
-    );
-    maybe_insert(
-        &mut values,
-        "bluetooth_radio_state",
-        snapshot.radio_state.map(Value::from),
-    );
-    values.insert(
-        "bluetooth_device_names".to_owned(),
-        Value::Array(snapshot.device_names.into_iter().map(Value::from).collect()),
-    );
+    values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(snapshot.present_device_count as i64));
+    maybe_insert(&mut values, "bluetooth_radio_state", snapshot.radio_state.map(Value::from));
+    values.insert("bluetooth_device_names".to_owned(), Value::Array(snapshot.device_names.into_iter().map(Value::from).collect()));
 
     values
 }

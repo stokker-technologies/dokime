@@ -19,9 +19,7 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
-use dokime_runtime::harmos::operations::{
-    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
-};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 use dokime_runtime::plugin::settings::{Discovered, PluginSettings, SettingsSection};
 use dokime_runtime::plugin::{Configuration, Secret};
 use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
@@ -72,10 +70,7 @@ pub struct Workspace {
     pub archive: Option<std::path::PathBuf>,
 }
 
-#[dokime_runtime::section(
-    label = "Credentials",
-    description = "The section nothing but a binding fills in."
-)]
+#[dokime_runtime::section(label = "Credentials", description = "The section nothing but a binding fills in.")]
 pub struct Credentials {
     #[setting(label = "Bearer Token", from_environment = "BENCH_TOKEN")]
     pub token: Option<Secret>,
@@ -227,14 +222,8 @@ impl GetVoltage {
         Self
     }
 
-    async fn run(
-        &mut self,
-        _: &Supervisor,
-        request: &GetVoltageRequest,
-    ) -> Result<GetVoltageResponse, Refusal> {
-        Ok(GetVoltageResponse {
-            volts: f64::from(request.stream),
-        })
+    async fn run(&mut self, _: &Supervisor, request: &GetVoltageRequest) -> Result<GetVoltageResponse, Refusal> {
+        Ok(GetVoltageResponse { volts: f64::from(request.stream) })
     }
 }
 
@@ -242,9 +231,7 @@ impl GetVoltage {
 
 /* === Private Functions === */
 fn defaults() -> SettingValues {
-    BenchSettings::catalog()
-        .resolve(&SettingValues::new())
-        .expect("the declared catalog resolves its own defaults")
+    BenchSettings::catalog().resolve(&SettingValues::new()).expect("the declared catalog resolves its own defaults")
 }
 
 /* === Tests === */
@@ -252,25 +239,9 @@ fn defaults() -> SettingValues {
 #[test]
 fn section_folds_shows() {
     let catalog = BenchSettings::catalog();
-    let declared = catalog
-        .contributions
-        .iter()
-        .map(SettingsEntry::id)
-        .collect::<Vec<_>>();
+    let declared = catalog.contributions.iter().map(SettingsEntry::id).collect::<Vec<_>>();
 
-    assert_eq!(
-        declared,
-        [
-            "workspace_id",
-            "environment",
-            "page_limit",
-            "upload_enabled",
-            "port",
-            "stream",
-            "archive",
-            "token",
-        ]
-    );
+    assert_eq!(declared, ["workspace_id", "environment", "page_limit", "upload_enabled", "port", "stream", "archive", "token",]);
     catalog.validate().expect("the declared catalog validates");
 }
 
@@ -279,21 +250,17 @@ fn field_type_required() {
     let catalog = BenchSettings::catalog();
     let entry = |id: &str| catalog.get(id).expect("the field was declared").clone();
 
-    assert!(
-        matches!(entry("workspace_id"), SettingsEntry::TextArea(field)
+    assert!(matches!(entry("workspace_id"), SettingsEntry::TextArea(field)
         if field.title == "Workspace ID"
             && field.description.as_deref() == Some("Bound For Sync.")
-            && !field.required)
-    );
+            && !field.required));
     assert!(matches!(entry("upload_enabled"), SettingsEntry::Boolean(field) if field.default));
     assert!(matches!(entry("archive"), SettingsEntry::Path(field) if !field.required));
-    assert!(
-        matches!(entry("token"), SettingsEntry::SecretReference(field)
-        if field.default
-            == Some(dokime_runtime::settings::SecretReference::Environment {
-                variable: "BENCH_TOKEN".to_owned(),
-            }))
-    );
+    assert!(matches!(entry("token"), SettingsEntry::SecretReference(field)
+    if field.default
+        == Some(dokime_runtime::settings::SecretReference::Environment {
+            variable: "BENCH_TOKEN".to_owned(),
+        })));
     // A field with no label of its own is read by its own name, titled.
     assert!(matches!(entry("page_limit"), SettingsEntry::Number(field)
         if field.title == "Page Limit"
@@ -303,32 +270,21 @@ fn field_type_required() {
             && field.step == Some(1.0)));
     // A closed set declares its own values, and the dropdown route that fills
     // it at run time is named beside them.
-    assert!(
-        matches!(entry("environment"), SettingsEntry::MultipleChoice(field)
+    assert!(matches!(entry("environment"), SettingsEntry::MultipleChoice(field)
         if field.default == "development"
             && field.choices.len() == 3
-            && field.provider.as_deref() == Some("bench.list_environments"))
-    );
+            && field.provider.as_deref() == Some("bench.list_environments")));
 }
 
 #[test]
 fn section_links_default() {
-    assert_eq!(
-        <Workspace as SettingsSection>::status_operation(),
-        Some("bench.get_status")
-    );
+    assert_eq!(<Workspace as SettingsSection>::status_operation(), Some("bench.get_status"));
     assert_eq!(<Credentials as SettingsSection>::status_operation(), None);
     assert_eq!(<Workspace as SettingsSection>::LABEL, "Workspace");
     let discovered = <BenchSettings as PluginSettings>::discoveries();
     assert_eq!(
-        discovered
-            .iter()
-            .map(|discovery| (discovery.field.as_str(), discovery.operation.as_str()))
-            .collect::<Vec<_>>(),
-        [
-            ("port", "bench.detect_port"),
-            ("stream", "bench.detect_stream")
-        ]
+        discovered.iter().map(|discovery| (discovery.field.as_str(), discovery.operation.as_str())).collect::<Vec<_>>(),
+        [("port", "bench.detect_port"), ("stream", "bench.detect_stream")]
     );
 }
 
@@ -340,25 +296,16 @@ fn admitted_values_handed() {
     saved.insert("page_limit".to_owned(), Value::from(1_000));
     saved.insert("archive".to_owned(), Value::from("/var/bench"));
 
-    let configuration = Configuration {
-        settings: saved.clone(),
-        ..Configuration::default()
-    };
+    let configuration = Configuration { settings: saved.clone(), ..Configuration::default() };
     let settings = BenchSettings::decode(&saved, &configuration).expect("the saved values decode");
 
-    assert_eq!(
-        settings.workspace.workspace_id.as_deref(),
-        Some("bench-workspace")
-    );
+    assert_eq!(settings.workspace.workspace_id.as_deref(), Some("bench-workspace"));
     assert_eq!(settings.workspace.environment, Environment::Production);
     assert_eq!(settings.workspace.page_limit, 1_000);
     assert!(settings.workspace.upload_enabled);
     assert_eq!(settings.workspace.port, None);
     assert_eq!(settings.workspace.stream, Some(0));
-    assert_eq!(
-        settings.workspace.archive,
-        Some(std::path::PathBuf::from("/var/bench"))
-    );
+    assert_eq!(settings.workspace.archive, Some(std::path::PathBuf::from("/var/bench")));
     // A secret never travels in the values: it is read out of the binding the
     // host admitted, and an unbound one is absent rather than refused.
     assert_eq!(settings.credentials.token, None);
@@ -369,10 +316,7 @@ fn value_outside_refused() {
     let mut saved = defaults();
     saved.insert("page_limit".to_owned(), Value::from(10_000));
 
-    let refusal = BenchSettings::catalog()
-        .resolve(&saved)
-        .expect_err("a page limit above the declared maximum is refused")
-        .to_string();
+    let refusal = BenchSettings::catalog().resolve(&saved).expect_err("a page limit above the declared maximum is refused").to_string();
 
     assert!(refusal.contains("page_limit"), "{refusal}");
 }
@@ -382,10 +326,7 @@ fn settings_links_ids() {
     // Settings links use the IDs authored by the selected operation contracts.
     assert_eq!(BenchSettings::status_operation(), Some("bench.get_status"));
     assert_eq!(
-        BenchSettings::option_providers()
-            .iter()
-            .map(|offered| offered.metadata.identifier.to_string())
-            .collect::<Vec<_>>(),
+        BenchSettings::option_providers().iter().map(|offered| offered.metadata.identifier.to_string()).collect::<Vec<_>>(),
         vec!["bench.list_environments".to_owned()]
     );
 }
@@ -395,12 +336,9 @@ fn saved_values_empty() {
     // Nobody saved a port, so the field is absent: discovery is the host's to
     // run and a discovered value is a suggestion, never a setting the plugin
     // opens with.
-    let opened =
-        <Bench as dokime_runtime::Plugin>::prepare(Configuration::declared::<BenchSettings>()).map(|_| ());
+    let opened = <Bench as dokime_runtime::Plugin>::prepare(Configuration::declared::<BenchSettings>()).map(|_| ());
     assert!(opened.is_ok(), "the bench opens on its declared defaults");
-    let declared = Configuration::declared::<BenchSettings>()
-        .settings::<BenchSettings>()
-        .expect("the declared defaults decode");
+    let declared = Configuration::declared::<BenchSettings>().settings::<BenchSettings>().expect("the declared defaults decode");
     assert_eq!(declared.workspace.port, None);
     assert_eq!(declared.workspace.stream, Some(0));
 
@@ -410,15 +348,10 @@ fn saved_values_empty() {
     let mut saved = defaults();
     saved.insert("port".to_owned(), Value::from("/dev/saved"));
     saved.insert("stream".to_owned(), Value::from(3_u32));
-    let mut configuration = Configuration {
-        settings: saved,
-        ..Configuration::default()
-    };
+    let mut configuration = Configuration { settings: saved, ..Configuration::default() };
     configuration.saved.insert("port".to_owned());
     configuration.saved.insert("stream".to_owned());
-    let settings = configuration
-        .settings::<BenchSettings>()
-        .expect("the saved values decode");
+    let settings = configuration.settings::<BenchSettings>().expect("the saved values decode");
     assert_eq!(settings.workspace.port.as_deref(), Some("/dev/saved"));
     assert_eq!(settings.workspace.stream, Some(3));
     assert!(configuration.is_saved("port") && configuration.is_saved("stream"));

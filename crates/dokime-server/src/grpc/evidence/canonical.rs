@@ -45,10 +45,7 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
         .saturating_add(record.record_type.as_str().len())
         .saturating_add(record.source.len())
         .saturating_add(record.message.as_ref().map_or(0, String::len))
-        .saturating_add(canonical::object_memory(
-            &record.details,
-            &mut Budget::new(),
-        )?);
+        .saturating_add(canonical::object_memory(&record.details, &mut Budget::new())?);
     if let Some(scope) = &record.scope {
         bytes = bytes.saturating_add(canonical::scope_memory(scope)?);
     }
@@ -65,21 +62,15 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
     if let Some(error) = &record.error {
         value::collection(error.cause_chain.len())?;
         bytes = bytes.saturating_add(error.message.len());
-        for text in [error.code.as_ref(), error.source.as_ref()]
-            .into_iter()
-            .flatten()
-        {
+        for text in [error.code.as_ref(), error.source.as_ref()].into_iter().flatten() {
             bytes = bytes.saturating_add(text.len());
         }
-        bytes = bytes.saturating_add(error.cause_chain.len().saturating_mul(
-            4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>(),
-        ));
+        bytes = bytes.saturating_add(
+            error.cause_chain.len().saturating_mul(4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>()),
+        );
         for cause in &error.cause_chain {
             bytes = bytes.saturating_add(cause.message.len());
-            for text in [cause.code.as_ref(), cause.source.as_ref()]
-                .into_iter()
-                .flatten()
-            {
+            for text in [cause.code.as_ref(), cause.source.as_ref()].into_iter().flatten() {
                 bytes = bytes.saturating_add(text.len());
             }
         }
@@ -95,16 +86,12 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
         }
     }
     if bytes == usize::MAX {
-        return Err(Status::resource_exhausted(
-            "record construction size overflow",
-        ));
+        return Err(Status::resource_exhausted("record construction size overflow"));
     }
     Ok(bytes)
 }
 
-pub(crate) fn record(
-    entry: &RecordEntry,
-) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
+pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
     let record = &entry.record;
     memory(entry)?;
     let details = canonical::object(&record.details, &mut Budget::new())?;
@@ -120,18 +107,13 @@ pub(crate) fn record(
                 cause_chain: error
                     .cause_chain
                     .iter()
-                    .map(
-                        |cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
-                            message: cause.message.clone(),
-                            code: cause.code.clone(),
-                            source: cause.source.clone(),
-                        },
-                    )
+                    .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
+                        message: cause.message.clone(),
+                        code: cause.code.clone(),
+                        source: cause.source.clone(),
+                    })
                     .collect(),
-                stacktrace_attachment: error
-                    .stacktrace_attachment
-                    .as_ref()
-                    .map(ToString::to_string),
+                stacktrace_attachment: error.stacktrace_attachment.as_ref().map(ToString::to_string),
                 trace_id: error.trace_id.as_ref().map(ToString::to_string),
                 correlation_id: error.correlation_id.as_ref().map(ToString::to_string),
             })

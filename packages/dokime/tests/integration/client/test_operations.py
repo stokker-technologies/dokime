@@ -68,9 +68,7 @@ def test_external_operation(mode: str) -> None:
 
         async def unary(request, context):
             transmitted.append(request.wide)
-            await context.send_initial_metadata(
-                (("fixture-owner", "external.fixture"),)
-            )
+            await context.send_initial_metadata((("fixture-owner", "external.fixture"),))
             return operation.response(wide=request.wide)
 
         async def upload(requests, context):
@@ -125,16 +123,8 @@ def test_external_operation(mode: str) -> None:
             response_serializer=lambda result: result.SerializeToString(),
         )
         # Register The External Discovery Service Ahead Of The Standard Fixture Handler.
-        server.add_generic_rpc_handlers(
-            [
-                grpc.method_handlers_generic_handler(
-                    "external.v1.Plugin", {"Invoke": handler}
-                )
-            ]
-        )
-        server.add_registered_method_handlers(
-            "harmos.host.v1.Host", {"Operations": catalog_handler}
-        )
+        server.add_generic_rpc_handlers([grpc.method_handlers_generic_handler("external.v1.Plugin", {"Invoke": handler})])
+        server.add_registered_method_handlers("harmos.host.v1.Host", {"Operations": catalog_handler})
         port = server.add_insecure_port("127.0.0.1:0")
         await server.start()
         client = DokimeClient(f"http://127.0.0.1:{port}")
@@ -152,32 +142,20 @@ def test_external_operation(mode: str) -> None:
             if mode == "unary":
                 reply = await client.call(selected, request)
                 assert reply.wide == 2**63
-                assert (
-                    await client.call(selected.id, {"wide": str(2**63)})
-                ).wide == 2**63
+                assert (await client.call(selected.id, {"wide": str(2**63)})).wide == 2**63
                 stale = copy.deepcopy(contract)
                 stale["version"] = 2
                 before = list(transmitted)
                 with pytest.raises(ProtocolError):
-                    await client.call(
-                        from_contract(stale), from_contract(stale).request(wide=1)
-                    )
+                    await client.call(from_contract(stale), from_contract(stale).request(wide=1))
                 assert transmitted == before
             elif mode == "client_stream":
                 reply = await client.upload(selected, request, items())
                 assert reply.wide == 2**63 + 9
             else:
-                reader = (
-                    client.download(selected, request)
-                    if mode == "server_stream"
-                    else client.exchange(selected, request, items())
-                )
-                assert [item.wide async for item in reader] == (
-                    [2**63] if mode == "server_stream" else [2**63, 9]
-                )
-                assert (await reader.response()).wide == 2**63 + (
-                    9 if mode == "bidi" else 0
-                )
+                reader = client.download(selected, request) if mode == "server_stream" else client.exchange(selected, request, items())
+                assert [item.wide async for item in reader] == ([2**63] if mode == "server_stream" else [2**63, 9])
+                assert (await reader.response()).wide == 2**63 + (9 if mode == "bidi" else 0)
                 await reader.close()
         finally:
             await client.close()

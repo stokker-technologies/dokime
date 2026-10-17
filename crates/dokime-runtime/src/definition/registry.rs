@@ -18,13 +18,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{SuiteSet, SuiteSnapshot, TestCase};
+use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding, TestSuiteDefinition, resolve_suite_plot_axes};
 use crate::records::RecordContract;
+use crate::telemetry::TelemetryContract;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
-use crate::domains::{
-    ExecutionProviderTarget, SidecarExecutionBinding, TestSuiteDefinition, resolve_suite_plot_axes,
-};
-use crate::telemetry::TelemetryContract;
 
 /* === Constants === */
 
@@ -62,15 +60,9 @@ impl SuiteRegistry {
     }
 
     pub(crate) fn from_parts(
-        suites: BTreeMap<String, SuiteSnapshot>,
-        cases: BTreeMap<CaseId, TestCase>,
-        registrations: BTreeMap<CommandId, Vec<CaseId>>,
+        suites: BTreeMap<String, SuiteSnapshot>, cases: BTreeMap<CaseId, TestCase>, registrations: BTreeMap<CommandId, Vec<CaseId>>,
     ) -> Self {
-        Self {
-            suites,
-            cases,
-            registrations,
-        }
+        Self { suites, cases, registrations }
     }
 
     pub fn case(&self, id: &CaseId) -> Option<&TestCase> {
@@ -86,15 +78,10 @@ impl SuiteRegistry {
     }
 
     pub fn cases_for_suite<'a>(&'a self, suite: &'a str) -> impl Iterator<Item = &'a TestCase> {
-        self.cases
-            .values()
-            .filter(move |case| case.suite_id == suite)
+        self.cases.values().filter(move |case| case.suite_id == suite)
     }
 
-    pub(crate) fn validate_cases<'a>(
-        &self,
-        cases: impl IntoIterator<Item = &'a TestCase>,
-    ) -> Result<(), String> {
+    pub(crate) fn validate_cases<'a>(&self, cases: impl IntoIterator<Item = &'a TestCase>) -> Result<(), String> {
         let mut incoming = BTreeMap::new();
         for case in cases {
             if case.suite_id.trim().is_empty() || case.suite.is_none() {
@@ -108,56 +95,36 @@ impl SuiteRegistry {
             if let Some(existing) = incoming.insert(&case.test_case_id, case)
                 && existing != case
             {
-                return Err(format!(
-                    "case {} has conflicting definitions",
-                    case.test_case_id
-                ));
+                return Err(format!("case {} has conflicting definitions", case.test_case_id));
             }
         }
         Ok(())
     }
 
-    pub(crate) fn validate_registration(
-        &self,
-        registration: &CommandId,
-        cases: &[TestCase],
-    ) -> Result<(), String> {
+    pub(crate) fn validate_registration(&self, registration: &CommandId, cases: &[TestCase]) -> Result<(), String> {
         self.validate_cases(cases)?;
 
         if let Some(existing) = self.registrations.get(registration)
-            && !existing
-                .iter()
-                .eq(cases.iter().map(|case| &case.test_case_id))
+            && !existing.iter().eq(cases.iter().map(|case| &case.test_case_id))
         {
             return Err("registration identity has conflicting case membership".into());
         }
         Ok(())
     }
 
-    pub(crate) fn register_selection(
-        &mut self,
-        registration: &CommandId,
-        cases: &[TestCase],
-    ) -> Result<(), String> {
+    pub(crate) fn register_selection(&mut self, registration: &CommandId, cases: &[TestCase]) -> Result<(), String> {
         self.validate_registration(registration, cases)?;
         self.register_cases(cases)?;
-        self.registrations
-            .entry(registration.clone())
-            .or_insert_with(|| cases.iter().map(|case| case.test_case_id.clone()).collect());
+        self.registrations.entry(registration.clone()).or_insert_with(|| cases.iter().map(|case| case.test_case_id.clone()).collect());
         Ok(())
     }
 
-    pub(crate) fn register_cases<'a>(
-        &mut self,
-        cases: impl IntoIterator<Item = &'a TestCase>,
-    ) -> Result<(), String> {
+    pub(crate) fn register_cases<'a>(&mut self, cases: impl IntoIterator<Item = &'a TestCase>) -> Result<(), String> {
         let cases = cases.into_iter().collect::<Vec<_>>();
         self.validate_cases(cases.iter().copied())?;
 
         for case in cases {
-            self.cases
-                .entry(case.test_case_id.clone())
-                .or_insert_with(|| case.clone());
+            self.cases.entry(case.test_case_id.clone()).or_insert_with(|| case.clone());
         }
         Ok(())
     }
@@ -182,10 +149,7 @@ impl SuiteRegistry {
 
     fn insert(&mut self, source: &str, mut definition: TestSuiteDefinition) -> Result<(), String> {
         if let Some(existing) = self.suites.get(&definition.suite_id) {
-            return Err(format!(
-                "suite {} is already owned by {}",
-                definition.suite_id, existing.source
-            ));
+            return Err(format!("suite {} is already owned by {}", definition.suite_id, existing.source));
         }
         self.validate_templates(&definition)?;
         self.validate_contracts(&definition)?;
@@ -213,20 +177,12 @@ impl SuiteRegistry {
         for template in &definition.suite.test_case_templates {
             let template_id = template.test_case_template_id.to_string();
             if !incoming.insert(template_id.clone()) {
-                return Err(format!(
-                    "test case template {template_id} is declared more than once in suite {}",
-                    definition.suite_id
-                ));
+                return Err(format!("test case template {template_id} is declared more than once in suite {}", definition.suite_id));
             }
             if let Some(existing) = self.suites.values().find(|suite| {
-                suite.suite.test_case_templates.iter().any(|candidate| {
-                    candidate.test_case_template_id == template.test_case_template_id
-                })
+                suite.suite.test_case_templates.iter().any(|candidate| candidate.test_case_template_id == template.test_case_template_id)
             }) {
-                return Err(format!(
-                    "test case template {template_id} is already owned by suite {}",
-                    existing.suite_id
-                ));
+                return Err(format!("test case template {template_id} is already owned by suite {}", existing.suite_id));
             }
         }
         Ok(())
@@ -245,12 +201,8 @@ impl SuiteRegistry {
     }
 
     pub fn unregister_source(&mut self, source: &str) -> usize {
-        let stale = self
-            .suites
-            .iter()
-            .filter(|(_, suite)| suite.source == source)
-            .map(|(suite_id, _)| suite_id.clone())
-            .collect::<Vec<_>>();
+        let stale =
+            self.suites.iter().filter(|(_, suite)| suite.source == source).map(|(suite_id, _)| suite_id.clone()).collect::<Vec<_>>();
         let count = stale.len();
         for suite_id in stale {
             self.suites.remove(&suite_id);
@@ -262,11 +214,7 @@ impl SuiteRegistry {
         let entry = self.get(&case.suite_id)?;
         let owner = case.suite.as_ref()?;
         (entry.suite.metadata == *owner
-            && entry
-                .suite
-                .test_case_templates
-                .iter()
-                .any(|template| template.test_case_template_id == case.test_case_template_id))
+            && entry.suite.test_case_templates.iter().any(|template| template.test_case_template_id == case.test_case_template_id))
         .then_some(entry)
     }
 
@@ -274,9 +222,7 @@ impl SuiteRegistry {
         let suite = self.suite_for_case(case)?;
         Some(ExecutionProviderTarget {
             source: suite.source.clone(),
-            binding: SidecarExecutionBinding {
-                workflow: suite.workflow.clone()?,
-            },
+            binding: SidecarExecutionBinding { workflow: suite.workflow.clone()? },
         })
     }
 }
@@ -284,46 +230,22 @@ impl SuiteRegistry {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_record_contract(
-    existing: &[RecordContract],
-    candidate: &RecordContract,
-) -> Result<(), String> {
-    if existing
-        .iter()
-        .any(|contract| contract.record_schema() == candidate.record_schema())
-    {
+fn validate_record_contract(existing: &[RecordContract], candidate: &RecordContract) -> Result<(), String> {
+    if existing.iter().any(|contract| contract.record_schema() == candidate.record_schema()) {
         return Ok(());
     }
-    if existing
-        .iter()
-        .any(|contract| contract.record_type == candidate.record_type)
-    {
-        return Err(format!(
-            "conflicting record contract {}",
-            candidate.record_type
-        ));
+    if existing.iter().any(|contract| contract.record_type == candidate.record_type) {
+        return Err(format!("conflicting record contract {}", candidate.record_type));
     }
     Ok(())
 }
 
-fn validate_telemetry_contract(
-    existing: &[TelemetryContract],
-    candidate: &TelemetryContract,
-) -> Result<(), String> {
-    if existing
-        .iter()
-        .any(|contract| contract.stream_schema() == candidate.stream_schema())
-    {
+fn validate_telemetry_contract(existing: &[TelemetryContract], candidate: &TelemetryContract) -> Result<(), String> {
+    if existing.iter().any(|contract| contract.stream_schema() == candidate.stream_schema()) {
         return Ok(());
     }
-    if existing
-        .iter()
-        .any(|contract| contract.stream == candidate.stream)
-    {
-        return Err(format!(
-            "conflicting telemetry contract {}",
-            candidate.stream
-        ));
+    if existing.iter().any(|contract| contract.stream == candidate.stream) {
+        return Err(format!("conflicting telemetry contract {}", candidate.stream));
     }
     Ok(())
 }

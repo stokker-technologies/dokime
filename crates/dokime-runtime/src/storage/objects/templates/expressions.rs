@@ -20,9 +20,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::Value;
 use crate::definition::{DynamicDefaultKey, ParameterBinaryOp, ParameterExpr, ParameterUnaryOp};
-use crate::expressions::{
-    BooleanExpression, Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp,
-};
+use crate::expressions::{BooleanExpression, Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
 use crate::storage::{Error, Result};
 
 /* === Constants === */
@@ -33,18 +31,13 @@ const MAX_NODES: usize = 4096;
 macro_rules! serde_expression {
     ($row:ident, $domain:ty) => {
         impl Serialize for $row {
-            fn serialize<S: serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> std::result::Result<S::Ok, S::Error> {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
                 let value: $domain = self.clone().try_into().map_err(serde::ser::Error::custom)?;
                 value.serialize(serializer)
             }
         }
         impl<'de> Deserialize<'de> for $row {
-            fn deserialize<D: serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> std::result::Result<Self, D::Error> {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
                 let value = <$domain>::deserialize(deserializer)?;
                 Self::try_from(&value).map_err(serde::de::Error::custom)
             }
@@ -122,9 +115,7 @@ impl TryFrom<&BooleanExpression> for Boolean {
             return Err(Error::Invalid("expression encoding memory overflows"));
         }
         let mut nodes = Vec::new();
-        nodes
-            .try_reserve_exact(count)
-            .map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
+        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
         append_boolean(&value.expression, &mut nodes)?;
         Ok(Self { nodes })
     }
@@ -173,9 +164,7 @@ impl TryFrom<&ParameterExpr> for Parameter {
             return Err(Error::Invalid("expression encoding memory overflows"));
         }
         let mut nodes = Vec::new();
-        nodes
-            .try_reserve_exact(count)
-            .map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
+        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
         append_parameter(value, &mut nodes)?;
         Ok(Self { nodes })
     }
@@ -213,13 +202,10 @@ fn parameter_encoding(value: &ParameterExpr, depth: usize, count: &mut usize) ->
             if memory == usize::MAX {
                 return Ok(usize::MAX);
             }
-            "literal"
-                .len()
-                .saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
+            "literal".len().saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
         }
         ParameterExpr::Array { values } => {
-            u32::try_from(values.len())
-                .map_err(|_| Error::Invalid("too many expression children"))?;
+            u32::try_from(values.len()).map_err(|_| Error::Invalid("too many expression children"))?;
             for child in values {
                 bytes = bytes.saturating_add(parameter_encoding(child, depth + 1, count)?);
             }
@@ -227,19 +213,12 @@ fn parameter_encoding(value: &ParameterExpr, depth: usize, count: &mut usize) ->
         }
         ParameterExpr::Range { .. } => "range".len(),
         ParameterExpr::Arange { start, stop, step } => {
-            if ![start, stop, step]
-                .into_iter()
-                .all(|value| value.is_finite())
-            {
+            if ![start, stop, step].into_iter().all(|value| value.is_finite()) {
                 return Err(Error::Invalid("parameter expression number is nonfinite"));
             }
             "arange".len()
         }
-        ParameterExpr::Linspace {
-            start,
-            stop,
-            count: items,
-        } => {
+        ParameterExpr::Linspace { start, stop, count: items } => {
             if ![start, stop].into_iter().all(|value| value.is_finite()) {
                 return Err(Error::Invalid("parameter expression number is nonfinite"));
             }
@@ -251,18 +230,18 @@ fn parameter_encoding(value: &ParameterExpr, depth: usize, count: &mut usize) ->
             if let Some(child) = fallback {
                 bytes = bytes.saturating_add(parameter_encoding(child, depth + 1, count)?);
             }
-            "dynamic_default"
-                .len()
-                .saturating_add(dynamic_key_name(key).len())
+            "dynamic_default".len().saturating_add(dynamic_key_name(key).len())
         }
         ParameterExpr::Unary { value, .. } => {
             bytes = bytes.saturating_add(parameter_encoding(value, depth + 1, count)?);
             "unary".len().saturating_add("negate".len())
         }
         ParameterExpr::Binary { op, left, right } => {
-            bytes = bytes
-                .saturating_add(parameter_encoding(left, depth + 1, count)?)
-                .saturating_add(parameter_encoding(right, depth + 1, count)?);
+            bytes = bytes.saturating_add(parameter_encoding(left, depth + 1, count)?).saturating_add(parameter_encoding(
+                right,
+                depth + 1,
+                count,
+            )?);
             "binary".len().saturating_add(parameter_op_name(op).len())
         }
     };
@@ -295,9 +274,7 @@ fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> 
         ParameterExpr::Linspace { start, stop, count } => {
             node.number_start = Some(*start);
             node.number_stop = Some(*stop);
-            node.count = Some(
-                u64::try_from(*count).map_err(|_| Error::Invalid("expression count overflows"))?,
-            );
+            node.count = Some(u64::try_from(*count).map_err(|_| Error::Invalid("expression count overflows"))?);
             "linspace"
         }
         ParameterExpr::Reference { parameter } => {
@@ -328,11 +305,9 @@ fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> 
                 append_parameter(child, nodes)?;
             }
         }
-        ParameterExpr::DynamicDefault {
-            fallback: Some(child),
-            ..
+        ParameterExpr::DynamicDefault { fallback: Some(child), .. } | ParameterExpr::Unary { value: child, .. } => {
+            append_parameter(child, nodes)?
         }
-        | ParameterExpr::Unary { value: child, .. } => append_parameter(child, nodes)?,
         ParameterExpr::Binary { left, right, .. } => {
             append_parameter(left, nodes)?;
             append_parameter(right, nodes)?;
@@ -351,9 +326,7 @@ fn boolean_encoding(value: &Expression, depth: usize, count: &mut usize) -> Resu
             if memory == usize::MAX {
                 return Ok(usize::MAX);
             }
-            "literal"
-                .len()
-                .saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
+            "literal".len().saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
         }
         ExpressionKind::Selector { path } => "selector".len().saturating_add(path.len()),
         ExpressionKind::Unary { value, .. } => {
@@ -361,14 +334,12 @@ fn boolean_encoding(value: &Expression, depth: usize, count: &mut usize) -> Resu
             "unary".len().saturating_add("not".len())
         }
         ExpressionKind::Binary { op, left, right } => {
-            bytes = bytes
-                .saturating_add(boolean_encoding(left, depth + 1, count)?)
-                .saturating_add(boolean_encoding(right, depth + 1, count)?);
+            bytes =
+                bytes.saturating_add(boolean_encoding(left, depth + 1, count)?).saturating_add(boolean_encoding(right, depth + 1, count)?);
             "binary".len().saturating_add(boolean_op_name(op).len())
         }
         ExpressionKind::Call { function, args } => {
-            u32::try_from(args.len())
-                .map_err(|_| Error::Invalid("too many expression children"))?;
+            u32::try_from(args.len()).map_err(|_| Error::Invalid("too many expression children"))?;
             for child in args {
                 bytes = bytes.saturating_add(boolean_encoding(child, depth + 1, count)?);
             }
@@ -498,9 +469,7 @@ fn boolean_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize>
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    let node = nodes
-        .get(*at)
-        .ok_or(Error::Invalid("expression child is missing"))?;
+    let node = nodes.get(*at).ok_or(Error::Invalid("expression child is missing"))?;
     *at += 1;
     validate_boolean(node)?;
     if node.children as usize > nodes.len().saturating_sub(*at) {
@@ -526,20 +495,11 @@ fn consume_boolean(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    let node = nodes
-        .next()
-        .ok_or(Error::Invalid("expression child is missing"))?;
+    let node = nodes.next().ok_or(Error::Invalid("expression child is missing"))?;
     let kind = match node.kind.as_str() {
-        "literal" => ExpressionKind::Literal {
-            value: node.literal.unwrap().try_into()?,
-        },
-        "selector" => ExpressionKind::Selector {
-            path: node.path.unwrap(),
-        },
-        "unary" => ExpressionKind::Unary {
-            op: ExpressionUnaryOp::Not,
-            value: Box::new(consume_boolean(nodes, depth + 1)?),
-        },
+        "literal" => ExpressionKind::Literal { value: node.literal.unwrap().try_into()? },
+        "selector" => ExpressionKind::Selector { path: node.path.unwrap() },
+        "unary" => ExpressionKind::Unary { op: ExpressionUnaryOp::Not, value: Box::new(consume_boolean(nodes, depth + 1)?) },
         "binary" => {
             let op = boolean_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_boolean(nodes, depth + 1)?);
@@ -548,15 +508,11 @@ fn consume_boolean(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result
         }
         "call" => {
             let mut args = Vec::new();
-            args.try_reserve_exact(node.children as usize)
-                .map_err(|_| Error::Invalid("expression argument allocation failed"))?;
+            args.try_reserve_exact(node.children as usize).map_err(|_| Error::Invalid("expression argument allocation failed"))?;
             for _ in 0..node.children {
                 args.push(consume_boolean(nodes, depth + 1)?);
             }
-            ExpressionKind::Call {
-                function: node.function.unwrap(),
-                args,
-            }
+            ExpressionKind::Call { function: node.function.unwrap(), args }
         }
         _ => return Err(Error::Invalid("unknown Boolean expression kind")),
     };
@@ -601,27 +557,15 @@ fn validate_parameter(node: &Node) -> Result<()> {
         (node.integer_start.is_some(), kind == "range"),
         (node.integer_stop.is_some(), kind == "range"),
         (node.integer_step.is_some(), kind == "range"),
-        (
-            node.number_start.is_some(),
-            matches!(kind, "arange" | "linspace"),
-        ),
-        (
-            node.number_stop.is_some(),
-            matches!(kind, "arange" | "linspace"),
-        ),
+        (node.number_start.is_some(), matches!(kind, "arange" | "linspace")),
+        (node.number_stop.is_some(), matches!(kind, "arange" | "linspace")),
         (node.number_step.is_some(), kind == "arange"),
         (node.count.is_some(), kind == "linspace"),
     ];
     if !arity || fields.iter().any(|(present, required)| present != required) {
-        return Err(Error::Invalid(
-            "parameter expression fields or arity differ",
-        ));
+        return Err(Error::Invalid("parameter expression fields or arity differ"));
     }
-    if [node.number_start, node.number_stop, node.number_step]
-        .into_iter()
-        .flatten()
-        .any(|value| !value.is_finite())
-    {
+    if [node.number_start, node.number_stop, node.number_step].into_iter().flatten().any(|value| !value.is_finite()) {
         return Err(Error::Invalid("parameter expression number is nonfinite"));
     }
     if let Some(count) = node.count {
@@ -646,9 +590,7 @@ fn parameter_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usiz
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    let node = nodes
-        .get(*at)
-        .ok_or(Error::Invalid("expression child is missing"))?;
+    let node = nodes.get(*at).ok_or(Error::Invalid("expression child is missing"))?;
     *at += 1;
     validate_parameter(node)?;
     if node.children as usize > nodes.len().saturating_sub(*at) {
@@ -673,22 +615,14 @@ fn consume_parameter(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Resu
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    let node = nodes
-        .next()
-        .ok_or(Error::Invalid("expression child is missing"))?;
+    let node = nodes.next().ok_or(Error::Invalid("expression child is missing"))?;
     // The Entire Tree Has Already Passed Borrowed Validation.
     Ok(match node.kind.as_str() {
-        "literal" => ParameterExpr::Literal {
-            value: node.literal.unwrap().try_into()?,
-        },
-        "reference" => ParameterExpr::Reference {
-            parameter: node.reference.unwrap(),
-        },
+        "literal" => ParameterExpr::Literal { value: node.literal.unwrap().try_into()? },
+        "reference" => ParameterExpr::Reference { parameter: node.reference.unwrap() },
         "array" => {
             let mut values = Vec::new();
-            values
-                .try_reserve_exact(node.children as usize)
-                .map_err(|_| Error::Invalid("expression array allocation failed"))?;
+            values.try_reserve_exact(node.children as usize).map_err(|_| Error::Invalid("expression array allocation failed"))?;
             for _ in 0..node.children {
                 values.push(consume_parameter(nodes, depth + 1)?);
             }
@@ -696,38 +630,26 @@ fn consume_parameter(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Resu
         }
         "dynamic_default" => {
             let key = dynamic_key(node.key.as_deref().unwrap())?;
-            let fallback = if node.children == 0 {
-                None
-            } else {
-                Some(Box::new(consume_parameter(nodes, depth + 1)?))
-            };
+            let fallback = if node.children == 0 { None } else { Some(Box::new(consume_parameter(nodes, depth + 1)?)) };
             ParameterExpr::DynamicDefault { key, fallback }
         }
-        "unary" => ParameterExpr::Unary {
-            op: ParameterUnaryOp::Negate,
-            value: Box::new(consume_parameter(nodes, depth + 1)?),
-        },
+        "unary" => ParameterExpr::Unary { op: ParameterUnaryOp::Negate, value: Box::new(consume_parameter(nodes, depth + 1)?) },
         "binary" => {
             let op = parameter_binary(node.op.as_deref().unwrap())?;
             let left = Box::new(consume_parameter(nodes, depth + 1)?);
             let right = Box::new(consume_parameter(nodes, depth + 1)?);
             ParameterExpr::Binary { op, left, right }
         }
-        "range" => ParameterExpr::Range {
-            start: node.integer_start.unwrap(),
-            stop: node.integer_stop.unwrap(),
-            step: node.integer_step.unwrap(),
-        },
-        "arange" => ParameterExpr::Arange {
-            start: node.number_start.unwrap(),
-            stop: node.number_stop.unwrap(),
-            step: node.number_step.unwrap(),
-        },
+        "range" => {
+            ParameterExpr::Range { start: node.integer_start.unwrap(), stop: node.integer_stop.unwrap(), step: node.integer_step.unwrap() }
+        }
+        "arange" => {
+            ParameterExpr::Arange { start: node.number_start.unwrap(), stop: node.number_stop.unwrap(), step: node.number_step.unwrap() }
+        }
         "linspace" => ParameterExpr::Linspace {
             start: node.number_start.unwrap(),
             stop: node.number_stop.unwrap(),
-            count: usize::try_from(node.count.unwrap())
-                .map_err(|_| Error::Invalid("expression count overflows"))?,
+            count: usize::try_from(node.count.unwrap()).map_err(|_| Error::Invalid("expression count overflows"))?,
         },
         _ => return Err(Error::Invalid("unknown parameter expression kind")),
     })

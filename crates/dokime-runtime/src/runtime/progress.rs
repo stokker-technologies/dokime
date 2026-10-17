@@ -134,12 +134,7 @@ impl LiveOperation {
             .saturating_add(self.operation_id.len())
             .saturating_add(self.label.len())
             .saturating_add(self.phase.len())
-            .saturating_add(
-                self.phases
-                    .iter()
-                    .map(|phase| std::mem::size_of::<String>().saturating_add(phase.len()))
-                    .sum::<usize>(),
-            )
+            .saturating_add(self.phases.iter().map(|phase| std::mem::size_of::<String>().saturating_add(phase.len())).sum::<usize>())
             .saturating_add(failure)
     }
 }
@@ -154,19 +149,14 @@ impl OperationSnapshot {
     }
 
     pub fn get(&self, operation_id: &str) -> Option<&LiveOperation> {
-        self.operations
-            .iter()
-            .find(|operation| operation.operation_id == operation_id)
+        self.operations.iter().find(|operation| operation.operation_id == operation_id)
     }
 }
 
 impl OperationRegistry {
     pub fn new() -> Arc<Self> {
         let (sender, _) = tokio::sync::watch::channel(OperationSnapshot::default());
-        Arc::new(Self {
-            state: Mutex::new(Entries::default()),
-            sender,
-        })
+        Arc::new(Self { state: Mutex::new(Entries::default()), sender })
     }
 
     /// Begins an operation named `label`, running with no phase and no
@@ -183,27 +173,14 @@ impl OperationRegistry {
             outcome: OperationOutcome::Running,
         };
         self.change(|entries| {
-            entries.operations.insert(
-                operation_id.clone(),
-                Entry {
-                    operation,
-                    retires_at: None,
-                },
-            );
+            entries.operations.insert(operation_id.clone(), Entry { operation, retires_at: None });
             true
         });
-        Operation {
-            owner: Arc::new(Owner {
-                registry: Arc::downgrade(self),
-                operation_id,
-            }),
-        }
+        Operation { owner: Arc::new(Owner { registry: Arc::downgrade(self), operation_id }) }
     }
 
     pub fn watch(&self) -> OperationWatch {
-        OperationWatch {
-            receiver: self.sender.subscribe(),
-        }
+        OperationWatch { receiver: self.sender.subscribe() }
     }
 
     pub fn latest(&self) -> OperationSnapshot {
@@ -223,10 +200,7 @@ impl OperationRegistry {
     fn settle(self: &Arc<Self>, operation_id: &str, outcome: OperationOutcome) {
         let retires_at = tokio::time::Instant::now() + SETTLED_RETENTION;
         self.change(|entries| {
-            let Some(entry) = entries
-                .operations
-                .get_mut(operation_id)
-                .filter(|entry| entry.operation.outcome == OperationOutcome::Running)
+            let Some(entry) = entries.operations.get_mut(operation_id).filter(|entry| entry.operation.outcome == OperationOutcome::Running)
             else {
                 return false;
             };
@@ -257,9 +231,7 @@ impl OperationRegistry {
             let changed = change(&mut entries);
             let now = tokio::time::Instant::now();
             let before = entries.operations.len();
-            entries
-                .operations
-                .retain(|_, entry| entry.retires_at.is_none_or(|at| at > now));
+            entries.operations.retain(|_, entry| entry.retires_at.is_none_or(|at| at > now));
             if !changed && entries.operations.len() == before {
                 return;
             }
@@ -276,25 +248,12 @@ impl Entries {
     fn snapshot(&self) -> OperationSnapshot {
         let mut shown: Vec<&Entry> = self.operations.values().collect();
         shown.sort_by(|left, right| {
-            left.retires_at
-                .is_some()
-                .cmp(&right.retires_at.is_some())
-                .then_with(|| right.retires_at.cmp(&left.retires_at))
+            left.retires_at.is_some().cmp(&right.retires_at.is_some()).then_with(|| right.retires_at.cmp(&left.retires_at))
         });
         shown.truncate(MAX_OPERATIONS);
         // Identifiers are time-ordered, so this restores start order.
-        shown.sort_by(|left, right| {
-            left.operation
-                .operation_id
-                .cmp(&right.operation.operation_id)
-        });
-        OperationSnapshot {
-            revision: self.revision,
-            operations: shown
-                .into_iter()
-                .map(|entry| entry.operation.clone())
-                .collect(),
-        }
+        shown.sort_by(|left, right| left.operation.operation_id.cmp(&right.operation.operation_id));
+        OperationSnapshot { revision: self.revision, operations: shown.into_iter().map(|entry| entry.operation.clone()).collect() }
     }
 }
 
@@ -337,9 +296,7 @@ impl Operation {
         let fraction = fraction.is_finite().then(|| fraction.clamp(0.0, 1.0));
         self.update(|operation| {
             let visible = match (operation.fraction, fraction) {
-                (Some(previous), Some(next)) => {
-                    (next - previous).abs() >= FRACTION_STEP || next >= 1.0
-                }
+                (Some(previous), Some(next)) => (next - previous).abs() >= FRACTION_STEP || next >= 1.0,
                 (previous, next) => previous != next,
             };
             if visible {
@@ -365,16 +322,11 @@ impl Operation {
     }
 
     pub fn finish(&self) {
-        self.settle(OperationOutcome::Finished {
-            at: crate::model::time::now_utc(),
-        });
+        self.settle(OperationOutcome::Finished { at: crate::model::time::now_utc() });
     }
 
     pub fn fail(&self, failure: impl Display) {
-        self.settle(OperationOutcome::Failed {
-            at: crate::model::time::now_utc(),
-            failure: bounded(failure.to_string()),
-        });
+        self.settle(OperationOutcome::Failed { at: crate::model::time::now_utc(), failure: bounded(failure.to_string()) });
     }
 
     /// Records `result` on the operation: a failure settles it failed, success
@@ -402,22 +354,14 @@ impl Operation {
 impl Drop for Owner {
     fn drop(&mut self) {
         if let Some(registry) = self.registry.upgrade() {
-            registry.settle(
-                &self.operation_id,
-                OperationOutcome::Finished {
-                    at: crate::model::time::now_utc(),
-                },
-            );
+            registry.settle(&self.operation_id, OperationOutcome::Finished { at: crate::model::time::now_utc() });
         }
     }
 }
 
 impl std::fmt::Debug for Operation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Operation")
-            .field("operation_id", &self.owner.operation_id)
-            .finish()
+        formatter.debug_struct("Operation").field("operation_id", &self.owner.operation_id).finish()
     }
 }
 

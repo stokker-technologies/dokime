@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCycleInstance;
 use crate::document::{DocumentInstance, DocumentPayload, DocumentSelection};
-use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::{documents::RuntimeDocumentData, execution_runtime::registry::SuiteRegistry};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
@@ -81,60 +81,32 @@ impl RuntimeDocumentRecord {
 }
 
 /* === Public Functions === */
-pub(crate) fn document_frame<'a>(
-    cycles: impl Iterator<Item = &'a TestCycleInstance>,
-    scope: Option<&RecordScope>,
-) -> RuntimeDocumentFrame {
-    let documents = cycles
-        .flat_map(|cycle| cycle_document_records(cycle, scope))
-        .collect::<Vec<_>>();
+pub(crate) fn document_frame<'a>(cycles: impl Iterator<Item = &'a TestCycleInstance>, scope: Option<&RecordScope>) -> RuntimeDocumentFrame {
+    let documents = cycles.flat_map(|cycle| cycle_document_records(cycle, scope)).collect::<Vec<_>>();
 
-    RuntimeDocumentFrame {
-        total_documents: documents.len(),
-        returned_documents: documents.len(),
-        documents,
-        truncated: false,
-    }
+    RuntimeDocumentFrame { total_documents: documents.len(), returned_documents: documents.len(), documents, truncated: false }
 }
 
 pub(crate) fn resolved_document_frame<'a>(
-    suites: &SuiteRegistry,
-    mut cycles: impl Iterator<Item = &'a TestCycleInstance>,
-    document_id: &DocumentId,
-    selection: DocumentSelection,
-    data: RuntimeDocumentData,
+    suites: &SuiteRegistry, mut cycles: impl Iterator<Item = &'a TestCycleInstance>, document_id: &DocumentId,
+    selection: DocumentSelection, data: RuntimeDocumentData,
 ) -> RuntimeResolvedDocumentFrame {
     let Some(test_cycle_id) = selection.scope.test_cycle_id.as_ref() else {
-        return RuntimeResolvedDocumentFrame {
-            document: None,
-            error: Some("document query scope requires test_cycle_id".to_owned()),
-        };
+        return RuntimeResolvedDocumentFrame { document: None, error: Some("document query scope requires test_cycle_id".to_owned()) };
     };
 
     let Some(cycle) = cycles.find(|cycle| cycle.cycle_id() == test_cycle_id) else {
-        return RuntimeResolvedDocumentFrame {
-            document: None,
-            error: Some(format!("cycle {test_cycle_id} not found")),
-        };
+        return RuntimeResolvedDocumentFrame { document: None, error: Some(format!("cycle {test_cycle_id} not found")) };
     };
 
     match crate::documents::resolve_cycle_document(suites, cycle, document_id, selection, data) {
-        Ok(document) => RuntimeResolvedDocumentFrame {
-            document,
-            error: None,
-        },
-        Err(error) => RuntimeResolvedDocumentFrame {
-            document: None,
-            error: Some(error.to_string()),
-        },
+        Ok(document) => RuntimeResolvedDocumentFrame { document, error: None },
+        Err(error) => RuntimeResolvedDocumentFrame { document: None, error: Some(error.to_string()) },
     }
 }
 
 /* === Private Functions === */
-fn cycle_document_records(
-    cycle: &TestCycleInstance,
-    selected_scope: Option<&RecordScope>,
-) -> Vec<RuntimeDocumentRecord> {
+fn cycle_document_records(cycle: &TestCycleInstance, selected_scope: Option<&RecordScope>) -> Vec<RuntimeDocumentRecord> {
     let mut records = Vec::new();
     for execution in cycle.executions() {
         let execution_scope = execution.execution.scope.clone();
@@ -143,11 +115,7 @@ fn cycle_document_records(
         }
 
         records.extend(execution.documents.instances().map(|document| {
-            RuntimeDocumentRecord::from_instance(
-                document,
-                execution_scope.clone(),
-                execution_has_payload(&execution.execution.status),
-            )
+            RuntimeDocumentRecord::from_instance(document, execution_scope.clone(), execution_has_payload(&execution.execution.status))
         }));
     }
 

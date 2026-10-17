@@ -68,20 +68,15 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let input = match args.input_file {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024)?;
-            serde_json::from_slice::<Input>(&bytes)
-                .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
+            serde_json::from_slice::<Input>(&bytes).map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
         None => Input {
-            cycle_id: args
-                .cycle_id
-                .ok_or_else(|| crate::Error::Input("cycle ID is required".into()))?,
-            request_key: args
-                .request_key
-                .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
+            cycle_id: args.cycle_id.ok_or_else(|| crate::Error::Input("cycle ID is required".into()))?,
+            request_key: args.request_key.ok_or_else(|| crate::Error::Input("request key is required".into()))?,
         },
     };
-    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&input.cycle_id)
-        .map_err(|error| crate::Error::Input(error.to_string()))?;
+    let id =
+        dokime_domain::model::identity::TestCycleId::from_uuid(&input.cycle_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     dokime_domain::model::execution::command::validate_idempotency_key(&input.request_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
@@ -97,10 +92,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             })
         );
     } else {
-        println!(
-            "Admitted Request {} For Cycle {}",
-            admission.command_id, input.cycle_id
-        );
+        println!("Admitted Request {} For Cycle {}", admission.command_id, input.cycle_id);
     }
     Ok(())
 }

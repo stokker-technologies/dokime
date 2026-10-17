@@ -30,12 +30,8 @@ use dokime_domain::model;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
 use dokime_runtime::domains::files::{FileWatch, WatchEvent};
 use {
-    model::files::wire::FileRule,
-    model::files::wire::FileRuleAction,
-    model::files::wire::FileWatchPolicy,
-    model::files::wire::FileWatchSource,
-    model::files::wire::FileWatchSourcePayload,
-    model::files::wire::LocalWatchSource,
+    model::files::wire::FileRule, model::files::wire::FileRuleAction, model::files::wire::FileWatchPolicy,
+    model::files::wire::FileWatchSource, model::files::wire::FileWatchSourcePayload, model::files::wire::LocalWatchSource,
 };
 
 /* === Constants === */
@@ -62,21 +58,13 @@ pub(crate) struct Bench {
 
 /* === Implementations === */
 impl Bench {
-    pub(crate) async fn start(
-        configure: impl FnOnce(RuntimeConfig, &Path) -> RuntimeConfig,
-    ) -> Self {
+    pub(crate) async fn start(configure: impl FnOnce(RuntimeConfig, &Path) -> RuntimeConfig) -> Self {
         let root = tempdir().unwrap();
         let settings = configure(config(root.path()), root.path());
         let (owner, handle, cycle_id, executor) = blocked_cycle_with(settings).await;
         let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Running).await;
         let execution = cycle.test_executions[0].test_execution_id.to_string();
-        Self {
-            _root: root,
-            owner,
-            handle,
-            executor,
-            execution,
-        }
+        Self { _root: root, owner, handle, executor, execution }
     }
 
     pub(crate) async fn stop(mut self) {
@@ -87,16 +75,11 @@ impl Bench {
 
 /* === Public Functions === */
 pub(crate) fn request(
-    execution: &str,
-    source: FileWatchSourcePayload,
-    rules: Vec<FileRule>,
-    policy: FileWatchPolicy,
+    execution: &str, source: FileWatchSourcePayload, rules: Vec<FileRule>, policy: FileWatchPolicy,
 ) -> dokime_domain::operations::files::FileWatch {
     dokime_domain::operations::files::FileWatch {
         execution_id: Some(execution.to_owned()),
-        source: Some(FileWatchSource {
-            payload: Some(source),
-        }),
+        source: Some(FileWatchSource { payload: Some(source) }),
         rules,
         output: OUTPUT.to_owned(),
         policy,
@@ -108,23 +91,15 @@ pub(crate) fn request(
 }
 
 pub(crate) fn local(root: &Path) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Local(LocalWatchSource {
-        root: root.to_str().unwrap().to_owned(),
-    })
+    FileWatchSourcePayload::Local(LocalWatchSource { root: root.to_str().unwrap().to_owned() })
 }
 
 pub(crate) fn include(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.to_owned(),
-        action: FileRuleAction::Include,
-    }
+    FileRule { glob: glob.to_owned(), action: FileRuleAction::Include }
 }
 
 pub(crate) fn exclude(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.to_owned(),
-        action: FileRuleAction::Exclude,
-    }
+    FileRule { glob: glob.to_owned(), action: FileRuleAction::Exclude }
 }
 
 pub(crate) async fn poll(watch: &mut FileWatch) -> Vec<WatchEvent> {
@@ -155,10 +130,7 @@ pub(crate) fn assert_artifact(record: &ArtifactRecord, path: &str, bytes: &[u8])
     assert_eq!(record.filename, format!("{OUTPUT}/{path}"));
     assert_eq!(record.status, ArtifactStatus::Complete, "{path}");
     assert_eq!(record.size_bytes, bytes.len() as u64, "{path}");
-    let digest = Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     assert_eq!(record.sha256.as_deref(), Some(digest.as_str()), "{path}");
 }
 

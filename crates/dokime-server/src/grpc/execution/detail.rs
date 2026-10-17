@@ -47,16 +47,11 @@ pub(in crate::grpc) struct Bounds {
 /* === Implementations === */
 impl Bounds {
     pub(in crate::grpc) fn new(limit: usize) -> Self {
-        Self {
-            remaining: limit.min(4 * 1024 * 1024),
-            nodes: value::Budget::new(),
-        }
+        Self { remaining: limit.min(4 * 1024 * 1024), nodes: value::Budget::new() }
     }
     pub(in crate::grpc) fn bytes(&mut self, count: usize) -> Result<(), Status> {
-        self.remaining = self
-            .remaining
-            .checked_sub(count)
-            .ok_or_else(|| Status::resource_exhausted("inspection allocation budget exceeded"))?;
+        self.remaining =
+            self.remaining.checked_sub(count).ok_or_else(|| Status::resource_exhausted("inspection allocation budget exceeded"))?;
         Ok(())
     }
     pub(in crate::grpc) fn text(&mut self, text: &str) -> Result<(), Status> {
@@ -71,26 +66,11 @@ impl Bounds {
 
 /* === Public Functions === */
 pub(super) fn execution<'a>(
-    state: &'a dokime_runtime::state::RuntimeState,
-    id: &str,
-) -> Result<
-    (
-        &'a dokime_domain::model::execution::result::TestCycle,
-        usize,
-        &'a TestExecution,
-    ),
-    Status,
-> {
-    let id = TestExecutionId::from_uuid(id.to_owned())
-        .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let execution = state
-        .executions
-        .get(&id)
-        .ok_or_else(|| Status::not_found("execution not found in current runtime"))?;
-    let cycle = state
-        .cycles
-        .get(&execution.test_cycle_id)
-        .ok_or_else(|| Status::failed_precondition("execution owner is unavailable"))?;
+    state: &'a dokime_runtime::state::RuntimeState, id: &str,
+) -> Result<(&'a dokime_domain::model::execution::result::TestCycle, usize, &'a TestExecution), Status> {
+    let id = TestExecutionId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let execution = state.executions.get(&id).ok_or_else(|| Status::not_found("execution not found in current runtime"))?;
+    let cycle = state.cycles.get(&execution.test_cycle_id).ok_or_else(|| Status::failed_precondition("execution owner is unavailable"))?;
     let ordinal = cycle
         .execution_ids
         .iter()
@@ -109,9 +89,7 @@ pub(crate) fn result(
             ResultStatus::Passed => dokime_domain::model::execution::wire::ResultStatus::Passed,
             ResultStatus::Failed => dokime_domain::model::execution::wire::ResultStatus::Failed,
             ResultStatus::Blocked => dokime_domain::model::execution::wire::ResultStatus::Blocked,
-            ResultStatus::Cancelled => {
-                dokime_domain::model::execution::wire::ResultStatus::Cancelled
-            }
+            ResultStatus::Cancelled => dokime_domain::model::execution::wire::ResultStatus::Cancelled,
         },
         passed: value.passed,
         failed: value.failed,
@@ -120,17 +98,11 @@ pub(crate) fn result(
     }
 }
 
-pub(super) fn get_case(
-    service: &Resources,
-    request: &wire::GetCase,
-) -> Result<wire::CaseDetail, Status> {
+pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<wire::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
     super::value::text(&request.case_id)?;
     let snapshot = service.runtime.watch_state().latest();
-    let cycle = snapshot
-        .state()
-        .cycle_view(&id)
-        .ok_or_else(|| Status::not_found("cycle not found"))?;
+    let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
     let (ordinal, case) = cycle
         .cases()
         .enumerate()
@@ -147,11 +119,7 @@ pub(super) fn get_case(
             summary: Some(super::case_summary(
                 case,
                 ordinal,
-                dokime_runtime::runtime::query::case_projection(
-                    snapshot.state(),
-                    &cycle,
-                    &case.test_case_id,
-                ),
+                dokime_runtime::runtime::query::case_projection(snapshot.state(), &cycle, &case.test_case_id),
                 &mut bounds,
             )?),
             suite: case.suite.as_ref().map(metadata).transpose()?,
@@ -162,10 +130,7 @@ pub(super) fn get_case(
     )
 }
 
-pub(super) fn get_execution(
-    service: &Resources,
-    request: &wire::GetExecution,
-) -> Result<wire::ExecutionDetail, Status> {
+pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<wire::ExecutionDetail, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
     let mut bounds = Bounds::new(service.max_message_bytes);
@@ -201,61 +166,35 @@ pub(super) fn get_execution(
             scope: Some(canonical::scope(&execution.scope)?),
             admitted_suite: execution.snapshot.suite().map(metadata).transpose()?,
             admitted_template_id: execution.snapshot.template_id().map(ToString::to_string),
-            admitted_template: execution
-                .snapshot
-                .template()
-                .map(|template| metadata(&template.metadata))
-                .transpose()?,
-            admitted_plugin: execution
-                .snapshot
-                .plugin()
-                .map(canonical::execution_plugin)
-                .transpose()?,
+            admitted_template: execution.snapshot.template().map(|template| metadata(&template.metadata)).transpose()?,
+            admitted_plugin: execution.snapshot.plugin().map(canonical::execution_plugin).transpose()?,
             invalidation: execution
                 .invalidation
                 .as_ref()
                 .map(|invalidation| {
                     Ok::<_, Status>(wire::ExecutionInvalidation {
                         previous: Some(canonical::execution_plugin(&invalidation.previous)?),
-                        current: invalidation
-                            .current
-                            .as_ref()
-                            .map(canonical::execution_plugin)
-                            .transpose()?,
+                        current: invalidation.current.as_ref().map(canonical::execution_plugin).transpose()?,
                     })
                 })
                 .transpose()?,
-            started_at: execution
-                .started_at
-                .as_ref()
-                .map(canonical::timestamp)
-                .transpose()?,
-            finished_at: execution
-                .finished_at
-                .as_ref()
-                .map(canonical::timestamp)
-                .transpose()?,
+            started_at: execution.started_at.as_ref().map(canonical::timestamp).transpose()?,
+            finished_at: execution.finished_at.as_ref().map(canonical::timestamp).transpose()?,
             result: execution.result.as_ref().map(result),
             input_parameter_count: execution.snapshot.parameters().len() as u64,
-            controls: dokime_runtime::runtime::query::execution_controls(
-                snapshot.state(),
-                &execution.test_execution_id,
-            )
-            .map(|controls| wire::ExecutionControls {
-                request_id: controls.request_id.to_string(),
-                mode: match controls.mode {
-                    dokime_domain::model::execution::ExecutionMode::Automatic => {
-                        wire::ExecutionMode::Automatic
-                    }
-                    dokime_domain::model::execution::ExecutionMode::Interactive => {
-                        wire::ExecutionMode::Interactive
-                    }
-                },
-                paused: controls.paused,
-                stop_requested: controls.stop_requested,
-                can_pause: controls.can_pause,
-                can_resume: controls.can_resume,
-                can_stop: controls.can_stop,
+            controls: dokime_runtime::runtime::query::execution_controls(snapshot.state(), &execution.test_execution_id).map(|controls| {
+                wire::ExecutionControls {
+                    request_id: controls.request_id.to_string(),
+                    mode: match controls.mode {
+                        dokime_domain::model::execution::ExecutionMode::Automatic => wire::ExecutionMode::Automatic,
+                        dokime_domain::model::execution::ExecutionMode::Interactive => wire::ExecutionMode::Interactive,
+                    },
+                    paused: controls.paused,
+                    stop_requested: controls.stop_requested,
+                    can_pause: controls.can_pause,
+                    can_resume: controls.can_resume,
+                    can_stop: controls.can_stop,
+                }
             }),
             output_parameter_count: execution.output_parameters.len() as u64,
             step_count: execution.steps.len() as u64,
@@ -265,8 +204,7 @@ pub(super) fn get_execution(
 }
 
 pub(super) fn list_execution_parameters(
-    service: &Resources,
-    request: &wire::ListExecutionParameters,
+    service: &Resources, request: &wire::ListExecutionParameters,
 ) -> Result<wire::ListMaterializedParametersReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -274,54 +212,27 @@ pub(super) fn list_execution_parameters(
         wire::ExecutionParameterSet::Inputs => execution.snapshot.parameters(),
         wire::ExecutionParameterSet::Outputs => &execution.output_parameters,
         wire::ExecutionParameterSet::Unspecified => {
-            return Err(Status::invalid_argument(
-                "explicit input/output parameter set is required",
-            ));
+            return Err(Status::invalid_argument("explicit input/output parameter set is required"));
         }
     };
     let selection = match request.set {
-        wire::ExecutionParameterSet::Inputs => {
-            wire::ParameterCursorSelection::ExecutionInputsId(request.execution_id.clone())
-        }
-        wire::ExecutionParameterSet::Outputs => {
-            wire::ParameterCursorSelection::ExecutionOutputsId(request.execution_id.clone())
-        }
+        wire::ExecutionParameterSet::Inputs => wire::ParameterCursorSelection::ExecutionInputsId(request.execution_id.clone()),
+        wire::ExecutionParameterSet::Outputs => wire::ParameterCursorSelection::ExecutionOutputsId(request.execution_id.clone()),
         wire::ExecutionParameterSet::Unspecified => unreachable!(),
     };
-    let limit = parameter_page(
-        request.limit,
-        &request.after_name,
-        request.cursor.as_ref(),
-        &snapshot,
-        &selection,
-    )?;
-    parameters(
-        service,
-        selected,
-        &request.after_name,
-        limit,
-        parameter_cursor(&snapshot, selection),
-    )
+    let limit = parameter_page(request.limit, &request.after_name, request.cursor.as_ref(), &snapshot, &selection)?;
+    parameters(service, selected, &request.after_name, limit, parameter_cursor(&snapshot, selection))
 }
 
 pub(super) fn metadata_memory(value: &Metadata) -> Result<usize, Status> {
     canonical::metadata_memory(value)
 }
 
-pub(super) fn diagnostic(
-    value: &dokime_runtime::plugin::Diagnostic,
-    bounds: &mut Bounds,
-) -> Result<Diagnostic, Status> {
+pub(super) fn diagnostic(value: &dokime_runtime::plugin::Diagnostic, bounds: &mut Bounds) -> Result<Diagnostic, Status> {
     value::collection(value.chain.len())?;
     value::collection(value.span_trace.len())?;
     bounds.bytes(std::mem::size_of::<Diagnostic>())?;
-    bounds.bytes(
-        value
-            .chain
-            .len()
-            .saturating_add(value.span_trace.len())
-            .saturating_mul(std::mem::size_of::<String>()),
-    )?;
+    bounds.bytes(value.chain.len().saturating_add(value.span_trace.len()).saturating_mul(std::mem::size_of::<String>()))?;
     let message = bounded(&value.message, bounds)?;
     let mut chain = canonical::slots(value.chain.len())?;
     for cause in &value.chain {
@@ -334,18 +245,11 @@ pub(super) fn diagnostic(
     }
     let backtrace = bounded(&value.backtrace, bounds)?;
 
-    Ok(Diagnostic {
-        message,
-        chain,
-        location,
-        span_trace,
-        backtrace,
-    })
+    Ok(Diagnostic { message, chain, location, span_trace, backtrace })
 }
 
 pub(super) fn list_case_parameters(
-    service: &Resources,
-    request: &wire::ListCaseParameters,
+    service: &Resources, request: &wire::ListCaseParameters,
 ) -> Result<wire::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
     value::text(&request.case_id)?;
@@ -354,51 +258,28 @@ pub(super) fn list_case_parameters(
         cycle_id: request.cycle_id.clone(),
         case_id: request.case_id.clone(),
     });
-    let limit = parameter_page(
-        request.limit,
-        &request.after_name,
-        request.cursor.as_ref(),
-        &snapshot,
-        &selection,
-    )?;
-    let cycle = snapshot
-        .state()
-        .cycle_view(&id)
-        .ok_or_else(|| Status::not_found("cycle not found"))?;
+    let limit = parameter_page(request.limit, &request.after_name, request.cursor.as_ref(), &snapshot, &selection)?;
+    let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
     let case = cycle
         .cases()
         .find(|case| case.test_case_id.as_str() == request.case_id)
         .ok_or_else(|| Status::not_found("case not found in requested cycle"))?;
-    case_parameters(
-        service,
-        &case.parameters,
-        &request.after_name,
-        limit,
-        parameter_cursor(&snapshot, selection),
-    )
+    case_parameters(service, &case.parameters, &request.after_name, limit, parameter_cursor(&snapshot, selection))
 }
 
 /* === Private Functions === */
 fn reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
-        return Err(Status::resource_exhausted(
-            "inspection exceeds response budget",
-        ));
+        return Err(Status::resource_exhausted("inspection exceeds response budget"));
     }
     Ok(value)
 }
 
 fn parameters(
-    service: &Resources,
-    entries: &BTreeMap<String, MaterializedParameter>,
-    after: &str,
-    limit: usize,
-    cursor: wire::ParameterCursor,
+    service: &Resources, entries: &BTreeMap<String, MaterializedParameter>, after: &str, limit: usize, cursor: wire::ParameterCursor,
 ) -> Result<wire::ListMaterializedParametersReply, Status> {
     if !after.is_empty() && !entries.contains_key(after) {
-        return Err(Status::invalid_argument(
-            "after name not found in requested parameter set",
-        ));
+        return Err(Status::invalid_argument("after name not found in requested parameter set"));
     }
     let mut selected = entries.iter().filter(|(name, _)| name.as_str() > after);
     let mut bounds = Bounds::new(service.max_message_bytes);
@@ -418,9 +299,8 @@ fn parameters(
             .unit
             .as_ref()
             .map(|unit| {
-                let bytes = super::super::catalog::unit_memory(unit).map_err(|_| {
-                    Status::resource_exhausted("inspection unit exceeds response budget")
-                })?;
+                let bytes = super::super::catalog::unit_memory(unit)
+                    .map_err(|_| Status::resource_exhausted("inspection unit exceeds response budget"))?;
                 bounds.bytes(bytes)?;
                 super::super::catalog::unit(unit)
             })
@@ -444,18 +324,8 @@ fn parameters(
             unit,
         });
     }
-    let next_after_name = selected
-        .next()
-        .is_some()
-        .then(|| parameters.last().unwrap().name.clone());
-    reply(
-        service,
-        wire::ListMaterializedParametersReply {
-            parameters,
-            next_after_name,
-            cursor: Some(cursor),
-        },
-    )
+    let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
+    reply(service, wire::ListMaterializedParametersReply { parameters, next_after_name, cursor: Some(cursor) })
 }
 
 fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
@@ -467,66 +337,38 @@ fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
     while !value.is_char_boundary(cut) {
         cut -= 1;
     }
-    bounds.bytes(
-        cut.saturating_add(DIAGNOSTIC_TRUNCATED.len())
-            .saturating_add(32),
-    )?;
+    bounds.bytes(cut.saturating_add(DIAGNOSTIC_TRUNCATED.len()).saturating_add(32))?;
     Ok(format!("{}{DIAGNOSTIC_TRUNCATED}", &value[..cut]))
 }
 
 fn parameter_cursor(
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
-    selection: wire::ParameterCursorSelection,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: wire::ParameterCursorSelection,
 ) -> wire::ParameterCursor {
-    wire::ParameterCursor {
-        observed: Some(canonical::cursor(snapshot)),
-        selection: Some(selection),
-    }
+    wire::ParameterCursor { observed: Some(canonical::cursor(snapshot)), selection: Some(selection) }
 }
 
 fn parameter_page(
-    limit: u32,
-    after: &str,
-    cursor: Option<&wire::ParameterCursor>,
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
+    limit: u32, after: &str, cursor: Option<&wire::ParameterCursor>, snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
     selection: &wire::ParameterCursorSelection,
 ) -> Result<usize, Status> {
     if let Some(cursor) = cursor {
         if cursor.selection.as_ref() != Some(selection) {
-            return Err(Status::invalid_argument(
-                "parameter cursor selection mismatch",
-            ));
+            return Err(Status::invalid_argument("parameter cursor selection mismatch"));
         }
         if cursor.observed.is_none() {
-            return Err(Status::invalid_argument(
-                "parameter cursor requires observed revision",
-            ));
+            return Err(Status::invalid_argument("parameter cursor requires observed revision"));
         }
     }
-    canonical::cursor(snapshot)
-        .page(
-            limit,
-            after,
-            cursor.and_then(|cursor| cursor.observed.as_ref()),
-        )
-        .map_err(canonical::cursor_failure)
+    canonical::cursor(snapshot).page(limit, after, cursor.and_then(|cursor| cursor.observed.as_ref())).map_err(canonical::cursor_failure)
 }
 
 fn case_parameters(
-    service: &Resources,
-    entries: &BTreeMap<String, Value>,
-    after: &str,
-    limit: usize,
-    cursor: wire::ParameterCursor,
+    service: &Resources, entries: &BTreeMap<String, Value>, after: &str, limit: usize, cursor: wire::ParameterCursor,
 ) -> Result<wire::ListCaseParametersReply, Status> {
     if !after.is_empty() && !entries.contains_key(after) {
-        return Err(Status::invalid_argument(
-            "after name not found in requested case",
-        ));
+        return Err(Status::invalid_argument("after name not found in requested case"));
     }
-    let mut selected = entries
-        .iter()
-        .filter(|(name, _)| after.is_empty() || name.as_str() > after);
+    let mut selected = entries.iter().filter(|(name, _)| after.is_empty() || name.as_str() > after);
     let mut bounds = Bounds::new(service.max_message_bytes);
     let mut budget = value::Budget::new();
     let count = selected.clone().take(limit).count();
@@ -535,23 +377,10 @@ fn case_parameters(
     for (name, item) in selected.by_ref().take(limit) {
         bounds.text(name)?;
         bounds.value(item, 0)?;
-        parameters.push(wire::CaseParameter {
-            name: name.clone(),
-            value: Some(canonical::encode(item, &mut budget, 0)?),
-        });
+        parameters.push(wire::CaseParameter { name: name.clone(), value: Some(canonical::encode(item, &mut budget, 0)?) });
     }
-    let next_after_name = selected
-        .next()
-        .is_some()
-        .then(|| parameters.last().unwrap().name.clone());
-    reply(
-        service,
-        wire::ListCaseParametersReply {
-            parameters,
-            next_after_name,
-            cursor: Some(cursor),
-        },
-    )
+    let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
+    reply(service, wire::ListCaseParametersReply { parameters, next_after_name, cursor: Some(cursor) })
 }
 
 /* === Tests === */

@@ -125,9 +125,7 @@ pub enum Error {
     #[error("client worker failed")]
     Task(#[source] tokio::task::JoinError),
     #[error("execution admission was rejected: {rejection:?}")]
-    ExecutionRejected {
-        rejection: dokime_domain::model::execution::wire::Rejection,
-    },
+    ExecutionRejected { rejection: dokime_domain::model::execution::wire::Rejection },
     #[error("request wait deadline elapsed")]
     WaitTimedOut {
         #[source]
@@ -176,18 +174,13 @@ impl Error {
 }
 
 impl Client {
-    pub async fn connect(
-        target: Target,
-        token: Option<&str>,
-        expected_id: Option<&str>,
-    ) -> Result<Self> {
+    pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
         if target.is_remote() && token.is_none() {
             return Err(Error::AuthenticationRequired);
         }
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
-        let backend =
-            discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;
+        let backend = discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;
         Ok(Self {
             timeout: None,
             frame_limit: MAX_MESSAGE_BYTES as usize,
@@ -205,15 +198,8 @@ impl Client {
         if self.inner.cancellation.is_cancelled() {
             return Err(Error::Closed);
         }
-        if !self
-            .backend()
-            .methods
-            .iter()
-            .any(|available| available == method)
-        {
-            return Err(Error::Rpc(tonic::Status::permission_denied(
-                "operation is not available to this caller",
-            )));
+        if !self.backend().methods.iter().any(|available| available == method) {
+            return Err(Error::Rpc(tonic::Status::permission_denied("operation is not available to this caller")));
         }
 
         Ok(())
@@ -221,9 +207,7 @@ impl Client {
 
     pub async fn verify(&self, live: bool) -> Result<()> {
         let identity = self.identity().await?;
-        if identity.backend_id != self.backend().backend_id
-            || (live && identity.epoch != self.backend().epoch)
-        {
+        if identity.backend_id != self.backend().backend_id || (live && identity.epoch != self.backend().epoch) {
             return Err(Error::IdentityChanged);
         }
 
@@ -235,28 +219,15 @@ impl Client {
     }
 
     pub fn channel(&self) -> Result<Channel> {
-        self.inner
-            .channel
-            .lock()
-            .expect("client transport poisoned")
-            .clone()
-            .ok_or(Error::Closed)
+        self.inner.channel.lock().expect("client transport poisoned").clone().ok_or(Error::Closed)
     }
 
     pub fn with_timeout(&self, timeout: Duration) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            timeout: Some(timeout),
-            frame_limit: self.frame_limit,
-        }
+        Self { inner: self.inner.clone(), timeout: Some(timeout), frame_limit: self.frame_limit }
     }
 
     pub fn with_frame_limit(&self, bytes: NonZeroUsize) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            timeout: self.timeout,
-            frame_limit: self.frame_limit.min(bytes.get()),
-        }
+        Self { inner: self.inner.clone(), timeout: self.timeout, frame_limit: self.frame_limit.min(bytes.get()) }
     }
 
     pub fn request<T>(&self, message: T) -> tonic::Request<T> {
@@ -279,18 +250,13 @@ impl Client {
         Ok(result)
     }
 
-    pub fn execute<T>(
-        &self,
-        future: impl Future<Output = std::result::Result<T, tonic::Status>>,
-    ) -> impl Future<Output = Result<T>> {
+    pub fn execute<T>(&self, future: impl Future<Output = std::result::Result<T, tonic::Status>>) -> impl Future<Output = Result<T>> {
         // Keep Generated RPC State Out Of Every Enclosing Async Frame.
         let future = Box::pin(future);
         async move {
             let operation = async {
                 if let Some(timeout) = self.timeout {
-                    tokio::time::timeout(timeout, future)
-                        .await
-                        .map_err(|_| tonic::Status::deadline_exceeded("RPC deadline exceeded"))?
+                    tokio::time::timeout(timeout, future).await.map_err(|_| tonic::Status::deadline_exceeded("RPC deadline exceeded"))?
                 } else {
                     future.await
                 }
@@ -300,19 +266,11 @@ impl Client {
     }
 
     fn request_limit(&self) -> usize {
-        self.backend()
-            .limits
-            .max_request_bytes
-            .min(MAX_MESSAGE_BYTES)
-            .min(self.frame_limit as u64) as usize
+        self.backend().limits.max_request_bytes.min(MAX_MESSAGE_BYTES).min(self.frame_limit as u64) as usize
     }
 
     fn response_limit(&self) -> usize {
-        self.backend()
-            .limits
-            .max_response_bytes
-            .min(MAX_MESSAGE_BYTES)
-            .min(self.frame_limit as u64) as usize
+        self.backend().limits.max_response_bytes.min(MAX_MESSAGE_BYTES).min(self.frame_limit as u64) as usize
     }
 
     pub async fn close_and_wait(&self) {
@@ -322,11 +280,7 @@ impl Client {
 
     pub fn close(&self) {
         self.inner.cancellation.cancel();
-        let mut channel = self
-            .inner
-            .channel
-            .lock()
-            .expect("client transport poisoned");
+        let mut channel = self.inner.channel.lock().expect("client transport poisoned");
         channel.take();
         self.inner.readers.close();
     }
@@ -341,17 +295,13 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_observed_cursor(
-    epoch: &str,
-    cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
-) -> Result<()> {
+fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }
 
 fn validate_observed_epoch(epoch: &str, observed: Option<&str>) -> Result<()> {
-    let observed = observed
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| Error::Rpc(tonic::Status::data_loss("reply has no observed epoch")))?;
+    let observed =
+        observed.filter(|value| !value.is_empty()).ok_or_else(|| Error::Rpc(tonic::Status::data_loss("reply has no observed epoch")))?;
     if observed != epoch {
         return Err(Error::IdentityChanged);
     }
@@ -376,8 +326,7 @@ fn authorization(token: Option<&str>) -> Result<Option<MetadataValue<Ascii>>> {
                 return Err(Error::AuthenticationRequired);
             }
             let text = Zeroizing::new(format!("Bearer {token}"));
-            let mut value = MetadataValue::try_from(text.as_str())
-                .map_err(|_| Error::AuthenticationRequired)?;
+            let mut value = MetadataValue::try_from(text.as_str()).map_err(|_| Error::AuthenticationRequired)?;
             value.set_sensitive(true);
             Ok(value)
         })
@@ -387,9 +336,7 @@ fn authorization(token: Option<&str>) -> Result<Option<MetadataValue<Ascii>>> {
 fn request<T>(message: T, authorization: Option<&MetadataValue<Ascii>>) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
     if let Some(value) = authorization {
-        request
-            .metadata_mut()
-            .insert("authorization", value.clone());
+        request.metadata_mut().insert("authorization", value.clone());
     }
     request
 }

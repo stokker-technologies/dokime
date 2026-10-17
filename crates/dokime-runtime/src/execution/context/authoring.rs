@@ -19,22 +19,22 @@ use std::sync::Arc;
 // Third-Party Imports
 use serde::de::DeserializeOwned;
 // Local Imports
+use crate::artifacts::Artifacts;
 use crate::execution::environment::Environment;
-use dokime_domain::model::execution::termination::TerminationReason;
 use crate::execution::evidence::{ExecutionEvidence, Samples};
 use crate::execution::log::Level;
-use crate::artifacts::Artifacts;
-use dokime_domain::model::execution::CapturePhase;
-use dokime_domain::model::execution::EvidenceOrigin;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::StepAttemptId;
-use dokime_domain::model::values::Value;
 use crate::prompts::Prompt;
 use crate::publication::{Publication, Publishable};
 use crate::records::DeclaredRecord;
 use crate::telemetry::{LeaseGap, StreamSelection, TelemetryRow, TelemetryStream};
 use crate::transport::ExecutionTransport;
+use dokime_domain::model::execution::CapturePhase;
+use dokime_domain::model::execution::EvidenceOrigin;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::termination::TerminationReason;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::StepAttemptId;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -139,16 +139,9 @@ impl<T: Required, O> Calls<O> for T where T::Operations: crate::catalog::Contain
 /* === Implementations === */
 impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     pub(in crate::execution) fn new(
-        environment: &'a Environment<'a, C, O, I>,
-        transport: &'a mut dyn ExecutionTransport,
-        stage: S,
+        environment: &'a Environment<'a, C, O, I>, transport: &'a mut dyn ExecutionTransport, stage: S,
     ) -> Self {
-        Self {
-            environment,
-            transport,
-            stage,
-            call_stage: String::new(),
-        }
+        Self { environment, transport, stage, call_stage: String::new() }
     }
 
     pub(in crate::execution) fn calling_stage(mut self, stage: impl Into<String>) -> Self {
@@ -204,8 +197,7 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 #[cfg(feature = "native")]
 impl<C, O, I, S> Context<'_, C, O, I, S> {
     pub async fn call<Op>(
-        &self,
-        request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
+        &self, request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
     ) -> crate::Result<<Op::Declaration as harmos::operations::OperationDeclaration>::Response>
     where
         Op: harmos::operations::Declares,
@@ -213,10 +205,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
         <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
         C: Calls<Op>,
     {
-        self.environment
-            .caller()
-            .call_at::<Op>(&self.call_stage, request)
-            .await
+        self.environment.caller().call_at::<Op>(&self.call_stage, request).await
     }
 
     // The host surface for this stage: `call` and `submit` take the
@@ -229,9 +218,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
             identity: self.environment.identity(),
             handles: self.environment.handles().clone(),
         };
-        self.environment
-            .caller()
-            .step_host(&self.call_stage, binding)
+        self.environment.caller().step_host(&self.call_stage, binding)
     }
 }
 
@@ -248,11 +235,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
         let issues = crate::prompts::validate_definition(&prompt.definition());
         if !issues.is_empty() {
             return Err(crate::Error::PromptRefused(
-                issues
-                    .into_iter()
-                    .map(|issue| format!("{}: {}", issue.path, issue.message))
-                    .collect::<Vec<_>>()
-                    .join("; "),
+                issues.into_iter().map(|issue| format!("{}: {}", issue.path, issue.message)).collect::<Vec<_>>().join("; "),
             ));
         }
         let response = self.transport.prompt(prompt.request()).await?;
@@ -260,38 +243,24 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
     }
 
     #[cfg(feature = "native")]
-    pub async fn lease<R: crate::telemetry::TelemetryStream>(
-        &mut self,
-    ) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
+    pub async fn lease<R: crate::telemetry::TelemetryStream>(&mut self) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
         self.lease_stream(R::stream_id()).await
     }
 
     #[cfg(feature = "native")]
     pub async fn lease_stream<R>(
-        &mut self,
-        stream: dokime_domain::model::identity::Identifier,
+        &mut self, stream: dokime_domain::model::identity::Identifier,
     ) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
         let request = crate::telemetry::LeaseRequest::new(stream.clone());
         let hold = self.transport.lease(request).await?;
 
-        Ok(crate::execution::lease::Lease::new(
-            stream,
-            hold,
-            self.environment.streams().clone(),
-        ))
+        Ok(crate::execution::lease::Lease::new(stream, hold, self.environment.streams().clone()))
     }
 
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
-            Publication::Row {
-                stream,
-                values,
-                payload,
-            } => {
-                self.environment
-                    .streams()
-                    .published_as(&stream, values, Some(payload), std::any::type_name::<V>())
-                    .await;
+            Publication::Row { stream, values, payload } => {
+                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 // A record that follows rows reaches the host after them.
@@ -320,37 +289,19 @@ impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
 
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
-            Publication::Row {
-                stream,
-                values,
-                payload,
-            } => {
-                self.environment
-                    .streams()
-                    .published_as(&stream, values, Some(payload), std::any::type_name::<V>())
-                    .await;
+            Publication::Row { stream, values, payload } => {
+                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 if let Err(refusal) = self.stage.publisher.record(*request) {
-                    self.transport.log(
-                        Level::Error,
-                        format!("an observer's record was not filed: {refusal}"),
-                    );
+                    self.transport.log(Level::Error, format!("an observer's record was not filed: {refusal}"));
                 }
             }
         }
     }
 
-    pub async fn publish_row(
-        &mut self,
-        stream: &Identifier,
-        values: BTreeMap<String, Value>,
-        payload: Vec<u8>,
-    ) {
-        self.environment
-            .streams()
-            .published(stream, values, payload)
-            .await;
+    pub async fn publish_row(&mut self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
+        self.environment.streams().published(stream, values, payload).await;
     }
 
     pub fn stream<R: TelemetryRow>(&self) -> StreamSelection<'a, R> {
@@ -365,11 +316,7 @@ impl<C, O, I> Context<'_, C, O, I, Cleanup> {
 }
 
 impl<'a, C, I> CriterionContext<'a, C, I> {
-    pub fn new(
-        parameters: &'a I,
-        raw: &'a BTreeMap<String, Value>,
-        evidence: &'a ExecutionEvidence,
-    ) -> Self {
+    pub fn new(parameters: &'a I, raw: &'a BTreeMap<String, Value>, evidence: &'a ExecutionEvidence) -> Self {
         Self {
             calls: std::marker::PhantomData,
             #[cfg(feature = "native")]
@@ -396,10 +343,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
 
     #[cfg(feature = "native")]
     #[must_use]
-    pub fn bound(
-        mut self,
-        binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
-    ) -> Self {
+    pub fn bound(mut self, binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>) -> Self {
         self.binding = binding;
 
         self
@@ -415,8 +359,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
 
     #[cfg(feature = "native")]
     pub async fn call<Op>(
-        &self,
-        request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
+        &self, request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
     ) -> crate::Result<<Op::Declaration as harmos::operations::OperationDeclaration>::Response>
     where
         Op: harmos::operations::Declares,
@@ -424,9 +367,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
         C: Calls<Op>,
     {
-        let stage = self.log.map_or_else(String::new, |(_, criterion)| {
-            format!("criterion/{criterion}")
-        });
+        let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
         self.caller.call_at::<Op>(&stage, request).await
     }
 
@@ -501,14 +442,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
                 .samples
                 .iter()
                 .map(|(stream, samples)| {
-                    (
-                        stream.clone(),
-                        samples
-                            .iter()
-                            .filter(|sample| self.selected(sample.scope.as_ref(), phase))
-                            .cloned()
-                            .collect(),
-                    )
+                    (stream.clone(), samples.iter().filter(|sample| self.selected(sample.scope.as_ref(), phase)).cloned().collect())
                 })
                 .collect(),
             subscribed_records: self
@@ -540,9 +474,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
             return false;
         };
         match (&scope.origin, phase) {
-            (EvidenceOrigin::Step { attempt_id }, None) => {
-                self.selected_attempts.contains(attempt_id)
-            }
+            (EvidenceOrigin::Step { attempt_id }, None) => self.selected_attempts.contains(attempt_id),
             (EvidenceOrigin::Default, Some(CapturePhase::Default))
             | (EvidenceOrigin::Initialization, Some(CapturePhase::Initialization))
             | (EvidenceOrigin::Cleanup, Some(CapturePhase::Cleanup)) => true,
@@ -559,7 +491,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     fn selected_samples<S: TelemetryStream>(&self, phase: Option<CapturePhase>) -> Samples<S::Row> {
-        let rows = self.evidence
+        let rows = self
+            .evidence
             .samples
             .get(S::ID)
             .map(Vec::as_slice)
@@ -569,10 +502,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
             .filter_map(|sample| match S::Row::from_row(&sample.values) {
                 Ok(row) => Some(row),
                 Err(refusal) => {
-                    tracing::warn!(
-                        stream = S::ID,
-                        "a captured row does not match the shape that declared this stream: {refusal}"
-                    );
+                    tracing::warn!(stream = S::ID, "a captured row does not match the shape that declared this stream: {refusal}");
                     None
                 }
             })
@@ -588,22 +518,13 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         self.selected_records::<R>(Some(phase))
     }
 
-    fn selected_records<R: DeclaredRecord>(
-        &self,
-        phase: Option<CapturePhase>,
-    ) -> crate::Result<Vec<R>> {
+    fn selected_records<R: DeclaredRecord>(&self, phase: Option<CapturePhase>) -> crate::Result<Vec<R>> {
         self.evidence
             .subscribed_records
             .iter()
-            .filter(|record| {
-                record.record_type.as_str() == R::RECORD_TYPE
-                    && self.selected(record.scope.as_ref(), phase)
-            })
+            .filter(|record| record.record_type.as_str() == R::RECORD_TYPE && self.selected(record.scope.as_ref(), phase))
             .map(|record| &record.details)
-            .map(|details| {
-                R::from_details(details)
-                    .map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))
-            })
+            .map(|details| R::from_details(details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error)))
             .collect()
     }
 
@@ -613,12 +534,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
 
     pub fn gaps<R: TelemetryStream>(&self) -> Vec<LeaseGap> {
         let stream = R::ID;
-        self.evidence
-            .gaps
-            .iter()
-            .filter(|gap| gap.stream.as_str() == stream)
-            .cloned()
-            .collect()
+        self.evidence.gaps.iter().filter(|gap| gap.stream.as_str() == stream).cloned().collect()
     }
 }
 

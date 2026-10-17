@@ -86,80 +86,32 @@ pub enum TelemetryRole {
 impl harmos::MemorySize for TelemetryContract {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.storage_schema),
-                std::mem::size_of_val(&self.storage_schema),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.stream),
-                std::mem::size_of_val(&self.stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.template_id),
-                std::mem::size_of_val(&self.template_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.owner),
-                std::mem::size_of_val(&self.owner),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.columns),
-                std::mem::size_of_val(&self.columns),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.default_x),
-                std::mem::size_of_val(&self.default_x),
-            ),
+            (harmos::MemorySize::memory_size(&self.storage_schema), std::mem::size_of_val(&self.storage_schema)),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
+            (harmos::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
+            (harmos::MemorySize::memory_size(&self.columns), std::mem::size_of_val(&self.columns)),
+            (harmos::MemorySize::memory_size(&self.default_x), std::mem::size_of_val(&self.default_x)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TelemetryColumn {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.display_unit),
-                std::mem::size_of_val(&self.display_unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.default),
-                std::mem::size_of_val(&self.default),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.format),
-                std::mem::size_of_val(&self.format),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.display_unit), std::mem::size_of_val(&self.display_unit)),
+            (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+            (harmos::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -176,17 +128,7 @@ impl<'de> Deserialize<'de> for TelemetryRole {
             "distance" => Ok(Self::Distance),
             "latency" => Ok(Self::Latency),
             "throughput" => Ok(Self::Throughput),
-            other => Err(serde::de::Error::unknown_variant(
-                other,
-                &[
-                    "value",
-                    "counter",
-                    "state",
-                    "distance",
-                    "latency",
-                    "throughput",
-                ],
-            )),
+            other => Err(serde::de::Error::unknown_variant(other, &["value", "counter", "state", "distance", "latency", "throughput"])),
         }
     }
 }
@@ -220,11 +162,8 @@ impl TelemetryContract {
     }
 
     pub fn typed<T: harmos::Message + harmos::schema::Described>(self) -> Self {
-        let graph = harmos::schema::graph::Schema::from_declaration(
-            T::DEFINITION,
-            &harmos::config::SchemaSettings::default(),
-        )
-        .expect("a declared telemetry row has a valid finite schema");
+        let graph = harmos::schema::graph::Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
+            .expect("a declared telemetry row has a valid finite schema");
         self.with_storage_schema(graph)
     }
 
@@ -267,11 +206,7 @@ impl TelemetryContract {
     pub fn normalized(&self) -> Self {
         let mut normalized = self.clone();
 
-        if !normalized
-            .columns
-            .iter()
-            .any(|column| column.metadata.identifier.as_str() == "timestamp")
-        {
+        if !normalized.columns.iter().any(|column| column.metadata.identifier.as_str() == "timestamp") {
             normalized.columns.insert(
                 0,
                 TelemetryColumn::new(
@@ -303,37 +238,19 @@ impl TelemetryContract {
     }
 
     pub fn column_map(&self) -> BTreeMap<&str, &TelemetryColumn> {
-        self.columns
-            .iter()
-            .map(|column| (column.metadata.identifier.as_str(), column))
-            .collect()
+        self.columns.iter().map(|column| (column.metadata.identifier.as_str(), column)).collect()
     }
 }
 
 impl TelemetryColumn {
-    pub fn declared(
-        identifier: impl Into<String>,
-        label: impl Into<String>,
-        value_type: ValueType,
-        role: TelemetryRole,
-    ) -> Self {
+    pub fn declared(identifier: impl Into<String>, label: impl Into<String>, value_type: ValueType, role: TelemetryRole) -> Self {
         let identifier = Identifier::declared(identifier, "telemetry column");
 
         Self::new(Metadata::new(identifier, label, None), value_type, role)
     }
 
     pub fn new(metadata: Metadata, value_type: ValueType, role: TelemetryRole) -> Self {
-        Self {
-            metadata,
-            value_type,
-            role,
-            unit: None,
-            display_unit: None,
-            required: true,
-            nullable: false,
-            default: None,
-            format: None,
-        }
+        Self { metadata, value_type, role, unit: None, display_unit: None, required: true, nullable: false, default: None, format: None }
     }
 
     pub fn optional(mut self) -> Self {

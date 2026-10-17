@@ -20,8 +20,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 // Local Imports
-use dokime_domain::model::values::Value;
 use crate::plugin::settings::PluginSettings;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -71,16 +71,9 @@ impl Configuration {
             settings: catalog
                 .contributions
                 .iter()
-                .filter_map(|definition| {
-                    definition
-                        .default_value()
-                        .map(|value| (definition.id().to_owned(), value))
-                })
+                .filter_map(|definition| definition.default_value().map(|value| (definition.id().to_owned(), value)))
                 .collect(),
-            secrets: catalog
-                .secrets()
-                .map(|definition| (definition.id.clone(), None))
-                .collect(),
+            secrets: catalog.secrets().map(|definition| (definition.id.clone(), None)).collect(),
             saved: BTreeSet::new(),
         }
     }
@@ -100,10 +93,7 @@ impl Configuration {
     }
 
     pub fn credentials_configured<S: PluginSettings>(&self) -> bool {
-        S::catalog()
-            .secrets()
-            .filter(|declared| declared.required)
-            .all(|declared| self.secret(&declared.id).is_ok())
+        S::catalog().secrets().filter(|declared| declared.required).all(|declared| self.secret(&declared.id).is_ok())
     }
 
     pub fn is_saved(&self, id: &str) -> bool {
@@ -114,16 +104,9 @@ impl Configuration {
         if self.secrets.contains_key(id) {
             return Err(crate::Error::SecretSetting(id.to_owned()));
         }
-        let value = self
-            .settings
-            .get(id)
-            .ok_or_else(|| crate::Error::UnknownSetting(id.to_owned()))?;
-        serde_json::from_value(
-            value
-                .to_plain_json()
-                .map_err(|_| crate::Error::SettingType(id.to_owned()))?,
-        )
-        .map_err(|_| crate::Error::SettingType(id.to_owned()))
+        let value = self.settings.get(id).ok_or_else(|| crate::Error::UnknownSetting(id.to_owned()))?;
+        serde_json::from_value(value.to_plain_json().map_err(|_| crate::Error::SettingType(id.to_owned()))?)
+            .map_err(|_| crate::Error::SettingType(id.to_owned()))
     }
 
     pub fn secret(&self, id: &str) -> Result<Secret, crate::Error> {

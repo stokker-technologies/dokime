@@ -53,9 +53,7 @@ pub struct RecordTimingPoint {
 
 /* === Public Functions === */
 pub fn record_time_between<'a>(
-    records: impl IntoIterator<Item = RecordTimingRecord<'a>>,
-    end_record_type: &str,
-    previous_record_type: &str,
+    records: impl IntoIterator<Item = RecordTimingRecord<'a>>, end_record_type: &str, previous_record_type: &str,
 ) -> Vec<RecordTimingPoint> {
     let mut records = records.into_iter().collect::<Vec<_>>();
     records.sort_by_key(|record| record.sequence);

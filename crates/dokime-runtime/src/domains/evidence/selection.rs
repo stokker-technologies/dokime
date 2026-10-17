@@ -17,17 +17,17 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::records::RecordFilter;
 use crate::records::RecordSeverity;
+use crate::telemetry::{TelemetryFilter, TelemetrySample};
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-use crate::telemetry::{TelemetryFilter, TelemetrySample};
 
 /* === Constants === */
 
@@ -85,10 +85,7 @@ impl RecordSelection {
             return false;
         }
         if !self.record_type_prefixes.is_empty()
-            && !self
-                .record_type_prefixes
-                .iter()
-                .any(|prefix| record.record_type.as_str().starts_with(prefix))
+            && !self.record_type_prefixes.iter().any(|prefix| record.record_type.as_str().starts_with(prefix))
         {
             return false;
         }
@@ -111,30 +108,16 @@ impl RecordSelection {
     }
 
     pub(crate) fn apply_with_subscriptions<'a>(
-        &self,
-        records: &[RecordEntry],
-        captured: impl Fn(&RecordEntry) -> Option<&'a RecordScope>,
+        &self, records: &[RecordEntry], captured: impl Fn(&RecordEntry) -> Option<&'a RecordScope>,
     ) -> Vec<RecordEntry> {
         let mut unscoped = self.clone();
         unscoped.scope = ScopeSelection::default();
-        let window = RecordFilter {
-            start: self.start.clone(),
-            end: self.end.clone(),
-            ..RecordFilter::default()
-        };
+        let window = RecordFilter { start: self.start.clone(), end: self.end.clone(), ..RecordFilter::default() };
 
         let mut matches = records
             .iter()
-            .filter(|record| {
-                self.after_sequence
-                    .is_none_or(|sequence| record.sequence > sequence)
-            })
-            .filter(|record| {
-                unscoped.matches(record)
-                    && self
-                        .scope
-                        .matches(captured(record).or(record.scope.as_ref()))
-            })
+            .filter(|record| self.after_sequence.is_none_or(|sequence| record.sequence > sequence))
+            .filter(|record| unscoped.matches(record) && self.scope.matches(captured(record).or(record.scope.as_ref())))
             .filter(|record| window.matches(record))
             .map(|record| {
                 let mut projected = record.clone();
@@ -144,12 +127,7 @@ impl RecordSelection {
                 projected
             })
             .collect::<Vec<_>>();
-        matches.sort_by(|left, right| {
-            right
-                .timestamp
-                .cmp(&left.timestamp)
-                .then_with(|| right.sequence.cmp(&left.sequence))
-        });
+        matches.sort_by(|left, right| right.timestamp.cmp(&left.timestamp).then_with(|| right.sequence.cmp(&left.sequence)));
         matches.truncate(self.limit.unwrap_or(usize::MAX));
         matches
     }
@@ -181,11 +159,7 @@ impl TelemetrySelection {
             matches.drain(0..matches.len() - limit);
         }
 
-        matches
-            .into_iter()
-            .take(self.limit.unwrap_or(usize::MAX))
-            .cloned()
-            .collect()
+        matches.into_iter().take(self.limit.unwrap_or(usize::MAX)).cloned().collect()
     }
 }
 
@@ -198,21 +172,10 @@ impl ScopeSelection {
                 && self.template_id.is_none();
         };
 
-        self.test_cycle_id
-            .as_ref()
-            .is_none_or(|value| scope.test_cycle_id.as_ref() == Some(value))
-            && self
-                .test_execution_id
-                .as_ref()
-                .is_none_or(|value| scope.test_execution_id.as_ref() == Some(value))
-            && self
-                .test_case_id
-                .as_ref()
-                .is_none_or(|value| scope.test_case_id.as_ref() == Some(value))
-            && self
-                .template_id
-                .as_ref()
-                .is_none_or(|value| scope.template_id.as_ref() == Some(value))
+        self.test_cycle_id.as_ref().is_none_or(|value| scope.test_cycle_id.as_ref() == Some(value))
+            && self.test_execution_id.as_ref().is_none_or(|value| scope.test_execution_id.as_ref() == Some(value))
+            && self.test_case_id.as_ref().is_none_or(|value| scope.test_case_id.as_ref() == Some(value))
+            && self.template_id.as_ref().is_none_or(|value| scope.template_id.as_ref() == Some(value))
     }
 }
 

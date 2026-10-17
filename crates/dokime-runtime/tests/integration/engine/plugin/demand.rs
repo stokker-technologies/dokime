@@ -39,30 +39,14 @@ pub(crate) mod observers {
         use dokime_runtime::telemetry::TelemetryStream;
         let contract = Revisioned::contract();
         assert_eq!(contract.stream.as_str(), "owned-stream.revisioned");
-        assert_eq!(
-            contract.schema_version,
-            <Revisioned as dokime_runtime::StreamSpec>::VERSION
-        );
+        assert_eq!(contract.schema_version, <Revisioned as dokime_runtime::StreamSpec>::VERSION);
         assert_eq!(contract.metadata.label, "Revisioned");
-        assert_eq!(
-            contract.metadata.description.as_deref(),
-            Some("Shared row metadata")
-        );
+        assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
         assert_eq!(contract.metadata.tags, vec!["instrument"]);
-        assert_eq!(
-            contract.metadata.attributes["source"],
-            dokime_runtime::Value::Text("test".into())
-        );
-        let value = contract
-            .columns
-            .iter()
-            .find(|column| column.metadata.identifier.as_str() == "value")
-            .unwrap();
+        assert_eq!(contract.metadata.attributes["source"], dokime_runtime::Value::Text("test".into()));
+        let value = contract.columns.iter().find(|column| column.metadata.identifier.as_str() == "value").unwrap();
         assert_eq!(value.metadata.label, "Measured Value");
-        assert_eq!(
-            value.metadata.description.as_deref(),
-            Some("A shared measurement")
-        );
+        assert_eq!(value.metadata.description.as_deref(), Some("A shared measurement"));
         assert!(value.format.is_some());
     }
 
@@ -88,26 +72,16 @@ pub(crate) mod observers {
         const ID: &'static str = "fixture.auxiliaries";
         const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
             &[dokime_runtime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
-        const ACTIVATION: dokime_runtime::harmos::sidecar::Activation =
-            dokime_runtime::harmos::sidecar::Activation::Demand;
+        const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
         const INTERVAL: Duration = Duration::from_millis(5);
 
         async fn initialize(resource: &Resource) -> Result<Self, Error> {
-            Ok(Self {
-                probe: Arc::clone(&resource.0),
-            })
+            Ok(Self { probe: Arc::clone(&resource.0) })
         }
 
-        async fn observe(
-            &mut self,
-            ctx: &ObserverContext<'_, Resource, Publishing>,
-        ) -> Result<(), Error> {
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
             self.probe.bump(&self.probe.auxiliary_samples);
-            ctx.publish_on::<Auxiliary>(&Row {
-                value: 2,
-                index: (ctx.tick().ordinal() - 1) as i64,
-            })
-            .await?;
+            ctx.publish_on::<Auxiliary>(&Row { value: 2, index: (ctx.tick().ordinal() - 1) as i64 }).await?;
             Ok(())
         }
     }
@@ -120,19 +94,13 @@ pub(crate) mod observers {
     impl Measurements {
         async fn initialize(resource: &Resource) -> Result<Self, Error> {
             resource.0.bump(&resource.0.observer_starts);
-            Ok(Self {
-                probe: Arc::clone(&resource.0),
-            })
+            Ok(Self { probe: Arc::clone(&resource.0) })
         }
 
-        async fn observe(
-            &mut self,
-            ctx: &ObserverContext<'_, Resource, Publishing>,
-        ) -> Result<(), Error> {
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
             self.probe.bump(&self.probe.samples);
             let index = (ctx.tick().ordinal() - 1) as i64;
-            ctx.publish_on::<Measurement>(&Row { value: 1, index })
-                .await?;
+            ctx.publish_on::<Measurement>(&Row { value: 1, index }).await?;
             Ok(())
         }
 
@@ -164,8 +132,7 @@ use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
 
 /* === Constants === */
-static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> =
-    LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
+static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 const UNIT_NOTED: DemandKey = DemandKey::new("dokime.record", "owned.unit.noted");
 
@@ -244,12 +211,7 @@ struct UnitNoted {
     serial: String,
 }
 
-#[dokime_runtime::stream(
-    id = "owned-stream.pushed",
-    window = 64,
-    label = "Pushed",
-    description = "A stream this plugin never declares."
-)]
+#[dokime_runtime::stream(id = "owned-stream.pushed", window = 64, label = "Pushed", description = "A stream this plugin never declares.")]
 struct PushedRow {
     value: i64,
 }
@@ -260,11 +222,7 @@ struct Noted(Arc<Probe>);
 
 struct Echoed(Arc<Probe>);
 
-#[dokime_runtime::stream(
-    id = "owned-stream.raw-identifiers",
-    label = "Raw Identifiers",
-    window = 8
-)]
+#[dokime_runtime::stream(id = "owned-stream.raw-identifiers", label = "Raw Identifiers", window = 8)]
 struct RawIdentifiers {
     #[row(label = "Type", role = state)]
     r#type: String,
@@ -344,8 +302,7 @@ impl Drop for Resource {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Measured {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -373,17 +330,11 @@ impl dokime_runtime::Plugin for Measured {
         if settings.probes.refuse {
             return dokime_runtime::plugin::refusal(Err(Error::Unavailable));
         }
-        Ok(Self {
-            resource: Arc::new(Resource(probe)),
-            observers: None,
-        })
+        Ok(Self { resource: Arc::new(Resource(probe)), observers: None })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<MeasuredObservers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<MeasuredObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -393,16 +344,11 @@ impl dokime_runtime::Plugin for Measured {
 
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<MeasuredListeners, _>(self.resources())?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<MeasuredObserveControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<MeasuredObserveControl>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| {
-            Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>
-        })
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -435,15 +381,8 @@ impl RecordObserver {
         Ok(Self(Arc::clone(&resource.0)))
     }
 
-    async fn observe(
-        &mut self,
-        ctx: &ObserverContext<'_, Resource, Publishing>,
-    ) -> Result<(), Error> {
-        dokime_runtime::plugin::Publisher::new(ctx.host().supervisor())
-            .publish(UnitNoted {
-                serial: "demand".into(),
-            })
-            .await?;
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
+        dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(UnitNoted { serial: "demand".into() }).await?;
         Ok(())
     }
 
@@ -469,38 +408,23 @@ impl Noted {
         // A row on a stream this plugin never declared is refused before it
         // reaches the connection, through either publisher.
         assert!(matches!(
-            host.publisher::<Measured>()
-                .publish_on::<PushedRow>(&PushedRow { value: 1 })
-                .await,
+            host.publisher::<Measured>().publish_on::<PushedRow>(&PushedRow { value: 1 }).await,
             Err(dokime_runtime::harmos::sidecar::PublishError::Publication(
                 dokime_runtime::harmos::sidecar::PublicationError::Undeclared { .. }
             ))
         ));
         assert!(matches!(
-            dokime_runtime::plugin::Publisher::new(host)
-                .publish(PushedRow { value: 1 })
-                .await,
-            Err(dokime_runtime::Error::Publish(
-                dokime_runtime::error::PublishFailure::Undeclared { .. }
-            ))
+            dokime_runtime::plugin::Publisher::new(host).publish(PushedRow { value: 1 }).await,
+            Err(dokime_runtime::Error::Publish(dokime_runtime::error::PublishFailure::Undeclared { .. }))
         ));
         host.publisher::<Measured>()
-            .publish_on::<observers::Measurement>(&observers::Row {
-                value: 73,
-                index: 9,
-            })
+            .publish_on::<observers::Measurement>(&observers::Row { value: 73, index: 9 })
             .await
             .expect("a listener publishes a typed row without an observer lease");
-        match dokime_runtime::plugin::Publisher::new(host)
-            .publish(UnitNoted {
-                serial: connected.serial,
-            })
-            .await
-        {
+        match dokime_runtime::plugin::Publisher::new(host).publish(UnitNoted { serial: connected.serial }).await {
             Ok(()) => probe.bump(&probe.published),
             Err(refusal) => {
-                *probe.refused.lock().expect("the probe lock is healthy") =
-                    Some(refusal.to_string());
+                *probe.refused.lock().expect("the probe lock is healthy") = Some(refusal.to_string());
                 0
             }
         };
@@ -529,22 +453,13 @@ impl Echoed {
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
-    PROBES
-        .lock()
-        .expect("the probe registry is never poisoned")
-        .insert(token.clone(), Arc::clone(probe));
+    PROBES.lock().expect("the probe registry is never poisoned").insert(token.clone(), Arc::clone(probe));
 
     token
 }
 
 fn probe(token: &str) -> Arc<Probe> {
-    Arc::clone(
-        PROBES
-            .lock()
-            .expect("the probe registry is never poisoned")
-            .get(token)
-            .expect("a run names a probe this file registered"),
-    )
+    Arc::clone(PROBES.lock().expect("the probe registry is never poisoned").get(token).expect("a run names a probe this file registered"))
 }
 
 fn configuration(probe: &Arc<Probe>, refuse: bool) -> Configuration {
@@ -558,8 +473,7 @@ fn configuration(probe: &Arc<Probe>, refuse: bool) -> Configuration {
 }
 
 async fn opened(
-    probe: &Arc<Probe>,
-    demand_keys: Vec<String>,
+    probe: &Arc<Probe>, demand_keys: Vec<String>,
 ) -> super::native::Native<dokime_runtime::harmos::sidecar::PluginNative<Measured>> {
     super::native::Native::initialize(
         super::native::attach::<Measured>(),
@@ -592,58 +506,34 @@ async fn instance_opens_resources() {
     let native = opened(&probe, vec![]).await;
     let runtime = &native.runtime;
     assert_eq!(probe.opens.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        probe.samples.load(Ordering::SeqCst),
-        0,
-        "activation does not start observations"
-    );
+    assert_eq!(probe.samples.load(Ordering::SeqCst), 0, "activation does not start observations");
 
-    let measurement = runtime
-        .streams
-        .publication("owned-stream.measurement", 1)
-        .unwrap();
-    let auxiliary = runtime
-        .streams
-        .publication("owned-stream.auxiliary", 1)
-        .unwrap();
+    let measurement = runtime.streams.publication("owned-stream.measurement", 1).unwrap();
+    let auxiliary = runtime.streams.publication("owned-stream.auxiliary", 1).unwrap();
     let first = measurement.watch();
     let second = measurement.watch();
-    probe
-        .until(|probe| probe.samples.load(Ordering::SeqCst) != 0)
-        .await;
+    probe.until(|probe| probe.samples.load(Ordering::SeqCst) != 0).await;
     assert_eq!(probe.auxiliary_samples.load(Ordering::SeqCst), 0);
     assert_eq!(probe.observer_starts.load(Ordering::SeqCst), 1);
     drop(first);
     assert_eq!(probe.observer_stops.load(Ordering::SeqCst), 0);
     let auxiliary_hold = auxiliary.watch();
-    probe
-        .until(|probe| probe.auxiliary_samples.load(Ordering::SeqCst) != 0)
-        .await;
+    probe.until(|probe| probe.auxiliary_samples.load(Ordering::SeqCst) != 0).await;
 
     drop(second);
-    probe
-        .until(|probe| probe.observer_stops.load(Ordering::SeqCst) != 0)
-        .await;
+    probe.until(|probe| probe.observer_stops.load(Ordering::SeqCst) != 0).await;
     let restarted = measurement.watch();
-    probe
-        .until(|probe| probe.observer_starts.load(Ordering::SeqCst) == 2)
-        .await;
+    probe.until(|probe| probe.observer_starts.load(Ordering::SeqCst) == 2).await;
 
     native.shutdown().await;
     drop((restarted, auxiliary_hold));
     assert_eq!(probe.observer_stops.load(Ordering::SeqCst), 2);
     assert!(probe.finalized.load(Ordering::SeqCst));
     assert_eq!(probe.drops.load(Ordering::SeqCst), 1);
-    let settled = (
-        probe.samples.load(Ordering::SeqCst),
-        probe.auxiliary_samples.load(Ordering::SeqCst),
-    );
+    let settled = (probe.samples.load(Ordering::SeqCst), probe.auxiliary_samples.load(Ordering::SeqCst));
     // Shutdown Joins Every Observer Before Returning
     assert_eq!(
-        (
-            probe.samples.load(Ordering::SeqCst),
-            probe.auxiliary_samples.load(Ordering::SeqCst),
-        ),
+        (probe.samples.load(Ordering::SeqCst), probe.auxiliary_samples.load(Ordering::SeqCst),),
         settled,
         "a joined stream measures nothing further"
     );
@@ -660,17 +550,10 @@ fn plugin_refuses_line() {
     // record an operator reads in a list. The author's own words belong there;
     // the frames behind them belong in the log.
     let reported = refused.to_string();
-    assert!(
-        reported.contains("resource is temporarily unavailable"),
-        "{reported}"
-    );
+    assert!(reported.contains("resource is temporarily unavailable"), "{reported}");
     assert!(!reported.contains('\n'), "{reported}");
     assert!(!reported.contains("backtrace"), "{reported}");
-    assert_eq!(
-        probe.drops.load(Ordering::SeqCst),
-        0,
-        "a refused preparation never opened the resource it would have to close"
-    );
+    assert_eq!(probe.drops.load(Ordering::SeqCst), 0, "a refused preparation never opened the resource it would have to close");
 }
 
 #[tokio::test(start_paused = true)]
@@ -692,36 +575,18 @@ async fn listener_publishes_asked() {
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     invocation.cancel();
     let cancelled = invocation.await;
-    assert!(
-        matches!(
-            cancelled,
-            Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))
-        ),
-        "{cancelled:?}"
-    );
+    assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
 
-    super::native::call_wire::<NotedDeclaration>(&runtime.operations, connected("SN-7"))
-        .await
-        .unwrap();
-    super::native::call_wire::<EchoedDeclaration>(&runtime.operations, connected("SN-7"))
-        .await
-        .unwrap();
+    super::native::call_wire::<NotedDeclaration>(&runtime.operations, connected("SN-7")).await.unwrap();
+    super::native::call_wire::<EchoedDeclaration>(&runtime.operations, connected("SN-7")).await.unwrap();
     if let Some(refusal) = probe.refused.lock().unwrap().clone() {
         panic!("the listener could not publish: {refusal}");
     }
     assert_eq!(probe.published.load(Ordering::SeqCst), 1);
     assert_eq!(probe.echoed.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        probe.active_listeners.load(Ordering::SeqCst),
-        0,
-        "the cancelled reaction cannot survive delivery cancellation"
-    );
+    assert_eq!(probe.active_listeners.load(Ordering::SeqCst), 0, "the cancelled reaction cannot survive delivery cancellation");
     let filed = native.host.records();
-    assert_eq!(
-        filed.len(),
-        1,
-        "the record reaches the host's filing operation"
-    );
+    assert_eq!(filed.len(), 1, "the record reaches the host's filing operation");
     assert_eq!(filed[0].0, "owned-stream");
     assert_eq!(filed[0].1.record_type.as_str(), "owned.unit.noted");
 
@@ -757,10 +622,7 @@ fn raw_field_keys() {
     assert_eq!(columns[0].metadata.identifier.as_str(), "type");
     assert_eq!(RawIdentifiers::column_type().field(), "type");
 
-    let values = RawIdentifiers {
-        r#type: "probe".to_owned(),
-    }
-    .into_row();
+    let values = RawIdentifiers { r#type: "probe".to_owned() }.into_row();
     assert_eq!(values["type"], dokime_runtime::Value::Text("probe".into()));
     assert!(!values.contains_key("r#type"));
     assert_eq!(RawIdentifiers::from_row(&values).unwrap().r#type, "probe");
@@ -787,9 +649,7 @@ async fn record_demand_cancel() {
     tokio::time::sleep(Duration::from_millis(20)).await;
     assert_eq!(probe.record_stops.load(Ordering::SeqCst), 0);
     drop(second);
-    probe
-        .until(|probe| probe.record_stops.load(Ordering::SeqCst) == 1)
-        .await;
+    probe.until(|probe| probe.record_stops.load(Ordering::SeqCst) == 1).await;
 
     let (started, opened) = tokio::sync::oneshot::channel();
     let waiting = tokio::spawn(async move {
@@ -798,13 +658,9 @@ async fn record_demand_cancel() {
         std::future::pending::<()>().await;
     });
     opened.await.unwrap();
-    probe
-        .until(|probe| probe.record_starts.load(Ordering::SeqCst) == 2)
-        .await;
+    probe.until(|probe| probe.record_starts.load(Ordering::SeqCst) == 2).await;
     waiting.abort();
     assert!(waiting.await.unwrap_err().is_cancelled());
-    probe
-        .until(|probe| probe.record_stops.load(Ordering::SeqCst) == 2)
-        .await;
+    probe.until(|probe| probe.record_stops.load(Ordering::SeqCst) == 2).await;
     native.shutdown().await;
 }

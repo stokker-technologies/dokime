@@ -53,35 +53,19 @@ impl Operation for Download {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut history::DownloadCheckpointArtifact,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut history::DownloadCheckpointArtifact, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.artifact_id)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let artifact_id = ArtifactId::from_uuid(request.artifact_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
-        let reader = self
-            .resources
-            .runtime
-            .checkpoint_artifact(checkpoint, &artifact_id)
-            .await
-            .map_err(wire::checkpoint_failure)?;
-        content::artifacts::deliver(
-            reader,
-            self.resources.maximum,
-            (64 * 1024).min(self.resources.maximum.saturating_sub(1024)),
-            output,
-        )
-        .await?;
+        let artifact_id =
+            ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
+        let reader = self.resources.runtime.checkpoint_artifact(checkpoint, &artifact_id).await.map_err(wire::checkpoint_failure)?;
+        content::artifacts::deliver(reader, self.resources.maximum, (64 * 1024).min(self.resources.maximum.saturating_sub(1024)), output)
+            .await?;
         Ok(().into())
     }
 }
@@ -91,10 +75,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }

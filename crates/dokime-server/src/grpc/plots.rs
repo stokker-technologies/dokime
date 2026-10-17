@@ -32,8 +32,8 @@ use dokime_domain::operations::plots as contract;
 use dokime_runtime::{
     RuntimeHandle,
     runtime::query::{
-        RuntimePlotQueryMode, matching_plot_payload_request, merge_plot_payload_cursor,
-        plot_payload_stream_envelope_visible, plot_payload_stream_kind,
+        RuntimePlotQueryMode, matching_plot_payload_request, merge_plot_payload_cursor, plot_payload_stream_envelope_visible,
+        plot_payload_stream_kind,
     },
 };
 use wire::{ensure_message_budget, envelope, stream_frame};
@@ -71,8 +71,7 @@ struct Watch {
 /* === Implementations === */
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
-        &self,
-        build: impl FnOnce() -> Result<T, Status>,
+        &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;
         ensure_message_budget(&output, self.maximum, "plot response")?;
@@ -86,18 +85,13 @@ impl Resources {
     /// request out of the watch, so a later small append cannot hide that the
     /// plot never received its window.
     fn frame(
-        &self,
-        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
-        current: &dokime_runtime::runtime::query::PlotPayloadRequest,
-        kind: dokime_runtime::runtime::query::PlotPayloadStreamKind,
-        value: dokime_runtime::runtime::query::PlotPayloadEnvelope,
-        epoch: &str,
-        selection: &str,
+        &self, requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
+        current: &dokime_runtime::runtime::query::PlotPayloadRequest, kind: dokime_runtime::runtime::query::PlotPayloadStreamKind,
+        value: dokime_runtime::runtime::query::PlotPayloadEnvelope, epoch: &str, selection: &str,
     ) -> Result<Response<dokime_domain::model::plots::wire::PlotStreamFrame>, Status> {
         let mut advanced = requests.clone();
         merge_plot_payload_cursor(&mut advanced, &value);
-        let served = stream_frame(kind, value, epoch, selection, self.maximum)
-            .and_then(|frame| self.produce(|| Ok(frame)));
+        let served = stream_frame(kind, value, epoch, selection, self.maximum).and_then(|frame| self.produce(|| Ok(frame)));
         match served {
             Ok(response) => {
                 *requests = advanced;
@@ -116,18 +110,11 @@ impl Resources {
     /// Sends one cursorless plot's snapshot. A read that fails is sent as the
     /// plot's error instead, and false asks the watch to retry it.
     async fn snapshot(
-        &self,
-        output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
-        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
-        selections: &[String],
-        epoch: &str,
+        &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
+        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>, selections: &[String], epoch: &str,
         current: &dokime_runtime::runtime::query::PlotPayloadRequest,
     ) -> Result<bool, Status> {
-        let native = match self
-            .runtime
-            .query_plot_payloads(vec![current.clone()], RuntimePlotQueryMode::Snapshot)
-            .await
-        {
+        let native = match self.runtime.query_plot_payloads(vec![current.clone()], RuntimePlotQueryMode::Snapshot).await {
             Ok(native) => native,
             Err(error) => {
                 let response = self.produce(|| Ok(plot_error_frame(current, error.to_string())))?;
@@ -139,14 +126,8 @@ impl Resources {
             let selection = selection_for_plot(requests, selections, &value.plot_id)
                 .ok_or_else(|| Status::internal("plot response does not match a request"))?
                 .to_owned();
-            let response = self.frame(
-                requests,
-                current,
-                dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot,
-                value,
-                epoch,
-                &selection,
-            )?;
+            let response =
+                self.frame(requests, current, dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot, value, epoch, &selection)?;
             output.send_owned(response).await.map_err(failure)?;
         }
         Ok(true)
@@ -158,48 +139,24 @@ impl Operation for Analyses {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::ListAnalyses,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::ListAnalyses, _: &mut (),
     ) -> Result<Response<dokime_domain::model::plots::wire::ListAnalysesReply>, Status> {
         super::value::text(&request.after_id)?;
-        let limit = if request.limit == 0 {
-            64
-        } else {
-            request.limit as usize
-        };
+        let limit = if request.limit == 0 { 64 } else { request.limit as usize };
         if limit > 128 {
-            return Err(Status::resource_exhausted(
-                "analysis page exceeds 128 definitions",
-            ));
+            return Err(Status::resource_exhausted("analysis page exceeds 128 definitions"));
         }
-        let definitions = self
-            .resources
-            .runtime
-            .analysis_definitions()
-            .await
-            .map_err(|error| Status::unavailable(error.to_string()))?;
-        let mut page = definitions
-            .iter()
-            .filter(|definition| definition.id > request.after_id)
-            .take(limit + 1)
-            .collect::<Vec<_>>();
+        let definitions = self.resources.runtime.analysis_definitions().await.map_err(|error| Status::unavailable(error.to_string()))?;
+        let mut page = definitions.iter().filter(|definition| definition.id > request.after_id).take(limit + 1).collect::<Vec<_>>();
         let next_after_id = (page.len() > limit).then(|| page[limit - 1].id.clone());
         page.truncate(limit);
         self.resources.produce(|| {
             Ok(dokime_domain::model::plots::wire::ListAnalysesReply {
-                definitions: page
-                    .into_iter()
-                    .map(analysis::definition)
-                    .collect::<Result<_, _>>()?,
+                definitions: page.into_iter().map(analysis::definition).collect::<Result<_, _>>()?,
                 next_after_id,
             })
         })
@@ -211,21 +168,14 @@ impl Operation for Snapshots {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::QuerySnapshots,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::QuerySnapshots, _: &mut (),
     ) -> Result<Response<dokime_domain::model::plots::wire::PlotSnapshotsReply>, Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();
-        let (requests, selections) =
-            decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
+        let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
         let selection_requests = requests.clone();
         let native = self
             .resources
@@ -237,11 +187,8 @@ impl Operation for Snapshots {
             let envelopes = native
                 .into_iter()
                 .map(|value| {
-                    let selection =
-                        selection_for_plot(&selection_requests, &selections, &value.plot_id)
-                            .ok_or_else(|| {
-                                Status::internal("plot response does not match a request")
-                            })?;
+                    let selection = selection_for_plot(&selection_requests, &selections, &value.plot_id)
+                        .ok_or_else(|| Status::internal("plot response does not match a request"))?;
                     envelope(value, &epoch, selection, self.resources.maximum)
                 })
                 .collect::<Result<Vec<_>, Status>>()?;
@@ -255,35 +202,23 @@ impl Operation for Watch {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::Watch,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut contract::Watch, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;
         let epoch = runtime.process_epoch().to_string();
-        let (mut requests, selections) =
-            decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
+        let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
         // Subscribe Before Reading So A Racing Commit Advances The Same Native Watches.
         let mut states = runtime.watch_state();
         let mut watches = Vec::new();
         for current in &requests {
-            match runtime
-                .watch_plot_telemetry(std::slice::from_ref(current))
-                .await
-            {
+            match runtime.watch_plot_telemetry(std::slice::from_ref(current)).await {
                 Ok(current_watches) => watches.extend(current_watches),
                 Err(error) => {
-                    let response = self
-                        .resources
-                        .produce(|| Ok(plot_error_frame(current, error.to_string())))?;
+                    let response = self.resources.produce(|| Ok(plot_error_frame(current, error.to_string())))?;
                     output.send_owned(response).await.map_err(failure)?;
                 }
             }
@@ -294,17 +229,9 @@ impl Operation for Watch {
         // neither waits silently nor stays failed once capacity frees.
         let mut retry_delay = PLOT_RETRY_FIRST;
         let mut unserved = Vec::new();
-        let initial = requests
-            .iter()
-            .filter(|request| request.cursor.is_none())
-            .cloned()
-            .collect::<Vec<_>>();
+        let initial = requests.iter().filter(|request| request.cursor.is_none()).cloned().collect::<Vec<_>>();
         for current in initial {
-            if !self
-                .resources
-                .snapshot(output, &mut requests, &selections, &epoch, &current)
-                .await?
-            {
+            if !self.resources.snapshot(output, &mut requests, &selections, &epoch, &current).await? {
                 unserved.push(current);
             }
         }
@@ -378,40 +305,21 @@ impl Operation for Watch {
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-    });
-    runtime.operations().register_wire_operation::<Analyses>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<Snapshots>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<Watch>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources,
-    )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    runtime.operations().register_wire_operation::<Analyses>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Snapshots>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Watch>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
 /* === Private Functions === */
 fn plot_error_frame(
-    request: &dokime_runtime::runtime::query::PlotPayloadRequest,
-    message: String,
+    request: &dokime_runtime::runtime::query::PlotPayloadRequest, message: String,
 ) -> dokime_domain::model::plots::wire::PlotStreamFrame {
     dokime_domain::model::plots::wire::PlotStreamFrame {
         kind: dokime_domain::model::plots::wire::PlotStreamKind::Error,
         envelope: Some(dokime_domain::model::plots::wire::PlotEnvelope {
-            plot_id: request
-                .plot_id
-                .clone()
-                .unwrap_or_else(|| request.stream.clone()),
+            plot_id: request.plot_id.clone().unwrap_or_else(|| request.stream.clone()),
             revision: 0,
             cursor: None,
             payload: None,

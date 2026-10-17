@@ -59,19 +59,8 @@ struct HostPlotSpec<'a> {
 
 /* === Public Functions === */
 pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
-    let streams = BTreeSet::from([
-        HOST_SYSTEM,
-        HOST_WIFI,
-        HOST_WIFI_LATENCY,
-        HOST_WIFI_CHANNEL_OCCUPANCY,
-        HOST_BLUETOOTH,
-    ]);
-    vec![
-        wifi_section(&streams),
-        wifi_congestion_section(&streams, tracking_requested),
-        bluetooth_section(),
-        system_section(),
-    ]
+    let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI, HOST_WIFI_LATENCY, HOST_WIFI_CHANNEL_OCCUPANCY, HOST_BLUETOOTH]);
+    vec![wifi_section(&streams), wifi_congestion_section(&streams, tracking_requested), bluetooth_section(), system_section()]
 }
 
 /* === Private Functions === */
@@ -196,11 +185,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
         cards.push(plot_card(congestion_map));
     }
 
-    section(
-        "hub.host.network_wifi_congestion",
-        "Network / WiFi Congestion",
-        cards,
-    )
+    section("hub.host.network_wifi_congestion", "Network / WiFi Congestion", cards)
 }
 
 fn bluetooth_section() -> DocumentSection {
@@ -214,11 +199,7 @@ fn bluetooth_section() -> DocumentSection {
             plot_type: PlotType::TimeSeries,
             stream: HOST_BLUETOOTH,
             x: Some("timestamp"),
-            y: &[
-                "bluetooth_adapter_count",
-                "bluetooth_connected_device_count",
-                "bluetooth_present_device_count",
-            ],
+            y: &["bluetooth_adapter_count", "bluetooth_connected_device_count", "bluetooth_present_device_count"],
             unit: None,
             style: PlotStyle::Line,
         }))],
@@ -236,11 +217,7 @@ fn system_section() -> DocumentSection {
             plot_type: PlotType::TimeSeries,
             stream: HOST_SYSTEM,
             x: Some("timestamp"),
-            y: &[
-                "cpu_load_percent",
-                "memory_pressure_percent",
-                "battery_percent",
-            ],
+            y: &["cpu_load_percent", "memory_pressure_percent", "battery_percent"],
             unit: Some("%"),
             style: PlotStyle::Line,
         }))],
@@ -248,11 +225,7 @@ fn system_section() -> DocumentSection {
 }
 
 fn section(identifier_value: &str, label: &str, cards: Vec<DocumentCard>) -> DocumentSection {
-    DocumentSection {
-        metadata: simple_metadata(identifier_value, label),
-        cards,
-        repeat: None,
-    }
+    DocumentSection { metadata: simple_metadata(identifier_value, label), cards, repeat: None }
 }
 
 fn plot_card(plot: PlotDefinition) -> DocumentCard {
@@ -260,9 +233,7 @@ fn plot_card(plot: PlotDefinition) -> DocumentCard {
         metadata: plot.metadata.clone(),
         layout: Default::default(),
         filters: Vec::new(),
-        body: DocumentCardBody::Plot {
-            plot: Box::new(plot),
-        },
+        body: DocumentCardBody::Plot { plot: Box::new(plot) },
     }
 }
 
@@ -307,12 +278,7 @@ fn simple_metadata(identifier_value: &str, label: &str) -> Metadata {
 }
 
 fn metadata(identifier_value: &str, label: &str, description: &str) -> Metadata {
-    Metadata::definition(
-        identifier(identifier_value),
-        label,
-        Some(description.to_owned()),
-        std::iter::empty::<String>(),
-    )
+    Metadata::definition(identifier(identifier_value), label, Some(description.to_owned()), std::iter::empty::<String>())
 }
 
 fn identifier(identifier_value: &str) -> Identifier {

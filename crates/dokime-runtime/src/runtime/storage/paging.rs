@@ -59,17 +59,8 @@ pub(super) fn page_limit(limit: Option<usize>, noun: &str) -> Result<usize> {
     Ok(limit)
 }
 
-pub(super) fn update<T: Clone>(
-    previous: Option<State<T>>,
-    rows: Vec<Positioned<T>>,
-    after: u64,
-    limit: usize,
-) -> Result<State<T>> {
-    let mut state = previous.unwrap_or(State {
-        rows: Vec::new(),
-        last: after,
-        more: false,
-    });
+pub(super) fn update<T: Clone>(previous: Option<State<T>>, rows: Vec<Positioned<T>>, after: u64, limit: usize) -> Result<State<T>> {
+    let mut state = previous.unwrap_or(State { rows: Vec::new(), last: after, more: false });
     for row in rows {
         if row.position <= state.last {
             return Err(Error::Harmos(harmos::Error::InvalidInput {

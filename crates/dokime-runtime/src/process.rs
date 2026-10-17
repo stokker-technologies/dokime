@@ -57,16 +57,10 @@ where
     F::Output: Send + 'static,
 {
     // Run On A Sized Thread
-    let driver = std::thread::Builder::new()
-        .name("dokime-main".to_owned())
-        .stack_size(STACK_BYTES)
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .thread_stack_size(STACK_BYTES)
-                .build()?;
-            Ok::<_, std::io::Error>(runtime.block_on(future))
-        })?;
+    let driver = std::thread::Builder::new().name("dokime-main".to_owned()).stack_size(STACK_BYTES).spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().thread_stack_size(STACK_BYTES).build()?;
+        Ok::<_, std::io::Error>(runtime.block_on(future))
+    })?;
 
     // Surface The Outcome
     match driver.join() {

@@ -92,10 +92,7 @@ impl WifiLinkReport {
             let Some((key, value)) = line.trim().split_once(':') else {
                 continue;
             };
-            let value = value
-                .split_whitespace()
-                .next()
-                .and_then(|value| value.parse::<f64>().ok());
+            let value = value.split_whitespace().next().and_then(|value| value.parse::<f64>().ok());
             match key {
                 "signal" => link.rssi_dbm = value.filter(|rssi| RSSI_RANGE_DBM.contains(rssi)),
                 "rx bitrate" => link.rx_phy_mbps = value,
@@ -120,10 +117,7 @@ impl WifiLinkReport {
             return None;
         }
 
-        Some(Self {
-            rssi_dbm: Some(level),
-            ..Self::default()
-        })
+        Some(Self { rssi_dbm: Some(level), ..Self::default() })
     }
 }
 
@@ -147,8 +141,7 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|error| format!("nmcli output was not UTF-8: {error}"))?;
+    let stdout = String::from_utf8(output.stdout).map_err(|error| format!("nmcli output was not UTF-8: {error}"))?;
     Ok(stdout.lines().filter_map(NmcliWifiRow::parse).collect())
 }
 
@@ -209,8 +202,8 @@ fn iw_links() -> Result<BTreeMap<String, WifiLinkReport>, String> {
 fn iw_output(args: &[&str]) -> Result<String, String> {
     let mut command = Command::new("iw");
     command.args(args);
-    let output = crate::collectors::run_command_bounded(command, COMMAND_TIMEOUT)
-        .map_err(|error| format!("iw could not be started: {error}"))?;
+    let output =
+        crate::collectors::run_command_bounded(command, COMMAND_TIMEOUT).map_err(|error| format!("iw could not be started: {error}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }

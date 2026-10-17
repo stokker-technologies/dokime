@@ -146,9 +146,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
                     records.append(event)
 
             async def telemetry() -> None:
-                async for sample in handle.samples(
-                    follow=True, poll_interval=0.05, page_size=2
-                ):
+                async for sample in handle.samples(follow=True, poll_interval=0.05, page_size=2):
                     samples.append(sample)
                     live_sample.set()
 
@@ -192,27 +190,16 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
             historical_records = [item async for item in captured.records()]
             historical_samples = [item async for item in captured.samples()]
             own = captured.checkpoint.execution_id
-            assert {
-                item.record.id
-                for item in historical_records
-                if item.record.scope.get("execution_id") == own
-            } == {item.id for item in records if item.scope.get("execution_id") == own}
-            assert {item.sample.id for item in historical_samples} == {
-                item.id for item in samples
+            assert {item.record.id for item in historical_records if item.record.scope.get("execution_id") == own} == {
+                item.id for item in records if item.scope.get("execution_id") == own
             }
+            assert {item.sample.id for item in historical_samples} == {item.id for item in samples}
 
             # The Capture Saves Live Records And The Sealed Report
             await capture.collect(run)
             assert capture.result.output == output
-            saved_records = [
-                json.loads(line)
-                for line in (output / "records.jsonl").read_text().splitlines()
-            ]
-            assert {
-                item["id"]
-                for item in saved_records
-                if item["scope"].get("execution_id") == handle.id
-            } == {item.id for item in records}
+            saved_records = [json.loads(line) for line in (output / "records.jsonl").read_text().splitlines()]
+            assert {item["id"] for item in saved_records if item["scope"].get("execution_id") == handle.id} == {item.id for item in records}
             assert (output / "report.html").read_text(encoding="utf-8").strip()
 
     asyncio.run(scenario())

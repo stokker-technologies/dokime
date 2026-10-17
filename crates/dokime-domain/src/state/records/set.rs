@@ -49,28 +49,13 @@ pub struct TestRecordSet {
 impl harmos::MemorySize for TestRecordSet {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.health),
-                std::mem::size_of_val(&self.health),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.notes),
-                std::mem::size_of_val(&self.notes),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.subscribed_records),
-                std::mem::size_of_val(&self.subscribed_records),
-            ),
+            (harmos::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
+            (harmos::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
+            (harmos::MemorySize::memory_size(&self.subscribed_records), std::mem::size_of_val(&self.subscribed_records)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -118,11 +103,7 @@ impl TestRecordSet {
 
     // One Health Subject Per Identity: A Later Observation Replaces It In Place.
     pub fn push_health(&mut self, health: HealthItem) {
-        match self
-            .health
-            .iter_mut()
-            .find(|item| item.health_item_id == health.health_item_id)
-        {
+        match self.health.iter_mut().find(|item| item.health_item_id == health.health_item_id) {
             Some(item) if item.observed_at <= health.observed_at => *item = health,
             Some(_) => {}
             None => self.health.push(health),

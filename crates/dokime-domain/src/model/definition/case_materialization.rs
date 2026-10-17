@@ -97,20 +97,9 @@ pub enum CaseMaterializationError {
     UnknownFileParameters(String),
     EmptyParameter(String),
     MissingRequiredFile(String),
-    InvalidChoice {
-        parameter: String,
-        value: Value,
-    },
-    InvalidType {
-        parameter: String,
-        value: Value,
-        value_type: ValueType,
-    },
-    CaseLimitExceeded {
-        template_id: String,
-        count: usize,
-        limit: usize,
-    },
+    InvalidChoice { parameter: String, value: Value },
+    InvalidType { parameter: String, value: Value, value_type: ValueType },
+    CaseLimitExceeded { template_id: String, count: usize, limit: usize },
     InvalidIdentifier(String),
     InvalidExpansion(String),
 }
@@ -120,10 +109,7 @@ pub enum CaseMaterializationError {
 /* === Implementations === */
 impl Materialization<'_> {
     fn push_cases(
-        &self,
-        index: usize,
-        current: &mut BTreeMap<String, Value>,
-        cases: &mut Vec<TestCase>,
+        &self, index: usize, current: &mut BTreeMap<String, Value>, cases: &mut Vec<TestCase>,
     ) -> Result<(), CaseMaterializationError> {
         let template = self.template;
         let registration_id = self.registration_id;
@@ -173,25 +159,17 @@ impl Materialization<'_> {
 
 /* === Public Functions === */
 pub fn materialize_template_cases(
-    suite_id: &str,
-    template: &TestCaseTemplate,
-    selection: CaseMaterializationSelection,
-    options: CaseMaterializationOptions,
+    suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
 ) -> crate::Result<CaseMaterializationOutput> {
     materialize_template_cases_detail(suite_id, template, selection, options).map_err(Into::into)
 }
 
 /* === Private Functions === */
 fn materialize_template_cases_detail(
-    suite_id: &str,
-    template: &TestCaseTemplate,
-    selection: CaseMaterializationSelection,
-    options: CaseMaterializationOptions,
+    suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
 ) -> Result<CaseMaterializationOutput, CaseMaterializationError> {
     if suite_id.trim().is_empty() {
-        return Err(CaseMaterializationError::InvalidIdentifier(
-            "materialized case requires a suite registration ID".to_owned(),
-        ));
+        return Err(CaseMaterializationError::InvalidIdentifier("materialized case requires a suite registration ID".to_owned()));
     }
 
     let dimensions = filtered_dimensions(&template.parameters, &selection)?;
@@ -219,44 +197,23 @@ fn materialize_template_cases_detail(
     }
     .push_cases(0, &mut current, &mut cases)?;
 
-    Ok(CaseMaterializationOutput {
-        case_count: cases.len(),
-        test_cases: cases,
-        exceeds_default_cap,
-        default_cap: options.max_cases,
-    })
+    Ok(CaseMaterializationOutput { case_count: cases.len(), test_cases: cases, exceeds_default_cap, default_cap: options.max_cases })
 }
 
 fn filtered_dimensions(
-    definitions: &[ParameterDefinition],
-    selection: &CaseMaterializationSelection,
+    definitions: &[ParameterDefinition], selection: &CaseMaterializationSelection,
 ) -> Result<Vec<Vec<BTreeMap<String, Value>>>, CaseMaterializationError> {
-    let known = definitions
-        .iter()
-        .map(parameter_name)
-        .collect::<BTreeSet<_>>();
-    let filters = selection
-        .case_filter
-        .keys()
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let overrides = selection
-        .case_overrides
-        .keys()
-        .cloned()
-        .collect::<BTreeSet<_>>();
+    let known = definitions.iter().map(parameter_name).collect::<BTreeSet<_>>();
+    let filters = selection.case_filter.keys().cloned().collect::<BTreeSet<_>>();
+    let overrides = selection.case_overrides.keys().cloned().collect::<BTreeSet<_>>();
     let unknown_filters = filters.difference(&known).cloned().collect::<Vec<_>>();
     let unknown_overrides = overrides.difference(&known).cloned().collect::<Vec<_>>();
 
     if !unknown_filters.is_empty() {
-        return Err(CaseMaterializationError::UnknownFilterParameters(
-            unknown_filters.join(", "),
-        ));
+        return Err(CaseMaterializationError::UnknownFilterParameters(unknown_filters.join(", ")));
     }
     if !unknown_overrides.is_empty() {
-        return Err(CaseMaterializationError::UnknownOverrideParameters(
-            unknown_overrides.join(", "),
-        ));
+        return Err(CaseMaterializationError::UnknownOverrideParameters(unknown_overrides.join(", ")));
     }
 
     // Overrides participate in expression resolution, so required inputs need
@@ -267,24 +224,17 @@ fn filtered_dimensions(
         if let Some(values) = selection.case_overrides.get(&name) {
             let values = parameter_dimension_values(definition, &[], values, true)?;
             definition.expression = crate::model::definition::ParameterExpr::Array {
-                values: values
-                    .into_iter()
-                    .map(|value| crate::model::definition::ParameterExpr::Literal { value })
-                    .collect(),
+                values: values.into_iter().map(|value| crate::model::definition::ParameterExpr::Literal { value }).collect(),
             };
         }
     }
-    let resolved_spaces =
-        resolve_parameter_spaces_detail(&effective, &|_| None).map_err(map_resolver_error)?;
+    let resolved_spaces = resolve_parameter_spaces_detail(&effective, &|_| None).map_err(map_resolver_error)?;
 
     let mut dimensions: Vec<Vec<BTreeMap<String, Value>>> = Vec::new();
     let mut groups = BTreeMap::<String, usize>::new();
     for definition in definitions {
         let name = parameter_name(definition);
-        let values = resolved_spaces
-            .get(&name)
-            .map(|space| space.values.clone())
-            .unwrap_or_default();
+        let values = resolved_spaces.get(&name).map(|space| space.values.clone()).unwrap_or_default();
         if values.is_empty() {
             return Err(CaseMaterializationError::EmptyParameter(name));
         }
@@ -306,12 +256,7 @@ fn filtered_dimensions(
             }
             groups.insert(group.to_string(), dimensions.len());
         }
-        dimensions.push(
-            values
-                .into_iter()
-                .map(|value| BTreeMap::from([(name.clone(), value)]))
-                .collect(),
-        );
+        dimensions.push(values.into_iter().map(|value| BTreeMap::from([(name.clone(), value)])).collect());
     }
 
     // Filter complete rows so a selection never changes the pairing of zipped values.
@@ -324,21 +269,14 @@ fn filtered_dimensions(
             if !selection.case_overrides.contains_key(&name)
                 && let Some(filter) = selection.case_filter.get(&name)
             {
-                let defaults = rows
-                    .iter()
-                    .map(|row| row[&name].clone())
-                    .collect::<Vec<_>>();
+                let defaults = rows.iter().map(|row| row[&name].clone()).collect::<Vec<_>>();
                 let allowed = parameter_dimension_values(definition, &defaults, filter, false)?;
                 rows.retain(|row| allowed.contains(&row[&name]));
             }
             if rows.is_empty() {
                 return Err(CaseMaterializationError::EmptyParameter(name));
             }
-            if matches!(
-                definition.expansion,
-                crate::model::definition::ParameterExpansion::Single
-            ) && rows.len() != 1
-            {
+            if matches!(definition.expansion, crate::model::definition::ParameterExpansion::Single) && rows.len() != 1 {
                 return Err(CaseMaterializationError::InvalidExpansion(format!(
                     "single parameter {name:?} requires exactly one candidate; received {}",
                     rows.len()
@@ -351,10 +289,7 @@ fn filtered_dimensions(
 }
 
 fn parameter_dimension_values(
-    definition: &ParameterDefinition,
-    default_values: &[Value],
-    values: &[Value],
-    from_override: bool,
+    definition: &ParameterDefinition, default_values: &[Value], values: &[Value], from_override: bool,
 ) -> Result<Vec<Value>, CaseMaterializationError> {
     let name = parameter_name(definition);
 
@@ -363,11 +298,7 @@ fn parameter_dimension_values(
         return Ok(if from_override {
             vec![Value::Null]
         } else {
-            default_values
-                .iter()
-                .filter(|value| matches!(value, Value::Null))
-                .cloned()
-                .collect()
+            default_values.iter().filter(|value| matches!(value, Value::Null)).cloned().collect()
         });
     }
 
@@ -378,8 +309,7 @@ fn parameter_dimension_values(
             if let Some(list) = &definition.list {
                 coerce_list_value_detail(&name, list, value).map_err(map_resolver_error)
             } else {
-                coerce_parameter_value_detail(&name, &definition.value_type, value)
-                    .map_err(map_resolver_error)
+                coerce_parameter_value_detail(&name, &definition.value_type, value).map_err(map_resolver_error)
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -393,38 +323,24 @@ fn parameter_dimension_values(
     }
 
     let allowed = values.into_iter().collect::<Vec<_>>();
-    let filtered = default_values
-        .iter()
-        .filter(|value| allowed.iter().any(|selected| selected == *value))
-        .cloned()
-        .collect::<Vec<_>>();
+    let filtered = default_values.iter().filter(|value| allowed.iter().any(|selected| selected == *value)).cloned().collect::<Vec<_>>();
 
     Ok(filtered)
 }
 
 fn resolved_file_parameters(
-    definitions: &[FileDefinition],
-    overrides: &BTreeMap<String, Option<String>>,
+    definitions: &[FileDefinition], overrides: &BTreeMap<String, Option<String>>,
 ) -> Result<BTreeMap<String, Value>, CaseMaterializationError> {
     let known = definitions.iter().map(file_name).collect::<BTreeSet<_>>();
-    let unknown = overrides
-        .keys()
-        .filter(|name| !known.contains(*name))
-        .cloned()
-        .collect::<Vec<_>>();
+    let unknown = overrides.keys().filter(|name| !known.contains(*name)).cloned().collect::<Vec<_>>();
     if !unknown.is_empty() {
-        return Err(CaseMaterializationError::UnknownFileParameters(
-            unknown.join(", "),
-        ));
+        return Err(CaseMaterializationError::UnknownFileParameters(unknown.join(", ")));
     }
 
     let mut parameters = BTreeMap::new();
     for definition in definitions {
         let name = file_name(definition);
-        let raw_value = overrides
-            .get(&name)
-            .cloned()
-            .unwrap_or_else(|| definition.default.clone());
+        let raw_value = overrides.get(&name).cloned().unwrap_or_else(|| definition.default.clone());
         let Some(value) = raw_value else {
             if definition.required {
                 return Err(CaseMaterializationError::MissingRequiredFile(name));
@@ -443,19 +359,11 @@ fn dimension_count(dimensions: &[Vec<BTreeMap<String, Value>>]) -> usize {
         return 1;
     }
 
-    dimensions
-        .iter()
-        .map(Vec::len)
-        .try_fold(1usize, usize::checked_mul)
-        .unwrap_or(usize::MAX)
+    dimensions.iter().map(Vec::len).try_fold(1usize, usize::checked_mul).unwrap_or(usize::MAX)
 }
 
-fn validate_choices(
-    definition: &ParameterDefinition,
-    value: &Value,
-) -> Result<(), CaseMaterializationError> {
-    crate::model::definition::parameters::validate_parameter_value(definition, value)
-        .map_err(map_resolver_error)
+fn validate_choices(definition: &ParameterDefinition, value: &Value) -> Result<(), CaseMaterializationError> {
+    crate::model::definition::parameters::validate_parameter_value(definition, value).map_err(map_resolver_error)
 }
 
 fn parameter_name(definition: &ParameterDefinition) -> String {
@@ -468,18 +376,10 @@ fn file_name(definition: &FileDefinition) -> String {
 
 fn map_resolver_error(error: ParameterResolverError) -> CaseMaterializationError {
     match error {
-        ParameterResolverError::InvalidType {
-            parameter,
-            value,
-            value_type,
-        } => CaseMaterializationError::InvalidType {
-            parameter,
-            value,
-            value_type,
-        },
-        ParameterResolverError::InvalidChoice { parameter, value } => {
-            CaseMaterializationError::InvalidChoice { parameter, value }
+        ParameterResolverError::InvalidType { parameter, value, value_type } => {
+            CaseMaterializationError::InvalidType { parameter, value, value_type }
         }
+        ParameterResolverError::InvalidChoice { parameter, value } => CaseMaterializationError::InvalidChoice { parameter, value },
         other => CaseMaterializationError::InvalidIdentifier(other.to_string()),
     }
 }

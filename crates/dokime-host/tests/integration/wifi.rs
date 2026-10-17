@@ -18,10 +18,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use crate::support::*;
-use model::values::Value;
+use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
+use model::values::Value;
 
 /* === Constants === */
 
@@ -46,17 +46,11 @@ use dokime_host::HostTelemetryStream;
 #[test]
 #[ignore = "needs a scanning Wi-Fi adapter: set DOKIME_HOST_WIFI_SCAN=1 and run ignored stories"]
 fn wifi_channel_data() {
-    assert!(
-        std::env::var_os("DOKIME_HOST_WIFI_SCAN").is_some(),
-        "set DOKIME_HOST_WIFI_SCAN=1 to run the native Wi-Fi stream scan check"
-    );
+    assert!(std::env::var_os("DOKIME_HOST_WIFI_SCAN").is_some(), "set DOKIME_HOST_WIFI_SCAN=1 to run the native Wi-Fi stream scan check");
 
     let batch = collect_required_native_batch(HostTelemetryStream::WifiChannelOccupancy);
     validate_batch(&batch);
-    assert!(
-        !batch.samples.is_empty(),
-        "stream occupancy batches should contain scan samples"
-    );
+    assert!(!batch.samples.is_empty(), "stream occupancy batches should contain scan samples");
 
     let scan_timestamp = batch.samples[0].timestamp.clone();
     let Some(Value::Integer(sample_index)) = batch.samples[0].values.get("sample_index") else {
@@ -66,10 +60,7 @@ fn wifi_channel_data() {
     let mut reported_streams = Vec::new();
 
     for sample in &batch.samples {
-        assert_eq!(
-            sample.timestamp, scan_timestamp,
-            "one occupancy batch should share one scan timestamp"
-        );
+        assert_eq!(sample.timestamp, scan_timestamp, "one occupancy batch should share one scan timestamp");
         assert_text_in(sample, "scan_status", &["ok"]);
         for field in [
             Field::Integer("sample_index"),
@@ -95,23 +86,14 @@ fn wifi_channel_data() {
         let Some(Value::Integer(current_sample_index)) = sample.values.get("sample_index") else {
             panic!("expected sample_index integer");
         };
-        assert_eq!(
-            current_sample_index, sample_index,
-            "one occupancy batch should share one scan index"
-        );
+        assert_eq!(current_sample_index, sample_index, "one occupancy batch should share one scan index");
         if *network_count > 0 {
             occupied_samples += 1;
         }
     }
 
-    assert!(
-        occupied_samples > 0,
-        "a stream occupancy scan should include occupied stream rows"
-    );
-    assert!(
-        reported_streams.len() >= 45,
-        "a stream occupancy scan should include dense 2.4 GHz and 5 GHz rows"
-    );
+    assert!(occupied_samples > 0, "a stream occupancy scan should include occupied stream rows");
+    assert!(reported_streams.len() >= 45, "a stream occupancy scan should include dense 2.4 GHz and 5 GHz rows");
     assert!(reported_streams.contains(&1));
     assert!(reported_streams.contains(&14));
     assert!(reported_streams.contains(&32));

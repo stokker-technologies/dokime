@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 
 /* === Constants === */
 const PREPARATION_CASES: usize = 48;
@@ -48,40 +48,19 @@ async fn large_cycles_order() {
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime_runtime::ValueType::Integer;
-    parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
-        start: 0,
-        stop: 256,
-        step: 1,
-    };
+    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: 256, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
-    let server = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
-        .await
-        .unwrap();
-    let summary = client
-        .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
-            cycle_id: id.clone(),
-        })
-        .await
-        .unwrap()
-        .into_inner();
+    let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
+    let summary =
+        client.unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() }).await.unwrap().into_inner();
     assert_eq!(summary.case_count, 257);
     assert_eq!(summary.execution_count, 257);
-    let mut request = contracts::execution::ListCases {
-        cycle_id: id.clone(),
-        limit: 73,
-        ..Default::default()
-    };
+    let mut request = contracts::execution::ListCases { cycle_id: id.clone(), limit: 73, ..Default::default() };
     let mut cases = Vec::new();
     loop {
-        let page = client
-            .unary::<contracts::execution::ListCases>(request.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let page = client.unary::<contracts::execution::ListCases>(request.clone()).await.unwrap().into_inner();
         assert!(page.cases.len() <= 73);
         cases.extend(page.cases);
         let Some(next) = page.next_after_case_id else {
@@ -92,11 +71,7 @@ async fn large_cycles_order() {
     }
     assert_eq!(cases.len(), 257);
     let native = owner.handle().watch_state().latest();
-    let native_cycle = native
-        .state()
-        .cycle_views()
-        .find(|cycle| cycle.test_cycle_id.as_str() == id)
-        .unwrap();
+    let native_cycle = native.state().cycle_views().find(|cycle| cycle.test_cycle_id.as_str() == id).unwrap();
     for (ordinal, (case, native)) in cases.iter().zip(native_cycle.cases()).enumerate() {
         assert_eq!(case.ordinal, ordinal as u64);
         assert_eq!(case.case_id, native.test_case_id.as_str());
@@ -129,44 +104,16 @@ async fn large_cycles_order() {
     // A single-case cycle is enough to advance the observed cursor. The first
     // cycle still crosses the 256-case boundary through every RPC projection.
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    client
-        .unary::<contracts::execution::CreateCycle>(create())
-        .await
-        .unwrap();
-    assert_eq!(
-        client
-            .unary::<contracts::execution::ListCases>(request)
-            .await
-            .unwrap_err()
-            .code(),
-        Code::Aborted
-    );
-    let list = client
-        .unary::<contracts::execution::ListCycles>(
-            contracts::execution::ListCycles::default(),
-        )
-        .await
-        .unwrap()
-        .into_inner();
-    let large = list
-        .cycles
-        .iter()
-        .find(|cycle| cycle.cycle_id == id)
-        .unwrap();
+    client.unary::<contracts::execution::CreateCycle>(create()).await.unwrap();
+    assert_eq!(client.unary::<contracts::execution::ListCases>(request).await.unwrap_err().code(), Code::Aborted);
+    let list = client.unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles::default()).await.unwrap().into_inner();
+    let large = list.cycles.iter().find(|cycle| cycle.cycle_id == id).unwrap();
     assert_eq!(large.case_count, 257);
     assert_eq!(large.execution_count, 257);
-    let mut request = contracts::execution::ListExecutions {
-        cycle_id: id.clone(),
-        limit: 73,
-        ..Default::default()
-    };
+    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: 73, ..Default::default() };
     let mut attempts = Vec::new();
     loop {
-        let page = client
-            .unary::<contracts::execution::ListExecutions>(request.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let page = client.unary::<contracts::execution::ListExecutions>(request.clone()).await.unwrap().into_inner();
         assert!(page.executions.len() <= 73);
         attempts.extend(page.executions);
         let Some(next) = page.next_after_execution_id else {
@@ -176,29 +123,20 @@ async fn large_cycles_order() {
         request.cursor = page.cursor;
     }
     assert_eq!(attempts.len(), 257);
-    for (ordinal, (execution, native)) in attempts
-        .iter()
-        .zip(&native_cycle.test_executions)
-        .enumerate()
-    {
+    for (ordinal, (execution, native)) in attempts.iter().zip(&native_cycle.test_executions).enumerate() {
         assert_eq!(execution.ordinal, ordinal as u64);
         assert_eq!(execution.execution_id, native.test_execution_id.as_str());
         assert_eq!(execution.case_id, native.test_case_id.as_str());
-        assert_eq!(
-            execution.status,
-            model::execution::wire::ExecutionStatus::Skipped
-        );
+        assert_eq!(execution.status, model::execution::wire::ExecutionStatus::Skipped);
     }
     assert_eq!(
         client
-            .unary::<contracts::execution::ListExecutions>(
-                contracts::execution::ListExecutions {
-                    cycle_id: id,
-                    after_execution_id: "missing".into(),
-                    cursor: list.cursor.clone(),
-                    ..Default::default()
-                }
-            )
+            .unary::<contracts::execution::ListExecutions>(contracts::execution::ListExecutions {
+                cycle_id: id,
+                after_execution_id: "missing".into(),
+                cursor: list.cursor.clone(),
+                ..Default::default()
+            })
             .await
             .unwrap_err()
             .code(),
@@ -229,54 +167,29 @@ async fn large_run_preparation() {
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime_runtime::ValueType::Integer;
-    parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
-        start: 0,
-        stop: PREPARATION_CASES as i64 - 1,
-        step: 1,
-    };
+    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: PREPARATION_CASES as i64 - 1, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
-    let server = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
-        .await
-        .unwrap();
-    let outcome = client
-        .unary::<contracts::execution::RunCycle>(run(&id))
-        .await
-        .unwrap()
-        .into_inner()
-        .outcome
-        .unwrap();
-    assert!(matches!(
-        outcome,
-        model::execution::wire::RunReplyOutcome::Accepted(_)
-    ));
+    let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
+    let outcome = client.unary::<contracts::execution::RunCycle>(run(&id)).await.unwrap().into_inner().outcome.unwrap();
+    assert!(matches!(outcome, model::execution::wire::RunReplyOutcome::Accepted(_)));
     {
         client
             .unary::<contracts::execution::StopCycle>(contracts::execution::StopCycle { cycle_id: id.clone(), context: None })
             .await
             .unwrap();
         let summary = client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
-                cycle_id: id.clone(),
-            })
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
             .await
             .unwrap()
             .into_inner();
-        assert!(matches!(
-            summary.status,
-            model::execution::wire::CycleStatus::Stopping
-                | model::execution::wire::CycleStatus::Stopped
-        ));
+        assert!(matches!(summary.status, model::execution::wire::CycleStatus::Stopping | model::execution::wire::CycleStatus::Stopped));
     }
     // Terminal Acknowledgement Also Publishes One Durable Report Per Case.
     let after = support::on_state_change(&owner.handle(), async || {
         let summary = client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle {
-                cycle_id: id.clone(),
-            })
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
             .await
             .unwrap()
             .into_inner();
@@ -293,23 +206,14 @@ async fn large_run_preparation() {
         futures_util::FutureExt::now_or_never(gate.started.notified()).is_none(),
         "stopping preparation must prevent provider dispatch"
     );
-    let mut request = contracts::execution::ListExecutions {
-        cycle_id: id.clone(),
-        limit: 73,
-        ..Default::default()
-    };
+    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: 73, ..Default::default() };
     let mut count = 0;
     loop {
-        let page = client
-            .unary::<contracts::execution::ListExecutions>(request.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let page = client.unary::<contracts::execution::ListExecutions>(request.clone()).await.unwrap().into_inner();
         for execution in &page.executions {
             assert!(matches!(
                 execution.status,
-                model::execution::wire::ExecutionStatus::Cancelled
-                    | model::execution::wire::ExecutionStatus::Skipped
+                model::execution::wire::ExecutionStatus::Cancelled | model::execution::wire::ExecutionStatus::Skipped
             ));
         }
         count += page.executions.len();

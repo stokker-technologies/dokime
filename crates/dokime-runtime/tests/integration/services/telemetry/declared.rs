@@ -19,14 +19,14 @@
 use async_trait::async_trait;
 // Local Imports
 use crate::service_support::prelude::*;
+use dokime_runtime::InstalledPlugin;
+use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::{Refusal, Supervisor};
-use dokime_runtime::InstalledPlugin;
-use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::{Refusal, Supervisor};
 use harmos::sidecar::StreamDeclaration;
 
 /* === Constants === */
@@ -123,17 +123,12 @@ impl Checks {}
     prompts = Prompts
 )]
 impl First {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Measure")]
-    async fn measure(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::StepContext<'_>,
-    ) -> dokime_runtime::Result<()> {
+    async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.publish(Sample { value: 1.0 }).await;
         ctx.publish(Measured { value: 1.0 }).await;
         Ok(())
@@ -148,17 +143,12 @@ impl First {
     prompts = Prompts
 )]
 impl Second {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Measure")]
-    async fn measure(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::StepContext<'_>,
-    ) -> dokime_runtime::Result<()> {
+    async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.publish(Sample { value: 2.0 }).await;
         ctx.publish(Measured { value: 2.0 }).await;
         Ok(())
@@ -239,11 +229,7 @@ impl EmbeddedProvider for DeclaringProvider {
                 id: entry.id.into(),
                 schema: entry.schema,
                 window: entry.window,
-                row: harmos::schema::graph::Schema::from_declaration(
-                    entry.row,
-                    &harmos::config::SchemaSettings::default(),
-                )
-                .unwrap(),
+                row: harmos::schema::graph::Schema::from_declaration(entry.row, &harmos::config::SchemaSettings::default()).unwrap(),
             })
             .collect()
     }
@@ -268,75 +254,36 @@ impl EmbeddedProvider for DeclaringProvider {
 #[tokio::test]
 async fn template_declarations_register() {
     // The Plugin Grants The Shared Stream Once
-    let granted = <Declaring as Declared>::STREAMS
-        .iter()
-        .map(|entry| entry.id)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        granted,
-        [Sample::ID],
-        "two templates share one stream grant"
-    );
+    let granted = <Declaring as Declared>::STREAMS.iter().map(|entry| entry.id).collect::<Vec<_>>();
+    assert_eq!(granted, [Sample::ID], "two templates share one stream grant");
 
     let root = tempdir().unwrap();
-    let mut runtime =
-        Runtime::start(config(root.path()).register(Arc::new(DeclaringProvider::new())))
-            .await
-            .unwrap();
+    let mut runtime = Runtime::start(config(root.path()).register(Arc::new(DeclaringProvider::new()))).await.unwrap();
     let handle = runtime.handle();
 
     // Admission Registered The Template Record And Prompt
     let records = handle.record_contracts().await;
-    assert!(
-        records
-            .iter()
-            .any(|contract| contract.record_type.as_str() == RECORD),
-        "{records:?}"
-    );
+    assert!(records.iter().any(|contract| contract.record_type.as_str() == RECORD), "{records:?}");
     let prompts = handle.prompt_definitions().await;
-    assert!(
-        prompts
-            .iter()
-            .any(|prompt| prompt.prompt_type.as_str() == PROMPT),
-        "{prompts:?}"
-    );
+    assert!(prompts.iter().any(|prompt| prompt.prompt_type.as_str() == PROMPT), "{prompts:?}");
 
     // Both Templates Publish What They Declared
     let suite = Checks::definition().suite;
-    let cycle = start_cases(
-        &handle,
-        metadata("fixture.declaring.cycle", "Declaring Cycle"),
-        materialize_cases(SUITE, &suite),
-        false,
-    )
-    .await;
-    let receipt = handle
-        .run_cycle_cases(cycle.clone(), CommandContext::default())
-        .await;
+    let cycle = start_cases(&handle, metadata("fixture.declaring.cycle", "Declaring Cycle"), materialize_cases(SUITE, &suite), false).await;
+    let receipt = handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
     let rows = handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![Identifier::new(Sample::ID).unwrap()],
-            scope: ScopeSelection {
-                test_cycle_id: Some(cycle.clone()),
-                ..Default::default()
-            },
+            scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
             ..Default::default()
         })
         .await;
     assert_eq!(rows.len(), 2, "both templates publish the shared stream");
-    let ended = handle
-        .cycles()
-        .await
-        .into_iter()
-        .find(|item| item.test_cycle_id == cycle)
-        .unwrap();
+    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert!(
-        ended
-            .test_executions
-            .iter()
-            .all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
+        ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );
 
     drop(handle);
@@ -359,9 +306,7 @@ async fn conflicting_record_refused() {
     let refused = runtime.register(Arc::new(provider)).await;
 
     assert!(
-        refused.as_ref().is_err_and(|error| error
-            .to_string()
-            .contains(&format!("event definition {RECORD} is already registered"))),
+        refused.as_ref().is_err_and(|error| error.to_string().contains(&format!("event definition {RECORD} is already registered"))),
         "{refused:?}"
     );
     runtime.shutdown().await.unwrap();
@@ -378,9 +323,7 @@ async fn conflicting_prompt_refused() {
     let refused = runtime.register(Arc::new(provider)).await;
 
     assert!(
-        refused.as_ref().is_err_and(|error| error
-            .to_string()
-            .contains(&format!("conflicting definitions for prompt {PROMPT}"))),
+        refused.as_ref().is_err_and(|error| error.to_string().contains(&format!("conflicting definitions for prompt {PROMPT}"))),
         "{refused:?}"
     );
     runtime.shutdown().await.unwrap();

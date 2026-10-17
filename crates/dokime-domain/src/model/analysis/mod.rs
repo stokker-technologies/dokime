@@ -85,10 +85,7 @@ impl harmos::MemorySize for Selection {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
             .saturating_add(self.id.capacity())
-            .saturating_add(
-                harmos::MemorySize::memory_size(&self.parameters)
-                    .saturating_sub(std::mem::size_of_val(&self.parameters)),
-            )
+            .saturating_add(harmos::MemorySize::memory_size(&self.parameters).saturating_sub(std::mem::size_of_val(&self.parameters)))
     }
 }
 
@@ -111,19 +108,14 @@ impl Definition {
             }
         }
         if self.parameters.len() > 64
-            || serde_json::to_vec(&self.parameters)
-                .map_err(|error| error.to_string())?
-                .len()
-                > MAX_PARAMETER_BYTES
+            || serde_json::to_vec(&self.parameters).map_err(|error| error.to_string())?.len() > MAX_PARAMETER_BYTES
         {
             return Err("analysis parameter declarations exceed their budget".into());
         }
         let mut parameters = BTreeSet::new();
         for parameter in &self.parameters {
             if !matches!(parameter.expression, ParameterExpr::Literal { .. }) {
-                return Err(
-                    "analysis parameters require literal defaults, without sweep expansion".into(),
-                );
+                return Err("analysis parameters require literal defaults, without sweep expansion".into());
             }
             if !parameters.insert(parameter_name(parameter)) {
                 return Err("analysis parameter names must be unique".into());
@@ -137,43 +129,26 @@ impl Definition {
         if selection.id != self.id || selection.version != self.version {
             return Err("analysis identity or version is unavailable".into());
         }
-        if serde_json::to_vec(&selection.parameters)
-            .map_err(|error| error.to_string())?
-            .len()
-            > MAX_PARAMETER_BYTES
-        {
+        if serde_json::to_vec(&selection.parameters).map_err(|error| error.to_string())?.len() > MAX_PARAMETER_BYTES {
             return Err("analysis parameters exceed the configuration budget".into());
         }
-        if selection.parameters.keys().any(|key| {
-            !self
-                .parameters
-                .iter()
-                .any(|definition| parameter_name(definition) == key)
-        }) {
+        if selection.parameters.keys().any(|key| !self.parameters.iter().any(|definition| parameter_name(definition) == key)) {
             return Err("analysis received an undeclared parameter".into());
         }
         let mut definitions = self.parameters.clone();
         for definition in &mut definitions {
             if let Some(value) = selection.parameters.get(parameter_name(definition)) {
-                definition.expression = ParameterExpr::Literal {
-                    value: value.clone(),
-                };
+                definition.expression = ParameterExpr::Literal { value: value.clone() };
             }
         }
-        let resolved =
-            resolve_parameter_spaces(&definitions, &|_| None).map_err(|error| error.to_string())?;
+        let resolved = resolve_parameter_spaces(&definitions, &|_| None).map_err(|error| error.to_string())?;
         resolved
             .into_iter()
             .map(|(key, space)| {
                 if space.values.len() != 1 {
-                    return Err(format!(
-                        "analysis parameter {key} requires exactly one value"
-                    ));
+                    return Err(format!("analysis parameter {key} requires exactly one value"));
                 }
-                Ok((
-                    key,
-                    space.values.into_iter().next().expect("one resolved value"),
-                ))
+                Ok((key, space.values.into_iter().next().expect("one resolved value")))
             })
             .collect()
     }
@@ -181,15 +156,8 @@ impl Definition {
 
 impl Limits {
     pub fn check(self) -> Result<(), String> {
-        if self.max_samples == 0
-            || self.max_samples > MAX_SAMPLES
-            || self.max_output_values == 0
-            || self.max_output_values > MAX_SAMPLES
-        {
-            return Err(
-                "analysis sample and output budgets must be positive and within the host allowance"
-                    .into(),
-            );
+        if self.max_samples == 0 || self.max_samples > MAX_SAMPLES || self.max_output_values == 0 || self.max_output_values > MAX_SAMPLES {
+            return Err("analysis sample and output budgets must be positive and within the host allowance".into());
         }
         Ok(())
     }

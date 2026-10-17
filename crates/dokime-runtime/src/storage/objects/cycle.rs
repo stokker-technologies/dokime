@@ -18,26 +18,24 @@ use std::collections::BTreeSet;
 // Third Party Imports
 use harmos::{
     DefinitionId, Identified, MemorySize,
-    storage::{
-        FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject,
-    },
+    storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject},
 };
 
 // Local Imports
 use super::{annotations, metadata};
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::saved::CycleSeal;
-use dokime_domain::model::execution::saved::ExecutionRevision;
+use crate::storage::{Error, Manager, Result};
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ResultStatus;
 use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::TestCycle;
-use crate::storage::{Error, Manager, Result};
+use dokime_domain::model::execution::saved::CycleSeal;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -127,26 +125,19 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
 impl<'a> Input<'a> {
     fn view(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Result<Self> {
         if !source.test_executions.is_empty() {
-            return Err(Error::Invalid(
-                "captured grouping contains joined executions",
-            ));
+            return Err(Error::Invalid("captured grouping contains joined executions"));
         }
         Ok(Self::grouping(source, ids))
     }
 
     fn joined_view(source: &'a CycleView) -> Result<Self> {
         let [execution] = source.test_executions.as_slice() else {
-            return Err(Error::Invalid(
-                "captured report requires one joined execution",
-            ));
+            return Err(Error::Invalid("captured report requires one joined execution"));
         };
         if execution.test_cycle_id != source.test_cycle_id {
             return Err(Error::Invalid("captured report execution grouping differs"));
         }
-        Ok(Self::grouping(
-            source,
-            std::slice::from_ref(&execution.test_execution_id),
-        ))
+        Ok(Self::grouping(source, std::slice::from_ref(&execution.test_execution_id)))
     }
 
     fn grouping(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Self {
@@ -181,30 +172,18 @@ impl StoredObject for Cycle {
 }
 impl Cycle {
     pub(crate) fn check_report_source<'a>(
-        &self,
-        owner: &str,
-        finalized_at: Option<&str>,
-        mut members: impl Iterator<Item = Result<&'a str>>,
+        &self, owner: &str, finalized_at: Option<&str>, mut members: impl Iterator<Item = Result<&'a str>>,
     ) -> Result<()> {
-        if self.saved.is_some()
-            || self.cycle_id != owner
-            || finalized_at.is_some_and(|at| self.updated_at != at)
-        {
-            return Err(Error::Invalid(
-                "report header differs from frozen cycle source",
-            ));
+        if self.saved.is_some() || self.cycle_id != owner || finalized_at.is_some_and(|at| self.updated_at != at) {
+            return Err(Error::Invalid("report header differs from frozen cycle source"));
         }
         for member in &self.execution_ids {
             if members.next().transpose()? != Some(member.as_str()) {
-                return Err(Error::Invalid(
-                    "report header membership differs from sources",
-                ));
+                return Err(Error::Invalid("report header membership differs from sources"));
             }
         }
         if members.next().is_some() {
-            return Err(Error::Invalid(
-                "report header membership differs from sources",
-            ));
+            return Err(Error::Invalid("report header membership differs from sources"));
         }
         Ok(())
     }
@@ -244,36 +223,23 @@ impl Cycle {
             started.to_datetime()?;
         }
         let fields = [
-            source
-                .saved
-                .as_ref()
-                .map(Seal::encoding_memory)
-                .transpose()?
-                .unwrap_or(0),
+            source.saved.as_ref().map(Seal::encoding_memory).transpose()?.unwrap_or(0),
             source.test_cycle_id.as_str().len(),
             source.session_id.as_ref().map_or(0, |id| id.as_str().len()),
             metadata::Row::encoding_memory(source.metadata)?,
             lifecycle_text(&source.lifecycle).len(),
             source.created_at.as_str().len(),
-            source
-                .started_at
-                .as_ref()
-                .map_or(0, |time| time.as_str().len()),
+            source.started_at.as_ref().map_or(0, |time| time.as_str().len()),
             source.updated_at.as_str().len(),
             annotations::Set::encoding_memory(source.records)?,
             source.result.as_ref().map_or(0, Summary::encoding_memory),
             harmos::btree_map_memory::<&TestExecutionId, ()>(source.execution_ids.len()),
-            source
-                .execution_ids
-                .len()
-                .saturating_mul(std::mem::size_of::<String>()),
+            source.execution_ids.len().saturating_mul(std::mem::size_of::<String>()),
         ];
         if fields.contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
         for id in source.execution_ids {
             bytes = bytes.saturating_add(id.as_str().len());
         }
@@ -294,11 +260,7 @@ impl Cycle {
             return Err(Error::Invalid("cycle encoding memory overflows"));
         }
         if let Some(saved) = &source.saved {
-            saved.validate_membership(
-                source.test_cycle_id,
-                source.lifecycle,
-                source.execution_ids.iter(),
-            )?;
+            saved.validate_membership(source.test_cycle_id, source.lifecycle, source.execution_ids.iter())?;
             saved.sealed_at.to_datetime()?;
         }
         let mut seen = BTreeSet::new();
@@ -327,10 +289,7 @@ impl Cycle {
             metadata: Some(metadata),
             lifecycle: lifecycle_text(&source.lifecycle).to_owned(),
             created_at: source.created_at.as_str().to_owned(),
-            started_at: source
-                .started_at
-                .as_ref()
-                .map(|time| time.as_str().to_owned()),
+            started_at: source.started_at.as_ref().map(|time| time.as_str().to_owned()),
             updated_at: source.updated_at.as_str().to_owned(),
             execution_ids,
             records: Some(records),
@@ -344,10 +303,7 @@ impl TryFrom<Cycle> for TestCycle {
 
     fn try_from(row: Cycle) -> Result<Self> {
         if row.cycle_id.bytes().any(|byte| byte.is_ascii_uppercase())
-            || row
-                .execution_ids
-                .iter()
-                .any(|id| id.bytes().any(|byte| byte.is_ascii_uppercase()))
+            || row.execution_ids.iter().any(|id| id.bytes().any(|byte| byte.is_ascii_uppercase()))
         {
             return Err(Error::Invalid("noncanonical cycle or execution identity"));
         }
@@ -385,19 +341,13 @@ impl TryFrom<Cycle> for TestCycle {
             saved: row.saved.map(TryInto::try_into).transpose()?,
             test_cycle_id: TestCycleId::from_uuid(row.cycle_id)?,
             session_id: row.session_id.map(SessionId::from_uuid).transpose()?,
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("cycle metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("cycle metadata is missing"))?.try_into()?,
             lifecycle,
             created_at,
             started_at,
             updated_at,
             execution_ids,
-            records: row
-                .records
-                .ok_or(Error::Invalid("cycle record ownership is missing"))?
-                .restore_owned()?,
+            records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
             continue_on_failure: row.continue_on_failure,
             result: row.result.map(TryInto::try_into).transpose()?,
         };
@@ -449,13 +399,7 @@ impl TryFrom<Summary> for ResultSummary {
             "cancelled" => ResultStatus::Cancelled,
             _ => return Err(Error::Invalid("invalid cycle result status")),
         };
-        Ok(Self {
-            status,
-            passed: row.passed,
-            failed: row.failed,
-            blocked: row.blocked,
-            skipped: row.skipped,
-        })
+        Ok(Self { status, passed: row.passed, failed: row.failed, blocked: row.blocked, skipped: row.skipped })
     }
 }
 
@@ -472,9 +416,7 @@ impl Seal {
         if fields.contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
         for revision in &value.executions {
             bytes = bytes.saturating_add(super::execution::Revision::encoding_memory(revision)?);
         }
@@ -516,16 +458,10 @@ impl TryFrom<Seal> for CycleSeal {
         }
         Ok(Self {
             owner_node_id: NodeId::from_uuid(row.owner_node_id)?,
-            evidence_through: row
-                .evidence_through
-                .ok_or(Error::Invalid("cycle seal evidence frontier is missing"))?,
+            evidence_through: row.evidence_through.ok_or(Error::Invalid("cycle seal evidence frontier is missing"))?,
             executions,
-            report: row
-                .report
-                .ok_or(Error::Invalid("cycle seal report is missing"))?,
-            dependencies_saved: row
-                .dependencies_saved
-                .ok_or(Error::Invalid("cycle seal saved frontier is missing"))?,
+            report: row.report.ok_or(Error::Invalid("cycle seal report is missing"))?,
+            dependencies_saved: row.dependencies_saved.ok_or(Error::Invalid("cycle seal saved frontier is missing"))?,
             sealed_at: Timestamp::new(row.sealed_at),
         })
     }
@@ -533,53 +469,27 @@ impl TryFrom<Seal> for CycleSeal {
 
 impl Seal {
     fn projection_memory(&self) -> Result<usize> {
-        let evidence = self
-            .evidence_through
-            .as_ref()
-            .ok_or(Error::Invalid("cycle seal evidence frontier is missing"))?;
-        let report = self
-            .report
-            .as_ref()
-            .ok_or(Error::Invalid("cycle seal report is missing"))?;
-        let saved = self
-            .dependencies_saved
-            .as_ref()
-            .ok_or(Error::Invalid("cycle seal saved frontier is missing"))?;
-        if [
-            evidence.memory_size(),
-            report.memory_size(),
-            saved.memory_size(),
-        ]
-        .contains(&usize::MAX)
-        {
+        let evidence = self.evidence_through.as_ref().ok_or(Error::Invalid("cycle seal evidence frontier is missing"))?;
+        let report = self.report.as_ref().ok_or(Error::Invalid("cycle seal report is missing"))?;
+        let saved = self.dependencies_saved.as_ref().ok_or(Error::Invalid("cycle seal saved frontier is missing"))?;
+        if [evidence.memory_size(), report.memory_size(), saved.memory_size()].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
         let fields = [
             self.owner_node_id.capacity(),
             self.sealed_at.capacity(),
-            evidence
-                .memory_size()
-                .saturating_sub(std::mem::size_of_val(evidence)),
-            report
-                .memory_size()
-                .saturating_sub(std::mem::size_of_val(report)),
-            saved
-                .memory_size()
-                .saturating_sub(std::mem::size_of_val(saved)),
-            self.executions
-                .len()
-                .saturating_mul(std::mem::size_of::<ExecutionRevision>()),
+            evidence.memory_size().saturating_sub(std::mem::size_of_val(evidence)),
+            report.memory_size().saturating_sub(std::mem::size_of_val(report)),
+            saved.memory_size().saturating_sub(std::mem::size_of_val(saved)),
+            self.executions.len().saturating_mul(std::mem::size_of::<ExecutionRevision>()),
         ];
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<CycleSeal>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<CycleSeal>(), usize::saturating_add);
         for execution in &self.executions {
             let memory = execution.projection_memory()?;
             if memory == usize::MAX {
                 return Ok(usize::MAX);
             }
-            bytes = bytes
-                .saturating_add(memory.saturating_sub(std::mem::size_of::<ExecutionRevision>()));
+            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<ExecutionRevision>()));
         }
         Ok(bytes)
     }
@@ -591,22 +501,9 @@ impl Cycle {
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("cycle metadata is missing"))?
-            .projection_memory()?;
-        let records = self
-            .records
-            .as_ref()
-            .ok_or(Error::Invalid("cycle record ownership is missing"))?
-            .projection_memory();
-        let seal = self
-            .saved
-            .as_ref()
-            .map(Seal::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("cycle metadata is missing"))?.projection_memory()?;
+        let records = self.records.as_ref().ok_or(Error::Invalid("cycle record ownership is missing"))?.projection_memory();
+        let seal = self.saved.as_ref().map(Seal::projection_memory).transpose()?.unwrap_or(0);
         if [metadata, records, seal].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
@@ -619,37 +516,20 @@ impl Cycle {
             metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             records.saturating_sub(std::mem::size_of::<dokime_domain::state::records::set::TestRecordSet>()),
             seal.saturating_sub(std::mem::size_of::<CycleSeal>()),
-            self.execution_ids
-                .len()
-                .saturating_mul(std::mem::size_of::<TestExecutionId>()),
-            self.execution_ids
-                .len()
-                .saturating_mul(std::mem::size_of::<&str>()),
+            self.execution_ids.len().saturating_mul(std::mem::size_of::<TestExecutionId>()),
+            self.execution_ids.len().saturating_mul(std::mem::size_of::<&str>()),
         ];
-        let bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<TestCycle>(), usize::saturating_add);
-        Ok(self
-            .execution_ids
-            .iter()
-            .fold(bytes, |bytes, id| bytes.saturating_add(id.capacity())))
+        let bytes = fields.into_iter().fold(std::mem::size_of::<TestCycle>(), usize::saturating_add);
+        Ok(self.execution_ids.iter().fold(bytes, |bytes, id| bytes.saturating_add(id.capacity())))
     }
 }
 
 /* === Public Functions === */
-pub async fn read(
-    storage: &Manager,
-    id: &TestCycleId,
-    version: ObjectVersion,
-) -> Result<Option<ObjectRevision<TestCycle>>> {
+pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestCycle>>> {
     let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    Ok(Some(ObjectRevision {
-        value: stored.value.try_into()?,
-        position: stored.position,
-        version: stored.version,
-    }))
+    Ok(Some(ObjectRevision { value: stored.value.try_into()?, position: stored.position, version: stored.version }))
 }
 
 /* === Private Functions === */

@@ -46,10 +46,7 @@ async fn kill_recovers_cycle() {
     let root = tempdir().unwrap();
     let mut child = crate::service_support::children::ChildStory::spawn(
         "durability::cycles::kill_recovers_cycle",
-        &[
-            ("DOKIME_RUNTIME_KILL_CHILD", "1".as_ref()),
-            ("DOKIME_RUNTIME_KILL_ROOT", root.path().as_os_str()),
-        ],
+        &[("DOKIME_RUNTIME_KILL_CHILD", "1".as_ref()), ("DOKIME_RUNTIME_KILL_ROOT", root.path().as_os_str())],
     );
     // Readiness includes creating a fresh storage backend; always reap the child before restart.
     child.ready().await;
@@ -71,8 +68,7 @@ async fn kill_recovers_cycle() {
         .await
         .unwrap();
     assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
-    let cycle = dokime_domain::model::execution::result::TestCycle::try_from(cycles[0].value.clone())
-        .expect("saved cycle is canonical");
+    let cycle = dokime_domain::model::execution::result::TestCycle::try_from(cycles[0].value.clone()).expect("saved cycle is canonical");
     assert_eq!(cycle.metadata.identifier.as_str(), "fixture.cycle");
     assert!(cycle.execution_ids.is_empty());
     assert_eq!(cycle.lifecycle, CycleStatus::Ready);
@@ -82,14 +78,10 @@ async fn kill_recovers_cycle() {
     runtime_owner.shutdown().await.unwrap();
 
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let cycle = dokime_runtime::storage::objects::cycle::read(
-        runtime.storage(),
-        &id,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap()
-    .expect("saved cycle survives another boot");
+    let cycle = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .expect("saved cycle survives another boot");
     // Restart recovery persists the interrupted cycle header.
     assert_eq!(cycle.value.lifecycle, CycleStatus::Stopped);
     assert!(cycle.value.execution_ids.is_empty());
@@ -99,15 +91,11 @@ async fn kill_recovers_cycle() {
 }
 
 async fn run_kill_child() {
-    let root =
-        PathBuf::from(std::env::var_os("DOKIME_RUNTIME_KILL_ROOT").expect("kill child root env"));
+    let root = PathBuf::from(std::env::var_os("DOKIME_RUNTIME_KILL_ROOT").expect("kill child root env"));
     let (_owner, runtime) = booted(&root).await;
     let created = runtime
         .create_cycle(
-            CycleDefinition {
-                metadata: metadata("fixture.cycle", "Fixture Cycle"),
-                continue_on_failure: false,
-            },
+            CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_on_failure: false },
             CommandContext::default(),
         )
         .await;

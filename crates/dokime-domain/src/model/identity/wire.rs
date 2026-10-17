@@ -174,10 +174,7 @@ impl From<&crate::model::identity::Metadata> for Metadata {
             attributes: metadata
                 .attributes
                 .iter()
-                .map(|(key, value)| MetadataAttribute {
-                    key: key.clone(),
-                    value: Some(Value::from(value)),
-                })
+                .map(|(key, value)| MetadataAttribute { key: key.clone(), value: Some(Value::from(value)) })
                 .collect(),
             created_at: metadata.created_at.map(Timestamp::from),
             updated_at: metadata.updated_at.map(Timestamp::from),
@@ -191,23 +188,14 @@ impl TryFrom<&Metadata> for crate::model::identity::Metadata {
     fn try_from(metadata: &Metadata) -> Result<Self, Self::Error> {
         let mut attributes = std::collections::BTreeMap::new();
         for attribute in &metadata.attributes {
-            let value = attribute
-                .value
-                .as_ref()
-                .ok_or(MetadataError::Attribute)?
-                .to_core()?;
+            let value = attribute.value.as_ref().ok_or(MetadataError::Attribute)?.to_core()?;
             if attributes.insert(attribute.key.clone(), value).is_some() {
                 return Err(MetadataError::Attribute);
             }
         }
-        let time = |value: Option<Timestamp>| {
-            value
-                .map(|value| value.to_datetime().map_err(|_| MetadataError::Timestamp))
-                .transpose()
-        };
+        let time = |value: Option<Timestamp>| value.map(|value| value.to_datetime().map_err(|_| MetadataError::Timestamp)).transpose();
         Ok(Self {
-            identifier: crate::model::identity::Identifier::new(&metadata.identifier)
-                .map_err(|_| MetadataError::Identifier)?,
+            identifier: crate::model::identity::Identifier::new(&metadata.identifier).map_err(|_| MetadataError::Identifier)?,
             label: metadata.label.clone(),
             description: metadata.description.clone(),
             tags: metadata.tags.clone(),

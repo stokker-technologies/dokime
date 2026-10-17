@@ -16,9 +16,7 @@
 use std::time::Duration;
 // Third Party Imports
 // Third-Party Imports
-use harmos::operations::{
-    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility, WireOperation,
-};
+use harmos::operations::{OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility, WireOperation};
 // Local Imports
 
 /* === Constants === */
@@ -63,29 +61,11 @@ macro_rules! host_operation {
     };
 }
 
-host_operation!(
-    PushEvidence,
-    EvidenceBatch,
-    EvidenceReceipt,
-    "dokime.execution.evidence",
-    EVIDENCE_BOUND
-);
+host_operation!(PushEvidence, EvidenceBatch, EvidenceReceipt, "dokime.execution.evidence", EVIDENCE_BOUND);
 
-host_operation!(
-    AskOperator,
-    OperatorQuestion,
-    OperatorAnswer,
-    "dokime.execution.prompt",
-    OPERATOR_BOUND
-);
+host_operation!(AskOperator, OperatorQuestion, OperatorAnswer, "dokime.execution.prompt", OPERATOR_BOUND);
 
-host_operation!(
-    LeaseStream,
-    LeaseAsk,
-    LeaseResolution,
-    "dokime.execution.lease",
-    LEASE_BOUND
-);
+host_operation!(LeaseStream, LeaseAsk, LeaseResolution, "dokime.execution.lease", LEASE_BOUND);
 
 /* === Type Aliases === */
 
@@ -99,9 +79,7 @@ pub struct RunExecution {
     pub template_identifier: String,
     pub workflow: String,
     pub parameters_json: String,
-    #[row(
-        description = "Host-resolved secrets for this owner. Never persisted as execution data."
-    )]
+    #[row(description = "Host-resolved secrets for this owner. Never persisted as execution data.")]
     pub secrets_json: String,
     #[row(description = "Runner policy: automatic or interactive.")]
     pub mode: String,
@@ -110,17 +88,13 @@ pub struct RunExecution {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct EvidenceBatch {
-    #[row(
-        description = "True only after observers, callbacks, cleanup and evaluation have settled."
-    )]
+    #[row(description = "True only after observers, callbacks, cleanup and evaluation have settled.")]
     pub cleanup_settled: bool,
     #[row(description = "Opaque high-water mark acknowledging every item in this reply.")]
     pub cursor: u64,
     #[row(description = "Current authored phase identifier; an empty value means unchanged.")]
     pub phase: String,
-    #[row(
-        description = "Immutable completed callback invocations; host admission stamps ownership."
-    )]
+    #[row(description = "Immutable completed callback invocations; host admission stamps ownership.")]
     pub step_attempts: Vec<String>,
     #[row(description = "Invocations waiting for host activation before their callbacks start.")]
     pub step_begins: Vec<String>,
@@ -129,9 +103,7 @@ pub struct EvidenceBatch {
     pub records: Vec<String>,
     #[row(description = "Terminal result, emitted as one cursor-addressed item after completion.")]
     pub outcome: Option<SidecarExecutionOutcome>,
-    #[row(
-        description = "Severity-bearing execution diagnostics; standard output remains Harmos IPC."
-    )]
+    #[row(description = "Severity-bearing execution diagnostics; standard output remains Harmos IPC.")]
     pub diagnostics: Vec<crate::execution::log::Entry>,
     #[row(
         description = "Evidence files the execution produced, in bounded pieces.\nChunking bounds each item, but batching several bounded chunks can still exceed Harmos's complete encoded route frame. The workflow therefore pages accumulated chunks against the transport-owned reply budget, so one artifact routinely spans several replies. The host reassembles by transfer id and uploads once the terminal piece arrives. Cursor-addressed like the rest of the reply, so a retried drain re-delivers pieces the host has not acknowledged."
@@ -159,9 +131,7 @@ pub struct EvidenceBatch {
     pub lease_releases: Vec<String>,
     #[row(description = "Latest live work-unit progress represented by this page.")]
     pub progress: Option<crate::execution::ExecutionProgress>,
-    #[row(
-        description = "Cleanup completed and all preceding output has drained; close inputs and acknowledge."
-    )]
+    #[row(description = "Cleanup completed and all preceding output has drained; close inputs and acknowledge.")]
     pub record_subscriptions_settling: bool,
 }
 
@@ -356,26 +326,12 @@ impl std::fmt::Debug for RunExecution {
 }
 
 impl ArtifactChunk {
-    pub fn split(
-        transfer_id: impl Into<String>,
-        name: impl Into<String>,
-        mime: impl Into<String>,
-        bytes: Vec<u8>,
-    ) -> Vec<Self> {
+    pub fn split(transfer_id: impl Into<String>, name: impl Into<String>, mime: impl Into<String>, bytes: Vec<u8>) -> Vec<Self> {
         let transfer_id = transfer_id.into();
         let name = name.into();
         let mime = mime.into();
         if bytes.is_empty() {
-            return vec![Self {
-                transfer_id,
-                name,
-                mime,
-                sequence: 0,
-                bytes,
-                last: true,
-                aborted: false,
-                replace: false,
-            }];
+            return vec![Self { transfer_id, name, mime, sequence: 0, bytes, last: true, aborted: false, replace: false }];
         }
         let chunk_count = bytes.len().div_ceil(MAX_ARTIFACT_CHUNK_BYTES);
         bytes

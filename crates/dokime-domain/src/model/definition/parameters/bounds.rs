@@ -100,16 +100,11 @@ pub fn structure(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> cra
     walk(expr, budget, depth, false)
 }
 
-pub fn definition(
-    definition: &crate::model::definition::ParameterDefinition,
-    budget: &mut Budget,
-) -> crate::Result<()> {
+pub fn definition(definition: &crate::model::definition::ParameterDefinition, budget: &mut Budget) -> crate::Result<()> {
     budget.node(0)?;
     metadata(&definition.metadata)?;
     super::validate_numeric_bounds(definition, &Value::Null).map_err(|_| {
-        crate::Error::from(ParameterLimitError::Invalid(
-            "parameter numeric bounds must be finite, ordered, and attached to a numeric type",
-        ))
+        crate::Error::from(ParameterLimitError::Invalid("parameter numeric bounds must be finite, ordered, and attached to a numeric type"))
     })?;
     if let super::ParameterExpansion::Zip { group } = &definition.expansion {
         Budget::text(group.as_str())?;
@@ -141,12 +136,7 @@ pub fn definition(
 }
 
 /* === Private Functions === */
-fn walk(
-    expr: &ParameterExpr,
-    budget: &mut Budget,
-    depth: usize,
-    expansion: bool,
-) -> crate::Result<()> {
+fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool) -> crate::Result<()> {
     budget.node(depth)?;
     match expr {
         ParameterExpr::Literal { value: literal } => {
@@ -167,14 +157,9 @@ fn walk(
             if *step == 0 {
                 return Err(limit());
             }
-            let (mut current, stop, step) =
-                (i128::from(*start), i128::from(*stop), i128::from(*step));
+            let (mut current, stop, step) = (i128::from(*start), i128::from(*stop), i128::from(*step));
             let mut count = 0;
-            while if step > 0 {
-                current <= stop
-            } else {
-                current >= stop
-            } {
+            while if step > 0 { current <= stop } else { current >= stop } {
                 count += 1;
                 if count > MAX_SPACE {
                     return Err(limit());
@@ -189,22 +174,14 @@ fn walk(
         }
         ParameterExpr::Arange { start, stop, step } => {
             if !expansion {
-                return if start.is_finite() && stop.is_finite() && step.is_finite() {
-                    Ok(())
-                } else {
-                    Err(limit())
-                };
+                return if start.is_finite() && stop.is_finite() && step.is_finite() { Ok(()) } else { Err(limit()) };
             }
             if !start.is_finite() || !stop.is_finite() || !step.is_finite() || *step == 0.0 {
                 return Err(limit());
             }
             let mut current = *start;
             let mut count = 0;
-            while if *step > 0.0 {
-                current < *stop
-            } else {
-                current > *stop
-            } {
+            while if *step > 0.0 { current < *stop } else { current > *stop } {
                 count += 1;
                 if count > MAX_SPACE {
                     return Err(limit());
@@ -217,11 +194,7 @@ fn walk(
             }
         }
         ParameterExpr::Linspace { start, stop, count } => {
-            if (expansion && *count > MAX_SPACE)
-                || !start.is_finite()
-                || !stop.is_finite()
-                || (expansion && !(stop - start).is_finite())
-            {
+            if (expansion && *count > MAX_SPACE) || !start.is_finite() || !stop.is_finite() || (expansion && !(stop - start).is_finite()) {
                 return Err(limit());
             }
         }

@@ -85,22 +85,14 @@ pub enum Level {
 /* === Implementations === */
 impl Entry {
     pub fn new(level: Level, message: impl Into<String>) -> Self {
-        Self {
-            level: level as i32,
-            message: message.into(),
-            timestamp: timestamp(),
-        }
+        Self { level: level as i32, message: message.into(), timestamp: timestamp() }
     }
 }
 
 /* === Public Functions === */
 pub fn timestamp() -> String {
     let now = crate::model::time::now_utc();
-    format!(
-        "{}.{:03}Z",
-        &now.as_str()[..19],
-        now.unix_millis().unwrap_or_default() % 1000
-    )
+    format!("{}.{:03}Z", &now.as_str()[..19], now.unix_millis().unwrap_or_default() % 1000)
 }
 
 /* === Private Functions === */

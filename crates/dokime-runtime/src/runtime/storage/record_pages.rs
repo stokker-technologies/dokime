@@ -42,10 +42,7 @@ use crate::{
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn read(
-    view: &ExecutionView,
-    query: ExecutionRecordQuery,
-) -> Result<ExecutionRecordPage> {
+pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> Result<ExecutionRecordPage> {
     let limit = page_limit(query.limit, "record")?;
     let after = Cursor::requested(query.after.as_deref())?;
     let mut reader = RecordReader::open_page(view, after).await?;
@@ -60,11 +57,7 @@ pub(crate) async fn read(
             break;
         }
     }
-    let next = state
-        .as_ref()
-        .filter(|state| state.more)
-        .map(|state| cursor.encode(state.last))
-        .transpose()?;
+    let next = state.as_ref().filter(|state| state.more).map(|state| cursor.encode(state.last)).transpose()?;
     Ok(ExecutionRecordPage {
         checkpoint,
         records: state.map(|state| state.rows).unwrap_or_default(),

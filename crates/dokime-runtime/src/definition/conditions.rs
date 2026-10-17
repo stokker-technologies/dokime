@@ -19,9 +19,9 @@ pub use dokime_domain::model::definition::conditions::RuntimeConditionEvaluation
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::records::evaluate_record_condition;
 use crate::telemetry::{TelemetrySample, evaluate_telemetry_condition};
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -39,15 +39,11 @@ use crate::telemetry::{TelemetrySample, evaluate_telemetry_condition};
 
 /* === Public Functions === */
 pub fn evaluate_runtime_condition(
-    condition: &RuntimeCondition,
-    records: &[RecordEntry],
-    telemetry: &[TelemetrySample],
+    condition: &RuntimeCondition, records: &[RecordEntry], telemetry: &[TelemetrySample],
 ) -> RuntimeConditionEvaluation {
     match condition {
         RuntimeCondition::Record { condition } => evaluate_record_condition(condition, records),
-        RuntimeCondition::Telemetry { condition } => {
-            evaluate_telemetry_condition(condition, telemetry)
-        }
+        RuntimeCondition::Telemetry { condition } => evaluate_telemetry_condition(condition, telemetry),
         RuntimeCondition::All { conditions } => {
             for condition in conditions {
                 let evaluation = evaluate_runtime_condition(condition, records, telemetry);
@@ -55,10 +51,7 @@ pub fn evaluate_runtime_condition(
                     return evaluation;
                 }
             }
-            RuntimeConditionEvaluation {
-                satisfied: true,
-                ..RuntimeConditionEvaluation::default()
-            }
+            RuntimeConditionEvaluation { satisfied: true, ..RuntimeConditionEvaluation::default() }
         }
         RuntimeCondition::Any { conditions } => {
             let mut reasons = Vec::new();
@@ -71,11 +64,7 @@ pub fn evaluate_runtime_condition(
                     reasons.push(reason);
                 }
             }
-            RuntimeConditionEvaluation {
-                satisfied: false,
-                matched_sequence: None,
-                reason: Some(reasons.join("; ")),
-            }
+            RuntimeConditionEvaluation { satisfied: false, matched_sequence: None, reason: Some(reasons.join("; ")) }
         }
     }
 }

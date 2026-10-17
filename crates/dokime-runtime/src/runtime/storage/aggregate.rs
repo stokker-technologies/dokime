@@ -48,18 +48,12 @@ use groups::Groups;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn evaluate(
-    storage: &super::executions::ExecutionStorage,
-    query: &AggregateQuery,
-) -> Result<AggregateOutcome> {
+pub(crate) async fn evaluate(storage: &super::executions::ExecutionStorage, query: &AggregateQuery) -> Result<AggregateOutcome> {
     native_aggregate(&storage.storage, query).await
 }
 
 /// Fold the latest saved domain objects, or every captured record, by the query.
-pub(crate) async fn native_aggregate(
-    storage: &Manager,
-    query: &AggregateQuery,
-) -> Result<AggregateOutcome> {
+pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) -> Result<AggregateOutcome> {
     groups::validate(query)?;
     let groups = match query.source {
         AggregateSource::Cases => {
@@ -71,11 +65,7 @@ pub(crate) async fn native_aggregate(
             Groups::fold(query, &cases.iter().map(Row::Case).collect::<Vec<_>>())?
         }
         AggregateSource::Cycles => {
-            let cycles = latest::<Cycle>(storage)
-                .await?
-                .iter()
-                .map(Cycle::restore)
-                .collect::<std::result::Result<Vec<_>, _>>()?;
+            let cycles = latest::<Cycle>(storage).await?.iter().map(Cycle::restore).collect::<std::result::Result<Vec<_>, _>>()?;
             Groups::fold(query, &cycles.iter().map(Row::Cycle).collect::<Vec<_>>())?
         }
         AggregateSource::Executions | AggregateSource::Steps => {
@@ -91,11 +81,7 @@ pub(crate) async fn native_aggregate(
                     continue;
                 }
                 for (ordinal, step) in execution.steps.iter().enumerate() {
-                    selected.push(Row::Step {
-                        execution,
-                        step,
-                        ordinal,
-                    });
+                    selected.push(Row::Step { execution, step, ordinal });
                 }
             }
             Groups::fold(query, &selected)?
@@ -104,13 +90,7 @@ pub(crate) async fn native_aggregate(
             let entries = storage
                 .read_records::<RecordRow>(RecordRead {
                     at: storage.cursor_saved(),
-                    selection: RecordSelection {
-                        schema: records::schema(),
-                        scope: None,
-                        item: None,
-                        source_start: None,
-                        source_end: None,
-                    },
+                    selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
                     after: 0,
                     filters: Vec::new(),
                 })
@@ -133,12 +113,7 @@ where
     crate::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
     Ok(storage
-        .read_objects::<T>(ObjectRead {
-            at: storage.cursor_saved(),
-            key: None,
-            versions: ObjectVersions::Latest,
-            filters: Vec::new(),
-        })
+        .read_objects::<T>(ObjectRead { at: storage.cursor_saved(), key: None, versions: ObjectVersions::Latest, filters: Vec::new() })
         .await?
         .collect()
         .await?

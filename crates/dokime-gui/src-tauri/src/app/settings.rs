@@ -52,13 +52,8 @@ impl From<String> for DesktopSettingsError {
 
 /* === Public Functions === */
 pub fn setup(app: &tauri::App) {
-    let parameters = application_root(&app.config().identifier)
-        .map(|root| root.join("parameters.json"))
-        .map_err(|error| error.to_string());
-    app.manage(DesktopSettingsState {
-        parameters,
-        serial: Arc::new(tokio::sync::Mutex::new(())),
-    });
+    let parameters = application_root(&app.config().identifier).map(|root| root.join("parameters.json")).map_err(|error| error.to_string());
+    app.manage(DesktopSettingsState { parameters, serial: Arc::new(tokio::sync::Mutex::new(())) });
 }
 
 pub fn application_root(identifier: &str) -> std::io::Result<PathBuf> {
@@ -79,14 +74,11 @@ pub async fn desktop_parameters_read(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence {
-        message: error.to_string(),
-    })
+    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
 }
 
 pub async fn desktop_parameters_write(
-    state: State<'_, DesktopSettingsState>,
-    values: crate::parameters::Values,
+    state: State<'_, DesktopSettingsState>, values: crate::parameters::Values,
 ) -> Result<(), DesktopSettingsError> {
     let serial = state.serial.clone().lock_owned().await;
     let path = state.parameters.clone()?;
@@ -96,28 +88,18 @@ pub async fn desktop_parameters_write(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence {
-        message: error.to_string(),
-    })
+    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
 }
 
-pub async fn desktop_pick_execution_directory(
-    app: AppHandle,
-) -> Result<Option<String>, DesktopSettingsError> {
+pub async fn desktop_pick_execution_directory(app: AppHandle) -> Result<Option<String>, DesktopSettingsError> {
     if remote_backend(&app) {
-        return Err("Execution storage is managed by the remote backend"
-            .to_owned()
-            .into());
+        return Err("Execution storage is managed by the remote backend".to_owned().into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
             .blocking_pick_folder()
-            .map(|path| {
-                path.into_path()
-                    .map(|path| path.display().to_string())
-                    .map_err(|error| error.to_string())
-            })
+            .map(|path| path.into_path().map(|path| path.display().to_string()).map_err(|error| error.to_string()))
             .transpose()
     })
     .await
@@ -128,9 +110,7 @@ pub async fn desktop_pick_execution_directory(
 /* === Private Functions === */
 fn remote_backend(app: &AppHandle) -> bool {
     app.try_state::<crate::native_session::DesktopSessionControl>()
-        .is_some_and(|state| {
-            state.status().ownership == crate::native_session::BackendOwnership::Attached
-        })
+        .is_some_and(|state| state.status().ownership == crate::native_session::BackendOwnership::Attached)
 }
 
 /* === Tests === */

@@ -78,23 +78,10 @@ pub enum DataTransform {
     // One member of the Harmos aggregate vocabulary over the values so far,
     // tagged `aggregate` and named by its display name: `{"type": "aggregate",
     // "aggregate": "p95"}`.
-    Aggregate(
-        #[serde(
-            serialize_with = "serialize_aggregate",
-            deserialize_with = "deserialize_aggregate"
-        )]
-        Aggregate,
-    ),
-    TimeBetween {
-        previous_record_type: String,
-    },
-    TelemetryAtOrBefore {
-        stream: String,
-        field: String,
-    },
-    Detail {
-        name: String,
-    },
+    Aggregate(#[serde(serialize_with = "serialize_aggregate", deserialize_with = "deserialize_aggregate")] Aggregate),
+    TimeBetween { previous_record_type: String },
+    TelemetryAtOrBefore { stream: String, field: String },
+    Detail { name: String },
     PerCase,
 }
 
@@ -117,12 +104,8 @@ impl harmos::MemorySize for DataTransform {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::Aggregate(_) | Self::PerCase => 0,
-            Self::TimeBetween {
-                previous_record_type,
-            } => previous_record_type.capacity(),
-            Self::TelemetryAtOrBefore { stream, field } => {
-                stream.capacity().saturating_add(field.capacity())
-            }
+            Self::TimeBetween { previous_record_type } => previous_record_type.capacity(),
+            Self::TelemetryAtOrBefore { stream, field } => stream.capacity().saturating_add(field.capacity()),
             Self::Detail { name } => name.capacity(),
         };
         std::mem::size_of::<Self>().saturating_add(heap)
@@ -132,28 +115,13 @@ impl harmos::MemorySize for DataTransform {
 impl harmos::MemorySize for DataExpression {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.transforms),
-                std::mem::size_of_val(&self.transforms),
-            ),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.transforms), std::mem::size_of_val(&self.transforms)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -164,11 +132,7 @@ impl DataExpression {
     }
 
     pub(crate) fn axis_label(&self) -> &str {
-        if let Some(label) = self
-            .label
-            .as_deref()
-            .filter(|label| !label.trim().is_empty())
-        {
+        if let Some(label) = self.label.as_deref().filter(|label| !label.trim().is_empty()) {
             return label;
         }
 
@@ -196,11 +160,7 @@ impl DataExpression {
     pub fn try_from_expression(expression: &Expression) -> crate::Result<Self> {
         let (source, transforms) = parse_data_expression(expression)?;
 
-        Ok(Self {
-            label: None,
-            source,
-            transforms,
-        })
+        Ok(Self { label: None, source, transforms })
     }
 
     pub fn aggregate(mut self, aggregate: Aggregate) -> Self {
@@ -246,27 +206,17 @@ impl DataExpression {
     }
 
     pub fn time_between(mut self, previous_record_type: impl Into<String>) -> Self {
-        self.transforms.push(DataTransform::TimeBetween {
-            previous_record_type: previous_record_type.into(),
-        });
+        self.transforms.push(DataTransform::TimeBetween { previous_record_type: previous_record_type.into() });
         self
     }
 
-    pub fn telemetry_at_or_before(
-        mut self,
-        stream: impl Into<String>,
-        field: impl Into<String>,
-    ) -> Self {
-        self.transforms.push(DataTransform::TelemetryAtOrBefore {
-            stream: stream.into(),
-            field: field.into(),
-        });
+    pub fn telemetry_at_or_before(mut self, stream: impl Into<String>, field: impl Into<String>) -> Self {
+        self.transforms.push(DataTransform::TelemetryAtOrBefore { stream: stream.into(), field: field.into() });
         self
     }
 
     pub fn detail(mut self, name: impl Into<String>) -> Self {
-        self.transforms
-            .push(DataTransform::Detail { name: name.into() });
+        self.transforms.push(DataTransform::Detail { name: name.into() });
         self
     }
 
@@ -298,50 +248,23 @@ impl TryFrom<Expression> for DataExpression {
 
 /* === Public Functions === */
 pub fn telemetry(stream: impl Into<String>, field: impl Into<String>) -> DataExpression {
-    DataExpression {
-        label: None,
-        source: DataSource::Telemetry {
-            stream: stream.into(),
-            field: field.into(),
-        },
-        transforms: Vec::new(),
-    }
+    DataExpression { label: None, source: DataSource::Telemetry { stream: stream.into(), field: field.into() }, transforms: Vec::new() }
 }
 
 pub fn parameter(name: impl Into<String>) -> DataExpression {
-    DataExpression {
-        label: None,
-        source: DataSource::Parameter { name: name.into() },
-        transforms: Vec::new(),
-    }
+    DataExpression { label: None, source: DataSource::Parameter { name: name.into() }, transforms: Vec::new() }
 }
 
 pub fn dimension(name: impl Into<String>) -> DataExpression {
-    DataExpression {
-        label: None,
-        source: DataSource::Dimension { name: name.into() },
-        transforms: Vec::new(),
-    }
+    DataExpression { label: None, source: DataSource::Dimension { name: name.into() }, transforms: Vec::new() }
 }
 
 pub fn record(record_type: impl Into<String>) -> DataExpression {
-    DataExpression {
-        label: None,
-        source: DataSource::Record {
-            record_type: record_type.into(),
-        },
-        transforms: Vec::new(),
-    }
+    DataExpression { label: None, source: DataSource::Record { record_type: record_type.into() }, transforms: Vec::new() }
 }
 
 pub fn artifact(artifact: impl Into<String>) -> DataExpression {
-    DataExpression {
-        label: None,
-        source: DataSource::Artifact {
-            artifact: artifact.into(),
-        },
-        transforms: Vec::new(),
-    }
+    DataExpression { label: None, source: DataSource::Artifact { artifact: artifact.into() }, transforms: Vec::new() }
 }
 
 pub fn per_case(expression: impl Into<DataExpression>) -> DataExpression {
@@ -351,56 +274,31 @@ pub fn per_case(expression: impl Into<DataExpression>) -> DataExpression {
 /* === Private Functions === */
 fn data_source_expression(source: DataSource) -> Expression {
     match source {
-        DataSource::Telemetry { stream, field } => Expression::call(
-            FN_DATA_TELEMETRY,
-            vec![Expression::literal(stream), Expression::literal(field)],
-        ),
-        DataSource::Parameter { name } => {
-            Expression::call(FN_DATA_PARAMETER, vec![Expression::literal(name)])
+        DataSource::Telemetry { stream, field } => {
+            Expression::call(FN_DATA_TELEMETRY, vec![Expression::literal(stream), Expression::literal(field)])
         }
-        DataSource::Dimension { name } => {
-            Expression::call(FN_DATA_DIMENSION, vec![Expression::literal(name)])
-        }
-        DataSource::Record { record_type } => {
-            Expression::call(FN_DATA_RECORD, vec![Expression::literal(record_type)])
-        }
-        DataSource::Artifact { artifact } => {
-            Expression::call(FN_DATA_ARTIFACT, vec![Expression::literal(artifact)])
-        }
+        DataSource::Parameter { name } => Expression::call(FN_DATA_PARAMETER, vec![Expression::literal(name)]),
+        DataSource::Dimension { name } => Expression::call(FN_DATA_DIMENSION, vec![Expression::literal(name)]),
+        DataSource::Record { record_type } => Expression::call(FN_DATA_RECORD, vec![Expression::literal(record_type)]),
+        DataSource::Artifact { artifact } => Expression::call(FN_DATA_ARTIFACT, vec![Expression::literal(artifact)]),
     }
 }
 
 fn data_transform_expression(transform: DataTransform, expression: Expression) -> Expression {
     match transform {
-        DataTransform::Aggregate(aggregate) => Expression::call(
-            format!("{FN_TRANSFORM_PREFIX}{}", aggregate.name()),
-            vec![expression],
-        ),
-        DataTransform::TimeBetween {
-            previous_record_type,
-        } => Expression::call(
-            FN_TRANSFORM_TIME_BETWEEN,
-            vec![expression, Expression::literal(previous_record_type)],
-        ),
-        DataTransform::TelemetryAtOrBefore { stream, field } => Expression::call(
-            FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE,
-            vec![
-                expression,
-                Expression::literal(stream),
-                Expression::literal(field),
-            ],
-        ),
-        DataTransform::Detail { name } => Expression::call(
-            FN_TRANSFORM_DETAIL,
-            vec![expression, Expression::literal(name)],
-        ),
+        DataTransform::Aggregate(aggregate) => Expression::call(format!("{FN_TRANSFORM_PREFIX}{}", aggregate.name()), vec![expression]),
+        DataTransform::TimeBetween { previous_record_type } => {
+            Expression::call(FN_TRANSFORM_TIME_BETWEEN, vec![expression, Expression::literal(previous_record_type)])
+        }
+        DataTransform::TelemetryAtOrBefore { stream, field } => {
+            Expression::call(FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE, vec![expression, Expression::literal(stream), Expression::literal(field)])
+        }
+        DataTransform::Detail { name } => Expression::call(FN_TRANSFORM_DETAIL, vec![expression, Expression::literal(name)]),
         DataTransform::PerCase => Expression::call(FN_TRANSFORM_PER_CASE, vec![expression]),
     }
 }
 
-fn parse_data_expression(
-    expression: &Expression,
-) -> Result<(DataSource, Vec<DataTransform>), DataExpressionError> {
+fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<DataTransform>), DataExpressionError> {
     let ExpressionKind::Call { function, args } = &expression.kind else {
         return Err(DataExpressionError::UnsupportedExpression);
     };
@@ -411,70 +309,42 @@ fn parse_data_expression(
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((
-                DataSource::Telemetry {
-                    stream: text_literal(stream)?,
-                    field: text_literal(field)?,
-                },
-                Vec::new(),
-            ))
+            Ok((DataSource::Telemetry { stream: text_literal(stream)?, field: text_literal(field)? }, Vec::new()))
         }
         FN_DATA_PARAMETER => {
             let [name] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((
-                DataSource::Parameter {
-                    name: text_literal(name)?,
-                },
-                Vec::new(),
-            ))
+            Ok((DataSource::Parameter { name: text_literal(name)? }, Vec::new()))
         }
         FN_DATA_DIMENSION => {
             let [name] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((
-                DataSource::Dimension {
-                    name: text_literal(name)?,
-                },
-                Vec::new(),
-            ))
+            Ok((DataSource::Dimension { name: text_literal(name)? }, Vec::new()))
         }
         FN_DATA_RECORD => {
             let [record_type] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((
-                DataSource::Record {
-                    record_type: text_literal(record_type)?,
-                },
-                Vec::new(),
-            ))
+            Ok((DataSource::Record { record_type: text_literal(record_type)? }, Vec::new()))
         }
         FN_DATA_ARTIFACT => {
             let [artifact] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
             };
 
-            Ok((
-                DataSource::Artifact {
-                    artifact: text_literal(artifact)?,
-                },
-                Vec::new(),
-            ))
+            Ok((DataSource::Artifact { artifact: text_literal(artifact)? }, Vec::new()))
         }
         FN_TRANSFORM_TIME_BETWEEN => {
             let [inner, previous_record_type] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
             };
             let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::TimeBetween {
-                previous_record_type: text_literal(previous_record_type)?,
-            });
+            transforms.push(DataTransform::TimeBetween { previous_record_type: text_literal(previous_record_type)? });
 
             Ok((source, transforms))
         }
@@ -483,10 +353,7 @@ fn parse_data_expression(
                 return Err(DataExpressionError::UnsupportedExpression);
             };
             let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::TelemetryAtOrBefore {
-                stream: text_literal(stream)?,
-                field: text_literal(field)?,
-            });
+            transforms.push(DataTransform::TelemetryAtOrBefore { stream: text_literal(stream)?, field: text_literal(field)? });
 
             Ok((source, transforms))
         }
@@ -495,27 +362,19 @@ fn parse_data_expression(
                 return Err(DataExpressionError::UnsupportedExpression);
             };
             let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::Detail {
-                name: text_literal(name)?,
-            });
+            transforms.push(DataTransform::Detail { name: text_literal(name)? });
 
             Ok((source, transforms))
         }
         FN_TRANSFORM_PER_CASE => parse_unary_transform(args, DataTransform::PerCase),
-        function => match function
-            .strip_prefix(FN_TRANSFORM_PREFIX)
-            .and_then(Aggregate::parse)
-        {
+        function => match function.strip_prefix(FN_TRANSFORM_PREFIX).and_then(Aggregate::parse) {
             Some(aggregate) => parse_unary_transform(args, DataTransform::Aggregate(aggregate)),
             None => Err(DataExpressionError::UnsupportedExpression),
         },
     }
 }
 
-fn parse_unary_transform(
-    args: &[Expression],
-    transform: DataTransform,
-) -> Result<(DataSource, Vec<DataTransform>), DataExpressionError> {
+fn parse_unary_transform(args: &[Expression], transform: DataTransform) -> Result<(DataSource, Vec<DataTransform>), DataExpressionError> {
     let [inner] = args else {
         return Err(DataExpressionError::UnsupportedExpression);
     };
@@ -527,10 +386,7 @@ fn parse_unary_transform(
 
 // Internal tagging needs the variant's content to be a map, so the aggregate
 // travels as one named field rather than as a bare string.
-fn serialize_aggregate<S: serde::Serializer>(
-    aggregate: &Aggregate,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+fn serialize_aggregate<S: serde::Serializer>(aggregate: &Aggregate, serializer: S) -> Result<S::Ok, S::Error> {
     use serde::ser::SerializeMap;
 
     let mut map = serializer.serialize_map(Some(1))?;
@@ -538,24 +394,18 @@ fn serialize_aggregate<S: serde::Serializer>(
     map.end()
 }
 
-fn deserialize_aggregate<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Aggregate, D::Error> {
+fn deserialize_aggregate<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Aggregate, D::Error> {
     #[derive(Deserialize)]
     struct Named {
         aggregate: String,
     }
 
     let Named { aggregate } = Named::deserialize(deserializer)?;
-    Aggregate::parse(&aggregate)
-        .ok_or_else(|| serde::de::Error::custom(format_args!("unknown aggregate `{aggregate}`")))
+    Aggregate::parse(&aggregate).ok_or_else(|| serde::de::Error::custom(format_args!("unknown aggregate `{aggregate}`")))
 }
 
 fn text_literal(expression: &Expression) -> Result<String, DataExpressionError> {
-    let ExpressionKind::Literal {
-        value: Value::Text(value),
-    } = &expression.kind
-    else {
+    let ExpressionKind::Literal { value: Value::Text(value) } = &expression.kind else {
         return Err(DataExpressionError::UnsupportedExpression);
     };
 

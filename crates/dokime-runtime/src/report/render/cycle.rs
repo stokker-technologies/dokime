@@ -64,8 +64,7 @@ enum Section {
 /* === Implementations === */
 impl Report<'_> {
     pub(crate) fn write(&self, writer: &mut dyn Write) -> Result<()> {
-        output::write_html(writer, self, REPORT_APP_TEMPLATE)
-            .map_err(|source| Error::InvalidReportInputs(source.to_string()))
+        output::write_html(writer, self, REPORT_APP_TEMPLATE).map_err(|source| Error::InvalidReportInputs(source.to_string()))
     }
 }
 impl fmt::Display for DocumentWarningText<'_> {
@@ -85,14 +84,7 @@ impl Serialize for Report<'_> {
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
         fields.serialize_entry("documents", &self.header.documents)?;
         fields.serialize_entry("generated_at", &self.header.generated_at)?;
-        fields.serialize_entry(
-            "hub",
-            &Hub {
-                generator: "dokime-runtime",
-                name: "Dokime",
-                version: env!("CARGO_PKG_VERSION"),
-            },
-        )?;
+        fields.serialize_entry("hub", &Hub { generator: "dokime-runtime", name: "Dokime", version: env!("CARGO_PKG_VERSION") })?;
         fields.serialize_entry("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
         fields.serialize_entry("schema_version", &1u8)?;
         fields.serialize_entry("snapshot", &SnapshotRows(self))?;
@@ -109,18 +101,15 @@ impl Serialize for Rows<'_, '_> {
         if matches!(self.1, Section::Warnings) {
             // The Header Has No Joined Executions; Only Truly Empty Cycles Get This Warning.
             if report.index.members == 0 {
-                rows.serialize_element("report.no_executions: No executions are available yet; this report reflects the current cycle plan.")?;
-            }
-            if report.header.cycle.result.is_none() {
                 rows.serialize_element(
-                    "report.no_result_summary: No result summary has been produced for this cycle.",
+                    "report.no_executions: No executions are available yet; this report reflects the current cycle plan.",
                 )?;
             }
+            if report.header.cycle.result.is_none() {
+                rows.serialize_element("report.no_result_summary: No result summary has been produced for this cycle.")?;
+            }
         }
-        if matches!(
-            self.1,
-            Section::Templates | Section::PlanCases | Section::Queue
-        ) {
+        if matches!(self.1, Section::Templates | Section::PlanCases | Section::Queue) {
             for (ordinal, case) in report.index.cases.iter().enumerate() {
                 if matches!(self.1, Section::Templates) && !case.first_template {
                     continue;
@@ -182,10 +171,7 @@ impl Serialize for Rows<'_, '_> {
                     started_at: member.started_at.as_ref(),
                     finished_at: member.finished_at.as_ref(),
                     parameters: ReportValues(&member.parameters),
-                    metadata: ExecutionMetadata {
-                        result: member.result.as_ref(),
-                        parameters: ReportValues(&member.parameters),
-                    },
+                    metadata: ExecutionMetadata { result: member.result.as_ref(), parameters: ReportValues(&member.parameters) },
                     steps: Steps(report, member),
                 })?;
             }
@@ -209,10 +195,7 @@ impl Serialize for Rows<'_, '_> {
                 }
                 Section::Artifacts => {
                     for link in &input.artifact_links {
-                        rows.serialize_element(&ArtifactRow {
-                            link,
-                            download_href: &link.href,
-                        })?;
+                        rows.serialize_element(&ArtifactRow { link, download_href: &link.href })?;
                     }
                 }
                 Section::Records => {
@@ -288,10 +271,7 @@ impl Serialize for Telemetry<'_, '_> {
         let mut fields = serializer.serialize_map(None)?;
         let mut remaining = self.0.index.samples.as_slice();
         while let Some(first) = remaining.first() {
-            let count = remaining
-                .iter()
-                .take_while(|sample| sample.stream == first.stream)
-                .count();
+            let count = remaining.iter().take_while(|sample| sample.stream == first.stream).count();
             let (samples, rest) = remaining.split_at(count);
             remaining = rest;
             let returned = selection(count).len();
@@ -339,13 +319,7 @@ impl Serialize for Steps<'_, '_> {
         for (order, step) in member.steps.iter().enumerate() {
             rows.serialize_element(&step_with_owner(report.header, owner(), step, order, None))?;
             for (order, criterion) in step.criteria.iter().enumerate() {
-                rows.serialize_element(&step_with_owner(
-                    report.header,
-                    owner(),
-                    step,
-                    order,
-                    Some(criterion),
-                ))?;
+                rows.serialize_element(&step_with_owner(report.header, owner(), step, order, Some(criterion)))?;
             }
         }
         rows.end()
@@ -357,21 +331,10 @@ impl Serialize for Annotations<'_, '_> {
         let mut rows = serializer.serialize_seq(None)?;
         // Consecutive Annotations From One Member Share One Loaded Capture.
         let mut loaded = None;
-        for annotation in report
-            .index
-            .annotations
-            .iter()
-            .filter(|annotation| annotation.kind == kind)
-        {
-            if loaded
-                .as_ref()
-                .is_none_or(|(member, _)| *member != annotation.member)
-            {
+        for annotation in report.index.annotations.iter().filter(|annotation| annotation.kind == kind) {
+            if loaded.as_ref().is_none_or(|(member, _)| *member != annotation.member) {
                 drop(loaded.take());
-                loaded = Some((
-                    annotation.member,
-                    (report.read)(annotation.member).map_err(serde::ser::Error::custom)?,
-                ));
+                loaded = Some((annotation.member, (report.read)(annotation.member).map_err(serde::ser::Error::custom)?));
             }
             let crate::report::html::Member::Captured(captured) = &loaded.as_ref().unwrap().1;
             let context = &captured.context;
@@ -410,15 +373,9 @@ impl Serialize for Samples<'_, '_> {
         // Consecutive Samples From One Member Share One Original Decoded Loan.
         let mut loaded = None;
         for location in selected_samples(self.1) {
-            if loaded
-                .as_ref()
-                .is_none_or(|(member, _)| *member != location.member)
-            {
+            if loaded.as_ref().is_none_or(|(member, _)| *member != location.member) {
                 drop(loaded.take());
-                loaded = Some((
-                    location.member,
-                    (self.0.read)(location.member).map_err(serde::ser::Error::custom)?,
-                ));
+                loaded = Some((location.member, (self.0.read)(location.member).map_err(serde::ser::Error::custom)?));
             }
             let sample = &loaded.as_ref().unwrap().1.telemetry[location.sample];
             rows.serialize_element(&telemetry::SampleValues(sample))?;
@@ -430,12 +387,8 @@ impl Serialize for Samples<'_, '_> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn selected_samples(
-    samples: &[crate::report::cycle::Sample],
-) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
-    selection(samples.len())
-        .into_iter()
-        .map(move |index| &samples[index])
+fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
+    selection(samples.len()).into_iter().map(move |index| &samples[index])
 }
 
 pub(crate) fn selection(length: usize) -> Vec<usize> {

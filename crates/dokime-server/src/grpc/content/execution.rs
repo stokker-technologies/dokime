@@ -53,17 +53,11 @@ impl Operation for Download {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileDownloadFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::DownloadExecutionFile,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadExecutionFile, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let runtime = &self.resources.runtime;
         let message_limit = self.resources.maximum;
@@ -78,20 +72,12 @@ impl Operation for Download {
             .map_err(stream_failure)?
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
         if source.metadata().size_bytes > super::MAX_CONTENT_BYTES {
-            return Err(Status::resource_exhausted(
-                "execution output exceeds native content limit",
-            ));
+            return Err(Status::resource_exhausted("execution output exceeds native content limit"));
         }
-        let maximum =
-            NonZeroUsize::new(super::transfer_chunk_bytes(message_limit)).ok_or_else(|| {
-                Status::resource_exhausted("message limit cannot contain execution chunk")
-            })?;
-        let metadata = frames::metadata(source.metadata(), message_limit)
-            .map_err(|error| stream_failure(error.into()))?;
-        output
-            .send_owned(metadata.into())
-            .await
-            .map_err(|error| stream_failure(error.into()))?;
+        let maximum = NonZeroUsize::new(super::transfer_chunk_bytes(message_limit))
+            .ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
+        let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(metadata.into()).await.map_err(|error| stream_failure(error.into()))?;
         let mut digest = Sha256::new();
         let mut hashed = 0u64;
         loop {
@@ -99,30 +85,19 @@ impl Operation for Download {
                 break;
             };
             if content.offset != hashed {
-                return Err(Status::data_loss(
-                    "execution output chunk does not continue its prefix",
-                ));
+                return Err(Status::data_loss("execution output chunk does not continue its prefix"));
             }
-            let frame = frames::chunk(&content, message_limit)
-                .map_err(|error| stream_failure(error.into()))?;
+            let frame = frames::chunk(&content, message_limit).map_err(|error| stream_failure(error.into()))?;
             digest.update(&content.bytes);
             hashed = content.offset + content.bytes.len() as u64;
-            output
-                .send_owned(frame.into())
-                .await
-                .map_err(|error| stream_failure(error.into()))?;
+            output.send_owned(frame.into()).await.map_err(|error| stream_failure(error.into()))?;
         }
         if hashed != source.metadata().size_bytes {
-            return Err(Status::data_loss(
-                "execution output ended before declared prefix",
-            ));
+            return Err(Status::data_loss("execution output ended before declared prefix"));
         }
-        let complete = frames::complete(source.metadata().size_bytes, &digest, message_limit)
-            .map_err(|error| stream_failure(error.into()))?;
-        output
-            .send_owned(complete.into())
-            .await
-            .map_err(|error| stream_failure(error.into()))?;
+        let complete =
+            frames::complete(source.metadata().size_bytes, &digest, message_limit).map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(complete.into()).await.map_err(|error| stream_failure(error.into()))?;
         Ok(().into())
     }
 }
@@ -132,10 +107,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -143,15 +115,11 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
-        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => Status::resource_exhausted(
-            format!("execution output exceeds its original {resource} budget"),
-        ),
-        Error::ExecutionFileTooLarge => {
-            Status::resource_exhausted("execution output exceeds native content limit")
+        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => {
+            Status::resource_exhausted(format!("execution output exceeds its original {resource} budget"))
         }
-        Error::ShuttingDown | Error::Interrupted => {
-            Status::unavailable("execution output capture interrupted")
-        }
+        Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),
+        Error::ShuttingDown | Error::Interrupted => Status::unavailable("execution output capture interrupted"),
         _ => Status::internal("execution output could not be captured"),
     };
 

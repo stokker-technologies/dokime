@@ -24,12 +24,12 @@ use harmos::{
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
-use dokime_domain::model::identity::Identifier;
 use crate::storage::telemetry::TypedCodec;
 use crate::storage::telemetry::codec;
 use crate::storage::telemetry::encode_batch;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -46,20 +46,12 @@ use crate::telemetry::TelemetrySample;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn plan(
-    at: &StorageCursor,
-    scope: &str,
-    codec: &TypedCodec,
-    transforms: Vec<Transform>,
-) -> Result<Query> {
+pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transforms: Vec<Transform>) -> Result<Query> {
     Ok(Query {
         at: at.clone(),
         source: Source::Stream(StreamSelection {
             schema: codec.schema().clone(),
-            scope: Some(
-                harmos::Identifier::new(scope)
-                    .map_err(|_| invalid("invalid execution storage scope"))?,
-            ),
+            scope: Some(harmos::Identifier::new(scope).map_err(|_| invalid("invalid execution storage scope"))?),
             item: None,
             stream: None,
             source_start: None,
@@ -67,19 +59,12 @@ pub(super) fn plan(
             after: 0,
         }),
         transforms,
-        slice: RowSlice {
-            offset: 0,
-            limit: None,
-        },
+        slice: RowSlice { offset: 0, limit: None },
     })
 }
 
 pub(in crate::report) async fn read(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    at: &StorageCursor,
-    scope: &str,
-    contract: &TelemetryContract,
+    ctx: &Context<'_>, settings: &crate::config::StorageSettings, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
     transforms: Vec<Transform>,
 ) -> Result<Vec<TelemetrySample>> {
     let codec = codec(contract)?;
@@ -95,22 +80,12 @@ pub(in crate::report) async fn read(
 }
 
 pub(super) async fn streams(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    at: &StorageCursor,
-    scope: &str,
-    contracts: &std::collections::BTreeMap<
-        Identifier,
-        std::collections::BTreeMap<u32, TelemetryContract>,
-    >,
-    selected: &[String],
+    ctx: &Context<'_>, settings: &crate::config::StorageSettings, at: &StorageCursor, scope: &str,
+    contracts: &std::collections::BTreeMap<Identifier, std::collections::BTreeMap<u32, TelemetryContract>>, selected: &[String],
 ) -> Result<Vec<TelemetrySample>> {
     let mut samples = Vec::new();
     for (stream, versions) in contracts {
-        if !selected
-            .iter()
-            .any(|name| crate::plot::stream_matches_alias(stream.as_str(), name))
-        {
+        if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
             continue;
         }
         for contract in versions.values() {
@@ -123,11 +98,7 @@ pub(super) async fn streams(
 
 /* === Private Functions === */
 fn sort(samples: &mut [TelemetrySample]) {
-    samples.sort_by(|left, right| {
-        left.timestamp
-            .cmp(&right.timestamp)
-            .then(left.sequence.cmp(&right.sequence))
-    });
+    samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
 }
 
 /* === Tests === */

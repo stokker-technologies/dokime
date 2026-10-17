@@ -18,13 +18,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::queries::{
-    RuntimeCursor, RuntimeResolution, RuntimeViewFrame, RuntimeViewPayload, RuntimeWindow,
-    reduction::reduce_timestamped_items,
+    RuntimeCursor, RuntimeResolution, RuntimeViewFrame, RuntimeViewPayload, RuntimeWindow, reduction::reduce_timestamped_items,
 };
-use dokime_domain::model::identity::Identifier;
+use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::scope_visible_in;
-use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -54,11 +53,7 @@ pub struct RuntimeTelemetryStreamFrame {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn telemetry_sample_matches(
-    sample: &TelemetrySample,
-    stream_filter: Option<&Identifier>,
-    scope: Option<&RecordScope>,
-) -> bool {
+pub(crate) fn telemetry_sample_matches(sample: &TelemetrySample, stream_filter: Option<&Identifier>, scope: Option<&RecordScope>) -> bool {
     if stream_filter.is_some_and(|filter| &sample.stream != filter) {
         return false;
     }
@@ -69,21 +64,15 @@ pub(crate) fn telemetry_sample_matches(
 }
 
 pub(crate) fn telemetry_frame_from_samples<'a>(
-    samples: impl Iterator<Item = &'a TelemetrySample>,
-    stream_filter: Option<&Identifier>,
-    scope: Option<&RecordScope>,
-    window: &RuntimeWindow,
-    resolution: &RuntimeResolution,
+    samples: impl Iterator<Item = &'a TelemetrySample>, stream_filter: Option<&Identifier>, scope: Option<&RecordScope>,
+    window: &RuntimeWindow, resolution: &RuntimeResolution,
 ) -> (RuntimeTelemetryFrame, Option<u64>) {
     let mut streams = BTreeMap::<Identifier, Vec<TelemetrySample>>::new();
     for sample in samples {
         if !telemetry_sample_matches(sample, stream_filter, scope) {
             continue;
         }
-        streams
-            .entry(sample.stream.clone())
-            .or_default()
-            .push(sample.clone());
+        streams.entry(sample.stream.clone()).or_default().push(sample.clone());
     }
 
     let mut stream_frames = Vec::new();
@@ -93,59 +82,27 @@ pub(crate) fn telemetry_frame_from_samples<'a>(
     let mut high_water = None;
 
     for (stream, samples) in streams {
-        let samples = reduce_timestamped_items(
-            samples,
-            window,
-            resolution,
-            |sample| &sample.timestamp,
-            |sample| Some(sample.sequence),
-        );
+        let samples = reduce_timestamped_items(samples, window, resolution, |sample| &sample.timestamp, |sample| Some(sample.sequence));
         total_samples += samples.total;
         returned_samples += samples.returned.len();
         downsampled |= samples.returned.len() < samples.total;
         high_water = high_water.max(samples.high_water);
 
         if !samples.returned.is_empty() {
-            stream_frames.push(RuntimeTelemetryStreamFrame {
-                stream,
-                samples: samples.returned,
-            });
+            stream_frames.push(RuntimeTelemetryStreamFrame { stream, samples: samples.returned });
         }
     }
 
-    (
-        RuntimeTelemetryFrame {
-            streams: stream_frames,
-            total_samples,
-            returned_samples,
-            downsampled,
-        },
-        high_water,
-    )
+    (RuntimeTelemetryFrame { streams: stream_frames, total_samples, returned_samples, downsampled }, high_water)
 }
 
 pub(crate) fn telemetry_view_frame(
-    samples: &[TelemetrySample],
-    stream_filter: Option<&Identifier>,
-    scope: Option<&RecordScope>,
-    window: &RuntimeWindow,
-    resolution: &RuntimeResolution,
-    request_cursor: Option<RuntimeCursor>,
+    samples: &[TelemetrySample], stream_filter: Option<&Identifier>, scope: Option<&RecordScope>, window: &RuntimeWindow,
+    resolution: &RuntimeResolution, request_cursor: Option<RuntimeCursor>,
 ) -> RuntimeViewFrame {
-    let (frame, high_water) =
-        telemetry_frame_from_samples(samples.iter(), stream_filter, scope, window, resolution);
-    let cursor = RuntimeCursor(
-        request_cursor
-            .map_or(0, |cursor| cursor.0)
-            .max(high_water.unwrap_or(0)),
-    );
-    RuntimeViewFrame {
-        cursor,
-        window: window.clone(),
-        payload: RuntimeViewPayload::Telemetry {
-            frame: Box::new(frame),
-        },
-    }
+    let (frame, high_water) = telemetry_frame_from_samples(samples.iter(), stream_filter, scope, window, resolution);
+    let cursor = RuntimeCursor(request_cursor.map_or(0, |cursor| cursor.0).max(high_water.unwrap_or(0)));
+    RuntimeViewFrame { cursor, window: window.clone(), payload: RuntimeViewPayload::Telemetry { frame: Box::new(frame) } }
 }
 
 /* === Private Functions === */

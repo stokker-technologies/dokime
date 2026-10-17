@@ -73,15 +73,8 @@ struct Follow {
 
 /* === Implementations === */
 impl Watch {
-    pub(super) async fn run(
-        self,
-        output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>,
-    ) -> Result<(), Status> {
-        let replay_lines = if self.replay_lines == 0 {
-            DEFAULT_REPLAY_LINES
-        } else {
-            self.replay_lines.min(MAX_REPLAY_LINES)
-        };
+    pub(super) async fn run(self, output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
+        let replay_lines = if self.replay_lines == 0 { DEFAULT_REPLAY_LINES } else { self.replay_lines.min(MAX_REPLAY_LINES) };
         let mut follow = Follow {
             pending_bytes: 0,
             path: self.path,
@@ -103,9 +96,7 @@ impl Watch {
 }
 
 impl Follow {
-    async fn next(
-        &mut self,
-    ) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
+    async fn next(&mut self) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
         loop {
             if !self.replayed {
                 self.replay().await?;
@@ -115,9 +106,7 @@ impl Follow {
             if let Some(mut frame) = self.pop() {
                 frame.dropped = self.dropped;
                 if frame.encoded_len() > self.message_limit {
-                    return Err(Status::resource_exhausted(
-                        "log frame exceeds the configured message budget",
-                    ));
+                    return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
                 }
                 return Ok(Some(frame.into()));
             }
@@ -213,17 +202,9 @@ impl Follow {
     }
     fn push(&mut self, frame: dokime_domain::model::backend::wire::LogFrame) {
         let bytes = frame.memory_size();
-        let count = if self.replayed {
-            MAX_PENDING_FRAMES
-        } else {
-            self.replay_lines as usize
-        };
-        while !self.pending.is_empty()
-            && (self.pending.len() >= count
-                || self.pending_bytes.saturating_add(bytes) > self.message_limit)
-        {
-            let count_drop =
-                self.replayed || self.pending_bytes.saturating_add(bytes) > self.message_limit;
+        let count = if self.replayed { MAX_PENDING_FRAMES } else { self.replay_lines as usize };
+        while !self.pending.is_empty() && (self.pending.len() >= count || self.pending_bytes.saturating_add(bytes) > self.message_limit) {
+            let count_drop = self.replayed || self.pending_bytes.saturating_add(bytes) > self.message_limit;
             self.pop();
             if count_drop {
                 self.dropped = self.dropped.saturating_add(1);
@@ -232,17 +213,12 @@ impl Follow {
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
         self.pending.push_back(frame);
     }
-    fn frame(
-        &self,
-        line: &[u8],
-    ) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
+    fn frame(&self, line: &[u8]) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
         if frame.memory_size() > self.message_limit || frame.encoded_len() > self.message_limit {
-            return Err(Status::resource_exhausted(
-                "log frame exceeds the configured message budget",
-            ));
+            return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
         }
         Ok(Some(frame))
     }
@@ -253,22 +229,14 @@ impl Follow {
         }
         let record: Value = serde_json::from_str(line).ok()?;
         let record = record.as_object()?;
-        let level = level(
-            record
-                .get("level")
-                .or_else(|| record.get("severity"))?
-                .as_str()?,
-        )?;
+        let level = level(record.get("level").or_else(|| record.get("severity"))?.as_str()?)?;
         if (level as i32) < self.min_level as i32 {
             return None;
         }
 
         let nested = record.get("fields").and_then(Value::as_object);
-        let message = nested
-            .and_then(|fields| fields.get("message"))
-            .or_else(|| record.get("message"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
+        let message =
+            nested.and_then(|fields| fields.get("message")).or_else(|| record.get("message")).and_then(Value::as_str).unwrap_or_default();
         let mut fields = std::collections::BTreeMap::new();
         for (name, value) in nested.into_iter().flatten() {
             if name == "message" {
@@ -281,26 +249,13 @@ impl Follow {
         }
 
         Some(dokime_domain::model::backend::wire::LogFrame {
-            time: record
-                .get("timestamp")
-                .or_else(|| record.get("time"))
-                .and_then(Value::as_str)
-                .and_then(timestamp),
+            time: record.get("timestamp").or_else(|| record.get("time")).and_then(Value::as_str).and_then(timestamp),
             level,
-            target: record
-                .get("target")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned(),
+            target: record.get("target").and_then(Value::as_str).unwrap_or_default().to_owned(),
             message: redaction::text(message),
             fields: fields
                 .into_iter()
-                .map(
-                    |(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry {
-                        key,
-                        value,
-                    },
-                )
+                .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry { key, value })
                 .collect(),
             dropped: 0,
         })
@@ -332,12 +287,8 @@ fn field(name: &str, value: &Value) -> String {
 }
 
 fn timestamp(value: &str) -> Option<Timestamp> {
-    let moment =
-        time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()?;
-    Some(Timestamp {
-        seconds: moment.unix_timestamp(),
-        nanos: moment.nanosecond() as i32,
-    })
+    let moment = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()?;
+    Some(Timestamp { seconds: moment.unix_timestamp(), nanos: moment.nanosecond() as i32 })
 }
 
 fn memory_failure(source: harmos::Error) -> Status {

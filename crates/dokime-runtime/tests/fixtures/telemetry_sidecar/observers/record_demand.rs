@@ -54,14 +54,9 @@ impl RecordDemand {
         Ok(Self { marker })
     }
 
-    async fn observe(
-        &mut self,
-        ctx: &ObserverContext<'_, Resources, Publisher<TelemetrySidecar>>,
-    ) -> Result<(), Error> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<TelemetrySidecar>>) -> Result<(), Error> {
         if ctx.tick().ordinal() == 1 {
-            dokime_runtime::plugin::Publisher::new(ctx.host().supervisor())
-                .publish(Started { ordinal: 1 })
-                .await?;
+            dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(Started { ordinal: 1 }).await?;
         }
 
         Ok(())

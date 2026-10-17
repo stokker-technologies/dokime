@@ -20,9 +20,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::{RuntimeConfig, Settings};
 use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Constants === */
 
@@ -63,16 +63,8 @@ pub(crate) struct PolicyStore {
 impl StoragePolicy {
     pub fn validate(&self) -> Result<()> {
         for (name, value, maximum) in [
-            (
-                "compaction interval",
-                Some(self.compaction_interval_ms),
-                744 * 3_600_000,
-            ),
-            (
-                "local retention",
-                self.local_retention_ms,
-                3650 * 86_400_000,
-            ),
+            ("compaction interval", Some(self.compaction_interval_ms), 744 * 3_600_000),
+            ("local retention", self.local_retention_ms, 3650 * 86_400_000),
         ] {
             if value.is_some_and(|value| value == 0 || value > maximum) {
                 return Err(Error::Admission(AdmissionFailure::Validation {
@@ -87,9 +79,7 @@ impl StoragePolicy {
 
     fn from_config(config: &RuntimeConfig) -> Result<Self> {
         let millis = |value: Duration| {
-            u64::try_from(value.as_millis()).map_err(|_| {
-                Error::Operation("storage policy duration exceeds milliseconds range".into())
-            })
+            u64::try_from(value.as_millis()).map_err(|_| Error::Operation("storage policy duration exceeds milliseconds range".into()))
         };
         Ok(Self {
             compaction_interval_ms: millis(config.compaction_interval)?,
@@ -106,17 +96,10 @@ impl StoragePolicy {
 impl PolicyStore {
     pub(crate) fn open(config: &mut RuntimeConfig, settings: Settings) -> Result<Self> {
         let fallback = StoragePolicy::from_config(config)?;
-        let effective = settings
-            .read(|document| document.storage.clone())
-            .unwrap_or_else(|| fallback.clone());
+        let effective = settings.read(|document| document.storage.clone()).unwrap_or_else(|| fallback.clone());
         effective.validate()?;
         effective.apply(config);
-        Ok(Self {
-            settings,
-            fallback,
-            effective,
-            revision: Mutex::new(0),
-        })
+        Ok(Self { settings, fallback, effective, revision: Mutex::new(0) })
     }
 
     pub(crate) async fn read(&self) -> StoragePolicyView {
@@ -124,11 +107,7 @@ impl PolicyStore {
         self.view(*revision)
     }
 
-    pub(crate) async fn update(
-        &self,
-        expected: u64,
-        policy: StoragePolicy,
-    ) -> Result<StoragePolicyView> {
+    pub(crate) async fn update(&self, expected: u64, policy: StoragePolicy) -> Result<StoragePolicyView> {
         policy.validate()?;
         let mut revision = self.revision.lock().await;
         if *revision != expected {
@@ -140,9 +119,7 @@ impl PolicyStore {
         if self.configured() == policy {
             return Ok(self.view(*revision));
         }
-        let next = expected
-            .checked_add(1)
-            .ok_or_else(|| Error::Operation("storage policy revision exhausted".into()))?;
+        let next = expected.checked_add(1).ok_or_else(|| Error::Operation("storage policy revision exhausted".into()))?;
         let settings = self.settings.clone();
         tokio::task::spawn_blocking(move || {
             settings.edit(|document| {
@@ -157,19 +134,12 @@ impl PolicyStore {
     }
 
     fn configured(&self) -> StoragePolicy {
-        self.settings
-            .read(|document| document.storage.clone())
-            .unwrap_or_else(|| self.fallback.clone())
+        self.settings.read(|document| document.storage.clone()).unwrap_or_else(|| self.fallback.clone())
     }
 
     fn view(&self, revision: u64) -> StoragePolicyView {
         let configured = self.configured();
-        StoragePolicyView {
-            revision,
-            restart_required: configured != self.effective,
-            configured,
-            effective: self.effective.clone(),
-        }
+        StoragePolicyView { revision, restart_required: configured != self.effective, configured, effective: self.effective.clone() }
     }
 }
 
@@ -178,11 +148,7 @@ impl crate::RuntimeHandle {
         Ok(self.storage_policy.read().await)
     }
 
-    pub async fn update_storage_policy(
-        &self,
-        expected: u64,
-        policy: StoragePolicy,
-    ) -> Result<StoragePolicyView> {
+    pub async fn update_storage_policy(&self, expected: u64, policy: StoragePolicy) -> Result<StoragePolicyView> {
         policy.validate()?;
         let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
         if *self.shutdown_requested.borrow() {

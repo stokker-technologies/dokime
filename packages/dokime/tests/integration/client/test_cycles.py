@@ -54,9 +54,7 @@ def test_explicit_cycle() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             # Create Without Planning
-            cycle_id = await client.create_cycle(
-                label="Bench Run", description="Line 2", continue_on_failure=True
-            )
+            cycle_id = await client.create_cycle(label="Bench Run", description="Line 2", continue_on_failure=True)
             assert cycle_id == CYCLE_ID
             assert server.created == 1 and server.append_calls == 0
             request = server.cycle_request
@@ -65,9 +63,7 @@ def test_explicit_cycle() -> None:
             assert request.continue_on_failure
 
             # Append Planned Cases
-            await client.append_cases(
-                cycle_id, suite=SUITE_ID, template=TEMPLATE, parameters={"flag": True}
-            )
+            await client.append_cases(cycle_id, suite=SUITE_ID, template=TEMPLATE, parameters={"flag": True})
             assert server.created == server.append_calls == 1
             assert _wire.decode(server.overrides["flag"].values[0]) is True
 
@@ -148,9 +144,7 @@ def test_invalid_run_requests() -> None:
                 with pytest.raises(ValueError):
                     await cycle.run(request_key=key)
             with pytest.raises(ValueError):
-                await client.new_cycle(
-                    suite=SUITE_ID, template=TEMPLATE, parameters={"voltage": 2**64}
-                )
+                await client.new_cycle(suite=SUITE_ID, template=TEMPLATE, parameters={"voltage": 2**64})
             assert server.created == 1
             assert server.append_calls == 1
             assert server.run_calls == 0

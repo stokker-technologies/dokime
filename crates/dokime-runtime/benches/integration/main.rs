@@ -27,12 +27,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(
-    benches,
-    capture::benchmark,
-    plots::benchmark,
-    storage::benchmark
-);
+criterion_group!(benches, capture::benchmark, plots::benchmark, storage::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

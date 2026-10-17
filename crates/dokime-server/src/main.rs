@@ -83,8 +83,7 @@ fn main() -> ExitCode {
 
 fn load_environment(env_file: Option<&Path>) -> Result<()> {
     if let Some(path) = env_file {
-        return dotenv::from_path(path)
-            .map_err(|_| Error::Input(format!("cannot load environment file {}", path.display())));
+        return dotenv::from_path(path).map_err(|_| Error::Input(format!("cannot load environment file {}", path.display())));
     }
     match dotenv::dotenv() {
         Ok(_) => Ok(()),

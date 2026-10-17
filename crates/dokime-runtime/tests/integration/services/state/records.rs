@@ -17,10 +17,10 @@
 // Third Party Imports
 use harmos::state::Transaction;
 // Local Imports
-use dokime_runtime::{Identifier, Timestamp};
-use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::domains::evidence::RecordPublishRequest;
+use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::transactions::PublishRecord;
+use dokime_runtime::{Identifier, Timestamp};
 
 /* === Constants === */
 
@@ -51,17 +51,12 @@ fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::Runtime
             plugins: vec![dokime_runtime::InstalledPlugin {
                 source: (*source).to_owned(),
                 enabled: true,
-                record_contracts: vec![dokime_runtime::records::RecordContract::declared(
-                    *record_type,
-                    "Fixture record",
-                )],
+                record_contracts: vec![dokime_runtime::records::RecordContract::declared(*record_type, "Fixture record")],
                 ..Default::default()
             }],
         })
         .collect::<Vec<_>>();
-    state
-        .reconcile_providers(&bundles)
-        .expect("the fixture catalog is admitted");
+    state.reconcile_providers(&bundles).expect("the fixture catalog is admitted");
     state
 }
 
@@ -79,9 +74,7 @@ fn plugin_may_declares() {
         )
     };
 
-    publish("bench", "unit.connected")
-        .check(&state)
-        .expect("a plugin narrates what it declared");
+    publish("bench", "unit.connected").check(&state).expect("a plugin narrates what it declared");
     // Somebody else's declaration is not a licence to publish it.
     assert!(publish("bench", "gateway.clamped").check(&state).is_err());
     // Nor is a type nobody declared at all.
@@ -114,11 +107,5 @@ fn admission_order_publishers() {
     // The fold carries the scope it was given and invents none. That the
     // requests arrived unscoped is the publication pump's doing, pinned where
     // the pump is.
-    assert!(
-        state
-            .records
-            .record_visibility
-            .iter()
-            .all(|visibility| visibility.scope.is_none())
-    );
+    assert!(state.records.record_visibility.iter().all(|visibility| visibility.scope.is_none()));
 }

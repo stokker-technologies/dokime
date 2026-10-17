@@ -31,20 +31,11 @@ use crate::terminal::{ColorMode, color_mode};
 
 /* === Structs === */
 #[derive(Debug, clap::Args)]
-#[command(
-    about = "Run The Installed Dokime Server; Arguments After -- Reach It Verbatim.",
-    trailing_var_arg = true
-)]
+#[command(about = "Run The Installed Dokime Server; Arguments After -- Reach It Verbatim.", trailing_var_arg = true)]
 pub struct Args {
-    #[arg(
-        long,
-        help = "Server executable. Defaults to the installed dokime-server."
-    )]
+    #[arg(long, help = "Server executable. Defaults to the installed dokime-server.")]
     server: Option<PathBuf>,
-    #[arg(
-        allow_hyphen_values = true,
-        help = "Arguments forwarded to the server."
-    )]
+    #[arg(allow_hyphen_values = true, help = "Arguments forwarded to the server.")]
     arguments: Vec<OsString>,
 }
 

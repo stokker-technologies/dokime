@@ -116,14 +116,8 @@ pub(super) struct RecordingSinks(Arc<Mutex<HashMap<String, Arc<Recording>>>>);
 
 /* === Implementations === */
 impl Outcome {
-    fn complete(
-        &self,
-        result: Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError>,
-    ) {
-        let mut guard = self
-            .result
-            .lock()
-            .expect("artifact upload outcome poisoned");
+    fn complete(&self, result: Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError>) {
+        let mut guard = self.result.lock().expect("artifact upload outcome poisoned");
         if guard.is_some() {
             return;
         }
@@ -132,21 +126,14 @@ impl Outcome {
         self.ready.notify_waiters();
     }
 
-    async fn wait(
-        &self,
-    ) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
+    async fn wait(&self) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
         loop {
             // Register the notification before inspecting the result. A
             // completion between those operations must wake this waiter.
             let notified = self.ready.notified();
             tokio::pin!(notified);
             notified.as_mut().enable();
-            if let Some(result) = self
-                .result
-                .lock()
-                .expect("artifact upload outcome poisoned")
-                .clone()
-            {
+            if let Some(result) = self.result.lock().expect("artifact upload outcome poisoned").clone() {
                 return result;
             }
             notified.await;
@@ -173,9 +160,7 @@ impl Drop for SettleOnDrop {
 
 impl ArtifactUploads {
     fn open(
-        &self,
-        context: Context,
-        header: dokime_domain::model::content::wire::UploadArtifactHeader,
+        &self, context: Context, header: dokime_domain::model::content::wire::UploadArtifactHeader,
     ) -> Result<tauri::ipc::Response, RpcError> {
         context.check()?;
         if header.encoded_len() > MAX_FRAME_BYTES {
@@ -184,9 +169,7 @@ impl ArtifactUploads {
         let (sender, receiver) = mpsc::channel(2);
         sender
             .try_send(dokime_domain::model::content::wire::UploadArtifactFrame {
-                payload: Some(
-                    dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header),
-                ),
+                payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)),
             })
             .map_err(|_| RpcError::Busy)?;
         let context = Arc::new(context);
@@ -196,12 +179,7 @@ impl ArtifactUploads {
             context: Arc::clone(&context),
             cancel: cancel.clone(),
             last_access: Mutex::new(tokio::time::Instant::now()),
-            writer: tokio::sync::Mutex::new(UploadWriter {
-                sender: Some(sender),
-                next_sequence: 1,
-                offset: 0,
-                digest: Sha256::new(),
-            }),
+            writer: tokio::sync::Mutex::new(UploadWriter { sender: Some(sender), next_sequence: 1, offset: 0, digest: Sha256::new() }),
             outcome: Arc::clone(&outcome),
         });
         // Reserve a registry slot before starting the remote call. A
@@ -230,10 +208,7 @@ impl ArtifactUploads {
         if registry.entries.len() >= MAX_ACTIVE_UPLOADS {
             return Err(RpcError::LimitExceeded);
         }
-        registry.next_id = registry
-            .next_id
-            .checked_add(1)
-            .ok_or(RpcError::LimitExceeded)?;
+        registry.next_id = registry.next_id.checked_add(1).ok_or(RpcError::LimitExceeded)?;
         let id = registry.next_id;
         let mut response = upload.context.generation.to_le_bytes().to_vec();
         response.extend(id.to_le_bytes());
@@ -265,21 +240,12 @@ impl ArtifactUploads {
         registry
             .entries
             .get(&id)
-            .filter(|upload| {
-                upload.context.owner == owner && upload.context.generation == generation
-            })
+            .filter(|upload| upload.context.owner == owner && upload.context.generation == generation)
             .cloned()
             .ok_or(RpcError::UnknownStream)
     }
 
-    async fn write(
-        &self,
-        owner: &str,
-        generation: u64,
-        id: u64,
-        sequence: u64,
-        bytes: Vec<u8>,
-    ) -> Result<(), RpcError> {
+    async fn write(&self, owner: &str, generation: u64, id: u64, sequence: u64, bytes: Vec<u8>) -> Result<(), RpcError> {
         if bytes.len() > MAX_UPLOAD_SLICE_BYTES {
             return Err(RpcError::LimitExceeded);
         }
@@ -294,22 +260,14 @@ impl ArtifactUploads {
             drop(writer);
             return Err(upload.outcome.error().await);
         };
-        *upload
-            .last_access
-            .lock()
-            .expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
+        *upload.last_access.lock().expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
         let offset = writer.offset;
         let length = bytes.len() as u64;
         writer.digest.update(&bytes);
         let frame = dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(
-                dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
-                    dokime_domain::model::content::wire::ArtifactChunk {
-                        offset,
-                        data: bytes,
-                    },
-                ),
-            ),
+            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
+                dokime_domain::model::content::wire::ArtifactChunk { offset, data: bytes },
+            )),
         };
         let sent = tokio::select! {
             biased;
@@ -329,14 +287,8 @@ impl ArtifactUploads {
         match sent {
             Ok(()) => {
                 writer.offset = offset.checked_add(length).ok_or(RpcError::LimitExceeded)?;
-                writer.next_sequence = writer
-                    .next_sequence
-                    .checked_add(1)
-                    .ok_or(RpcError::LimitExceeded)?;
-                *upload
-                    .last_access
-                    .lock()
-                    .expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
+                writer.next_sequence = writer.next_sequence.checked_add(1).ok_or(RpcError::LimitExceeded)?;
+                *upload.last_access.lock().expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
                 Ok(())
             }
             Err(error) => {
@@ -350,18 +302,10 @@ impl ArtifactUploads {
         }
     }
 
-    async fn finish(
-        &self,
-        owner: &str,
-        generation: u64,
-        id: u64,
-    ) -> Result<tauri::ipc::Response, RpcError> {
+    async fn finish(&self, owner: &str, generation: u64, id: u64) -> Result<tauri::ipc::Response, RpcError> {
         let upload = self.get(owner, generation, id)?;
         upload.context.check()?;
-        *upload
-            .last_access
-            .lock()
-            .expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
+        *upload.last_access.lock().expect("artifact upload idle timer poisoned") = tokio::time::Instant::now();
         let mut writer = upload.writer.lock().await;
         let Some(sender) = writer.sender.take() else {
             drop(writer);
@@ -371,18 +315,12 @@ impl ArtifactUploads {
         let digest = std::mem::replace(&mut writer.digest, Sha256::new());
         drop(writer);
         let completion = dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(
-                dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
-                    dokime_domain::model::content::wire::ArtifactCompletion {
-                        size_bytes,
-                        sha256: digest
-                            .finalize()
-                            .iter()
-                            .map(|byte| format!("{byte:02x}"))
-                            .collect::<String>(),
-                    },
-                ),
-            ),
+            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
+                dokime_domain::model::content::wire::ArtifactCompletion {
+                    size_bytes,
+                    sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
+                },
+            )),
         };
         // A closed receiver here just means the remote call already ended;
         // the outcome wait below surfaces that failure.
@@ -404,9 +342,7 @@ impl ArtifactUploads {
 
     fn remove(&self, owner: &str, generation: u64, id: u64) {
         let mut registry = self.0.lock().expect("artifact upload registry poisoned");
-        if registry.entries.get(&id).is_some_and(|upload| {
-            upload.context.owner == owner && upload.context.generation == generation
-        }) {
+        if registry.entries.get(&id).is_some_and(|upload| upload.context.owner == owner && upload.context.generation == generation) {
             registry.entries.remove(&id);
         }
     }
@@ -427,12 +363,7 @@ impl ArtifactUploads {
 impl Registry {
     fn prune(&mut self) {
         self.entries.retain(|_, upload| {
-            let expired = upload
-                .last_access
-                .lock()
-                .expect("artifact upload idle timer poisoned")
-                .elapsed()
-                >= IDLE_TIMEOUT;
+            let expired = upload.last_access.lock().expect("artifact upload idle timer poisoned").elapsed() >= IDLE_TIMEOUT;
             if upload.cancel.is_cancelled()
                 || upload.context.owner_cancel.is_cancelled()
                 || upload.context.lease.cancellation().is_cancelled()
@@ -449,10 +380,7 @@ impl Registry {
 
 impl RecordingSinks {
     async fn open(
-        &self,
-        context: Context,
-        header: dokime_domain::model::content::wire::UploadArtifactHeader,
-        directory: std::path::PathBuf,
+        &self, context: Context, header: dokime_domain::model::content::wire::UploadArtifactHeader, directory: std::path::PathBuf,
     ) -> Result<tauri::ipc::Response, RpcError> {
         context.check()?;
         {
@@ -462,18 +390,10 @@ impl RecordingSinks {
                 return Err(RpcError::Busy);
             }
         }
-        tokio::fs::create_dir_all(&directory)
-            .await
-            .map_err(|_| RpcError::InvalidRequest)?;
+        tokio::fs::create_dir_all(&directory).await.map_err(|_| RpcError::InvalidRequest)?;
         ensure_private_recording_directory(&directory);
-        let path = directory.join(format!(
-            "{}-{}.rec",
-            context.generation,
-            rand::random::<u64>()
-        ));
-        let file = tokio::fs::File::create(&path)
-            .await
-            .map_err(|_| RpcError::InvalidRequest)?;
+        let path = directory.join(format!("{}-{}.rec", context.generation, rand::random::<u64>()));
+        let file = tokio::fs::File::create(&path).await.map_err(|_| RpcError::InvalidRequest)?;
         let owner = context.owner.clone();
         let recording = Arc::new(Recording {
             context: Arc::new(context),
@@ -484,10 +404,7 @@ impl RecordingSinks {
             header,
         });
         let response = recording.context.reply_bytes(&[])?;
-        self.0
-            .lock()
-            .expect("recording registry poisoned")
-            .insert(owner, recording);
+        self.0.lock().expect("recording registry poisoned").insert(owner, recording);
         Ok(response)
     }
 
@@ -496,21 +413,12 @@ impl RecordingSinks {
         recording.context.check()?;
         let mut file = recording.file.lock().await;
         use tokio::io::AsyncWriteExt;
-        file.write_all(&bytes)
-            .await
-            .map_err(|_| RpcError::InvalidRequest)?;
-        *recording
-            .last_access
-            .lock()
-            .expect("recording idle timer poisoned") = tokio::time::Instant::now();
+        file.write_all(&bytes).await.map_err(|_| RpcError::InvalidRequest)?;
+        *recording.last_access.lock().expect("recording idle timer poisoned") = tokio::time::Instant::now();
         Ok(())
     }
 
-    pub(super) async fn take(
-        &self,
-        owner: &str,
-        generation: u64,
-    ) -> Result<RecordingHandle, RpcError> {
+    pub(super) async fn take(&self, owner: &str, generation: u64) -> Result<RecordingHandle, RpcError> {
         let recording = {
             let mut registry = self.0.lock().expect("recording registry poisoned");
             registry.remove(owner).ok_or(RpcError::UnknownStream)?
@@ -523,22 +431,13 @@ impl RecordingSinks {
             let mut file = recording.file.lock().await;
             file.flush().await.map_err(|_| RpcError::InvalidRequest)?;
         }
-        Ok(RecordingHandle {
-            lease: recording.context.lease.clone(),
-            path: recording.path.clone(),
-            header: recording.header.clone(),
-        })
+        Ok(RecordingHandle { lease: recording.context.lease.clone(), path: recording.path.clone(), header: recording.header.clone() })
     }
 
     fn get(&self, owner: &str, generation: u64) -> Result<Arc<Recording>, RpcError> {
         let mut registry = self.0.lock().expect("recording registry poisoned");
         registry.retain(|_, recording| {
-            let expired = recording
-                .last_access
-                .lock()
-                .expect("recording idle timer poisoned")
-                .elapsed()
-                >= RECORDING_IDLE_TIMEOUT;
+            let expired = recording.last_access.lock().expect("recording idle timer poisoned").elapsed() >= RECORDING_IDLE_TIMEOUT;
             if recording.cancel.is_cancelled()
                 || recording.context.owner_cancel.is_cancelled()
                 || recording.context.lease.cancellation().is_cancelled()
@@ -552,9 +451,7 @@ impl RecordingSinks {
         });
         registry
             .get(owner)
-            .filter(|recording| {
-                recording.context.owner == owner && recording.context.generation == generation
-            })
+            .filter(|recording| recording.context.owner == owner && recording.context.generation == generation)
             .cloned()
             .ok_or(RpcError::UnknownStream)
     }
@@ -569,9 +466,7 @@ impl RecordingSinks {
 
     fn remove(&self, owner: &str, generation: u64) {
         let mut registry = self.0.lock().expect("recording registry poisoned");
-        if registry.get(owner).is_some_and(|recording| {
-            recording.context.owner == owner && recording.context.generation == generation
-        }) {
+        if registry.get(owner).is_some_and(|recording| recording.context.owner == owner && recording.context.generation == generation) {
             registry.remove(owner);
         }
     }
@@ -591,25 +486,17 @@ impl RecordingSinks {
 /* === Public Functions === */
 #[tauri::command]
 pub async fn artifact_upload_open<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) = bridge
-        .prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(
-            &session,
-            webview.label(),
-            request.body(),
-        )?;
+    let (context, header) =
+        bridge.prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
     bridge.uploads.open(context, header)
 }
 
 #[tauri::command]
 pub async fn artifact_upload_write<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, payload) = super::request(request.body())?;
@@ -617,23 +504,12 @@ pub async fn artifact_upload_write<R: tauri::Runtime>(
     if payload.len() < 16 {
         return Err(RpcError::InvalidRequest);
     }
-    bridge
-        .uploads
-        .write(
-            webview.label(),
-            generation,
-            read_u64(payload)?,
-            read_u64(&payload[8..])?,
-            payload[16..].to_vec(),
-        )
-        .await
+    bridge.uploads.write(webview.label(), generation, read_u64(payload)?, read_u64(&payload[8..])?, payload[16..].to_vec()).await
 }
 
 #[tauri::command]
 pub async fn artifact_upload_finish<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
     let (generation, payload) = super::request(request.body())?;
@@ -641,17 +517,12 @@ pub async fn artifact_upload_finish<R: tauri::Runtime>(
     if payload.len() != 8 {
         return Err(RpcError::InvalidRequest);
     }
-    bridge
-        .uploads
-        .finish(webview.label(), generation, read_u64(payload)?)
-        .await
+    bridge.uploads.finish(webview.label(), generation, read_u64(payload)?).await
 }
 
 #[tauri::command]
 pub async fn artifact_upload_cancel<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, payload) = super::request(request.body())?;
@@ -659,56 +530,36 @@ pub async fn artifact_upload_cancel<R: tauri::Runtime>(
     if payload.len() != 8 {
         return Err(RpcError::InvalidRequest);
     }
-    bridge
-        .uploads
-        .cancel(webview.label(), generation, read_u64(payload)?)
-        .await
+    bridge.uploads.cancel(webview.label(), generation, read_u64(payload)?).await
 }
 
 #[tauri::command]
 pub async fn recording_open<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
-    app: tauri::AppHandle<R>,
-    request: tauri::ipc::Request<'_>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
+    app: tauri::AppHandle<R>, request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) = bridge
-        .prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(
-            &session,
-            webview.label(),
-            request.body(),
-        )?;
+    let (context, header) =
+        bridge.prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
     let directory = {
         use tauri::Manager;
-        app.path()
-            .app_cache_dir()
-            .map_err(|_| RpcError::InvalidRequest)?
-            .join("recordings")
+        app.path().app_cache_dir().map_err(|_| RpcError::InvalidRequest)?.join("recordings")
     };
     bridge.recordings.open(context, header, directory).await
 }
 
 #[tauri::command]
 pub async fn recording_write<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, payload) = super::request(request.body())?;
     session.lease(&generation.to_string())?;
-    bridge
-        .recordings
-        .write(webview.label(), generation, payload.to_vec())
-        .await
+    bridge.recordings.write(webview.label(), generation, payload.to_vec()).await
 }
 
 #[tauri::command]
 pub async fn recording_cancel<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
+    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, _payload) = super::request(request.body())?;
@@ -717,9 +568,7 @@ pub async fn recording_cancel<R: tauri::Runtime>(
 }
 
 /* === Private Functions === */
-async fn wait_with_heartbeat(
-    upload: &Upload,
-) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
+async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
     let outcome = upload.outcome.wait();
     tokio::pin!(outcome);
     loop {

@@ -22,9 +22,8 @@ mod telemetry_domain;
 /* === Re-Exports === */
 // The stream set is a contract both ends compile; it lives in the api crate.
 pub use config::{
-    DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, DEFAULT_BLUETOOTH_INTERVAL, DEFAULT_HOST_INTERVAL,
-    DEFAULT_NETWORK_LINK_INTERVAL, DEFAULT_WIFI_LATENCY_INTERVAL, DEFAULT_WIFI_SCAN_INTERVAL,
-    HostOptions, HostTelemetryConfig, HostTelemetrySourceKind,
+    DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL, DEFAULT_BLUETOOTH_INTERVAL, DEFAULT_HOST_INTERVAL, DEFAULT_NETWORK_LINK_INTERVAL,
+    DEFAULT_WIFI_LATENCY_INTERVAL, DEFAULT_WIFI_SCAN_INTERVAL, HostOptions, HostTelemetryConfig, HostTelemetrySourceKind,
 };
 pub use dokime_domain::model::telemetry::HOST_STREAMS;
 pub use dokime_domain::model::telemetry::HostTelemetryStream;
@@ -38,9 +37,7 @@ pub use sample::HostStreamSample;
 
 pub use tasks::HostTelemetryTaskSpec;
 pub use telemetry::HostTelemetryCollector;
-pub use telemetry_domain::{
-    default_host_telemetry_collector, host_telemetry_collector, installed_plugin,
-};
+pub use telemetry_domain::{default_host_telemetry_collector, host_telemetry_collector, installed_plugin};
 
 /* === Imports === */
 // Standard Library Imports
@@ -72,8 +69,7 @@ where
     T: TryFrom<String>,
     T::Error: std::fmt::Debug,
 {
-    T::try_from(uuid::Uuid::now_v7().to_string())
-        .expect("a freshly generated UUID is a valid Dokime identity")
+    T::try_from(uuid::Uuid::now_v7().to_string()).expect("a freshly generated UUID is a valid Dokime identity")
 }
 
 /* === Tests === */

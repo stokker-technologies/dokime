@@ -55,14 +55,7 @@ impl Host {
     pub async fn launch_in(root: &Path, plugin: Option<&Path>) -> Self {
         let mut command = Command::new(super::artifacts::host_binary());
         command
-            .args([
-                "--dev-control",
-                "--shutdown-stdin",
-                "--no-seed-validation-artifact",
-                "--port",
-                "0",
-                "--output-root",
-            ])
+            .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
             .arg(root.join("data"))
             .arg("--application-root")
             .arg(root.join("application"))
@@ -82,13 +75,9 @@ impl Host {
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let mut phases = Vec::new();
         let ready = loop {
-            let line = lines
-                .next_line()
-                .await
-                .unwrap()
-                .expect("the backend exited before reporting readiness");
-            let event: serde_json::Value = serde_json::from_str(&line)
-                .unwrap_or_else(|error| panic!("unparseable readiness line {line:?}: {error}"));
+            let line = lines.next_line().await.unwrap().expect("the backend exited before reporting readiness");
+            let event: serde_json::Value =
+                serde_json::from_str(&line).unwrap_or_else(|error| panic!("unparseable readiness line {line:?}: {error}"));
             if event["event"] != "phase" {
                 break event;
             }
@@ -103,40 +92,21 @@ impl Host {
         assert_eq!(ready["dev_protocol"], 4);
         assert_eq!(ready["transport"], "grpc");
         let endpoint = ready["endpoint"].as_str().unwrap().to_owned();
-        Self {
-            child,
-            endpoint,
-            replies: lines,
-            _root: None,
-        }
+        Self { child, endpoint, replies: lines, _root: None }
     }
 
     /// Sends one dev-control command line and returns the host's reply line.
     pub async fn command(&mut self, request: serde_json::Value) -> serde_json::Value {
         let stdin = self.child.stdin.as_mut().unwrap();
-        stdin
-            .write_all(format!("{request}\n").as_bytes())
-            .await
-            .unwrap();
+        stdin.write_all(format!("{request}\n").as_bytes()).await.unwrap();
         stdin.flush().await.unwrap();
-        let line = self
-            .replies
-            .next_line()
-            .await
-            .unwrap()
-            .expect("the host replies before exiting");
+        let line = self.replies.next_line().await.unwrap().expect("the host replies before exiting");
         serde_json::from_str(&line).unwrap()
     }
 
     /// Connects an unauthenticated local client to the host.
     pub async fn connect(&self) -> dokime_client::Client {
-        dokime_client::Client::connect(
-            dokime_client::Target::local(&self.endpoint).unwrap(),
-            None,
-            None,
-        )
-        .await
-        .unwrap()
+        dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
     }
 
     /// Stops the host by closing stdin or, with `signal`, by SIGINT, and
@@ -145,11 +115,7 @@ impl Host {
     pub async fn stop(mut self, signal: bool) {
         if signal {
             let pid = self.child.id().unwrap().to_string();
-            let status = Command::new("kill")
-                .args(["-INT", &pid])
-                .status()
-                .await
-                .unwrap();
+            let status = Command::new("kill").args(["-INT", &pid]).status().await.unwrap();
             assert!(status.success());
         } else {
             drop(self.child.stdin.take());

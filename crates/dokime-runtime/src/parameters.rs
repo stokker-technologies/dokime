@@ -18,10 +18,10 @@ use std::fmt::Display;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::values::Value;
 use crate::definition::Parameter;
 use crate::expressions::DataExpression;
 use crate::values::FieldValue;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const CHOICE_LABELS: &str = "choice_labels";
@@ -85,10 +85,7 @@ pub trait ParameterValue: Send + Sync + Sized + 'static {
 /* === Implementations === */
 impl ParameterChoice {
     pub fn new(value: impl Into<Value>, label: impl Into<String>) -> Self {
-        Self {
-            value: value.into(),
-            label: label.into(),
-        }
+        Self { value: value.into(), label: label.into() }
     }
 }
 
@@ -143,12 +140,7 @@ pub fn declare<T: ParameterValue>(identifier: &str, label: &str, required: bool)
     with_choices(optionality(declared, required), T::choices())
 }
 
-pub fn declare_list<T: ParameterValue>(
-    identifier: &str,
-    label: &str,
-    required: bool,
-    bounds: Bounds,
-) -> Parameter {
+pub fn declare_list<T: ParameterValue>(identifier: &str, label: &str, required: bool, bounds: Bounds) -> Parameter {
     let declared = Parameter::list(identifier, label, <T::Base as FieldValue>::VALUE_TYPE);
     let declared = match bounds.min_items {
         Some(fewest) => declared.min_items(fewest),
@@ -162,21 +154,13 @@ pub fn declare_list<T: ParameterValue>(
     with_choices(optionality(declared, required), T::choices())
 }
 
-pub fn scalar<T: ParameterValue>(
-    values: &BTreeMap<String, Value>,
-    name: &str,
-    bounds: Bounds,
-) -> crate::Result<T> {
+pub fn scalar<T: ParameterValue>(values: &BTreeMap<String, Value>, name: &str, bounds: Bounds) -> crate::Result<T> {
     let value = present(values, name)?;
     bounded(name, value, bounds)?;
     refine::<T>(name, Some(value))
 }
 
-pub fn optional<T: ParameterValue>(
-    values: &BTreeMap<String, Value>,
-    name: &str,
-    bounds: Bounds,
-) -> crate::Result<Option<T>> {
+pub fn optional<T: ParameterValue>(values: &BTreeMap<String, Value>, name: &str, bounds: Bounds) -> crate::Result<Option<T>> {
     match present(values, name)? {
         Value::Null => Ok(None),
         value => {
@@ -186,19 +170,11 @@ pub fn optional<T: ParameterValue>(
     }
 }
 
-pub fn list<T: ParameterValue>(
-    values: &BTreeMap<String, Value>,
-    name: &str,
-    bounds: Bounds,
-) -> crate::Result<Vec<T>> {
+pub fn list<T: ParameterValue>(values: &BTreeMap<String, Value>, name: &str, bounds: Bounds) -> crate::Result<Vec<T>> {
     items::<T>(name, present(values, name)?, bounds)
 }
 
-pub fn optional_list<T: ParameterValue>(
-    values: &BTreeMap<String, Value>,
-    name: &str,
-    bounds: Bounds,
-) -> crate::Result<Option<Vec<T>>> {
+pub fn optional_list<T: ParameterValue>(values: &BTreeMap<String, Value>, name: &str, bounds: Bounds) -> crate::Result<Option<Vec<T>>> {
     match present(values, name)? {
         Value::Null => Ok(None),
         value => items::<T>(name, value, bounds).map(Some),
@@ -207,30 +183,18 @@ pub fn optional_list<T: ParameterValue>(
 
 /* === Private Functions === */
 fn refused(parameter: impl Into<String>, reason: impl Into<String>) -> crate::Error {
-    crate::Error::Parameter {
-        name: parameter.into(),
-        reason: reason.into(),
-    }
+    crate::Error::Parameter { name: parameter.into(), reason: reason.into() }
 }
 
 fn optionality(declared: Parameter, required: bool) -> Parameter {
-    if required {
-        declared
-    } else {
-        declared.optional()
-    }
+    if required { declared } else { declared.optional() }
 }
 
 fn with_choices(declared: Parameter, choices: Option<Vec<ParameterChoice>>) -> Parameter {
     let Some(choices) = choices else {
         return declared;
     };
-    let labels = Value::Object(
-        choices
-            .iter()
-            .map(|choice| (label_key(&choice.value), Value::from(choice.label.clone())))
-            .collect(),
-    );
+    let labels = Value::Object(choices.iter().map(|choice| (label_key(&choice.value), Value::from(choice.label.clone()))).collect());
     let mut declared = declared.choices(choices.into_iter().map(|choice| choice.value));
     declared.extensions.insert(CHOICE_LABELS.to_owned(), labels);
 
@@ -249,14 +213,11 @@ fn label_key(value: &Value) -> String {
 }
 
 fn present<'a>(values: &'a BTreeMap<String, Value>, name: &str) -> crate::Result<&'a Value> {
-    values
-        .get(name)
-        .ok_or_else(|| refused(name, "the case resolved no value for it"))
+    values.get(name).ok_or_else(|| refused(name, "the case resolved no value for it"))
 }
 
 fn refine<T: ParameterValue>(name: &str, value: Option<&Value>) -> crate::Result<T> {
-    let base = <T::Base as FieldValue>::from_value(value)
-        .map_err(|error| refused(name, error.named(name).to_string()))?;
+    let base = <T::Base as FieldValue>::from_value(value).map_err(|error| refused(name, error.named(name).to_string()))?;
 
     T::refine(base).map_err(|message| refused(name, message))
 }
@@ -288,18 +249,12 @@ fn bounded(name: &str, value: &Value, bounds: Bounds) -> crate::Result<()> {
     if let Some(min) = bounds.min
         && number < min
     {
-        return Err(refused(
-            name,
-            format!("is {number} and the lowest it may be is {min}"),
-        ));
+        return Err(refused(name, format!("is {number} and the lowest it may be is {min}")));
     }
     if let Some(max) = bounds.max
         && number > max
     {
-        return Err(refused(
-            name,
-            format!("is {number} and the highest it may be is {max}"),
-        ));
+        return Err(refused(name, format!("is {number} and the highest it may be is {max}")));
     }
 
     Ok(())

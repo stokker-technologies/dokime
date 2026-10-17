@@ -19,8 +19,7 @@
 // Local Imports
 
 /* === Constants === */
-pub const REPORT_APP_TEMPLATE: &str =
-    include_str!(concat!(env!("OUT_DIR"), "/report-template.html"));
+pub const REPORT_APP_TEMPLATE: &str = include_str!(concat!(env!("OUT_DIR"), "/report-template.html"));
 
 /* === Macros === */
 

@@ -55,11 +55,7 @@ pub struct Overcurrent {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime_runtime::record(
-    id = "obc.charger.protection.started",
-    label = "Charger energized",
-    description = "The supply was energized."
-)]
+#[dokime_runtime::record(id = "obc.charger.protection.started", label = "Charger energized", description = "The supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
@@ -157,10 +153,7 @@ bench!(Parameters);
     streams = Streams,
     parameters = Parameters, description = "Walk the declared ladder of loads and verify that the RMS protection latch disconnects the Charger.")]
 impl Overcurrent {
-    async fn initialize(
-        supply: &Parameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         readiness::ready(ctx).await?;
         Ok(Self {
             device: Device::initialize(supply.supply()).map_err(Error::Device)?,
@@ -172,10 +165,7 @@ impl Overcurrent {
         })
     }
     fn document() -> Document {
-        let mut document = measurement::document(
-            <Samples as dokime_runtime::StreamSpec>::ID,
-            "Overcurrent Protection",
-        );
+        let mut document = measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Overcurrent Protection");
         document.section(system::section(TEMPLATE));
         document
     }
@@ -189,14 +179,8 @@ impl Overcurrent {
         self.device.start().map_err(Error::Device)?;
         ctx.publish(Started {}).await;
         let reading = self.device.sample(0.1);
-        self.initially_powered = self.device.power == Power::Running
-            && self.device.fault.is_none()
-            && reading.current_rms_a > 0.0;
-        let phase = if self.initially_powered {
-            "running"
-        } else {
-            "initial_fault"
-        };
+        self.initially_powered = self.device.power == Power::Running && self.device.fault.is_none() && reading.current_rms_a > 0.0;
+        let phase = if self.initially_powered { "running" } else { "initial_fault" };
         publish(ctx, &mut self.published, reading, phase).await;
         Ok(())
     }
@@ -213,14 +197,8 @@ impl Overcurrent {
             self.device.supply.load_ohm = load_ohm;
             elapsed_s += interval_s;
             let reading = self.device.sample(elapsed_s);
-            self.fault_observed = self.initially_powered
-                && self.device.fault == Some(Fault::Overcurrent)
-                && reading.current_rms_a == 0.0;
-            let phase = if self.fault_observed {
-                "faulted"
-            } else {
-                "loaded"
-            };
+            self.fault_observed = self.initially_powered && self.device.fault == Some(Fault::Overcurrent) && reading.current_rms_a == 0.0;
+            let phase = if self.fault_observed { "faulted" } else { "loaded" };
             publish(ctx, &mut self.published, reading, phase).await;
             if self.fault_observed {
                 self.tripped_at_step = rung as u64 + 1;
@@ -242,9 +220,7 @@ impl Overcurrent {
         publish(ctx, &mut self.published, reading, "disconnected").await;
         self.device.stop();
         ctx.publish(Stopped {
-            accepted: self.fault_observed
-                && self.restart_blocked
-                && self.device.power == Power::Faulted,
+            accepted: self.fault_observed && self.restart_blocked && self.device.power == Power::Faulted,
             tripped_at_step: self.tripped_at_step,
         })
         .await;
@@ -270,12 +246,7 @@ impl Overcurrent {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn publish<T, O, I>(
-    ctx: &mut StepContext<'_, T, O, I>,
-    published: &mut u64,
-    reading: Reading,
-    phase: &str,
-) {
+async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
     measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
     *published += 1;
 }

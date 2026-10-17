@@ -17,10 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 use serde_json::Value as JsonValue;
 // Local Imports
-use super::{
-    PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotDomain, PlotSeries,
-    parse_timestamp,
-};
+use super::{PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotDomain, PlotSeries, parse_timestamp};
 use crate::document::{AxisScale, PlotType};
 
 /* === Constants === */
@@ -54,10 +51,7 @@ impl Ord for OrderedFloat {
 
 /* === Public Functions === */
 pub(super) fn cartesian_frame(
-    series: &[PlotSeries],
-    plot_type: Option<&PlotType>,
-    x_scale: &AxisScale,
-    y_scale: &AxisScale,
+    series: &[PlotSeries], plot_type: Option<&PlotType>, x_scale: &AxisScale, y_scale: &AxisScale,
 ) -> Option<PlotCartesianFrame> {
     let mode = plot_type.and_then(cartesian_mode)?;
     match mode {
@@ -72,11 +66,7 @@ pub(super) fn draws_cartesian(plot_type: &PlotType) -> bool {
 }
 
 /* === Private Functions === */
-fn aligned_cartesian_frame(
-    series: &[PlotSeries],
-    x_scale: &AxisScale,
-    y_scale: &AxisScale,
-) -> PlotCartesianFrame {
+fn aligned_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> PlotCartesianFrame {
     let mut x_values = Vec::<f64>::new();
     let mut x_seen = BTreeSet::<OrderedFloat>::new();
     let series_maps = series
@@ -109,21 +99,14 @@ fn aligned_cartesian_frame(
         .iter()
         .map(|points| PlotCartesianSeriesFrame {
             x: x_values.clone(),
-            y: x_values
-                .iter()
-                .map(|x| points.get(&OrderedFloat(*x)).copied().flatten())
-                .collect(),
+            y: x_values.iter().map(|x| points.get(&OrderedFloat(*x)).copied().flatten()).collect(),
         })
         .collect::<Vec<_>>();
 
     cartesian_frame_from_series(PlotCartesianMode::Aligned, frames)
 }
 
-fn faceted_cartesian_frame(
-    series: &[PlotSeries],
-    x_scale: &AxisScale,
-    y_scale: &AxisScale,
-) -> PlotCartesianFrame {
+fn faceted_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> PlotCartesianFrame {
     let frames = series
         .iter()
         .map(|series| {
@@ -142,33 +125,20 @@ fn faceted_cartesian_frame(
                 x_values.push(x);
                 y_values.push(Some(y));
             }
-            PlotCartesianSeriesFrame {
-                x: x_values,
-                y: y_values,
-            }
+            PlotCartesianSeriesFrame { x: x_values, y: y_values }
         })
         .collect::<Vec<_>>();
 
     cartesian_frame_from_series(PlotCartesianMode::Faceted, frames)
 }
 
-fn cartesian_frame_from_series(
-    mode: PlotCartesianMode,
-    series: Vec<PlotCartesianSeriesFrame>,
-) -> PlotCartesianFrame {
-    let point_count = series
-        .iter()
-        .map(|series| series.y.iter().filter(|value| value.is_some()).count())
-        .sum();
+fn cartesian_frame_from_series(mode: PlotCartesianMode, series: Vec<PlotCartesianSeriesFrame>) -> PlotCartesianFrame {
+    let point_count = series.iter().map(|series| series.y.iter().filter(|value| value.is_some()).count()).sum();
     let signature = cartesian_signature(&series);
     PlotCartesianFrame {
         mode,
         x_domain: plot_domain(series.iter().flat_map(|series| series.x.iter().copied())),
-        y_domain: plot_domain(
-            series
-                .iter()
-                .flat_map(|series| series.y.iter().flatten().copied()),
-        ),
+        y_domain: plot_domain(series.iter().flat_map(|series| series.y.iter().flatten().copied())),
         series,
         point_count,
         signature,
@@ -178,9 +148,7 @@ fn cartesian_frame_from_series(
 fn cartesian_mode(plot_type: &PlotType) -> Option<PlotCartesianMode> {
     match plot_type {
         PlotType::TimeSeries | PlotType::FrequencySeries => Some(PlotCartesianMode::Aligned),
-        PlotType::XyLine | PlotType::XyScatter | PlotType::XyInterval | PlotType::Trajectory => {
-            Some(PlotCartesianMode::Faceted)
-        }
+        PlotType::XyLine | PlotType::XyScatter | PlotType::XyInterval | PlotType::Trajectory => Some(PlotCartesianMode::Faceted),
         _ => None,
     }
 }
@@ -197,9 +165,7 @@ fn plot_point_x_value(value: &JsonValue, fallback: usize) -> Option<f64> {
 }
 
 fn plot_y_value(value: Option<f64>, scale: &AxisScale) -> Option<f64> {
-    value
-        .filter(|value| value.is_finite())
-        .filter(|value| !matches!(scale, AxisScale::Log) || *value > 0.0)
+    value.filter(|value| value.is_finite()).filter(|value| !matches!(scale, AxisScale::Log) || *value > 0.0)
 }
 
 fn plot_domain(values: impl Iterator<Item = f64>) -> Option<PlotDomain> {

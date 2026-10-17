@@ -42,9 +42,7 @@ impl Budget {
     }
     pub(super) fn node(&mut self, depth: usize) -> Result<(), Status> {
         if depth > 32 || self.0 == 0 {
-            return Err(Status::resource_exhausted(
-                "value/expression budget exceeded",
-            ));
+            return Err(Status::resource_exhausted("value/expression budget exceeded"));
         }
         self.0 -= 1;
         Ok(())

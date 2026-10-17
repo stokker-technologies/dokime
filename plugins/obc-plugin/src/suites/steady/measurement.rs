@@ -205,84 +205,33 @@ bench!(Parameters);
     attributes(path = "Testbench/Steady State", provider = "sidecar"),
     parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples one shared Charger.")]
 impl Steady {
-    async fn initialize(
-        _: &Parameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<(Self, SteadyResources), Error> {
+    async fn initialize(_: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<(Self, SteadyResources), Error> {
         readiness::ready(ctx).await?;
-        let template = Self {
-            accepted: false,
-            prompt_action: String::new(),
-        };
+        let template = Self { accepted: false, prompt_action: String::new() };
 
         let shared = SteadyResources {
-            device: Mutex::new(
-                Device::initialize(ctx.parameters().supply()).map_err(Error::Device)?,
-            ),
+            device: Mutex::new(Device::initialize(ctx.parameters().supply()).map_err(Error::Device)?),
             interval_s: ctx.parameters().sample_interval_s,
             produced: AtomicU64::new(0),
         };
         Ok((template, shared))
     }
 
-    async fn traceability(
-        &self,
-        ctx: &TraceabilityContext<'_>,
-    ) -> Result<Vec<TraceabilitySection>, Error> {
-        let supply = ctx
-            .resources()
-            .device
-            .lock()
-            .map_err(|_| Error::DeviceResourcePoisoned)?
-            .supply;
+    async fn traceability(&self, ctx: &TraceabilityContext<'_>) -> Result<Vec<TraceabilitySection>, Error> {
+        let supply = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.supply;
 
         // Device Under Test
         let mut dut = TraceabilitySection::new("dut", "Device Under Test");
         dut.row(TraceabilityRow::text("model", "Model", "ObcPlugin AC load"));
-        dut.row(
-            TraceabilityRow::number(
-                "nominal_voltage_rms_v",
-                "Nominal Supply",
-                supply.voltage_rms_v,
-            )
-            .unit("V")
-            .source("device"),
-        );
-        dut.row(
-            TraceabilityRow::number("load_ohm", "Load Impedance", supply.load_ohm)
-                .unit("ohm")
-                .source("device"),
-        );
-        dut.row(
-            TraceabilityRow::number("frequency_hz", "Line Frequency", supply.frequency_hz)
-                .unit("Hz")
-                .source("device"),
-        );
-        dut.row(
-            TraceabilityRow::number(
-                "current_limit_a",
-                "Protection Limit",
-                supply.current_limit_a,
-            )
-            .unit("A")
-            .source("device"),
-        );
+        dut.row(TraceabilityRow::number("nominal_voltage_rms_v", "Nominal Supply", supply.voltage_rms_v).unit("V").source("device"));
+        dut.row(TraceabilityRow::number("load_ohm", "Load Impedance", supply.load_ohm).unit("ohm").source("device"));
+        dut.row(TraceabilityRow::number("frequency_hz", "Line Frequency", supply.frequency_hz).unit("Hz").source("device"));
+        dut.row(TraceabilityRow::number("current_limit_a", "Protection Limit", supply.current_limit_a).unit("A").source("device"));
 
         // Bench
         let mut bench = TraceabilitySection::new("bench", "Bench");
-        bench.row(TraceabilityRow::text(
-            "application",
-            "Application",
-            "ObcPlugin testbench",
-        ));
-        bench.row(
-            TraceabilityRow::number(
-                "sample_interval_s",
-                "Sample Interval",
-                ctx.resources().interval_s,
-            )
-            .unit("s"),
-        );
+        bench.row(TraceabilityRow::text("application", "Application", "ObcPlugin testbench"));
+        bench.row(TraceabilityRow::number("sample_interval_s", "Sample Interval", ctx.resources().interval_s).unit("s"));
 
         Ok(vec![dut, bench])
     }
@@ -294,12 +243,7 @@ impl Steady {
     #[dokime_runtime::step(label = "Initialize and Energize Charger")]
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
-        ctx.resources()
-            .device
-            .lock()
-            .map_err(|_| Error::DeviceResourcePoisoned)?
-            .start()
-            .map_err(Error::Device)?;
+        ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.start().map_err(Error::Device)?;
         ctx.info("record=sidecar_started");
         ctx.publish(Started {}).await;
         Ok(())
@@ -313,13 +257,7 @@ impl Steady {
         let wanted = ctx.parameters().sample_count()?;
         let interval_s = ctx.resources().interval_s;
         let events = ctx.stream::<BenchEvent>().open();
-        events
-            .push(BenchEvent {
-                event: "hold_started".into(),
-                elapsed_s: 0.0,
-                voltage_rms_v: nominal(ctx)?,
-            })
-            .await;
+        events.push(BenchEvent { event: "hold_started".into(), elapsed_s: 0.0, voltage_rms_v: nominal(ctx)? }).await;
         // An exact number of rows rather than a length of time, so what the run
         // measured does not depend on how quickly it got going. Counted off the
         // sampler's own counter rather than awaited by type: `InputMeasurement` is one
@@ -328,13 +266,7 @@ impl Steady {
         while ctx.resources().produced.load(Ordering::Acquire) < wanted {
             tokio::time::sleep(STEADY_SAMPLE_POLL).await;
         }
-        events
-            .push(BenchEvent {
-                event: "hold_reached".into(),
-                elapsed_s: wanted as f64 * interval_s,
-                voltage_rms_v: nominal(ctx)?,
-            })
-            .await;
+        events.push(BenchEvent { event: "hold_reached".into(), elapsed_s: wanted as f64 * interval_s, voltage_rms_v: nominal(ctx)? }).await;
         ctx.info(format!("record=sidecar_held samples={wanted}"));
         Ok(())
     }
@@ -343,70 +275,45 @@ impl Steady {
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.info("record=sidecar_prompt_requested");
         let response = ctx
-            .ask(checkpoint::SteadyCheck {
-                operator_note: "Waveform and charger status indicator stable".into(),
-                ..Default::default()
-            })
+            .ask(checkpoint::SteadyCheck { operator_note: "Waveform and charger status indicator stable".into(), ..Default::default() })
             .await?;
         self.accepted = response.accepted;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();
-        ctx.info(format!(
-            "record=sidecar_prompt_answered action={} accepted={}",
-            self.prompt_action, self.accepted
-        ));
+        ctx.info(format!("record=sidecar_prompt_answered action={} accepted={}", self.prompt_action, self.accepted));
         Ok(())
     }
 
     #[dokime_runtime::step(label = "Attach Measurement Evidence")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let device = ctx
-            .resources()
-            .device
-            .lock()
-            .map_err(|_| Error::DeviceResourcePoisoned)?
-            .clone();
+        let device = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.clone();
         let produced = ctx.resources().produced.load(Ordering::Acquire);
-        ctx.publish(Completed {
-            sample_count: produced,
-            accepted: self.accepted && device.fault.is_none(),
-        })
-        .await;
+        ctx.publish(Completed { sample_count: produced, accepted: self.accepted && device.fault.is_none() }).await;
         let summary = serde_json::to_vec_pretty(&serde_json::json!({
             "supply": device.supply,
             "sample_count": produced,
             "prompt_action": self.prompt_action,
             "accepted": self.accepted,
         }))?;
-        ctx.artifacts()
-            .write("charger/steady-state-summary.json", summary)?;
+        ctx.artifacts().write("charger/steady-state-summary.json", summary)?;
         Ok(())
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        ctx.resources()
-            .device
-            .lock()
-            .map_err(|_| Error::DeviceResourcePoisoned)?
-            .stop();
+        ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.stop();
         ctx.info("Charger resources released");
         Ok(())
     }
 
     #[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = STEADY_ACCEPTANCE_CRITERION_LABEL, description = "Passed once the sampler reached the case's sample count and the operator accepted the trace.")]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        Ok(
-            ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
-                && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?,
-        )
+        Ok(ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
+            && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
     }
 
     #[dokime_runtime::observer(interval_ms = 50, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let row = reading(ctx.resources())?;
-        ctx.stream::<InputMeasurement>()
-            .into::<Samples>()
-            .push(row)
-            .await;
+        ctx.stream::<InputMeasurement>().into::<Samples>().push(row).await;
 
         Ok(())
     }
@@ -418,11 +325,7 @@ impl Steady {
 fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
     let index = resources.produced.fetch_add(1, Ordering::AcqRel);
     let elapsed_s = 0.1 + index as f64 * resources.interval_s;
-    let measured = resources
-        .device
-        .lock()
-        .map_err(|_| Error::DeviceResourcePoisoned)?
-        .sample(elapsed_s);
+    let measured = resources.device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.sample(elapsed_s);
 
     Ok(InputMeasurement {
         sample_index: index as i64,
@@ -441,13 +344,7 @@ fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
 }
 
 fn nominal(ctx: &StepContext<'_, Steady, SteadyResources, Parameters>) -> Result<f64, Error> {
-    Ok(ctx
-        .resources()
-        .device
-        .lock()
-        .map_err(|_| Error::DeviceResourcePoisoned)?
-        .supply
-        .voltage_rms_v)
+    Ok(ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.supply.voltage_rms_v)
 }
 
 fn steady_voltage(identifier: &str) -> PlotDefinition {
@@ -473,9 +370,7 @@ fn steady_current() -> PlotDefinition {
 
 fn steady_document() -> Document {
     let mut execution = Section::new("AC Voltage");
-    execution.plot(steady_voltage(
-        "obc.charger.steady.measurement.execution.signals",
-    ));
+    execution.plot(steady_voltage("obc.charger.steady.measurement.execution.signals"));
     execution.plot(steady_current());
 
     let mut document = Document::new("default", "Charging Input Measurement");
@@ -483,21 +378,9 @@ fn steady_document() -> Document {
 
     let mut charging = Section::new("Battery Charging");
     for (column, label, unit) in [
-        (
-            InputMeasurement::column_dc_voltage_v(),
-            "Battery Voltage",
-            "V",
-        ),
-        (
-            InputMeasurement::column_dc_current_a(),
-            "Charging Current",
-            "A",
-        ),
-        (
-            InputMeasurement::column_input_power_w(),
-            "AC Input Power",
-            "W",
-        ),
+        (InputMeasurement::column_dc_voltage_v(), "Battery Voltage", "V"),
+        (InputMeasurement::column_dc_current_a(), "Charging Current", "A"),
+        (InputMeasurement::column_input_power_w(), "AC Input Power", "W"),
     ] {
         let mut plot = Plot::time_series(label);
         plot.id(format!("obc.charger.steady.{}", column.field()));

@@ -62,10 +62,7 @@ fn serve_writes_records() {
         .collect();
     assert_eq!(records.len(), 2, "{contents}");
 
-    let expected = [
-        ("INFO", "backend reached storage", "phase", "\"storage\""),
-        ("WARN", "plugin handshake retried", "attempts", "3"),
-    ];
+    let expected = [("INFO", "backend reached storage", "phase", "\"storage\""), ("WARN", "plugin handshake retried", "attempts", "3")];
     for (record, (level, message, field, value)) in records.iter().zip(expected) {
         assert_eq!(record["level"], level, "{record}");
         assert_eq!(record["target"], "dokime_runtime::hub", "{record}");
@@ -121,19 +118,11 @@ fn reopened_log_rotates() {
     tracing::info!("second record");
     drop(guards);
     let contents = std::fs::read_to_string(&path).unwrap();
-    let records: Vec<serde_json::Value> = contents
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
+    let records: Vec<serde_json::Value> = contents.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
     assert_eq!(records.len(), 2);
     assert_eq!(records[0]["fields"]["message"], "first record");
     assert_eq!(records[1]["fields"]["message"], "second record");
-    assert_eq!(
-        std::fs::metadata(path.with_file_name("dokime.jsonl.1"))
-            .unwrap()
-            .len(),
-        32 * 1024 * 1024
-    );
+    assert_eq!(std::fs::metadata(path.with_file_name("dokime.jsonl.1")).unwrap().len(), 32 * 1024 * 1024);
 }
 
 #[test]
@@ -151,11 +140,7 @@ fn plain_rolling_file() {
         .filter(|entry| entry.file_name() != "dokime.jsonl")
         .collect();
     assert_eq!(files.len(), 1, "exactly one plain rolling file");
-    assert!(
-        std::fs::read_to_string(files[0].path())
-            .unwrap()
-            .contains("boot phase reached storage")
-    );
+    assert!(std::fs::read_to_string(files[0].path()).unwrap().contains("boot phase reached storage"));
     assert!(!root.path().join("diagnostics/profiles").exists());
 }
 
@@ -188,12 +173,7 @@ fn profiling_prunes_runs() {
     assert!(profiles.join("dev-4").is_dir());
     assert!(profiles.join("dev-5").is_dir());
     assert!(profiles.join("keep-me").is_dir());
-    let current = runs
-        .iter()
-        .find(|entry| entry.path().join("server.trace.json").exists())
-        .unwrap();
+    let current = runs.iter().find(|entry| entry.path().join("server.trace.json").exists()).unwrap();
     assert!(current.path().join("server.folded").is_file());
-    let _: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(current.path().join("server.trace.json")).unwrap())
-            .unwrap();
+    let _: serde_json::Value = serde_json::from_slice(&std::fs::read(current.path().join("server.trace.json")).unwrap()).unwrap();
 }

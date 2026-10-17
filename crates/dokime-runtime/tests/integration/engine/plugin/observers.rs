@@ -26,9 +26,7 @@ use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
 // Local Imports
 use dokime_runtime::Value;
-use dokime_runtime::execution::{
-    CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow,
-};
+use dokime_runtime::execution::{CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::{Refusal, Supervisor};
@@ -36,8 +34,7 @@ use dokime_runtime::{Refusal, Supervisor};
 /* === Constants === */
 const SUITE: &str = "observer.checks";
 
-static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> =
-    LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
+static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
 super::native::observer_control!(OwnerObserveControl, "observer-fixture");
@@ -253,9 +250,7 @@ impl GetCount {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetCountResponse, Refusal> {
-        Ok(GetCountResponse {
-            checks: self.0.probe.checks.load(Ordering::SeqCst) as u64,
-        })
+        Ok(GetCountResponse { checks: self.0.probe.checks.load(Ordering::SeqCst) as u64 })
     }
 }
 
@@ -266,16 +261,12 @@ impl GetProbe {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetProbeResponse, Refusal> {
-        Ok(GetProbeResponse {
-            token: self.0.token.clone(),
-            credentials: self.0.credentials,
-        })
+        Ok(GetProbeResponse { token: self.0.token.clone(), credentials: self.0.credentials })
     }
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Owner {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -310,10 +301,7 @@ impl dokime_runtime::Plugin for Owner {
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<OwnerObservers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<OwnerObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -324,16 +312,11 @@ impl dokime_runtime::Plugin for Owner {
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, OwnerSuites>(table)?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<OwnerObserveControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<OwnerObserveControl>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| {
-            Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>
-        })
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -355,10 +338,7 @@ impl dokime_runtime::Plugin for Owner {
 
 #[dokime_runtime::observer(interval_ms = 5)]
 impl StatelessWatch {
-    async fn observe(
-        &mut self,
-        ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>,
-    ) -> Result<(), WatchError> {
+    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
         let _ = (ctx.resources(), ctx.tick());
         Ok(())
     }
@@ -371,24 +351,14 @@ impl Watch {
         Ok(Self(Arc::clone(&shared.probe)))
     }
 
-    async fn observe(
-        &mut self,
-        ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>,
-    ) -> Result<(), WatchError> {
+    async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
         let host = ctx.host().supervisor();
-        let credentials = host
-            .call_as::<GetProbeDeclaration>(())
-            .await
-            .map(|response| response.into_owned())?
-            .credentials;
+        let credentials = host.call_as::<GetProbeDeclaration>(()).await.map(|response| response.into_owned())?.credentials;
         self.0.credentials.store(credentials, Ordering::Release);
         self.0.bump(&self.0.credential_ticks);
         let index = ctx.tick().ordinal() - 1;
-        ctx.publish_on::<ObservationRow>(&ObservationRow { index })
-            .await?;
-        dokime_runtime::plugin::Publisher::new(host)
-            .publish(Observed { index })
-            .await?;
+        ctx.publish_on::<ObservationRow>(&ObservationRow { index }).await?;
+        dokime_runtime::plugin::Publisher::new(host).publish(Observed { index }).await?;
         self.0.bump(&self.0.checks);
         Ok(())
     }
@@ -400,8 +370,7 @@ impl Watch {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for MissingCredentials {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -458,9 +427,7 @@ impl Checks {}
     requires = AwaitEventRequired
 )]
 impl AwaitEvent {
-    async fn initialize(
-        _ctx: &mut InitializationContext<'_>,
-    ) -> dokime_runtime::Result<(Self, AttemptResources)> {
+    async fn initialize(_ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, AttemptResources)> {
         let template = Self;
         let shared = AttemptResources(tokio::sync::Notify::new());
         Ok((template, shared))
@@ -474,15 +441,8 @@ impl AwaitEvent {
         let _ = counted.checks;
         ctx.publish(Observed { index: 999 }).await;
         ctx.resources().0.notify_one();
-        let observed = ctx
-            .listen::<Observed>()
-            .next()
-            .await
-            .expect("the observer publishes");
-        assert_eq!(
-            observed.index, 0,
-            "a step does not hear its own publication"
-        );
+        let observed = ctx.listen::<Observed>().next().await.expect("the observer publishes");
+        assert_eq!(observed.index, 0, "a step does not hear its own publication");
         ctx.publish(Observed { index: 777 }).await;
         // On the paused clock the window elapses only once every task is idle.
         let mut repeated = ctx.listen::<Observed>().skip(1);
@@ -505,12 +465,7 @@ impl AwaitEvent {
         let counted = ctx.call::<GetCount>(()).await?;
         ctx.info(format!("the plugin has answered {} checks", counted.checks));
 
-        Ok(ctx
-            .records::<Observed>()?
-            .iter()
-            .map(|record| record.index)
-            .collect::<Vec<_>>()
-            == [999, 0, 777])
+        Ok(ctx.records::<Observed>()?.iter().map(|record| record.index).collect::<Vec<_>>() == [999, 0, 777])
     }
 
     #[dokime_runtime::observer(interval_ms = 5, records = ObserveRecords)]
@@ -544,15 +499,10 @@ impl Faults {
 
     #[dokime_runtime::step(label = "Wait For Independent Observers")]
     async fn proceed(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
-        ctx.listen::<SuiteObserved>()
-            .next()
-            .await
-            .expect("the healthy observer continues");
+        ctx.listen::<SuiteObserved>().next().await.expect("the healthy observer continues");
         *self.0.released.lock().unwrap() = true;
         self.0.release.notify_all();
-        self.0
-            .until(|probe| probe.failed.load(Ordering::SeqCst) >= 2)
-            .await;
+        self.0.until(|probe| probe.failed.load(Ordering::SeqCst) >= 2).await;
         Ok(())
     }
 
@@ -585,12 +535,7 @@ impl Faults {
         // Holds its thread until the step releases it; a starved sibling or
         // step never does, and the lane deadline ends the story.
         let released = probe.released.lock().unwrap();
-        drop(
-            probe
-                .release
-                .wait_while(released, |released| !*released)
-                .unwrap(),
-        );
+        drop(probe.release.wait_while(released, |released| !*released).unwrap());
         Ok(())
     }
 }
@@ -620,14 +565,8 @@ impl Pending {
         std::future::pending().await
     }
 
-    async fn cleanup(
-        &mut self,
-        _: &mut dokime_runtime::execution::CleanupContext<'_>,
-    ) -> dokime_runtime::Result<()> {
-        assert!(
-            self.0.dropped.load(Ordering::SeqCst),
-            "pending check dropped before cleanup"
-        );
+    async fn cleanup(&mut self, _: &mut dokime_runtime::execution::CleanupContext<'_>) -> dokime_runtime::Result<()> {
+        assert!(self.0.dropped.load(Ordering::SeqCst), "pending check dropped before cleanup");
         self.0.attempt_cleaned.store(true, Ordering::SeqCst);
         Ok(())
     }
@@ -639,29 +578,17 @@ impl Pending {
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
-    PROBES
-        .lock()
-        .expect("the probe registry is never poisoned")
-        .insert(token.clone(), Arc::clone(probe));
+    PROBES.lock().expect("the probe registry is never poisoned").insert(token.clone(), Arc::clone(probe));
 
     token
 }
 
 fn probe(token: &str) -> Arc<Probe> {
-    Arc::clone(
-        PROBES
-            .lock()
-            .expect("the probe registry is never poisoned")
-            .get(token)
-            .expect("a run names a probe this file registered"),
-    )
+    Arc::clone(PROBES.lock().expect("the probe registry is never poisoned").get(token).expect("a run names a probe this file registered"))
 }
 
 fn answered(token: String) -> impl Fn(()) -> GetProbeResponse + Send + Sync + 'static {
-    move |()| GetProbeResponse {
-        token: token.clone(),
-        credentials: true,
-    }
+    move |()| GetProbeResponse { token: token.clone(), credentials: true }
 }
 
 /* === Tests === */
@@ -669,10 +596,8 @@ fn answered(token: String) -> impl Fn(()) -> GetProbeResponse + Send + Sync + 's
 #[tokio::test]
 async fn activation_starts_execution() {
     let probe = Arc::new(Probe::default());
-    let configuration = Configuration {
-        settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]),
-        ..Configuration::default()
-    };
+    let configuration =
+        Configuration { settings: BTreeMap::from([("token".to_owned(), Value::Text(registered(&probe)))]), ..Configuration::default() };
     let native = super::native::Native::initialize(
         super::native::attach::<Owner>(),
         <Owner as Declared>::VERSION,
@@ -687,17 +612,14 @@ async fn activation_starts_execution() {
     assert_eq!(owner, "observer-fixture");
     assert_eq!(filed.record_type.as_str(), "observer.observed");
 
-    let Err(refused) = <MissingCredentials as dokime_runtime::Plugin>::prepare(Configuration::declared::<
-        MissingCredentialSettings,
-    >()) else {
+    let Err(refused) = <MissingCredentials as dokime_runtime::Plugin>::prepare(Configuration::declared::<MissingCredentialSettings>())
+    else {
         panic!("the required credential is absent");
     };
     assert!(refused.to_string().contains("token"), "{refused}");
     let previous = probe.credential_ticks.load(Ordering::Acquire);
     // The original observer ticks after another preparation fails.
-    probe
-        .until(|probe| probe.credential_ticks.load(Ordering::Acquire) > previous)
-        .await;
+    probe.until(|probe| probe.credential_ticks.load(Ordering::Acquire) > previous).await;
     assert!(probe.credentials.load(Ordering::Acquire));
     assert_eq!(probe.starts.load(Ordering::SeqCst), 1);
     native.shutdown().await;
@@ -713,27 +635,15 @@ async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
     let checks = Arc::clone(&probe);
     let report = Harness::template("observer.checks.await")
-        .answering::<GetCount, _>(move |()| GetCountResponse {
-            checks: checks.checks.load(Ordering::SeqCst) as u64,
-        })
+        .answering::<GetCount, _>(move |()| GetCountResponse { checks: checks.checks.load(Ordering::SeqCst) as u64 })
         .run::<OwnerSuites>()
         .await
         .unwrap();
     assert!(report.passed(), "{}", report.diagnostics());
     assert_eq!(report.criteria().len(), 1);
     let records = report.records::<Observed>();
-    assert_eq!(
-        records
-            .iter()
-            .map(|record| record.index)
-            .collect::<Vec<_>>(),
-        [999, 0, 777]
-    );
-    assert_eq!(
-        probe.starts.load(Ordering::SeqCst),
-        0,
-        "a template run starts no plugin observer"
-    );
+    assert_eq!(records.iter().map(|record| record.index).collect::<Vec<_>>(), [999, 0, 777]);
+    assert_eq!(probe.starts.load(Ordering::SeqCst), 0, "a template run starts no plugin observer");
 }
 
 #[tokio::test]
@@ -746,14 +656,8 @@ async fn observer_failure_event() {
         .unwrap();
     assert!(report.passed(), "{}", report.diagnostics());
     let diagnostics = report.diagnostics();
-    assert!(
-        diagnostics.contains("observer check refused"),
-        "{diagnostics}"
-    );
-    assert!(
-        diagnostics.contains("observer check panicked"),
-        "{diagnostics}"
-    );
+    assert!(diagnostics.contains("observer check refused"), "{diagnostics}");
+    assert!(diagnostics.contains("observer check panicked"), "{diagnostics}");
     assert_eq!(probe.failed.load(Ordering::SeqCst), 2);
     assert!(!report.records::<SuiteObserved>().is_empty());
 }
@@ -766,12 +670,9 @@ async fn cancellation_drops_cleanup() {
         .start_on(
             super::native::run_request("pending", SUITE, "observer.checks.pending", "{}".into()),
             None,
-            dokime_runtime::execution::Caller::local(BTreeMap::from([super::native::answering::<
-                GetProbe,
-                _,
-            >(answered(
-                registered(&probe),
-            ))])),
+            dokime_runtime::execution::Caller::local(BTreeMap::from([super::native::answering::<GetProbe, _>(answered(registered(
+                &probe,
+            )))])),
         )
         .unwrap();
     let mut cursor = 0;

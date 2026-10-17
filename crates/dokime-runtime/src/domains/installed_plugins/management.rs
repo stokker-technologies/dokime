@@ -18,9 +18,9 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 // Local Imports
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::credentials::RedactedCredentialBinding;
 use crate::settings::{SettingValues, Settings};
+use dokime_domain::model::credentials::RedactedCredentialBinding;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 

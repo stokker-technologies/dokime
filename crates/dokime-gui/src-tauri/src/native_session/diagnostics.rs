@@ -109,11 +109,7 @@ impl Capture {
         if !self.pump.is_finished() {
             let _ = tokio::time::timeout(SETTLE_TIMEOUT, &mut self.pump).await;
         }
-        let tail = self
-            .tail
-            .lock()
-            .expect("backend diagnostics poisoned")
-            .text();
+        let tail = self.tail.lock().expect("backend diagnostics poisoned").text();
         (tail, self.log)
     }
 }
@@ -130,11 +126,7 @@ impl Tail {
     }
 
     fn text(&self) -> String {
-        self.lines
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join("\n")
+        self.lines.iter().map(String::as_str).collect::<Vec<_>>().join("\n")
     }
 }
 
@@ -146,11 +138,7 @@ async fn pump(mut stderr: BufReader<ChildStderr>, mut file: Option<File>, tail: 
     loop {
         // Read One Bounded Line
         bytes.clear();
-        match (&mut stderr)
-            .take(LINE_LIMIT)
-            .read_until(b'\n', &mut bytes)
-            .await
-        {
+        match (&mut stderr).take(LINE_LIMIT).read_until(b'\n', &mut bytes).await {
             Ok(0) | Err(_) => break,
             Ok(_) => {}
         }
@@ -171,9 +159,7 @@ async fn pump(mut stderr: BufReader<ChildStderr>, mut file: Option<File>, tail: 
                 file = None;
             }
         }
-        tail.lock()
-            .expect("backend diagnostics poisoned")
-            .push(line);
+        tail.lock().expect("backend diagnostics poisoned").push(line);
     }
 }
 
@@ -207,11 +193,7 @@ async fn prune(directory: &Path) -> std::io::Result<()> {
     let mut entries = tokio::fs::read_dir(directory).await?;
     let mut logs = Vec::new();
     while let Some(entry) = entries.next_entry().await? {
-        if entry
-            .file_name()
-            .to_str()
-            .is_some_and(|name| name.starts_with(LOG_PREFIX) && name.ends_with(LOG_SUFFIX))
-        {
+        if entry.file_name().to_str().is_some_and(|name| name.starts_with(LOG_PREFIX) && name.ends_with(LOG_SUFFIX)) {
             logs.push(entry.path());
         }
     }
@@ -248,11 +230,7 @@ fn redact(line: &str) -> String {
             }
             let value = skip(bytes, separator + 1, quote_or_blank);
             // An authorization value carries a scheme and a credential.
-            let end = if key == AUTHORIZATION {
-                quoted_end(bytes, value)
-            } else {
-                value_end(bytes, value)
-            };
+            let end = if key == AUTHORIZATION { quoted_end(bytes, value) } else { value_end(bytes, value) };
             masks.push((value, end));
         }
     }
@@ -278,17 +256,11 @@ fn redact(line: &str) -> String {
 }
 
 fn skip(bytes: &[u8], from: usize, mut skipped: impl FnMut(u8) -> bool) -> usize {
-    bytes[from..]
-        .iter()
-        .position(|byte| !skipped(*byte))
-        .map_or(bytes.len(), |offset| from + offset)
+    bytes[from..].iter().position(|byte| !skipped(*byte)).map_or(bytes.len(), |offset| from + offset)
 }
 
 fn value_end(bytes: &[u8], from: usize) -> usize {
-    skip(bytes, from, |byte| {
-        !byte.is_ascii_whitespace()
-            && !matches!(byte, b'"' | b'\'' | b',' | b';' | b'&' | b'}' | b']')
-    })
+    skip(bytes, from, |byte| !byte.is_ascii_whitespace() && !matches!(byte, b'"' | b'\'' | b',' | b';' | b'&' | b'}' | b']'))
 }
 
 fn quoted_end(bytes: &[u8], from: usize) -> usize {

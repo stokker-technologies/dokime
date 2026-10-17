@@ -22,9 +22,9 @@ use harmos::{Message, storage::SchemaKey};
 // Local Imports
 use super::{Error, Result, values};
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -85,15 +85,9 @@ impl From<&dokime_domain::model::execution::RecordScope> for ScopeRow {
         };
         Self {
             session_id: scope.session_id.as_ref().map(|id| id.as_str().to_owned()),
-            test_cycle_id: scope
-                .test_cycle_id
-                .as_ref()
-                .map(|id| id.as_str().to_owned()),
+            test_cycle_id: scope.test_cycle_id.as_ref().map(|id| id.as_str().to_owned()),
             test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str().to_owned()),
-            test_execution_id: scope
-                .test_execution_id
-                .as_ref()
-                .map(|id| id.as_str().to_owned()),
+            test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str().to_owned()),
             step_id: scope.step_id.as_ref().map(|id| id.as_str().to_owned()),
             criterion_id: scope.criterion_id.as_ref().map(|id| id.as_str().to_owned()),
             template_id: scope.template_id.as_ref().map(|id| id.as_str().to_owned()),
@@ -116,24 +110,16 @@ impl TryFrom<ScopeRow> for dokime_domain::model::execution::RecordScope {
         use dokime_domain::model::identity::TestCycleId;
         use dokime_domain::model::identity::TestExecutionId;
 
-        for id in [&row.test_cycle_id, &row.test_execution_id]
-            .into_iter()
-            .flatten()
-        {
+        for id in [&row.test_cycle_id, &row.test_execution_id].into_iter().flatten() {
             if id.bytes().any(|byte| byte.is_ascii_uppercase()) {
-                return Err(Error::Invalid(
-                    "noncanonical scope execution or cycle identity",
-                ));
+                return Err(Error::Invalid("noncanonical scope execution or cycle identity"));
             }
         }
         Ok(Self {
             session_id: row.session_id.map(SessionId::from_uuid).transpose()?,
             test_cycle_id: row.test_cycle_id.map(TestCycleId::from_uuid).transpose()?,
             test_case_id: row.test_case_id.map(CaseId::from_wire).transpose()?,
-            test_execution_id: row
-                .test_execution_id
-                .map(TestExecutionId::from_uuid)
-                .transpose()?,
+            test_execution_id: row.test_execution_id.map(TestExecutionId::from_uuid).transpose()?,
             step_id: row.step_id.map(StepId::from_uuid).transpose()?,
             criterion_id: row.criterion_id.map(CriterionId::from_uuid).transpose()?,
             template_id: row.template_id.map(TemplateId::from_uuid).transpose()?,
@@ -159,12 +145,7 @@ impl ScopeRow {
                 _ => None,
             },
         ];
-        fields
-            .into_iter()
-            .flatten()
-            .fold(std::mem::size_of::<Self>(), |bytes, text| {
-                bytes.saturating_add(text.len())
-            })
+        fields.into_iter().flatten().fold(std::mem::size_of::<Self>(), |bytes, text| bytes.saturating_add(text.len()))
     }
 
     pub fn projection_memory(&self) -> usize {
@@ -179,10 +160,9 @@ impl ScopeRow {
             &self.suite_id,
             &self.origin.attempt_id,
         ];
-        fields.into_iter().fold(
-            std::mem::size_of::<dokime_domain::model::execution::RecordScope>(),
-            |bytes, field| bytes.saturating_add(field.as_ref().map_or(0, String::capacity)),
-        )
+        fields.into_iter().fold(std::mem::size_of::<dokime_domain::model::execution::RecordScope>(), |bytes, field| {
+            bytes.saturating_add(field.as_ref().map_or(0, String::capacity))
+        })
     }
 }
 
@@ -194,9 +174,7 @@ impl TryFrom<OriginRow> for dokime_domain::model::execution::EvidenceOrigin {
         match (row.phase, row.attempt_id) {
             (0, None) => Ok(Self::Default),
             (1, None) => Ok(Self::Initialization),
-            (2, Some(id)) => Ok(Self::Step {
-                attempt_id: StepAttemptId::from_uuid(id)?,
-            }),
+            (2, Some(id)) => Ok(Self::Step { attempt_id: StepAttemptId::from_uuid(id)? }),
             (3, None) => Ok(Self::Cleanup),
             _ => Err(Error::Invalid("invalid native capture origin")),
         }
@@ -204,18 +182,13 @@ impl TryFrom<OriginRow> for dokime_domain::model::execution::EvidenceOrigin {
 }
 
 impl serde::Serialize for OriginRow {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         use dokime_domain::model::execution::EvidenceOrigin;
         use dokime_domain::model::identity::StepAttemptId;
         let origin = match (self.phase, self.attempt_id.as_deref()) {
             (0, None) => EvidenceOrigin::Default,
             (1, None) => EvidenceOrigin::Initialization,
-            (2, Some(id)) => EvidenceOrigin::Step {
-                attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)?,
-            },
+            (2, Some(id)) => EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(serde::ser::Error::custom)? },
             (3, None) => EvidenceOrigin::Cleanup,
             _ => return Err(serde::ser::Error::custom("invalid native capture origin")),
         };
@@ -223,17 +196,14 @@ impl serde::Serialize for OriginRow {
     }
 }
 impl<'de> serde::Deserialize<'de> for OriginRow {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         use dokime_domain::model::execution::EvidenceOrigin;
-        let (phase, attempt_id) =
-            match <EvidenceOrigin as serde::Deserialize>::deserialize(deserializer)? {
-                EvidenceOrigin::Default => (0, None),
-                EvidenceOrigin::Initialization => (1, None),
-                EvidenceOrigin::Step { attempt_id } => (2, Some(attempt_id.to_string())),
-                EvidenceOrigin::Cleanup => (3, None),
-            };
+        let (phase, attempt_id) = match <EvidenceOrigin as serde::Deserialize>::deserialize(deserializer)? {
+            EvidenceOrigin::Default => (0, None),
+            EvidenceOrigin::Initialization => (1, None),
+            EvidenceOrigin::Step { attempt_id } => (2, Some(attempt_id.to_string())),
+            EvidenceOrigin::Cleanup => (3, None),
+        };
         Ok(Self { phase, attempt_id })
     }
 }
@@ -280,8 +250,7 @@ impl RecordRow {
     /// Project a decoded stored record into its entry.
     pub fn entry(self) -> Result<RecordEntry> {
         let bound = self.projection_memory()?;
-        let allowance =
-            NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
+        let allowance = NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
         self.into_entry(allowance)
     }
 
@@ -317,9 +286,7 @@ impl RecordRow {
             severity_name(entry.severity),
         ]
         .into_iter()
-        .fold(std::mem::size_of::<Self>(), |bytes, text| {
-            bytes.saturating_add(text.len())
-        });
+        .fold(std::mem::size_of::<Self>(), |bytes, text| bytes.saturating_add(text.len()));
         for text in [
             entry.message.as_deref(),
             entry.related_sample_id.as_ref().map(|id| id.as_str()),
@@ -331,24 +298,12 @@ impl RecordRow {
         {
             bytes = bytes.saturating_add(text.len());
         }
-        bytes = excess(
-            bytes,
-            values::encoding_memory(&entry.details)?,
-            std::mem::size_of::<Vec<values::Cell>>(),
-        );
+        bytes = excess(bytes, values::encoding_memory(&entry.details)?, std::mem::size_of::<Vec<values::Cell>>());
         if let Some(scope) = &entry.scope {
-            bytes = excess(
-                bytes,
-                ScopeRow::encoding_memory(scope),
-                std::mem::size_of::<ScopeRow>(),
-            );
+            bytes = excess(bytes, ScopeRow::encoding_memory(scope), std::mem::size_of::<ScopeRow>());
         }
         if let Some(detail) = &entry.error {
-            bytes = excess(
-                bytes,
-                ErrorRow::encoding_memory(detail),
-                std::mem::size_of::<ErrorRow>(),
-            );
+            bytes = excess(bytes, ErrorRow::encoding_memory(detail), std::mem::size_of::<ErrorRow>());
         }
         Ok(bytes)
     }
@@ -367,82 +322,47 @@ impl RecordRow {
             source: copy_text(&entry.source)?,
             severity: copy_text(severity_name(entry.severity))?,
             message: entry.message.as_deref().map(copy_text).transpose()?,
-            error: entry
-                .error
-                .as_ref()
-                .map(ErrorRow::from_detail)
-                .transpose()?,
+            error: entry.error.as_ref().map(ErrorRow::from_detail).transpose()?,
             details: values::encode(&entry.details)?,
             scope: entry.scope.as_ref().map(ScopeRow::from),
-            related_sample_id: entry
-                .related_sample_id
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
-            related_stream_id: entry
-                .related_stream_id
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
-            related_artifact_id: entry
-                .related_artifact_id
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
+            related_sample_id: entry.related_sample_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
+            related_stream_id: entry.related_stream_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
+            related_artifact_id: entry.related_artifact_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
         })
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        let strings = [
-            &self.record_id,
-            &self.timestamp,
-            &self.received_at,
-            &self.record_type,
-            &self.source,
-        ];
-        let mut bytes = strings
-            .into_iter()
-            .fold(std::mem::size_of::<RecordEntry>(), |bytes, value| {
-                bytes.saturating_add(value.capacity())
-            });
-        for value in [
-            &self.message,
-            &self.related_sample_id,
-            &self.related_stream_id,
-            &self.related_artifact_id,
-        ] {
+        let strings = [&self.record_id, &self.timestamp, &self.received_at, &self.record_type, &self.source];
+        let mut bytes = strings.into_iter().fold(std::mem::size_of::<RecordEntry>(), |bytes, value| bytes.saturating_add(value.capacity()));
+        for value in [&self.message, &self.related_sample_id, &self.related_stream_id, &self.related_artifact_id] {
             bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
         }
         let details = values::owned_memory(&self.details)?;
         if details == usize::MAX {
             return Ok(usize::MAX);
         }
-        bytes = bytes.saturating_add(details.saturating_sub(std::mem::size_of::<
-            std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
-        >()));
+        bytes = bytes.saturating_add(
+            details.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
+        );
         if let Some(error) = &self.error {
             bytes = bytes.saturating_add(
-                error
-                    .projection_memory()
-                    .saturating_sub(std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()),
+                error.projection_memory().saturating_sub(std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()),
             );
         }
         if let Some(scope) = &self.scope {
             bytes = bytes.saturating_add(
-                scope
-                    .projection_memory()
-                    .saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
+                scope.projection_memory().saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
             );
         }
         Ok(bytes)
     }
 
     pub fn into_entry(self, allowance: NonZeroUsize) -> Result<RecordEntry> {
+        use crate::records::RecordSeverity;
         use dokime_domain::model::identity::ArtifactId;
         use dokime_domain::model::identity::RecordId;
         use dokime_domain::model::identity::TelemetrySampleId;
         use dokime_domain::model::identity::TelemetryStreamId;
-        use crate::records::RecordSeverity;
         let bound = self.projection_memory()?;
         if bound == usize::MAX || bound > allowance.get() {
             return Err(error("record projection exceeds memory allowance"));
@@ -476,18 +396,9 @@ impl RecordRow {
                 error: self.error.map(TryInto::try_into).transpose()?,
                 details,
                 scope: self.scope.map(TryInto::try_into).transpose()?,
-                related_sample_id: self
-                    .related_sample_id
-                    .map(TelemetrySampleId::from_uuid)
-                    .transpose()?,
-                related_stream_id: self
-                    .related_stream_id
-                    .map(TelemetryStreamId::from_uuid)
-                    .transpose()?,
-                related_artifact_id: self
-                    .related_artifact_id
-                    .map(ArtifactId::from_uuid)
-                    .transpose()?,
+                related_sample_id: self.related_sample_id.map(TelemetrySampleId::from_uuid).transpose()?,
+                related_stream_id: self.related_stream_id.map(TelemetryStreamId::from_uuid).transpose()?,
+                related_artifact_id: self.related_artifact_id.map(ArtifactId::from_uuid).transpose()?,
             },
         ))
     }
@@ -534,39 +445,17 @@ impl ErrorRow {
             code: detail.code.as_deref().map(copy_text).transpose()?,
             source: detail.source.as_deref().map(copy_text).transpose()?,
             cause_chain,
-            stacktrace_attachment: detail
-                .stacktrace_attachment
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
-            trace_id: detail
-                .trace_id
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
-            correlation_id: detail
-                .correlation_id
-                .as_ref()
-                .map(|id| copy_text(id.as_str()))
-                .transpose()?,
+            stacktrace_attachment: detail.stacktrace_attachment.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
+            trace_id: detail.trace_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
+            correlation_id: detail.correlation_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
         })
     }
 
     fn projection_memory(&self) -> usize {
         let mut bytes = std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()
             .saturating_add(self.message.capacity())
-            .saturating_add(
-                self.cause_chain
-                    .len()
-                    .saturating_mul(std::mem::size_of::<dokime_domain::model::diagnostics::ErrorCause>()),
-            );
-        for value in [
-            &self.code,
-            &self.source,
-            &self.stacktrace_attachment,
-            &self.trace_id,
-            &self.correlation_id,
-        ] {
+            .saturating_add(self.cause_chain.len().saturating_mul(std::mem::size_of::<dokime_domain::model::diagnostics::ErrorCause>()));
+        for value in [&self.code, &self.source, &self.stacktrace_attachment, &self.trace_id, &self.correlation_id] {
             bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
         }
         for cause in &self.cause_chain {
@@ -583,32 +472,22 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
     type Error = Error;
 
     fn try_from(row: ErrorRow) -> Result<Self> {
+        use dokime_domain::model::diagnostics::ErrorCause;
         use dokime_domain::model::identity::ArtifactId;
         use dokime_domain::model::identity::CorrelationId;
-        use dokime_domain::model::diagnostics::ErrorCause;
         use dokime_domain::model::identity::TraceId;
         let mut cause_chain = exact_slots(row.cause_chain.len())?;
         for cause in row.cause_chain {
-            cause_chain.push(ErrorCause {
-                message: cause.message,
-                code: cause.code,
-                source: cause.source,
-            });
+            cause_chain.push(ErrorCause { message: cause.message, code: cause.code, source: cause.source });
         }
         Ok(Self {
             message: row.message,
             code: row.code,
             source: row.source,
             cause_chain,
-            stacktrace_attachment: row
-                .stacktrace_attachment
-                .map(ArtifactId::from_uuid)
-                .transpose()?,
+            stacktrace_attachment: row.stacktrace_attachment.map(ArtifactId::from_uuid).transpose()?,
             trace_id: row.trace_id.map(TraceId::from_uuid).transpose()?,
-            correlation_id: row
-                .correlation_id
-                .map(CorrelationId::from_uuid)
-                .transpose()?,
+            correlation_id: row.correlation_id.map(CorrelationId::from_uuid).transpose()?,
         })
     }
 }
@@ -636,11 +515,7 @@ pub fn schema() -> SchemaKey {
 
 /* === Private Functions === */
 fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
-    if owned == usize::MAX {
-        usize::MAX
-    } else {
-        bytes.saturating_add(owned.saturating_sub(inline))
-    }
+    if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
 }
 fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
     match value {
@@ -652,9 +527,7 @@ fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
 }
 fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| error("record allocation failed"))?;
+    values.try_reserve_exact(count).map_err(|_| error("record allocation failed"))?;
     if values.capacity() > count {
         return Err(error("record slot capacity exceeds admission"));
     }
@@ -662,8 +535,7 @@ fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
 }
 fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
-    text.try_reserve_exact(source.len())
-        .map_err(|_| error("record text allocation failed"))?;
+    text.try_reserve_exact(source.len()).map_err(|_| error("record text allocation failed"))?;
     if text.capacity() > source.len() {
         return Err(error("record text capacity exceeds admission"));
     }

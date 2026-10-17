@@ -18,9 +18,7 @@ pub(crate) mod store;
 /* === Re-Exports === */
 pub use catalog::{PluginEnvironmentReference, PluginIdentity, PluginMetadata, inspect};
 pub use config::{PluginBundle, PluginProvenance};
-pub use model::{
-    Installation, PluginEntry, PluginLastBoot, PluginSettings, PluginState, ProgramValues,
-};
+pub use model::{Installation, PluginEntry, PluginLastBoot, PluginSettings, PluginState, ProgramValues};
 pub use store::{PluginError, PluginPage, PluginStore};
 
 /* === Imports === */

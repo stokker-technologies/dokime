@@ -10,14 +10,14 @@
 /* === Modules === */
 /* === Re-Exports === */
 /* === Imports === */
+use crate::RuntimeHandle;
 use crate::runtime::Error;
 use crate::runtime::Result;
-use crate::RuntimeHandle;
+use crate::runtime::operations::reports::{MaterializeReport, ReportSubject};
 use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use crate::runtime::operations::reports::{MaterializeReport, MaterializeReport, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 /* === Constants === */
 /* === Macros === */
@@ -32,21 +32,12 @@ impl RuntimeHandle {
     pub(crate) async fn seal_settled_cycle(&self, id: &dokime_domain::model::identity::TestCycleId) -> Result<()> {
         let (cycle, completion) = {
             let state = self.state_read();
-            let cycle = state
-                .cycle_view(id)
-                .ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+            let cycle = state.cycle_view(id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
             let completion = state
                 .run_requests
                 .values()
-                .find(|request| {
-                    request.summary.cycle_id == *id && !request.summary.phase.terminal()
-                })
-                .map(|request| {
-                    (
-                        request.summary.request_id.clone(),
-                        request.completion_at.clone(),
-                    )
-                });
+                .find(|request| request.summary.cycle_id == *id && !request.summary.phase.terminal())
+                .map(|request| (request.summary.request_id.clone(), request.completion_at.clone()));
             (cycle, completion)
         };
         if cycle.saved.is_some() {
@@ -110,9 +101,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn finish_saved_executions(
-        &self,
-        cycle: &CycleView,
-        executions: Vec<TestExecution>,
+        &self, cycle: &CycleView, executions: Vec<TestExecution>,
     ) -> Result<Vec<(TestExecutionId, Error)>> {
         let mut remaining = executions.iter();
         let mut active = FuturesUnordered::new();
@@ -131,11 +120,7 @@ impl RuntimeHandle {
         Ok(failures)
     }
 
-    pub(crate) async fn unsealed_members(
-        &self,
-        cycle: &CycleView,
-        selected: &[TestExecution],
-    ) -> Vec<TestExecution> {
+    pub(crate) async fn unsealed_members(&self, cycle: &CycleView, selected: &[TestExecution]) -> Vec<TestExecution> {
         let candidates = cycle
             .test_executions
             .iter()
@@ -144,14 +129,9 @@ impl RuntimeHandle {
                     && execution.finished_at.is_some()
                     && matches!(
                         execution.status,
-                        ExecutionStatus::Passed
-                            | ExecutionStatus::Failed
-                            | ExecutionStatus::Blocked
-                            | ExecutionStatus::Cancelled
+                        ExecutionStatus::Passed | ExecutionStatus::Failed | ExecutionStatus::Blocked | ExecutionStatus::Cancelled
                     )
-                    && !selected
-                        .iter()
-                        .any(|chosen| chosen.test_execution_id == execution.test_execution_id)
+                    && !selected.iter().any(|chosen| chosen.test_execution_id == execution.test_execution_id)
             })
             .collect::<Vec<_>>();
         let mut unsealed = Vec::new();
@@ -176,21 +156,12 @@ impl RuntimeHandle {
     }
 
     async fn finish_saved_execution_attributed<'a>(
-        &self,
-        cycle: &CycleView,
-        execution: &'a TestExecution,
+        &self, cycle: &CycleView, execution: &'a TestExecution,
     ) -> (&'a TestExecution, Result<()>) {
-        (
-            execution,
-            self.finish_saved_execution(cycle, execution).await,
-        )
+        (execution, self.finish_saved_execution(cycle, execution).await)
     }
 
-    pub(crate) async fn finish_saved_execution(
-        &self,
-        cycle: &CycleView,
-        execution: &TestExecution,
-    ) -> Result<()> {
+    pub(crate) async fn finish_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
         let id = &execution.test_execution_id;
         if execution.saved.is_some() {
             return Err(invalid("sealed execution must read its published report"));
@@ -199,12 +170,7 @@ impl RuntimeHandle {
         if self.saved_seal(id).await? {
             return Ok(());
         }
-        let intent = self
-            .state_manager
-            .state()
-            .read(|state| state.report_finalizations.get(id).cloned())
-            .await?
-            .value;
+        let intent = self.state_manager.state().read(|state| state.report_finalizations.get(id).cloned()).await?.value;
         let at = if let Some(intent) = intent {
             intent.evidence_at
         } else {
@@ -228,10 +194,7 @@ impl RuntimeHandle {
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
         self.operations
-            .call_as::<MaterializeReport>(MaterializeReport {
-                subject: ReportSubject::Execution(id.to_string()),
-                at: at.clone(),
-            })
+            .call_as::<MaterializeReport>(MaterializeReport { subject: ReportSubject::Execution(id.to_string()), at: at.clone() })
             .await?;
         let _guard = gate.lock().await;
         // Only Finalization Seals The Subject, After The Full Publication Is Durable.

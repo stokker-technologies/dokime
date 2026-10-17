@@ -27,9 +27,9 @@ use std::os::unix::fs::PermissionsExt;
 
 // Local Imports
 use dokime_domain::model;
-use model::values::Value;
 use dokime_host::HostStreamSample;
 use dokime_host::collectors::bluetooth::BluetoothCollector;
+use model::values::Value;
 
 /* === Constants === */
 const FIXTURE: &str = r#"#!/usr/bin/env python3
@@ -68,11 +68,9 @@ fn collect_case(mode: &str) -> HostStreamSample {
     let executable = root.path().join("bluetoothctl");
     std::fs::write(&executable, FIXTURE).unwrap();
     std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(root.path().to_owned())
-            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
+    let path =
+        std::env::join_paths(std::iter::once(root.path().to_owned()).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())))
+            .unwrap();
     // All environment changes precede the collector's worker thread, and the
     // story owns its process.
     unsafe {
@@ -84,10 +82,7 @@ fn collect_case(mode: &str) -> HostStreamSample {
     // Collection And Reaped Child
     let sample = BluetoothCollector::default().collect().unwrap();
     let pid = std::fs::read_to_string(root.path().join("pid")).unwrap();
-    assert!(
-        !std::path::Path::new("/proc").join(pid).exists(),
-        "probe must be reaped before collection returns"
-    );
+    assert!(!std::path::Path::new("/proc").join(pid).exists(), "probe must be reaped before collection returns");
     sample
 }
 
@@ -104,18 +99,12 @@ fn probe_child_succeeds() {
 fn probe_child_fails() {
     let sample = collect_case("failure");
     assert_eq!(sample.values["probe_status"], Value::from("error"));
-    assert_eq!(
-        sample.values["probe_error"],
-        Value::from("e".repeat(512 * 1024))
-    );
+    assert_eq!(sample.values["probe_error"], Value::from("e".repeat(512 * 1024)));
 }
 
 #[test]
 fn probe_child_reaped() {
     let sample = collect_case("timeout");
     assert_eq!(sample.values["probe_status"], Value::from("error"));
-    assert_eq!(
-        sample.values["probe_error"],
-        Value::from("bluetoothctl could not be started: command timed out")
-    );
+    assert_eq!(sample.values["probe_error"], Value::from("bluetoothctl could not be started: command timed out"));
 }

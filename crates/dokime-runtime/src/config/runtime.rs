@@ -19,21 +19,19 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
+use crate::domains::ActionDispatcher;
 use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use crate::domains::ActionDispatcher;
 use harmos::storage::StorageSettings;
 
 /* === Constants === */
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type InstalledSidecar =
-    harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
+pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 
-pub type SidecarNoticeHandler =
-    Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
+pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
 #[derive(Clone, Serialize, Deserialize)]
@@ -119,35 +117,21 @@ impl RuntimeConfig {
         self
     }
 
-    pub fn with_installed_plugins(
-        mut self,
-        plugins: impl IntoIterator<Item = InstalledPlugin>,
-    ) -> Self {
+    pub fn with_installed_plugins(mut self, plugins: impl IntoIterator<Item = InstalledPlugin>) -> Self {
         self.installed_plugins = plugins.into_iter().collect();
         self
     }
 
     pub fn with_declared_plugin(
-        mut self,
-        source: &str,
-        version: &str,
-        description: &str,
-        registrar: harmos::sidecar::Registrar,
+        mut self, source: &str, version: &str, description: &str, registrar: harmos::sidecar::Registrar,
     ) -> crate::runtime::Result<Self> {
-        let plugin = crate::domains::installed_plugins::contributions::decode_registrations(
-            source,
-            version,
-            description,
-            &registrar.finish(),
-        )?;
+        let plugin =
+            crate::domains::installed_plugins::contributions::decode_registrations(source, version, description, &registrar.finish())?;
         self.installed_plugins.push(plugin);
         Ok(self)
     }
 
-    pub fn with_plugins(
-        mut self,
-        plugins: impl IntoIterator<Item = crate::plugins::PluginBundle>,
-    ) -> Self {
+    pub fn with_plugins(mut self, plugins: impl IntoIterator<Item = crate::plugins::PluginBundle>) -> Self {
         self.plugins = plugins.into_iter().collect();
         self
     }
@@ -162,9 +146,7 @@ impl RuntimeConfig {
     }
 
     pub fn with_action_dispatcher(
-        mut self,
-        plugin_id: dokime_domain::model::identity::Identifier,
-        dispatcher: Arc<dyn ActionDispatcher>,
+        mut self, plugin_id: dokime_domain::model::identity::Identifier, dispatcher: Arc<dyn ActionDispatcher>,
     ) -> Self {
         self.action_dispatchers.insert(plugin_id, dispatcher);
         self
@@ -184,20 +166,14 @@ impl fmt::Debug for RuntimeConfig {
             .field("credential_backend", &self.credential_backend)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)
-            .field(
-                "action_dispatchers",
-                &self.action_dispatchers.keys().collect::<Vec<_>>(),
-            )
+            .field("action_dispatchers", &self.action_dispatchers.keys().collect::<Vec<_>>())
             .finish()
     }
 }
 
 impl Default for RuntimeCredentialConfig {
     fn default() -> Self {
-        Self {
-            backend: CredentialBackendKind::OsKeyring,
-            local_file: None,
-        }
+        Self { backend: CredentialBackendKind::OsKeyring, local_file: None }
     }
 }
 

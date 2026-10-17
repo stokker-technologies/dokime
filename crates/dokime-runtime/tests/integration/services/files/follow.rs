@@ -25,8 +25,8 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::*;
-use dokime_runtime::ExecutionFileFollower;
 use dokime_domain::operations::content as wire;
+use dokime_runtime::ExecutionFileFollower;
 
 /* === Constants === */
 // The followed native output.
@@ -57,24 +57,15 @@ const REWRITTEN: &[u8] = b"changed retained prefix with extra bytes";
 async fn producing(handle: &RuntimeHandle, cycle: &TestCycleId) -> (TestExecutionId, String) {
     let cycle = wait_for_cycle_lifecycle(handle, cycle, CycleStatus::Running).await;
     let id = cycle.test_executions[0].test_execution_id.clone();
-    let target = handle
-        .execution_file_target(&id, PATH.to_owned(), false, true)
-        .await
-        .unwrap()
-        .unwrap();
+    let target = handle.execution_file_target(&id, PATH.to_owned(), false, true).await.unwrap().unwrap();
     std::fs::write(&target.absolute_path, ORIGINAL).unwrap();
     (id, target.absolute_path)
 }
 
 async fn follow(
-    handle: &RuntimeHandle,
-    id: &TestExecutionId,
-    identity: Option<&wire::ExecutionFileIdentity>,
+    handle: &RuntimeHandle, id: &TestExecutionId, identity: Option<&wire::ExecutionFileIdentity>,
 ) -> dokime_runtime::runtime::Result<ExecutionFileFollower> {
-    Ok(handle
-        .follow_execution_file(id, PATH, identity, 0)
-        .await?
-        .expect("registered execution output"))
+    Ok(handle.follow_execution_file(id, PATH, identity, 0).await?.expect("registered execution output"))
 }
 
 // Reads chunks until `length` bytes arrived; a terminal frame first fails the story.
@@ -103,32 +94,20 @@ async fn terminal(follower: &mut ExecutionFileFollower) -> wire::ExecutionFileFo
     terminal
 }
 
-fn assert_sealed(
-    terminal: &wire::ExecutionFileFollowTerminal,
-    identity: &wire::ExecutionFileIdentity,
-) {
+fn assert_sealed(terminal: &wire::ExecutionFileFollowTerminal, identity: &wire::ExecutionFileIdentity) {
     assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
-    let sealed = terminal
-        .sealed
-        .as_ref()
-        .expect("finished follow carries its seal");
+    let sealed = terminal.sealed.as_ref().expect("finished follow carries its seal");
     assert_eq!(sealed.identity.as_ref(), Some(identity));
     assert_eq!(sealed.length, ORIGINAL.len() as u64);
-    let digest = Sha256::digest(ORIGINAL)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(ORIGINAL).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     assert_eq!(sealed.sha256, digest);
 }
 
 fn assert_abandoned(terminal: &wire::ExecutionFileFollowTerminal) {
     assert_eq!(terminal.phase, wire::ExecutionFilePhase::Abandoned);
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
-    assert!(
-        terminal.sealed.is_none(),
-        "an abandoned production is never sealed"
-    );
+    assert!(terminal.sealed.is_none(), "an abandoned production is never sealed");
 }
 
 /* === Tests === */
@@ -177,10 +156,7 @@ async fn follow_terminal_interleavings() {
     })
     .await;
     assert_eq!(settled.metadata().identity.as_ref(), Some(&identity));
-    assert_eq!(
-        settled.metadata().phase,
-        wire::ExecutionFilePhase::Abandoned
-    );
+    assert_eq!(settled.metadata().phase, wire::ExecutionFilePhase::Abandoned);
     assert_eq!(drain(&mut settled, ORIGINAL.len()).await, ORIGINAL);
     assert_abandoned(&terminal(&mut settled).await);
     assert_abandoned(&terminal(&mut live).await);

@@ -53,18 +53,13 @@ pub struct Config {
 /* === Implementations === */
 impl std::fmt::Debug for TlsIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("TlsIdentity")
-            .finish_non_exhaustive()
+        formatter.debug_struct("TlsIdentity").finish_non_exhaustive()
     }
 }
 
 impl TlsIdentity {
     pub fn from_pem(certificate: Vec<u8>, private_key: Vec<u8>) -> Self {
-        Self {
-            certificate,
-            private_key: Zeroizing::new(private_key),
-        }
+        Self { certificate, private_key: Zeroizing::new(private_key) }
     }
 
     pub(crate) fn into_tonic(self) -> tonic::transport::Identity {
@@ -88,19 +83,8 @@ impl Config {
         }
     }
 
-    pub fn remote(
-        bind_addr: SocketAddr,
-        tls: TlsIdentity,
-        grants: Vec<BearerGrant>,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            bind_addr,
-            policy: Policy::bearer(grants)?,
-            tls: Some(tls),
-            max_message_bytes: 1024 * 1024,
-            remote: true,
-            web: None,
-        })
+    pub fn remote(bind_addr: SocketAddr, tls: TlsIdentity, grants: Vec<BearerGrant>) -> Result<Self, Error> {
+        Ok(Self { bind_addr, policy: Policy::bearer(grants)?, tls: Some(tls), max_message_bytes: 1024 * 1024, remote: true, web: None })
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {
@@ -124,15 +108,8 @@ impl Config {
     /// never need it. `origins` lists the exact cross-origin pages allowed to
     /// call; an empty list emits no CORS headers.
     pub fn with_grpc_web(mut self, origins: Vec<harmos::grpc::Origin>) -> Result<Self, Error> {
-        if origins.len() > 32
-            || origins
-                .iter()
-                .enumerate()
-                .any(|(index, origin)| origins[..index].contains(origin))
-        {
-            return Err(Error::Configuration(
-                "allowed origins require at most 32 distinct exact origins",
-            ));
+        if origins.len() > 32 || origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
+            return Err(Error::Configuration("allowed origins require at most 32 distinct exact origins"));
         }
         self.web = Some(origins);
         Ok(self)
@@ -140,12 +117,8 @@ impl Config {
 
     pub(crate) fn into_listener_settings(mut self) -> Result<harmos::grpc::Settings, Error> {
         self.validate()?;
-        let bytes = NonZeroUsize::new(self.max_message_bytes)
-            .ok_or(Error::Configuration("message limit must be positive"))?;
-        let stream = harmos::operations::StreamSettings {
-            items: NonZeroUsize::new(1).unwrap(),
-            bytes,
-        };
+        let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
+        let stream = harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
         // An output item is charged at its decoded size, which outgrows its
         // encoding; the queue holds one message's worth of decoded frame.
         let output = harmos::operations::StreamSettings {
@@ -156,18 +129,13 @@ impl Config {
         let tls = self.tls.take().map(|identity| {
             // Preserve The Host's Chosen TLS Provider When One Is Already Installed.
             let _ = rustls::crypto::ring::default_provider().install_default();
-            tonic::transport::ServerTlsConfig::new()
-                .identity(identity.into_tonic())
-                .timeout(Duration::from_secs(10))
+            tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_secs(10))
         });
         Ok(harmos::grpc::Settings {
             address: self.bind_addr,
             operations: harmos::grpc::server::Settings {
                 calls: NonZeroUsize::new(32).unwrap(),
-                decode: harmos::grpc::DecodeSettings {
-                    message_bytes: bytes,
-                    retained_bytes: bytes,
-                },
+                decode: harmos::grpc::DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
                 encode: harmos::grpc::EncodeSettings {
                     message_bytes: bytes,
                     buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
@@ -195,19 +163,13 @@ impl Config {
 
     pub(crate) fn validate(&self) -> Result<(), Error> {
         if !self.remote && !self.bind_addr.ip().is_loopback() {
-            return Err(Error::Configuration(
-                "non-loopback listeners require explicit remote configuration",
-            ));
+            return Err(Error::Configuration("non-loopback listeners require explicit remote configuration"));
         }
         if self.remote && (self.tls.is_none() || !matches!(self.policy, Policy::Bearer(_))) {
-            return Err(Error::Configuration(
-                "remote listeners require TLS and bearer authentication",
-            ));
+            return Err(Error::Configuration("remote listeners require TLS and bearer authentication"));
         }
         if self.max_message_bytes == 0 || self.max_message_bytes > 16 * 1024 * 1024 {
-            return Err(Error::Configuration(
-                "message limit must be between 1 byte and 16 MiB",
-            ));
+            return Err(Error::Configuration("message limit must be between 1 byte and 16 MiB"));
         }
         Ok(())
     }

@@ -51,9 +51,7 @@ pub struct ExecutionNoteOwner {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnnotationSelection {
     // Absent selects all current annotations. Present selects this owner and descendants.
-    #[row(
-        description = "Absent selects all current annotations. Present selects this owner and descendants."
-    )]
+    #[row(description = "Absent selects all current annotations. Present selects this owner and descendants.")]
     pub owner: Option<AnnotationOwner>,
     // Also include ancestors, including session/global annotations.
     #[row(description = "Also include ancestors, including session/global annotations.")]

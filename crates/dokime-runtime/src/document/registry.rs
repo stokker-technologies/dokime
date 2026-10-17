@@ -17,9 +17,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::document::{DocumentDefinition, DocumentInstance};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::time::Timestamp;
-use crate::document::{DocumentDefinition, DocumentInstance};
 
 /* === Constants === */
 
@@ -57,10 +57,7 @@ impl DocumentRegistry {
         self.definitions.get(document_id)
     }
 
-    pub fn set_definition(
-        &mut self,
-        definition: DocumentDefinition,
-    ) -> Result<(), DocumentRegistryError> {
+    pub fn set_definition(&mut self, definition: DocumentDefinition) -> Result<(), DocumentRegistryError> {
         let document_id = definition.document_id.clone();
 
         if self.definitions.contains_key(&document_id) {
@@ -73,8 +70,7 @@ impl DocumentRegistry {
     }
 
     pub fn upsert_definition(&mut self, definition: DocumentDefinition) {
-        self.definitions
-            .insert(definition.document_id.clone(), definition);
+        self.definitions.insert(definition.document_id.clone(), definition);
     }
 
     pub fn instances(&self) -> impl Iterator<Item = &DocumentInstance> {
@@ -89,10 +85,7 @@ impl DocumentRegistry {
         self.instances.get_mut(document_id)
     }
 
-    pub fn set_instance(
-        &mut self,
-        instance: DocumentInstance,
-    ) -> Result<(), DocumentRegistryError> {
+    pub fn set_instance(&mut self, instance: DocumentInstance) -> Result<(), DocumentRegistryError> {
         let document_id = instance.document_id().clone();
 
         if self.instances.contains_key(&document_id) {
@@ -104,18 +97,10 @@ impl DocumentRegistry {
         Ok(())
     }
 
-    pub fn open_instance(
-        &mut self,
-        definition: DocumentDefinition,
-        updated_at: Timestamp,
-    ) -> &mut DocumentInstance {
+    pub fn open_instance(&mut self, definition: DocumentDefinition, updated_at: Timestamp) -> &mut DocumentInstance {
         let document_id = definition.document_id.clone();
-        self.definitions
-            .entry(document_id.clone())
-            .or_insert_with(|| definition.clone());
-        self.instances
-            .entry(document_id)
-            .or_insert_with(|| DocumentInstance::new(definition, updated_at))
+        self.definitions.entry(document_id.clone()).or_insert_with(|| definition.clone());
+        self.instances.entry(document_id).or_insert_with(|| DocumentInstance::new(definition, updated_at))
     }
 }
 

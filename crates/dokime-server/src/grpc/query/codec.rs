@@ -38,10 +38,7 @@ use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn project(
-    outcome: &AggregateOutcome,
-    maximum: usize,
-) -> harmos::Result<dokime_domain::model::query::wire::AggregateReply> {
+pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Result<dokime_domain::model::query::wire::AggregateReply> {
     for column in &outcome.columns {
         super::super::value::text(column).map_err(failure)?;
     }
@@ -58,11 +55,7 @@ pub(super) fn project(
         }
         rows.push(dokime_domain::model::query::wire::QueryRow { values });
     }
-    let result = dokime_domain::model::query::wire::AggregateReply {
-        columns,
-        rows,
-        complete: outcome.complete,
-    };
+    let result = dokime_domain::model::query::wire::AggregateReply { columns, rows, complete: outcome.complete };
     if result.encoded_len() > maximum {
         return Err(exhausted());
     }
@@ -71,19 +64,13 @@ pub(super) fn project(
 
 /* === Private Functions === */
 fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "canonical aggregate response",
-    }
+    harmos::Error::ResourceExhausted { resource: "canonical aggregate response" }
 }
 fn failure(error: tonic::Status) -> harmos::Error {
     if error.code() == tonic::Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend(
-        "project original aggregate",
-        harmos::BackendFailure::Corrupt,
-        error,
-    )
+    harmos::Error::backend("project original aggregate", harmos::BackendFailure::Corrupt, error)
 }
 
 /* === Tests === */

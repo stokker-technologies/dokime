@@ -22,10 +22,7 @@ use dokime_domain::operations::documents;
 use dokime_domain::operations::plots;
 use dokime_runtime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
-    document::{
-        AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind,
-        PlotStyle, PlotType, ReferenceAxis,
-    },
+    document::{AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind, PlotStyle, PlotType, ReferenceAxis},
     runtime::query::DownsampleTechnique,
 };
 
@@ -104,25 +101,11 @@ encode!(frequency_level_unit: FrequencyLevelUnit -> dokime_domain::model::plots:
 
 encode!(reference_axis: ReferenceAxis -> dokime_domain::model::documents::wire::ReferenceAxis { X, Y });
 
-pub(in crate::grpc) fn plot_axis(
-    value: Option<&PlotAxisKind>,
-) -> (
-    dokime_domain::model::documents::wire::PlotAxisKind,
-    Option<String>,
-) {
+pub(in crate::grpc) fn plot_axis(value: Option<&PlotAxisKind>) -> (dokime_domain::model::documents::wire::PlotAxisKind, Option<String>) {
     match value {
-        None => (
-            dokime_domain::model::documents::wire::PlotAxisKind::Unspecified,
-            None,
-        ),
-        Some(PlotAxisKind::WallTime) => (
-            dokime_domain::model::documents::wire::PlotAxisKind::WallTime,
-            None,
-        ),
-        Some(PlotAxisKind::Elapsed { unit }) => (
-            dokime_domain::model::documents::wire::PlotAxisKind::Elapsed,
-            Some(unit.clone()),
-        ),
+        None => (dokime_domain::model::documents::wire::PlotAxisKind::Unspecified, None),
+        Some(PlotAxisKind::WallTime) => (dokime_domain::model::documents::wire::PlotAxisKind::WallTime, None),
+        Some(PlotAxisKind::Elapsed { unit }) => (dokime_domain::model::documents::wire::PlotAxisKind::Elapsed, Some(unit.clone())),
     }
 }
 
@@ -151,9 +134,7 @@ encode!(execution_file_state: ExecutionFileStreamState -> dokime_domain::model::
 
 /* === Public Functions === */
 
-pub(in crate::grpc) fn plot_type_from_wire(
-    value: dokime_domain::model::plots::wire::PlotType,
-) -> Result<Option<PlotType>, tonic::Status> {
+pub(in crate::grpc) fn plot_type_from_wire(value: dokime_domain::model::plots::wire::PlotType) -> Result<Option<PlotType>, tonic::Status> {
     Ok(match value {
         dokime_domain::model::plots::wire::PlotType::Unspecified => None,
         dokime_domain::model::plots::wire::PlotType::TimeSeries => Some(PlotType::TimeSeries),
@@ -168,20 +149,12 @@ pub(in crate::grpc) fn plot_type_from_wire(
         dokime_domain::model::plots::wire::PlotType::XyInterval => Some(PlotType::XyInterval),
         dokime_domain::model::plots::wire::PlotType::Trajectory => Some(PlotType::Trajectory),
         dokime_domain::model::plots::wire::PlotType::Heatmap => Some(PlotType::Heatmap),
-        dokime_domain::model::plots::wire::PlotType::XyValueHeatmap => {
-            Some(PlotType::XyValueHeatmap)
-        }
-        dokime_domain::model::plots::wire::PlotType::WifiChannelOccupancy => {
-            Some(PlotType::WifiChannelOccupancy)
-        }
-        dokime_domain::model::plots::wire::PlotType::FrequencySeries => {
-            Some(PlotType::FrequencySeries)
-        }
+        dokime_domain::model::plots::wire::PlotType::XyValueHeatmap => Some(PlotType::XyValueHeatmap),
+        dokime_domain::model::plots::wire::PlotType::WifiChannelOccupancy => Some(PlotType::WifiChannelOccupancy),
+        dokime_domain::model::plots::wire::PlotType::FrequencySeries => Some(PlotType::FrequencySeries),
         dokime_domain::model::plots::wire::PlotType::Histogram => Some(PlotType::Histogram),
         dokime_domain::model::plots::wire::PlotType::BoxSummary => Some(PlotType::BoxSummary),
-        dokime_domain::model::plots::wire::PlotType::AggregateTable => {
-            Some(PlotType::AggregateTable)
-        }
+        dokime_domain::model::plots::wire::PlotType::AggregateTable => Some(PlotType::AggregateTable),
     })
 }
 pub(in crate::grpc) fn axis_scale_from_wire(
@@ -204,9 +177,7 @@ pub(in crate::grpc) fn filter_operator_from_wire(
         dokime_domain::model::plots::wire::FilterOperator::Gte => Some(FilterOperator::Gte),
         dokime_domain::model::plots::wire::FilterOperator::Lt => Some(FilterOperator::Lt),
         dokime_domain::model::plots::wire::FilterOperator::Lte => Some(FilterOperator::Lte),
-        dokime_domain::model::plots::wire::FilterOperator::Contains => {
-            Some(FilterOperator::Contains)
-        }
+        dokime_domain::model::plots::wire::FilterOperator::Contains => Some(FilterOperator::Contains),
         dokime_domain::model::plots::wire::FilterOperator::Exists => Some(FilterOperator::Exists),
     })
 }

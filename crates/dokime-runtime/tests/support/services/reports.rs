@@ -23,12 +23,12 @@ use sha2::Digest;
 // Local Imports
 use dokime_domain::model;
 use dokime_domain::model::execution::saved::ExecutionRevision;
-use model::execution::{HealthItem, OperatorNote};
 use dokime_runtime::records::RecordContract;
+use dokime_runtime::report::{CycleReportInput, saved::CapturedExecutionReportInput};
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_runtime::telemetry::contract::TelemetryContract;
-use dokime_runtime::report::{CycleReportInput, saved::CapturedExecutionReportInput};
 use harmos::storage::StorageBackends;
+use model::execution::{HealthItem, OperatorNote};
 
 /* === Constants === */
 
@@ -68,32 +68,19 @@ impl harmos::operations::Lane for ReportOwner {
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
     use harmos::operations::Lane;
     let runtime = harmos::Runtime::<ReportOwner>::builder((), ())
-        .register(harmos::operations::LaneSet::declared([(
-            ReportOwner.name(),
-            ReportOwner.capacity(),
-        )]))
+        .register(harmos::operations::LaneSet::declared([(ReportOwner.name(), ReportOwner.capacity())]))
         .runtime_with_storage(manager)
         .await
         .unwrap();
-    harmos::storage::operations::Operations::register(
-        &runtime.operations,
-        "fixture.storage",
-        ReportOwner,
-        Arc::new(manager.clone()),
-    )
-    .unwrap();
+    harmos::storage::operations::Operations::register(&runtime.operations, "fixture.storage", ReportOwner, Arc::new(manager.clone()))
+        .unwrap();
     runtime
 }
 
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
-    let bytes = dokime_runtime::storage::read_file_bytes(manager, file)
-        .await
-        .unwrap();
+    let bytes = dokime_runtime::storage::read_file_bytes(manager, file).await.unwrap();
     assert_eq!(bytes.len() as u64, file.length);
-    assert_eq!(
-        sha2::Sha256::digest(&bytes).as_slice(),
-        file.sha256.as_slice()
-    );
+    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), file.sha256.as_slice());
     bytes
 }
 
@@ -102,24 +89,12 @@ pub async fn payload(manager: &Manager, file: &FileReference) -> serde_json::Val
 }
 
 pub fn parse(html: &str) -> serde_json::Value {
-    let json = html
-        .split_once(r#"<script id="hub-report-data" type="application/json">"#)
-        .unwrap()
-        .1
-        .split_once("</script>")
-        .unwrap()
-        .0;
+    let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
     serde_json::from_str(json).unwrap()
 }
 
 pub fn payload_text(html: &str) -> &str {
-    html.split_once(r#"<script id="hub-report-data" type="application/json">"#)
-        .unwrap()
-        .1
-        .split_once("</script>")
-        .unwrap()
-        .0
-        .trim()
+    html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0.trim()
 }
 
 pub async fn render(input: &CycleReportInput) -> String {
@@ -127,11 +102,7 @@ pub async fn render(input: &CycleReportInput) -> String {
 }
 
 /// Renders one execution whose frozen context carries these notes and health items.
-pub async fn render_annotated(
-    input: &CycleReportInput,
-    notes: Vec<OperatorNote>,
-    health: Vec<HealthItem>,
-) -> String {
+pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>, health: Vec<HealthItem>) -> String {
     assert_eq!(input.cycle.test_executions.len(), 1);
 
     let root = tempfile::tempdir().unwrap();
@@ -142,14 +113,7 @@ pub async fn render_annotated(
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let manager = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        settings,
-    )
-    .unwrap();
+    let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let owner = storage_runtime(&manager).await;
 
     // Settle The Execution Like A Final Capture
@@ -187,23 +151,16 @@ pub async fn render_annotated(
     for record in &input.records {
         let mut contract = RecordContract::declared(record.record_type.as_str(), "Fixture Record");
         contract.schema_version = record.schema_version;
-        record_contracts
-            .entry(record.record_type.clone())
-            .or_default()
-            .insert(record.schema_version, contract);
+        record_contracts.entry(record.record_type.clone()).or_default().insert(record.schema_version, contract);
     }
     let mut telemetry_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
     for sample in &input.telemetry {
         let mut contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream");
         contract.schema_version = sample.schema_version;
         contract.storage_schema = Some(
-            crate::service_support::contracts::fixture_schema(sample.stream.as_str())
-                .expect("report fixture declares its row schema"),
+            crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema"),
         );
-        telemetry_contracts
-            .entry(sample.stream.clone())
-            .or_default()
-            .insert(sample.schema_version, contract);
+        telemetry_contracts.entry(sample.stream.clone()).or_default().insert(sample.schema_version, contract);
     }
     let captured = CapturedExecutionReportInput {
         final_report: true,
@@ -226,21 +183,9 @@ pub async fn render_annotated(
     let captured = Arc::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
-    let mut prepared = dokime_runtime::report::Renderer
-        .execution(captured, outputs, &manager.cursor_saved())
-        .unwrap();
-    let seal = prepared
-        .save_dependencies(
-            &manager,
-            &owner.operations,
-            &execution.finished_at.clone().unwrap(),
-            &revision,
-        )
-        .await
-        .unwrap();
-    let html = dokime_runtime::storage::read_file_bytes(&manager, &seal.report)
-        .await
-        .unwrap();
+    let mut prepared = dokime_runtime::report::Renderer.execution(captured, outputs, &manager.cursor_saved()).unwrap();
+    let seal = prepared.save_dependencies(&manager, &owner.operations, &execution.finished_at.clone().unwrap(), &revision).await.unwrap();
+    let html = dokime_runtime::storage::read_file_bytes(&manager, &seal.report).await.unwrap();
     let html = String::from_utf8(html).unwrap();
     drop(prepared);
     owner.stop().await.unwrap();

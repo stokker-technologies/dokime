@@ -65,11 +65,7 @@ impl FieldError {
     }
 
     fn of(declared: ValueType, found: Option<&Value>) -> Self {
-        Self {
-            field: String::new(),
-            declared,
-            found: found.map(described),
-        }
+        Self { field: String::new(), declared, found: found.map(described) }
     }
 }
 
@@ -98,9 +94,7 @@ impl FieldValue for i64 {
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
         match value {
             Some(Value::Integer(integer)) => Ok(*integer),
-            Some(Value::Unsigned(integer)) => {
-                i64::try_from(*integer).map_err(|_| FieldError::of(ValueType::Integer, value))
-            }
+            Some(Value::Unsigned(integer)) => i64::try_from(*integer).map_err(|_| FieldError::of(ValueType::Integer, value)),
             other => Err(FieldError::of(Self::VALUE_TYPE, other)),
         }
     }
@@ -114,9 +108,7 @@ impl FieldValue for i32 {
     }
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
-        narrowed(value).and_then(|integer| {
-            Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value))
-        })
+        narrowed(value).and_then(|integer| Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value)))
     }
 }
 
@@ -128,9 +120,7 @@ impl FieldValue for u32 {
     }
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
-        narrowed(value).and_then(|integer| {
-            Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value))
-        })
+        narrowed(value).and_then(|integer| Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value)))
     }
 }
 
@@ -142,9 +132,7 @@ impl FieldValue for u16 {
     }
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
-        narrowed(value).and_then(|integer| {
-            Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value))
-        })
+        narrowed(value).and_then(|integer| Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value)))
     }
 }
 
@@ -158,9 +146,7 @@ impl FieldValue for u64 {
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
         match value {
             Some(Value::Unsigned(integer)) => Ok(*integer),
-            other => narrowed(other).and_then(|integer| {
-                Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value))
-            }),
+            other => narrowed(other).and_then(|integer| Self::try_from(integer).map_err(|_| FieldError::of(Self::VALUE_TYPE, value))),
         }
     }
 }
@@ -176,11 +162,8 @@ impl FieldValue for f64 {
         match value {
             Some(Value::Number(number)) => Ok(*number),
             Some(integer @ (Value::Integer(_) | Value::Unsigned(_))) => {
-                let number =
-                    crate::model::values::numeric_value(integer).expect("integer projection");
-                if crate::model::values::numeric_cmp(integer, &Value::Number(number))
-                    == Some(std::cmp::Ordering::Equal)
-                {
+                let number = crate::model::values::numeric_value(integer).expect("integer projection");
+                if crate::model::values::numeric_cmp(integer, &Value::Number(number)) == Some(std::cmp::Ordering::Equal) {
                     Ok(number)
                 } else {
                     Err(FieldError::of(Self::VALUE_TYPE, value))
@@ -242,10 +225,7 @@ impl<T: FieldValue> FieldValue for Vec<T> {
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
         match value {
-            Some(Value::Array(elements)) => elements
-                .iter()
-                .map(|element| T::from_value(Some(element)))
-                .collect(),
+            Some(Value::Array(elements)) => elements.iter().map(|element| T::from_value(Some(element))).collect(),
             other => Err(FieldError::of(Self::VALUE_TYPE, other)),
         }
     }
@@ -295,9 +275,7 @@ fn described(value: &Value) -> String {
 fn narrowed(value: Option<&Value>) -> Result<i64, FieldError> {
     match value {
         Some(Value::Integer(integer)) => Ok(*integer),
-        Some(Value::Unsigned(integer)) => {
-            i64::try_from(*integer).map_err(|_| FieldError::of(ValueType::Integer, value))
-        }
+        Some(Value::Unsigned(integer)) => i64::try_from(*integer).map_err(|_| FieldError::of(ValueType::Integer, value)),
         other => Err(FieldError::of(ValueType::Integer, other)),
     }
 }

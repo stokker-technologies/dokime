@@ -19,15 +19,13 @@ use std::path::Path;
 use serde::Deserialize;
 use thiserror::Error;
 // Local Imports
+use crate::domains::{
+    AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity, ThemeActivationPolicy, ThemeCornerRadii,
+    ThemeModePolicy,
+};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-use crate::domains::{
-    AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity,
-    ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy,
-};
-use theme::{
-    Bundled, Directory, Error as ThemeCssError, Source, load_from as load_authored_theme_css,
-};
+use theme::{Bundled, Directory, Error as ThemeCssError, Source, load_from as load_authored_theme_css};
 
 /* === Constants === */
 pub(crate) const BRAND_ARTIFACT_ID: &str = "brand";
@@ -128,10 +126,7 @@ struct ThemeSection {
 #[derive(Debug, Error)]
 pub enum BrandLoadError {
     #[error("could not read {path}: {source}")]
-    Read {
-        path: std::path::PathBuf,
-        source: std::io::Error,
-    },
+    Read { path: std::path::PathBuf, source: std::io::Error },
     #[error("could not parse brand.toml: {0}")]
     Parse(Box<toml::de::Error>),
     #[error("brand identifier is invalid: {0}")]
@@ -180,11 +175,7 @@ impl BrandManifest {
             .map(|theme| -> Result<AppThemeContribution, BrandLoadError> {
                 let authored = load_authored_theme_css(source)?;
                 Ok(AppThemeContribution {
-                    metadata: Metadata::new(
-                        theme_id.clone(),
-                        &theme.label,
-                        theme.description.clone(),
-                    ),
+                    metadata: Metadata::new(theme_id.clone(), &theme.label, theme.description.clone()),
                     stylesheet: Some(authored.combined_css(&theme.corner_radii)),
                     variables: authored.variables,
                     corner_radii: theme.corner_radii.clone(),
@@ -194,15 +185,11 @@ impl BrandManifest {
             })
             .transpose()?;
         let theme_policy = theme_activation_policy(self.theme.as_ref(), &theme_id);
-        let organization = self
-            .app
-            .organization
-            .as_ref()
-            .map(|org| OrganizationIdentity {
-                name: org.name.clone(),
-                unit: org.unit.clone(),
-                website: org.website.clone(),
-            });
+        let organization = self.app.organization.as_ref().map(|org| OrganizationIdentity {
+            name: org.name.clone(),
+            unit: org.unit.clone(),
+            website: org.website.clone(),
+        });
 
         let customization = AppCustomizationContribution {
             metadata: Metadata::new(
@@ -225,12 +212,7 @@ impl BrandManifest {
             title_template: self.app.title_template,
         };
 
-        Ok(ResolvedBrand {
-            identity,
-            customization,
-            theme,
-            logo: None,
-        })
+        Ok(ResolvedBrand { identity, customization, theme, logo: None })
     }
 }
 
@@ -241,10 +223,8 @@ pub fn compiled_brand() -> Option<ResolvedBrand> {
             .map(|logo| -> Result<EmbeddedLogo, BrandLoadError> {
                 let file = format!("{BRAND_LOGOS_DIR}/{}", logo.file);
                 Ok(EmbeddedLogo {
-                    bytes: Bundled::file(&file).ok_or_else(|| BrandLoadError::Read {
-                        path: file.into(),
-                        source: std::io::ErrorKind::NotFound.into(),
-                    })?,
+                    bytes: Bundled::file(&file)
+                        .ok_or_else(|| BrandLoadError::Read { path: file.into(), source: std::io::ErrorKind::NotFound.into() })?,
                     file: logo.file,
                     mime_type: logo.mime_type,
                     alt: logo.alt,
@@ -264,10 +244,7 @@ pub fn compiled_brand() -> Option<ResolvedBrand> {
 
 pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
     let manifest_path = dir.join(BRAND_MANIFEST_FILE);
-    let read_error = |source| BrandLoadError::Read {
-        path: dir.to_path_buf(),
-        source,
-    };
+    let read_error = |source| BrandLoadError::Read { path: dir.to_path_buf(), source };
     let text = std::fs::read_to_string(&manifest_path).map_err(read_error)?;
     let source = Directory::new(dir).map_err(read_error)?;
     let (mut brand, logo) = parse(&text, &source)?;
@@ -275,8 +252,7 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
         let path = dir.join(BRAND_LOGOS_DIR).join(&logo.file);
         if path.is_file() {
             brand.customization.logo_assets = vec![AppLogoAsset {
-                asset_id: Identifier::new(BRAND_LOGO_ASSET_ID)
-                    .map_err(dokime_domain::Error::from)?,
+                asset_id: Identifier::new(BRAND_LOGO_ASSET_ID).map_err(dokime_domain::Error::from)?,
                 path: path.to_string_lossy().into_owned(),
                 mime_type: logo.mime_type,
                 alt: logo.alt,
@@ -289,12 +265,8 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
 }
 
 /* === Private Functions === */
-fn parse(
-    text: &str,
-    source: &impl Source,
-) -> Result<(ResolvedBrand, Option<LogoSection>), BrandLoadError> {
-    let mut manifest: BrandManifest =
-        toml::from_str(text).map_err(|error| BrandLoadError::Parse(Box::new(error)))?;
+fn parse(text: &str, source: &impl Source) -> Result<(ResolvedBrand, Option<LogoSection>), BrandLoadError> {
+    let mut manifest: BrandManifest = toml::from_str(text).map_err(|error| BrandLoadError::Parse(Box::new(error)))?;
     let logo = manifest.app.logo.take();
     Ok((manifest.into_resolved(source)?, logo))
 }
@@ -303,20 +275,12 @@ fn default_title_template() -> String {
     "{app}".to_owned()
 }
 
-fn theme_activation_policy(
-    theme: Option<&ThemeSection>,
-    theme_id: &Identifier,
-) -> ThemeActivationPolicy {
+fn theme_activation_policy(theme: Option<&ThemeSection>, theme_id: &Identifier) -> ThemeActivationPolicy {
     match theme {
         Some(theme) => match theme.policy {
             BrandThemePolicy::RegisterOnly => ThemeActivationPolicy::RegisterOnly,
-            BrandThemePolicy::Default => ThemeActivationPolicy::Default {
-                theme: theme_id.clone(),
-            },
-            BrandThemePolicy::Required => ThemeActivationPolicy::Required {
-                theme: theme_id.clone(),
-                mode: theme.default_mode,
-            },
+            BrandThemePolicy::Default => ThemeActivationPolicy::Default { theme: theme_id.clone() },
+            BrandThemePolicy::Required => ThemeActivationPolicy::Required { theme: theme_id.clone(), mode: theme.default_mode },
         },
         None => ThemeActivationPolicy::RegisterOnly,
     }

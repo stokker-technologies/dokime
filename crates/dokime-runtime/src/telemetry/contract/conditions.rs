@@ -17,10 +17,8 @@
 // Third Party Imports
 
 // Local Imports
+use crate::telemetry::{TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator, TelemetrySample};
 use dokime_domain::model::values::Value;
-use crate::telemetry::{
-    TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator, TelemetrySample,
-};
 
 /* === Constants === */
 
@@ -37,10 +35,7 @@ use crate::telemetry::{
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn evaluate_telemetry_condition(
-    condition: &TelemetryCondition,
-    samples: &[TelemetrySample],
-) -> TelemetryConditionEvaluation {
+pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[TelemetrySample]) -> TelemetryConditionEvaluation {
     for sample in samples.iter().rev() {
         if sample.stream != condition.stream {
             continue;
@@ -52,21 +47,13 @@ pub fn evaluate_telemetry_condition(
             continue;
         }
 
-        return TelemetryConditionEvaluation {
-            satisfied: true,
-            matched_sequence: Some(sample.sequence),
-            reason: None,
-        };
+        return TelemetryConditionEvaluation { satisfied: true, matched_sequence: Some(sample.sequence), reason: None };
     }
 
     TelemetryConditionEvaluation {
         satisfied: false,
         matched_sequence: None,
-        reason: Some(format!(
-            "no telemetry sample matched condition {}.{}",
-            condition.stream.as_str(),
-            condition.field
-        )),
+        reason: Some(format!("no telemetry sample matched condition {}.{}", condition.stream.as_str(), condition.field)),
     }
 }
 
@@ -75,18 +62,10 @@ fn matches_operator(value: &Value, condition: &TelemetryCondition) -> bool {
     match condition.operator {
         TelemetryConditionOperator::Exists => true,
         TelemetryConditionOperator::Eq => condition.target.as_ref() == Some(value),
-        TelemetryConditionOperator::Gt => {
-            compare_number(value, condition, |left, right| left > right)
-        }
-        TelemetryConditionOperator::Gte => {
-            compare_number(value, condition, |left, right| left >= right)
-        }
-        TelemetryConditionOperator::Lt => {
-            compare_number(value, condition, |left, right| left < right)
-        }
-        TelemetryConditionOperator::Lte => {
-            compare_number(value, condition, |left, right| left <= right)
-        }
+        TelemetryConditionOperator::Gt => compare_number(value, condition, |left, right| left > right),
+        TelemetryConditionOperator::Gte => compare_number(value, condition, |left, right| left >= right),
+        TelemetryConditionOperator::Lt => compare_number(value, condition, |left, right| left < right),
+        TelemetryConditionOperator::Lte => compare_number(value, condition, |left, right| left <= right),
         TelemetryConditionOperator::Within => {
             let Some(left) = numeric(value) else {
                 return false;
@@ -103,11 +82,7 @@ fn matches_operator(value: &Value, condition: &TelemetryCondition) -> bool {
     }
 }
 
-fn compare_number(
-    value: &Value,
-    condition: &TelemetryCondition,
-    predicate: impl FnOnce(f64, f64) -> bool,
-) -> bool {
+fn compare_number(value: &Value, condition: &TelemetryCondition, predicate: impl FnOnce(f64, f64) -> bool) -> bool {
     let Some(left) = numeric(value) else {
         return false;
     };

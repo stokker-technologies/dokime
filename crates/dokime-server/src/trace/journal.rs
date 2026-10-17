@@ -150,16 +150,8 @@ impl Default for Limits {
 impl Event {
     /// A conservative estimate of the event's encoded size, used for bounds.
     pub fn bytes(&self) -> usize {
-        let ids = [&self.plugin, &self.cycle, &self.execution]
-            .into_iter()
-            .flatten()
-            .map(String::len)
-            .sum::<usize>();
-        let fields = self
-            .fields
-            .iter()
-            .map(|(name, value)| name.len() + value.len() + FIELD_OVERHEAD_BYTES)
-            .sum::<usize>();
+        let ids = [&self.plugin, &self.cycle, &self.execution].into_iter().flatten().map(String::len).sum::<usize>();
+        let fields = self.fields.iter().map(|(name, value)| name.len() + value.len() + FIELD_OVERHEAD_BYTES).sum::<usize>();
         EVENT_OVERHEAD_BYTES + self.target.len() + self.message.len() + ids + fields
     }
 }
@@ -224,27 +216,12 @@ impl Journal {
             // Append To Every Ring The Event Belongs To
             let event = Arc::new(event);
             let limits = self.limits;
-            state.instance.push(
-                &event,
-                sequence,
-                limits.instance_events,
-                limits.instance_bytes,
-            );
+            state.instance.push(&event, sequence, limits.instance_events, limits.instance_bytes);
             if let Some(cycle) = &event.cycle {
-                state.cycles.ring(cycle, sequence).push(
-                    &event,
-                    sequence,
-                    limits.scope_events,
-                    limits.scope_bytes,
-                );
+                state.cycles.ring(cycle, sequence).push(&event, sequence, limits.scope_events, limits.scope_bytes);
             }
             if let Some(execution) = &event.execution {
-                state.executions.ring(execution, sequence).push(
-                    &event,
-                    sequence,
-                    limits.scope_events,
-                    limits.scope_bytes,
-                );
+                state.executions.ring(execution, sequence).push(&event, sequence, limits.scope_events, limits.scope_bytes);
             }
             sequence
         };
@@ -254,48 +231,27 @@ impl Journal {
     /// Accepted events of `scope` after `after`, at most `max_events` and,
     /// beyond the first, within `max_bytes`.
     pub fn read(
-        &self,
-        scope: &Scope,
-        after: u64,
-        accept: impl Fn(&Event) -> bool,
-        max_events: usize,
-        max_bytes: usize,
+        &self, scope: &Scope, after: u64, accept: impl Fn(&Event) -> bool, max_events: usize, max_bytes: usize,
     ) -> Result<Page, Stale> {
         self.read_until(scope, after, accept, max_events, max_bytes, u64::MAX)
     }
 
     pub fn read_until(
-        &self,
-        scope: &Scope,
-        after: u64,
-        accept: impl Fn(&Event) -> bool,
-        max_events: usize,
-        max_bytes: usize,
-        through: u64,
+        &self, scope: &Scope, after: u64, accept: impl Fn(&Event) -> bool, max_events: usize, max_bytes: usize, through: u64,
     ) -> Result<Page, Stale> {
         let state = self.lock();
         if after > state.sequence {
-            return Err(Stale {
-                after,
-                head: state.sequence,
-            });
+            return Err(Stale { after, head: state.sequence });
         }
         let Some(ring) = state.ring(scope) else {
             if after != 0 {
                 return Err(Stale { after, head: 0 });
             }
-            return Ok(Page {
-                events: Vec::new(),
-                missed: 0,
-                next: after,
-            });
+            return Ok(Page { events: Vec::new(), missed: 0, next: after });
         };
 
         let tail = ring.end().saturating_sub(1);
-        if after > tail
-            || (after != 0 && after < ring.base)
-            || (through != 0 && through < ring.base)
-        {
+        if after > tail || (after != 0 && after < ring.base) || (through != 0 && through < ring.base) {
             return Err(Stale { after, head: tail });
         }
 
@@ -320,32 +276,22 @@ impl Journal {
             }
             sequence += 1;
         }
-        Ok(Page {
-            events,
-            missed,
-            next: sequence - 1,
-        })
+        Ok(Page { events, missed, next: sequence - 1 })
     }
 
     /// The last sequence `scope` has issued, or zero before its first event.
     pub fn tail(&self, scope: &Scope) -> u64 {
-        self.lock()
-            .ring(scope)
-            .map_or(0, |ring| ring.end().saturating_sub(1).max(ring.base))
+        self.lock().ring(scope).map_or(0, |ring| ring.end().saturating_sub(1).max(ring.base))
     }
 
     /// Events evicted from `scope` since its ring was created.
     pub fn evicted(&self, scope: &Scope) -> u64 {
-        self.lock()
-            .ring(scope)
-            .map_or(0, |ring| ring.front - ring.base - 1)
+        self.lock().ring(scope).map_or(0, |ring| ring.front - ring.base - 1)
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
         // A Panic Elsewhere Never Leaves A Ring Half-Written: Pushes Are Infallible.
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -361,13 +307,7 @@ impl State {
 
 impl Ring {
     fn new(base: u64) -> Self {
-        Self {
-            base,
-            front: base + 1,
-            entries: VecDeque::new(),
-            bytes: 0,
-            written: base,
-        }
+        Self { base, front: base + 1, entries: VecDeque::new(), bytes: 0, written: base }
     }
 
     fn end(&self) -> u64 {
@@ -383,9 +323,7 @@ impl Ring {
             self.written = written;
             return;
         }
-        while !self.entries.is_empty()
-            && (self.entries.len() >= events || self.bytes.saturating_add(size) > bytes)
-        {
+        while !self.entries.is_empty() && (self.entries.len() >= events || self.bytes.saturating_add(size) > bytes) {
             if let Some(evicted) = self.entries.pop_front() {
                 self.bytes = self.bytes.saturating_sub(evicted.bytes());
                 self.front += 1;
@@ -399,10 +337,7 @@ impl Ring {
 
 impl Rings {
     fn new(capacity: usize) -> Self {
-        Self {
-            capacity: capacity.max(1),
-            rings: HashMap::new(),
-        }
+        Self { capacity: capacity.max(1), rings: HashMap::new() }
     }
 
     /// The ring of `id`, created on its first event. A new ring replaces the
@@ -410,30 +345,20 @@ impl Rings {
     fn ring(&mut self, id: &str, sequence: u64) -> &mut Ring {
         if !self.rings.contains_key(id) {
             if self.rings.len() >= self.capacity
-                && let Some(stale) = self
-                    .rings
-                    .iter()
-                    .min_by_key(|(_, ring)| ring.written)
-                    .map(|(id, _)| id.clone())
+                && let Some(stale) = self.rings.iter().min_by_key(|(_, ring)| ring.written).map(|(id, _)| id.clone())
             {
                 self.rings.remove(&stale);
             }
             // A Recreated Scope Continues Above Every Sequence Its Earlier Ring Issued.
             self.rings.insert(id.to_owned(), Ring::new(sequence - 1));
         }
-        self.rings
-            .get_mut(id)
-            .expect("the ring was just found or inserted")
+        self.rings.get_mut(id).expect("the ring was just found or inserted")
     }
 }
 
 impl Lineage {
     fn new(capacity: usize) -> Self {
-        Self {
-            capacity: capacity.max(1),
-            cycles: HashMap::new(),
-            order: VecDeque::new(),
-        }
+        Self { capacity: capacity.max(1), cycles: HashMap::new(), order: VecDeque::new() }
     }
 
     fn learn(&mut self, execution: &str, cycle: &str) {

@@ -76,70 +76,32 @@ pub enum ArtifactStatus {
 impl harmos::MemorySize for ArtifactRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.artifact_id),
-                std::mem::size_of_val(&self.artifact_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.upload_id),
-                std::mem::size_of_val(&self.upload_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filename),
-                std::mem::size_of_val(&self.filename),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.content_type),
-                std::mem::size_of_val(&self.content_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.sha256),
-                std::mem::size_of_val(&self.sha256),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.artifact_id), std::mem::size_of_val(&self.artifact_id)),
+            (harmos::MemorySize::memory_size(&self.upload_id), std::mem::size_of_val(&self.upload_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.filename), std::mem::size_of_val(&self.filename)),
+            (harmos::MemorySize::memory_size(&self.content_type), std::mem::size_of_val(&self.content_type)),
+            (harmos::MemorySize::memory_size(&self.sha256), std::mem::size_of_val(&self.sha256)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 /* === Public Functions === */
 pub fn media_kind_for(filename: &str, content_type: Option<&str>) -> Option<MediaKind> {
     let lower = filename.to_ascii_lowercase();
-    let extension = Path::new(&lower)
-        .extension()
-        .and_then(|extension| extension.to_str());
+    let extension = Path::new(&lower).extension().and_then(|extension| extension.to_str());
 
-    if matches!(
-        extension,
-        Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "svg")
-    ) {
+    if matches!(extension, Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "svg")) {
         return Some(MediaKind::Image);
     }
-    if matches!(
-        extension,
-        Some("mp4" | "webm" | "mov" | "avi" | "mkv" | "m4v")
-    ) {
+    if matches!(extension, Some("mp4" | "webm" | "mov" | "avi" | "mkv" | "m4v")) {
         return Some(MediaKind::Video);
     }
-    if matches!(
-        extension,
-        Some("wav" | "mp3" | "ogg" | "oga" | "opus" | "flac" | "m4a" | "aac")
-    ) {
+    if matches!(extension, Some("wav" | "mp3" | "ogg" | "oga" | "opus" | "flac" | "m4a" | "aac")) {
         return Some(MediaKind::Audio);
     }
 

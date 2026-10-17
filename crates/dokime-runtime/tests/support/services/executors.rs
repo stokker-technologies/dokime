@@ -18,15 +18,12 @@ use std::time::Duration;
 
 // Local Imports
 use super::evidence::{
-    activate_fixture_execution, custom_outcome, custom_record, host_system_batch,
-    provider_execution_scope, python_outcome, runnable_executions, tracking_batch,
-    tracking_derived_record, tracking_transition_batch,
+    activate_fixture_execution, custom_outcome, custom_record, host_system_batch, provider_execution_scope, python_outcome,
+    runnable_executions, tracking_batch, tracking_derived_record, tracking_transition_batch,
 };
 use dokime_runtime::domains::ExecutionProviderTarget;
+use dokime_runtime::domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::transport::ProviderExecutionFailure;
-use dokime_runtime::domains::execution::provider::{
-    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
-};
 
 /* === Constants === */
 
@@ -79,17 +76,11 @@ pub struct TrackingTransitionExecutor;
 /* === Implementations === */
 impl FakePythonExecutor {
     pub fn fixed(status: &str) -> Self {
-        Self {
-            status: status.to_owned(),
-            case_parameter_status: false,
-        }
+        Self { status: status.to_owned(), case_parameter_status: false }
     }
 
     pub fn case_parameter() -> Self {
-        Self {
-            status: "passed".to_owned(),
-            case_parameter_status: true,
-        }
+        Self { status: "passed".to_owned(), case_parameter_status: true }
     }
 }
 
@@ -100,10 +91,7 @@ impl Entered {
 
     async fn wait(&self) {
         let mut entered = self.0.subscribe();
-        entered
-            .wait_for(|entered| *entered)
-            .await
-            .expect("the executor owns its entry signal");
+        entered.wait_for(|entered| *entered).await.expect("the executor owns its entry signal");
     }
 }
 
@@ -143,29 +131,21 @@ impl MemberStopExecutor {
 
 impl ExecutionFixture for FakePythonExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             for execution in runnable_executions(cycle) {
                 activate_fixture_execution(&context, execution).await;
             }
-            Ok(python_outcome(
-                cycle,
-                &self.status,
-                self.case_parameter_status,
-            ))
+            Ok(python_outcome(cycle, &self.status, self.case_parameter_status))
         })
     }
 }
 
 impl ExecutionFixture for BlockingPublishingExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -176,10 +156,7 @@ impl ExecutionFixture for BlockingPublishingExecutor {
             self.entered.signal();
             while !*released.borrow_and_update() {
                 if context.is_cancelled() {
-                    return Err(dokime_runtime::transport::ProviderExecutionFailure::new(
-                        "cancel",
-                        "fixture cancelled",
-                    ));
+                    return Err(dokime_runtime::transport::ProviderExecutionFailure::new("cancel", "fixture cancelled"));
                 }
                 tokio::select! {
                     _ = released.changed() => {},
@@ -194,9 +171,7 @@ impl ExecutionFixture for BlockingPublishingExecutor {
 
 impl ExecutionFixture for BlockingErrorExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -205,33 +180,22 @@ impl ExecutionFixture for BlockingErrorExecutor {
             }
             let mut released = self.released.subscribe();
             self.entered.signal();
-            released
-                .wait_for(|released| *released)
-                .await
-                .expect("the executor owns its release signal");
+            released.wait_for(|released| *released).await.expect("the executor owns its release signal");
 
-            Err(ProviderExecutionFailure::new(
-                "worker",
-                "worker was cancelled",
-            ))
+            Err(ProviderExecutionFailure::new("worker", "worker was cancelled"))
         })
     }
 }
 
 impl ExecutionFixture for MemberStopExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             // === Hold The First Execution Until It Alone Is Stopped === //
 
-            let first = runnable_executions(cycle)
-                .next()
-                .expect("cycle has a runnable execution")
-                .clone();
+            let first = runnable_executions(cycle).next().expect("cycle has a runnable execution").clone();
             activate_fixture_execution(&context, &first).await;
             self.entered.signal();
             tokio::select! {
@@ -268,9 +232,7 @@ impl ExecutionFixture for MemberStopExecutor {
 
 impl ExecutionFixture for PanickingExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        _context: ExecutionFixtureContext,
-        _cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, _context: ExecutionFixtureContext, _cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -281,9 +243,7 @@ impl ExecutionFixture for PanickingExecutor {
 
 impl ExecutionFixture for PublishingExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -308,9 +268,7 @@ impl ExecutionFixture for PublishingExecutor {
 
 impl ExecutionFixture for DocumentAddingExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -320,23 +278,14 @@ impl ExecutionFixture for DocumentAddingExecutor {
             discovered.id("run.discovered");
             discovered.note("The bench answered on one stream.");
             context
-                .add_document_parts(
-                    execution_scope.clone(),
-                    vec![dokime_runtime::document::DocumentAddition::section(discovered)],
-                )
+                .add_document_parts(execution_scope.clone(), vec![dokime_runtime::document::DocumentAddition::section(discovered)])
                 .await
                 .unwrap();
             // The same id a second time changes nothing, so a re-delivered
             // drain page cannot duplicate what the host already merged.
             let mut replaced = dokime_runtime::document::DocumentSection::new("Replaced");
             replaced.id("run.discovered");
-            context
-                .add_document_parts(
-                    execution_scope,
-                    vec![dokime_runtime::document::DocumentAddition::section(replaced)],
-                )
-                .await
-                .unwrap();
+            context.add_document_parts(execution_scope, vec![dokime_runtime::document::DocumentAddition::section(replaced)]).await.unwrap();
 
             Ok(custom_outcome(cycle))
         })
@@ -345,9 +294,7 @@ impl ExecutionFixture for DocumentAddingExecutor {
 
 impl ExecutionFixture for TrackingTransitionExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -358,16 +305,8 @@ impl ExecutionFixture for TrackingTransitionExecutor {
                 sample.scope = Some(execution_scope.clone());
             }
             context.publish_telemetry_batch(batch).await.unwrap();
-            for record_type in [
-                "target.lost",
-                "target.acquired",
-                "tool.connection.lost",
-                "tool.connection.acquired",
-            ] {
-                context
-                    .publish_record(tracking_derived_record(record_type, &execution_scope))
-                    .await
-                    .unwrap();
+            for record_type in ["target.lost", "target.acquired", "tool.connection.lost", "tool.connection.acquired"] {
+                context.publish_record(tracking_derived_record(record_type, &execution_scope)).await.unwrap();
             }
 
             Ok(custom_outcome(cycle))

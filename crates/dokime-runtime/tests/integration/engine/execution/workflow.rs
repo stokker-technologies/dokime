@@ -24,30 +24,19 @@ use std::time::Duration;
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::Value;
-use dokime_runtime::{PromptId, Timestamp};
 use dokime_runtime::definition::TestCaseTemplate;
-use dokime_runtime::definition::authoring::{
-    criterion as authored_criterion, metadata as authored_metadata,
-};
+use dokime_runtime::definition::authoring::{criterion as authored_criterion, metadata as authored_metadata};
 use dokime_runtime::definition::{DeclaredTemplate, Step, TemplateContext};
 use dokime_runtime::execution::{Caller, SampleOutput, Workflow};
-use dokime_runtime::execution::{
-    CleanupContext, CriterionContext, InitializationContext, StepContext, TraceabilityContext,
-};
-use dokime_runtime::execution::{
-    DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture,
-    TraceabilityFuture,
-};
+use dokime_runtime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext, TraceabilityContext};
+use dokime_runtime::execution::{DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture, TraceabilityFuture};
 use dokime_runtime::plugin::Diagnostic;
 use dokime_runtime::prelude::StreamExt as _;
 use dokime_runtime::prompts::{PromptRequest, PromptResponse};
-use {
-    dokime_domain::model::traceability::TraceabilityRow,
-    dokime_domain::model::traceability::TraceabilitySection,
-};
 use dokime_runtime::transport::SidecarCriterionStatus;
 use dokime_runtime::transport::*;
-
+use dokime_runtime::{PromptId, Timestamp};
+use {dokime_domain::model::traceability::TraceabilityRow, dokime_domain::model::traceability::TraceabilitySection};
 
 /* === Constants === */
 const WORKFLOW: &str = "probe.checks";
@@ -87,11 +76,7 @@ struct ProbeResources {
     _resource: ExecutionResource,
 }
 
-struct PublishedExecutionRows(
-    std::sync::Mutex<Vec<PublishedRow>>,
-    Workflow<Probe>,
-    std::sync::Mutex<dokime_runtime::RecordScope>,
-);
+struct PublishedExecutionRows(std::sync::Mutex<Vec<PublishedRow>>, Workflow<Probe>, std::sync::Mutex<dokime_runtime::RecordScope>);
 
 // A host that refuses every row the way `host.publish` answers a refusal.
 struct RefusedPublication(String);
@@ -135,11 +120,7 @@ enum ProbeError {
 /* === Implementations === */
 impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
     fn publish(
-        &self,
-        execution: &str,
-        stream: &dokime_runtime::Identifier,
-        values: BTreeMap<String, Value>,
-        storage_payload: Vec<u8>,
+        &self, execution: &str, stream: &dokime_runtime::Identifier, values: BTreeMap<String, Value>, storage_payload: Vec<u8>,
     ) -> Result<(), String> {
         let sequence = {
             let mut rows = self.0.lock().unwrap();
@@ -148,7 +129,9 @@ impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
             sequence
         };
         let scope = self.2.lock().unwrap().clone();
-        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
+        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
+            dokime_runtime::model::identity::new_id(),
+            stream.clone(),
             sequence,
             dokime_runtime::model::time::now_utc(),
             SOURCE,
@@ -157,21 +140,13 @@ impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
         sample.storage_payload = Some(storage_payload);
         sample.scope = Some(scope.clone());
         sample.received_at = sample.timestamp.clone();
-        self.1
-            .deliver_samples(&scope, &[sample], &[])
-            .map_err(|error| error.to_string())?;
+        self.1.deliver_samples(&scope, &[sample], &[]).map_err(|error| error.to_string())?;
         Ok(())
     }
 }
 
 impl dokime_runtime::execution::EmbeddedPublisher for RefusedPublication {
-    fn publish(
-        &self,
-        _: &str,
-        _: &dokime_runtime::Identifier,
-        _: BTreeMap<String, Value>,
-        _: Vec<u8>,
-    ) -> Result<(), String> {
+    fn publish(&self, _: &str, _: &dokime_runtime::Identifier, _: BTreeMap<String, Value>, _: Vec<u8>) -> Result<(), String> {
         Err(self.0.clone())
     }
 }
@@ -215,17 +190,11 @@ impl dokime_runtime::telemetry::TelemetryRow for PulseRow {
     }
 
     fn into_row(self) -> BTreeMap<String, Value> {
-        BTreeMap::from([
-            ("index".to_owned(), Value::Integer(self.index)),
-            ("value".to_owned(), Value::Number(self.value)),
-        ])
+        BTreeMap::from([("index".to_owned(), Value::Integer(self.index)), ("value".to_owned(), Value::Number(self.value))])
     }
 
     fn from_row(values: &BTreeMap<String, Value>) -> Result<Self, dokime_runtime::FieldError> {
-        Ok(Self {
-            index: dokime_runtime::values::field(values, "index")?,
-            value: dokime_runtime::values::field(values, "value")?,
-        })
+        Ok(Self { index: dokime_runtime::values::field(values, "index")?, value: dokime_runtime::values::field(values, "value")? })
     }
 }
 
@@ -238,13 +207,10 @@ impl dokime_runtime::StreamSpec for PulseRow {
 
 impl dokime_runtime::telemetry::TelemetryStream for PulseRow {
     fn contract() -> dokime_runtime::telemetry::TelemetryContract {
-        dokime_runtime::telemetry::TelemetryContract::declared(
-            <Self as dokime_runtime::StreamSpec>::ID,
-            "Probe Pulse",
-        )
-        .typed::<Self>()
-        .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
-        .strict()
+        dokime_runtime::telemetry::TelemetryContract::declared(<Self as dokime_runtime::StreamSpec>::ID, "Probe Pulse")
+            .typed::<Self>()
+            .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
+            .strict()
     }
 }
 
@@ -286,16 +252,11 @@ impl dokime_runtime::records::DeclaredRecord for UnitConnected {
     }
 
     fn from_record(record: &model::records::evidence::Record) -> dokime_runtime::Result<Self> {
-        Self::from_details(&record.details)
-            .map_err(|error| dokime_runtime::Error::record_field(Self::RECORD_TYPE, error))
+        Self::from_details(&record.details).map_err(|error| dokime_runtime::Error::record_field(Self::RECORD_TYPE, error))
     }
 
-    fn from_details(
-        values: &std::collections::BTreeMap<String, Value>,
-    ) -> Result<Self, dokime_runtime::FieldError> {
-        Ok(Self {
-            serial: dokime_runtime::values::field(values, "serial")?,
-        })
+    fn from_details(values: &std::collections::BTreeMap<String, Value>) -> Result<Self, dokime_runtime::FieldError> {
+        Ok(Self { serial: dokime_runtime::values::field(values, "serial")? })
     }
 }
 
@@ -304,15 +265,10 @@ impl dokime_runtime::execution::Listenable for UnitConnected {
     type Listening = dokime_runtime::execution::ListeningRecords<Self>;
 
     fn subscription() -> dokime_runtime::definition::Subscription {
-        dokime_runtime::definition::Subscription::Record(
-            <Self as dokime_runtime::records::DeclaredRecord>::contract().record_type,
-        )
+        dokime_runtime::definition::Subscription::Record(<Self as dokime_runtime::records::DeclaredRecord>::contract().record_type)
     }
 
-    fn listening(
-        _streams: &dokime_runtime::telemetry::Streams,
-        deliveries: &dokime_runtime::records::Deliveries,
-    ) -> Self::Listening {
+    fn listening(_streams: &dokime_runtime::telemetry::Streams, deliveries: &dokime_runtime::records::Deliveries) -> Self::Listening {
         dokime_runtime::execution::ListeningRecords::new(deliveries)
     }
 }
@@ -346,22 +302,11 @@ impl DeclaredTemplate for Probe {
         let mut ctx = TemplateContext::new();
         ctx.set_template_id(<Self as DeclaredTemplate>::template_id());
         ctx.set_metadata(authored_metadata(TEMPLATE, "Probe Pulse", None::<String>));
-        ctx.set_subscriptions(vec![
-            <UnitConnected as dokime_runtime::execution::Listenable>::subscription(),
-        ]);
-        ctx.set_steps(vec![
-            Step::new("start", "Start"),
-            Step::new("stream", "Stream"),
-            Step::new("complete", "Complete"),
-        ]);
-        ctx.set_criteria(vec![authored_criterion(
-            CRITERION,
-            "Probe Accepted",
-            Some(Value::from(true)),
-        )]);
+        ctx.set_subscriptions(vec![<UnitConnected as dokime_runtime::execution::Listenable>::subscription()]);
+        ctx.set_steps(vec![Step::new("start", "Start"), Step::new("stream", "Stream"), Step::new("complete", "Complete")]);
+        ctx.set_criteria(vec![authored_criterion(CRITERION, "Probe Accepted", Some(Value::from(true)))]);
 
-        ctx.into_test_case_template()
-            .expect("the fixture template is declarable")
+        ctx.into_test_case_template().expect("the fixture template is declarable")
     }
 }
 
@@ -392,40 +337,27 @@ impl SidecarTemplate for Probe {
         })
     }
 
-    fn traceability<'a>(
-        &'a self,
-        ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> TraceabilityFuture<'a> {
+    fn traceability<'a>(&'a self, ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>) -> TraceabilityFuture<'a> {
         Box::pin(async move { dokime_runtime::plugin::captured(Self::stated(ctx)) })
     }
 
     fn declared_observers() -> Vec<DeclaredObserver> {
         vec![
-            DeclaredObserver::new("pulse", "Probe Pulse", INTERVAL_MS).publishing(
-                vec![<PulseRow as dokime_runtime::telemetry::TelemetryStream>::contract()],
-                Vec::new(),
-            ),
+            DeclaredObserver::new("pulse", "Probe Pulse", INTERVAL_MS)
+                .publishing(vec![<PulseRow as dokime_runtime::telemetry::TelemetryStream>::contract()], Vec::new()),
         ]
     }
 
-    fn cleanup<'a>(
-        &'a mut self,
-        ctx: &'a mut CleanupContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a> {
+    fn cleanup<'a>(&'a mut self, ctx: &'a mut CleanupContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a> {
         Box::pin(async move { dokime_runtime::plugin::captured(self.cleaned_up(ctx).await) })
     }
 
-    fn run_step<'a>(
-        &'a mut self,
-        step: &'a str,
-        ctx: &'a mut StepContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a> {
+    fn run_step<'a>(&'a mut self, step: &'a str, ctx: &'a mut StepContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a> {
         Box::pin(async move { dokime_runtime::plugin::captured(self.ran(step, ctx).await) })
     }
 
     fn evaluate<'a>(
-        criterion: &'a str,
-        ctx: &'a CriterionContext<'_, Self, Self::Parameters>,
+        criterion: &'a str, ctx: &'a CriterionContext<'_, Self, Self::Parameters>,
     ) -> dokime_runtime::execution::EvaluationFuture<'a, bool> {
         Box::pin(async move {
             tokio::task::yield_now().await;
@@ -439,10 +371,7 @@ impl SidecarTemplate for Probe {
         })
     }
 
-    fn observe<'a>(
-        observer: &'a str,
-        ctx: &'a mut ObserverContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a> {
+    fn observe<'a>(observer: &'a str, ctx: &'a mut ObserverContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a> {
         Box::pin(async move {
             tokio::task::yield_now().await;
             if observer != "pulse" {
@@ -461,11 +390,7 @@ impl SidecarTemplate for Probe {
                 resources.produced_changed.notify_waiters();
                 std::future::pending::<()>().await;
             }
-            ctx.publish(PulseRow {
-                index: index as i64,
-                value: index as f64 * 0.5,
-            })
-            .await;
+            ctx.publish(PulseRow { index: index as i64, value: index as f64 * 0.5 }).await;
             resources.produced.fetch_add(1, Ordering::AcqRel);
             resources.produced_changed.notify_waiters();
 
@@ -475,9 +400,7 @@ impl SidecarTemplate for Probe {
 }
 
 impl Probe {
-    async fn initialized(
-        ctx: &mut InitializationContext<'_, Probe, ProbeResources>,
-    ) -> Result<Self, ProbeError> {
+    async fn initialized(ctx: &mut InitializationContext<'_, Probe, ProbeResources>) -> Result<Self, ProbeError> {
         ctx.info("probe-initializing");
         if flag(ctx.raw_parameters(), "diagnostics") {
             ctx.trace("initializing trace");
@@ -487,14 +410,8 @@ impl Probe {
             ctx.error("initializing error");
         }
         if flag(ctx.raw_parameters(), "read_context") {
-            assert_eq!(
-                ctx.parameter::<String>("images.directory").unwrap(),
-                "/captured"
-            );
-            assert_eq!(
-                ctx.secret("api_token").unwrap().expose(),
-                "runtime-only-token"
-            );
+            assert_eq!(ctx.parameter::<String>("images.directory").unwrap(), "/captured");
+            assert_eq!(ctx.secret("api_token").unwrap().expose(), "runtime-only-token");
             assert!(flag(ctx.raw_parameters(), "read_context"));
         }
         if flag(ctx.raw_parameters(), "initialize_error") {
@@ -508,9 +425,7 @@ impl Probe {
         Ok(Self)
     }
 
-    async fn opened(
-        ctx: &InitializationContext<'_, Probe, ProbeResources>,
-    ) -> Result<ProbeResources, ProbeError> {
+    async fn opened(ctx: &InitializationContext<'_, Probe, ProbeResources>) -> Result<ProbeResources, ProbeError> {
         if flag(ctx.raw_parameters(), "resources_error") {
             return Err(ProbeError::Unmeasurable);
         }
@@ -521,15 +436,11 @@ impl Probe {
             cleaning: AtomicBool::new(false),
             observer_wait: flag(ctx.raw_parameters(), "observer_wait"),
             sampling: AtomicBool::new(false),
-            _resource: ExecutionResource {
-                track: flag(ctx.raw_parameters(), "observe_release"),
-            },
+            _resource: ExecutionResource { track: flag(ctx.raw_parameters(), "observe_release") },
         })
     }
 
-    fn stated(
-        ctx: &TraceabilityContext<'_, Probe, ProbeResources>,
-    ) -> Result<Vec<TraceabilitySection>, ProbeError> {
+    fn stated(ctx: &TraceabilityContext<'_, Probe, ProbeResources>) -> Result<Vec<TraceabilitySection>, ProbeError> {
         if flag(ctx.raw_parameters(), "traceability_error") {
             return Err(ProbeError::Unmeasurable);
         }
@@ -538,23 +449,13 @@ impl Probe {
         }
 
         let mut dut = TraceabilitySection::new("dut", "Device Under Test");
-        dut.row(TraceabilityRow::text(
-            "serial_number",
-            "Serial number",
-            "SN-7",
-        ));
+        dut.row(TraceabilityRow::text("serial_number", "Serial number", "SN-7"));
         dut.row(TraceabilityRow::number("target_c", "Target", 60.0).unit("°C"));
         Ok(vec![dut])
     }
 
-    async fn cleaned_up(
-        &mut self,
-        ctx: &mut CleanupContext<'_, Probe, ProbeResources>,
-    ) -> Result<(), ProbeError> {
-        assert!(
-            !ctx.resources().sampling.load(Ordering::Acquire),
-            "observers must settle before cleanup"
-        );
+    async fn cleaned_up(&mut self, ctx: &mut CleanupContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
+        assert!(!ctx.resources().sampling.load(Ordering::Acquire), "observers must settle before cleanup");
         ctx.resources().cleaning.store(true, Ordering::Release);
         ctx.info(format!("cleanup-reason:{:?}", ctx.reason()));
         if flag(ctx.raw_parameters(), "diagnostics") {
@@ -565,14 +466,8 @@ impl Probe {
             ctx.error("cleanup error");
         }
         if flag(ctx.raw_parameters(), "read_context") {
-            assert_eq!(
-                ctx.parameter::<String>("images.directory").unwrap(),
-                "/captured"
-            );
-            assert_eq!(
-                ctx.secret("api_token").unwrap().expose(),
-                "runtime-only-token"
-            );
+            assert_eq!(ctx.parameter::<String>("images.directory").unwrap(), "/captured");
+            assert_eq!(ctx.secret("api_token").unwrap().expose(), "runtime-only-token");
             assert!(flag(ctx.raw_parameters(), "read_context"));
         }
         if flag(ctx.raw_parameters(), "cleanup_wait") {
@@ -582,12 +477,8 @@ impl Probe {
         if flag(ctx.raw_parameters(), "artifact_directory") {
             // The sweep runs after cleanup, so what teardown writes is evidence
             // like anything else the run produced.
-            let directory = ctx
-                .artifacts()
-                .directory("capture")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
-            std::fs::write(directory.join("released.txt"), b"released\n")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let directory = ctx.artifacts().directory("capture").map_err(|error| ProbeError::Declined(error.to_string()))?;
+            std::fs::write(directory.join("released.txt"), b"released\n").map_err(|error| ProbeError::Declined(error.to_string()))?;
         }
         ctx.info("cleanup-finished");
         if ctx.raw_parameters().get("cleanup_error") == Some(&Value::Bool(true)) {
@@ -597,11 +488,7 @@ impl Probe {
         Ok(())
     }
 
-    async fn ran(
-        &mut self,
-        step: &str,
-        ctx: &mut StepContext<'_, Probe, ProbeResources>,
-    ) -> Result<(), ProbeError> {
+    async fn ran(&mut self, step: &str, ctx: &mut StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
         match step {
             "start" => self.start(ctx).await,
             "stream" => self.stream(ctx).await,
@@ -610,10 +497,7 @@ impl Probe {
         }
     }
 
-    async fn start(
-        &mut self,
-        ctx: &mut StepContext<'_, Probe, ProbeResources>,
-    ) -> Result<(), ProbeError> {
+    async fn start(&mut self, ctx: &mut StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
         if flag(ctx.raw_parameters(), "panic") {
             panic!("the probe blew up");
         }
@@ -625,12 +509,8 @@ impl Probe {
             ctx.error("step error");
         }
         if flag(ctx.raw_parameters(), "read_context") {
-            let folder: String = ctx
-                .parameter("images.directory")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
-            let token = ctx
-                .secret("api_token")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let folder: String = ctx.parameter("images.directory").map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let token = ctx.secret("api_token").map_err(|error| ProbeError::Declined(error.to_string()))?;
             if folder != "/captured" || token.expose() != "runtime-only-token" {
                 return Err(ProbeError::Declined("incorrect execution context".into()));
             }
@@ -638,61 +518,40 @@ impl Probe {
             ctx.info(diagnostic);
         }
         if flag(ctx.raw_parameters(), "artifact_backpressure") {
-            let mut writer = ctx
-                .artifacts()
-                .create("evidence/backpressure.bin")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let mut writer =
+                ctx.artifacts().create("evidence/backpressure.bin").map_err(|error| ProbeError::Declined(error.to_string()))?;
             // Fill the 16 MiB backlog with protocol-sized pieces before asking
             // the public writer to emit its terminal byte.
             let chunk = vec![7; MAX_ARTIFACT_CHUNK_BYTES];
             for _ in 0..(16 * 1024 * 1024 / MAX_ARTIFACT_CHUNK_BYTES) {
-                writer
-                    .write_all(&chunk)
-                    .map_err(|error| ProbeError::Declined(error.to_string()))?;
+                writer.write_all(&chunk).map_err(|error| ProbeError::Declined(error.to_string()))?;
             }
             ARTIFACT_GATE_FILLED.store(true, Ordering::Release);
             ARTIFACT_GATE_REACHED.notify_one();
-            writer
-                .write_all(&[1])
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
-            writer
-                .finish()
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            writer.write_all(&[1]).map_err(|error| ProbeError::Declined(error.to_string()))?;
+            writer.finish().map_err(|error| ProbeError::Declined(error.to_string()))?;
             ARTIFACT_PUSH_FINISHED.store(true, Ordering::Release);
         }
         if flag(ctx.raw_parameters(), "artifact_evidence") {
             let artifacts = ctx.artifacts();
-            artifacts
-                .write("evidence/pulse.csv", ARTIFACT_EVIDENCE_BYTES)
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
-            let mut writer = artifacts
-                .create("evidence/trace.bin")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            artifacts.write("evidence/pulse.csv", ARTIFACT_EVIDENCE_BYTES).map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let mut writer = artifacts.create("evidence/trace.bin").map_err(|error| ProbeError::Declined(error.to_string()))?;
             for slice in streamed_evidence().chunks(4096) {
-                writer
-                    .write_all(slice)
-                    .map_err(|error| ProbeError::Declined(error.to_string()))?;
+                writer.write_all(slice).map_err(|error| ProbeError::Declined(error.to_string()))?;
             }
-            writer
-                .finish()
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            writer.finish().map_err(|error| ProbeError::Declined(error.to_string()))?;
         }
         if flag(ctx.raw_parameters(), "artifact_directory") {
             // Plain `std::fs`, because the producer a directory exists for is
             // the one that knows nothing about Dokime: it is handed a path and
             // writes files, and the SDK is what notices.
-            let directory = ctx
-                .artifacts()
-                .directory("capture")
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            let directory = ctx.artifacts().directory("capture").map_err(|error| ProbeError::Declined(error.to_string()))?;
             ctx.info(format!("directory:{}", directory.display()));
             let write = |relative: &str, bytes: &[u8]| {
-                std::fs::write(directory.join(relative), bytes)
-                    .map_err(|error| ProbeError::Declined(error.to_string()))
+                std::fs::write(directory.join(relative), bytes).map_err(|error| ProbeError::Declined(error.to_string()))
             };
             write("chamber.log", &watched_evidence())?;
-            std::fs::create_dir_all(directory.join("frames"))
-                .map_err(|error| ProbeError::Declined(error.to_string()))?;
+            std::fs::create_dir_all(directory.join("frames")).map_err(|error| ProbeError::Declined(error.to_string()))?;
             write("frames/first.txt", b"nested\n")?;
             // A file whose name does not say what it is stays where it is.
             write("notes", b"unreadable media type\n")?;
@@ -705,10 +564,7 @@ impl Probe {
             // plugin's own error.
             let connected = ctx
                 .listen::<UnitConnected>()
-                .timeout(Duration::from_millis(count(
-                    ctx.raw_parameters(),
-                    "await_record_ms",
-                )))
+                .timeout(Duration::from_millis(count(ctx.raw_parameters(), "await_record_ms")))
                 .next()
                 .await
                 .transpose()?
@@ -726,33 +582,19 @@ impl Probe {
         }
     }
 
-    async fn complete(
-        &mut self,
-        ctx: &mut StepContext<'_, Probe, ProbeResources>,
-    ) -> Result<(), ProbeError> {
+    async fn complete(&mut self, ctx: &mut StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
         if !flag(ctx.raw_parameters(), "artifact_directory") {
             return Ok(());
         }
-        let directory = ctx
-            .artifacts()
-            .directory("capture")
-            .map_err(|error| ProbeError::Declined(error.to_string()))?;
+        let directory = ctx.artifacts().directory("capture").map_err(|error| ProbeError::Declined(error.to_string()))?;
         ctx.info(format!("directory:{}", directory.display()));
-        std::fs::write(directory.join("chamber.log"), WATCHED_REWRITE)
-            .map_err(|error| ProbeError::Declined(error.to_string()))?;
+        std::fs::write(directory.join("chamber.log"), WATCHED_REWRITE).map_err(|error| ProbeError::Declined(error.to_string()))?;
 
         Ok(())
     }
 
-    async fn stream(
-        &mut self,
-        ctx: &mut StepContext<'_, Probe, ProbeResources>,
-    ) -> Result<(), ProbeError> {
-        let before = if ctx.resources().observer_wait {
-            0
-        } else {
-            ctx.resources().produced.load(Ordering::Acquire)
-        };
+    async fn stream(&mut self, ctx: &mut StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
+        let before = if ctx.resources().observer_wait { 0 } else { ctx.resources().produced.load(Ordering::Acquire) };
         let wanted = before + count(ctx.raw_parameters(), "samples");
         loop {
             let produced = ctx.resources().produced_changed.notified();
@@ -769,10 +611,7 @@ impl Probe {
 
     fn accepted(ctx: &CriterionContext<'_, Probe>) -> Result<bool, ProbeError> {
         if flag(ctx.raw_parameters(), "observe_release") {
-            assert!(
-                EXECUTION_RELEASED.load(Ordering::Acquire),
-                "all instance resources must release before criterion evaluation"
-            );
+            assert!(EXECUTION_RELEASED.load(Ordering::Acquire), "all instance resources must release before criterion evaluation");
         }
         if flag(ctx.raw_parameters(), "unmeasurable") {
             return Err(ProbeError::Unmeasurable);
@@ -786,15 +625,11 @@ impl Probe {
 
 /* === Private Functions === */
 fn streamed_evidence() -> Vec<u8> {
-    (0..dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 321)
-        .map(|index| (index % 251) as u8)
-        .collect()
+    (0..dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 321).map(|index| (index % 251) as u8).collect()
 }
 
 fn watched_evidence() -> Vec<u8> {
-    (0..200_000)
-        .map(|index| b"0123456789\n"[index % 11])
-        .collect()
+    (0..200_000).map(|index| b"0123456789\n"[index % 11]).collect()
 }
 
 fn flag(parameters: &BTreeMap<String, Value>, name: &str) -> bool {
@@ -822,14 +657,9 @@ async fn interactive_commands_downstream() {
     for step in definition.template.phases.iter_mut().take(2) {
         step.repeatable = true;
     }
-    let step_ids: BTreeMap<_, _> = definition
-        .template
-        .phases
-        .iter()
-        .map(|step| (step.metadata.identifier.to_string(), step.step_id.clone()))
-        .collect();
-    let workflow =
-        Workflow::<Probe>::declaring(WORKFLOW, SOURCE, definition, Probe::declared_observers());
+    let step_ids: BTreeMap<_, _> =
+        definition.template.phases.iter().map(|step| (step.metadata.identifier.to_string(), step.step_id.clone())).collect();
+    let workflow = Workflow::<Probe>::declaring(WORKFLOW, SOURCE, definition, Probe::declared_observers());
     let token = "interactive-probe";
     let mut start = start_request(token, serde_json::json!({"samples": 1}));
     start.mode = "interactive".into();
@@ -838,13 +668,7 @@ async fn interactive_commands_downstream() {
     let mut cursor = 0;
     let mut replies = Vec::new();
     let mut commands = Vec::new();
-    for (action, step) in [
-        ("next", ""),
-        ("next", ""),
-        ("run_step", "start"),
-        ("next", ""),
-        ("next", ""),
-    ] {
+    for (action, step) in [("next", ""), ("next", ""), ("run_step", "start"), ("next", ""), ("next", "")] {
         let command = CommandExecutionRequest {
             execution_token: token.into(),
             command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
@@ -882,32 +706,16 @@ async fn interactive_commands_downstream() {
     if !replies.iter().any(|reply| reply.outcome.is_some()) {
         replies.extend(drain_from(&workflow, token, None, cursor).await);
     }
-    let attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt> = replies
-        .iter()
-        .flat_map(|reply| &reply.step_attempts)
-        .map(|encoded| serde_json::from_str(encoded).unwrap())
-        .collect();
+    let attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt> =
+        replies.iter().flat_map(|reply| &reply.step_attempts).map(|encoded| serde_json::from_str(encoded).unwrap()).collect();
     assert_eq!(attempts.len(), 5);
     let expected = ["start", "stream", "start", "stream", "complete"];
     for (attempt, identifier) in attempts.iter().zip(expected) {
         assert_eq!(attempt.step_id, step_ids[identifier]);
     }
-    let logs: Vec<_> = replies
-        .iter()
-        .flat_map(|reply| &reply.diagnostics)
-        .collect();
-    assert_eq!(
-        logs.iter()
-            .filter(|entry| entry.message == "probe-initializing")
-            .count(),
-        1
-    );
-    assert_eq!(
-        logs.iter()
-            .filter(|entry| entry.message == "cleanup-finished")
-            .count(),
-        1
-    );
+    let logs: Vec<_> = replies.iter().flat_map(|reply| &reply.diagnostics).collect();
+    assert_eq!(logs.iter().filter(|entry| entry.message == "probe-initializing").count(), 1);
+    assert_eq!(logs.iter().filter(|entry| entry.message == "cleanup-finished").count(), 1);
     assert!(
         workflow
             .command(CommandExecutionRequest {
@@ -934,26 +742,14 @@ async fn interactive_idle_stop() {
         assert!(reply.step_begins.is_empty());
         assert!(reply.step_attempts.is_empty());
         assert!(reply.outcome.is_none());
-        assert!(
-            !reply
-                .diagnostics
-                .iter()
-                .any(|entry| entry.message == "cleanup-finished")
-        );
+        assert!(!reply.diagnostics.iter().any(|entry| entry.message == "cleanup-finished"));
         replies.push(reply);
         observed += workflow.take_local_samples(token).unwrap().len();
     }
     workflow.cancel(token);
     replies.extend(drain_from(&workflow, token, None, cursor).await);
     assert!(replies.iter().all(|reply| reply.step_attempts.is_empty()));
-    assert_eq!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .filter(|entry| entry.message == "cleanup-finished")
-            .count(),
-        1
-    );
+    assert_eq!(replies.iter().flat_map(|reply| &reply.diagnostics).filter(|entry| entry.message == "cleanup-finished").count(), 1);
     assert!(
         workflow
             .command(CommandExecutionRequest {
@@ -967,10 +763,7 @@ async fn interactive_idle_stop() {
 }
 
 async fn settle_command(
-    workflow: &Workflow<Probe>,
-    command: &CommandExecutionRequest,
-    cursor: &mut u64,
-    replies: &mut Vec<EvidenceBatch>,
+    workflow: &Workflow<Probe>, command: &CommandExecutionRequest, cursor: &mut u64, replies: &mut Vec<EvidenceBatch>,
 ) -> CommandExecutionReply {
     workflow.command(command.clone()).unwrap();
     loop {
@@ -1014,19 +807,10 @@ fn start_request(token: &str, parameters: serde_json::Value) -> RunExecution {
 }
 
 fn drain<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -> EvidenceBatch {
-    let reply = workflow
-        .drain(token, cursor)
-        .expect("the execution remains drainable");
+    let reply = workflow.drain(token, cursor).expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(
-            token,
-            &StepAdmission {
-                attempt_id: start.attempt_id.to_string(),
-                accepted: true,
-                message: String::new(),
-            },
-        );
+        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
 }
@@ -1035,29 +819,16 @@ async fn next<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u
     let reply = workflow.next(token, cursor).await.expect("the execution remains retained");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(token, &StepAdmission {
-            attempt_id: start.attempt_id.to_string(),
-            accepted: true,
-            message: String::new(),
-        });
+        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
 }
 
-async fn drain_until_terminal(
-    workflow: &Workflow<Probe>,
-    token: &str,
-    answer: Option<(&str, bool)>,
-) -> Vec<EvidenceBatch> {
+async fn drain_until_terminal(workflow: &Workflow<Probe>, token: &str, answer: Option<(&str, bool)>) -> Vec<EvidenceBatch> {
     drain_from(workflow, token, answer, 0).await
 }
 
-async fn drain_from(
-    workflow: &Workflow<Probe>,
-    token: &str,
-    answer: Option<(&str, bool)>,
-    mut cursor: u64,
-) -> Vec<EvidenceBatch> {
+async fn drain_from(workflow: &Workflow<Probe>, token: &str, answer: Option<(&str, bool)>, mut cursor: u64) -> Vec<EvidenceBatch> {
     let mut replies = Vec::new();
     loop {
         let reply = next(workflow, token, cursor).await;
@@ -1067,22 +838,13 @@ async fn drain_from(
         }
         if let Some((action, accepted)) = answer {
             for request in &reply.prompt_requests {
-                respond(
-                    workflow,
-                    token,
-                    &decode(request).prompt_id,
-                    action,
-                    accepted,
-                );
+                respond(workflow, token, &decode(request).prompt_id, action, accepted);
             }
         }
         let terminal = reply.outcome.is_some();
         replies.push(reply);
         if terminal {
-            assert!(
-                !LATE_SAMPLE.load(Ordering::Acquire),
-                "an observer must join before cleanup"
-            );
+            assert!(!LATE_SAMPLE.load(Ordering::Acquire), "an observer must join before cleanup");
             return replies;
         }
     }
@@ -1114,13 +876,7 @@ fn decode(request: &str) -> PromptRequest {
     serde_json::from_str(request).expect("the engine buffers a decodable operator question")
 }
 
-fn respond(
-    workflow: &Workflow<Probe>,
-    token: &str,
-    prompt_id: &PromptId,
-    action: &str,
-    accepted: bool,
-) {
+fn respond(workflow: &Workflow<Probe>, token: &str, prompt_id: &PromptId, action: &str, accepted: bool) {
     let response = PromptResponse {
         prompt_id: prompt_id.clone(),
         action: action.to_owned(),
@@ -1130,24 +886,14 @@ fn respond(
         accepted,
     };
     workflow
-        .answer(
-            token,
-            &prompt_id.to_string(),
-            &serde_json::to_string(&response).expect("a fixture answer encodes"),
-        )
+        .answer(token, &prompt_id.to_string(), &serde_json::to_string(&response).expect("a fixture answer encodes"))
         .expect("delivering an operator answer is accepted");
 }
 
 fn outcome(
     replies: &[EvidenceBatch],
-) -> (
-    &dokime_runtime::transport::SidecarExecutionOutcome,
-    &dokime_runtime::transport::SidecarCriterionOutcome,
-) {
-    let outcome = replies
-        .iter()
-        .find_map(|reply| reply.outcome.as_ref())
-        .expect("the drain stream terminates once");
+) -> (&dokime_runtime::transport::SidecarExecutionOutcome, &dokime_runtime::transport::SidecarCriterionOutcome) {
+    let outcome = replies.iter().find_map(|reply| reply.outcome.as_ref()).expect("the drain stream terminates once");
     let criterion = outcome
         .criteria
         .iter()
@@ -1173,19 +919,12 @@ fn assembled(chunks: &[&dokime_runtime::transport::ArtifactChunk]) -> Vec<u8> {
     bytes
 }
 
-fn status(
-    criterion: &dokime_runtime::transport::SidecarCriterionOutcome,
-) -> dokime_runtime::transport::SidecarCriterionStatus {
-    dokime_runtime::transport::SidecarCriterionStatus::try_from(criterion.status)
-        .expect("the engine reports a known criterion status")
+fn status(criterion: &dokime_runtime::transport::SidecarCriterionOutcome) -> dokime_runtime::transport::SidecarCriterionStatus {
+    dokime_runtime::transport::SidecarCriterionStatus::try_from(criterion.status).expect("the engine reports a known criterion status")
 }
 
 fn detail(replies: &[EvidenceBatch]) -> dokime_runtime::diagnostics::Diagnostic {
-    let encoded = outcome(replies)
-        .0
-        .detail_json
-        .as_deref()
-        .expect("a failed execution carries its detail");
+    let encoded = outcome(replies).0.detail_json.as_deref().expect("a failed execution carries its detail");
 
     serde_json::from_str(encoded).expect("the engine encodes a decodable diagnostic")
 }
@@ -1197,53 +936,33 @@ async fn unacknowledged_invoke_callback() {
     for cancel in [false, true] {
         let workflow = workflow();
         let token = "admission";
-        workflow
-            .start(start_request(
-                token,
-                serde_json::json!({ "samples": 1, "diagnostics": true }),
-            ))
-            .unwrap();
+        workflow.start(start_request(token, serde_json::json!({ "samples": 1, "diagnostics": true }))).unwrap();
         let mut cursor = 0;
         let start = loop {
             let reply = workflow.next(token, cursor).await.unwrap();
             cursor = reply.cursor;
             if let Some(encoded) = reply.step_begins.first() {
-                break serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded)
-                    .unwrap();
+                break serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).unwrap();
             }
         };
         tokio::time::advance(Duration::from_millis(30)).await;
         let waiting = workflow.drain(token, cursor).unwrap();
         assert!(waiting.outcome.is_none());
         assert!(waiting.step_attempts.is_empty());
-        assert!(
-            !waiting
-                .diagnostics
-                .iter()
-                .any(|line| line.message == "step info")
-        );
+        assert!(!waiting.diagnostics.iter().any(|line| line.message == "step info"));
         cursor = waiting.cursor;
         if cancel {
             workflow.cancel(token);
         } else {
             workflow.admit(
                 token,
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: false,
-                    message: "host refused step".into(),
-                },
+                &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: false, message: "host refused step".into() },
             );
         }
         let replies = drain_from(&workflow, token, None, cursor).await;
         assert!(!outcome(&replies).0.passed);
         assert!(replies.iter().all(|reply| reply.step_attempts.is_empty()));
-        assert!(
-            !replies
-                .iter()
-                .flat_map(|reply| &reply.diagnostics)
-                .any(|line| line.message == "step info")
-        );
+        assert!(!replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message == "step info"));
         workflow.shutdown().await;
     }
 }
@@ -1264,9 +983,7 @@ async fn embedded_execution_output() {
     let output = SampleOutput::Embedded(rows.clone());
     let start = start_request("embedded", serde_json::json!({"samples": 2}));
     for _ in 0..2 {
-        workflow
-            .start_on(start.clone(), Some(output.clone()), Caller::default())
-            .unwrap();
+        workflow.start_on(start.clone(), Some(output.clone()), Caller::default()).unwrap();
     }
 
     let mut replies = Vec::new();
@@ -1280,17 +997,8 @@ async fn embedded_execution_output() {
         }
         for encoded in &reply.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step {
-                attempt_id: start.attempt_id.clone(),
-            };
-            workflow.admit(
-                "embedded",
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: true,
-                    message: String::new(),
-                },
-            );
+            rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
+            workflow.admit("embedded", &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         if reply.record_subscriptions_settling {
             workflow.settle_records("embedded");
@@ -1303,19 +1011,9 @@ async fn embedded_execution_output() {
     }
     assert!(outcome(&replies).0.passed, "{:?}", outcome(&replies).0);
     // A repeated cursor re-delivers the terminal outcome.
-    let replayed = workflow
-        .drain(
-            "embedded",
-            replies[..replies.len() - 1]
-                .last()
-                .map_or(0, |reply| reply.cursor),
-        )
-        .unwrap();
+    let replayed = workflow.drain("embedded", replies[..replies.len() - 1].last().map_or(0, |reply| reply.cursor)).unwrap();
     assert!(replayed.outcome.unwrap().passed);
-    assert!(
-        workflow.take_local_samples("embedded").unwrap().is_empty(),
-        "hosted output must not use the fixture buffer"
-    );
+    assert!(workflow.take_local_samples("embedded").unwrap().is_empty(), "hosted output must not use the fixture buffer");
     {
         let rows = rows.0.lock().unwrap();
         assert!(rows.len() >= 2);
@@ -1332,38 +1030,21 @@ async fn embedded_execution_output() {
 // naming the stream and the refusal instead of losing rows or the plugin.
 #[tokio::test]
 async fn refused_publication_fails() {
-    for refusal in [
-        harmos::streams::StreamPublicationError::Backlog,
-        harmos::streams::StreamPublicationError::Capacity,
-    ] {
-        let cause = harmos::Error::<std::convert::Infallible>::OperationFailed {
-            operation: "host.publish".into(),
-            source: Arc::new(refusal),
-        }
-        .to_string();
+    for refusal in [harmos::streams::StreamPublicationError::Backlog, harmos::streams::StreamPublicationError::Capacity] {
+        let cause =
+            harmos::Error::<std::convert::Infallible>::OperationFailed { operation: "host.publish".into(), source: Arc::new(refusal) }
+                .to_string();
         let workflow = workflow();
         let output = SampleOutput::Embedded(Arc::new(RefusedPublication(cause.clone())));
-        workflow
-            .start_on(
-                start_request("refused", serde_json::json!({"samples": 1})),
-                Some(output),
-                Caller::default(),
-            )
-            .unwrap();
+        workflow.start_on(start_request("refused", serde_json::json!({"samples": 1})), Some(output), Caller::default()).unwrap();
 
         let replies = drain_until_terminal(&workflow, "refused", None).await;
 
         let detail = detail(&replies);
 
         assert!(!outcome(&replies).0.passed);
-        assert_eq!(
-            detail.message,
-            format!("step `publishing stream evidence` failed in {TEMPLATE}")
-        );
-        assert_eq!(
-            detail.chain,
-            vec![format!("stream {STREAM} publication failed: {cause}")]
-        );
+        assert_eq!(detail.message, format!("step `publishing stream evidence` failed in {TEMPLATE}"));
+        assert_eq!(detail.chain, vec![format!("stream {STREAM} publication failed: {cause}")]);
         workflow.shutdown().await;
     }
 }
@@ -1385,10 +1066,7 @@ async fn runtime_bindings_metadata() {
             <Probe as SidecarTemplate>::declared_observers(),
         );
         let mut request = start_request(identifier, serde_json::json!({"samples": 1}));
-        assert!(
-            workflow.start(request.clone()).is_err(),
-            "the type's static identity is not registered"
-        );
+        assert!(workflow.start(request.clone()).is_err(), "the type's static identity is not registered");
         request.template_identifier = identifier.into();
         workflow.start(request).unwrap();
 
@@ -1402,22 +1080,14 @@ async fn runtime_bindings_metadata() {
 #[tokio::test]
 async fn stated_section_step() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "stated",
-            serde_json::json!({"samples": 1, "traceability": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("stated", serde_json::json!({"samples": 1, "traceability": true}))).unwrap();
 
     let replies = drain_until_terminal(&workflow, "stated", None).await;
 
     let stated = replies
         .iter()
         .flat_map(|reply| reply.traceability.iter())
-        .map(|encoded| {
-            serde_json::from_str::<TraceabilitySection>(encoded)
-                .expect("the engine encodes a decodable section")
-        })
+        .map(|encoded| serde_json::from_str::<TraceabilitySection>(encoded).expect("the engine encodes a decodable section"))
         .collect::<Vec<_>>();
     assert_eq!(stated.len(), 1);
     assert_eq!(stated[0].identifier.as_str(), "dut");
@@ -1425,14 +1095,8 @@ async fn stated_section_step() {
     assert_eq!(stated[0].rows[1].unit.as_deref(), Some("°C"));
     // Stated before the run measured anything, which is the whole point of the
     // hook: an operator can read what is on the bench while it is still going.
-    let stated_cursor = replies
-        .iter()
-        .position(|reply| !reply.traceability.is_empty())
-        .expect("a reply carries the section");
-    let first_step = replies
-        .iter()
-        .position(|reply| reply.phase == "start")
-        .expect("the run entered its first step");
+    let stated_cursor = replies.iter().position(|reply| !reply.traceability.is_empty()).expect("a reply carries the section");
+    let first_step = replies.iter().position(|reply| reply.phase == "start").expect("the run entered its first step");
     assert!(stated_cursor < first_step);
     assert!(outcome(&replies).0.passed);
 }
@@ -1440,32 +1104,16 @@ async fn stated_section_step() {
 #[tokio::test]
 async fn traceability_failure_up() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "unstated",
-            serde_json::json!({"samples": 1, "traceability_error": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("unstated", serde_json::json!({"samples": 1, "traceability_error": true}))).unwrap();
 
     let replies = drain_until_terminal(&workflow, "unstated", None).await;
 
     let (outcome, _) = outcome(&replies);
     assert!(!outcome.passed);
-    assert!(
-        outcome
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("traceability")),
-        "{outcome:?}"
-    );
+    assert!(outcome.message.as_deref().is_some_and(|message| message.contains("traceability")), "{outcome:?}");
     // No step ran, and the handles initialization constructed were still released.
     assert!(workflow.take_local_samples("unstated").unwrap().is_empty());
-    assert!(
-        replies
-            .iter()
-            .flat_map(|reply| reply.diagnostics.iter())
-            .any(|entry| entry.message.contains("cleanup-finished"))
-    );
+    assert!(replies.iter().flat_map(|reply| reply.diagnostics.iter()).any(|entry| entry.message.contains("cleanup-finished")));
 }
 
 #[tokio::test]
@@ -1474,12 +1122,7 @@ async fn failing_step_backtrace() {
     // it the span half of every diagnostic in this process is silently empty.
     dokime_runtime::plugin::install_subscriber();
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "failing",
-            serde_json::json!({"samples": 1, "ask": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("failing", serde_json::json!({"samples": 1, "ask": true}))).unwrap();
 
     let replies = drain_until_terminal(&workflow, "failing", Some(("no", true))).await;
     let detail = detail(&replies);
@@ -1489,38 +1132,14 @@ async fn failing_step_backtrace() {
     assert_eq!(detail.chain, vec![r#"the operator answered "no""#]);
     // The location is the generated call into authored code, in the file the
     // template was written in — not a line in the engine that ran it.
-    assert!(
-        detail
-            .location
-            .replace('\\', "/")
-            .contains("tests/integration/execution/workflow.rs"),
-        "{}",
-        detail.location
-    );
-    assert!(
-        detail
-            .span_trace
-            .iter()
-            .any(|span| span.contains("step=start")),
-        "{:?}",
-        detail.span_trace
-    );
-    assert!(
-        detail
-            .span_trace
-            .iter()
-            .any(|span| span.contains(TEMPLATE) && span.contains(SOURCE)),
-        "{:?}",
-        detail.span_trace
-    );
+    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow.rs"), "{}", detail.location);
+    assert!(detail.span_trace.iter().any(|span| span.contains("step=start")), "{:?}", detail.span_trace);
+    assert!(detail.span_trace.iter().any(|span| span.contains(TEMPLATE) && span.contains(SOURCE)), "{:?}", detail.span_trace);
     assert!(detail.backtrace.contains("0:"), "{}", detail.backtrace);
     // The rendered form is the console layout, headline first.
-    assert!(detail.to_string().starts_with(&format!(
-        "error: step `start` failed in {TEMPLATE}\n  caused by: "
-    )));
+    assert!(detail.to_string().starts_with(&format!("error: step `start` failed in {TEMPLATE}\n  caused by: ")));
     assert!(diagnostics(&replies).any(|entry| {
-        entry.level == dokime_runtime::execution::log::Level::Error as i32
-            && entry.message == detail.redacted().to_string()
+        entry.level == dokime_runtime::execution::log::Level::Error as i32 && entry.message == detail.redacted().to_string()
     }));
     workflow.shutdown().await;
 }
@@ -1534,18 +1153,10 @@ async fn lifecycle_logs_failure() {
         ("cleanup_error", "cleanup"),
     ] {
         let workflow = workflow();
-        workflow
-            .start(start_request(
-                "stage-error",
-                serde_json::json!({"samples": 1, (flag): true}),
-            ))
-            .unwrap();
+        workflow.start(start_request("stage-error", serde_json::json!({"samples": 1, (flag): true}))).unwrap();
         let replies = drain_until_terminal(&workflow, "stage-error", None).await;
         let errors = diagnostics(&replies)
-            .filter(|entry| {
-                entry.level == dokime_runtime::execution::log::Level::Error as i32
-                    && entry.message.starts_with("error: ")
-            })
+            .filter(|entry| entry.level == dokime_runtime::execution::log::Level::Error as i32 && entry.message.starts_with("error: "))
             .collect::<Vec<_>>();
 
         assert!(!outcome(&replies).0.passed);
@@ -1557,18 +1168,10 @@ async fn lifecycle_logs_failure() {
     }
 
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "two-errors",
-            serde_json::json!({"samples": 1, "ask": true, "cleanup_error": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("two-errors", serde_json::json!({"samples": 1, "ask": true, "cleanup_error": true}))).unwrap();
     let replies = drain_until_terminal(&workflow, "two-errors", Some(("no", true))).await;
     let errors = diagnostics(&replies)
-        .filter(|entry| {
-            entry.level == dokime_runtime::execution::log::Level::Error as i32
-                && entry.message.starts_with("error: ")
-        })
+        .filter(|entry| entry.level == dokime_runtime::execution::log::Level::Error as i32 && entry.message.starts_with("error: "))
         .collect::<Vec<_>>();
 
     assert_eq!(errors.len(), 2);
@@ -1582,12 +1185,7 @@ async fn lifecycle_logs_failure() {
 async fn panicking_step_diagnostic() {
     dokime_runtime::plugin::install_panic_hook();
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "panicking",
-            serde_json::json!({"samples": 1, "panic": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("panicking", serde_json::json!({"samples": 1, "panic": true}))).unwrap();
 
     // The run reaches a terminal outcome at all, which is the point: a panic
     // used to unwind the task and leave the host waiting on a dead execution.
@@ -1598,14 +1196,7 @@ async fn panicking_step_diagnostic() {
     assert_eq!(detail.chain, vec!["plugin panicked: the probe blew up"]);
     // Captured at the panic site by the hook, so the location is the `panic!`
     // itself rather than the boundary that caught the unwind.
-    assert!(
-        detail
-            .location
-            .replace('\\', "/")
-            .contains("tests/integration/execution/workflow.rs"),
-        "{}",
-        detail.location
-    );
+    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow.rs"), "{}", detail.location);
     assert!(!outcome(&replies).0.passed);
     workflow.shutdown().await;
 }
@@ -1613,25 +1204,15 @@ async fn panicking_step_diagnostic() {
 #[tokio::test]
 async fn context_scoped_stable() {
     let workflow = workflow();
-    let mut request = start_request(
-        "context",
-        serde_json::json!({"samples": 1, "read_context": true}),
-    );
-    request.parameters_json = encoded_parameters(
-        serde_json::json!({"read_context": true, "images.directory": "/captured"}),
-    );
+    let mut request = start_request("context", serde_json::json!({"samples": 1, "read_context": true}));
+    request.parameters_json = encoded_parameters(serde_json::json!({"read_context": true, "images.directory": "/captured"}));
     request.secrets_json = serde_json::json!({"api_token": "runtime-only-token"}).to_string();
     assert!(!format!("{request:?}").contains("runtime-only-token"));
     workflow.start(request.clone()).unwrap();
     workflow.start(request).unwrap();
     let replies = drain_until_terminal(&workflow, "context", None).await;
     assert!(outcome(&replies).0.passed);
-    assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message.contains("<redacted>"))
-    );
+    assert!(replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message.contains("<redacted>")));
     assert!(!format!("{replies:?}").contains("runtime-only-token"));
     workflow.shutdown().await;
 }
@@ -1640,12 +1221,8 @@ async fn context_scoped_stable() {
 async fn declared_stream_decides() {
     let workflow = workflow();
     let request = start_request("streaming", serde_json::json!({ "samples": 3 }));
-    workflow
-        .start(request.clone())
-        .expect("the execution starts");
-    workflow
-        .start(request)
-        .expect("an identical start is idempotent");
+    workflow.start(request.clone()).expect("the execution starts");
+    workflow.start(request).expect("an identical start is idempotent");
 
     let replies = drain_until_terminal(&workflow, "streaming", None).await;
     let samples = workflow.take_local_samples("streaming").unwrap();
@@ -1653,10 +1230,10 @@ async fn declared_stream_decides() {
 
     assert!(samples.len() >= 3, "the stream sampled for the run");
     assert!(samples.iter().all(|sample| {
-        sample.scope.as_ref().is_some_and(|scope| {
-            scope.test_cycle_id.as_ref() == Some(&cycle())
-                && scope.test_execution_id.as_ref() == Some(&execution())
-        })
+        sample
+            .scope
+            .as_ref()
+            .is_some_and(|scope| scope.test_cycle_id.as_ref() == Some(&cycle()) && scope.test_execution_id.as_ref() == Some(&execution()))
     }));
     assert_eq!(samples[0].stream.as_str(), STREAM);
     // The engine fills in the canonical column a stream's contract requires
@@ -1664,20 +1241,14 @@ async fn declared_stream_decides() {
     assert!(samples[0].values.contains_key("timestamp"));
     assert_eq!(samples[0].values.get("index"), Some(&Value::Integer(0)));
     assert!(outcome.passed);
-    assert_eq!(
-        status(criterion),
-        dokime_runtime::transport::SidecarCriterionStatus::Passed
-    );
+    assert_eq!(status(criterion), dokime_runtime::transport::SidecarCriterionStatus::Passed);
     workflow.shutdown().await;
 }
 
 #[tokio::test]
 async fn streamed_artifact_chunks() {
     let workflow = workflow();
-    let request = start_request(
-        "artifact-evidence",
-        serde_json::json!({ "samples": 1, "artifact_evidence": true }),
-    );
+    let request = start_request("artifact-evidence", serde_json::json!({ "samples": 1, "artifact_evidence": true }));
     workflow.start(request).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "artifact-evidence", None).await;
@@ -1685,16 +1256,8 @@ async fn streamed_artifact_chunks() {
 
     // Through the real `FrameTransport` the engine drives, not a stand-in: the
     // step's writes become cursor-addressed chunks on the drain itself.
-    let chunks: Vec<_> = replies
-        .iter()
-        .flat_map(|reply| reply.artifact_chunks.iter())
-        .collect();
-    let named = |name: &str| {
-        chunks
-            .iter()
-            .filter(|chunk| chunk.name == name)
-            .collect::<Vec<_>>()
-    };
+    let chunks: Vec<_> = replies.iter().flat_map(|reply| reply.artifact_chunks.iter()).collect();
+    let named = |name: &str| chunks.iter().filter(|chunk| chunk.name == name).collect::<Vec<_>>();
 
     let small = named("evidence/pulse.csv");
     assert_eq!(small.len(), 1, "a short artifact is one terminal piece");
@@ -1704,37 +1267,15 @@ async fn streamed_artifact_chunks() {
 
     let streamed = named("evidence/trace.bin");
     assert!(streamed.len() > 1, "a large artifact spans several pieces");
-    assert_eq!(
-        streamed
-            .iter()
-            .map(|chunk| chunk.sequence)
-            .collect::<Vec<_>>(),
-        (0..streamed.len() as u64).collect::<Vec<_>>()
-    );
-    assert_eq!(
-        streamed.iter().filter(|chunk| chunk.last).count(),
-        1,
-        "exactly one piece terminates the artifact"
-    );
+    assert_eq!(streamed.iter().map(|chunk| chunk.sequence).collect::<Vec<_>>(), (0..streamed.len() as u64).collect::<Vec<_>>());
+    assert_eq!(streamed.iter().filter(|chunk| chunk.last).count(), 1, "exactly one piece terminates the artifact");
     assert!(streamed.last().expect("pieces were drained").last);
-    assert_eq!(
-        streamed
-            .iter()
-            .flat_map(|chunk| chunk.bytes.iter().copied())
-            .collect::<Vec<_>>(),
-        streamed_evidence()
-    );
+    assert_eq!(streamed.iter().flat_map(|chunk| chunk.bytes.iter().copied()).collect::<Vec<_>>(), streamed_evidence());
 
     // Every artifact is fully handed over before the terminal outcome, so the
     // host never has to decide what to do with a transfer the run left open.
-    let terminal = replies
-        .iter()
-        .position(|reply| reply.outcome.is_some())
-        .expect("the run reports its outcome");
-    let last_chunk = replies
-        .iter()
-        .rposition(|reply| !reply.artifact_chunks.is_empty())
-        .expect("the run streams artifacts");
+    let terminal = replies.iter().position(|reply| reply.outcome.is_some()).expect("the run reports its outcome");
+    let last_chunk = replies.iter().rposition(|reply| !reply.artifact_chunks.is_empty()).expect("the run streams artifacts");
     assert!(last_chunk <= terminal);
     assert!(
         replies
@@ -1750,25 +1291,13 @@ async fn streamed_artifact_chunks() {
 #[tokio::test]
 async fn watched_directory_in() {
     let workflow = workflow();
-    let request = start_request(
-        "artifact-directory",
-        serde_json::json!({ "samples": 1, "artifact_directory": true }),
-    );
+    let request = start_request("artifact-directory", serde_json::json!({ "samples": 1, "artifact_directory": true }));
     workflow.start(request).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "artifact-directory", None).await;
     assert!(outcome(&replies).0.passed);
-    let chunks: Vec<_> = replies
-        .iter()
-        .flat_map(|reply| reply.artifact_chunks.iter())
-        .collect();
-    let named = |name: &str| {
-        chunks
-            .iter()
-            .filter(|chunk| chunk.name == name)
-            .copied()
-            .collect::<Vec<_>>()
-    };
+    let chunks: Vec<_> = replies.iter().flat_map(|reply| reply.artifact_chunks.iter()).collect();
+    let named = |name: &str| chunks.iter().filter(|chunk| chunk.name == name).copied().collect::<Vec<_>>();
 
     // Written with `std::fs` by a step that never named an artifact, filed
     // under the directory's name and the path within it.
@@ -1783,26 +1312,11 @@ async fn watched_directory_in() {
 
     // The rewrite in the third step replaces what the scan had already sent.
     let rewritten = named("capture/chamber.log");
-    assert!(
-        rewritten.len() > 1,
-        "the watch streamed the file before the rewrite: {}",
-        rewritten.len()
-    );
+    assert!(rewritten.len() > 1, "the watch streamed the file before the rewrite: {}", rewritten.len());
+    assert_eq!(rewritten.iter().filter(|chunk| chunk.replace).count(), 1, "one piece starts the content over");
+    assert_eq!(assembled(&rewritten), WATCHED_REWRITE, "a replaced artifact ends with the new content alone");
     assert_eq!(
-        rewritten.iter().filter(|chunk| chunk.replace).count(),
-        1,
-        "one piece starts the content over"
-    );
-    assert_eq!(
-        assembled(&rewritten),
-        WATCHED_REWRITE,
-        "a replaced artifact ends with the new content alone"
-    );
-    assert_eq!(
-        rewritten
-            .iter()
-            .map(|chunk| chunk.sequence)
-            .collect::<Vec<_>>(),
+        rewritten.iter().map(|chunk| chunk.sequence).collect::<Vec<_>>(),
         (0..rewritten.len() as u64).collect::<Vec<_>>(),
         "sequences carry on across the replacement rather than restarting"
     );
@@ -1811,29 +1325,18 @@ async fn watched_directory_in() {
     // A file whose name does not say what it is stays in the directory, named
     // once in the run's own log rather than filed as something it is not.
     assert!(named("capture/notes").is_empty());
-    let notes = diagnostics(&replies)
-        .filter(|entry| entry.message.contains("capture/notes"))
-        .count();
+    let notes = diagnostics(&replies).filter(|entry| entry.message.contains("capture/notes")).count();
     assert_eq!(notes, 1, "refused once, then skipped");
 
     // Every piece is handed over before the outcome, and the directory the run
     // owned is gone once it has been swept.
-    let terminal = replies
-        .iter()
-        .position(|reply| reply.outcome.is_some())
-        .expect("the run reports its outcome");
-    let last_chunk = replies
-        .iter()
-        .rposition(|reply| !reply.artifact_chunks.is_empty())
-        .expect("the run streams artifacts");
+    let terminal = replies.iter().position(|reply| reply.outcome.is_some()).expect("the run reports its outcome");
+    let last_chunk = replies.iter().rposition(|reply| !reply.artifact_chunks.is_empty()).expect("the run streams artifacts");
     assert!(last_chunk <= terminal);
     let directory = diagnostics(&replies)
         .find_map(|entry| entry.message.strip_prefix("directory:").map(str::to_owned))
         .expect("the step says where it wrote");
-    assert!(
-        !std::path::Path::new(&directory).exists(),
-        "the execution's directory is removed after the sweep: {directory}"
-    );
+    assert!(!std::path::Path::new(&directory).exists(), "the execution's directory is removed after the sweep: {directory}");
 
     workflow.shutdown().await;
 }
@@ -1841,22 +1344,14 @@ async fn watched_directory_in() {
 #[tokio::test]
 async fn one_directory_execution() {
     let workflow = workflow();
-    let request = start_request(
-        "artifact-directory-identity",
-        serde_json::json!({ "samples": 1, "artifact_directory": true }),
-    );
+    let request = start_request("artifact-directory-identity", serde_json::json!({ "samples": 1, "artifact_directory": true }));
     workflow.start(request).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "artifact-directory-identity", None).await;
 
-    let paths = diagnostics(&replies)
-        .filter_map(|entry| entry.message.strip_prefix("directory:").map(str::to_owned))
-        .collect::<Vec<_>>();
+    let paths = diagnostics(&replies).filter_map(|entry| entry.message.strip_prefix("directory:").map(str::to_owned)).collect::<Vec<_>>();
     assert_eq!(paths.len(), 2, "two steps asked for the same name");
-    assert_eq!(
-        paths[0], paths[1],
-        "asking twice answers the same path, so a step and a later step write into one place"
-    );
+    assert_eq!(paths[0], paths[1], "asking twice answers the same path, so a step and a later step write into one place");
 
     workflow.shutdown().await;
 }
@@ -1864,9 +1359,7 @@ async fn one_directory_execution() {
 #[tokio::test]
 async fn token_reused_refused() {
     let workflow = workflow();
-    workflow
-        .start(start_request("reused", serde_json::json!({ "samples": 1 })))
-        .expect("the execution starts");
+    workflow.start(start_request("reused", serde_json::json!({ "samples": 1 }))).expect("the execution starts");
 
     let refusal = workflow
         .start(start_request("reused", serde_json::json!({ "samples": 9 })))
@@ -1882,9 +1375,7 @@ async fn unknown_workflow_starts() {
     let mut request = start_request("wrong", serde_json::json!({ "samples": 1 }));
     request.workflow = "someone.elses.suite".to_owned();
 
-    let refusal = workflow
-        .start(request)
-        .expect_err("an unknown workflow is refused");
+    let refusal = workflow.start(request).expect_err("an unknown workflow is refused");
 
     assert!(refusal.to_string().contains("someone.elses.suite"));
     assert!(workflow.drain("wrong", 0).is_err());
@@ -1894,12 +1385,7 @@ async fn unknown_workflow_starts() {
 #[tokio::test]
 async fn cancelled_run_produced() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "cancelled",
-            serde_json::json!({ "samples": 10_000 }),
-        ))
-        .expect("the execution starts");
+    workflow.start(start_request("cancelled", serde_json::json!({ "samples": 10_000 }))).expect("the execution starts");
     drain_until_line(&workflow, "cancelled", "execution initialization completed").await;
     // Cancelling is a no-op for a token that already stopped, so repeating it is safe.
     workflow.cancel("cancelled");
@@ -1909,57 +1395,31 @@ async fn cancelled_run_produced() {
     let (outcome, criterion) = outcome(&replies);
 
     assert!(!outcome.passed);
-    assert!(
-        outcome
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("cancelled"))
-    );
+    assert!(outcome.message.as_deref().is_some_and(|message| message.contains("cancelled")));
     // Measured, not blanked: the run produced fewer rows than it needed, and
     // that is a verdict rather than an absence of one.
-    assert_eq!(
-        status(criterion),
-        dokime_runtime::transport::SidecarCriterionStatus::Failed
-    );
+    assert_eq!(status(criterion), dokime_runtime::transport::SidecarCriterionStatus::Failed);
     workflow.shutdown().await;
 }
 
 #[tokio::test]
 async fn criterion_could_failed() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "blind",
-            serde_json::json!({ "samples": 1, "unmeasurable": true }),
-        ))
-        .expect("the execution starts");
+    workflow.start(start_request("blind", serde_json::json!({ "samples": 1, "unmeasurable": true }))).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "blind", None).await;
     let (outcome, criterion) = outcome(&replies);
 
     assert!(!outcome.passed);
-    assert_eq!(
-        status(criterion),
-        dokime_runtime::transport::SidecarCriterionStatus::Indeterminate
-    );
-    assert!(
-        criterion
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("could not measure"))
-    );
+    assert_eq!(status(criterion), dokime_runtime::transport::SidecarCriterionStatus::Indeterminate);
+    assert!(criterion.message.as_deref().is_some_and(|message| message.contains("could not measure")));
     workflow.shutdown().await;
 }
 
 #[tokio::test]
 async fn unanswered_question_id() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "asked",
-            serde_json::json!({ "samples": 1, "ask": true }),
-        ))
-        .expect("the execution starts");
+    workflow.start(start_request("asked", serde_json::json!({ "samples": 1, "ask": true }))).expect("the execution starts");
 
     let (cursor, raised) = drain_until_prompt(&workflow, "asked").await;
     // The same cursor must re-deliver the unanswered question: that replay is
@@ -1989,35 +1449,20 @@ async fn unanswered_question_id() {
 #[tokio::test]
 async fn declined_answer_asked() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "declined",
-            serde_json::json!({ "samples": 1, "ask": true }),
-        ))
-        .expect("the execution starts");
+    workflow.start(start_request("declined", serde_json::json!({ "samples": 1, "ask": true }))).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "declined", Some(("no", true))).await;
     let (outcome, _) = outcome(&replies);
 
     assert!(!outcome.passed);
-    assert!(
-        outcome
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("start"))
-    );
+    assert!(outcome.message.as_deref().is_some_and(|message| message.contains("start")));
     workflow.shutdown().await;
 }
 
 #[tokio::test]
 async fn cancelling_waiting_execution() {
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "abandoned",
-            serde_json::json!({ "samples": 1, "ask": true }),
-        ))
-        .expect("the execution starts");
+    workflow.start(start_request("abandoned", serde_json::json!({ "samples": 1, "ask": true }))).expect("the execution starts");
     let (_, raised) = drain_until_prompt(&workflow, "abandoned").await;
     let asked = decode(&raised.prompt_requests[0]);
 
@@ -2037,16 +1482,10 @@ async fn cancelling_waiting_execution() {
 #[tokio::test]
 async fn phase_drain_reached() {
     let workflow = workflow();
-    workflow
-        .start(start_request("phased", serde_json::json!({ "samples": 2 })))
-        .expect("the execution starts");
+    workflow.start(start_request("phased", serde_json::json!({ "samples": 2 }))).expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "phased", None).await;
-    let phases = replies
-        .iter()
-        .map(|reply| reply.phase.clone())
-        .filter(|phase| !phase.is_empty())
-        .collect::<Vec<_>>();
+    let phases = replies.iter().map(|reply| reply.phase.clone()).filter(|phase| !phase.is_empty()).collect::<Vec<_>>();
 
     assert_eq!(phases.last().map(String::as_str), Some("complete"));
     assert!(phases.iter().any(|phase| phase == "stream"));
@@ -2057,21 +1496,12 @@ async fn phase_drain_reached() {
 async fn cleanup_runs_pass() {
     for fail in [false, true] {
         let workflow = workflow();
-        workflow
-            .start(start_request(
-                "cleanup",
-                serde_json::json!({"samples": 100000, "cleanup_error": fail}),
-            ))
-            .unwrap();
+        workflow.start(start_request("cleanup", serde_json::json!({"samples": 100000, "cleanup_error": fail}))).unwrap();
         drain_until_line(&workflow, "cleanup", "execution initialization completed").await;
         workflow.cancel("cleanup");
         let replies = drain_until_terminal(&workflow, "cleanup", None).await;
         assert_eq!(
-            replies
-                .iter()
-                .flat_map(|reply| &reply.diagnostics)
-                .filter(|line| line.message.as_str() == "cleanup-finished")
-                .count(),
+            replies.iter().flat_map(|reply| &reply.diagnostics).filter(|line| line.message.as_str() == "cleanup-finished").count(),
             1
         );
         let terminal = outcome(&replies).0;
@@ -2097,26 +1527,10 @@ async fn initialize_failure_execution() {
     let replies = drain_until_terminal(&workflow, "init-error", None).await;
     let terminal = outcome(&replies).0;
     assert!(!terminal.passed);
-    assert!(
-        terminal
-            .message
-            .as_ref()
-            .unwrap()
-            .contains("initialization")
-    );
-    assert!(
-        terminal
-            .criteria
-            .iter()
-            .all(|criterion| criterion.status == SidecarCriterionStatus::Indeterminate as i32)
-    );
+    assert!(terminal.message.as_ref().unwrap().contains("initialization"));
+    assert!(terminal.criteria.iter().all(|criterion| criterion.status == SidecarCriterionStatus::Indeterminate as i32));
     assert!(replies.iter().all(|reply| reply.phase.is_empty()));
-    assert!(
-        !replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message.starts_with("cleanup-"))
-    );
+    assert!(!replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message.starts_with("cleanup-")));
     workflow.shutdown().await;
 }
 
@@ -2137,11 +1551,7 @@ async fn initialize_cancellation_cleanup() {
         let reply = next(&workflow, "init-cancel", cursor).await;
         cursor = reply.cursor;
         assert!(reply.phase.is_empty());
-        if reply
-            .diagnostics
-            .iter()
-            .any(|line| line.message == "probe-initializing")
-        {
+        if reply.diagnostics.iter().any(|line| line.message == "probe-initializing") {
             break;
         }
     }
@@ -2150,19 +1560,8 @@ async fn initialize_cancellation_cleanup() {
     let terminal = outcome(&replies).0;
     assert!(INITIALIZATION_RELEASED.load(Ordering::Acquire));
     assert!(!terminal.passed);
-    assert!(
-        terminal
-            .message
-            .as_ref()
-            .unwrap()
-            .contains("cancelled during phase `initialization`")
-    );
-    assert!(
-        !replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message.starts_with("cleanup-"))
-    );
+    assert!(terminal.message.as_ref().unwrap().contains("cancelled during phase `initialization`"));
+    assert!(!replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message.starts_with("cleanup-")));
     workflow.shutdown().await;
 }
 
@@ -2183,12 +1582,7 @@ async fn cleanup_procedure_failure() {
     assert!(!terminal.passed);
     assert!(message.contains("the operator answered"));
     assert!(message.contains("cleanup failed"));
-    assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message == "cleanup-reason:Failed")
-    );
+    assert!(replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message == "cleanup-reason:Failed"));
     workflow.shutdown().await;
 }
 
@@ -2208,18 +1602,8 @@ async fn cleanup_joins_release() {
     let replies = drain_until_terminal(&workflow, "cleanup-timeout", None).await;
     let terminal = outcome(&replies).0;
     assert!(terminal.passed, "{terminal:?}");
-    assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message == "cleanup-reason:Completed")
-    );
-    assert!(
-        terminal
-            .criteria
-            .iter()
-            .all(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32)
-    );
+    assert!(replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message == "cleanup-reason:Completed"));
+    assert!(terminal.criteria.iter().all(|criterion| criterion.status == SidecarCriterionStatus::Passed as i32));
     workflow.shutdown().await;
 }
 
@@ -2237,21 +1621,10 @@ async fn pending_sampler_cleanup() {
 
     let replies = drain_until_terminal(&workflow, "pending-sample", None).await;
     let (terminal, criterion) = outcome(&replies);
-    assert!(
-        !terminal.passed,
-        "an interrupted measurement supplies no sample"
-    );
+    assert!(!terminal.passed, "an interrupted measurement supplies no sample");
     assert_eq!(status(criterion), SidecarCriterionStatus::Failed);
-    assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|line| line.message == "cleanup-reason:Completed")
-    );
-    assert!(
-        terminal.detail_json.is_none(),
-        "cleanup must not observe a live observer"
-    );
+    assert!(replies.iter().flat_map(|reply| &reply.diagnostics).any(|line| line.message == "cleanup-reason:Completed"));
+    assert!(terminal.detail_json.is_none(), "cleanup must not observe a live observer");
     workflow.shutdown().await;
 }
 
@@ -2271,10 +1644,7 @@ async fn stalled_criterion_indeterminate() {
     let (terminal, criterion) = outcome(&replies);
     assert!(!terminal.passed);
     assert_eq!(status(criterion), SidecarCriterionStatus::Indeterminate);
-    assert_eq!(
-        criterion.message.as_deref(),
-        Some("criterion evaluation exceeded one second")
-    );
+    assert_eq!(criterion.message.as_deref(), Some("criterion evaluation exceeded one second"));
     workflow.shutdown().await;
 }
 
@@ -2304,33 +1674,18 @@ async fn resources_release_verdict() {
 async fn diagnostics_preserve_success() {
     use dokime_runtime::execution::log::Level;
     let workflow = workflow();
-    workflow
-        .start(start_request(
-            "levels",
-            serde_json::json!({"samples": 1, "diagnostics": true}),
-        ))
-        .unwrap();
+    workflow.start(start_request("levels", serde_json::json!({"samples": 1, "diagnostics": true}))).unwrap();
     let replies = drain_until_terminal(&workflow, "levels", None).await;
     assert!(outcome(&replies).0.passed);
     // A run that passed has no failure to detail.
     assert!(outcome(&replies).0.detail_json.is_none());
-    let entries = replies
-        .iter()
-        .flat_map(|reply| &reply.diagnostics)
-        .collect::<Vec<_>>();
+    let entries = replies.iter().flat_map(|reply| &reply.diagnostics).collect::<Vec<_>>();
     for phase in ["initializing", "step", "cleanup"] {
-        for (level, suffix) in [
-            (Level::Trace, "trace"),
-            (Level::Debug, "debug"),
-            (Level::Info, "info"),
-            (Level::Warn, "warn"),
-            (Level::Error, "error"),
-        ] {
+        for (level, suffix) in
+            [(Level::Trace, "trace"), (Level::Debug, "debug"), (Level::Info, "info"), (Level::Warn, "warn"), (Level::Error, "error")]
+        {
             let message = format!("{phase} {suffix}");
-            let matching = entries
-                .iter()
-                .filter(|entry| entry.message == message)
-                .collect::<Vec<_>>();
+            let matching = entries.iter().filter(|entry| entry.message == message).collect::<Vec<_>>();
             assert_eq!(matching.len(), 1, "{message}");
             assert_eq!(matching[0].level, level as i32, "{message}");
         }
@@ -2339,9 +1694,7 @@ async fn diagnostics_preserve_success() {
 }
 
 fn captured(execution: dokime_runtime::TestExecutionId) -> dokime_runtime::RecordScope {
-    dokime_runtime::RecordScope::default()
-        .with_cycle(cycle())
-        .with_test_execution(execution)
+    dokime_runtime::RecordScope::default().with_cycle(cycle()).with_test_execution(execution)
 }
 
 fn admitted(record_type: &str, source: &str, serial: &str) -> model::records::evidence::Record {
@@ -2353,14 +1706,8 @@ fn admitted(record_type: &str, source: &str, serial: &str) -> model::records::ev
         source,
         dokime_runtime::records::RecordSeverity::Info,
     );
-    record
-        .details
-        .insert("serial".to_owned(), Value::from(serial));
-    record.scope = Some(
-        dokime_runtime::RecordScope::default()
-            .with_cycle(cycle())
-            .with_test_execution(execution()),
-    );
+    record.details.insert("serial".to_owned(), Value::from(serial));
+    record.scope = Some(dokime_runtime::RecordScope::default().with_cycle(cycle()).with_test_execution(execution()));
 
     record
 }
@@ -2369,36 +1716,23 @@ fn admitted(record_type: &str, source: &str, serial: &str) -> model::records::ev
 async fn record_wait_publication() {
     let workflow = workflow();
     workflow
-        .start(start_request(
-            "awaited",
-            serde_json::json!({ "await_record": true, "await_record_ms": 5_000, "samples": 1 }),
-        ))
+        .start(start_request("awaited", serde_json::json!({ "await_record": true, "await_record_ms": 5_000, "samples": 1 })))
         .expect("the execution starts");
 
     // The host admits a record from somewhere else and pushes it down. Nothing
     // about the delivery names this execution: it carries the scopes the host
     // captured it for, and the engine is what decides that this run is in one.
     assert_eq!(
-        workflow.deliver_captured(
-            &admitted("probe.unit.connected", "gateway", "SN-7"),
-            SOURCE,
-            &[captured(execution())],
-        ),
+        workflow.deliver_captured(&admitted("probe.unit.connected", "gateway", "SN-7"), SOURCE, &[captured(execution())],),
         1,
         "admission retains the record before the step begins listening"
     );
     let replies = drain_until_terminal(&workflow, "awaited", None).await;
 
-    let outcome = replies
-        .iter()
-        .find_map(|reply| reply.outcome.clone())
-        .expect("the run terminates");
+    let outcome = replies.iter().find_map(|reply| reply.outcome.clone()).expect("the run terminates");
     assert!(outcome.passed, "{:?}", outcome.message);
     assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|entry| entry.message == "connected:SN-7"),
+        replies.iter().flat_map(|reply| &reply.diagnostics).any(|entry| entry.message == "connected:SN-7"),
         "the step read the record it was handed"
     );
     workflow.shutdown().await;
@@ -2409,24 +1743,15 @@ async fn record_wait_publication() {
 async fn record_nobody_error() {
     let workflow = workflow();
     workflow
-        .start(start_request(
-            "unawaited",
-            serde_json::json!({ "await_record": true, "await_record_ms": 25, "samples": 1 }),
-        ))
+        .start(start_request("unawaited", serde_json::json!({ "await_record": true, "await_record_ms": 25, "samples": 1 })))
         .expect("the execution starts");
 
     let replies = drain_until_terminal(&workflow, "unawaited", None).await;
 
-    let outcome = replies
-        .iter()
-        .find_map(|reply| reply.outcome.clone())
-        .expect("the run terminates");
+    let outcome = replies.iter().find_map(|reply| reply.outcome.clone()).expect("the run terminates");
     assert!(!outcome.passed);
     let message = outcome.message.unwrap_or_default();
-    assert!(
-        message.contains("deadline elapsed"),
-        "the deadline reaches the plugin's own error: {message}"
-    );
+    assert!(message.contains("deadline elapsed"), "the deadline reaches the plugin's own error: {message}");
     workflow.shutdown().await;
 }
 
@@ -2434,10 +1759,7 @@ async fn record_nobody_error() {
 async fn capture_declared_scope() {
     let workflow = workflow();
     workflow
-        .start(start_request(
-            "filtered",
-            serde_json::json!({ "await_record": true, "await_record_ms": 5_000, "samples": 1 }),
-        ))
+        .start(start_request("filtered", serde_json::json!({ "await_record": true, "await_record_ms": 5_000, "samples": 1 })))
         .expect("the execution starts");
     assert!(workflow.owns("filtered"));
 
@@ -2445,51 +1767,27 @@ async fn capture_declared_scope() {
     // is kept for the run's criteria, but handing a step its own words back
     // would answer the question it asked somebody else.
     let mine = admitted("probe.unit.connected", SOURCE, "SN-mine");
-    assert_eq!(
-        workflow.deliver_captured(&mine, SOURCE, &[captured(execution())]),
-        1
-    );
+    assert_eq!(workflow.deliver_captured(&mine, SOURCE, &[captured(execution())]), 1);
     // A record the host captured for a different run is not this run's.
     let mut elsewhere = admitted("probe.unit.connected", "gateway", "SN-elsewhere");
     assert_eq!(
-        workflow.deliver_captured(
-            &elsewhere,
-            SOURCE,
-            &[captured(dokime_runtime::TestExecutionId::from_seed(
-                "another-execution"
-            ))]
-        ),
+        workflow.deliver_captured(&elsewhere, SOURCE, &[captured(dokime_runtime::TestExecutionId::from_seed("another-execution"))]),
         0
     );
     // The capture overrides the scope the record was filed under.
-    elsewhere.scope = Some(captured(dokime_runtime::TestExecutionId::from_seed(
-        "another-execution",
-    )));
-    assert_eq!(
-        workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]),
-        1
-    );
-    assert_eq!(
-        workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]),
-        0,
-        "redelivery is deduplicated"
-    );
+    elsewhere.scope = Some(captured(dokime_runtime::TestExecutionId::from_seed("another-execution")));
+    assert_eq!(workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]), 1);
+    assert_eq!(workflow.deliver_captured(&elsewhere, SOURCE, &[captured(execution())]), 0, "redelivery is deduplicated");
     // A record the host filed against nothing in particular is still captured
     // for the run the host names.
     let mut everyones = admitted("probe.unit.connected", "gateway", "SN-global");
     everyones.scope = None;
-    assert_eq!(
-        workflow.deliver_captured(&everyones, SOURCE, &[captured(execution())]),
-        1
-    );
+    assert_eq!(workflow.deliver_captured(&everyones, SOURCE, &[captured(execution())]), 1);
 
     let replies = drain_until_terminal(&workflow, "filtered", None).await;
 
     assert!(
-        replies
-            .iter()
-            .flat_map(|reply| &reply.diagnostics)
-            .any(|entry| entry.message == "connected:SN-elsewhere"),
+        replies.iter().flat_map(|reply| &reply.diagnostics).any(|entry| entry.message == "connected:SN-elsewhere"),
         "the only record the step could take is the one it did"
     );
     workflow.shutdown().await;
@@ -2500,20 +1798,13 @@ fn signal_refuses_deliveries() {
     let workflow = workflow();
     let record = workflow.signal(ExecutionSignal {
         execution_token: "unknown".into(),
-        record: Some(DeliverRecordRequest {
-            record_json: "{".into(),
-            captured_scopes: Vec::new(),
-        }),
+        record: Some(DeliverRecordRequest { record_json: "{".into(), captured_scopes: Vec::new() }),
         ..ExecutionSignal::default()
     });
     assert!(record.is_err_and(|refusal| refusal.to_string().contains("delivered record JSON")));
     let samples = workflow.signal(ExecutionSignal {
         execution_token: "unknown".into(),
-        samples: Some(DeliverSamplesRequest {
-            samples: Vec::new(),
-            gaps: Vec::new(),
-            scope_json: "not a scope".into(),
-        }),
+        samples: Some(DeliverSamplesRequest { samples: Vec::new(), gaps: Vec::new(), scope_json: "not a scope".into() }),
         ..ExecutionSignal::default()
     });
     assert!(samples.is_err_and(|refusal| refusal.to_string().contains("sample scope JSON")));
@@ -2552,14 +1843,8 @@ async fn artifact_backpressure() {
     let finished = ARTIFACT_PUSH_FINISHED.load(Ordering::Acquire);
     let passed = outcome(&replies).0.passed;
     workflow.shutdown().await;
-    assert!(
-        blocked,
-        "the sink stays parked while the backlog is at the gate"
-    );
-    assert!(
-        carried_chunks,
-        "one partial drain acknowledges at least one chunk"
-    );
+    assert!(blocked, "the sink stays parked while the backlog is at the gate");
+    assert!(carried_chunks, "one partial drain acknowledges at least one chunk");
     assert!(finished, "draining the backlog resumes the parked push");
     assert!(passed, "the resumed execution terminates successfully");
 }

@@ -18,7 +18,7 @@ use std::path::Path;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::{runtime::Error, runtime::Result, execution_runtime::authoring::FileRegexMatch};
+use crate::{execution_runtime::authoring::FileRegexMatch, runtime::Error, runtime::Result};
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
@@ -77,26 +77,17 @@ pub enum ExecutionFileStreamState {
 impl ExecutionFileContentKind {
     pub fn from_metadata(path: &str, content_type: Option<&str>) -> Self {
         if let Some(content_type) = content_type {
-            if content_type.starts_with("text/")
-                || matches!(
-                    content_type,
-                    "application/json" | "application/x-ndjson" | "application/xml"
-                )
+            if content_type.starts_with("text/") || matches!(content_type, "application/json" | "application/x-ndjson" | "application/xml")
             {
                 return ExecutionFileContentKind::Text;
             }
-            if content_type.starts_with("image/")
-                || content_type.starts_with("video/")
-                || content_type.starts_with("audio/")
-            {
+            if content_type.starts_with("image/") || content_type.starts_with("video/") || content_type.starts_with("audio/") {
                 return ExecutionFileContentKind::Media;
             }
             return ExecutionFileContentKind::Binary;
         }
         match extension(path) {
-            "txt" | "log" | "md" | "csv" | "json" | "jsonl" | "toml" | "yaml" | "yml" | "xml" => {
-                ExecutionFileContentKind::Text
-            }
+            "txt" | "log" | "md" | "csv" | "json" | "jsonl" | "toml" | "yaml" | "yml" | "xml" => ExecutionFileContentKind::Text,
             "png" | "jpg" | "jpeg" | "webp" | "mp4" | "wav" => ExecutionFileContentKind::Media,
             "arrow" | "zip" => ExecutionFileContentKind::Binary,
             _ => ExecutionFileContentKind::Unknown,
@@ -128,24 +119,13 @@ impl harmos::MemorySize for ExecutionFileContent {
 }
 
 /* === Public Functions === */
-pub(crate) fn regex_matches(
-    content: &ExecutionFileContent,
-    pattern: &str,
-    first_only: bool,
-) -> Result<Vec<FileRegexMatch>> {
+pub(crate) fn regex_matches(content: &ExecutionFileContent, pattern: &str, first_only: bool) -> Result<Vec<FileRegexMatch>> {
     if content.offset != 0 || content.bytes.len() > REGEX_SCAN_LIMIT_BYTES {
-        return Err(Error::Operation(
-            "execution output regex reads must start at zero and stay within 2 MiB".to_owned(),
-        ));
+        return Err(Error::Operation("execution output regex reads must start at zero and stay within 2 MiB".to_owned()));
     }
-    let regex = Regex::new(pattern)
-        .map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
-    let text = std::str::from_utf8(&content.bytes).map_err(|error| {
-        Error::Operation(format!(
-            "execution output {} is not valid UTF-8: {error}",
-            content.relative_path
-        ))
-    })?;
+    let regex = Regex::new(pattern).map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
+    let text = std::str::from_utf8(&content.bytes)
+        .map_err(|error| Error::Operation(format!("execution output {} is not valid UTF-8: {error}", content.relative_path)))?;
     let mut matches = Vec::new();
     for captures in regex.captures_iter(text) {
         let Some(full_match) = captures.get(0) else {
@@ -153,30 +133,14 @@ pub(crate) fn regex_matches(
         };
         matches.push(FileRegexMatch {
             full_match: full_match.as_str().to_owned(),
-            captures: (1..captures.len())
-                .map(|index| {
-                    captures
-                        .get(index)
-                        .map(|capture| capture.as_str().to_owned())
-                })
-                .collect(),
+            captures: (1..captures.len()).map(|index| captures.get(index).map(|capture| capture.as_str().to_owned())).collect(),
             named_captures: regex
                 .capture_names()
                 .flatten()
-                .filter_map(|name| {
-                    captures
-                        .name(name)
-                        .map(|capture| (name.to_owned(), capture.as_str().to_owned()))
-                })
+                .filter_map(|name| captures.name(name).map(|capture| (name.to_owned(), capture.as_str().to_owned())))
                 .collect(),
             byte_offset: full_match.start() as u64,
-            line_number: Some(
-                text[..full_match.start()]
-                    .bytes()
-                    .filter(|byte| *byte == b'\n')
-                    .count() as u64
-                    + 1,
-            ),
+            line_number: Some(text[..full_match.start()].bytes().filter(|byte| *byte == b'\n').count() as u64 + 1),
         });
         if first_only {
             break;
@@ -186,8 +150,7 @@ pub(crate) fn regex_matches(
 }
 
 pub(crate) fn validate_producer_path(relative_path: &str) -> Result<()> {
-    dokime_domain::model::execution::saved::validate_output_path(relative_path)
-        .map_err(|error| Error::Operation(error.to_string()))
+    dokime_domain::model::execution::saved::validate_output_path(relative_path).map_err(|error| Error::Operation(error.to_string()))
 }
 
 pub(crate) fn validate_relative_path(relative_path: &str) -> Result<()> {
@@ -215,10 +178,7 @@ pub(crate) fn media_type_for_path(path: &str) -> Option<&'static str> {
 
 /* === Private Functions === */
 fn extension(path: &str) -> &str {
-    Path::new(path)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or_default()
+    Path::new(path).extension().and_then(|extension| extension.to_str()).unwrap_or_default()
 }
 
 /* === Tests === */

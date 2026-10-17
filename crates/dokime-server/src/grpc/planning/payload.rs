@@ -42,10 +42,7 @@ pub(super) const BUDGET: usize = 8 * 1024 * 1024;
 
 /* === Public Functions === */
 pub(super) fn limit() -> Status {
-    rejection(
-        "planning_payload_limit",
-        "plan exceeds the conservative 8 MiB materialization budget",
-    )
+    rejection("planning_payload_limit", "plan exceeds the conservative 8 MiB materialization budget")
 }
 
 pub(super) fn charge(remaining: &mut usize, amount: usize) -> Result<(), Status> {
@@ -102,12 +99,8 @@ fn retained_value(value: &Value, remaining: &mut usize, depth: usize) -> Result<
 }
 
 pub(super) fn case_cost(
-    template: &TestCaseTemplate,
-    suite: &Metadata,
-    suite_id: &str,
-    parameters: &BTreeMap<String, Vec<Value>>,
-    files: &BTreeMap<String, Option<String>>,
-    remaining: &mut usize,
+    template: &TestCaseTemplate, suite: &Metadata, suite_id: &str, parameters: &BTreeMap<String, Vec<Value>>,
+    files: &BTreeMap<String, Option<String>>, remaining: &mut usize,
 ) -> Result<usize, Status> {
     let mut cost = metadata_cost(&template.metadata)
         .saturating_add(metadata_cost(suite))
@@ -115,19 +108,10 @@ pub(super) fn case_cost(
         .saturating_add(512);
     for definition in &template.parameters {
         let shape = parameter_shape(definition, &template.parameters, parameters, 0, remaining)?;
-        cost = cost.saturating_add(shape.cost).saturating_add(
-            definition
-                .metadata
-                .identifier
-                .as_str()
-                .len()
-                .saturating_mul(8),
-        );
+        cost = cost.saturating_add(shape.cost).saturating_add(definition.metadata.identifier.as_str().len().saturating_mul(8));
     }
     for file in &template.files {
-        let selected = files
-            .get(file.metadata.identifier.as_str())
-            .unwrap_or(&file.default);
+        let selected = files.get(file.metadata.identifier.as_str()).unwrap_or(&file.default);
         if let Some(selected) = selected {
             cost = cost
                 .saturating_add(selected.len().saturating_mul(8))
@@ -154,14 +138,10 @@ fn metadata_cost(value: &Metadata) -> usize {
 }
 
 fn parameter_shape(
-    definition: &ParameterDefinition,
-    definitions: &[ParameterDefinition],
-    overrides: &BTreeMap<String, Vec<Value>>,
-    depth: usize,
+    definition: &ParameterDefinition, definitions: &[ParameterDefinition], overrides: &BTreeMap<String, Vec<Value>>, depth: usize,
     remaining: &mut usize,
 ) -> Result<limits::Shape, Status> {
-    limits::parameter_shape(definition, definitions, overrides, depth, remaining)
-        .map_err(super::bounds::status)
+    limits::parameter_shape(definition, definitions, overrides, depth, remaining).map_err(super::bounds::status)
 }
 
 /* === Tests === */

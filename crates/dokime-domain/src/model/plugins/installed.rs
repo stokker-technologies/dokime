@@ -90,9 +90,7 @@ pub struct SettingDiscovery {
 /* === Implementations === */
 impl InstalledPlugin {
     pub fn listened_records(&self) -> impl Iterator<Item = &str> {
-        self.listeners
-            .iter()
-            .map(|listener| listener.record.as_str())
+        self.listeners.iter().map(|listener| listener.record.as_str())
     }
 }
 

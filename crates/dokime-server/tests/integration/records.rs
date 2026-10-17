@@ -19,14 +19,11 @@ use std::time::Duration;
 use tokio::sync::Notify;
 use tokio_stream::StreamExt as _;
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use dokime_runtime::host::ToolConnectionAcquired;
-use {
-    dokime_domain::model::execution::result::CycleStatus,
-    dokime_domain::model::execution::result::ExecutionStatus,
-};
 use dokime_runtime::runtime::command::CommandContext;
+use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::ExecutionStatus};
 
 /* === Constants === */
 const SOURCE: &str = "fixture-bench";
@@ -79,24 +76,16 @@ impl BenchSuite {}
     subscribes = Subscriptions
 )]
 impl Waiting {
-    async fn initialize(
-        ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(ctx: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         let expectation = Arc::clone(ctx.environment().binding::<Arc<Expectation>>());
         Ok(Self { expectation })
     }
 
     #[dokime_runtime::step(label = "Wait")]
     async fn wait(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
-        let mut connected = ctx
-            .listen::<ToolConnectionAcquired>()
-            .timeout(self.expectation.budget);
+        let mut connected = ctx.listen::<ToolConnectionAcquired>().timeout(self.expectation.budget);
         self.expectation.listening.notify_one();
-        let connected = connected
-            .next()
-            .await
-            .transpose()?
-            .expect("a live subscription yields until it is dropped");
+        let connected = connected.next().await.transpose()?.expect("a live subscription yields until it is dropped");
         *self.expectation.heard.lock().unwrap() = Some(connected.resource_id);
         Ok(())
     }
@@ -120,10 +109,8 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
 
     async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn dokime_runtime::execution::Runnable>>> {
         let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(Arc::clone(&self.expectation));
-        Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding))
-                as Arc<dyn dokime_runtime::execution::Runnable>,
-        ])
+        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding))
+            as Arc<dyn dokime_runtime::execution::Runnable>])
     }
 
     async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
@@ -135,25 +122,16 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
 
 /* === Private Functions === */
 /// Starts a host serving the waiting suite and runs one cycle of it.
-async fn waiting_cycle(
-    root: &std::path::Path,
-    expectation: Arc<Expectation>,
-) -> (Runtime, dokime_runtime::TestCycleId) {
+async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime_runtime::TestCycleId) {
     let config =
-        support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host"))
-            .register(Arc::new(Bench { expectation }));
+        support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host")).register(Arc::new(Bench { expectation }));
     let owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
     let suite = BenchSuite::definition().suite;
-    let cycle = support::cycle_with_cases(
-        &handle,
-        support::metadata("records.cycle", "Records Cycle"),
-        support::materialize_cases(SUITE, &suite),
-    )
-    .await;
-    handle
-        .run_cycle_cases(cycle.clone(), CommandContext::default())
-        .await;
+    let cycle =
+        support::cycle_with_cases(&handle, support::metadata("records.cycle", "Records Cycle"), support::materialize_cases(SUITE, &suite))
+            .await;
+    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
     (owner, cycle)
 }
 
@@ -177,11 +155,7 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 #[tokio::test]
 async fn step_awaits_record() {
     let root = tempfile::tempdir().unwrap();
-    let expectation = Arc::new(Expectation {
-        budget: Duration::from_secs(30),
-        listening: Notify::new(),
-        heard: Default::default(),
-    });
+    let expectation = Arc::new(Expectation { budget: Duration::from_secs(30), listening: Notify::new(), heard: Default::default() });
     let (mut owner, cycle) = waiting_cycle(root.path(), Arc::clone(&expectation)).await;
     let handle = owner.handle();
 
@@ -200,11 +174,7 @@ async fn step_awaits_record() {
 #[tokio::test(start_paused = true)]
 async fn record_wait_expires() {
     let root = tempfile::tempdir().unwrap();
-    let expectation = Arc::new(Expectation {
-        budget: Duration::from_secs(30),
-        listening: Notify::new(),
-        heard: Default::default(),
-    });
+    let expectation = Arc::new(Expectation { budget: Duration::from_secs(30), listening: Notify::new(), heard: Default::default() });
     let (mut owner, cycle) = waiting_cycle(root.path(), Arc::clone(&expectation)).await;
     let handle = owner.handle();
 

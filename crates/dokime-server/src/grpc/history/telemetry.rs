@@ -60,26 +60,16 @@ impl Operation for List {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::ListCheckpointTelemetry,
-        _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointTelemetryPage>, Status>
-    {
+        &mut self, _: Self::Context<'a>, request: &mut contract::ListCheckpointTelemetry, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointTelemetryPage>, Status> {
         value::text(&request.table)?;
         value::text(&request.after)?;
-        let stream =
-            dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
-                .map_err(|_| {
-                    Status::invalid_argument("native telemetry stream identifier is required")
-                })?;
+        let stream = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
+            .map_err(|_| Status::invalid_argument("native telemetry stream identifier is required"))?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let query = dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryQuery {
             after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
@@ -90,19 +80,12 @@ impl Operation for List {
             .execution_checkpoint_telemetry(checkpoint, &stream, query)
             .await
             .map_err(wire::query_failure)
-            .and_then(|page| {
-                project(&page, self.resources.maximum)
-                    .map(Into::into)
-                    .map_err(|source| wire::query_failure(source.into()))
-            })
+            .and_then(|page| project(&page, self.resources.maximum).map(Into::into).map_err(|source| wire::query_failure(source.into())))
     }
 }
 
 /* === Public Functions === */
-fn project(
-    page: &ExecutionTelemetryPage,
-    maximum: usize,
-) -> harmos::Result<dokime_domain::model::history::wire::CheckpointTelemetryPage> {
+fn project(page: &ExecutionTelemetryPage, maximum: usize) -> harmos::Result<dokime_domain::model::history::wire::CheckpointTelemetryPage> {
     let mut records = projection::slots(page.rows.len())?;
     for row in &page.rows {
         records.push(dokime_domain::model::history::wire::SavedTelemetrySample {
@@ -120,9 +103,7 @@ fn project(
         });
     }
     let wire = dokime_domain::model::history::wire::CheckpointTelemetryPage {
-        checkpoint: Some(
-            super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?,
-        ),
+        checkpoint: Some(super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?),
         table: projection::text(&page.table)?,
         rows: records,
         next_after: page.next.as_deref().map(projection::text).transpose()?,
@@ -139,10 +120,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<List>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -152,15 +130,9 @@ fn original_error(source: Status) -> harmos::Error {
     if source.code() == Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend(
-        "encode original saved telemetry",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
+    harmos::Error::backend("encode original saved telemetry", harmos::BackendFailure::Corrupt, source)
 }
 fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "canonical saved telemetry page",
-    }
+    harmos::Error::ResourceExhausted { resource: "canonical saved telemetry page" }
 }
 /* === Tests === */

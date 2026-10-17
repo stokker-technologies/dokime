@@ -124,30 +124,12 @@ impl harmos::MemorySize for RecordContract {
         retained_memory(
             std::mem::size_of::<Self>(),
             [
-                (
-                    harmos::MemorySize::memory_size(&self.record_type),
-                    std::mem::size_of_val(&self.record_type),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.metadata),
-                    std::mem::size_of_val(&self.metadata),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.display),
-                    std::mem::size_of_val(&self.display),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.template_id),
-                    std::mem::size_of_val(&self.template_id),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.owner),
-                    std::mem::size_of_val(&self.owner),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.fields),
-                    std::mem::size_of_val(&self.fields),
-                ),
+                (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+                (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+                (harmos::MemorySize::memory_size(&self.display), std::mem::size_of_val(&self.display)),
+                (harmos::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
+                (harmos::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
+                (harmos::MemorySize::memory_size(&self.fields), std::mem::size_of_val(&self.fields)),
             ],
         )
     }
@@ -158,26 +140,11 @@ impl harmos::MemorySize for RecordField {
         retained_memory(
             std::mem::size_of::<Self>(),
             [
-                (
-                    harmos::MemorySize::memory_size(&self.metadata),
-                    std::mem::size_of_val(&self.metadata),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.unit),
-                    std::mem::size_of_val(&self.unit),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.choices),
-                    std::mem::size_of_val(&self.choices),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.default),
-                    std::mem::size_of_val(&self.default),
-                ),
-                (
-                    harmos::MemorySize::memory_size(&self.format),
-                    std::mem::size_of_val(&self.format),
-                ),
+                (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+                (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+                (harmos::MemorySize::memory_size(&self.choices), std::mem::size_of_val(&self.choices)),
+                (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+                (harmos::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
             ],
         )
     }
@@ -247,10 +214,7 @@ impl RecordContract {
     }
 
     pub fn field_map(&self) -> BTreeMap<&str, &RecordField> {
-        self.fields
-            .iter()
-            .map(|field| (field.metadata.identifier.as_str(), field))
-            .collect()
+        self.fields.iter().map(|field| (field.metadata.identifier.as_str(), field)).collect()
     }
 }
 
@@ -262,16 +226,7 @@ impl RecordDisplay {
 
 impl RecordField {
     pub fn new(metadata: Metadata, value_type: ValueType) -> Self {
-        Self {
-            metadata,
-            value_type,
-            required: true,
-            nullable: false,
-            unit: None,
-            choices: Vec::new(),
-            default: None,
-            format: None,
-        }
+        Self { metadata, value_type, required: true, nullable: false, unit: None, choices: Vec::new(), default: None, format: None }
     }
 
     pub fn optional(mut self) -> Self {
@@ -311,13 +266,12 @@ impl RecordField {
 /* === Private Functions === */
 
 fn retained_memory<const N: usize>(inline: usize, fields: [(usize, usize); N]) -> usize {
-    fields.into_iter().fold(inline, |bytes, (owned, embedded)| {
-        if owned == usize::MAX {
-            usize::MAX
-        } else {
-            bytes.saturating_add(owned.saturating_sub(embedded))
-        }
-    })
+    fields.into_iter().fold(
+        inline,
+        |bytes, (owned, embedded)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(embedded)) }
+        },
+    )
 }
 
 /* === Tests === */

@@ -331,9 +331,7 @@ pub struct DocumentSectionIdentity {
     pub node_id: String,
     pub metadata: Option<Metadata>,
     // An unevaluable repeat retains its original section identity with no instances.
-    #[row(
-        description = "An unevaluable repeat retains its original section identity with no instances."
-    )]
+    #[row(description = "An unevaluable repeat retains its original section identity with no instances.")]
     pub unavailable: Option<String>,
 }
 

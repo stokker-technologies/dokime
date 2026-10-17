@@ -51,8 +51,7 @@ impl Path {
         Value::Text(self.default.clone())
     }
     pub fn validate_value(&self, value: &Value) -> crate::Result<()> {
-        if matches!(value, Value::Text(text) if !text.contains("\0") && (!self.required || !text.trim().is_empty()))
-        {
+        if matches!(value, Value::Text(text) if !text.contains("\0") && (!self.required || !text.trim().is_empty())) {
             Ok(())
         } else {
             Err(SettingsError::invalid(&self.id, "invalid path value").into())

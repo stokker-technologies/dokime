@@ -18,9 +18,7 @@
 
 // Local Imports
 use dokime_runtime::harmos::operations::observers::{Control, POLICY};
-use dokime_runtime::harmos::operations::{
-    OperationDeclaration, OperationPolicy, ReplaySafety, Visibility, WireOperation,
-};
+use dokime_runtime::harmos::operations::{OperationDeclaration, OperationPolicy, ReplaySafety, Visibility, WireOperation};
 
 /* === Constants === */
 

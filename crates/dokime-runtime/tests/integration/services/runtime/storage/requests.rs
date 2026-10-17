@@ -21,13 +21,10 @@ use harmos::storage::StorageBackend;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::CommandId;
 use dokime_domain::model::execution::request::RunSummary;
+use dokime_runtime::CommandId;
 use dokime_runtime::storage::requests::Request;
-use {
-    dokime_domain::model::execution::request::RunPhase,
-    dokime_domain::model::execution::request::RunReceipt,
-};
+use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
 /* === Constants === */
 
@@ -80,16 +77,10 @@ async fn receipt_initialize_storage() {
     };
     let native = Request::new(&receipt).unwrap();
     let admitted = handle.storage().write_object(&native).await.unwrap();
-    handle
-        .storage()
-        .flush_until(&admitted.position)
-        .await
-        .unwrap();
+    handle.storage().flush_until(&admitted.position).await.unwrap();
     runtime.shutdown().await.unwrap();
     // Corrupt The Saved Receipt Without Changing Its Recovery Selection
-    let backend = dokime_runtime::storage::Backend::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let backend = dokime_runtime::storage::Backend::primary(root.path().to_path_buf()).await.unwrap();
     let control = backend.local_state();
     control
         .call(|connection| {
@@ -115,23 +106,16 @@ async fn receipt_initialize_storage() {
             }
             Err(error) => error,
         };
-        assert!(
-            failure.to_string().contains("stored entry digest differs"),
-            "{failure}"
-        );
+        assert!(failure.to_string().contains("stored entry digest differs"), "{failure}");
         assert!(
             !matches!(&failure, dokime_runtime::runtime::Error::StartupCleanup { .. }),
             "successful partial-boot cleanup must return the original cause"
         );
         // A failed pre-public-runtime initialization explicitly closed the
         // local coordinator; the process root can be reopened immediately.
-        let local = dokime_runtime::storage::sqlite::State::open(root.path())
-            .await
-            .unwrap();
+        let local = dokime_runtime::storage::sqlite::State::open(root.path()).await.unwrap();
         local.close().await.unwrap();
-        let reopened = dokime_runtime::storage::Backend::primary(root.path().to_path_buf())
-            .await
-            .unwrap();
+        let reopened = dokime_runtime::storage::Backend::primary(root.path().to_path_buf()).await.unwrap();
         let saved = reopened.open().await.unwrap();
         let snapshot = reopened.open_snapshot(&saved).await.unwrap();
         let corrupt = reopened
@@ -150,10 +134,7 @@ async fn receipt_initialize_storage() {
             )
             .await
             .expect_err("the released root still contains the corrupt receipt");
-        assert!(
-            format!("{corrupt:?}").contains("stored entry digest differs"),
-            "{corrupt:?}"
-        );
+        assert!(format!("{corrupt:?}").contains("stored entry digest differs"), "{corrupt:?}");
         reopened.release_snapshot(&snapshot).await.unwrap();
         reopened.close().await.unwrap();
     }
@@ -167,54 +148,26 @@ async fn admitted_progress_stop() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
     let cycle = start_cycle(&handle, suite, false).await;
-    let receipt = handle
-        .run_cycle_cases(cycle, CommandContext::default())
-        .await;
+    let receipt = handle.run_cycle_cases(cycle, CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
 
-    let progress = handle
-        .run_request(&receipt.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let progress = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
     assert_eq!(progress.claimed, 1);
     assert_eq!(progress.summary.prepared, 1);
     assert!(!progress.summary.phase.terminal());
     let progress_boundary = handle.storage().status().accepted;
-    assert!(
-        !handle
-            .storage()
-            .status()
-            .saved
-            .covers(&progress_boundary)
-            .unwrap()
-    );
+    assert!(!handle.storage().status().saved.covers(&progress_boundary).unwrap());
     executor.release();
     wait_for_run_settled(&handle, &receipt.command_id).await;
-    let terminal = handle
-        .run_request(&receipt.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let terminal = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
     assert_eq!(terminal.summary.phase, RunPhase::Completed);
-    assert!(
-        handle
-            .storage()
-            .status()
-            .saved
-            .covers(&progress_boundary)
-            .unwrap()
-    );
+    assert!(handle.storage().status().saved.covers(&progress_boundary).unwrap());
     drop(handle);
     runtime.shutdown().await.unwrap();
 
     let (mut runtime, handle) = booted(root.path()).await;
-    let saved = handle
-        .run_request(&receipt.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let saved = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
     assert_eq!(saved.summary.phase, RunPhase::Completed);
     assert_eq!(saved.summary.finished, terminal.summary.finished);
     assert_eq!(saved.summary.finished_at, terminal.summary.finished_at);
@@ -232,20 +185,12 @@ async fn shutdown_settles_requests() {
     let active_cycle = start_cycle(&handle, suite.clone(), false).await;
     let queued_cycle = start_cycle(&handle, suite, false).await;
 
-    let active = handle
-        .run_cycle_cases(active_cycle, CommandContext::default())
-        .await;
+    let active = handle.run_cycle_cases(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
-    let queued = handle
-        .run_cycle_cases(queued_cycle, CommandContext::default())
-        .await;
+    let queued = handle.run_cycle_cases(queued_cycle, CommandContext::default()).await;
     assert_eq!(queued.status, CommandStatus::Accepted);
-    let pending = handle
-        .run_request(&queued.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let pending = handle.run_request(&queued.command_id).await.unwrap().unwrap();
     assert!(!pending.summary.phase.terminal());
     assert!(pending.summary.provider_started_at.is_none());
 
@@ -253,11 +198,7 @@ async fn shutdown_settles_requests() {
     drop(handle);
     let (mut reopened, handle) = booted(root.path()).await;
     for receipt in [&active, &queued] {
-        let saved = handle
-            .run_request(&receipt.command_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let saved = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
         assert!(saved.summary.phase.terminal());
         assert_ne!(saved.summary.phase, RunPhase::Completed);
         assert_ne!(saved.summary.phase, RunPhase::Interrupted);
@@ -280,68 +221,25 @@ async fn queued_execution_request() {
     register_python_suite(&handle, suite.clone()).await;
     let active_cycle = start_cycle(&handle, suite.clone(), false).await;
     let queued_cycle = start_cycle(&handle, suite, false).await;
-    let active = handle
-        .run_cycle_cases(active_cycle, CommandContext::default())
-        .await;
+    let active = handle.run_cycle_cases(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
 
-    let id = cycle_snapshot(&handle, &queued_cycle).await.test_executions[0]
-        .test_execution_id
-        .clone();
-    let queued = handle
-        .run_execution(
-            id.clone(),
-            dokime_runtime::execution::ExecutionMode::Automatic,
-            CommandContext::default(),
-        )
-        .await;
+    let id = cycle_snapshot(&handle, &queued_cycle).await.test_executions[0].test_execution_id.clone();
+    let queued = handle.run_execution(id.clone(), dokime_runtime::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     assert_eq!(queued.status, CommandStatus::Accepted);
-    handle
-        .pause_execution(id.clone(), CommandContext::default())
-        .await
-        .unwrap();
-    assert!(
-        handle
-            .run_request(&queued.command_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .summary
-            .paused
-    );
-    handle
-        .resume_execution(id.clone(), CommandContext::default())
-        .await
-        .unwrap();
-    assert!(
-        !handle
-            .run_request(&queued.command_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .summary
-            .paused
-    );
-    handle
-        .stop_execution(id, CommandContext::default())
-        .await
-        .unwrap();
-    let active_receipt = handle
-        .run_request(&active.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    handle.pause_execution(id.clone(), CommandContext::default()).await.unwrap();
+    assert!(handle.run_request(&queued.command_id).await.unwrap().unwrap().summary.paused);
+    handle.resume_execution(id.clone(), CommandContext::default()).await.unwrap();
+    assert!(!handle.run_request(&queued.command_id).await.unwrap().unwrap().summary.paused);
+    handle.stop_execution(id, CommandContext::default()).await.unwrap();
+    let active_receipt = handle.run_request(&active.command_id).await.unwrap().unwrap();
     assert!(!active_receipt.summary.paused);
     assert!(!active_receipt.summary.stop_requested);
     executor.release();
 
     wait_for_run_settled(&handle, &queued.command_id).await;
-    let receipt = handle
-        .run_request(&queued.command_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let receipt = handle.run_request(&queued.command_id).await.unwrap().unwrap();
     assert!(receipt.summary.stop_requested);
     assert_ne!(receipt.summary.phase, RunPhase::Completed);
     assert_eq!(receipt.claimed, 0);

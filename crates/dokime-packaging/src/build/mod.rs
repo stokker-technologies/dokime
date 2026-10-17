@@ -51,29 +51,18 @@ struct DebugInfo {
 /* === Implementations === */
 impl DebugInfo {
     fn of(package: &Package) -> Self {
-        let disabled = package
-            .metadata
-            .get("dokime")
-            .and_then(|dokime| dokime.get("debuginfo"))
-            .and_then(serde_json::Value::as_bool)
-            == Some(false);
+        let disabled =
+            package.metadata.get("dokime").and_then(|dokime| dokime.get("debuginfo")).and_then(serde_json::Value::as_bool) == Some(false);
         Self { enabled: !disabled }
     }
 
     fn split(target: &str) -> &'static str {
-        if target.contains("windows-msvc") {
-            "packed"
-        } else {
-            "off"
-        }
+        if target.contains("windows-msvc") { "packed" } else { "off" }
     }
 
     fn arguments(self, profile: &str, target: &str) -> Vec<String> {
         if !self.enabled {
-            return vec![
-                "--config".to_owned(),
-                format!("profile.{profile}.debug=false"),
-            ];
+            return vec!["--config".to_owned(), format!("profile.{profile}.debug=false")];
         }
         vec![
             "--config".to_owned(),
@@ -81,23 +70,15 @@ impl DebugInfo {
             "--config".to_owned(),
             format!("profile.{profile}.strip=\"none\""),
             "--config".to_owned(),
-            format!(
-                "profile.{profile}.split-debuginfo=\"{}\"",
-                Self::split(target)
-            ),
+            format!("profile.{profile}.split-debuginfo=\"{}\"", Self::split(target)),
         ]
     }
 
     fn summary(self, profile: &str, target: &str) -> String {
         if !self.enabled {
-            return format!(
-                "disabled via [package.metadata.dokime] debuginfo = false (profile.{profile})"
-            );
+            return format!("disabled via [package.metadata.dokime] debuginfo = false (profile.{profile})");
         }
-        format!(
-            "line tables only, unstripped, split-debuginfo={} (profile.{profile})",
-            Self::split(target)
-        )
+        format!("line tables only, unstripped, split-debuginfo={} (profile.{profile})", Self::split(target))
     }
 
     // Cargo reports every emitted output for the unit, debug info included: on
@@ -110,10 +91,7 @@ impl DebugInfo {
         }
         filenames
             .iter()
-            .find(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension.eq_ignore_ascii_case("pdb"))
-            })
+            .find(|path| path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("pdb")))
             .map(|path| path.clone().into_std_path_buf())
     }
 }
@@ -131,9 +109,7 @@ async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::
     let cargo_options = args.cargo_options();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut metadata = MetadataCommand::new();
-    metadata
-        .cargo_path(&cargo)
-        .other_options(cargo_options.clone());
+    metadata.cargo_path(&cargo).other_options(cargo_options.clone());
     if !dependencies {
         metadata.no_deps();
     }
@@ -142,11 +118,7 @@ async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::
     }
     let metadata = process::cargo(
         metadata.cargo_command(),
-        if dependencies {
-            "Resolving dependencies"
-        } else {
-            "Resolving package metadata"
-        },
+        if dependencies { "Resolving dependencies" } else { "Resolving package metadata" },
         cargo_timeout,
         false,
     )
@@ -154,35 +126,25 @@ async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::
     Ok(serde_json::from_slice(&metadata.stdout)?)
 }
 
-async fn build_resolved(
-    args: Options,
-    metadata: cargo_metadata::Metadata,
-) -> Result<PathBuf, Error> {
+async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Result<PathBuf, Error> {
     let cargo_timeout = args.cargo_timeout;
     let cargo_options = args.cargo_options();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let binaries = args.binaries.as_slice();
     let package = select_package(&metadata, args.package.as_deref())?;
-    let root = package
-        .manifest_path
-        .parent()
-        .expect("Cargo manifest has a parent");
-    let bins = package
-        .targets
-        .iter()
-        .filter(|target| target.kind.contains(&cargo_metadata::TargetKind::Bin))
-        .collect::<Vec<_>>();
+    let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
+    let bins = package.targets.iter().filter(|target| target.kind.contains(&cargo_metadata::TargetKind::Bin)).collect::<Vec<_>>();
     let selected = if binaries.is_empty() {
-        vec![package
-            .default_run
-            .as_deref()
-            .or_else(|| (bins.len() == 1).then(|| bins[0].name.as_str()))
-            .ok_or_else(|| {
-                Error::Invalid(
-                    "select one native binary with --bin (repeat for multiple files), or set package.default-run".into(),
-                )
-            })?
-            .to_owned()]
+        vec![
+            package
+                .default_run
+                .as_deref()
+                .or_else(|| (bins.len() == 1).then(|| bins[0].name.as_str()))
+                .ok_or_else(|| {
+                    Error::Invalid("select one native binary with --bin (repeat for multiple files), or set package.default-run".into())
+                })?
+                .to_owned(),
+        ]
     } else {
         binaries.to_vec()
     };
@@ -196,23 +158,13 @@ async fn build_resolved(
             return Err(Error::Invalid(format!("binary {name} was selected twice")));
         }
         if !bins.iter().any(|bin| bin.name == *name) {
-            return Err(Error::Invalid(format!(
-                "package {} has no binary {name}",
-                package.name
-            )));
+            return Err(Error::Invalid(format!("package {} has no binary {name}", package.name)));
         }
     }
 
     let mut probe = Command::new("rustc");
     probe.current_dir(root).arg("-vV");
-    let host = process::run(
-        probe,
-        "rustc host probe",
-        Some(Duration::from_secs(30)),
-        64 * 1024,
-        64 * 1024,
-    )
-    .await?;
+    let host = process::run(probe, "rustc host probe", Some(Duration::from_secs(30)), 64 * 1024, 64 * 1024).await?;
     let host = String::from_utf8_lossy(&host.stdout)
         .lines()
         .find_map(|line| line.strip_prefix("host: "))
@@ -220,13 +172,9 @@ async fn build_resolved(
         .ok_or_else(|| Error::Invalid("rustc did not report a host target".into()))?;
     let target = args.target.as_deref().unwrap_or(&host);
     if target != host {
-        return Err(Error::Invalid(format!(
-            "native binaries require the native host target {host}"
-        )));
+        return Err(Error::Invalid(format!("native binaries require the native host target {host}")));
     }
-    let target_dir = args
-        .target_dir
-        .unwrap_or_else(|| metadata.target_directory.as_std_path().to_owned());
+    let target_dir = args.target_dir.unwrap_or_else(|| metadata.target_directory.as_std_path().to_owned());
     std::fs::create_dir_all(&target_dir)?;
     // Lexical absolutization only: canonicalize yields a verbatim `\\?\` path
     // on Windows, which the MSVC linker rejects for build-script objects.
@@ -264,11 +212,7 @@ async fn build_resolved(
     let debuginfo = DebugInfo::of(package);
     command.args(debuginfo.arguments(&profile_name, target));
     let terminal = dokime::terminal::Terminal::default();
-    terminal.status(format!(
-        "Building {} ({}) for {target}",
-        package.name,
-        selected.join(", ")
-    ));
+    terminal.status(format!("Building {} ({}) for {target}", package.name, selected.join(", ")));
     terminal.field("Debug info", debuginfo.summary(&profile_name, target));
     let output = process::cargo(command, "Cargo compilation", cargo_timeout, true).await?;
     let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Option<PathBuf>)>>::new();
@@ -278,18 +222,13 @@ async fn build_resolved(
             Message::CompilerArtifact(artifact)
                 if artifact.package_id == package.id
                     && requested.contains(&artifact.target.name)
-                    && artifact
-                        .target
-                        .kind
-                        .contains(&cargo_metadata::TargetKind::Bin) =>
+                    && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin) =>
             {
                 let pdb = debuginfo.symbols(&artifact.filenames);
-                executables.entry(artifact.target.name).or_default().extend(
-                    artifact
-                        .executable
-                        .into_iter()
-                        .map(|path| (path.into_std_path_buf(), pdb.clone())),
-                );
+                executables
+                    .entry(artifact.target.name)
+                    .or_default()
+                    .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
             }
             Message::BuildFinished(result) => finished = result.success,
             _ => {}
@@ -299,14 +238,8 @@ async fn build_resolved(
         paths.sort();
         paths.dedup();
     }
-    if !finished
-        || executables.len() != selected.len()
-        || executables.values().any(|paths| paths.len() != 1)
-    {
-        return Err(Error::Invalid(
-            "Cargo did not report exactly one successful executable for each selected binary"
-                .into(),
-        ));
+    if !finished || executables.len() != selected.len() || executables.values().any(|paths| paths.len() != 1) {
+        return Err(Error::Invalid("Cargo did not report exactly one successful executable for each selected binary".into()));
     }
     let terminal = dokime::terminal::Terminal::default();
     terminal.status("Collecting plugin declarations and assets");
@@ -320,23 +253,14 @@ async fn build_resolved(
             path,
             package,
             target,
-            limits
-                .file_bytes
-                .min(limits.total_file_bytes.saturating_sub(total)),
+            limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)),
             &mut catalog_remaining,
         )
         .await?;
         total += binary.len();
         inputs.push((name, binary, Some(executable)));
         let pdb = match pdb {
-            Some(pdb) => symbols(
-                pdb,
-                target,
-                limits
-                    .file_bytes
-                    .min(limits.total_file_bytes.saturating_sub(total)),
-                &terminal,
-            )?,
+            Some(pdb) => symbols(pdb, target, limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)), &terminal)?,
             None => None,
         };
         // Placed at `bin/<target>/<pdb name>`, the same directory `extract`
@@ -353,50 +277,23 @@ async fn build_resolved(
             inputs.push((name, bytes, None));
         }
     }
-    for (name, path) in files::assets(
-        &root.join("assets").into_std_path_buf(),
-        limits.files - inputs.len(),
-    )? {
-        let bytes = files::read(
-            &path,
-            limits
-                .file_bytes
-                .min(limits.total_file_bytes.saturating_sub(total)),
-        )?;
+    for (name, path) in files::assets(&root.join("assets").into_std_path_buf(), limits.files - inputs.len())? {
+        let bytes = files::read(&path, limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)))?;
         total += bytes.len();
         inputs.push((name, bytes, None));
     }
-    terminal.success(format!(
-        "Plugin declarations and assets collected in {:.1}s",
-        collection_started.elapsed().as_secs_f64()
-    ));
+    terminal.success(format!("Plugin declarations and assets collected in {:.1}s", collection_started.elapsed().as_secs_f64()));
     terminal.status("Building verified plugin bundle");
     let bundle_started = Instant::now();
-    let sources = inputs
-        .iter()
-        .map(|(path, bytes, executable)| Source {
-            path,
-            bytes,
-            executable: executable.clone(),
-        })
-        .collect::<Vec<_>>();
+    let sources = inputs.iter().map(|(path, bytes, executable)| Source { path, bytes, executable: executable.clone() }).collect::<Vec<_>>();
     let bundle = Bundle::build(package_identity(package), &sources, limits)?;
-    let output = args.output.unwrap_or_else(|| {
-        target_dir
-            .join("dokime")
-            .join(format!("{}-{}.dokime", package.name, package.version))
-    });
-    let parent = output
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or(std::path::Path::new("."));
+    let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
+    let parent = output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(parent)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
     use std::io::Write;
     temporary.write_all(bundle.bytes())?;
-    temporary
-        .persist(&output)
-        .map_err(|error| Error::Io(error.error))?;
+    temporary.persist(&output).map_err(|error| Error::Io(error.error))?;
     terminal.success(format!(
         "Plugin bundle ready · {} in {:.1}s",
         dokime::terminal::size_label(bundle.bytes().len() as u64),
@@ -408,16 +305,10 @@ async fn build_resolved(
 // Debug info is optional: a symbols file over the remaining budget is left out
 // with a warning, and the bundle ships without symbols for that executable.
 fn symbols(
-    pdb: &std::path::Path,
-    target: &str,
-    limit: usize,
-    terminal: &dokime::terminal::Terminal,
+    pdb: &std::path::Path, target: &str, limit: usize, terminal: &dokime::terminal::Terminal,
 ) -> Result<Option<(String, Vec<u8>)>, Error> {
-    let pdb_name = pdb
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| Error::Invalid("pdb filename must be UTF-8".into()))?
-        .to_owned();
+    let pdb_name =
+        pdb.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("pdb filename must be UTF-8".into()))?.to_owned();
     match files::read(pdb, limit) {
         Ok(bytes) => Ok(Some((format!("bin/{target}/{pdb_name}"), bytes))),
         Err(Error::Output(..)) => {
@@ -435,19 +326,11 @@ fn symbols(
 }
 
 async fn collect_executable(
-    path: &std::path::Path,
-    package: &Package,
-    target: &str,
-    max_bytes: usize,
-    catalog_remaining: &mut usize,
+    path: &std::path::Path, package: &Package, target: &str, max_bytes: usize, catalog_remaining: &mut usize,
 ) -> Result<(String, Vec<u8>, Executable), Error> {
     let binary = files::read(path, max_bytes)?;
     let declaration = Declaration::inspect(&binary, harmos::plugin::inventory::Facility::Sidecar)
-        .map_err(|error| {
-        Error::Invalid(format!(
-            "selected binary has no complete native declaration: {error}"
-        ))
-    })?;
+        .map_err(|error| Error::Invalid(format!("selected binary has no complete native declaration: {error}")))?;
     if declaration.version.to_string() != package.version.to_string() {
         return Err(Error::Invalid(format!(
             "executable version {} differs from Cargo package version {}; the executable declaration must derive its version from the selected Cargo package",
@@ -455,14 +338,7 @@ async fn collect_executable(
         )));
     }
     let mut command = Command::new(path);
-    command
-        .current_dir(
-            package
-                .manifest_path
-                .parent()
-                .expect("Cargo manifest has a parent"),
-        )
-        .arg(CATALOG_EXPORT_FLAG);
+    command.current_dir(package.manifest_path.parent().expect("Cargo manifest has a parent")).arg(CATALOG_EXPORT_FLAG);
     let export = process::run(
         command,
         "plugin catalog export",
@@ -474,46 +350,30 @@ async fn collect_executable(
     *catalog_remaining = catalog_remaining.saturating_sub(export.stdout.len());
     let registrations: Vec<Registration> = serde_json::from_slice(&export.stdout)?;
     if files::read(path, max_bytes)? != binary {
-        return Err(Error::Invalid(
-            "the executable changed during catalog export".into(),
-        ));
+        return Err(Error::Invalid("the executable changed during catalog export".into()));
     }
-    let binary_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| Error::Invalid("executable filename must be UTF-8".into()))?;
+    let binary_name =
+        path.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("executable filename must be UTF-8".into()))?;
     Ok((
         format!("bin/{target}/{binary_name}"),
         binary,
-        Executable {
-            facility: Facility::Sidecar,
-            target: target.to_owned(),
-            registrations,
-        },
+        Executable { facility: Facility::Sidecar, target: target.to_owned(), registrations },
     ))
 }
 
-fn select_package<'a>(
-    metadata: &'a cargo_metadata::Metadata,
-    name: Option<&str>,
-) -> Result<&'a Package, Error> {
+fn select_package<'a>(metadata: &'a cargo_metadata::Metadata, name: Option<&str>) -> Result<&'a Package, Error> {
     if let Some(name) = name {
         return metadata
             .packages
             .iter()
-            .find(|package| {
-                package.name == name && metadata.workspace_members.contains(&package.id)
-            })
+            .find(|package| package.name == name && metadata.workspace_members.contains(&package.id))
             .ok_or_else(|| Error::Invalid(format!("workspace package {name} not found")));
     }
     metadata
         .root_package()
         .or_else(|| {
             if metadata.workspace_default_members.len() == 1 {
-                metadata
-                    .packages
-                    .iter()
-                    .find(|package| package.id == metadata.workspace_default_members[0])
+                metadata.packages.iter().find(|package| package.id == metadata.workspace_default_members[0])
             } else {
                 None
             }
@@ -548,15 +408,9 @@ mod tests {
         let disabled = DebugInfo { enabled: false };
         let outputs = vec![cargo_metadata::camino::Utf8PathBuf::from("deps/plugin.pdb")];
 
-        assert_eq!(
-            disabled.arguments("dev", "x86_64-pc-windows-msvc"),
-            ["--config", "profile.dev.debug=false"]
-        );
+        assert_eq!(disabled.arguments("dev", "x86_64-pc-windows-msvc"), ["--config", "profile.dev.debug=false"]);
         assert_eq!(disabled.symbols(&outputs), None);
-        assert_eq!(
-            DebugInfo { enabled: true }.symbols(&outputs),
-            Some(PathBuf::from("deps/plugin.pdb"))
-        );
+        assert_eq!(DebugInfo { enabled: true }.symbols(&outputs), Some(PathBuf::from("deps/plugin.pdb")));
     }
 
     #[test]
@@ -577,11 +431,7 @@ mod tests {
         let sources = [Source {
             path: "bin/x86_64-pc-windows-msvc/fixture.exe",
             bytes: executable.as_bytes(),
-            executable: Some(Executable {
-                facility: Facility::Sidecar,
-                target: target.into(),
-                registrations: vec![],
-            }),
+            executable: Some(Executable { facility: Facility::Sidecar, target: target.into(), registrations: vec![] }),
         }];
         let identity = Identity {
             name: "fixture".into(),
@@ -601,11 +451,8 @@ mod tests {
             retries: harmos::operations::RetryPolicy::Never,
             restart: harmos::operations::RestartPolicy::Never,
         };
-        let lifecycle = [
-            harmos::operations::lifecycle::Action::Initialize,
-            harmos::operations::lifecycle::Action::Shutdown,
-        ]
-        .map(|action| harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
+        let lifecycle = [harmos::operations::lifecycle::Action::Initialize, harmos::operations::lifecycle::Action::Shutdown]
+            .map(|action| harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
         let sections = [
             serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"}),
             serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle}),
@@ -615,10 +462,6 @@ mod tests {
         ];
         let prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap();
 
-        sections
-            .iter()
-            .fold("inert".to_owned(), |executable, section| {
-                format!("{executable}{prefix}{section}\0")
-            })
+        sections.iter().fold("inert".to_owned(), |executable, section| format!("{executable}{prefix}{section}\0"))
     }
 }

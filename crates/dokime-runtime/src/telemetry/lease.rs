@@ -50,10 +50,7 @@ pub struct LeaseGap {
 /* === Implementations === */
 impl LeaseRequest {
     pub fn new(stream: Identifier) -> Self {
-        Self {
-            lease_token: format!("{stream}#{}", NEXT_LEASE.fetch_add(1, Ordering::Relaxed)),
-            stream,
-        }
+        Self { lease_token: format!("{stream}#{}", NEXT_LEASE.fetch_add(1, Ordering::Relaxed)), stream }
     }
 }
 

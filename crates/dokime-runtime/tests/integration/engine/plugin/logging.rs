@@ -72,12 +72,7 @@ impl Levels {
         dokime_runtime::debug!(ctx, "sampled {samples} rows");
         dokime_runtime::info!(ctx, "literal only");
         dokime_runtime::warn!(ctx, "retrying after {}", "timeout",);
-        dokime_runtime::error!(
-            ctx,
-            "device {id} answered {status:?}",
-            id = 7,
-            status = Some(500)
-        );
+        dokime_runtime::error!(ctx, "device {id} answered {status:?}", id = 7, status = Some(500));
         Ok(())
     }
 
@@ -94,17 +89,10 @@ impl Levels {
 
 #[tokio::test]
 async fn macros_format_context() {
-    let report = Harness::template(TEMPLATE)
-        .run::<PluginSuites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TEMPLATE).run::<PluginSuites>().await.expect("the run completes");
     assert!(report.passed(), "{}", report.diagnostics());
 
-    let logged: Vec<(i32, &str)> = report
-        .log()
-        .iter()
-        .map(|entry| (entry.level, entry.message.as_str()))
-        .collect();
+    let logged: Vec<(i32, &str)> = report.log().iter().map(|entry| (entry.level, entry.message.as_str())).collect();
 
     for expected in [
         (Level::Trace, "initializing with 3 samples"),
@@ -112,15 +100,9 @@ async fn macros_format_context() {
         (Level::Info, "literal only"),
         (Level::Warn, "retrying after timeout"),
         (Level::Error, "device 7 answered Some(500)"),
-        (
-            Level::Debug,
-            "criterion `logging.checks.attributed`: deciding over 1 steps",
-        ),
+        (Level::Debug, "criterion `logging.checks.attributed`: deciding over 1 steps"),
     ] {
-        assert!(
-            logged.contains(&(expected.0 as i32, expected.1)),
-            "expected {expected:?} in the execution log, got {logged:?}"
-        );
+        assert!(logged.contains(&(expected.0 as i32, expected.1)), "expected {expected:?} in the execution log, got {logged:?}");
     }
 }
 

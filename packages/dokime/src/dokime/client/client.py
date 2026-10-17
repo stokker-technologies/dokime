@@ -82,9 +82,7 @@ class DokimeClient:
 
         profile = load(name, path=path)
         if profile.credential == "keyring" and token is None:
-            raise ValueError(
-                "this profile requires a bearer token supplied by the caller"
-            )
+            raise ValueError("this profile requires a bearer token supplied by the caller")
         return cls(
             profile.endpoint,
             token=token,
@@ -101,9 +99,7 @@ class DokimeClient:
         """Discover Authorized Operations, Including Separately Installed Plugins"""
         return await self._transport.operations()
 
-    async def show(
-        self, identifier: str, *, owner: str | None = None
-    ) -> DiscoveredOperation:
+    async def show(self, identifier: str, *, owner: str | None = None) -> DiscoveredOperation:
         """Resolve One Live Provider And Its Canonical Contract"""
         return await self._transport.show(identifier, owner=owner)
 
@@ -117,9 +113,7 @@ class DokimeClient:
         """Invoke A Unary Operation After Checking Its Live Contract"""
         return await self._transport.call(operation, request, owner=owner)
 
-    async def upload(
-        self, operation: Operation, request: Message, items: AsyncIterator[Message]
-    ) -> Message:
+    async def upload(self, operation: Operation, request: Message, items: AsyncIterator[Message]) -> Message:
         """Send A Client Stream With A Canonical Request And Final Response"""
         return await self._transport.upload(operation, request, items)
 
@@ -127,9 +121,7 @@ class DokimeClient:
         """Receive A Server Stream; Read Its Final Response With response()"""
         return self._transport.download(operation, request)
 
-    def exchange(
-        self, operation: Operation, request: Message, items: AsyncIterator[Message]
-    ) -> ResponseStream:
+    def exchange(self, operation: Operation, request: Message, items: AsyncIterator[Message]) -> ResponseStream:
         """Exchange Canonical Items And Retain The Final Response"""
         return self._transport.exchange(operation, request, items)
 
@@ -164,9 +156,7 @@ class DokimeClient:
             await self._transport.verify(backend, live=True)
             page = await self._transport.unary("Catalog", "ListSuites", request)
             _cursor(backend, page, "cursor")
-            if request.HasField("cursor") and not _wire.equal(
-                request.cursor, page.cursor
-            ):
+            if request.HasField("cursor") and not _wire.equal(request.cursor, page.cursor):
                 raise ProtocolError("suite page changed revision")
             if len(page.suites) > request.limit:
                 raise ProtocolError("suite page exceeds its limit")
@@ -177,9 +167,7 @@ class DokimeClient:
                 if identity.suite_id <= previous:
                     raise ProtocolError("suite identities do not advance")
                 previous = identity.suite_id
-            if page.HasField("next_after_suite_id") and (
-                not page.suites or page.next_after_suite_id != previous
-            ):
+            if page.HasField("next_after_suite_id") and (not page.suites or page.next_after_suite_id != previous):
                 raise ProtocolError("invalid suite continuation")
             for identity in page.suites:
                 yield identity
@@ -196,11 +184,7 @@ class DokimeClient:
             "GetSuite",
             _wire.request("Catalog", "GetSuite", suite_id=identifier),
         )
-        if (
-            not item.HasField("identity")
-            or item.identity.suite_id != identifier
-            or not identifier.strip()
-        ):
+        if not item.HasField("identity") or item.identity.suite_id != identifier or not identifier.strip():
             raise ProtocolError("suite definition identity differs")
         return item
 
@@ -210,11 +194,7 @@ class DokimeClient:
         except RpcError as error:
             if error.code != "NOT_FOUND":
                 raise
-        matches = [
-            item.suite_id
-            async for item in self._suite_identities()
-            if item.metadata.identifier == identifier
-        ]
+        matches = [item.suite_id async for item in self._suite_identities() if item.metadata.identifier == identifier]
         if len(matches) > 1:
             raise ValueError("suite identifier is ambiguous")
         if not matches:
@@ -300,9 +280,7 @@ class DokimeClient:
         moment it was created.
         """
         plan = await self._selection(suite, template, parameters)
-        identifier = await self.create_cycle(
-            label=label if label is not None else _default_cycle_label()
-        )
+        identifier = await self.create_cycle(label=label if label is not None else _default_cycle_label())
         await self._append(identifier, plan)
         return await self.cycle(identifier)
 
@@ -315,11 +293,7 @@ class DokimeClient:
         definition = await self._suite_definition(suite)
         # A template is named by its readable ID; the registered UUID stays on
         # the wire between this client and the backend.
-        matches = [
-            item
-            for item in definition.templates
-            if item.metadata.identifier == template
-        ]
+        matches = [item for item in definition.templates if item.metadata.identifier == template]
         if len(matches) != 1:
             raise ValueError("template must identify exactly one registered template")
         selected = matches[0]
@@ -330,8 +304,7 @@ class DokimeClient:
                     "suite_id": definition.identity.suite_id,
                     "template_id": selected.template_id,
                     "parameters": [
-                        {"key": name, "value": {"values": [_wire.encode(item)]}}
-                        for name, item in sorted((parameters or {}).items())
+                        {"key": name, "value": {"values": [_wire.encode(item)]}} for name, item in sorted((parameters or {}).items())
                     ],
                 }
             ],
@@ -358,9 +331,7 @@ class DokimeClient:
 
     async def get_run_request(self, request_id: str) -> RunRequest:
         """Recover original native published progress, without owning a cycle."""
-        return await RunRequest.resolve(
-            self._transport, await self.connect(), request_id
-        )
+        return await RunRequest.resolve(self._transport, await self.connect(), request_id)
 
     async def execution(self, execution_id: str) -> TestExecutionHandle:
         """Bind an existing native identity without lookup or device work."""

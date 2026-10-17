@@ -127,12 +127,7 @@ impl Value {
         Ok(value)
     }
 
-    fn rebuild(
-        &self,
-        index: usize,
-        depth: usize,
-        members: &mut [bool],
-    ) -> Result<crate::model::values::Value, ValueError> {
+    fn rebuild(&self, index: usize, depth: usize, members: &mut [bool]) -> Result<crate::model::values::Value, ValueError> {
         use crate::model::values::Value as Core;
         if depth > MAX_DEPTH {
             return Err(ValueError::Depth);
@@ -147,10 +142,7 @@ impl Value {
             }
             Ok(child)
         };
-        let kind = self.nodes[index]
-            .kind
-            .as_ref()
-            .ok_or(ValueError::Unset(index))?;
+        let kind = self.nodes[index].kind.as_ref().ok_or(ValueError::Unset(index))?;
         Ok(match kind {
             ValueKind::Null => Core::Null,
             ValueKind::Bool(value) => Core::Bool(*value),
@@ -158,9 +150,7 @@ impl Value {
             ValueKind::Unsigned(value) => Core::Unsigned(*value),
             ValueKind::Number(value) => Core::Number(*value),
             ValueKind::Text(value) => Core::Text(value.clone()),
-            ValueKind::Datetime(value) => {
-                Core::Datetime(value.to_datetime().map_err(|_| ValueError::Timestamp)?)
-            }
+            ValueKind::Datetime(value) => Core::Datetime(value.to_datetime().map_err(|_| ValueError::Timestamp)?),
             ValueKind::Array(items) => {
                 let mut values = Vec::with_capacity(items.items.len());
                 for child in &items.items {
@@ -194,17 +184,9 @@ impl Value {
             Core::Number(value) => ValueKind::Number(*value),
             Core::Text(value) => ValueKind::Text(value.clone()),
             Core::Datetime(value) => ValueKind::Datetime(Timestamp::from(*value)),
-            Core::Array(values) => ValueKind::Array(ValueItems {
-                items: values.iter().map(|value| self.push(value)).collect(),
-            }),
+            Core::Array(values) => ValueKind::Array(ValueItems { items: values.iter().map(|value| self.push(value)).collect() }),
             Core::Object(entries) => ValueKind::Object(ValueFields {
-                fields: entries
-                    .iter()
-                    .map(|(key, value)| ValueField {
-                        key: key.clone(),
-                        value: self.push(value),
-                    })
-                    .collect(),
+                fields: entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: self.push(value) }).collect(),
             }),
         };
         self.nodes[index].kind = Some(kind);
@@ -224,13 +206,7 @@ impl From<&BTreeMap<String, crate::model::values::Value>> for Value {
     fn from(entries: &BTreeMap<String, crate::model::values::Value>) -> Self {
         let mut wire = Self::default();
         wire.nodes.push(ValueNode { kind: None });
-        let fields = entries
-            .iter()
-            .map(|(key, value)| ValueField {
-                key: key.clone(),
-                value: wire.push(value),
-            })
-            .collect();
+        let fields = entries.iter().map(|(key, value)| ValueField { key: key.clone(), value: wire.push(value) }).collect();
         wire.nodes[0].kind = Some(ValueKind::Object(ValueFields { fields }));
         wire
     }
@@ -252,10 +228,7 @@ impl TryFrom<&Value> for crate::model::values::Value {
 
 impl From<OffsetDateTime> for Timestamp {
     fn from(value: OffsetDateTime) -> Self {
-        Self {
-            seconds: value.unix_timestamp(),
-            nanos: value.nanosecond() as i32,
-        }
+        Self { seconds: value.unix_timestamp(), nanos: value.nanosecond() as i32 }
     }
 }
 

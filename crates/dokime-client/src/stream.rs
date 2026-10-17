@@ -84,10 +84,7 @@ impl<T: Send + 'static> ResponseStream<T> {
     where
         S: Stream<Item = std::result::Result<T, tonic::Status>> + Send + 'static,
     {
-        let demand = Arc::new(Demand {
-            requested: AtomicBool::new(false),
-            ready: Notify::new(),
-        });
+        let demand = Arc::new(Demand { requested: AtomicBool::new(false), ready: Notify::new() });
         let credit = demand.clone();
         Self::start(client, Some(demand), move |sender| async move {
             let mut stream = std::pin::pin!(stream);
@@ -119,11 +116,7 @@ impl<T: Send + 'static> ResponseStream<T> {
     {
         // Serialize reader registration with close so its wait cannot miss a
         // reader created after the cancellation signal.
-        let channel = client
-            .inner
-            .channel
-            .lock()
-            .expect("client transport poisoned");
+        let channel = client.inner.channel.lock().expect("client transport poisoned");
         if channel.is_none() || client.inner.cancellation.is_cancelled() {
             return Err(Error::Closed);
         }
@@ -138,14 +131,7 @@ impl<T: Send + 'static> ResponseStream<T> {
             }
         });
 
-        Ok(Self {
-            inner: Arc::new(Response {
-                receiver: Mutex::new(receiver),
-                cancellation,
-                worker: Mutex::new(Some(worker)),
-                demand,
-            }),
-        })
+        Ok(Self { inner: Arc::new(Response { receiver: Mutex::new(receiver), cancellation, worker: Mutex::new(Some(worker)), demand }) })
     }
 
     pub async fn message(&self) -> Result<Option<T>> {
@@ -200,9 +186,7 @@ impl<T: Send + 'static> ResponseStream<T> {
 
 impl<T> Clone for ResponseStream<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        Self { inner: self.inner.clone() }
     }
 }
 
@@ -222,11 +206,7 @@ impl<T: harmos::Protobuf + Send + 'static, R: Send + 'static> RequestStream<T, R
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
         // Registration and client close share the same fence as response readers.
-        let channel = client
-            .inner
-            .channel
-            .lock()
-            .expect("client transport poisoned");
+        let channel = client.inner.channel.lock().expect("client transport poisoned");
         if channel.is_none() || client.inner.cancellation.is_cancelled() {
             return Err(Error::Closed);
         }
@@ -253,9 +233,7 @@ impl<T: harmos::Protobuf + Send + 'static, R: Send + 'static> RequestStream<T, R
 
     pub async fn send(&self, frame: T) -> Result<()> {
         if frame.encoded_len() > self.inner.max_frame_bytes {
-            return Err(Error::Rpc(tonic::Status::out_of_range(
-                "upload frame exceeds the negotiated request limit",
-            )));
+            return Err(Error::Rpc(tonic::Status::out_of_range("upload frame exceeds the negotiated request limit")));
         }
 
         let sender = tokio::select! {
@@ -321,9 +299,7 @@ impl<T: harmos::Protobuf + Send + 'static, R: Send + 'static> RequestStream<T, R
 
 impl<T, R> Clone for RequestStream<T, R> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        Self { inner: self.inner.clone() }
     }
 }
 
@@ -338,10 +314,7 @@ impl<T, R> Drop for Upload<T, R> {
 
 impl<S> Input<S> {
     pub(super) fn new(inner: S, cancellation: CancellationToken) -> Self {
-        Self {
-            inner: Box::pin(inner),
-            cancellation: Box::pin(cancellation.cancelled_owned()),
-        }
+        Self { inner: Box::pin(inner), cancellation: Box::pin(cancellation.cancelled_owned()) }
     }
 }
 

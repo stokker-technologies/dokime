@@ -19,8 +19,8 @@
 use harmos::MemorySize;
 
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -44,16 +44,8 @@ pub struct ContextRecord {
 impl MemorySize for ContextRecord {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
-            .saturating_add(
-                self.epoch
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<SessionId>()),
-            )
-            .saturating_add(
-                self.record
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<RecordEntry>()),
-            )
+            .saturating_add(self.epoch.memory_size().saturating_sub(std::mem::size_of::<SessionId>()))
+            .saturating_add(self.record.memory_size().saturating_sub(std::mem::size_of::<RecordEntry>()))
     }
 }
 

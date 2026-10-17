@@ -104,9 +104,7 @@ def test_suite_page_refused(page: str, continuation: str | None) -> None:
 
 
 def _suite(suite_id: str):
-    return _message(
-        "Catalog", "ListSuites", direction="response", path="suites", suite_id=suite_id
-    )
+    return _message("Catalog", "ListSuites", direction="response", path="suites", suite_id=suite_id)
 
 
 # === Entry Point === #

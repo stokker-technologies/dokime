@@ -20,9 +20,9 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use crate::telemetry::TelemetryRow;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-use crate::telemetry::TelemetryRow;
 
 /* === Constants === */
 // The longest a buffered row waits before its sink is flushed.
@@ -71,10 +71,7 @@ struct Admission {
 /* === Traits === */
 pub trait SampleSink: Send + Sync {
     fn publish<'a>(
-        &'a self,
-        stream: &'a Identifier,
-        values: BTreeMap<String, Value>,
-        storage_payload: Option<Vec<u8>>,
+        &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
     fn produced(&self, stream: &str) -> u64;
@@ -109,24 +106,14 @@ impl Streams {
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn with_listening(
-        mut self,
-        listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
-    ) -> Self {
+    pub(crate) fn with_listening(mut self, listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>) -> Self {
         self.listening = listening;
         self
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn restricted(
-        mut self,
-        template: &str,
-        streams: impl IntoIterator<Item = String>,
-    ) -> Self {
-        self.admission = Some(Arc::new(Admission {
-            template: template.to_owned(),
-            streams: streams.into_iter().collect(),
-        }));
+    pub(crate) fn restricted(mut self, template: &str, streams: impl IntoIterator<Item = String>) -> Self {
+        self.admission = Some(Arc::new(Admission { template: template.to_owned(), streams: streams.into_iter().collect() }));
         self
     }
 
@@ -138,10 +125,7 @@ impl Streams {
     #[cfg(feature = "native")]
     pub(crate) async fn refused(&self) -> crate::diagnostics::Diagnostic {
         let mut receiver = self.failure.subscribe();
-        let value = receiver
-            .wait_for(Option::is_some)
-            .await
-            .expect("the grant retains its sender");
+        let value = receiver.wait_for(Option::is_some).await.expect("the grant retains its sender");
         value.as_ref().expect("a refusal is present").clone()
     }
 
@@ -151,11 +135,7 @@ impl Streams {
     }
 
     pub(crate) fn selecting<R: TelemetryRow>(&self) -> StreamSelection<'_, R> {
-        StreamSelection {
-            streams: self.clone(),
-            row: PhantomData,
-            borrowed: PhantomData,
-        }
+        StreamSelection { streams: self.clone(), row: PhantomData, borrowed: PhantomData }
     }
 
     pub(crate) fn produced(&self, stream: &str) -> u64 {
@@ -170,22 +150,12 @@ impl Streams {
         }
     }
 
-    pub(crate) async fn published(
-        &self,
-        stream: &Identifier,
-        values: BTreeMap<String, Value>,
-        payload: Vec<u8>,
-    ) {
-        self.published_as(stream, values, Some(payload), stream.as_str())
-            .await;
+    pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
+        self.published_as(stream, values, Some(payload), stream.as_str()).await;
     }
 
     pub(crate) async fn published_as(
-        &self,
-        stream: &Identifier,
-        mut values: BTreeMap<String, Value>,
-        storage_payload: Option<Vec<u8>>,
-        row_type: &str,
+        &self, stream: &Identifier, mut values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>, row_type: &str,
     ) {
         // The one place every row this execution produces is stamped: a
         // observer-measured row and a step-pushed row both land here before
@@ -193,9 +163,7 @@ impl Streams {
         // this is the production instant. A row that already stamped its own
         // "timestamp" — an observer reading a device's own clock, say — keeps
         // it; `or_insert_with` never overwrites.
-        values
-            .entry("timestamp".to_owned())
-            .or_insert_with(|| Value::from(crate::model::time::now_utc()));
+        values.entry("timestamp".to_owned()).or_insert_with(|| Value::from(crate::model::time::now_utc()));
 
         #[cfg(not(feature = "native"))]
         let _ = row_type;
@@ -240,9 +208,7 @@ impl Streams {
             if failure.is_some() {
                 return false;
             }
-            *failure = Some(crate::diagnostics::Diagnostic::of(format!(
-                "stream {stream} publication failed: {error}"
-            )));
+            *failure = Some(crate::diagnostics::Diagnostic::of(format!("stream {stream} publication failed: {error}")));
             true
         });
         #[cfg(not(feature = "native"))]
@@ -255,16 +221,12 @@ impl Streams {
         #[cfg(feature = "native")]
         if self.sink.buffering()
             && let Ok(runtime) = tokio::runtime::Handle::try_current()
-            && !self
-                .flushing
-                .swap(true, std::sync::atomic::Ordering::AcqRel)
+            && !self.flushing.swap(true, std::sync::atomic::Ordering::AcqRel)
         {
             let streams = self.clone();
             runtime.spawn(async move {
                 tokio::time::sleep(FLUSH_WINDOW).await;
-                streams
-                    .flushing
-                    .store(false, std::sync::atomic::Ordering::Release);
+                streams.flushing.store(false, std::sync::atomic::Ordering::Release);
                 streams.flush().await;
             });
         }
@@ -294,12 +256,7 @@ impl<'a, R: TelemetryRow> StreamSelection<'a, R> {
     }
 
     fn pushing(self, stream: Identifier) -> Pushing<'a, R> {
-        Pushing {
-            stream,
-            streams: self.streams,
-            row: PhantomData,
-            borrowed: PhantomData,
-        }
+        Pushing { stream, streams: self.streams, row: PhantomData, borrowed: PhantomData }
     }
 }
 
@@ -312,14 +269,7 @@ impl<R: TelemetryStream<Row = R> + TelemetryRow> StreamSelection<'_, R> {
 impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
     pub async fn push(&self, row: R) {
         let payload = row.encode_to_vec();
-        self.streams
-            .published_as(
-                &self.stream,
-                row.into_row(),
-                Some(payload),
-                std::any::type_name::<R>(),
-            )
-            .await;
+        self.streams.published_as(&self.stream, row.into_row(), Some(payload), std::any::type_name::<R>()).await;
     }
 
     pub fn produced(&self) -> u64 {

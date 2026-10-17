@@ -102,9 +102,7 @@ impl TryFrom<&crate::document::DocumentLayout> for Layout {
             return Err(Error::Invalid("document layout encoding memory overflows"));
         }
         let mut nodes = Vec::new();
-        nodes
-            .try_reserve_exact(count)
-            .map_err(|_| Error::Invalid("document nodes allocation failed"))?;
+        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("document nodes allocation failed"))?;
         for node in &value.nodes {
             append_node(node, &mut nodes)?;
         }
@@ -118,15 +116,11 @@ impl TryFrom<Layout> for crate::document::DocumentLayout {
     fn try_from(row: Layout) -> Result<Self> {
         let (bound, roots) = row.projection()?;
         if bound == usize::MAX {
-            return Err(Error::Invalid(
-                "document layout projection memory overflows",
-            ));
+            return Err(Error::Invalid("document layout projection memory overflows"));
         }
         let mut source = row.nodes.into_iter();
         let mut nodes = Vec::new();
-        nodes
-            .try_reserve_exact(roots)
-            .map_err(|_| Error::Invalid("document roots allocation failed"))?;
+        nodes.try_reserve_exact(roots).map_err(|_| Error::Invalid("document roots allocation failed"))?;
         for _ in 0..roots {
             nodes.push(consume_node(&mut source, 0)?);
         }
@@ -135,19 +129,13 @@ impl TryFrom<Layout> for crate::document::DocumentLayout {
 }
 
 impl Serialize for Layout {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
-        let layout: crate::document::DocumentLayout =
-            self.clone().try_into().map_err(serde::ser::Error::custom)?;
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let layout: crate::document::DocumentLayout = self.clone().try_into().map_err(serde::ser::Error::custom)?;
         layout.serialize(serializer)
     }
 }
 impl<'de> Deserialize<'de> for Layout {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let source = crate::document::DocumentLayout::deserialize(deserializer)?;
         Self::try_from(&source).map_err(serde::de::Error::custom)
     }
@@ -156,15 +144,9 @@ impl<'de> Deserialize<'de> for Layout {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn encoding_node(
-    value: &crate::document::DocumentNode,
-    depth: usize,
-    count: &mut usize,
-) -> Result<usize> {
+fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mut usize) -> Result<usize> {
     if depth > MAX_DEPTH || *count >= MAX_NODES {
-        return Err(Error::Invalid(
-            "document layout exceeds node or depth limit",
-        ));
+        return Err(Error::Invalid("document layout exceeds node or depth limit"));
     }
     *count += 1;
     let mut bytes = std::mem::size_of::<Node>();
@@ -174,20 +156,12 @@ fn encoding_node(
             if placement == usize::MAX {
                 return Ok(usize::MAX);
             }
-            bytes = bytes.saturating_add(
-                placement.saturating_sub(std::mem::size_of::<documents::Placement>()),
-            );
+            bytes = bytes.saturating_add(placement.saturating_sub(std::mem::size_of::<documents::Placement>()));
         }
         crate::document::DocumentNode::Section(section) => {
-            u32::try_from(section.children.len())
-                .map_err(|_| Error::Invalid("too many document children"))?;
+            u32::try_from(section.children.len()).map_err(|_| Error::Invalid("too many document children"))?;
             let metadata = metadata::Row::encoding_memory(&section.metadata)?;
-            let repeat = section
-                .repeat
-                .as_ref()
-                .map(documents::Repeat::encoding_memory)
-                .transpose()?
-                .unwrap_or(0);
+            let repeat = section.repeat.as_ref().map(documents::Repeat::encoding_memory).transpose()?.unwrap_or(0);
             if [metadata, repeat].contains(&usize::MAX) {
                 return Ok(usize::MAX);
             }
@@ -205,25 +179,16 @@ fn encoding_node(
 
 fn append_node(value: &crate::document::DocumentNode, nodes: &mut Vec<Node>) -> Result<()> {
     match value {
-        crate::document::DocumentNode::Card(card) => nodes.push(Node {
-            card: Some(documents::Placement::try_from(card)?),
-            ..Default::default()
-        }),
+        crate::document::DocumentNode::Card(card) => {
+            nodes.push(Node { card: Some(documents::Placement::try_from(card)?), ..Default::default() })
+        }
         crate::document::DocumentNode::Section(section) => {
             let definition = Section {
                 node_id: section.node_id.as_str().to_owned(),
                 metadata: Some(metadata::Row::try_from(&section.metadata)?),
-                repeat: section
-                    .repeat
-                    .as_ref()
-                    .map(documents::Repeat::try_from)
-                    .transpose()?,
+                repeat: section.repeat.as_ref().map(documents::Repeat::try_from).transpose()?,
             };
-            nodes.push(Node {
-                children: section.children.len() as u32,
-                section: Some(definition),
-                card: None,
-            });
+            nodes.push(Node { children: section.children.len() as u32, section: Some(definition), card: None });
             for child in &section.children {
                 append_node(child, nodes)?;
             }
@@ -236,9 +201,7 @@ fn node_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("document layout exceeds depth limit"));
     }
-    let node = nodes
-        .get(*at)
-        .ok_or(Error::Invalid("document layout child is missing"))?;
+    let node = nodes.get(*at).ok_or(Error::Invalid("document layout child is missing"))?;
     *at += 1;
     if node.children as usize > nodes.len().saturating_sub(*at) {
         return Err(Error::Invalid("document children exceed remaining nodes"));
@@ -246,17 +209,8 @@ fn node_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
     let mut bytes = std::mem::size_of::<crate::document::DocumentNode>();
     match (&node.section, &node.card) {
         (Some(section), None) => {
-            let metadata = section
-                .metadata
-                .as_ref()
-                .ok_or(Error::Invalid("document section metadata is missing"))?
-                .projection_memory()?;
-            let repeat = section
-                .repeat
-                .as_ref()
-                .map(documents::Repeat::projection_memory)
-                .transpose()?
-                .unwrap_or(0);
+            let metadata = section.metadata.as_ref().ok_or(Error::Invalid("document section metadata is missing"))?.projection_memory()?;
+            let repeat = section.repeat.as_ref().map(documents::Repeat::projection_memory).transpose()?.unwrap_or(0);
             bytes = bytes
                 .saturating_add(std::mem::size_of::<crate::document::DocumentSectionNode>())
                 .saturating_add(section.node_id.capacity())
@@ -274,32 +228,22 @@ fn node_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
     Ok(bytes)
 }
 
-fn consume_node(
-    nodes: &mut std::vec::IntoIter<Node>,
-    depth: usize,
-) -> Result<crate::document::DocumentNode> {
+fn consume_node(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<crate::document::DocumentNode> {
     use crate::document::{DocumentNode, DocumentSectionNode};
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("document layout exceeds depth limit"));
     }
-    let node = nodes
-        .next()
-        .ok_or(Error::Invalid("document layout child is missing"))?;
+    let node = nodes.next().ok_or(Error::Invalid("document layout child is missing"))?;
     match (node.section, node.card) {
         (Some(section), None) => {
             let mut children = Vec::new();
-            children
-                .try_reserve_exact(node.children as usize)
-                .map_err(|_| Error::Invalid("document children allocation failed"))?;
+            children.try_reserve_exact(node.children as usize).map_err(|_| Error::Invalid("document children allocation failed"))?;
             for _ in 0..node.children {
                 children.push(consume_node(nodes, depth + 1)?);
             }
             let section = DocumentSectionNode {
                 node_id: dokime_domain::model::identity::Identifier::new(section.node_id)?,
-                metadata: section
-                    .metadata
-                    .ok_or(Error::Invalid("document section metadata is missing"))?
-                    .try_into()?,
+                metadata: section.metadata.ok_or(Error::Invalid("document section metadata is missing"))?.try_into()?,
                 repeat: section.repeat.map(TryInto::try_into).transpose()?,
                 children,
             };

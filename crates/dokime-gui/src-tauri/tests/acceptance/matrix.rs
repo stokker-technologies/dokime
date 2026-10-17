@@ -28,15 +28,13 @@ use harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use crate::support::bridge::{Harness, Local};
-use dokime_runtime::{
-    execution::{
-        CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow,
-    },
-    schema::Described,
-};
-use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
+use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
+use dokime_runtime::{
+    execution::{CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow},
+    schema::Described,
+};
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
@@ -136,10 +134,7 @@ impl Probe {
         trace(&root, "open");
         let mut writer = ctx.artifacts().create("matrix.txt")?;
         writer.write_all(b"open\n")?;
-        let shared = Resources {
-            root,
-            writer: std::sync::Mutex::new(writer),
-        };
+        let shared = Resources { root, writer: std::sync::Mutex::new(writer) };
         Ok((template, shared))
     }
 
@@ -148,28 +143,18 @@ impl Probe {
         for value in ctx.progress("Measuring", [1, 2]) {
             ctx.publish(Reading { value }).await;
             if value == 1 {
-                ctx.publish(Phase {
-                    phase: "ready".into(),
-                })
-                .await;
+                ctx.publish(Phase { phase: "ready".into() }).await;
             }
             if !ctx.ask(Continue).await? {
                 return Err(dokime_runtime::Error::PromptRefused("operator refused".into()));
             }
         }
-        ctx.publish(Phase {
-            phase: "done".into(),
-        })
-        .await;
+        ctx.publish(Phase { phase: "done".into() }).await;
         Ok(())
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> dokime_runtime::Result<()> {
-        ctx.resources()
-            .writer
-            .lock()
-            .unwrap()
-            .write_all(b"cleanup\n")?;
+        ctx.resources().writer.lock().unwrap().write_all(b"cleanup\n")?;
         trace(&ctx.resources().root, "cleanup");
         Ok(())
     }
@@ -208,10 +193,7 @@ impl EmbeddedProvider for Provider {
     async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
         *ROOT.lock().unwrap() = Some(self.0.root.clone());
         let lab = Lab::definition();
-        Ok(vec![Arc::new(
-            Workflow::<Probe>::new(&lab.suite_id, "matrix.rust")
-                .with_records(&lab.record_contracts),
-        ) as Arc<dyn Runnable>])
+        Ok(vec![Arc::new(Workflow::<Probe>::new(&lab.suite_id, "matrix.rust").with_records(&lab.record_contracts)) as Arc<dyn Runnable>])
     }
     async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
         Ok(())
@@ -222,34 +204,17 @@ impl EmbeddedProvider for Provider {
 
 /* === Private Functions === */
 fn root() -> PathBuf {
-    ROOT.lock()
-        .unwrap()
-        .clone()
-        .expect("a case names the directory its execution traces into")
+    ROOT.lock().unwrap().clone().expect("a case names the directory its execution traces into")
 }
 
 fn trace(root: &Path, stage: &str) {
-    writeln!(
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(root.join("lifecycle.txt"))
-            .unwrap(),
-        "{stage}"
-    )
-    .unwrap();
+    writeln!(OpenOptions::new().create(true).append(true).open(root.join("lifecycle.txt")).unwrap(), "{stage}").unwrap();
 }
 
 fn python(root: &Path) -> Command {
-    let interpreter = if cfg!(windows) {
-        ".venv/Scripts/python.exe"
-    } else {
-        ".venv/bin/python"
-    };
+    let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
     let mut command = Command::new(root.join(interpreter));
-    command
-        .current_dir(root)
-        .arg(root.join("packages/dokime/tests/acceptance/client/execution_matrix.py"));
+    command.current_dir(root).arg(root.join("packages/dokime/tests/acceptance/client/execution_matrix.py"));
     command
 }
 
@@ -257,9 +222,7 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
     let session = ConnectionSession::default();
     session
         .connect(ConnectRequest {
-            target: ConnectionTarget::Local {
-                endpoint: endpoint.into(),
-            },
+            target: ConnectionTarget::Local { endpoint: endpoint.into() },
             credentials: ConnectionCredentials::None,
             expected_backend_id: None,
         })
@@ -279,11 +242,7 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
             .unwrap(),
     );
     let mut result = None;
-    let status = harness.drive(
-        &mut child.0,
-        |_, _| Local::Dispatch,
-        |line| result = line.get("result").cloned(),
-    );
+    let status = harness.drive(&mut child.0, |_, _| Local::Dispatch, |line| result = line.get("result").cloned());
     assert!(status.success(), "desktop scenario {scenario} failed");
     session.disconnect().unwrap();
     result.expect("desktop returned its observations")
@@ -291,48 +250,27 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
 
 /// Runs Every Contract Scenario Through One Client Interface Against A Fresh Backend.
 async fn run_matrix(interface: &str) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .canonicalize()
-        .unwrap();
-    let contract: Value =
-        serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let contract: Value = serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();
     for scenario in contract["scenarios"].as_array().unwrap() {
         // Backend With The Matrix Provider
         let name = scenario["name"].as_str().unwrap();
         let directory = tempfile::tempdir().unwrap();
         let config = RuntimeConfig::new(
             directory.path().join("backend"),
-            dokime_runtime::Metadata::new(
-                dokime_runtime::Identifier::new("matrix").unwrap(),
-                "Matrix",
-                None,
-            ),
+            dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("matrix").unwrap(), "Matrix", None),
         )
-        .register(Arc::new(Provider(State {
-            root: directory.path().into(),
-        })));
+        .register(Arc::new(Provider(State { root: directory.path().into() })));
         let mut runtime = Runtime::start(config).await.unwrap();
-        let server = Server::start(runtime.handle(), Config::local())
-            .await
-            .unwrap();
+        let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
         let endpoint = server.local_endpoint();
 
         // Client Observation
         let observed = if interface == "desktop" {
             desktop(&root, &endpoint, name).await
         } else {
-            let output = python(&root)
-                .arg(&endpoint)
-                .arg(root.join(CONTRACT))
-                .arg(name)
-                .output()
-                .unwrap();
-            assert!(
-                output.status.success(),
-                "{}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+            let output = python(&root).arg(&endpoint).arg(root.join(CONTRACT)).arg(name).output().unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
             serde_json::from_slice(&output.stdout).unwrap()
         };
         assert_eq!(
@@ -345,10 +283,7 @@ async fn run_matrix(interface: &str) {
             }),
             "Rust Backend/{interface}/{name}"
         );
-        assert_eq!(
-            std::fs::read_to_string(directory.path().join("lifecycle.txt")).unwrap(),
-            "open\ncleanup\nclose\n"
-        );
+        assert_eq!(std::fs::read_to_string(directory.path().join("lifecycle.txt")).unwrap(), "open\ncleanup\nclose\n");
 
         server.shutdown().await.unwrap();
         runtime.shutdown().await.unwrap();

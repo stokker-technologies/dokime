@@ -41,15 +41,8 @@ use dokime_runtime::{Runtime, RuntimeConfig};
 
 /* === Private Functions === */
 fn config(root: &Path, application: &Path) -> RuntimeConfig {
-    crate::service_support::budgets::runtime_config(
-        root,
-        Metadata::new(
-            Identifier::new("fixture.identity").unwrap(),
-            "Identity",
-            None,
-        ),
-    )
-    .with_application_root(application)
+    crate::service_support::budgets::runtime_config(root, Metadata::new(Identifier::new("fixture.identity").unwrap(), "Identity", None))
+        .with_application_root(application)
 }
 
 /* === Tests === */
@@ -73,11 +66,7 @@ async fn concurrent_creators_identity() {
         })
         .collect::<Vec<_>>();
 
-    let identities = futures_util::future::join_all(tasks)
-        .await
-        .into_iter()
-        .map(Result::unwrap)
-        .collect::<Vec<_>>();
+    let identities = futures_util::future::join_all(tasks).await.into_iter().map(Result::unwrap).collect::<Vec<_>>();
     assert!(identities.iter().all(|node| node == &identities[0]));
 }
 
@@ -95,9 +84,7 @@ async fn existing_identity_republishing() {
     let path = root.path().join("settings.json");
     std::fs::write(&path, &bytes).unwrap();
 
-    let mut runtime = Runtime::start(config(&root.path().join("data"), root.path()))
-        .await
-        .unwrap();
+    let mut runtime = Runtime::start(config(&root.path().join("data"), root.path())).await.unwrap();
     assert_eq!(runtime.handle().identity().node, node);
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
     runtime.shutdown().await.unwrap();
@@ -108,10 +95,6 @@ async fn corruption_refuses_identity() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("settings.json");
     std::fs::write(&path, b"broken").unwrap();
-    assert!(
-        Runtime::start(config(&root.path().join("data"), root.path()))
-            .await
-            .is_err()
-    );
+    assert!(Runtime::start(config(&root.path().join("data"), root.path())).await.is_err());
     assert_eq!(std::fs::read(&path).unwrap(), b"broken");
 }

@@ -13,9 +13,7 @@ mod typed;
 
 /* === Re-Exports === */
 pub use sample::Sample;
-pub use typed::{
-    TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch,
-};
+pub use typed::{TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch};
 
 /* === Imports === */
 // Standard Library Imports
@@ -23,8 +21,8 @@ pub use typed::{
 use harmos::MemorySize;
 // Local Imports
 
-use dokime_domain::model::identity::SessionId;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::SessionId;
 
 /* === Constants === */
 

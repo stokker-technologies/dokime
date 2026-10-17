@@ -34,10 +34,7 @@ pub(crate) struct Args {
     cycle_id: String,
     #[arg(help = "Case UUID Whose Next Attempt Is Appended As A New Execution.")]
     case_id: String,
-    #[arg(
-        long,
-        help = "Caller-Retained Key That Admits The New Attempt Exactly Once."
-    )]
+    #[arg(long, help = "Caller-Retained Key That Admits The New Attempt Exactly Once.")]
     key: String,
     #[command(flatten)]
     connection: crate::connection::Args,
@@ -53,10 +50,9 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&args.cycle_id)
-        .map_err(|error| crate::Error::Input(error.to_string()))?;
-    dokime_domain::model::identity::CaseId::from_wire(&args.case_id)
-        .map_err(|error| crate::Error::Input(error.to_string()))?;
+    let id =
+        dokime_domain::model::identity::TestCycleId::from_uuid(&args.cycle_id).map_err(|error| crate::Error::Input(error.to_string()))?;
+    dokime_domain::model::identity::CaseId::from_wire(&args.case_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     dokime_domain::model::execution::command::validate_idempotency_key(&args.key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
@@ -72,15 +68,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     client.close_and_wait().await;
     let admission = result?;
     if args.json {
-        println!(
-            "{}",
-            serde_json::json!({ "cycle_id": args.cycle_id, "case_id": args.case_id, "request_id": admission.command_id })
-        );
+        println!("{}", serde_json::json!({ "cycle_id": args.cycle_id, "case_id": args.case_id, "request_id": admission.command_id }));
     } else {
-        println!(
-            "Re-Run Admitted For Case {} As Request {}",
-            args.case_id, admission.command_id
-        );
+        println!("Re-Run Admitted For Case {} As Request {}", args.case_id, admission.command_id);
     }
     Ok(())
 }

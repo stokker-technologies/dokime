@@ -56,11 +56,7 @@ impl Callbacks {
     }
 
     pub(crate) fn cancel(&self) {
-        let tasks = self
-            .tasks
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .clone();
+        let tasks = self.tasks.lock().unwrap_or_else(|error| error.into_inner()).clone();
         for task in tasks {
             if !task.is_settled() {
                 task.cancel();
@@ -90,10 +86,7 @@ impl Callbacks {
                     failures.push(failure);
                 }
 
-                self.tasks
-                    .lock()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .retain(|owned| !Arc::ptr_eq(owned, &task));
+                self.tasks.lock().unwrap_or_else(|error| error.into_inner()).retain(|owned| !Arc::ptr_eq(owned, &task));
             }
         }
     }

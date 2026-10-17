@@ -38,9 +38,7 @@ pub struct ApplicationPaths {
 /* === Implementations === */
 impl ApplicationPaths {
     pub fn resolve(application_id: &str) -> std::io::Result<Self> {
-        Self::resolve_with(application_id, cfg!(windows), |key| {
-            env::var_os(key).map(PathBuf::from)
-        })
+        Self::resolve_with(application_id, cfg!(windows), |key| env::var_os(key).map(PathBuf::from))
     }
 
     pub fn new(root: impl Into<PathBuf>) -> Self {
@@ -67,15 +65,9 @@ impl ApplicationPaths {
         self.root.join("data")
     }
 
-    fn resolve_with(
-        application_id: &str,
-        windows: bool,
-        get: impl Fn(&str) -> Option<PathBuf>,
-    ) -> std::io::Result<Self> {
+    fn resolve_with(application_id: &str, windows: bool, get: impl Fn(&str) -> Option<PathBuf>) -> std::io::Result<Self> {
         if application_id.is_empty()
-            || !application_id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b".-_".contains(&b))
+            || !application_id.bytes().all(|b| b.is_ascii_alphanumeric() || b".-_".contains(&b))
             || application_id == "."
             || application_id == ".."
         {
@@ -83,15 +75,11 @@ impl ApplicationPaths {
         }
         let absolute = |key| get(key).filter(|path| path.is_absolute());
         let base = if windows {
-            absolute("LOCALAPPDATA").ok_or_else(|| {
-                std::io::Error::other("LOCALAPPDATA must be an absolute directory")
-            })?
+            absolute("LOCALAPPDATA").ok_or_else(|| std::io::Error::other("LOCALAPPDATA must be an absolute directory"))?
         } else {
             absolute("XDG_DATA_HOME")
                 .or_else(|| absolute("HOME").map(|home| home.join(".local/share")))
-                .ok_or_else(|| {
-                    std::io::Error::other("XDG_DATA_HOME or HOME must be an absolute directory")
-                })?
+                .ok_or_else(|| std::io::Error::other("XDG_DATA_HOME or HOME must be an absolute directory"))?
         };
         Ok(Self::new(base.join(application_id)))
     }

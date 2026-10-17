@@ -71,14 +71,7 @@ impl TestSuiteDefinition {
             return Err(SuiteContractError::EmptySuiteId.into());
         }
 
-        Ok(Self {
-            suite_id,
-            tags: Vec::new(),
-            workflow: None,
-            suite,
-            record_contracts: Vec::new(),
-            telemetry_contracts: Vec::new(),
-        })
+        Ok(Self { suite_id, tags: Vec::new(), workflow: None, suite, record_contracts: Vec::new(), telemetry_contracts: Vec::new() })
     }
 }
 
@@ -92,11 +85,7 @@ impl SidecarExecutionBinding {
 pub fn resolve_suite_plot_axes(definition: &mut TestSuiteDefinition) {
     // Normalized, so the automatic `timestamp` column a contract does not
     // spell out is still a column a plot's x axis can be read against.
-    let contracts = definition
-        .telemetry_contracts
-        .iter()
-        .map(TelemetryContract::normalized)
-        .collect::<Vec<_>>();
+    let contracts = definition.telemetry_contracts.iter().map(TelemetryContract::normalized).collect::<Vec<_>>();
     for template in &mut definition.suite.test_case_templates {
         if let Some(document) = template.document.as_mut() {
             resolve_document_plot_axes(document, &contracts);

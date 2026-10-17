@@ -25,16 +25,16 @@ use thiserror::Error;
 use crate::definition::ParameterSource;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
+use crate::telemetry::{SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest};
 use crate::{
     error::Error,
     evidence_runtime::{PublishReceipt, RecordPublishRequest},
     handle::RuntimeHandle,
     parameter_runtime::ScopedParameterUpdate,
 };
-use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-use crate::telemetry::{SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest};
 
 /* === Constants === */
 
@@ -108,17 +108,10 @@ pub enum StepContextError {
     MissingResource { resource_id: String },
 
     #[error("resource {resource_id} is not a {expected_type}")]
-    ResourceTypeMismatch {
-        resource_id: String,
-        expected_type: &'static str,
-    },
+    ResourceTypeMismatch { resource_id: String, expected_type: &'static str },
 
     #[error("runtime rejected {operation}: {message}")]
-    RecordRejected {
-        operation: &'static str,
-        code: String,
-        message: String,
-    },
+    RecordRejected { operation: &'static str, code: String, message: String },
 
     #[error("{accessor} requires execution scope")]
     MissingExecutionScope { accessor: &'static str },
@@ -138,11 +131,7 @@ impl SidecarStepContext {
         Self::with_source(runtime, scope, "runtime.step")
     }
 
-    pub fn with_source(
-        runtime: RuntimeHandle,
-        scope: RecordScope,
-        source: impl Into<String>,
-    ) -> Self {
+    pub fn with_source(runtime: RuntimeHandle, scope: RecordScope, source: impl Into<String>) -> Self {
         let source = source.into();
 
         Self {
@@ -177,50 +166,30 @@ impl SidecarStepContext {
         &self.parameters
     }
 
-    pub async fn set_runtime_parameter_async(
-        &self,
-        key: impl Into<String>,
-        value: impl Into<Value>,
-    ) -> Result<bool, StepContextError> {
-        Ok(self
-            .runtime
-            .upsert_scoped_parameter(
-                &self.scope,
-                ScopedParameterUpdate::new(key, value, ParameterSource::Runtime),
-            )
-            .await)
+    pub async fn set_runtime_parameter_async(&self, key: impl Into<String>, value: impl Into<Value>) -> Result<bool, StepContextError> {
+        Ok(self.runtime.upsert_scoped_parameter(&self.scope, ScopedParameterUpdate::new(key, value, ParameterSource::Runtime)).await)
     }
 
     pub async fn set_traceability_parameter_async(
-        &self,
-        key: impl Into<String>,
-        value: impl Into<Value>,
+        &self, key: impl Into<String>, value: impl Into<Value>,
     ) -> Result<bool, StepContextError> {
         Ok(self
             .runtime
             .upsert_scoped_parameter(
                 &self.scope,
-                ScopedParameterUpdate::new(key, value, ParameterSource::Traceability)
-                    .with_group_id(traceability_group_id()),
+                ScopedParameterUpdate::new(key, value, ParameterSource::Traceability).with_group_id(traceability_group_id()),
             )
             .await)
     }
 
     pub async fn publish_record_async(
-        &self,
-        record_type: impl Into<String>,
-        severity: RecordSeverity,
-        message: impl Into<String>,
-        details: BTreeMap<String, Value>,
+        &self, record_type: impl Into<String>, severity: RecordSeverity, message: impl Into<String>, details: BTreeMap<String, Value>,
     ) -> Result<PublishReceipt, StepContextError> {
         let mut request = RecordPublishRequest::new(identifier(record_type.into()), severity);
         request.scope = Some(self.scope.clone());
         request.message = Some(message.into());
         request.details = details;
-        self.runtime
-            .publish_record(request)
-            .await
-            .map_err(|error| StepContextError::record_rejected("publish record", error))
+        self.runtime.publish_record(request).await.map_err(|error| StepContextError::record_rejected("publish record", error))
     }
 
     pub async fn wait_async(&self, duration: Duration) -> Result<(), StepContextError> {
@@ -232,125 +201,67 @@ impl SidecarStepContext {
     }
 
     pub async fn wait_until_stopped_async(&self) -> Result<(), StepContextError> {
-        self.runtime
-            .wait_until_cycle_stopped(self.scope.test_cycle_id.as_ref())
-            .await;
+        self.runtime.wait_until_cycle_stopped(self.scope.test_cycle_id.as_ref()).await;
         Ok(())
     }
-    pub async fn capture_async<S>(
-        &self,
-        params: TelemetrySamplingRequest,
-        sampler: S,
-    ) -> Result<TelemetryCaptureLease, StepContextError>
+    pub async fn capture_async<S>(&self, params: TelemetrySamplingRequest, sampler: S) -> Result<TelemetryCaptureLease, StepContextError>
     where
         S: crate::telemetry_runtime::Sampler,
     {
-        self.runtime
-            .request_sampling(sampling_scope(&self.scope), params, sampler)
-            .await
-            .map_err(StepContextError::from)
+        self.runtime.request_sampling(sampling_scope(&self.scope), params, sampler).await.map_err(StepContextError::from)
     }
 
-    pub async fn capture_host_async(
-        &self,
-        params: TelemetrySamplingRequest,
-    ) -> Result<TelemetryCaptureLease, StepContextError> {
-        leased_host_sampling(&self.runtime, sampling_scope(&self.scope), params)
-            .await
-            .map_err(StepContextError::from)
+    pub async fn capture_host_async(&self, params: TelemetrySamplingRequest) -> Result<TelemetryCaptureLease, StepContextError> {
+        leased_host_sampling(&self.runtime, sampling_scope(&self.scope), params).await.map_err(StepContextError::from)
     }
 
-    pub async fn stop_async(
-        &self,
-        capture: &TelemetryCaptureLease,
-    ) -> Result<bool, StepContextError> {
-        self.runtime
-            .stop_telemetry_capture(&capture.lease_id)
-            .await
-            .map_err(StepContextError::from)
+    pub async fn stop_async(&self, capture: &TelemetryCaptureLease) -> Result<bool, StepContextError> {
+        self.runtime.stop_telemetry_capture(&capture.lease_id).await.map_err(StepContextError::from)
     }
-    pub async fn target_async(
-        &self,
-        relative_path: impl Into<String>,
-    ) -> Result<ExecutionFileTarget, StepContextError> {
-        self.target_with_options_async(relative_path, true, true)
-            .await
+    pub async fn target_async(&self, relative_path: impl Into<String>) -> Result<ExecutionFileTarget, StepContextError> {
+        self.target_with_options_async(relative_path, true, true).await
     }
 
     pub async fn target_with_options_async(
-        &self,
-        relative_path: impl Into<String>,
-        text_hint: bool,
-        streamed: bool,
+        &self, relative_path: impl Into<String>, text_hint: bool, streamed: bool,
     ) -> Result<ExecutionFileTarget, StepContextError> {
         let relative_path = relative_path.into();
         let test_execution_id = self.execution_id("execution files")?;
         self.runtime
-            .execution_file_target(
-                &test_execution_id,
-                relative_path.clone(),
-                text_hint,
-                streamed,
-            )
+            .execution_file_target(&test_execution_id, relative_path.clone(), text_hint, streamed)
             .await?
             .ok_or(StepContextError::ExecutionFileNotFound { relative_path })
     }
 
     pub async fn extract_regex_async(
-        &self,
-        relative_path: impl Into<String>,
-        pattern: impl Into<String>,
+        &self, relative_path: impl Into<String>, pattern: impl Into<String>,
     ) -> Result<Vec<FileRegexMatch>, StepContextError> {
-        self.extract_regex_inner(relative_path.into(), pattern.into(), false)
-            .await
+        self.extract_regex_inner(relative_path.into(), pattern.into(), false).await
     }
 
     pub async fn extract_first_regex_async(
-        &self,
-        relative_path: impl Into<String>,
-        pattern: impl Into<String>,
+        &self, relative_path: impl Into<String>, pattern: impl Into<String>,
     ) -> Result<Option<FileRegexMatch>, StepContextError> {
-        self.extract_regex_inner(relative_path.into(), pattern.into(), true)
-            .await
-            .map(|mut matches| matches.pop())
+        self.extract_regex_inner(relative_path.into(), pattern.into(), true).await.map(|mut matches| matches.pop())
     }
 
     async fn extract_regex_inner(
-        &self,
-        relative_path: String,
-        pattern: String,
-        first_only: bool,
+        &self, relative_path: String, pattern: String, first_only: bool,
     ) -> Result<Vec<FileRegexMatch>, StepContextError> {
         let test_execution_id = self.execution_id("execution files")?;
         self.runtime
-            .extract_execution_file_regex(
-                &test_execution_id,
-                relative_path.clone(),
-                pattern,
-                first_only,
-            )
+            .extract_execution_file_regex(&test_execution_id, relative_path.clone(), pattern, first_only)
             .await?
             .ok_or(StepContextError::ExecutionFileNotFound { relative_path })
     }
 
-    fn execution_id(
-        &self,
-        accessor: &'static str,
-    ) -> Result<dokime_domain::model::identity::TestExecutionId, StepContextError> {
-        self.scope
-            .test_execution_id
-            .clone()
-            .ok_or(StepContextError::MissingExecutionScope { accessor })
+    fn execution_id(&self, accessor: &'static str) -> Result<dokime_domain::model::identity::TestExecutionId, StepContextError> {
+        self.scope.test_execution_id.clone().ok_or(StepContextError::MissingExecutionScope { accessor })
     }
 }
 
 impl<T> RuntimeResource<T> {
-    pub fn new(
-        resource_id: impl Into<String>,
-        resource_kind: impl Into<String>,
-        resource_name: impl Into<String>,
-        value: T,
-    ) -> Self {
+    pub fn new(resource_id: impl Into<String>, resource_kind: impl Into<String>, resource_name: impl Into<String>, value: T) -> Self {
         Self {
             resource_id: resource_id.into(),
             resource_kind: resource_kind.into(),
@@ -361,19 +272,10 @@ impl<T> RuntimeResource<T> {
     }
 
     pub fn with_details(
-        resource_id: impl Into<String>,
-        resource_kind: impl Into<String>,
-        resource_name: impl Into<String>,
-        value: T,
+        resource_id: impl Into<String>, resource_kind: impl Into<String>, resource_name: impl Into<String>, value: T,
         details: BTreeMap<String, Value>,
     ) -> Self {
-        Self {
-            resource_id: resource_id.into(),
-            resource_kind: resource_kind.into(),
-            resource_name: resource_name.into(),
-            value,
-            details,
-        }
+        Self { resource_id: resource_id.into(), resource_kind: resource_kind.into(), resource_name: resource_name.into(), value, details }
     }
 
     fn into_parts(self) -> (RuntimeResourceMetadata, T) {
@@ -391,12 +293,7 @@ impl<T> RuntimeResource<T> {
 
 impl RuntimeResourceStore {
     fn new(runtime: RuntimeHandle, scope: RecordScope, source: impl Into<String>) -> Self {
-        Self {
-            runtime,
-            scope,
-            source: source.into(),
-            entries: BTreeMap::new(),
-        }
+        Self { runtime, scope, source: source.into(), entries: BTreeMap::new() }
     }
 
     pub fn source(&self) -> &str {
@@ -424,21 +321,14 @@ impl RuntimeResourceStore {
     }
 
     pub fn get<T: Send + Sync + 'static>(&self, resource_id: &str) -> Option<&T> {
-        self.entries
-            .get(resource_id)
-            .and_then(|entry| entry.handle.downcast_ref())
+        self.entries.get(resource_id).and_then(|entry| entry.handle.downcast_ref())
     }
 
     pub fn get_mut<T: Send + Sync + 'static>(&mut self, resource_id: &str) -> Option<&mut T> {
-        self.entries
-            .get_mut(resource_id)
-            .and_then(|entry| entry.handle.downcast_mut())
+        self.entries.get_mut(resource_id).and_then(|entry| entry.handle.downcast_mut())
     }
 
-    pub async fn set_async<T: Send + Sync + 'static>(
-        &mut self,
-        resource: RuntimeResource<T>,
-    ) -> Result<PublishReceipt, StepContextError> {
+    pub async fn set_async<T: Send + Sync + 'static>(&mut self, resource: RuntimeResource<T>) -> Result<PublishReceipt, StepContextError> {
         let (metadata, value) = resource.into_parts();
         let receipt = self
             .publish_resource_record(
@@ -461,9 +351,7 @@ impl RuntimeResourceStore {
     }
 
     pub async fn mark_opened_async(
-        &mut self,
-        resource_id: &str,
-        details: BTreeMap<String, Value>,
+        &mut self, resource_id: &str, details: BTreeMap<String, Value>,
     ) -> Result<PublishReceipt, StepContextError> {
         self.mark_lifecycle(
             resource_id,
@@ -476,10 +364,7 @@ impl RuntimeResourceStore {
     }
 
     pub async fn mark_failed_async(
-        &mut self,
-        resource_id: &str,
-        error: impl Into<String>,
-        mut details: BTreeMap<String, Value>,
+        &mut self, resource_id: &str, error: impl Into<String>, mut details: BTreeMap<String, Value>,
     ) -> Result<PublishReceipt, StepContextError> {
         details.insert("error".to_owned(), Value::from(error.into()));
         self.mark_lifecycle(
@@ -492,11 +377,7 @@ impl RuntimeResourceStore {
         .await
     }
 
-    pub async fn close_async(
-        &mut self,
-        resource_id: &str,
-        details: BTreeMap<String, Value>,
-    ) -> Result<PublishReceipt, StepContextError> {
+    pub async fn close_async(&mut self, resource_id: &str, details: BTreeMap<String, Value>) -> Result<PublishReceipt, StepContextError> {
         self.mark_lifecycle(
             resource_id,
             dokime_domain::model::records::resources::ResourceLifecycle::Closed,
@@ -508,18 +389,13 @@ impl RuntimeResourceStore {
     }
 
     pub async fn remove_async<T: Send + Sync + 'static>(
-        &mut self,
-        resource_id: &str,
-        details: BTreeMap<String, Value>,
+        &mut self, resource_id: &str, details: BTreeMap<String, Value>,
     ) -> Result<Option<T>, StepContextError> {
         let Some(existing) = self.entries.get(resource_id) else {
             return Ok(None);
         };
         if !existing.handle.is::<T>() {
-            return Err(StepContextError::ResourceTypeMismatch {
-                resource_id: resource_id.to_owned(),
-                expected_type: type_name::<T>(),
-            });
+            return Err(StepContextError::ResourceTypeMismatch { resource_id: resource_id.to_owned(), expected_type: type_name::<T>() });
         }
         let mut metadata = existing.metadata.clone();
         merge_details(&mut metadata.details, details);
@@ -530,84 +406,49 @@ impl RuntimeResourceStore {
             &metadata,
         )
         .await?;
-        let entry = self
-            .entries
-            .remove(resource_id)
-            .expect("resource existed before removal event");
-        let value = entry
-            .handle
-            .downcast::<T>()
-            .expect("resource type was checked before removal");
+        let entry = self.entries.remove(resource_id).expect("resource existed before removal event");
+        let value = entry.handle.downcast::<T>().expect("resource type was checked before removal");
 
         Ok(Some(*value))
     }
 
     async fn mark_lifecycle(
-        &mut self,
-        resource_id: &str,
-        lifecycle: dokime_domain::model::records::resources::ResourceLifecycle,
-        record_type: BuiltinRecordType,
-        severity: RecordSeverity,
-        details: BTreeMap<String, Value>,
+        &mut self, resource_id: &str, lifecycle: dokime_domain::model::records::resources::ResourceLifecycle,
+        record_type: BuiltinRecordType, severity: RecordSeverity, details: BTreeMap<String, Value>,
     ) -> Result<PublishReceipt, StepContextError> {
         let mut metadata = self.entry_metadata(resource_id)?;
         merge_details(&mut metadata.details, details);
-        let receipt = self
-            .publish_resource_record(
-                record_type,
-                severity,
-                format!("Resource {} updated.", metadata.resource_name),
-                &metadata,
-            )
-            .await?;
-        let entry = self
-            .entries
-            .get_mut(resource_id)
-            .expect("resource metadata was cloned from an existing entry");
+        let receipt =
+            self.publish_resource_record(record_type, severity, format!("Resource {} updated.", metadata.resource_name), &metadata).await?;
+        let entry = self.entries.get_mut(resource_id).expect("resource metadata was cloned from an existing entry");
         entry.metadata = metadata;
         entry.lifecycle = lifecycle;
 
         Ok(receipt)
     }
 
-    fn entry_metadata(
-        &self,
-        resource_id: &str,
-    ) -> Result<RuntimeResourceMetadata, StepContextError> {
+    fn entry_metadata(&self, resource_id: &str) -> Result<RuntimeResourceMetadata, StepContextError> {
         self.entries
             .get(resource_id)
             .map(|entry| entry.metadata.clone())
-            .ok_or_else(|| StepContextError::MissingResource {
-                resource_id: resource_id.to_owned(),
-            })
+            .ok_or_else(|| StepContextError::MissingResource { resource_id: resource_id.to_owned() })
     }
 
     async fn publish_resource_record(
-        &self,
-        record_type: BuiltinRecordType,
-        severity: RecordSeverity,
-        message: String,
-        metadata: &RuntimeResourceMetadata,
+        &self, record_type: BuiltinRecordType, severity: RecordSeverity, message: String, metadata: &RuntimeResourceMetadata,
     ) -> Result<PublishReceipt, StepContextError> {
         let mut request = RecordPublishRequest::new(record_type.identifier(), severity);
         request.scope = Some(self.scope.clone());
         request.message = Some(message);
         request.details = resource_record_details(metadata);
 
-        self.runtime
-            .publish_record(request)
-            .await
-            .map_err(|error| StepContextError::record_rejected("publish resource record", error))
+        self.runtime.publish_record(request).await.map_err(|error| StepContextError::record_rejected("publish resource record", error))
     }
 }
 
 impl StepContextError {
     fn record_rejected(operation: &'static str, error: crate::runtime::Error) -> Self {
-        Self::RecordRejected {
-            operation,
-            code: error.code().unwrap_or("internal").to_owned(),
-            message: error.to_string(),
-        }
+        Self::RecordRejected { operation, code: error.code().unwrap_or("internal").to_owned(), message: error.to_string() }
     }
 }
 
@@ -621,9 +462,7 @@ impl From<Error> for StepContextError {
 
 /* === Private Functions === */
 async fn leased_host_sampling(
-    runtime: &RuntimeHandle,
-    scope: SamplingScope,
-    params: TelemetrySamplingRequest,
+    runtime: &RuntimeHandle, scope: SamplingScope, params: TelemetrySamplingRequest,
 ) -> crate::runtime::Result<TelemetryCaptureLease> {
     runtime
         .request_host_sampling(scope, vec![params])
@@ -634,18 +473,9 @@ async fn leased_host_sampling(
 
 fn resource_record_details(metadata: &RuntimeResourceMetadata) -> BTreeMap<String, Value> {
     let mut details = metadata.details.clone();
-    details.insert(
-        "resource_id".to_owned(),
-        Value::from(metadata.resource_id.clone()),
-    );
-    details.insert(
-        "resource_kind".to_owned(),
-        Value::from(metadata.resource_kind.clone()),
-    );
-    details.insert(
-        "resource_name".to_owned(),
-        Value::from(metadata.resource_name.clone()),
-    );
+    details.insert("resource_id".to_owned(), Value::from(metadata.resource_id.clone()));
+    details.insert("resource_kind".to_owned(), Value::from(metadata.resource_kind.clone()));
+    details.insert("resource_name".to_owned(), Value::from(metadata.resource_name.clone()));
     details
 }
 

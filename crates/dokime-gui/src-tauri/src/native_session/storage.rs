@@ -89,33 +89,17 @@ impl StorageRoot {
         if confirmed != self.data {
             return Err(refusal(
                 Reason::OutsideRoot,
-                format!(
-                    "{} is not the data directory of this desktop's backend ({}).",
-                    confirmed.display(),
-                    self.data.display()
-                ),
+                format!("{} is not the data directory of this desktop's backend ({}).", confirmed.display(), self.data.display()),
             ));
         }
-        if !self.data.is_absolute()
-            || self.data.parent().is_none()
-            || self.application.starts_with(&self.data)
-        {
+        if !self.data.is_absolute() || self.data.parent().is_none() || self.application.starts_with(&self.data) {
             return Err(refusal(
                 Reason::OutsideRoot,
-                format!(
-                    "{} encloses more than this desktop's data; reset it by hand.",
-                    self.data.display()
-                ),
+                format!("{} encloses more than this desktop's data; reset it by hand.", self.data.display()),
             ));
         }
         if std::fs::symlink_metadata(&self.data).is_ok_and(|meta| meta.file_type().is_symlink()) {
-            return Err(refusal(
-                Reason::OutsideRoot,
-                format!(
-                    "{} is a symbolic link; reset its target by hand.",
-                    self.data.display()
-                ),
-            ));
+            return Err(refusal(Reason::OutsideRoot, format!("{} is a symbolic link; reset its target by hand.", self.data.display())));
         }
         Ok(())
     }
@@ -124,10 +108,7 @@ impl StorageRoot {
     /// `<root name>-backup-<UTC stamp>.zip`.
     pub fn backup_destination(&self, now: time::OffsetDateTime) -> PathBuf {
         let now = now.to_offset(time::UtcOffset::UTC);
-        let name = self
-            .data
-            .file_name()
-            .map_or_else(|| "data".into(), |name| name.to_string_lossy());
+        let name = self.data.file_name().map_or_else(|| "data".into(), |name| name.to_string_lossy());
         let stamp = format!(
             "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
             now.year(),
@@ -148,25 +129,15 @@ impl StorageRoot {
     /// crash left behind still holds committed rows. Only the lease is left out.
     pub fn archive(&self, destination: &Path, progress: impl FnMut(u64)) -> Result<PathBuf, Error> {
         // Refuse A Destination The Reset Would Delete Or Overwrite
-        let destination = std::path::absolute(destination)
-            .map_err(|error| archive_failure(destination, &error))?;
+        let destination = std::path::absolute(destination).map_err(|error| archive_failure(destination, &error))?;
         if destination.starts_with(&self.data) {
             return Err(refusal(
                 Reason::OutsideRoot,
-                format!(
-                    "{} is inside the data directory it would back up; choose another location.",
-                    destination.display()
-                ),
+                format!("{} is inside the data directory it would back up; choose another location.", destination.display()),
             ));
         }
         if std::fs::symlink_metadata(&destination).is_ok() {
-            return Err(refusal(
-                Reason::Failed,
-                format!(
-                    "{} already exists; choose another location.",
-                    destination.display()
-                ),
-            ));
+            return Err(refusal(Reason::Failed, format!("{} already exists; choose another location.", destination.display())));
         }
 
         // Prove No Backend Holds The Store
@@ -176,15 +147,10 @@ impl StorageRoot {
         let mut partial = destination.clone().into_os_string();
         partial.push(".partial");
         let partial = PathBuf::from(partial);
-        let file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&partial)
-            .map_err(|error| archive_failure(&partial, &error))?;
-        let written = self.write_archive(file, progress).and_then(|()| {
-            std::fs::rename(&partial, &destination)
-                .map_err(|error| archive_failure(&destination, &error))
-        });
+        let file = OpenOptions::new().write(true).create_new(true).open(&partial).map_err(|error| archive_failure(&partial, &error))?;
+        let written = self
+            .write_archive(file, progress)
+            .and_then(|()| std::fs::rename(&partial, &destination).map_err(|error| archive_failure(&destination, &error)));
         if let Err(error) = written {
             let _ = std::fs::remove_file(&partial);
             return Err(error);
@@ -210,14 +176,8 @@ impl StorageRoot {
                 continue;
             }
             // The entry's own type: a link is removed, never followed.
-            let kind = entry
-                .file_type()
-                .map_err(|error| failure(&entry.path(), &error))?;
-            let removed = if kind.is_dir() {
-                std::fs::remove_dir_all(entry.path())
-            } else {
-                std::fs::remove_file(entry.path())
-            };
+            let kind = entry.file_type().map_err(|error| failure(&entry.path(), &error))?;
+            let removed = if kind.is_dir() { std::fs::remove_dir_all(entry.path()) } else { std::fs::remove_file(entry.path()) };
             removed.map_err(|error| failure(&entry.path(), &error))?;
         }
 
@@ -243,24 +203,15 @@ impl StorageRoot {
             Ok(()) => Ok(Some(lease)),
             Err(TryLockError::WouldBlock) => Err(refusal(
                 Reason::BackendRunning,
-                format!(
-                    "A {} backend still holds {}; stop it before {action}.",
-                    crate::PRODUCT,
-                    self.data.display()
-                ),
+                format!("A {} backend still holds {}; stop it before {action}.", crate::PRODUCT, self.data.display()),
             )),
             Err(TryLockError::Error(error)) => Err(failure(&self.data, &error)),
         }
     }
 
     fn write_archive(&self, file: File, progress: impl FnMut(u64)) -> Result<(), Error> {
-        let mut zip = ZipWriter::new(Counted {
-            inner: std::io::BufWriter::new(file),
-            position: 0,
-            written: 0,
-            reported: 0,
-            report: progress,
-        });
+        let mut zip =
+            ZipWriter::new(Counted { inner: std::io::BufWriter::new(file), position: 0, written: 0, reported: 0, report: progress });
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
         // Walk The Root Depth First Without Following Links
@@ -278,12 +229,9 @@ impl StorageRoot {
                 let path = entry.path();
                 let file_name = entry.file_name().to_string_lossy().into_owned();
                 let name = format!("{prefix}{file_name}");
-                let kind = entry
-                    .file_type()
-                    .map_err(|error| archive_failure(&path, &error))?;
+                let kind = entry.file_type().map_err(|error| archive_failure(&path, &error))?;
                 if kind.is_dir() {
-                    zip.add_directory(format!("{name}/"), options)
-                        .map_err(|error| zip_failure(&path, error))?;
+                    zip.add_directory(format!("{name}/"), options).map_err(|error| zip_failure(&path, error))?;
                     pending.push((path, format!("{name}/")));
                     continue;
                 }
@@ -293,30 +241,18 @@ impl StorageRoot {
                 }
 
                 // Stream One File
-                let mut source =
-                    File::open(&path).map_err(|error| archive_failure(&path, &error))?;
-                let length = source
-                    .metadata()
-                    .map_err(|error| archive_failure(&path, &error))?
-                    .len();
-                zip.start_file(name, options.large_file(length >= u64::from(u32::MAX)))
-                    .map_err(|error| zip_failure(&path, error))?;
-                std::io::copy(&mut source, &mut zip)
-                    .map_err(|error| archive_failure(&path, &error))?;
+                let mut source = File::open(&path).map_err(|error| archive_failure(&path, &error))?;
+                let length = source.metadata().map_err(|error| archive_failure(&path, &error))?.len();
+                zip.start_file(name, options.large_file(length >= u64::from(u32::MAX))).map_err(|error| zip_failure(&path, error))?;
+                std::io::copy(&mut source, &mut zip).map_err(|error| archive_failure(&path, &error))?;
             }
         }
 
         // Finish The Central Directory And Reach The Disk
-        let mut counted = zip
-            .finish()
-            .map_err(|error| zip_failure(&self.data, error))?;
+        let mut counted = zip.finish().map_err(|error| zip_failure(&self.data, error))?;
         (counted.report)(counted.written);
-        let file = counted
-            .inner
-            .into_inner()
-            .map_err(|error| archive_failure(&self.data, error.error()))?;
-        file.sync_all()
-            .map_err(|error| archive_failure(&self.data, &error))
+        let file = counted.inner.into_inner().map_err(|error| archive_failure(&self.data, error.error()))?;
+        file.sync_all().map_err(|error| archive_failure(&self.data, &error))
     }
 }
 
@@ -352,8 +288,8 @@ fn configured_data_root(settings: &Path) -> Result<Option<PathBuf>, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(format!("{} could not be read: {error}", settings.display())),
     };
-    let document: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|error| format!("{} could not be parsed: {error}", settings.display()))?;
+    let document: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|error| format!("{} could not be parsed: {error}", settings.display()))?;
     Ok(document["data_root"].as_str().map(PathBuf::from))
 }
 
@@ -362,24 +298,15 @@ fn refusal(reason: Reason, message: String) -> Error {
 }
 
 fn failure(path: &Path, error: &std::io::Error) -> Error {
-    refusal(
-        Reason::Failed,
-        format!("{} could not be deleted: {error}.", path.display()),
-    )
+    refusal(Reason::Failed, format!("{} could not be deleted: {error}.", path.display()))
 }
 
 fn archive_failure(path: &Path, error: &std::io::Error) -> Error {
-    refusal(
-        Reason::Failed,
-        format!("{} could not be archived: {error}.", path.display()),
-    )
+    refusal(Reason::Failed, format!("{} could not be archived: {error}.", path.display()))
 }
 
 fn zip_failure(path: &Path, error: zip::result::ZipError) -> Error {
-    refusal(
-        Reason::Failed,
-        format!("{} could not be archived: {error}.", path.display()),
-    )
+    refusal(Reason::Failed, format!("{} could not be archived: {error}.", path.display()))
 }
 
 /* === Tests === */

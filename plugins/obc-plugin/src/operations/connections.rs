@@ -56,9 +56,7 @@ impl ListConnections {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Connections, Refusal> {
-        Ok(Connections {
-            resources: self.resources.connected(),
-        })
+        Ok(Connections { resources: self.resources.connected() })
     }
 }
 

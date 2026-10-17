@@ -72,12 +72,7 @@ impl Cadence {
         // publish several rows carrying almost the same instant and would charge
         // the device for time nobody asked it about.
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        Self {
-            started,
-            timer,
-            index: 0,
-            stop,
-        }
+        Self { started, timer, index: 0, stop }
     }
 
     pub(crate) async fn next(&mut self) -> Option<Tick> {

@@ -60,9 +60,7 @@ class RunRequest:
         return self._cycle_id
 
     @classmethod
-    async def resolve(
-        cls, transport: Transport, backend: Backend, request_id: str
-    ) -> "RunRequest":
+    async def resolve(cls, transport: Transport, backend: Backend, request_id: str) -> "RunRequest":
         result = cls(transport, backend, request_id)
         await result.status()
         return result
@@ -86,9 +84,7 @@ class RunRequest:
         self._cycle_id = receipt.cycle_id
         return status
 
-    async def wait(
-        self, *, timeout: float | None = None, poll_interval: float = 0.2
-    ) -> RunStatus:
+    async def wait(self, *, timeout: float | None = None, poll_interval: float = 0.2) -> RunStatus:
         """Wait for a terminal receipt; local cancellation never stops remote work."""
         _interval(poll_interval)
         if timeout is not None:

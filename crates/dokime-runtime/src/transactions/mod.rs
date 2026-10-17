@@ -32,9 +32,7 @@ pub mod traceability;
 
 /* === Re-Exports === */
 pub use archive::{ArchiveSubject, SetArchived};
-pub use cycle::{
-    ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy,
-};
+pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
 pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
 pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
 pub use execution_control::ControlExecution;
@@ -42,9 +40,8 @@ pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
 pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
-    CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted,
-    RecoverInterruptedCycles, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization,
-    RequestReportFinalization, SealCycle, StartShutdown,
+    CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles,
+    ReportFinalization, ReportLifecycle, RequestCycleReportFinalization, RequestReportFinalization, SealCycle, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
@@ -53,15 +50,10 @@ pub use planning::{AppendCycle, CopyCycle, CreateCycle, CycleDefinition, Registe
 pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;
-pub use provider::request::{
-    AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed,
-};
+pub use provider::request::{AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed};
 pub use provider_finish::FinishProvider;
 pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};
-pub use traceability::{
-    BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase,
-    UpdateExecutionPhase,
-};
+pub use traceability::{BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase, UpdateExecutionPhase};
 
 /* === Imports === */
 // Standard Library Imports

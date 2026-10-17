@@ -47,19 +47,9 @@ use super::{Error, State};
 // A Store Holding The Fixture Schema And Records `2..=last`.
 async fn seeded(root: &std::path::Path, last: u64) -> (Store, Vec<StoredRecord>) {
     let store = Store::<()>::open(root).await;
-    store
-        .backend
-        .write(write_batch(&[StoragePart::Schemas(&[store.schema()])]))
-        .await
-        .unwrap();
-    let records = (2..=last)
-        .map(|sequence| store.record(sequence))
-        .collect::<Vec<_>>();
-    store
-        .backend
-        .write(write_batch(&[StoragePart::Records(&records)]))
-        .await
-        .unwrap();
+    store.backend.write(write_batch(&[StoragePart::Schemas(&[store.schema()])])).await.unwrap();
+    let records = (2..=last).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
+    store.backend.write(write_batch(&[StoragePart::Records(&records)])).await.unwrap();
     (store, records)
 }
 
@@ -83,42 +73,13 @@ async fn paged_records_ascend() {
     let (store, records) = seeded(root.path(), 7).await;
     let backend = &store.backend;
     let snapshot = backend.open_snapshot(&store.at(7)).await.unwrap();
-    let selection = query::RecordSelection {
-        schema: key(),
-        scope: None,
-        item: None,
-        source_start: None,
-        source_end: None,
-    };
-    let first = backend
-        .read_records(&snapshot, &selection, page(0, rows(2)))
-        .await
-        .unwrap();
+    let selection = query::RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
+    let first = backend.read_records(&snapshot, &selection, page(0, rows(2))).await.unwrap();
     assert_eq!(first, records[..2]);
-    let oversized = backend
-        .read_records(
-            &snapshot,
-            &selection,
-            ScanPage {
-                after: 0,
-                rows: rows(64),
-                bytes: rows(1),
-            },
-        )
-        .await
-        .unwrap();
+    let oversized = backend.read_records(&snapshot, &selection, ScanPage { after: 0, rows: rows(64), bytes: rows(1) }).await.unwrap();
     assert_eq!(oversized, records[..1], "the first entry always fits");
-    assert_eq!(
-        read_records(backend, &snapshot, rows(2)).await.unwrap(),
-        records
-    );
-    assert!(
-        backend
-            .read_records(&snapshot, &selection, page(7, rows(2)))
-            .await
-            .unwrap()
-            .is_empty()
-    );
+    assert_eq!(read_records(backend, &snapshot, rows(2)).await.unwrap(), records);
+    assert!(backend.read_records(&snapshot, &selection, page(7, rows(2))).await.unwrap().is_empty());
     backend.release_snapshot(&snapshot).await.unwrap();
     assert_eq!(store.records(4).await, records[..3], "an earlier cut");
     backend.close().await.unwrap();
@@ -131,19 +92,11 @@ async fn retries_are_exact() {
     let root = tempfile::tempdir().unwrap();
     let (store, records) = seeded(root.path(), 4).await;
     let backend = &store.backend;
-    let saved = backend
-        .write(write_batch(&[StoragePart::Records(&records)]))
-        .await
-        .unwrap();
+    let saved = backend.write(write_batch(&[StoragePart::Records(&records)])).await.unwrap();
     assert_eq!(saved, store.at(4));
     let mut conflicting = records.clone();
     conflicting[1].payload = vec![8, 99];
-    assert!(
-        backend
-            .write(write_batch(&[StoragePart::Records(&conflicting)]))
-            .await
-            .is_err()
-    );
+    assert!(backend.write(write_batch(&[StoragePart::Records(&conflicting)])).await.is_err());
     assert_eq!(backend.cursor_saved().await.unwrap(), store.at(4));
     assert_eq!(store.records(4).await, records);
     backend.close().await.unwrap();
@@ -159,10 +112,7 @@ async fn durable_reopen() {
     drop(store);
     let reopened = Store::<()>::open(root.path()).await;
     assert_eq!(reopened.history, history);
-    assert_eq!(
-        reopened.backend.cursor_saved().await.unwrap(),
-        reopened.at(6)
-    );
+    assert_eq!(reopened.backend.cursor_saved().await.unwrap(), reopened.at(6));
     assert_eq!(reopened.records(6).await, records);
     reopened.backend.close().await.unwrap();
 }
@@ -176,23 +126,15 @@ async fn corrupt_entry_refused() {
         .backend
         .local_state()
         .call(|connection| {
-            let changed = connection.execute(
-                "UPDATE storage_data_entries SET digest=zeroblob(32) WHERE kind='record'",
-                [],
-            )?;
+            let changed = connection.execute("UPDATE storage_data_entries SET digest=zeroblob(32) WHERE kind='record'", [])?;
             assert_eq!(changed, 3);
             Ok(())
         })
         .await
         .unwrap();
     let snapshot = store.backend.open_snapshot(&store.at(4)).await.unwrap();
-    let error = read_records(&store.backend, &snapshot, rows(2))
-        .await
-        .unwrap_err();
-    assert!(
-        format!("{error:?}").contains("stored entry digest differs"),
-        "{error:?}"
-    );
+    let error = read_records(&store.backend, &snapshot, rows(2)).await.unwrap_err();
+    assert!(format!("{error:?}").contains("stored entry digest differs"), "{error:?}");
     store.backend.release_snapshot(&snapshot).await.unwrap();
     store.backend.close().await.unwrap();
 }
@@ -220,82 +162,29 @@ async fn finished_files_publish() {
     let backend = &store.backend;
     let bytes = b"charger evidence";
     let digest: [u8; 32] = Sha256::digest(bytes).into();
-    let staging = backend
-        .create_file(&file_metadata("trace", bytes))
-        .await
-        .unwrap();
+    let staging = backend.create_file(&file_metadata("trace", bytes)).await.unwrap();
     backend.write_file(&staging, 0, &bytes[..4]).await.unwrap();
     assert!(backend.write_file(&staging, 9, b"gap").await.is_err());
     backend.write_file(&staging, 4, &bytes[4..]).await.unwrap();
-    assert!(
-        backend
-            .finish_file(&staging, &store.at(1), bytes.len() as u64, [0; 32])
-            .await
-            .is_err()
-    );
-    let file = backend
-        .finish_file(&staging, &store.at(1), bytes.len() as u64, digest)
-        .await
-        .unwrap();
-    assert_eq!(
-        backend
-            .finish_file(&staging, &store.at(1), bytes.len() as u64, digest)
-            .await
-            .unwrap(),
-        file,
-        "finishing is idempotent"
-    );
-    let aborted = backend
-        .create_file(&file_metadata("aborted", b"x"))
-        .await
-        .unwrap();
+    assert!(backend.finish_file(&staging, &store.at(1), bytes.len() as u64, [0; 32]).await.is_err());
+    let file = backend.finish_file(&staging, &store.at(1), bytes.len() as u64, digest).await.unwrap();
+    assert_eq!(backend.finish_file(&staging, &store.at(1), bytes.len() as u64, digest).await.unwrap(), file, "finishing is idempotent");
+    let aborted = backend.create_file(&file_metadata("aborted", b"x")).await.unwrap();
     backend.write_file(&aborted, 0, b"x").await.unwrap();
     backend.abort_file(&aborted).await.unwrap();
-    backend
-        .write(write_batch(&[StoragePart::Files(std::slice::from_ref(
-            &file,
-        ))]))
-        .await
-        .unwrap();
+    backend.write(write_batch(&[StoragePart::Files(std::slice::from_ref(&file))])).await.unwrap();
 
     let snapshot = backend.open_snapshot(&store.at(1)).await.unwrap();
-    let listed = backend
-        .read_files(
-            &snapshot,
-            &FileSelection {
-                scope: None,
-                item: None,
-            },
-            page(0, rows(8)),
-        )
-        .await
-        .unwrap();
+    let listed = backend.read_files(&snapshot, &FileSelection { scope: None, item: None }, page(0, rows(8))).await.unwrap();
     assert_eq!(listed, std::slice::from_ref(&file));
-    assert_eq!(
-        backend
-            .read_file(&snapshot, &file, 8, rows(100))
-            .await
-            .unwrap(),
-        &bytes[8..]
-    );
+    assert_eq!(backend.read_file(&snapshot, &file, 8, rows(100)).await.unwrap(), &bytes[8..]);
     backend.release_snapshot(&snapshot).await.unwrap();
     backend.close().await.unwrap();
     drop(store);
 
     let reopened = Store::<()>::open(root.path()).await;
-    let snapshot = reopened
-        .backend
-        .open_snapshot(&reopened.at(1))
-        .await
-        .unwrap();
-    assert_eq!(
-        reopened
-            .backend
-            .read_file(&snapshot, &file, 0, rows(100))
-            .await
-            .unwrap(),
-        bytes
-    );
+    let snapshot = reopened.backend.open_snapshot(&reopened.at(1)).await.unwrap();
+    assert_eq!(reopened.backend.read_file(&snapshot, &file, 0, rows(100)).await.unwrap(), bytes);
     reopened.backend.release_snapshot(&snapshot).await.unwrap();
     reopened.backend.close().await.unwrap();
 }
@@ -308,26 +197,16 @@ async fn cancelled_read_isolated() {
     let (store, records) = seeded(root.path(), 401).await;
     let backend = &store.backend;
     let snapshot = backend.open_snapshot(&store.at(401)).await.unwrap();
-    let selection = query::RecordSelection {
-        schema: key(),
-        scope: None,
-        item: None,
-        source_start: None,
-        source_end: None,
-    };
+    let selection = query::RecordSelection { schema: key(), scope: None, item: None, source_start: None, source_end: None };
     for _ in 0..8 {
-        let mut cancelled =
-            Box::pin(backend.read_records(&snapshot, &selection, page(0, rows(400))));
+        let mut cancelled = Box::pin(backend.read_records(&snapshot, &selection, page(0, rows(400))));
         std::future::poll_fn(|context| {
             let _ = cancelled.as_mut().poll(context);
             std::task::Poll::Ready(())
         })
         .await;
         drop(cancelled);
-        assert_eq!(
-            read_records(backend, &snapshot, rows(64)).await.unwrap(),
-            records
-        );
+        assert_eq!(read_records(backend, &snapshot, rows(64)).await.unwrap(), records);
     }
     backend.release_snapshot(&snapshot).await.unwrap();
     backend.close().await.unwrap();
@@ -341,10 +220,5 @@ async fn close_releases_owner() {
     assert!(matches!(State::open(root.path()).await, Err(Error::Owned)));
     store.backend.close().await.unwrap();
     drop(store);
-    State::open(root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
+    State::open(root.path()).await.unwrap().close().await.unwrap();
 }

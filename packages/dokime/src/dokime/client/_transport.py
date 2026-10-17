@@ -62,29 +62,20 @@ class Transport:
         ca_certificate_pem: str | None = None,
     ) -> None:
         self._target, self._remote = _target(endpoint)
-        if token is not None and (
-            not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)
-        ):
-            raise ValueError(
-                "bearer token must contain 32–4096 visible ASCII characters"
-            )
+        if token is not None and (not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)):
+            raise ValueError("bearer token must contain 32–4096 visible ASCII characters")
         if self._remote and not token:
             raise ValueError("HTTPS endpoints require a bearer token")
         if expected_backend_id is not None and (
             not expected_backend_id
             or len(expected_backend_id.encode("utf-8")) > 256
-            or any(
-                ord(char) < 32 or 127 <= ord(char) <= 159
-                for char in expected_backend_id
-            )
+            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in expected_backend_id)
         ):
             raise ValueError("invalid expected backend identity")
         self._expected_backend_id = expected_backend_id
         if ca_certificate is not None and ca_certificate_pem is not None:
             raise ValueError("CA certificate file and PEM text are mutually exclusive")
-        if (
-            ca_certificate is not None or ca_certificate_pem is not None
-        ) and not self._remote:
+        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._remote:
             raise ValueError("CA certificates require HTTPS")
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("RPC timeout must be positive and finite")
@@ -153,40 +144,19 @@ class Transport:
                     or len(identity.api.descriptor_sha256) != 32
                 ):
                     raise ProtocolError("backend API or identity is incompatible")
-                if (
-                    self._expected_backend_id is not None
-                    and identity.backend_id != self._expected_backend_id
-                ):
-                    raise BackendChanged(
-                        "backend does not match the selected profile identity"
-                    )
-                if any(
-                    item.backend_id != identity.backend_id
-                    or item.epoch != identity.epoch
-                    for item in (health, availability)
-                ):
+                if self._expected_backend_id is not None and identity.backend_id != self._expected_backend_id:
+                    raise BackendChanged("backend does not match the selected profile identity")
+                if any(item.backend_id != identity.backend_id or item.epoch != identity.epoch for item in (health, availability)):
                     raise ProtocolError("backend identity changed during negotiation")
                 if _wire.enum_name(health.readiness) not in ("ready", "degraded"):
                     raise RpcError("UNAVAILABLE", "backend is not ready")
-                required = {
-                    f"/dokime.v1.Backend/{method}"
-                    for method in ("GetIdentity", "GetHealth", "GetAvailability")
-                }
-                if not required.issubset(
-                    availability.methods
-                ) or not availability.HasField("limits"):
+                required = {f"/dokime.v1.Backend/{method}" for method in ("GetIdentity", "GetHealth", "GetAvailability")}
+                if not required.issubset(availability.methods) or not availability.HasField("limits"):
                     raise ProtocolError("backend availability is incomplete")
-                if (
-                    not availability.limits.max_request_bytes
-                    or not availability.limits.max_response_bytes
-                ):
+                if not availability.limits.max_request_bytes or not availability.limits.max_response_bytes:
                     raise ProtocolError("backend message limits are invalid")
-                self._request_limit = min(
-                    availability.limits.max_request_bytes, _MAX_MESSAGE_BYTES
-                )
-                self._response_limit = min(
-                    availability.limits.max_response_bytes, _MAX_MESSAGE_BYTES
-                )
+                self._request_limit = min(availability.limits.max_request_bytes, _MAX_MESSAGE_BYTES)
+                self._response_limit = min(availability.limits.max_response_bytes, _MAX_MESSAGE_BYTES)
                 self.backend = Backend(
                     identity.backend_id,
                     identity.epoch,
@@ -194,12 +164,8 @@ class Transport:
                     identity.display_name,
                     frozenset(availability.methods),
                     product_version=identity.product_version,
-                    source_revision=identity.source_revision
-                    if identity.HasField("source_revision")
-                    else None,
-                    sdk_revision=identity.sdk_revision
-                    if identity.HasField("sdk_revision")
-                    else None,
+                    source_revision=identity.source_revision if identity.HasField("source_revision") else None,
+                    sdk_revision=identity.sdk_revision if identity.HasField("sdk_revision") else None,
                     descriptor_sha256=bytes(identity.api.descriptor_sha256),
                 )
                 return self.backend
@@ -213,11 +179,7 @@ class Transport:
             raise ClientClosed("DokimeClient is closed")
         if operation.codec != "protobuf":
             raise ProtocolError("unsupported operation codec")
-        if (
-            self.backend is not None
-            and operation.id.startswith("dokime.")
-            and operation.grpc_path not in self.backend.methods
-        ):
+        if self.backend is not None and operation.id.startswith("dokime.") and operation.grpc_path not in self.backend.methods:
             raise RpcError("UNIMPLEMENTED", "method is not available to this caller")
 
     def _request(self, request: Message, expected: type[Message]) -> bytes:
@@ -225,24 +187,18 @@ class Transport:
             raise TypeError("request type differs from the selected operation contract")
         payload = request.SerializeToString()
         if len(payload) > self._request_limit:
-            raise RpcError(
-                "RESOURCE_EXHAUSTED", "request exceeds negotiated message limit"
-            )
+            raise RpcError("RESOURCE_EXHAUSTED", "request exceeds negotiated message limit")
         return payload
 
     def _response(self, payload: bytes, expected: type[Message]) -> Message:
         if len(payload) > self._response_limit:
-            raise RpcError(
-                "RESOURCE_EXHAUSTED", "response exceeds negotiated message limit"
-            )
+            raise RpcError("RESOURCE_EXHAUSTED", "response exceeds negotiated message limit")
         try:
             return expected.FromString(payload)
         except DecodeError as error:
             raise ProtocolError("invalid canonical protobuf response") from error
 
-    async def _invoke_operation(
-        self, operation: Operation, request: Message
-    ) -> Message:
+    async def _invoke_operation(self, operation: Operation, request: Message) -> Message:
         self._available(operation)
         if operation.mode != "unary":
             raise ValueError("this operation requires its streaming interface")
@@ -277,9 +233,7 @@ class Transport:
 
     async def stream(self, service: str, method: str, request: Message) -> "_Stream":
         await self.connect()
-        reader = _Stream(
-            self, _contracts.operation(service, method), request, discover=True
-        )
+        reader = _Stream(self, _contracts.operation(service, method), request, discover=True)
         await reader._open()
         return reader
 
@@ -310,11 +264,7 @@ class Transport:
                     batch = json.loads(page.catalog, object_pairs_hook=_object)
                 except (ValueError, UnicodeError) as error:
                     raise ProtocolError("invalid caller operation catalog") from error
-                if (
-                    not isinstance(batch, list)
-                    or len(batch) > 64
-                    or len(entries) + len(batch) > 4096
-                ):
+                if not isinstance(batch, list) or len(batch) > 64 or len(entries) + len(batch) > 4096:
                     raise ProtocolError("operation catalog exceeds row limit")
                 for row in batch:
                     if (
@@ -349,48 +299,30 @@ class Transport:
                 if not page.HasField("next"):
                     return tuple(entries)
                 after = page.next
-                if (
-                    not batch
-                    or not after
-                    or after in cursors
-                    or len(after.encode("utf-8")) > 4 * 1024 * 1024
-                ):
+                if not batch or not after or after in cursors or len(after.encode("utf-8")) > 4 * 1024 * 1024:
                     raise ProtocolError("operation catalog does not progress")
                 cursors.add(after)
                 used += len(after.encode("utf-8"))
 
-    async def show(
-        self, identifier: str, *, owner: str | None = None
-    ) -> "DiscoveredOperation":
+    async def show(self, identifier: str, *, owner: str | None = None) -> "DiscoveredOperation":
         matches = [
-            entry
-            for entry in await self.operations()
-            if entry.operation.id == identifier
-            and (owner is None or entry.owner == owner)
+            entry for entry in await self.operations() if entry.operation.id == identifier and (owner is None or entry.owner == owner)
         ]
         if len(matches) != 1:
             raise ValueError("operation must identify exactly one authorized provider")
         return matches[0]
 
-    async def _select(
-        self, operation: Operation | str, *, owner: str | None = None
-    ) -> Operation:
+    async def _select(self, operation: Operation | str, *, owner: str | None = None) -> Operation:
         if isinstance(operation, Operation) and owner is None:
             verified = self._verified.get(operation.id)
             if verified is not None and verified.contract == operation.contract:
                 return operation
-        selected = await self.show(
-            operation if isinstance(operation, str) else operation.id, owner=owner
-        )
+        selected = await self.show(operation if isinstance(operation, str) else operation.id, owner=owner)
         if not selected.grpc_available:
             raise RpcError("UNIMPLEMENTED", "operation has no available gRPC binding")
         if isinstance(operation, Operation):
-            if json.loads(operation.contract) != json.loads(
-                selected.operation.contract
-            ):
-                raise ProtocolError(
-                    "installed operation contract differs from the live provider"
-                )
+            if json.loads(operation.contract) != json.loads(selected.operation.contract):
+                raise ProtocolError("installed operation contract differs from the live provider")
             if owner is None:
                 self._verified[operation.id] = operation
             return operation
@@ -404,16 +336,10 @@ class Transport:
         owner: str | None = None,
     ) -> Message:
         selected = await self._select(operation, owner=owner)
-        prepared = (
-            ParseDict(dict(request), selected.request(), ignore_unknown_fields=False)
-            if isinstance(request, Mapping)
-            else request
-        )
+        prepared = ParseDict(dict(request), selected.request(), ignore_unknown_fields=False) if isinstance(request, Mapping) else request
         return await self._invoke_operation(selected, prepared)
 
-    async def upload(
-        self, operation: Operation, request: Message, items: AsyncIterator[Message]
-    ) -> Message:
+    async def upload(self, operation: Operation, request: Message, items: AsyncIterator[Message]) -> Message:
         selected = await self._select(operation)
         if selected.mode != "client_stream":
             raise ValueError("upload requires a client-streaming operation")
@@ -445,20 +371,14 @@ class Transport:
             raise ValueError("download requires a server-streaming operation")
         return _Stream(self, operation, request, discover=True)
 
-    def exchange(
-        self, operation: Operation, request: Message, items: AsyncIterator[Message]
-    ) -> "_Stream":
+    def exchange(self, operation: Operation, request: Message, items: AsyncIterator[Message]) -> "_Stream":
         if operation.mode != "bidi":
             raise ValueError("exchange requires a bidirectional operation")
         return _Stream(self, operation, request, items=items, discover=True)
 
-    async def _inputs(
-        self, operation: Operation, request: Message, items: AsyncIterator[Message]
-    ) -> AsyncIterator[bytes]:
+    async def _inputs(self, operation: Operation, request: Message, items: AsyncIterator[Message]) -> AsyncIterator[bytes]:
         self._request(request, operation.request)
-        yield self._request(
-            operation.rpc_request(request=request), operation.rpc_request
-        )
+        yield self._request(operation.rpc_request(request=request), operation.rpc_request)
         async for item in items:
             if operation.input is None:
                 raise ValueError("operation has no input item contract")
@@ -471,11 +391,7 @@ class Transport:
         destination: Path,
         expected: tuple[int, str] | None = None,
     ) -> tuple[int, str, Message]:
-        service, method = (
-            ("History", "DownloadCheckpointArtifact")
-            if expected is not None
-            else ("Reports", "DownloadCycleReport")
-        )
+        service, method = ("History", "DownloadCheckpointArtifact") if expected is not None else ("Reports", "DownloadCycleReport")
         reader = await self.stream(service, method, request)
         partial = destination.with_name(destination.name + ".part")
         owned = False
@@ -497,17 +413,9 @@ class Transport:
                     if kind in ("metadata", "report") and metadata is None:
                         metadata = payload
                         if expected is not None:
-                            if (
-                                metadata.artifact_id != request.artifact_id
-                                or (metadata.size_bytes, metadata.sha256) != expected
-                            ):
-                                raise ProtocolError(
-                                    "artifact identity or inventory changed"
-                                )
-                        elif (
-                            metadata.test_cycle_id != request.cycle_id
-                            or metadata.identifier != request.identifier
-                        ):
+                            if metadata.artifact_id != request.artifact_id or (metadata.size_bytes, metadata.sha256) != expected:
+                                raise ProtocolError("artifact identity or inventory changed")
+                        elif metadata.test_cycle_id != request.cycle_id or metadata.identifier != request.identifier:
                             raise ProtocolError("report identity differs from request")
                     elif kind == "chunk" and metadata is not None:
                         chunk = payload
@@ -521,10 +429,7 @@ class Transport:
                         if (complete.size_bytes, complete.sha256) != (
                             offset,
                             digest.hexdigest(),
-                        ) or (
-                            expected is not None
-                            and (offset, digest.hexdigest()) != expected
-                        ):
+                        ) or (expected is not None and (offset, digest.hexdigest()) != expected):
                             raise ProtocolError("download size or SHA-256 differs")
                     else:
                         raise ProtocolError("expected one header before file data")
@@ -541,15 +446,9 @@ class Transport:
                 partial.unlink(missing_ok=True)
 
     async def verify(self, expected: Backend, *, live: bool = False) -> None:
-        identity = await self.unary(
-            "Backend", "GetIdentity", _contracts.request("Backend", "GetIdentity")
-        )
-        if identity.backend_id != expected.id or (
-            live and identity.epoch != expected.epoch
-        ):
-            raise BackendChanged(
-                "backend identity or live epoch changed; recover published evidence through History"
-            )
+        identity = await self.unary("Backend", "GetIdentity", _contracts.request("Backend", "GetIdentity"))
+        if identity.backend_id != expected.id or (live and identity.epoch != expected.epoch):
+            raise BackendChanged("backend identity or live epoch changed; recover published evidence through History")
 
     async def close(self) -> None:
         async with self._lock:
@@ -639,9 +538,7 @@ class _Stream:
             if payload is grpc.aio.EOF:
                 self._transport._calls.discard(self._call)
                 if self._completion is None:
-                    raise ProtocolError(
-                        "operation stream ended without its final response"
-                    )
+                    raise ProtocolError("operation stream ended without its final response")
                 raise StopAsyncIteration
             if self._completion is not None:
                 raise ProtocolError("operation output followed its final response")
@@ -694,12 +591,7 @@ def _stream_timeout(operation: Operation) -> float:
         seconds, nanos = timeout["secs"], timeout["nanos"]
     except (ValueError, KeyError, TypeError) as error:
         raise ProtocolError("operation has no declared stream deadline") from error
-    if (
-        type(seconds) is not int
-        or type(nanos) is not int
-        or seconds < 0
-        or not 0 <= nanos < 1_000_000_000
-    ):
+    if type(seconds) is not int or type(nanos) is not int or seconds < 0 or not 0 <= nanos < 1_000_000_000:
         raise ProtocolError("operation stream deadline is invalid")
     result = seconds + nanos / 1_000_000_000
     if result <= 0 or not math.isfinite(result):
@@ -725,10 +617,7 @@ def _error(error: grpc.aio.AioRpcError) -> Exception:
 
 
 def _release(version: str) -> tuple[str, str] | None:
-    if (
-        re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version)
-        is None
-    ):
+    if re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is None:
         return None
     major, minor, _ = version.split(".")
     return major, minor

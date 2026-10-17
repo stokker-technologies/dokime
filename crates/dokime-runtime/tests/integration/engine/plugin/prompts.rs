@@ -126,17 +126,8 @@ impl Ask {
         // === Ask With Custom Initial Values === //
 
         let seen = format!("{} samples looked right", 3);
-        let again = ctx
-            .ask(SignOff {
-                note: seen,
-                retries: None,
-                ..Default::default()
-            })
-            .await?;
-        self.heard.push(format!(
-            "custom note={} retries={:?}",
-            again.note, again.retries
-        ));
+        let again = ctx.ask(SignOff { note: seen, retries: None, ..Default::default() }).await?;
+        self.heard.push(format!("custom note={} retries={:?}", again.note, again.retries));
         for line in &self.heard {
             dokime_runtime::info!(ctx, "{line}");
         }
@@ -154,19 +145,12 @@ impl Ask {
 
 /* === Private Functions === */
 fn logged(report: &dokime_runtime::plugin::testing::Report) -> Vec<String> {
-    report
-        .log()
-        .iter()
-        .map(|entry| entry.message.clone())
-        .collect()
+    report.log().iter().map(|entry| entry.message.clone()).collect()
 }
 
 #[tokio::test]
 async fn declared_prompt_declaration() {
-    let report = Harness::template(TEMPLATE)
-        .run::<PluginSuites>()
-        .await
-        .expect("the run completes");
+    let report = Harness::template(TEMPLATE).run::<PluginSuites>().await.expect("the run completes");
     assert!(report.passed(), "{}", report.diagnostics());
 
     // Unanswered, the harness continues every asking with the declaration's own
@@ -174,17 +158,9 @@ async fn declared_prompt_declaration() {
     // with `steady`/`true`/`fast`, the confirmation's `yes`, and the instance's
     // runtime default in place of the declared one.
     let logged = logged(&report);
-    assert!(
-        logged.contains(
-            &"form note=steady accepted=true sweep=Fast retries=Some(3) repeats=[Slow]".to_owned()
-        ),
-        "{logged:?}"
-    );
+    assert!(logged.contains(&"form note=steady accepted=true sweep=Fast retries=Some(3) repeats=[Slow]".to_owned()), "{logged:?}");
     assert!(logged.contains(&"go=true".to_owned()), "{logged:?}");
-    assert!(
-        logged.contains(&"custom note=3 samples looked right retries=None".to_owned()),
-        "{logged:?}"
-    );
+    assert!(logged.contains(&"custom note=3 samples looked right retries=None".to_owned()), "{logged:?}");
 }
 
 #[tokio::test]
@@ -198,33 +174,17 @@ async fn answers_declared_constant() {
                 ("accepted", dokime_runtime::Value::from(false)),
                 ("sweep", dokime_runtime::Value::from("slow")),
                 ("retries", dokime_runtime::Value::from(2_i64)),
-                (
-                    "repeats",
-                    dokime_runtime::Value::Array(vec![
-                        dokime_runtime::Value::from("slow"),
-                        dokime_runtime::Value::from("fast"),
-                    ]),
-                ),
+                ("repeats", dokime_runtime::Value::Array(vec![dokime_runtime::Value::from("slow"), dokime_runtime::Value::from("fast")])),
             ],
         )
-        .answer(
-            Go::PROMPT_TYPE,
-            "no",
-            std::iter::empty::<(&str, dokime_runtime::Value)>(),
-        )
+        .answer(Go::PROMPT_TYPE, "no", std::iter::empty::<(&str, dokime_runtime::Value)>())
         .run::<PluginSuites>()
         .await
         .expect("the run completes");
     assert!(report.passed(), "{}", report.diagnostics());
 
     let logged = logged(&report);
-    assert!(
-        logged.contains(
-            &"form note=wobbly accepted=false sweep=Slow retries=Some(2) repeats=[Slow, Fast]"
-                .to_owned()
-        ),
-        "{logged:?}"
-    );
+    assert!(logged.contains(&"form note=wobbly accepted=false sweep=Slow retries=Some(2) repeats=[Slow, Fast]".to_owned()), "{logged:?}");
     assert!(logged.contains(&"go=false".to_owned()), "{logged:?}");
 }
 
@@ -242,11 +202,7 @@ fn declaration_what_registers() {
         )
     );
     assert_eq!(definition.actions[0].label, "Sign off");
-    let names: Vec<&str> = definition
-        .fields
-        .iter()
-        .map(|field| field.metadata.identifier.as_str())
-        .collect();
+    let names: Vec<&str> = definition.fields.iter().map(|field| field.metadata.identifier.as_str()).collect();
     assert_eq!(names, ["note", "accepted", "sweep", "retries", "repeats"]);
     assert_eq!(definition.fields[2].choices, ["fast", "slow"]);
     assert!(!definition.fields[3].required);
@@ -256,12 +212,7 @@ fn declaration_what_registers() {
     assert!(definition.fields[4].multiple);
     assert_eq!(definition.fields[4].choices, ["fast", "slow"]);
     assert_eq!(definition.fields[4].validation.min_items, Some(1));
-    assert_eq!(
-        definition.fields[4].default,
-        Some(dokime_runtime::Value::Array(vec![dokime_runtime::Value::from(
-            "slow"
-        )]))
-    );
+    assert_eq!(definition.fields[4].default, Some(dokime_runtime::Value::Array(vec![dokime_runtime::Value::from("slow")])));
 }
 
 #[test]
@@ -271,25 +222,16 @@ fn prompt_level_roundtrips() {
     let declared = SignOff::definition();
     let unraised = Go::definition();
     let built = dokime_runtime::prompts::Prompt::definition(
-        &FormPrompt::<std::collections::BTreeMap<String, String>>::new(
-            "prompts.checks.built",
-            "Built",
-        )
-        .level(RecordSeverity::Error),
+        &FormPrompt::<std::collections::BTreeMap<String, String>>::new("prompts.checks.built", "Built").level(RecordSeverity::Error),
     );
 
     // === Encode And Decode === //
 
     let encoded = serde_json::to_value(&declared).expect("a prompt definition encodes");
-    let decoded: PromptDefinition =
-        serde_json::from_value(encoded.clone()).expect("a prompt definition decodes");
+    let decoded: PromptDefinition = serde_json::from_value(encoded.clone()).expect("a prompt definition decodes");
     let mut baseline = encoded;
-    baseline
-        .as_object_mut()
-        .expect("a prompt definition encodes as an object")
-        .remove("level");
-    let defaulted: PromptDefinition =
-        serde_json::from_value(baseline).expect("a definition without a level decodes");
+    baseline.as_object_mut().expect("a prompt definition encodes as an object").remove("level");
+    let defaulted: PromptDefinition = serde_json::from_value(baseline).expect("a definition without a level decodes");
 
     // === Compare === //
 

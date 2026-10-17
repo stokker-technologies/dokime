@@ -66,15 +66,11 @@ class CaptureFiles:
 
     def open_live(self) -> None:
         for kind in ("records", "streams"):
-            self.files[kind] = (self.root / f"{kind}.jsonl.part").open(
-                "w", encoding="utf-8"
-            )
+            self.files[kind] = (self.root / f"{kind}.jsonl.part").open("w", encoding="utf-8")
 
     def append(self, kind: str, item: Record | Sample) -> None:
         output = self.files[kind]
-        output.write(
-            json.dumps(asdict(item), default=json_default, allow_nan=False) + "\n"
-        )
+        output.write(json.dumps(asdict(item), default=json_default, allow_nan=False) + "\n")
         output.flush()
 
     def finish_live(self) -> None:
@@ -113,17 +109,12 @@ async def save_execution(execution: ExecutionEvidence, capture: CaptureFiles) ->
 
 async def write_records(
     path: Path,
-    records: AsyncIterator[Record]
-    | AsyncIterator[SavedRecord]
-    | AsyncIterator[SavedSample]
-    | AsyncIterator[Sample],
+    records: AsyncIterator[Record] | AsyncIterator[SavedRecord] | AsyncIterator[SavedSample] | AsyncIterator[Sample],
 ) -> None:
     partial = path.with_name(path.name + ".part")
     with partial.open("w", encoding="utf-8") as output:
         async for record in records:
-            output.write(
-                json.dumps(asdict(record), default=json_default, allow_nan=False) + "\n"
-            )
+            output.write(json.dumps(asdict(record), default=json_default, allow_nan=False) + "\n")
     partial.replace(path)
 
 

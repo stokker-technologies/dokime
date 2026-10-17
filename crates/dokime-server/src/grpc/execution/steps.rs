@@ -45,10 +45,7 @@ struct Page {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn list(
-    service: &Resources,
-    request: &wire::ListExecutionSteps,
-) -> Result<wire::ListExecutionStepsReply, Status> {
+pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<wire::ListExecutionStepsReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let page = page(
@@ -78,40 +75,18 @@ pub(super) fn list(
                 StepStatus::Skipped => wire::StepStatus::Skipped,
                 StepStatus::Cancelled => wire::StepStatus::Cancelled,
             },
-            started_at: step
-                .started_at
-                .as_ref()
-                .map(canonical::timestamp)
-                .transpose()?,
-            finished_at: step
-                .finished_at
-                .as_ref()
-                .map(canonical::timestamp)
-                .transpose()?,
+            started_at: step.started_at.as_ref().map(canonical::timestamp).transpose()?,
+            finished_at: step.finished_at.as_ref().map(canonical::timestamp).transpose()?,
             measurement_count: step.measurements.len() as u64,
             criterion_count: step.criteria.len() as u64,
             ordinal: (page.start + index) as u64,
-            detail: step
-                .detail
-                .as_ref()
-                .map(|detail| diagnostic(detail, &mut bounds))
-                .transpose()?,
+            detail: step.detail.as_ref().map(|detail| diagnostic(detail, &mut bounds)).transpose()?,
         });
     }
-    reply(
-        service,
-        wire::ListExecutionStepsReply {
-            steps,
-            next_cursor: page.next,
-            observed_cursor: Some(page.observed),
-        },
-    )
+    reply(service, wire::ListExecutionStepsReply { steps, next_cursor: page.next, observed_cursor: Some(page.observed) })
 }
 
-pub(super) fn criteria(
-    service: &Resources,
-    request: &wire::ListStepCriteria,
-) -> Result<wire::ListStepCriteriaReply, Status> {
+pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) -> Result<wire::ListStepCriteriaReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let step = step(&execution.steps, &request.step_id)?;
@@ -158,56 +133,31 @@ pub(super) fn criteria(
             ordinal: (page.start + index) as u64,
         });
     }
-    reply(
-        service,
-        wire::ListStepCriteriaReply {
-            criteria,
-            next_cursor: page.next,
-            observed_cursor: Some(page.observed),
-        },
-    )
+    reply(service, wire::ListStepCriteriaReply { criteria, next_cursor: page.next, observed_cursor: Some(page.observed) })
 }
 
 /* === Private Functions === */
 fn page(
-    snapshot: &RuntimeStateSnapshot,
-    execution_id: &str,
-    step_id: &str,
-    kind: wire::StepPageKind,
-    limit: u32,
-    given: Option<&wire::StepPageCursor>,
-    len: usize,
+    snapshot: &RuntimeStateSnapshot, execution_id: &str, step_id: &str, kind: wire::StepPageKind, limit: u32,
+    given: Option<&wire::StepPageCursor>, len: usize,
 ) -> Result<Page, Status> {
     let revision = given
         .map(|cursor| {
-            if cursor.execution_id != execution_id
-                || cursor.step_id != step_id
-                || cursor.kind != kind
-            {
-                return Err(Status::invalid_argument(
-                    "step cursor belongs to a different selection",
-                ));
+            if cursor.execution_id != execution_id || cursor.step_id != step_id || cursor.kind != kind {
+                return Err(Status::invalid_argument("step cursor belongs to a different selection"));
             }
-            cursor
-                .revision
-                .as_ref()
-                .ok_or_else(|| Status::invalid_argument("step cursor requires a revision"))
+            cursor.revision.as_ref().ok_or_else(|| Status::invalid_argument("step cursor requires a revision"))
         })
         .transpose()?;
-    let limit = canonical::cursor(snapshot)
-        .page(limit, "", revision)
-        .map_err(canonical::cursor_failure)?;
+    let limit = canonical::cursor(snapshot).page(limit, "", revision).map_err(canonical::cursor_failure)?;
     let start = given
         .map(|cursor| {
-            usize::try_from(cursor.next_ordinal)
-                .map_err(|_| Status::out_of_range("step cursor ordinal exceeds addressable range"))
+            usize::try_from(cursor.next_ordinal).map_err(|_| Status::out_of_range("step cursor ordinal exceeds addressable range"))
         })
         .transpose()?
         .unwrap_or(0);
     if start > len || (given.is_some() && start == len) {
-        return Err(Status::out_of_range(
-            "step cursor ordinal is outside the selected collection",
-        ));
+        return Err(Status::out_of_range("step cursor ordinal is outside the selected collection"));
     }
     let end = start.saturating_add(limit).min(len);
     let observed = canonical::cursor(snapshot);
@@ -227,19 +177,14 @@ fn page(
 
 fn reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
-        return Err(Status::resource_exhausted(
-            "step evidence exceeds response budget",
-        ));
+        return Err(Status::resource_exhausted("step evidence exceeds response budget"));
     }
     Ok(value)
 }
 
 fn step<'a>(steps: &'a [StepRecord], id: &str) -> Result<&'a StepRecord, Status> {
     value::text(id)?;
-    steps
-        .iter()
-        .find(|step| step.step_id.as_str() == id)
-        .ok_or_else(|| Status::not_found("step not found in requested execution"))
+    steps.iter().find(|step| step.step_id.as_str() == id).ok_or_else(|| Status::not_found("step not found in requested execution"))
 }
 
 /* === Tests === */

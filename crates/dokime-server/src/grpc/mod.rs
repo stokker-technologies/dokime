@@ -57,8 +57,7 @@ use dokime_domain::operations::Endpoints;
 use dokime_domain::operations::Operations;
 
 /* === Constants === */
-pub const FILE_DESCRIPTOR_SET: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
+pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 
 /* === Macros === */
 

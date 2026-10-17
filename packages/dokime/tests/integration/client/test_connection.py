@@ -37,9 +37,7 @@ from .backend import SUITE_ID, collect, serve
 # === Constants === #
 
 # Rust Connection Stories Read The Same Negotiation Fixture.
-NEGOTIATION = json.loads(
-    (Path(__file__).resolve().parent / "fixtures/negotiation.json").read_text()
-)
+NEGOTIATION = json.loads((Path(__file__).resolve().parent / "fixtures/negotiation.json").read_text())
 READINESS = ("Unspecified", "Starting", "Ready", "Degraded", "Stopping")
 
 # === Types === #
@@ -136,14 +134,10 @@ def test_backend_negotiation(case: dict[str, Any]) -> None:
 def test_expected_backend() -> None:
     async def scenario() -> None:
         async with serve() as (server, _):
-            async with DokimeClient(
-                server.endpoint, expected_backend_id=server.backend_id
-            ) as selected:
+            async with DokimeClient(server.endpoint, expected_backend_id=server.backend_id) as selected:
                 assert (await selected.connect()).id == server.backend_id
 
-            mismatched = DokimeClient(
-                server.endpoint, expected_backend_id="another-backend"
-            )
+            mismatched = DokimeClient(server.endpoint, expected_backend_id="another-backend")
             try:
                 with pytest.raises(BackendChanged, match="selected profile identity"):
                     await mismatched.create_cycle(label="Mismatched")

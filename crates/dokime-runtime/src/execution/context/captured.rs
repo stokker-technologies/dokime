@@ -26,20 +26,20 @@ use cssparser::{Parser, Token};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
+use crate::definition::TestCase;
 use crate::document::DocumentDefinition;
-use dokime_domain::model::execution::result::CycleView;
+use crate::installed_plugins::RuntimeAppearanceFrame;
+use crate::prompts::PromptInstance;
+use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::installed_plugins::RuntimeAppearanceFrame;
-use dokime_domain::model::traceability::TraceabilitySnapshot;
-use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::definition::TestCase;
-use crate::prompts::PromptInstance;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
 const MAX_LOGO_BYTES: usize = 1024 * 1024;
@@ -81,196 +81,82 @@ pub struct ExecutionCycleContext {
 impl harmos::MemorySize for ExecutionContext {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.session_id),
-                std::mem::size_of_val(&self.session_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cycle),
-                std::mem::size_of_val(&self.cycle),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.execution_documents),
-                std::mem::size_of_val(&self.execution_documents),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.prompts),
-                std::mem::size_of_val(&self.prompts),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.health),
-                std::mem::size_of_val(&self.health),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.notes),
-                std::mem::size_of_val(&self.notes),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.traceability),
-                std::mem::size_of_val(&self.traceability),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.appearance),
-                std::mem::size_of_val(&self.appearance),
-            ),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.cycle), std::mem::size_of_val(&self.cycle)),
+            (harmos::MemorySize::memory_size(&self.execution_documents), std::mem::size_of_val(&self.execution_documents)),
+            (harmos::MemorySize::memory_size(&self.prompts), std::mem::size_of_val(&self.prompts)),
+            (harmos::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
+            (harmos::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
+            (harmos::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
+            (harmos::MemorySize::memory_size(&self.appearance), std::mem::size_of_val(&self.appearance)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ExecutionCycleContext {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.cycle),
-                std::mem::size_of_val(&self.cycle),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cases),
-                std::mem::size_of_val(&self.cases),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.execution_order),
-                std::mem::size_of_val(&self.execution_order),
-            ),
+            (harmos::MemorySize::memory_size(&self.cycle), std::mem::size_of_val(&self.cycle)),
+            (harmos::MemorySize::memory_size(&self.cases), std::mem::size_of_val(&self.cases)),
+            (harmos::MemorySize::memory_size(&self.execution_order), std::mem::size_of_val(&self.execution_order)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl ExecutionContext {
     pub fn validation_memory(&self) -> usize {
         harmos::btree_map_memory::<&dokime_domain::model::identity::NoteId, ()>(self.notes.len())
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::PromptId, ()>(
-                self.prompts.len(),
-            ))
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::HealthItemId, ()>(
-                self.health.len(),
-            ))
-            .saturating_add(harmos::btree_map_memory::<&TestExecutionId, ()>(
-                self.cycle.execution_order.len(),
-            ))
-            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::CaseId, ()>(
-                self.cycle.cases.len(),
-            ))
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::PromptId, ()>(self.prompts.len()))
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::HealthItemId, ()>(self.health.len()))
+            .saturating_add(harmos::btree_map_memory::<&TestExecutionId, ()>(self.cycle.execution_order.len()))
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::CaseId, ()>(self.cycle.cases.len()))
             .saturating_add(appearance_validation_memory(
                 self.appearance.themes.iter().flat_map(css_values),
-                self.appearance
-                    .themes
-                    .iter()
-                    .map(|theme| theme.theme_id.as_str().len())
-                    .max()
-                    .unwrap_or(0),
+                self.appearance.themes.iter().map(|theme| theme.theme_id.as_str().len()).max().unwrap_or(0),
             ))
     }
 
     pub fn validate(&self, execution: &TestExecution) -> Result<()> {
-        if self.scope != execution.scope
-            || self.cycle.cycle.test_cycle_id != execution.test_cycle_id
-        {
+        if self.scope != execution.scope || self.cycle.cycle.test_cycle_id != execution.test_cycle_id {
             return Err(invalid("captured context differs from its execution owner"));
         }
-        if self
-            .prompts
-            .iter()
-            .any(|item| !owns_projection(&item.scope, &self.scope))
-            || self
-                .health
-                .iter()
-                .any(|item| !owns_annotation(&item.scope, &self.scope))
-            || self
-                .notes
-                .iter()
-                .any(|item| !owns_annotation(&item.scope, &self.scope))
+        if self.prompts.iter().any(|item| !owns_projection(&item.scope, &self.scope))
+            || self.health.iter().any(|item| !owns_annotation(&item.scope, &self.scope))
+            || self.notes.iter().any(|item| !owns_annotation(&item.scope, &self.scope))
         {
             return Err(invalid("captured annotation scope differs"));
         }
-        let notes = self
-            .notes
-            .iter()
-            .map(|item| &item.note_id)
-            .collect::<BTreeSet<_>>();
-        let prompts = self
-            .prompts
-            .iter()
-            .map(|item| &item.prompt_id)
-            .collect::<BTreeSet<_>>();
-        let health = self
-            .health
-            .iter()
-            .map(|item| &item.health_item_id)
-            .collect::<BTreeSet<_>>();
-        if notes.len() != self.notes.len()
-            || prompts.len() != self.prompts.len()
-            || health.len() != self.health.len()
-        {
+        let notes = self.notes.iter().map(|item| &item.note_id).collect::<BTreeSet<_>>();
+        let prompts = self.prompts.iter().map(|item| &item.prompt_id).collect::<BTreeSet<_>>();
+        let health = self.health.iter().map(|item| &item.health_item_id).collect::<BTreeSet<_>>();
+        if notes.len() != self.notes.len() || prompts.len() != self.prompts.len() || health.len() != self.health.len() {
             return Err(invalid("captured annotation identity is duplicated"));
         }
-        if self
-            .execution_documents
-            .iter()
-            .any(|(id, document)| id != &document.document_id)
+        if self.execution_documents.iter().any(|(id, document)| id != &document.document_id)
             || self.traceability.iter().any(|item| {
-                item.scope
-                    .test_cycle_id
-                    .as_ref()
-                    .is_some_and(|id| id != &execution.test_cycle_id)
-                    || item
-                        .scope
-                        .test_execution_id
-                        .as_ref()
-                        .is_some_and(|id| id != &execution.test_execution_id)
-                    || item
-                        .scope
-                        .test_case_id
-                        .as_ref()
-                        .is_some_and(|id| id != &execution.test_case_id)
+                item.scope.test_cycle_id.as_ref().is_some_and(|id| id != &execution.test_cycle_id)
+                    || item.scope.test_execution_id.as_ref().is_some_and(|id| id != &execution.test_execution_id)
+                    || item.scope.test_case_id.as_ref().is_some_and(|id| id != &execution.test_case_id)
             })
         {
-            return Err(invalid(
-                "captured definitions or traceability owner differs",
-            ));
+            return Err(invalid("captured definitions or traceability owner differs"));
         }
         let members = self.cycle.execution_order.iter().collect::<BTreeSet<_>>();
-        let cases = self
-            .cycle
-            .cases
-            .iter()
-            .map(|case| &case.test_case_id)
-            .collect::<BTreeSet<_>>();
+        let cases = self.cycle.cases.iter().map(|case| &case.test_case_id).collect::<BTreeSet<_>>();
         if !self.cycle.cycle.test_executions.is_empty()
             || members.len() != self.cycle.execution_order.len()
             || cases.len() != self.cycle.cases.len()
             || !members.contains(&execution.test_execution_id)
-            || !self
-                .cycle
-                .cases
-                .iter()
-                .any(|case| case == execution.snapshot.case())
+            || !self.cycle.cases.iter().any(|case| case == execution.snapshot.case())
         {
-            return Err(invalid(
-                "captured navigation differs from frozen membership",
-            ));
+            return Err(invalid("captured navigation differs from frozen membership"));
         }
         validate_appearance(&self.appearance)
     }
@@ -280,29 +166,16 @@ impl ExecutionContext {
 
 pub(crate) fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
     (scope.test_cycle_id.is_some() || scope.test_execution_id.is_some())
-        && scope
-            .test_cycle_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
-        && scope
-            .test_case_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_case_id.as_ref())
-        && scope
-            .test_execution_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
+        && scope.test_cycle_id.as_ref().is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
+        && scope.test_case_id.as_ref().is_none_or(|id| Some(id) == execution.test_case_id.as_ref())
+        && scope.test_execution_id.as_ref().is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
 }
 
 pub(crate) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> bool {
-    if (scope.step_id.is_some() || scope.criterion_id.is_some())
-        && scope.test_execution_id.is_none()
-    {
+    if (scope.step_id.is_some() || scope.criterion_id.is_some()) && scope.test_execution_id.is_none() {
         return false;
     }
-    (scope.test_cycle_id.is_none()
-        && scope.test_case_id.is_none()
-        && scope.test_execution_id.is_none())
+    (scope.test_cycle_id.is_none() && scope.test_case_id.is_none() && scope.test_execution_id.is_none())
         || owns_projection(scope, execution)
 }
 
@@ -311,9 +184,7 @@ pub(crate) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
 pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame) -> Result<()> {
     for theme in &appearance.themes {
         for value in css_values(theme) {
-            validate_css(value).map_err(|reason| {
-                invalid(&format!("captured theme {}: {reason}", theme.theme_id))
-            })?;
+            validate_css(value).map_err(|reason| invalid(&format!("captured theme {}: {reason}", theme.theme_id)))?;
         }
     }
     if let Some(logo) = &appearance.logo {
@@ -322,9 +193,7 @@ pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame) -> Result
     Ok(())
 }
 
-pub(crate) fn css_values(
-    theme: &crate::installed_plugins::RuntimeThemeFamily,
-) -> impl Iterator<Item = &str> {
+pub(crate) fn css_values(theme: &crate::installed_plugins::RuntimeThemeFamily) -> impl Iterator<Item = &str> {
     let radii = &theme.corner_radii;
     theme
         .stylesheet
@@ -351,36 +220,20 @@ pub(crate) fn css_values(
         )
 }
 
-pub(crate) fn appearance_validation_memory<'a>(
-    values: impl Iterator<Item = &'a str>,
-    max_label_bytes: usize,
-) -> usize {
+pub(crate) fn appearance_validation_memory<'a>(values: impl Iterator<Item = &'a str>, max_label_bytes: usize) -> usize {
     // Lexer Escape Buffers Grow Geometrically; Retained Nested Token Text Uses
     // Disjoint Source Slices. NUL And Zero Escapes Can Emit Three-Byte Replacements.
     let text = values
         .map(|value| {
-            value
-                .len()
-                .saturating_add(
-                    value
-                        .chars()
-                        .filter(|c| *c == '\0' || *c == '0')
-                        .count()
-                        .saturating_mul(2),
-                )
-                .saturating_mul(3)
-                .max(8)
+            value.len().saturating_add(value.chars().filter(|c| *c == '\0' || *c == '0').count().saturating_mul(2)).saturating_mul(3).max(8)
         })
         .max()
         .unwrap_or(0);
     // The Scanner Refuses Depth Above 64. Rc<String> Stores Two Counts Plus Text.
-    let tokens =
-        66usize.saturating_mul(std::mem::size_of::<String>() + 2 * std::mem::size_of::<usize>());
+    let tokens = 66usize.saturating_mul(std::mem::size_of::<String>() + 2 * std::mem::size_of::<usize>());
     let parsers = 66usize.saturating_mul(std::mem::size_of::<Parser<'_>>());
     let error = max_label_bytes.saturating_add(256).saturating_mul(3);
-    text.saturating_add(tokens)
-        .saturating_add(parsers)
-        .saturating_add(error)
+    text.saturating_add(tokens).saturating_add(parsers).saturating_add(error)
 }
 
 fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
@@ -388,10 +241,7 @@ fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
     scan(&mut input, 0).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")
 }
 
-fn scan<'i>(
-    input: &mut Parser<'i>,
-    depth: usize,
-) -> std::result::Result<(), cssparser::ParseError<()>> {
+fn scan<'i>(input: &mut Parser<'i>, depth: usize) -> std::result::Result<(), cssparser::ParseError<()>> {
     if depth > 64 {
         return Err(cssparser::ParseError::custom(()));
     }
@@ -419,30 +269,18 @@ fn scan<'i>(
             // These can turn a string or a substituted variable into a resource URL.
             // Use literal url(data:...) instead, which has a captured byte source.
             Token::Function(name)
-                if [
-                    "image-set",
-                    "-webkit-image-set",
-                    "image",
-                    "src",
-                    "attr",
-                    "local",
-                ]
-                .iter()
-                .any(|candidate| name.eq_ignore_ascii_case(candidate)) =>
+                if ["image-set", "-webkit-image-set", "image", "src", "attr", "local"]
+                    .iter()
+                    .any(|candidate| name.eq_ignore_ascii_case(candidate)) =>
             {
                 return Err(cssparser::ParseError::custom(()));
             }
-            Token::Function(_)
-            | Token::ParenthesisBlock
-            | Token::SquareBracketBlock
-            | Token::CurlyBracketBlock => {
+            Token::Function(_) | Token::ParenthesisBlock | Token::SquareBracketBlock | Token::CurlyBracketBlock => {
                 input.parse_nested_block(|input| scan(input, depth + 1))?;
             }
-            Token::BadUrl(_)
-            | Token::BadString(_)
-            | Token::CloseParenthesis
-            | Token::CloseSquareBracket
-            | Token::CloseCurlyBracket => return Err(cssparser::ParseError::custom(())),
+            Token::BadUrl(_) | Token::BadString(_) | Token::CloseParenthesis | Token::CloseSquareBracket | Token::CloseCurlyBracket => {
+                return Err(cssparser::ParseError::custom(()));
+            }
             _ => {}
         }
     }
@@ -450,10 +288,7 @@ fn scan<'i>(
 }
 
 fn portable_url(url: &str) -> bool {
-    url.starts_with('#')
-        || url
-            .get(..5)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:"))
+    url.starts_with('#') || url.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:"))
 }
 
 fn validate_logo(url: &str) -> Result<()> {
@@ -463,20 +298,11 @@ fn validate_logo(url: &str) -> Result<()> {
         .ok_or_else(|| invalid("captured logo requires an embedded image data URL"))?;
     if !matches!(
         media,
-        "image/png"
-            | "image/jpeg"
-            | "image/gif"
-            | "image/webp"
-            | "image/svg+xml"
-            | "image/x-icon"
-            | "image/vnd.microsoft.icon"
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml" | "image/x-icon" | "image/vnd.microsoft.icon"
     ) {
         return Err(invalid("captured logo MIME type is unsupported"));
     }
-    if payload.is_empty()
-        || payload.len() % 4 != 0
-        || payload.len() > MAX_LOGO_BYTES.div_ceil(3) * 4
-    {
+    if payload.is_empty() || payload.len() % 4 != 0 || payload.len() > MAX_LOGO_BYTES.div_ceil(3) * 4 {
         return Err(invalid("captured logo exceeds its original byte limit"));
     }
     let mut length = 0usize;

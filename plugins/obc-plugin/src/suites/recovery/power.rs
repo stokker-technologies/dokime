@@ -60,10 +60,7 @@ pub struct Initialized {}
 )]
 #[derive(Clone, Debug)]
 pub struct Started {
-    #[record(
-        message,
-        description = "What energizing meant this time: the first start, or the restart."
-    )]
+    #[record(message, description = "What energizing meant this time: the first start, or the restart.")]
     pub note: String,
 }
 
@@ -178,23 +175,12 @@ bench!(Parameters);
     streams = Streams,
     parameters = Parameters, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
 impl PowerLoss {
-    async fn initialize(
-        supply: &Parameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         readiness::ready(ctx).await?;
-        Ok(Self {
-            device: Device::initialize(supply.supply()).map_err(Error::Device)?,
-            recovered: false,
-            cycles: 0,
-            published: 0,
-        })
+        Ok(Self { device: Device::initialize(supply.supply()).map_err(Error::Device)?, recovered: false, cycles: 0, published: 0 })
     }
     fn document() -> Document {
-        let mut document = measurement::document(
-            <Samples as dokime_runtime::StreamSpec>::ID,
-            "Power-Loss Recovery",
-        );
+        let mut document = measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Power-Loss Recovery");
         document.section(system::section(TEMPLATE));
         document
     }
@@ -202,10 +188,7 @@ impl PowerLoss {
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         self.device.start().map_err(Error::Device)?;
-        ctx.publish(Started {
-            note: "Charger energized.".into(),
-        })
-        .await;
+        ctx.publish(Started { note: "Charger energized.".into() }).await;
         let reading = self.device.sample(0.1);
         publish(ctx, &mut self.published, reading, "running").await;
         Ok(())
@@ -239,10 +222,7 @@ impl PowerLoss {
             self.device.clear();
             ctx.publish(Cleared {}).await;
             self.device.start().map_err(Error::Device)?;
-            ctx.publish(Started {
-                note: format!("Charger restarted under control within {limit_s} s."),
-            })
-            .await;
+            ctx.publish(Started { note: format!("Charger restarted under control within {limit_s} s.") }).await;
             elapsed_s += limit_s;
             let restored = self.device.sample(elapsed_s);
             let recovered = restored.current_rms_a > 0.0 && self.device.power == Power::Running;
@@ -261,11 +241,7 @@ impl PowerLoss {
     )]
     async fn stop(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         self.device.stop();
-        ctx.publish(Stopped {
-            accepted: self.recovered && self.cycles > 0 && self.device.fault.is_none(),
-            cycles: self.cycles,
-        })
-        .await;
+        ctx.publish(Stopped { accepted: self.recovered && self.cycles > 0 && self.device.fault.is_none(), cycles: self.cycles }).await;
         Ok(())
     }
 
@@ -288,12 +264,7 @@ impl PowerLoss {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn publish<T, O, I>(
-    ctx: &mut StepContext<'_, T, O, I>,
-    published: &mut u64,
-    reading: Reading,
-    phase: &str,
-) {
+async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
     measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
     *published += 1;
 }

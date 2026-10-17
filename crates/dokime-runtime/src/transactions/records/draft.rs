@@ -19,11 +19,11 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use crate::records::BuiltinRecordType;
-use dokime_domain::model::records::evidence::Record;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
-use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
@@ -58,27 +58,15 @@ pub(crate) struct Drafts {
 /* === Implementations === */
 impl Drafts {
     pub(crate) fn new(state: &RuntimeState) -> Self {
-        Self {
-            session: state.record_namespace.clone(),
-            first: state.record_count,
-            records: Vec::new(),
-        }
+        Self { session: state.record_namespace.clone(), first: state.record_count, records: Vec::new() }
     }
 
     pub(crate) fn following(&self) -> Self {
-        Self {
-            session: self.session.clone(),
-            first: self.first + self.records.len() as u64,
-            records: Vec::new(),
-        }
+        Self { session: self.session.clone(), first: self.first + self.records.len() as u64, records: Vec::new() }
     }
 
     pub(crate) fn next_id(&self) -> RecordId {
-        RecordId::from_seed(format!(
-            "dokime-record:{}:{}",
-            self.session,
-            self.first + self.records.len() as u64
-        ))
+        RecordId::from_seed(format!("dokime-record:{}:{}", self.session, self.first + self.records.len() as u64))
     }
 
     pub(crate) fn push(&mut self, record: Record) {
@@ -116,8 +104,7 @@ impl Drafts {
     pub(crate) fn collect(&self, out: &mut harmos::state::Records) {
         for (record, native_owner) in &self.records {
             if let Some(owner) = native_owner {
-                let payload = crate::persistence::to_vec(record)
-                    .expect("Record contains only JSON-compatible fields");
+                let payload = crate::persistence::to_vec(record).expect("Record contains only JSON-compatible fields");
                 let _ = out.push_system(harmos::state::SystemFact {
                     source: harmos::state::FactSource::Sidecar(owner.clone()),
                     name: record.record_type.to_string(),
@@ -139,10 +126,7 @@ impl Drafts {
 
 impl IntoIterator for Drafts {
     type Item = Record;
-    type IntoIter = std::iter::Map<
-        std::vec::IntoIter<(Record, Option<String>)>,
-        fn((Record, Option<String>)) -> Record,
-    >;
+    type IntoIter = std::iter::Map<std::vec::IntoIter<(Record, Option<String>)>, fn((Record, Option<String>)) -> Record>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.records.into_iter().map(|(record, _)| record)

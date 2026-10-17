@@ -33,6 +33,12 @@ use super::output;
 use crate::definition::TestCase;
 use crate::document::DocumentDefinition;
 use crate::document::capture::Capture;
+use crate::report::{
+    asset::REPORT_APP_TEMPLATE,
+    input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument},
+};
+use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CriterionResult;
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -41,19 +47,13 @@ use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::StepRecord;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::report::{
-    asset::REPORT_APP_TEMPLATE,
-    input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument},
-};
-use dokime_domain::model::traceability::TraceabilityEntry;
-use dokime_domain::model::traceability::TraceabilitySnapshot;
-use dokime_domain::model::traceability::derived_traceability_group;
-use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::traceability::TraceabilityEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::derived_traceability_group;
 use dokime_domain::model::values::Value;
 use header::Header;
 
@@ -215,15 +215,8 @@ struct StepRow<'a> {
 #[derive(Serialize)]
 #[serde(untagged)]
 enum StepResult<'a> {
-    Step {
-        status: &'static str,
-        details: StepFailure<'a>,
-    },
-    Criterion {
-        status: &'static str,
-        reason: &'a Option<String>,
-        details: CriterionDetails<'a>,
-    },
+    Step { status: &'static str, details: StepFailure<'a> },
+    Criterion { status: &'static str, reason: &'a Option<String>, details: CriterionDetails<'a> },
 }
 
 #[derive(Serialize)]
@@ -344,8 +337,7 @@ impl Serialize for ReportValues<'_> {
 
 impl Serialize for StepFailure<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields =
-            serializer.serialize_map(Some(if self.0.detail.is_some() { 3 } else { 0 }))?;
+        let mut fields = serializer.serialize_map(Some(if self.0.detail.is_some() { 3 } else { 0 }))?;
         if let Some(detail) = &self.0.detail {
             fields.serialize_entry("message", &detail.message)?;
             fields.serialize_entry("causes", &detail.chain)?;
@@ -360,10 +352,7 @@ impl Serialize for CaseRun<'_> {
         let mut fields = serializer.serialize_map(Some(6))?;
         fields.serialize_entry("queue_item_id", &self.test_case.test_case_id)?;
         fields.serialize_entry("case_id", &self.test_case.test_case_id)?;
-        fields.serialize_entry(
-            "test_execution_id",
-            &self.execution.map(|execution| &execution.test_execution_id),
-        )?;
+        fields.serialize_entry("test_execution_id", &self.execution.map(|execution| &execution.test_execution_id))?;
         fields.serialize_entry("traceability", &self.traceability)?;
         match self.document {
             Some(document) => {
@@ -384,13 +373,9 @@ impl Serialize for ReportValue<'_> {
         match self.0 {
             Value::Null => serializer.serialize_unit(),
             Value::Bool(value) => serializer.serialize_bool(*value),
-            Value::Integer(value) if value.unsigned_abs() > 9_007_199_254_740_991 => {
-                serializer.collect_str(value)
-            }
+            Value::Integer(value) if value.unsigned_abs() > 9_007_199_254_740_991 => serializer.collect_str(value),
             Value::Integer(value) => serializer.serialize_i64(*value),
-            Value::Unsigned(value) if *value > 9_007_199_254_740_991 => {
-                serializer.collect_str(value)
-            }
+            Value::Unsigned(value) if *value > 9_007_199_254_740_991 => serializer.collect_str(value),
             Value::Unsigned(value) => serializer.serialize_u64(*value),
             Value::Number(value) if !value.is_finite() => serializer.collect_str(value),
             Value::Number(value) => serializer.serialize_f64(*value),
@@ -399,14 +384,10 @@ impl Serialize for ReportValue<'_> {
                 // UTC RFC3339 Uses At Most Thirty ASCII Bytes Including Nanoseconds.
                 let mut bytes = [0u8; 30];
                 let mut output = std::io::Cursor::new(bytes.as_mut_slice());
-                match value
-                    .to_offset(time::UtcOffset::UTC)
-                    .format_into(&mut output, &time::format_description::well_known::Rfc3339)
-                {
+                match value.to_offset(time::UtcOffset::UTC).format_into(&mut output, &time::format_description::well_known::Rfc3339) {
                     Ok(_) => {
                         let length = output.position() as usize;
-                        let text = std::str::from_utf8(&bytes[..length])
-                            .map_err(serde::ser::Error::custom)?;
+                        let text = std::str::from_utf8(&bytes[..length]).map_err(serde::ser::Error::custom)?;
                         serializer.serialize_str(text)
                     }
                     Err(_) => serializer.serialize_unit(),
@@ -451,10 +432,7 @@ fn snapshot(input: Header<'_>) -> Snapshot<'_> {
             rerun_command: None,
         },
         session_id: input.session_id.as_str(),
-        title: report_document_title(
-            input,
-            cycle_default_document_materialization(input).map(|document| &document.definition),
-        ),
+        title: report_document_title(input, cycle_default_document_materialization(input).map(|document| &document.definition)),
         revision: 0,
         pending_prompts: &[],
         result_summary: input.cycle.result.map(|result| Summary {
@@ -465,12 +443,7 @@ fn snapshot(input: Header<'_>) -> Snapshot<'_> {
             },
             headline: result_status(&result.status),
             warnings: &[],
-            evidence: [SummaryEvidence {
-                passed: result.passed,
-                failed: result.failed,
-                blocked: result.blocked,
-                skipped: result.skipped,
-            }],
+            evidence: [SummaryEvidence { passed: result.passed, failed: result.failed, blocked: result.blocked, skipped: result.skipped }],
             updated_at: input.generated_at,
             scope: empty_report_scope(input),
         }),
@@ -482,10 +455,7 @@ fn snapshot(input: Header<'_>) -> Snapshot<'_> {
 
 fn report_scope<'a>(input: Header<'a>, scope: &'a RecordScope) -> ReportScope<'a> {
     ReportScope {
-        test_cycle_id: scope
-            .test_cycle_id
-            .as_ref()
-            .map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
+        test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
         test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
         test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
         template_id: scope.template_id.as_ref().map(|id| id.as_str()),
@@ -522,80 +492,48 @@ fn record_row<'a>(input: Header<'a>, record: &'a dokime_domain::model::records::
         sequence: record.sequence,
         level: severity,
         source: &record.source,
-        display: RecordDisplay {
-            icon: "clock",
-            tone: record_tone(severity),
-        },
+        display: RecordDisplay { icon: "clock", tone: record_tone(severity) },
         message: record.message.as_deref(),
         error: record.error.as_ref(),
         details: ReportValues(&record.details),
         related_sample_id: record.related_sample_id.as_ref().map(|id| id.as_str()),
         related_stream: record.related_stream_id.as_ref().map(|id| id.as_str()),
         related_artifact_id: record.related_artifact_id.as_ref().map(|id| id.as_str()),
-        scope: record
-            .scope
-            .as_ref()
-            .map(|scope| report_scope(input, scope)),
+        scope: record.scope.as_ref().map(|scope| report_scope(input, scope)),
     }
 }
 
 fn step_with_owner<'a>(
-    input: Header<'a>,
-    owner: StepOwner<'a>,
-    step: &'a StepRecord,
-    order: usize,
-    criterion: Option<&'a CriterionResult>,
+    input: Header<'a>, owner: StepOwner<'a>, step: &'a StepRecord, order: usize, criterion: Option<&'a CriterionResult>,
 ) -> StepRow<'a> {
-    let status = criterion.map_or_else(
-        || step_status(&step.status),
-        |criterion| criterion_status(&criterion.status),
-    );
+    let status = criterion.map_or_else(|| step_status(&step.status), |criterion| criterion_status(&criterion.status));
     let result = criterion.map_or_else(
-        || StepResult::Step {
-            status,
-            details: StepFailure(step),
-        },
+        || StepResult::Step { status, details: StepFailure(step) },
         |criterion| StepResult::Criterion {
             status,
             reason: &criterion.message,
-            details: CriterionDetails {
-                observed: criterion.observed.as_ref().map(ReportValue),
-            },
+            details: CriterionDetails { observed: criterion.observed.as_ref().map(ReportValue) },
         },
     );
     let scope = owner.scope;
     StepRow {
-        record_type: if criterion.is_some() {
-            "criterion"
-        } else {
-            "step"
-        },
+        record_type: if criterion.is_some() { "criterion" } else { "step" },
         test_execution_id: owner.id,
         test_cycle_id: input.cycle.test_cycle_id.as_str(),
         queue_item_id: owner.case,
         case_id: owner.case,
         template_id: owner.template,
         step_id: step.step_id.as_str(),
-        method_name: criterion
-            .map_or(&step.metadata, |criterion| &criterion.metadata)
-            .identifier
-            .as_str(),
+        method_name: criterion.map_or(&step.metadata, |criterion| &criterion.metadata).identifier.as_str(),
         order,
         status,
         result,
         started_at: step.started_at.as_ref().unwrap_or(owner.generated_at),
         finished_at: step.finished_at.as_ref().unwrap_or(owner.generated_at),
-        duration_s: if criterion.is_some() {
-            0.0
-        } else {
-            duration_seconds(step.started_at.as_ref(), step.finished_at.as_ref())
-        },
+        duration_s: if criterion.is_some() { 0.0 } else { duration_seconds(step.started_at.as_ref(), step.finished_at.as_ref()) },
         metadata: criterion.map_or(&step.metadata, |criterion| &criterion.metadata),
         scope: StepScope {
-            test_cycle_id: scope
-                .test_cycle_id
-                .as_ref()
-                .map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
+            test_cycle_id: scope.test_cycle_id.as_ref().map_or(input.cycle.test_cycle_id.as_str(), |id| id.as_str()),
             test_execution_id: scope.test_execution_id.as_ref().map(|id| id.as_str()),
             test_case_id: scope.test_case_id.as_ref().map(|id| id.as_str()),
             template_id: owner.template,
@@ -610,53 +548,27 @@ fn step_with_owner<'a>(
 fn case_session<'a>(input: &'a CycleReportInput, test_case: &'a TestCase) -> CaseRun<'a> {
     let execution = latest_execution_for_case(input, &test_case.test_case_id);
     let scope = execution.map_or_else(
-        || {
-            RecordScope::default()
-                .with_cycle(input.cycle.test_cycle_id.clone())
-                .with_test_case(test_case.test_case_id.clone())
-        },
+        || RecordScope::default().with_cycle(input.cycle.test_cycle_id.clone()).with_test_case(test_case.test_case_id.clone()),
         |execution| execution.scope.clone(),
     );
     let document = case_document_for_case(input, &test_case.test_case_id, execution);
-    let traceability = Traceability {
-        input,
-        scope: Some(scope),
-    };
-    CaseRun {
-        test_case,
-        execution,
-        document,
-        traceability,
-    }
+    let traceability = Traceability { input, scope: Some(scope) };
+    CaseRun { test_case, execution, document, traceability }
 }
 
-fn report_document_title<'a>(
-    input: Header<'a>,
-    document: Option<&'a DocumentDefinition>,
-) -> ReportTitle<'a> {
+fn report_document_title<'a>(input: Header<'a>, document: Option<&'a DocumentDefinition>) -> ReportTitle<'a> {
     match document.filter(|document| document.metadata.identifier.as_str() != "cycle.default") {
-        Some(document) => ReportTitle {
-            label: &document.metadata.label,
-            cycle: false,
-        },
-        None => ReportTitle {
-            label: &input.cycle.metadata.label,
-            cycle: true,
-        },
+        Some(document) => ReportTitle { label: &document.metadata.label, cycle: false },
+        None => ReportTitle { label: &input.cycle.metadata.label, cycle: true },
     }
 }
 
 fn cycle_default_document_materialization(input: Header<'_>) -> Option<&Capture> {
-    input
-        .documents
-        .iter()
-        .find_map(|(id, document)| (id.as_str() == DEFAULT_DOCUMENT_ID).then_some(document))
+    input.documents.iter().find_map(|(id, document)| (id.as_str() == DEFAULT_DOCUMENT_ID).then_some(document))
 }
 
 fn case_document_for_case<'a>(
-    input: &'a CycleReportInput,
-    test_case_id: &CaseId,
-    execution: Option<&TestExecution>,
+    input: &'a CycleReportInput, test_case_id: &CaseId, execution: Option<&TestExecution>,
 ) -> Option<&'a ReportCaseDocument> {
     input.case_documents.iter().find(|document| {
         &document.test_case_id == test_case_id
@@ -675,10 +587,7 @@ impl Serialize for Traceability<'_> {
             return serializer.serialize_unit();
         }
         let last = self.input.traceability.last();
-        let scope = last.map_or_else(
-            || empty_report_scope(self.input.into()),
-            |item| report_scope(self.input.into(), &item.scope),
-        );
+        let scope = last.map_or_else(|| empty_report_scope(self.input.into()), |item| report_scope(self.input.into(), &item.scope));
         let updated_at = last.map_or(&self.input.generated_at, |item| &item.created_at);
         let mut fields = serializer.serialize_map(Some(5))?;
         fields.serialize_entry("groups", &groups)?;
@@ -708,10 +617,7 @@ impl Serialize for ReportTitle<'_> {
 
 impl TraceabilityKey<'_> {
     fn bytes(&self) -> impl Iterator<Item = u8> + '_ {
-        self.identifier
-            .bytes()
-            .chain(std::iter::once(b':'))
-            .chain(self.label.bytes())
+        self.identifier.bytes().chain(std::iter::once(b':')).chain(self.label.bytes())
     }
 }
 
@@ -793,51 +699,32 @@ impl Serialize for TraceabilitySources<'_, '_> {
     }
 }
 
-fn traceability_groups<'a>(
-    input: &'a CycleReportInput,
-    scope: Option<&RecordScope>,
-) -> TraceabilityGroups<'a> {
+fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordScope>) -> TraceabilityGroups<'a> {
     // Rank Separates Derived Groups From Equally Titled Authored Sections.
     let mut groups = BTreeMap::<(TraceabilityGroupRank, &str), TraceabilityGroup<'a>>::new();
     for item in &input.traceability {
-        if scope
-            .and_then(|scope| scope.test_execution_id.as_ref())
-            .is_some()
-            && item.scope.test_execution_id.is_none()
-        {
+        if scope.and_then(|scope| scope.test_execution_id.as_ref()).is_some() && item.scope.test_execution_id.is_none() {
             continue;
         }
         if scope.is_some_and(|scope| !dokime_domain::model::execution::scope_visible_in(Some(&item.scope), scope)) {
             continue;
         }
         let rank = traceability_group_rank(item);
-        for entry in item
-            .entries
-            .iter()
-            .filter(|entry| entry.source.as_deref() != Some("traceability.environment"))
-        {
+        for entry in item.entries.iter().filter(|entry| entry.source.as_deref() != Some("traceability.environment")) {
             let entries = std::slice::from_ref(&entry);
             let title = traceability_group_title(item, entries);
-            let group = groups
-                .entry((rank, title))
-                .or_insert_with(|| TraceabilityGroup {
-                    group_id: TraceabilityKey {
-                        identifier: item.traceability_id.as_str(),
-                        label: title,
-                    },
-                    title,
-                    sources: BTreeSet::new(),
-                    items: BTreeMap::new(),
-                    updated_at: &item.created_at,
-                });
+            let group = groups.entry((rank, title)).or_insert_with(|| TraceabilityGroup {
+                group_id: TraceabilityKey { identifier: item.traceability_id.as_str(), label: title },
+                title,
+                sources: BTreeSet::new(),
+                items: BTreeMap::new(),
+                updated_at: &item.created_at,
+            });
             if let Some(source) = entry.source.as_deref() {
                 group.sources.insert(source);
             }
             group.updated_at = &item.created_at;
-            let key = TraceabilityKey {
-                identifier: entry.metadata.identifier.as_str(),
-                label: &entry.metadata.label,
-            };
+            let key = TraceabilityKey { identifier: entry.metadata.identifier.as_str(), label: &entry.metadata.label };
             group.items.insert(
                 key,
                 TraceabilityItem {
@@ -845,10 +732,7 @@ fn traceability_groups<'a>(
                     value: ReportValue(&entry.value),
                     unit: entry.unit.as_deref(),
                     level: "info",
-                    details: TraceabilityDetails {
-                        source: entry.source.as_deref(),
-                        identifier: entry.metadata.identifier.as_str(),
-                    },
+                    details: TraceabilityDetails { source: entry.source.as_deref(), identifier: entry.metadata.identifier.as_str() },
                     scope: report_scope(input.into(), &item.scope),
                 },
             );
@@ -868,10 +752,7 @@ fn empty_report_scope(input: Header<'_>) -> ReportScope<'_> {
     }
 }
 
-fn traceability_group_title<'a>(
-    item: &'a TraceabilitySnapshot,
-    entries: &[&TraceabilityEntry],
-) -> &'a str {
+fn traceability_group_title<'a>(item: &'a TraceabilitySnapshot, entries: &[&TraceabilityEntry]) -> &'a str {
     if let Some(metadata) = &item.metadata {
         return &metadata.label;
     }
@@ -885,19 +766,12 @@ fn traceability_group_rank(item: &TraceabilitySnapshot) -> TraceabilityGroupRank
     }
 }
 
-fn derived_group_title(
-    item: &TraceabilitySnapshot,
-    entries: &[&TraceabilityEntry],
-) -> &'static str {
+fn derived_group_title(item: &TraceabilitySnapshot, entries: &[&TraceabilityEntry]) -> &'static str {
     // Host-owned groups are titled from their provenance rather than the
     // words in their rows. A row
     // whose label is rewritten stays in the group it was filed under. Everything
     // below is the older ladder, which still names the one-per-resource groups.
-    if let Some(group) = entries
-        .iter()
-        .filter_map(|entry| entry.source.as_deref())
-        .find_map(derived_traceability_group)
-    {
+    if let Some(group) = entries.iter().filter_map(|entry| entry.source.as_deref()).find_map(derived_traceability_group) {
         return group.label;
     }
 
@@ -905,13 +779,9 @@ fn derived_group_title(
     // Unicode Lowercase Expansions Are Matched Without Copying The Input.
     let contains = |needle: &str| {
         entries.iter().any(|entry| {
-            [
-                entry.metadata.identifier.as_str(),
-                entry.metadata.label.as_str(),
-                entry.source.as_deref().unwrap_or_default(),
-            ]
-            .into_iter()
-            .any(|text| lowercase_contains(text, needle))
+            [entry.metadata.identifier.as_str(), entry.metadata.label.as_str(), entry.source.as_deref().unwrap_or_default()]
+                .into_iter()
+                .any(|text| lowercase_contains(text, needle))
         })
     };
 
@@ -959,16 +829,8 @@ fn lowercase_contains(text: &str, needle: &str) -> bool {
     needle.is_empty()
 }
 
-fn latest_execution_for_case<'a>(
-    input: &'a CycleReportInput,
-    test_case_id: &CaseId,
-) -> Option<&'a TestExecution> {
-    input
-        .cycle
-        .test_executions
-        .iter()
-        .rev()
-        .find(|execution| &execution.test_case_id == test_case_id)
+fn latest_execution_for_case<'a>(input: &'a CycleReportInput, test_case_id: &CaseId) -> Option<&'a TestExecution> {
+    input.cycle.test_executions.iter().rev().find(|execution| &execution.test_case_id == test_case_id)
 }
 
 fn execution_status(status: &ExecutionStatus) -> &'static str {
@@ -1040,7 +902,9 @@ fn cycle_status(input: Header<'_>) -> &'static str {
         | dokime_domain::model::execution::result::CycleStatus::Paused
         | dokime_domain::model::execution::result::CycleStatus::Stopping => "running",
         dokime_domain::model::execution::result::CycleStatus::Completed => "completed",
-        dokime_domain::model::execution::result::CycleStatus::Failed | dokime_domain::model::execution::result::CycleStatus::Blocked => "failed",
+        dokime_domain::model::execution::result::CycleStatus::Failed | dokime_domain::model::execution::result::CycleStatus::Blocked => {
+            "failed"
+        }
         dokime_domain::model::execution::result::CycleStatus::Stopped => "stopped",
         _ => "planned",
     }

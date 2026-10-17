@@ -20,17 +20,15 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::telemetry::{validation_mode, validation_mode_code, value_type, value_type_code};
+use crate::records::{RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordSeverity, RecordTone};
+use crate::storage::objects::presentation as native;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::identity::SuiteId;
 use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
-use crate::records::{
-    RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordSeverity, RecordTone,
-};
-use crate::storage::objects::presentation as native;
 
 /* === Constants === */
 
@@ -95,10 +93,7 @@ impl TryFrom<&Declarations> for Contracts {
             for contract in versions.values() {
                 contracts.push(contract.try_into()?);
             }
-            types.push(Type {
-                key: text(key.as_str())?,
-                versions: contracts,
-            });
+            types.push(Type { key: text(key.as_str())?, versions: contracts });
         }
         Ok(Self { types })
     }
@@ -131,16 +126,8 @@ impl TryFrom<&RecordContract> for Contract {
             record_type: text(value.record_type.as_str())?,
             schema_version: value.schema_version,
             metadata: Some((&value.metadata).try_into()?),
-            template_id: value
-                .template_id
-                .as_ref()
-                .map(|id| text(id.as_str()))
-                .transpose()?,
-            owner: value
-                .owner
-                .as_ref()
-                .map(|id| text(id.as_str()))
-                .transpose()?,
+            template_id: value.template_id.as_ref().map(|id| text(id.as_str())).transpose()?,
+            owner: value.owner.as_ref().map(|id| text(id.as_str())).transpose()?,
             default_severity: severity_code(&value.default_severity),
             icon: icon_code(&value.display.icon),
             tone: tone_code(&value.display.tone),
@@ -158,28 +145,13 @@ impl TryFrom<Contract> for RecordContract {
             fields.push(field.try_into()?);
         }
         Ok(Self {
-            record_type: Identifier::new(value.record_type)
-                .map_err(crate::storage::Error::from)?,
+            record_type: Identifier::new(value.record_type).map_err(crate::storage::Error::from)?,
             schema_version: value.schema_version,
-            metadata: value
-                .metadata
-                .ok_or_else(|| invalid("record declaration metadata is missing"))?
-                .try_into()?,
-            template_id: value
-                .template_id
-                .map(TemplateId::from_uuid)
-                .transpose()
-                .map_err(crate::storage::Error::from)?,
-            owner: value
-                .owner
-                .map(SuiteId::from_uuid)
-                .transpose()
-                .map_err(crate::storage::Error::from)?,
+            metadata: value.metadata.ok_or_else(|| invalid("record declaration metadata is missing"))?.try_into()?,
+            template_id: value.template_id.map(TemplateId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
+            owner: value.owner.map(SuiteId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             default_severity: severity(value.default_severity)?,
-            display: RecordDisplay {
-                icon: icon(value.icon)?,
-                tone: tone(value.tone)?,
-            },
+            display: RecordDisplay { icon: icon(value.icon)?, tone: tone(value.tone)? },
             fields,
             validation_mode: value.validation_mode.map(validation_mode).transpose()?,
             allow_extra_fields: value.allow_extra_fields,
@@ -199,22 +171,10 @@ impl TryFrom<&RecordField> for Field {
             value_type: value_type_code(&value.value_type),
             required: value.required,
             nullable: value.nullable,
-            unit: value
-                .unit
-                .as_ref()
-                .map(native::MeasurementUnit::try_from)
-                .transpose()?,
+            unit: value.unit.as_ref().map(native::MeasurementUnit::try_from).transpose()?,
             choices,
-            default: value
-                .default
-                .as_ref()
-                .map(native::Value::try_from)
-                .transpose()?,
-            format: value
-                .format
-                .as_ref()
-                .map(native::ValueFormat::try_from)
-                .transpose()?,
+            default: value.default.as_ref().map(native::Value::try_from).transpose()?,
+            format: value.format.as_ref().map(native::ValueFormat::try_from).transpose()?,
         })
     }
 }
@@ -226,10 +186,7 @@ impl TryFrom<Field> for RecordField {
             choices.push(choice.try_into()?);
         }
         Ok(Self {
-            metadata: value
-                .metadata
-                .ok_or_else(|| invalid("record field metadata is missing"))?
-                .try_into()?,
+            metadata: value.metadata.ok_or_else(|| invalid("record field metadata is missing"))?.try_into()?,
             value_type: value_type(value.value_type)?,
             required: value.required,
             nullable: value.nullable,
@@ -250,9 +207,7 @@ fn invalid(message: &str) -> Error {
 }
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("record declaration allocation failed"))?;
+    values.try_reserve_exact(count).map_err(|_| invalid("record declaration allocation failed"))?;
     if values.capacity() > count {
         return Err(invalid("record declaration slots exceed admission"));
     }
@@ -260,9 +215,7 @@ fn slots<T>(count: usize) -> Result<Vec<T>> {
 }
 fn text(source: &str) -> Result<String> {
     let mut value = String::new();
-    value
-        .try_reserve_exact(source.len())
-        .map_err(|_| invalid("record declaration text allocation failed"))?;
+    value.try_reserve_exact(source.len()).map_err(|_| invalid("record declaration text allocation failed"))?;
     if value.capacity() > source.len() {
         return Err(invalid("record declaration text exceeds admission"));
     }

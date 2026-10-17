@@ -43,24 +43,15 @@ pub(crate) struct Args {
     description: Option<String>,
     #[arg(long)]
     continue_on_failure: bool,
-    #[arg(
-        long = "case-id",
-        help = "Registered Case ID To Append After Creation; Repeat To Preserve Order."
-    )]
+    #[arg(long = "case-id", help = "Registered Case ID To Append After Creation; Repeat To Preserve Order.")]
     case_ids: Vec<String>,
     #[command(flatten)]
     connection: crate::connection::Args,
-    #[arg(
-        long,
-        help = "Submit The Created Cycle Once Using This Caller-Retained Key."
-    )]
+    #[arg(long, help = "Submit The Created Cycle Once Using This Caller-Retained Key.")]
     request_key: Option<String>,
     #[arg(long, requires = "request_key", value_parser = clap::value_parser!(u64).range(1..=86400), help = "Wait For A Terminal Receipt After Submission.")]
     wait_seconds: Option<u64>,
-    #[arg(
-        long,
-        help = "Emit Creation, Admission, And Optional Receipt As JSON Lines."
-    )]
+    #[arg(long, help = "Emit Creation, Admission, And Optional Receipt As JSON Lines.")]
     json: bool,
 }
 
@@ -75,15 +66,12 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let request = match args.input_file {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            serde_json::from_slice::<CreateCycle>(&bytes)
-                .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
+            serde_json::from_slice::<CreateCycle>(&bytes).map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
         None => CreateCycle {
             metadata: Some(Metadata {
                 identifier: args.identifier.unwrap_or_default(),
-                label: args
-                    .label
-                    .ok_or_else(|| crate::Error::Input("label is required".into()))?,
+                label: args.label.ok_or_else(|| crate::Error::Input("label is required".into()))?,
                 description: args.description,
                 tags: Vec::new(),
                 attributes: Vec::new(),
@@ -97,35 +85,22 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     if let Some(metadata) = &request.metadata
         && !metadata.identifier.is_empty()
     {
-        Identifier::new(metadata.identifier.clone())
-            .map_err(|error| crate::Error::Input(error.to_string()))?;
+        Identifier::new(metadata.identifier.clone()).map_err(|error| crate::Error::Input(error.to_string()))?;
     }
     for id in &args.case_ids {
-        dokime_domain::model::identity::CaseId::from_wire(id)
-            .map_err(|error| crate::Error::Input(error.to_string()))?;
+        dokime_domain::model::identity::CaseId::from_wire(id).map_err(|error| crate::Error::Input(error.to_string()))?;
     }
     if let Some(key) = &args.request_key {
-        dokime_domain::model::execution::command::validate_idempotency_key(key)
-            .map_err(|error| crate::Error::Input(error.to_string()))?;
+        dokime_domain::model::execution::command::validate_idempotency_key(key).map_err(|error| crate::Error::Input(error.to_string()))?;
     }
     let client = args.connection.connect().await?;
     let result = async {
         let cycle = client.create_cycle(request).await?;
         // Expose Recovery Identity Before Starting Work.
-        created(
-            &mut std::io::stdout(),
-            cycle.id().as_str(),
-            args.request_key.as_deref(),
-            args.json,
-        )?;
+        created(&mut std::io::stdout(), cycle.id().as_str(), args.request_key.as_deref(), args.json)?;
         if !args.case_ids.is_empty() {
             cycle
-                .append_cases(SelectionPlan {
-                    selections: Vec::new(),
-                    max_cases: 0,
-                    case_ids: args.case_ids,
-                    cycle_id: String::new(),
-                })
+                .append_cases(SelectionPlan { selections: Vec::new(), max_cases: 0, case_ids: args.case_ids, cycle_id: String::new() })
                 .await?;
         }
         if let Some(key) = args.request_key {
@@ -141,23 +116,14 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                         })
                     )?;
                 } else {
-                    writeln!(
-                        output,
-                        "Admitted Request {} For Cycle {}",
-                        admission.command_id,
-                        cycle.id()
-                    )?;
+                    writeln!(output, "Admitted Request {} For Cycle {}", admission.command_id, cycle.id())?;
                 }
                 output.flush()?;
             }
             if let Some(seconds) = args.wait_seconds {
-                let id =
-                    dokime_domain::model::identity::CommandId::from_uuid(&admission.command_id)
-                        .map_err(|error| crate::Error::Setup(error.to_string()))?;
-                let receipt = cycle
-                    .request(id)
-                    .wait(Some(Duration::from_secs(seconds)), None)
-                    .await?;
+                let id = dokime_domain::model::identity::CommandId::from_uuid(&admission.command_id)
+                    .map_err(|error| crate::Error::Setup(error.to_string()))?;
+                let receipt = cycle.request(id).wait(Some(Duration::from_secs(seconds)), None).await?;
                 super::request::print(&receipt, args.json)?;
             }
         }
@@ -169,12 +135,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
-fn created(
-    output: &mut impl Write,
-    cycle: &str,
-    key: Option<&str>,
-    json: bool,
-) -> crate::Result<()> {
+fn created(output: &mut impl Write, cycle: &str, key: Option<&str>, json: bool) -> crate::Result<()> {
     if json {
         let mut value = serde_json::json!({"cycle_id": cycle});
         if let Some(key) = key {

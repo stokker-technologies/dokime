@@ -21,19 +21,18 @@ use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use {
-    dokime_runtime::execution::Caller,
-    dokime_runtime::execution::ExecutionHost,
-    dokime_runtime::execution::Runnable,
-    dokime_runtime::execution::SampleOutput,
-    dokime_domain::model::execution::result::StepAttemptStart,
-    dokime_domain::model::execution::termination::TerminationReason,
-    dokime_domain::model::execution::result::TestStepAttempt,
-};
 use dokime_runtime::execution::log::{Entry, Level};
-use dokime_runtime::transport::{EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply, TransportFuture};
-use dokime_runtime::{InstalledPlugin, Refusal};
 use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::transport::{
+    EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
+    TransportFuture,
+};
+use dokime_runtime::{InstalledPlugin, Refusal};
+use {
+    dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
+    dokime_domain::model::execution::termination::TerminationReason, dokime_runtime::execution::Caller,
+    dokime_runtime::execution::ExecutionHost, dokime_runtime::execution::Runnable, dokime_runtime::execution::SampleOutput,
+};
 
 /* === Constants === */
 const SOURCE: &str = "fixture.sessions";
@@ -84,9 +83,13 @@ impl Probe {
 }
 
 impl Runnable for Probe {
-    fn template_identifier(&self) -> &str { TEMPLATE }
+    fn template_identifier(&self) -> &str {
+        TEMPLATE
+    }
 
-    fn run(&self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
+    fn run(
+        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller,
+    ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         Box::pin(async move {
             *self.token.lock().unwrap() = request.execution_token;
             let start = StepAttemptStart {
@@ -99,7 +102,9 @@ impl Runnable for Probe {
                 phase: PHASE.into(),
                 step_begins: vec![serde_json::to_string(&start).unwrap()],
                 ..Default::default()
-            }).await.map_err(Refusal::of)?;
+            })
+            .await
+            .map_err(Refusal::of)?;
             self.entered.notify_one();
             if self.mode == Settlement::Failure {
                 self.released.subscribe().wait_for(|released| *released).await.unwrap();
@@ -127,8 +132,12 @@ impl Runnable for Probe {
                 diagnostics: if refused { Vec::new() } else { cancellation_log() },
                 cleanup_settled: !refused,
                 ..Default::default()
-            }).await.map_err(Refusal::of)?;
-            if refused { return Err(Refusal::of("run refused during cancellation")); }
+            })
+            .await
+            .map_err(Refusal::of)?;
+            if refused {
+                return Err(Refusal::of("run refused during cancellation"));
+            }
             Ok(SidecarExecutionOutcome {
                 passed: false,
                 message: Some("cancelled".into()),
@@ -160,9 +169,17 @@ impl Runnable for Probe {
         })
     }
 
-    fn take_local_samples(&self, _: &str) -> Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> { Ok(Vec::new()) }
-    fn interrupt(&self) { self.cancellation.send_replace(true); self.released.send_replace(true); }
-    fn shutdown(&self) -> TransportFuture<'_, ()> { self.interrupt(); Box::pin(async {}) }
+    fn take_local_samples(&self, _: &str) -> Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> {
+        Ok(Vec::new())
+    }
+    fn interrupt(&self) {
+        self.cancellation.send_replace(true);
+        self.released.send_replace(true);
+    }
+    fn shutdown(&self) -> TransportFuture<'_, ()> {
+        self.interrupt();
+        Box::pin(async {})
+    }
 }
 
 #[async_trait]
@@ -184,9 +201,16 @@ impl EmbeddedProvider for Provider {
             ..Default::default()
         }
     }
-    fn streams(&self) -> Vec<StreamDeclaration> { Vec::new() }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> { Ok(vec![self.0.clone()]) }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> { self.0.interrupt(); Ok(()) }
+    fn streams(&self) -> Vec<StreamDeclaration> {
+        Vec::new()
+    }
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
+        Ok(vec![self.0.clone()])
+    }
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+        self.0.interrupt();
+        Ok(())
+    }
 }
 
 /* === Public Functions === */
@@ -205,13 +229,15 @@ fn cancellation_log() -> Vec<Entry> {
 }
 
 fn without_timestamps(log: &str) -> String {
-    log.lines().map(|line| {
-        let (timestamp, message) = line.split_once(' ').unwrap();
-        assert_eq!(timestamp.len(), 24);
-        assert!(timestamp.ends_with('Z'));
-        assert!(Timestamp::new(timestamp).unix_millis().is_some());
-        format!("{message}\n")
-    }).collect()
+    log.lines()
+        .map(|line| {
+            let (timestamp, message) = line.split_once(' ').unwrap();
+            assert_eq!(timestamp.len(), 24);
+            assert!(timestamp.ends_with('Z'));
+            assert!(Timestamp::new(timestamp).unix_millis().is_some());
+            format!("{message}\n")
+        })
+        .collect()
 }
 
 /* === Tests === */
@@ -235,7 +261,11 @@ async fn cancellation_preserves_verdict_and_log() {
         };
         probe.cancelled.notified().await;
         if mode == Settlement::Deferred {
-            assert_ne!(cycle_snapshot(&handle, &cycle_id).await.lifecycle, CycleStatus::Stopped, "the cycle waits for the provider's outcome");
+            assert_ne!(
+                cycle_snapshot(&handle, &cycle_id).await.lifecycle,
+                CycleStatus::Stopped,
+                "the cycle waits for the provider's outcome"
+            );
             probe.released.send_replace(true);
         }
         stopped.await.unwrap();
@@ -251,13 +281,17 @@ async fn cancellation_preserves_verdict_and_log() {
         }
         let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
         let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
-        let content = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+        let content =
+            handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
         let log = without_timestamps(&String::from_utf8(content.bytes).unwrap());
         if mode == Settlement::Refused {
             assert!(log.starts_with("[ERROR] "), "{log}");
             assert!(log.contains("run refused during cancellation"), "{log}");
         } else {
-            assert_eq!(log, "[TRACE] trace detail\n[DEBUG] debug detail\n[INFO] fixture cancellation settled\n[WARN] warning\n[WARN] continued\n[ERROR] error detail\n[INFO] \n[UNKNOWN(99)] unknown detail\n");
+            assert_eq!(
+                log,
+                "[TRACE] trace detail\n[DEBUG] debug detail\n[INFO] fixture cancellation settled\n[WARN] warning\n[WARN] continued\n[ERROR] error detail\n[INFO] \n[UNKNOWN(99)] unknown detail\n"
+            );
         }
         drop(handle);
         owner.shutdown().await.unwrap();
@@ -321,9 +355,8 @@ async fn ignored_stop(mode: Settlement) {
 async fn provider_failure_closes_stream_lease() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Failure));
-    let configuration = config(root.path())
-        .with_installed_plugins([dokime_host::installed_plugin()])
-        .register(Arc::new(Provider(probe.clone())));
+    let configuration =
+        config(root.path()).with_installed_plugins([dokime_host::installed_plugin()]).register(Arc::new(Provider(probe.clone())));
     let (mut owner, handle) = started(configuration).await;
     handle.bind_host_telemetry_source(dokime_host::host_telemetry_collector(
         dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture),
@@ -347,7 +380,15 @@ async fn provider_failure_closes_stream_lease() {
     let released = handle.stream_leases_for(&scope).await;
     assert_eq!(released.len(), 1);
     assert!(released[0].closed_at.is_some());
-    assert!(handle.watch_state().latest().state().installed_plugin_errors.iter().any(|error| error.code.as_deref() == Some("provider_execution_run")));
+    assert!(
+        handle
+            .watch_state()
+            .latest()
+            .state()
+            .installed_plugin_errors
+            .iter()
+            .any(|error| error.code.as_deref() == Some("provider_execution_run"))
+    );
     drop(handle);
     owner.shutdown().await.unwrap();
 }

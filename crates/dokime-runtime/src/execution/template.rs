@@ -20,15 +20,12 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
-use crate::execution::{
-    CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext,
-    TraceabilityContext,
-};
+use crate::execution::{CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext, TraceabilityContext};
 use crate::parameters::FromParameters;
 use crate::plugin::Diagnostic;
 use dokime_domain::model::traceability::TraceabilitySection;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -47,14 +44,11 @@ pub type SamplePublisher = for<'a> fn(
 
 pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + 'a>>;
 
-pub type InitializationFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
+pub type InitializationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
 
-pub type TraceabilityFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<Vec<TraceabilitySection>, Diagnostic>> + Send + 'a>>;
+pub type TraceabilityFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<TraceabilitySection>, Diagnostic>> + Send + 'a>>;
 
-pub type EvaluationFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<Option<T>, Diagnostic>> + Send + 'a>>;
+pub type EvaluationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<Option<T>, Diagnostic>> + Send + 'a>>;
 
 /* === Structs === */
 #[derive(Clone)]
@@ -98,9 +92,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
 
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>] = &[
         harmos::catalog::Node::Leaf(harmos::operations::WireDeclaration::of::<super::Run<Self>>()),
-        harmos::catalog::Node::Leaf(
-            harmos::operations::WireDeclaration::of::<super::Signal<Self>>(),
-        ),
+        harmos::catalog::Node::Leaf(harmos::operations::WireDeclaration::of::<super::Signal<Self>>()),
     ];
 
     type Own: Send + Sync + 'static;
@@ -113,10 +105,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
         ctx: &'a mut InitializationContext<'_, Self, Self::Own, Self::Parameters>,
     ) -> InitializationFuture<'a, (Self, Self::Own)>;
 
-    fn traceability<'a>(
-        &'a self,
-        _ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> TraceabilityFuture<'a> {
+    fn traceability<'a>(&'a self, _ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>) -> TraceabilityFuture<'a> {
         Box::pin(async { Ok(Vec::new()) })
     }
 
@@ -124,47 +113,28 @@ pub trait SidecarTemplate: Send + Sized + 'static {
         Vec::new()
     }
 
-    fn observe<'a>(
-        _observer: &'a str,
-        _ctx: &'a mut ObserverContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a> {
+    fn observe<'a>(_observer: &'a str, _ctx: &'a mut ObserverContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a> {
         Box::pin(async { Ok(()) })
     }
 
     fn publish_sample<'a, P: harmos::plugin::Declared>(
-        _host: &'a harmos::sidecar::Supervisor,
-        _token: &'a str,
-        stream: &'a dokime_domain::model::identity::Identifier,
+        _host: &'a harmos::sidecar::Supervisor, _token: &'a str, stream: &'a dokime_domain::model::identity::Identifier,
         _rows: &'a [StampedRow],
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
-        Box::pin(async move {
-            Err(format!(
-                "template has no native publisher for stream {stream}"
-            ))
-        })
+        Box::pin(async move { Err(format!("template has no native publisher for stream {stream}")) })
     }
 
     fn cancellation_is_completion(_parameters: &BTreeMap<String, Value>) -> bool {
         false
     }
 
-    fn run_step<'a>(
-        &'a mut self,
-        step: &'a str,
-        ctx: &'a mut StepContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a>;
+    fn run_step<'a>(&'a mut self, step: &'a str, ctx: &'a mut StepContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a>;
 
-    fn cleanup<'a>(
-        &'a mut self,
-        _ctx: &'a mut CleanupContext<'_, Self, Self::Own, Self::Parameters>,
-    ) -> StepFuture<'a> {
+    fn cleanup<'a>(&'a mut self, _ctx: &'a mut CleanupContext<'_, Self, Self::Own, Self::Parameters>) -> StepFuture<'a> {
         Box::pin(async { Ok(()) })
     }
 
-    fn evaluate<'a>(
-        criterion: &'a str,
-        ctx: &'a CriterionContext<'_, Self, Self::Parameters>,
-    ) -> EvaluationFuture<'a, bool>;
+    fn evaluate<'a>(criterion: &'a str, ctx: &'a CriterionContext<'_, Self, Self::Parameters>) -> EvaluationFuture<'a, bool>;
 }
 
 /* === Implementations === */
@@ -180,11 +150,7 @@ impl DeclaredObserver {
     }
 
     #[must_use]
-    pub fn publishing(
-        mut self,
-        streams: Vec<crate::telemetry::TelemetryContract>,
-        records: Vec<crate::records::RecordContract>,
-    ) -> Self {
+    pub fn publishing(mut self, streams: Vec<crate::telemetry::TelemetryContract>, records: Vec<crate::records::RecordContract>) -> Self {
         self.streams = streams;
         self.records = records;
 

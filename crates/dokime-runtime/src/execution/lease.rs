@@ -18,8 +18,8 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::telemetry::{Streams, TelemetryStream};
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -52,14 +52,7 @@ pub trait LeaseRelease: Send + Sync {
 /* === Implementations === */
 impl<'a, R> Lease<'a, R> {
     pub fn new(stream: Identifier, hold: LeaseHold, streams: Streams) -> Self {
-        Self {
-            stream,
-            lease_token: hold.lease_token,
-            release: hold.release,
-            streams,
-            row: PhantomData,
-            borrowed: PhantomData,
-        }
+        Self { stream, lease_token: hold.lease_token, release: hold.release, streams, row: PhantomData, borrowed: PhantomData }
     }
 
     pub fn stream(&self) -> &Identifier {

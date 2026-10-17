@@ -26,18 +26,8 @@ use crate::arguments::Arguments;
 /* === Constants === */
 const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel", "level"];
 
-const FIELD_ARGUMENTS: &[&str] = &[
-    "label",
-    "description",
-    "default",
-    "min",
-    "max",
-    "min_length",
-    "max_length",
-    "pattern",
-    "min_items",
-    "max_items",
-];
+const FIELD_ARGUMENTS: &[&str] =
+    &["label", "description", "default", "min", "max", "min_length", "max_length", "pattern", "min_items", "max_items"];
 
 /* === Macros === */
 
@@ -98,22 +88,14 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     let sdk = crate::facade::root();
     let input: DeriveInput = syn::parse2(item.clone())?;
     let arguments = Arguments::read(attribute, "a prompt", ARGUMENTS)?;
-    let identifier = arguments
-        .required(
-            "id",
-            "a prompt declares the id the host matches an asking against",
-        )?
-        .clone();
-    let label = arguments
-        .required("label", "an operator reads the question by its label")?
-        .clone();
-    let description = crate::arguments::description(arguments.value("description"), &input.attrs)
-        .map(|text| {
-            quote!(
-                declared.message =
-                    ::core::option::Option::Some(::std::string::String::from(#text));
-            )
-        });
+    let identifier = arguments.required("id", "a prompt declares the id the host matches an asking against")?.clone();
+    let label = arguments.required("label", "an operator reads the question by its label")?.clone();
+    let description = crate::arguments::description(arguments.value("description"), &input.attrs).map(|text| {
+        quote!(
+            declared.message =
+                ::core::option::Option::Some(::std::string::String::from(#text));
+        )
+    });
     let level = arguments
         .value("level")
         .map(|written| crate::record::declared_severity(written, "a prompt is asked"))
@@ -137,10 +119,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     if matches!(structure.fields, Fields::Unit) {
         for relabel in ["submit", "cancel"] {
             if let Some(written) = arguments.value(relabel) {
-                return Err(Error::new(
-                    written.span(),
-                    "a confirmation answers yes or no; `submit` and `cancel` label a form's actions",
-                ));
+                return Err(Error::new(written.span(), "a confirmation answers yes or no; `submit` and `cancel` label a form's actions"));
             }
         }
 
@@ -183,12 +162,8 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     // === A Form === //
 
     let fields = declarations(structure)?;
-    let submit = arguments
-        .value("submit")
-        .map(|label| quote!(declared.actions[0].label = ::std::string::String::from(#label);));
-    let cancel = arguments
-        .value("cancel")
-        .map(|label| quote!(declared.actions[1].label = ::std::string::String::from(#label);));
+    let submit = arguments.value("submit").map(|label| quote!(declared.actions[0].label = ::std::string::String::from(#label);));
+    let cancel = arguments.value("cancel").map(|label| quote!(declared.actions[1].label = ::std::string::String::from(#label);));
     let declared_fields = fields.iter().map(declaration);
     let reads = fields.iter().map(read);
     let instance = instance(&input, &fields);
@@ -272,15 +247,10 @@ fn defaults(input: &DeriveInput, fields: &[FieldDeclaration]) -> TokenStream {
     let (generics, types, predicates) = input.generics.split_for_impl();
     let values = fields.iter().map(|field| {
         let name = &field.name;
-        let value = field
-            .written
-            .default
-            .as_ref()
-            .expect("all defaults were checked");
+        let value = field.written.default.as_ref().expect("all defaults were checked");
         quote!(#name: ::core::convert::Into::into(#value))
     });
-    let value = if matches!(&input.data, Data::Struct(data) if matches!(data.fields, Fields::Unit))
-    {
+    let value = if matches!(&input.data, Data::Struct(data) if matches!(data.fields, Fields::Unit)) {
         quote!(Self)
     } else {
         quote!(Self { #(#values),* })
@@ -295,27 +265,17 @@ fn defaults(input: &DeriveInput, fields: &[FieldDeclaration]) -> TokenStream {
 }
 
 fn declarations(structure: &syn::DataStruct) -> Result<Vec<FieldDeclaration>, Error> {
-    let named = crate::arguments::named_fields(
-        &structure.fields,
-        "a form names its fields: a field's name is its id in the operator's answer",
-    )?;
+    let named =
+        crate::arguments::named_fields(&structure.fields, "a form names its fields: a field's name is its id in the operator's answer")?;
     named
         .named
         .iter()
         .map(|field| {
-            let name = field
-                .ident
-                .clone()
-                .expect("a named field carries an identifier");
+            let name = field.ident.clone().expect("a named field carries an identifier");
             let written = arguments(field)?;
             let (shape, leaf) = shape(&field.ty);
-            if shape != Shape::Multiple
-                && (written.min_items.is_some() || written.max_items.is_some())
-            {
-                return Err(Error::new(
-                    name.span(),
-                    "min_items and max_items bound a multiple choice: declare the field as `Vec<T>`",
-                ));
+            if shape != Shape::Multiple && (written.min_items.is_some() || written.max_items.is_some()) {
+                return Err(Error::new(name.span(), "min_items and max_items bound a multiple choice: declare the field as `Vec<T>`"));
             }
             let identifier = LitStr::new(&name.unraw().to_string(), name.span());
             let label = written.label.clone().unwrap_or_else(|| {
@@ -331,10 +291,7 @@ fn declarations(structure: &syn::DataStruct) -> Result<Vec<FieldDeclaration>, Er
                 leaf,
                 shape,
                 label,
-                described: crate::arguments::description(
-                    written.description.as_ref(),
-                    &field.attrs,
-                ),
+                described: crate::arguments::description(written.description.as_ref(), &field.attrs),
                 written,
             })
         })
@@ -344,15 +301,7 @@ fn declarations(structure: &syn::DataStruct) -> Result<Vec<FieldDeclaration>, Er
 fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
     let mut written = FieldArguments::default();
 
-    for (name, value) in crate::arguments::field_arguments(
-        field,
-        "prompt",
-        "a prompt field argument",
-        FIELD_ARGUMENTS,
-        &[],
-    )?
-    .values()
-    {
+    for (name, value) in crate::arguments::field_arguments(field, "prompt", "a prompt field argument", FIELD_ARGUMENTS, &[])?.values() {
         match name.to_string().as_str() {
             "label" => written.label = Some(value.to_token_stream()),
             "description" => written.description = Some(value),
@@ -425,9 +374,7 @@ fn declaration(field: &FieldDeclaration) -> TokenStream {
     });
     let count = |name: &str, bound: &Option<Expr>| {
         let name = Ident::new(name, proc_macro2::Span::call_site());
-        bound.as_ref().map(|value| {
-            quote!(field.validation.#name = ::core::option::Option::Some((#value) as usize);)
-        })
+        bound.as_ref().map(|value| quote!(field.validation.#name = ::core::option::Option::Some((#value) as usize);))
     };
     let min_length = count("min_length", &field.written.min_length);
     let max_length = count("max_length", &field.written.max_length);

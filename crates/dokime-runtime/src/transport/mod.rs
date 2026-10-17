@@ -21,17 +21,14 @@ pub mod recording;
 
 /* === Re-Exports === */
 pub use protocol::{
-    ArtifactChunk, AskOperator, CommandExecutionReply, CommandExecutionRequest,
-    DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal,
-    LeaseAsk, LeaseResolution, LeaseStream, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES,
-    OperatorAnswer, OperatorQuestion, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND,
-    SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
-    StepAdmission,
+    ArtifactChunk, AskOperator, CommandExecutionReply, CommandExecutionRequest, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch,
+    EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, LeaseStream, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, OperatorAnswer,
+    OperatorQuestion, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus,
+    SidecarExecutionOutcome, SignalReply, StepAdmission,
 };
 pub use provider::{
-    ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe,
-    ProviderExecutionErrorDetail, ProviderExecutionFailure, ProviderExecutionOutcome,
-    ProviderPhaseOutcome, ProviderRecordOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
+    ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe, ProviderExecutionErrorDetail, ProviderExecutionFailure,
+    ProviderExecutionOutcome, ProviderPhaseOutcome, ProviderRecordOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
     ProviderTelemetryRow,
 };
 
@@ -42,11 +39,11 @@ use std::pin::Pin;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::execution::lease::LeaseHold;
 use crate::prompts::{PromptRequest, PromptResponse};
-use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{LeaseGap, LeaseRequest};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Constants === */
 
@@ -73,15 +70,9 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn progress(&self) -> std::sync::Arc<dyn crate::execution::ProgressSink>;
 
-    fn prompt<'a>(
-        &'a mut self,
-        request: PromptRequest,
-    ) -> TransportFuture<'a, crate::Result<PromptResponse>>;
+    fn prompt<'a>(&'a mut self, request: PromptRequest) -> TransportFuture<'a, crate::Result<PromptResponse>>;
 
-    fn lease<'a>(
-        &'a mut self,
-        request: LeaseRequest,
-    ) -> TransportFuture<'a, crate::Result<LeaseHold>>;
+    fn lease<'a>(&'a mut self, request: LeaseRequest) -> TransportFuture<'a, crate::Result<LeaseHold>>;
 
     fn gaps(&self) -> Vec<LeaseGap>;
 
@@ -96,9 +87,7 @@ pub trait ExecutionTransport: Send + Sync {
     fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase);
 
     fn begin_step<'a>(
-        &'a mut self,
-        step: Identifier,
-        start: dokime_domain::model::execution::result::StepAttemptStart,
+        &'a mut self, step: Identifier, start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> TransportFuture<'a, Result<(), crate::diagnostics::Diagnostic>>;
 
     fn finish_step(&mut self, attempt: dokime_domain::model::execution::result::TestStepAttempt);

@@ -23,15 +23,15 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 // Local Imports
 use super::{COPY_BYTES, NativeOutput, error, file_metadata, open_file};
+use crate::storage::Manager;
 use crate::{
     runtime::Result,
     runtime::storage::executions::{Acquisition, ExecutionStorage},
 };
-use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::execution::saved::SavedStreamState;
-use crate::storage::Manager;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -63,16 +63,9 @@ pub(crate) struct LiveOutput {
 // How A Follow Was Admitted, Decided Under The Original Owner's Lock.
 pub(crate) enum NativeAdmission {
     // Capture Settled First; Its Descriptor Alone Decides Finished Or Abandoned.
-    Captured {
-        reference: FileReference,
-        interrupted: bool,
-    },
+    Captured { reference: FileReference, interrupted: bool },
     // The Original Production Was Still Retained When The Follower Opened.
-    Live {
-        follower: FileFollower,
-        output: LiveOutput,
-        abandoned: bool,
-    },
+    Live { follower: FileFollower, output: LiveOutput, abandoned: bool },
 }
 
 // The Dokime-Owned State Of A Followed Production. A Sealed Harmos File Is
@@ -88,32 +81,20 @@ pub(crate) enum Settlement {
 /* === Implementations === */
 impl ExecutionStorage {
     pub(crate) async fn native_follower(
-        self: &Arc<Self>,
-        execution: &TestExecutionId,
-        path: &str,
-        offset: u64,
-        expected: Option<&StagedFile>,
+        self: &Arc<Self>, execution: &TestExecutionId, path: &str, offset: u64, expected: Option<&StagedFile>,
     ) -> Result<Option<NativeAdmission>> {
         // Retain Accepted Admission And Writes If The Selecting Viewer Cancels.
         let storage = self.clone();
         let execution = execution.clone();
         let path = path.to_owned();
         let expected = expected.cloned();
-        tokio::spawn(async move {
-            storage
-                .admit_native_follower(&execution, &path, offset, expected.as_ref())
-                .await
-        })
-        .await
-        .map_err(error)?
+        tokio::spawn(async move { storage.admit_native_follower(&execution, &path, offset, expected.as_ref()).await })
+            .await
+            .map_err(error)?
     }
 
     async fn admit_native_follower(
-        self: &Arc<Self>,
-        execution: &TestExecutionId,
-        path: &str,
-        offset: u64,
-        expected: Option<&StagedFile>,
+        self: &Arc<Self>, execution: &TestExecutionId, path: &str, offset: u64, expected: Option<&StagedFile>,
     ) -> Result<Option<NativeAdmission>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
@@ -124,32 +105,19 @@ impl ExecutionStorage {
         };
         // Decide Captured Or Live Under The Owner Lock That Capture Settles Under.
         if output.captured {
-            let descriptor = output
-                .descriptor
-                .as_ref()
-                .ok_or_else(|| error("captured output has no original descriptor"))?;
+            let descriptor = output.descriptor.as_ref().ok_or_else(|| error("captured output has no original descriptor"))?;
             let reference = descriptor.file.clone();
             let interrupted = descriptor.stream_state == Some(SavedStreamState::Interrupted);
-            return Ok(Some(NativeAdmission::Captured {
-                reference,
-                interrupted,
-            }));
+            return Ok(Some(NativeAdmission::Captured { reference, interrupted }));
         }
         if output.production.is_none() && expected.is_some() {
-            return Err(error(
-                "resume identity has no registered original production",
-            ));
+            return Err(error("resume identity has no registered original production"));
         }
         if output.production.is_none() {
             let metadata = file_metadata(execution, path, None, None)?;
             let producer = self.storage.produce_file(metadata).await?;
-            let session = producer
-                .session()
-                .ok_or_else(|| error("original production has no resumable session"))?;
-            let staged = StagedFile {
-                history: session.history.clone(),
-                id: session.id.clone(),
-            };
+            let session = producer.session().ok_or_else(|| error("original production has no resumable session"))?;
+            let staged = StagedFile { history: session.history.clone(), id: session.id.clone() };
             output.production = Some(Production {
                 staged,
                 producer,
@@ -161,34 +129,17 @@ impl ExecutionStorage {
                 failure: None,
             });
         }
-        if expected.is_some_and(|identity| {
-            output
-                .production
-                .as_ref()
-                .is_none_or(|production| &production.staged != identity)
-        }) {
-            return Err(error(
-                "resume identity differs from registered output production",
-            ));
+        if expected.is_some_and(|identity| output.production.as_ref().is_none_or(|production| &production.staged != identity)) {
+            return Err(error("resume identity differs from registered output production"));
         }
         // Admission Must Catch Up To The Requested Committed Offset Before Opening.
         loop {
             let stable = synchronize(&self.storage, output, false).await?;
-            let production = output
-                .production
-                .as_ref()
-                .expect("registered original production");
+            let production = output.production.as_ref().expect("registered original production");
             if production.length >= offset {
                 break;
             }
-            let visible = output.visible_length(
-                open_file(output)
-                    .await?
-                    .metadata()
-                    .await
-                    .map_err(error)?
-                    .len(),
-            )?;
+            let visible = output.visible_length(open_file(output).await?.metadata().await.map_err(error)?.len())?;
             if production.length >= visible {
                 return Err(error("resume offset exceeds retained output"));
             }
@@ -196,25 +147,13 @@ impl ExecutionStorage {
                 tokio::time::sleep(Duration::from_millis(250)).await;
             }
         }
-        let production = output
-            .production
-            .as_ref()
-            .expect("registered original production");
+        let production = output.production.as_ref().expect("registered original production");
         let identity = Arc::new(production.staged.clone());
         let follower = self.storage.follow_file(&production.staged, offset).await?;
         let abandoned = production.interrupted;
         let path = Arc::new(path.to_owned());
         drop(acquisition);
-        Ok(Some(NativeAdmission::Live {
-            follower,
-            output: LiveOutput {
-                owner,
-                storage: self.storage.clone(),
-                path,
-                identity,
-            },
-            abandoned,
-        }))
+        Ok(Some(NativeAdmission::Live { follower, output: LiveOutput { owner, storage: self.storage.clone(), path, identity }, abandoned }))
     }
 }
 
@@ -225,26 +164,15 @@ impl LiveOutput {
 
     pub(crate) async fn caught_up(&self) -> Result<bool> {
         let acquisition = self.owner.lock().await;
-        let output = acquisition
-            .native_outputs
-            .get(self.path.as_str())
-            .ok_or_else(|| error("followed output registration disappeared"))?;
-        let production = output
-            .production
-            .as_ref()
-            .ok_or_else(|| error("followed output was remapped"))?;
+        let output = acquisition.native_outputs.get(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+        let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
         if production.staged != *self.identity {
             return Err(error("followed output was replaced"));
         }
         if production.reference.is_some() {
             return Ok(true);
         }
-        let physical = open_file(output)
-            .await?
-            .metadata()
-            .await
-            .map_err(error)?
-            .len();
+        let physical = open_file(output).await?.metadata().await.map_err(error)?.len();
         Ok(production.length == output.visible_length(physical)?)
     }
 
@@ -256,14 +184,9 @@ impl LiveOutput {
         let storage = self.storage.clone();
         tokio::spawn(async move {
             let mut acquisition = owner.lock().await;
-            let output = acquisition
-                .native_outputs
-                .get_mut(path.as_str())
-                .ok_or_else(|| error("followed output registration disappeared"))?;
-            let production = output
-                .production
-                .as_ref()
-                .ok_or_else(|| error("followed output was remapped"))?;
+            let output =
+                acquisition.native_outputs.get_mut(path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+            let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
             if production.staged != *identity {
                 return Err(error("followed output was replaced"));
             }
@@ -276,14 +199,8 @@ impl LiveOutput {
     pub(crate) async fn settlement(&self) -> Result<Settlement> {
         // Read Abandonment And The Seal Together; Capture Sets Both Under This Lock.
         let acquisition = self.owner.lock().await;
-        let output = acquisition
-            .native_outputs
-            .get(self.path.as_str())
-            .ok_or_else(|| error("followed output registration disappeared"))?;
-        let production = output
-            .production
-            .as_ref()
-            .ok_or_else(|| error("followed output was remapped"))?;
+        let output = acquisition.native_outputs.get(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+        let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
         if production.staged != *self.identity {
             return Err(error("followed output was replaced"));
         }
@@ -298,31 +215,13 @@ impl LiveOutput {
 }
 
 /* === Public Functions === */
-pub(super) async fn capture(
-    storage: &Manager,
-    path: &str,
-    output: &mut NativeOutput,
-    state: Option<SavedStreamState>,
-) -> Result<()> {
+pub(super) async fn capture(storage: &Manager, path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
     let started = Instant::now();
-    let identity = output
-        .production
-        .as_ref()
-        .expect("registered original production");
+    let identity = output.production.as_ref().expect("registered original production");
     tracing::debug!(file_id = %identity.staged.id, retained_bytes = identity.length, "native follow capture started");
     loop {
-        let production = output
-            .production
-            .as_ref()
-            .expect("registered original production");
-        let visible = output.visible_length(
-            open_file(output)
-                .await?
-                .metadata()
-                .await
-                .map_err(error)?
-                .len(),
-        )?;
+        let production = output.production.as_ref().expect("registered original production");
+        let visible = output.visible_length(open_file(output).await?.metadata().await.map_err(error)?.len())?;
         let finalizing = production.length == visible;
         // Validate The Complete Prefix Once When The Original Producer Is Caught Up.
         if !synchronize(storage, output, finalizing).await? {
@@ -333,10 +232,7 @@ pub(super) async fn capture(
         }
     }
     seal(path, output, state).await?;
-    let production = output
-        .production
-        .as_ref()
-        .expect("registered original production");
+    let production = output.production.as_ref().expect("registered original production");
     tracing::debug!(file_id = %production.staged.id, retained_bytes = production.length,
         elapsed_ms = started.elapsed().as_millis() as u64, "native follow capture settled");
     Ok(())
@@ -347,26 +243,15 @@ pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<(
     seal(path, output, Some(SavedStreamState::Interrupted)).await
 }
 
-async fn seal(
-    path: &str,
-    output: &mut NativeOutput,
-    state: Option<SavedStreamState>,
-) -> Result<()> {
-    let production = output
-        .production
-        .as_mut()
-        .expect("registered original production");
+async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
+    let production = output.production.as_mut().expect("registered original production");
     let started = Instant::now();
     tracing::debug!(file_id = %production.staged.id, retained_bytes = production.length, "native follow seal started");
     let reference = production.producer.finish().await?;
     tracing::debug!(file_id = %production.staged.id, retained_bytes = reference.length,
         elapsed_ms = started.elapsed().as_millis() as u64, "native follow seal settled");
-    if reference.length != production.length
-        || reference.sha256 != <[u8; 32]>::from(production.hash.clone().finalize())
-    {
-        return Err(error(
-            "original sealed file differs from retained production",
-        ));
+    if reference.length != production.length || reference.sha256 != <[u8; 32]>::from(production.hash.clone().finalize()) {
+        return Err(error("original sealed file differs from retained production"));
     }
     let descriptor = ExecutionOutput {
         relative_path: path.to_owned(),
@@ -383,16 +268,8 @@ async fn seal(
 }
 
 /* === Private Functions === */
-async fn synchronize(
-    storage: &Manager,
-    output: &mut NativeOutput,
-    finalizing: bool,
-) -> Result<bool> {
-    if output
-        .production
-        .as_ref()
-        .is_some_and(|production| production.reference.is_some())
-    {
+async fn synchronize(storage: &Manager, output: &mut NativeOutput, finalizing: bool) -> Result<bool> {
+    if output.production.as_ref().is_some_and(|production| production.reference.is_some()) {
         return Ok(true);
     }
     let mut file = open_file(output).await?;
@@ -402,10 +279,7 @@ async fn synchronize(
         return Err(crate::runtime::Error::ExecutionFileTooLarge);
     }
     let stamp = (before.len(), before.modified().map_err(error)?);
-    let production = output
-        .production
-        .as_mut()
-        .ok_or_else(|| error("output has no original production"))?;
+    let production = output.production.as_mut().ok_or_else(|| error("output has no original production"))?;
     if let Some(reason) = production.failure {
         return Err(error(reason));
     }
@@ -413,9 +287,7 @@ async fn synchronize(
         return Ok(true);
     }
     if finalizing && length != production.length {
-        return Err(error(
-            "native output length changed after producer quiescence",
-        ));
+        return Err(error("native output length changed after producer quiescence"));
     }
     if length < production.length {
         production.failure = Some("followed output was truncated");
@@ -438,9 +310,7 @@ async fn synchronize(
             return Err(error("followed output retained prefix was rewritten"));
         }
     }
-    file.seek(std::io::SeekFrom::Start(production.length))
-        .await
-        .map_err(error)?;
+    file.seek(std::io::SeekFrom::Start(production.length)).await.map_err(error)?;
     let count = (length - production.length).min(COPY_BYTES as u64) as usize;
     if count > 0 {
         file.read_exact(&mut buffer[..count]).await.map_err(error)?;
@@ -457,8 +327,7 @@ async fn synchronize(
     }
     if count > 0 {
         if let Err(failure) = production.producer.write_all(&buffer[..count]).await {
-            production.failure =
-                Some("original native production write did not settle; retained identity refused");
+            production.failure = Some("original native production write did not settle; retained identity refused");
             return Err(failure.into());
         }
         production.hash.update(&buffer[..count]);

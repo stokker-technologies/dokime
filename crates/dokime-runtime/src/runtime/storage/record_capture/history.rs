@@ -29,8 +29,8 @@ use harmos::storage::{
 // Local Imports
 use super::{Source, error};
 use crate::runtime::Result;
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::storage::records::RecordRow;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -70,10 +70,7 @@ pub(super) enum Start {
 impl Source {
     /// Saved records the filter selects, excluding this process's records after `through`.
     pub(crate) async fn saved_filtered_records(
-        &self,
-        state_manager: &crate::app::StateManager,
-        through: u64,
-        filter: Filter,
+        &self, state_manager: &crate::app::StateManager, through: u64, filter: Filter,
     ) -> Result<Vec<RecordEntry>> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
@@ -89,22 +86,12 @@ impl Source {
         Ok(selected)
     }
 
-    pub(crate) async fn history(
-        self: &Arc<Self>,
-        state_manager: &crate::app::StateManager,
-        after: u64,
-        through: u64,
-    ) -> Result<History> {
-        self.history_scoped(state_manager, Start::Physical(after), through, None)
-            .await
+    pub(crate) async fn history(self: &Arc<Self>, state_manager: &crate::app::StateManager, after: u64, through: u64) -> Result<History> {
+        self.history_scoped(state_manager, Start::Physical(after), through, None).await
     }
 
     pub(super) async fn history_scoped(
-        self: &Arc<Self>,
-        state_manager: &crate::app::StateManager,
-        start: Start,
-        through: u64,
-        scope: Option<harmos::Identifier>,
+        self: &Arc<Self>, state_manager: &crate::app::StateManager, start: Start, through: u64, scope: Option<harmos::Identifier>,
     ) -> Result<History> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
@@ -129,10 +116,7 @@ impl Source {
     }
 
     // Save Everything Accepted So Far; One Saved Cut Then Covers The Whole History.
-    async fn save_accepted(
-        &self,
-        state_manager: &crate::app::StateManager,
-    ) -> Result<harmos::storage::StorageCursor> {
+    async fn save_accepted(&self, state_manager: &crate::app::StateManager) -> Result<harmos::storage::StorageCursor> {
         let accepted = self.storage.cursor_accepted();
         let saved = self.storage.flush_until(&accepted).await?;
         self.healthy(state_manager)?;
@@ -140,23 +124,13 @@ impl Source {
     }
 
     async fn rows(
-        &self,
-        at: harmos::storage::StorageCursor,
-        scope: Option<harmos::Identifier>,
-        after: u64,
-        filters: Vec<Filter>,
+        &self, at: harmos::storage::StorageCursor, scope: Option<harmos::Identifier>, after: u64, filters: Vec<Filter>,
     ) -> Result<RecordReader<RecordRow>> {
         Ok(self
             .storage
             .read_records::<RecordRow>(RecordRead {
                 at,
-                selection: RecordSelection {
-                    schema: self.schema.clone(),
-                    scope,
-                    item: None,
-                    source_start: None,
-                    source_end: None,
-                },
+                selection: RecordSelection { schema: self.schema.clone(), scope, item: None, source_start: None, source_end: None },
                 after,
                 filters,
             })
@@ -220,10 +194,7 @@ fn logical_after(after: u64) -> Option<Filter> {
         clauses: vec![Clause {
             terms: vec![Term {
                 field: FieldPath::from("payload.sequence"),
-                condition: Condition::Compare {
-                    op: Compare::Gt,
-                    value: ScalarValue::Unsigned(after),
-                },
+                condition: Condition::Compare { op: Compare::Gt, value: ScalarValue::Unsigned(after) },
                 negate: false,
             }],
         }],

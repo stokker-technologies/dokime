@@ -17,20 +17,16 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use super::contracts::{
-    minimal_tracking_contract, suite_telemetry_contracts, tracking_record_contracts,
-    tracking_warning_contract,
-};
+use super::contracts::{minimal_tracking_contract, suite_telemetry_contracts, tracking_record_contracts, tracking_warning_contract};
 use super::{metadata, value};
-use dokime_runtime::{Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
+use dokime_runtime::RuntimeHandle;
 use dokime_runtime::definition::{
-    CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, SuiteSet,
-    TestCase, TestCaseTemplate, TestSuite,
+    CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, SuiteSet, TestCase, TestCaseTemplate, TestSuite,
 };
 use dokime_runtime::domains::TestSuiteDefinition;
-use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::command::CommandContext;
 use dokime_runtime::transactions::CycleDefinition;
+use dokime_runtime::{Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
 
 /* === Constants === */
 
@@ -56,11 +52,7 @@ pub fn fixture_suite(results: &[&str]) -> TestSuite {
         metadata: metadata("fixture.suite", "Fixture Suite"),
         tags: vec!["fixture".to_owned()],
         parameter_groups: Vec::new(),
-        test_case_templates: results
-            .iter()
-            .enumerate()
-            .map(|(index, result)| case_template(index, result))
-            .collect(),
+        test_case_templates: results.iter().enumerate().map(|(index, result)| case_template(index, result)).collect(),
     }
 }
 
@@ -73,11 +65,7 @@ pub fn plt400_suite_with_result(result: &str) -> TestSuite {
         metadata: metadata("plt400.ract", "PLT400 RACT"),
         tags: vec!["plt400".to_owned()],
         parameter_groups: Vec::new(),
-        test_case_templates: vec![case_template_with_identifier(
-            "plt400.ract.tracking",
-            "Tracking",
-            result,
-        )],
+        test_case_templates: vec![case_template_with_identifier("plt400.ract.tracking", "Tracking", result)],
     }
 }
 
@@ -86,37 +74,21 @@ pub fn plt400_diagnostics_suite() -> TestSuite {
         metadata: metadata("plt400.diagnostics", "PLT400 Diagnostics"),
         tags: vec!["plt400".to_owned()],
         parameter_groups: Vec::new(),
-        test_case_templates: vec![case_template_with_identifier(
-            "plt400.diagnostics.tracking",
-            "Diagnostics",
-            "passed",
-        )],
+        test_case_templates: vec![case_template_with_identifier("plt400.diagnostics.tracking", "Diagnostics", "passed")],
     }
 }
 
 pub async fn register_python_suite(runtime: &RuntimeHandle, suite: TestSuite) {
-    register_suite(
-        runtime,
-        python_registration("provider:testdb:plt400.ract", "execute_cycle", suite),
-    )
-    .await;
+    register_suite(runtime, python_registration("provider:testdb:plt400.ract", "execute_cycle", suite)).await;
 }
 
-pub async fn register_python_suite_pair(
-    runtime: &RuntimeHandle,
-    first: TestSuite,
-    second: TestSuite,
-) {
+pub async fn register_python_suite_pair(runtime: &RuntimeHandle, first: TestSuite, second: TestSuite) {
     runtime
         .set_suites(
             "provider:testdb",
             SuiteSet::new([
                 python_registration("provider:testdb:plt400.ract", "execute_cycle", first),
-                python_registration(
-                    "provider:testdb:plt400.diagnostics",
-                    "run_diagnostics",
-                    second,
-                ),
+                python_registration("provider:testdb:plt400.diagnostics", "run_diagnostics", second),
             ]),
         )
         .await
@@ -139,18 +111,10 @@ pub async fn register_custom_suite(runtime: &RuntimeHandle, suite: TestSuite) {
 }
 
 pub fn case_template(index: usize, result: &str) -> TestCaseTemplate {
-    case_template_with_identifier(
-        &format!("fixture.template.{index}"),
-        &format!("Fixture Template {index}"),
-        result,
-    )
+    case_template_with_identifier(&format!("fixture.template.{index}"), &format!("Fixture Template {index}"), result)
 }
 
-pub fn case_template_with_identifier(
-    identifier: &str,
-    label: &str,
-    result: &str,
-) -> TestCaseTemplate {
+pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str) -> TestCaseTemplate {
     TestCaseTemplate {
         test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(identifier, label),
@@ -166,9 +130,7 @@ pub fn case_template_with_identifier(
             value_type: ValueType::Text,
             unit: None,
             required: false,
-            expression: ParameterExpr::Literal {
-                value: Value::from(result),
-            },
+            expression: ParameterExpr::Literal { value: Value::from(result) },
             runtime_writable: false,
             selection: None,
             list: None,
@@ -232,19 +194,11 @@ pub fn case_template_with_identifier(
     }
 }
 
-pub fn materialized_case(
-    suite_id: &str,
-    suite: Option<&TestSuite>,
-    identifier: &str,
-    label: &str,
-    result: &str,
-) -> TestCase {
+pub fn materialized_case(suite_id: &str, suite: Option<&TestSuite>, identifier: &str, label: &str, result: &str) -> TestCase {
     TestCase {
         suite_id: suite_id.to_owned(),
         test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>(),
-        test_case_template_id: suite.map_or_else(TemplateId::new, |suite| {
-            suite.test_case_templates[0].test_case_template_id.clone()
-        }),
+        test_case_template_id: suite.map_or_else(TemplateId::new, |suite| suite.test_case_templates[0].test_case_template_id.clone()),
         suite: suite.map(|suite| suite.metadata.clone()),
         metadata: metadata(identifier, label),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from(result))]),
@@ -264,72 +218,35 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .test_case_templates
         .iter()
         .flat_map(|template| {
-            dokime_runtime::definition::materialize_template_cases(
-                suite_id,
-                template,
-                Default::default(),
-                options.clone(),
-            )
-            .unwrap()
-            .test_cases
-            .into_iter()
-            .map(|mut case| {
-                case.suite = Some(suite.metadata.clone());
-                case
-            })
+            dokime_runtime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone())
+                .unwrap()
+                .test_cases
+                .into_iter()
+                .map(|mut case| {
+                    case.suite = Some(suite.metadata.clone());
+                    case
+                })
         })
         .collect()
 }
 
 /// Starts a cycle holding every case of an installed suite; an empty suite
 /// yields an empty Ready cycle.
-pub async fn start_cycle(
-    runtime: &RuntimeHandle,
-    suite: TestSuite,
-    continue_on_failure: bool,
-) -> TestCycleId {
+pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite, continue_on_failure: bool) -> TestCycleId {
     let cases = if suite.test_case_templates.is_empty() {
         Vec::new()
     } else {
-        let registration = runtime
-            .test_suites()
-            .await
-            .into_iter()
-            .find(|entry| entry.suite == suite)
-            .expect("fixture suite is installed");
+        let registration = runtime.test_suites().await.into_iter().find(|entry| entry.suite == suite).expect("fixture suite is installed");
         materialize_cases(&registration.suite_id, &registration.suite)
     };
-    start_cases(
-        runtime,
-        metadata("cycle.start", "Start Cycle"),
-        cases,
-        continue_on_failure,
-    )
-    .await
+    start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases, continue_on_failure).await
 }
 
 /// Creates an empty cycle and appends the given materialized cases to it.
-pub async fn start_cases(
-    runtime: &RuntimeHandle,
-    metadata: Metadata,
-    cases: Vec<TestCase>,
-    continue_on_failure: bool,
-) -> TestCycleId {
-    let cycle_id = runtime
-        .create_cycle(
-            CycleDefinition {
-                metadata,
-                continue_on_failure,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>, continue_on_failure: bool) -> TestCycleId {
+    let cycle_id = runtime.create_cycle(CycleDefinition { metadata, continue_on_failure }, CommandContext::default()).await.unwrap();
     if !cases.is_empty() {
-        runtime
-            .append_cycle_cases(cycle_id.clone(), cases, CommandContext::default())
-            .await
-            .unwrap();
+        runtime.append_cycle_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
     }
     cycle_id
 }
@@ -354,9 +271,7 @@ pub fn custom_suite() -> TestSuite {
                 value_type: ValueType::Text,
                 unit: None,
                 required: false,
-                expression: ParameterExpr::Literal {
-                    value: Value::from("passed"),
-                },
+                expression: ParameterExpr::Literal { value: Value::from("passed") },
                 runtime_writable: false,
                 selection: None,
                 list: None,
@@ -395,10 +310,7 @@ fn python_registration(suite_id: &str, workflow: &str, suite: TestSuite) -> Test
 }
 
 async fn register_suite(runtime: &RuntimeHandle, definition: TestSuiteDefinition) {
-    runtime
-        .set_suites("provider:testdb", SuiteSet::new([definition]))
-        .await
-        .unwrap();
+    runtime.set_suites("provider:testdb", SuiteSet::new([definition])).await.unwrap();
 }
 
 /* === Tests === */

@@ -17,10 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::definition::{
-    MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate,
-    TestSuite,
-};
+use crate::model::definition::{MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate, TestSuite};
 use crate::model::document::DocumentDefinition;
 use crate::model::identity::DocumentId;
 use crate::model::identity::Identifier;
@@ -78,72 +75,30 @@ pub enum ExecutionImplementation {
 impl harmos::MemorySize for ExecutionSnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.case),
-                std::mem::size_of_val(&self.case),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.template),
-                std::mem::size_of_val(&self.template),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.parameter_definitions),
-                std::mem::size_of_val(&self.parameter_definitions),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.plugin),
-                std::mem::size_of_val(&self.plugin),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.host_version),
-                std::mem::size_of_val(&self.host_version),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.parameters),
-                std::mem::size_of_val(&self.parameters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.documents),
-                std::mem::size_of_val(&self.documents),
-            ),
+            (harmos::MemorySize::memory_size(&self.case), std::mem::size_of_val(&self.case)),
+            (harmos::MemorySize::memory_size(&self.template), std::mem::size_of_val(&self.template)),
+            (harmos::MemorySize::memory_size(&self.parameter_definitions), std::mem::size_of_val(&self.parameter_definitions)),
+            (harmos::MemorySize::memory_size(&self.plugin), std::mem::size_of_val(&self.plugin)),
+            (harmos::MemorySize::memory_size(&self.host_version), std::mem::size_of_val(&self.host_version)),
+            (harmos::MemorySize::memory_size(&self.parameters), std::mem::size_of_val(&self.parameters)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ExecutionPluginIdentity {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.version),
-                std::mem::size_of_val(&self.version),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.implementation),
-                std::mem::size_of_val(&self.implementation),
-            ),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
+            (harmos::MemorySize::memory_size(&self.implementation), std::mem::size_of_val(&self.implementation)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -170,45 +125,24 @@ impl ExecutionSnapshot {
     /// Reassembles a snapshot from parts captured earlier without materializing
     /// them again; they were validated when the snapshot was first built.
     pub fn from_captured(
-        case: TestCase,
-        template: Option<TestCaseTemplate>,
-        parameter_definitions: Vec<ParameterDefinition>,
-        plugin: Option<ExecutionPluginIdentity>,
-        host_version: Option<String>,
-        parameters: BTreeMap<String, MaterializedParameter>,
+        case: TestCase, template: Option<TestCaseTemplate>, parameter_definitions: Vec<ParameterDefinition>,
+        plugin: Option<ExecutionPluginIdentity>, host_version: Option<String>, parameters: BTreeMap<String, MaterializedParameter>,
         documents: BTreeMap<DocumentId, DocumentDefinition>,
     ) -> Self {
-        Self {
-            case,
-            template,
-            parameter_definitions,
-            plugin,
-            host_version,
-            parameters,
-            documents,
-        }
+        Self { case, template, parameter_definitions, plugin, host_version, parameters, documents }
     }
 
     pub fn materialize(
-        case: &TestCase,
-        suite: Option<&TestSuite>,
-        documents: BTreeMap<DocumentId, DocumentDefinition>,
-        plugin: Option<ExecutionPluginIdentity>,
-        settings: BTreeMap<String, Value>,
+        case: &TestCase, suite: Option<&TestSuite>, documents: BTreeMap<DocumentId, DocumentDefinition>,
+        plugin: Option<ExecutionPluginIdentity>, settings: BTreeMap<String, Value>,
     ) -> Result<Self, SnapshotError> {
         if case.suite_id.trim().is_empty() {
-            return Err(SnapshotError {
-                name: "suite_id".into(),
-                reason: "suite registration ID is required".into(),
-            });
+            return Err(SnapshotError { name: "suite_id".into(), reason: "suite registration ID is required".into() });
         }
 
         let template = suite
             .and_then(|suite| {
-                suite
-                    .test_case_templates
-                    .iter()
-                    .find(|template| template.test_case_template_id == case.test_case_template_id)
+                suite.test_case_templates.iter().find(|template| template.test_case_template_id == case.test_case_template_id)
             })
             .cloned();
         let definitions = template
@@ -220,20 +154,12 @@ impl ExecutionSnapshot {
             .collect::<Vec<_>>();
         let mut parameters = BTreeMap::new();
         for (key, value) in &case.parameters {
-            let identifier = Identifier::new(key).map_err(|error| SnapshotError {
-                name: key.clone(),
-                reason: error.to_string(),
-            })?;
+            let identifier = Identifier::new(key).map_err(|error| SnapshotError { name: key.clone(), reason: error.to_string() })?;
             let parameter = definitions
                 .iter()
                 .find(|definition| definition.metadata.identifier.as_str() == key)
                 .and_then(|definition| {
-                    crate::model::definition::materialized_parameter(
-                        definition,
-                        ParameterSource::Definition,
-                        value.clone(),
-                    )
-                    .ok()
+                    crate::model::definition::materialized_parameter(definition, ParameterSource::Definition, value.clone()).ok()
                 })
                 .unwrap_or_else(|| MaterializedParameter {
                     metadata: Metadata::new(identifier, key, None),
@@ -247,36 +173,26 @@ impl ExecutionSnapshot {
         // Declared but absent inputs stay addressable as null. Admission rejects
         // required nulls; typed optional reads can distinguish these from typos.
         for definition in &definitions {
-            let parameter = parameters
-                .entry(definition.metadata.identifier.to_string())
-                .or_insert_with(|| MaterializedParameter {
-                    metadata: definition.metadata.clone(),
-                    group_id: definition.group_id.clone(),
-                    source: crate::model::definition::ParameterSource::Definition,
-                    value: Value::Null,
-                    unit: definition.unit.clone(),
-                });
+            let parameter = parameters.entry(definition.metadata.identifier.to_string()).or_insert_with(|| MaterializedParameter {
+                metadata: definition.metadata.clone(),
+                group_id: definition.group_id.clone(),
+                source: crate::model::definition::ParameterSource::Definition,
+                value: Value::Null,
+                unit: definition.unit.clone(),
+            });
             // Preserve invalid raw case inputs for admission to reject rather
             // than hiding them behind a declaration default.
-            if let Ok(resolved) = crate::model::definition::materialized_parameter(
-                definition,
-                parameter.source.clone(),
-                parameter.value.clone(),
-            ) {
+            if let Ok(resolved) =
+                crate::model::definition::materialized_parameter(definition, parameter.source.clone(), parameter.value.clone())
+            {
                 *parameter = resolved;
             }
         }
         for (key, value) in settings {
             if parameters.contains_key(&key) {
-                return Err(SnapshotError {
-                    name: key,
-                    reason: "plugin setting collides with a case parameter".into(),
-                });
+                return Err(SnapshotError { name: key, reason: "plugin setting collides with a case parameter".into() });
             }
-            let identifier = Identifier::new(&key).map_err(|error| SnapshotError {
-                name: key.clone(),
-                reason: error.to_string(),
-            })?;
+            let identifier = Identifier::new(&key).map_err(|error| SnapshotError { name: key.clone(), reason: error.to_string() })?;
             parameters.insert(
                 key.clone(),
                 MaterializedParameter {
@@ -288,15 +204,7 @@ impl ExecutionSnapshot {
                 },
             );
         }
-        Ok(Self {
-            case: case.clone(),
-            template,
-            parameter_definitions: definitions,
-            plugin,
-            host_version: None,
-            parameters,
-            documents,
-        })
+        Ok(Self { case: case.clone(), template, parameter_definitions: definitions, plugin, host_version: None, parameters, documents })
     }
 
     pub fn with_host_version(mut self, version: Option<String>) -> Self {

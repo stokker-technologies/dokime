@@ -10,9 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub(crate) use crate::transactions::traceability::{
-    RecordExecutionTraceability, UpdateExecutionPhase,
-};
+pub(crate) use crate::transactions::traceability::{RecordExecutionTraceability, UpdateExecutionPhase};
 
 /* === Imports === */
 // Standard Library Imports
@@ -20,7 +18,7 @@ pub(crate) use crate::transactions::traceability::{
 // Third Party Imports
 
 // Local Imports
-use crate::{runtime::Error, RuntimeHandle, unavailable_rejection};
+use crate::{RuntimeHandle, runtime::Error, unavailable_rejection};
 
 /* === Constants === */
 
@@ -36,24 +34,14 @@ use crate::{runtime::Error, RuntimeHandle, unavailable_rejection};
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub(crate) async fn commit_execution_phase(
-        &self,
-        update: UpdateExecutionPhase,
-    ) -> Result<(), Error> {
-        self.commit(update)
-            .await
-            .map_err(|error| unavailable_rejection(error.to_string()))?;
+    pub(crate) async fn commit_execution_phase(&self, update: UpdateExecutionPhase) -> Result<(), Error> {
+        self.commit(update).await.map_err(|error| unavailable_rejection(error.to_string()))?;
         self.reconcile_sampling().await;
         Ok(())
     }
 
-    pub(crate) async fn commit_execution_traceability(
-        &self,
-        update: RecordExecutionTraceability,
-    ) -> Result<(), Error> {
-        self.commit(update)
-            .await
-            .map_err(|error| unavailable_rejection(error.to_string()))?;
+    pub(crate) async fn commit_execution_traceability(&self, update: RecordExecutionTraceability) -> Result<(), Error> {
+        self.commit(update).await.map_err(|error| unavailable_rejection(error.to_string()))?;
         Ok(())
     }
 }

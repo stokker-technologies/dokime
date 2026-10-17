@@ -63,8 +63,7 @@ impl Target {
     }
 
     fn parse(endpoint: String, remote: Option<bool>, ca: Option<String>) -> Result<Self> {
-        let mut url = Url::parse(&endpoint)
-            .map_err(|_| invalid_target("An absolute backend endpoint is required."))?;
+        let mut url = Url::parse(&endpoint).map_err(|_| invalid_target("An absolute backend endpoint is required."))?;
         if !matches!(url.scheme(), "http" | "https")
             || url.host().is_none()
             || !url.username().is_empty()
@@ -73,14 +72,11 @@ impl Target {
             || url.query().is_some()
             || url.fragment().is_some()
         {
-            return Err(invalid_target(
-                "Use an HTTP(S) origin without user information, path, query, or fragment.",
-            ));
+            return Err(invalid_target("Use an HTTP(S) origin without user information, path, query, or fragment."));
         }
         // Preserve the public Python client's localhost spelling without DNS.
         if remote.is_none() && url.scheme() == "http" && url.host_str() == Some("localhost") {
-            url.set_host(Some("127.0.0.1"))
-                .map_err(|_| invalid_target("Invalid loopback endpoint."))?;
+            url.set_host(Some("127.0.0.1")).map_err(|_| invalid_target("Invalid loopback endpoint."))?;
         }
         let remote = remote.unwrap_or(url.scheme() == "https");
         if remote && url.scheme() != "https" {
@@ -93,15 +89,9 @@ impl Target {
             && !matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
             && !matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback())
         {
-            return Err(invalid_target(
-                "Local endpoints require a literal loopback IP address.",
-            ));
+            return Err(invalid_target("Local endpoints require a literal loopback IP address."));
         }
-        Ok(Self {
-            endpoint: url.to_string(),
-            remote,
-            ca,
-        })
+        Ok(Self { endpoint: url.to_string(), remote, ca })
     }
 
     pub(super) async fn connect(&self) -> Result<tonic::transport::Channel> {

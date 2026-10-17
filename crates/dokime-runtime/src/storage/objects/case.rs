@@ -23,10 +23,10 @@ use harmos::{
 
 // Local Imports
 use super::metadata;
-use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::TemplateId;
 use crate::definition::TestCase;
 use crate::storage::{Error, Manager, Result, values};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TemplateId;
 
 /* === Constants === */
 
@@ -85,11 +85,7 @@ impl TryFrom<&TestCase> for Case {
             case_id: case.test_case_id.as_str().to_owned(),
             template_id: case.test_case_template_id.as_str().to_owned(),
             metadata: Some(metadata::Row::try_from(&case.metadata)?),
-            suite: case
-                .suite
-                .as_ref()
-                .map(metadata::Row::try_from)
-                .transpose()?,
+            suite: case.suite.as_ref().map(metadata::Row::try_from).transpose()?,
             parameters: values::encode(&case.parameters)?,
             generation_index: case.generation_index,
             label_number: case.label_number,
@@ -102,26 +98,18 @@ impl TryFrom<Case> for TestCase {
 
     fn try_from(case: Case) -> Result<Self> {
         if case.suite_id.trim().is_empty() {
-            return Err(Error::Invalid(
-                "case requires its owning suite registration",
-            ));
+            return Err(Error::Invalid("case requires its owning suite registration"));
         }
 
         Ok(Self {
             suite_id: case.suite_id,
             test_case_id: CaseId::from_wire(case.case_id)?,
             test_case_template_id: TemplateId::from_uuid(case.template_id)?,
-            metadata: case
-                .metadata
-                .ok_or(Error::Invalid("case metadata is missing"))?
-                .try_into()?,
+            metadata: case.metadata.ok_or(Error::Invalid("case metadata is missing"))?.try_into()?,
             suite: case.suite.map(TryInto::try_into).transpose()?,
             parameters: {
                 let bound = values::owned_memory(&case.parameters)?;
-                values::decode_owned(
-                    case.parameters,
-                    NonZeroUsize::new(bound).ok_or(Error::Invalid("case projection is empty"))?,
-                )?
+                values::decode_owned(case.parameters, NonZeroUsize::new(bound).ok_or(Error::Invalid("case projection is empty"))?)?
             },
             generation_index: case.generation_index,
             label_number: case.label_number,
@@ -131,10 +119,7 @@ impl TryFrom<Case> for TestCase {
 
 /* === Public Functions === */
 pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
-    let Some(stored) = storage
-        .read_object::<Case>(id.as_str(), ObjectVersion::Latest)
-        .await?
-    else {
+    let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
         return Ok(None);
     };
     Ok(Some(stored.value.try_into()?))
@@ -144,16 +129,10 @@ pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
 impl Case {
     pub fn encoding_memory(case: &TestCase) -> Result<usize> {
         if case.suite_id.trim().is_empty() {
-            return Err(Error::Invalid(
-                "case requires its owning suite registration",
-            ));
+            return Err(Error::Invalid("case requires its owning suite registration"));
         }
         let metadata = metadata::Row::encoding_memory(&case.metadata)?;
-        let suite = case
-            .suite
-            .as_ref()
-            .map(metadata::Row::encoding_memory)
-            .transpose()?;
+        let suite = case.suite.as_ref().map(metadata::Row::encoding_memory).transpose()?;
         let parameters = values::encoding_memory(&case.parameters)?;
         if metadata == usize::MAX || suite == Some(usize::MAX) || parameters == usize::MAX {
             return Ok(usize::MAX);
@@ -163,28 +142,15 @@ impl Case {
             case.test_case_id.as_str().len(),
             case.test_case_template_id.as_str().len(),
             metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
-            suite.map_or(0, |bytes| {
-                bytes.saturating_sub(std::mem::size_of::<metadata::Row>())
-            }),
+            suite.map_or(0, |bytes| bytes.saturating_sub(std::mem::size_of::<metadata::Row>())),
             parameters.saturating_sub(std::mem::size_of::<Vec<values::Cell>>()),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("case metadata is missing"))?
-            .projection_memory()?;
-        let suite = self
-            .suite
-            .as_ref()
-            .map(metadata::Row::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("case metadata is missing"))?.projection_memory()?;
+        let suite = self.suite.as_ref().map(metadata::Row::projection_memory).transpose()?.unwrap_or(0);
         let parameters = values::owned_memory(&self.parameters)?;
         if [metadata, suite, parameters].contains(&usize::MAX) {
             return Ok(usize::MAX);
@@ -195,13 +161,9 @@ impl Case {
             self.template_id.capacity(),
             metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             suite.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-            parameters.saturating_sub(std::mem::size_of::<
-                std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
-            >()),
+            parameters.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<TestCase>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<TestCase>(), usize::saturating_add))
     }
 }
 

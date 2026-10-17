@@ -25,9 +25,7 @@ use crate::support::server::{Published, attach};
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::native_session::backend::Backend;
 use dokime_gui::native_session::storage::StorageRoot;
-use dokime_gui::native_session::{
-    BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, StorageResetReason,
-};
+use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, StorageResetReason};
 
 /* === Constants === */
 const STDERR_LOG_PREFIX: &str = "backend-stderr.";
@@ -155,12 +153,7 @@ echo $$ > "$owner"
 }
 
 fn owned(executable: std::path::PathBuf, root: &Path) -> Backend {
-    let arguments = vec![
-        "--shutdown-stdin".into(),
-        "--dev-control".into(),
-        "--output-root".into(),
-        root.display().to_string(),
-    ];
+    let arguments = vec!["--shutdown-stdin".into(), "--dev-control".into(), "--output-root".into(), root.display().to_string()];
     Backend::new(executable, arguments)
 }
 
@@ -169,11 +162,7 @@ fn stderr_logs(directory: &Path) -> Vec<std::path::PathBuf> {
         .map(|entries| {
             entries
                 .map(|entry| entry.unwrap().path())
-                .filter(|path| {
-                    path.file_name()
-                        .and_then(|name| name.to_str())
-                        .is_some_and(|name| name.starts_with(STDERR_LOG_PREFIX))
-                })
+                .filter(|path| path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with(STDERR_LOG_PREFIX)))
                 .collect()
         })
         .unwrap_or_default()
@@ -183,9 +172,7 @@ fn store_owner(root: &Path) -> Option<String> {
     fs::read_to_string(root.join("owner.pid")).ok()
 }
 
-fn reason(
-    result: Result<dokime_gui::native_session::DesktopSessionSnapshot, DesktopSessionError>,
-) -> Option<StorageResetReason> {
+fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, DesktopSessionError>) -> Option<StorageResetReason> {
     match result {
         Err(DesktopSessionError::StorageReset { reason, .. }) => Some(reason),
         _ => None,
@@ -210,44 +197,27 @@ async fn shutdown_releases_store() {
     let store = root.path().join("store");
     let executable = stub(root.path(), Publish::Ready(&backend.endpoint()));
     let session = ConnectionSession::default();
-    let owner =
-        DesktopSession::with_local_backend(session.clone(), owned(executable.clone(), &store));
+    let owner = DesktopSession::with_local_backend(session.clone(), owned(executable.clone(), &store));
     let started = owner.select(BackendSelection::OwnedLocal).await.unwrap();
     assert_eq!(started.ownership, BackendOwnership::OwnedLocal);
     let lease = session.lease(&started.connection.generation).unwrap();
-    assert!(
-        store_owner(&store).is_some(),
-        "the owned backend holds its store"
-    );
+    assert!(store_owner(&store).is_some(), "the owned backend holds its store");
 
     owner.shutdown().await.unwrap();
     assert_eq!(
-        lease
-            .execute(std::future::pending::<Result<(), tonic::Status>>())
-            .await,
+        lease.execute(std::future::pending::<Result<(), tonic::Status>>()).await,
         Err(dokime_gui::connection::ConnectionError::Superseded)
     );
     assert!(session.lease(&started.connection.generation).is_err());
     // Shutdown returns only after the backend drained and exited, so its store
     // is already released when the desktop moves on.
     assert_eq!(store_owner(&store), None);
-    assert!(matches!(
-        owner.select(BackendSelection::OwnedLocal).await,
-        Err(DesktopSessionError::ShuttingDown)
-    ));
+    assert!(matches!(owner.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::ShuttingDown)));
 
     // A second owner can acquire the exact execution store only after the first
     // drained; the backend refuses a store another live backend still holds.
-    let replacement =
-        DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
-    assert_eq!(
-        replacement
-            .select(BackendSelection::OwnedLocal)
-            .await
-            .unwrap()
-            .ownership,
-        BackendOwnership::OwnedLocal
-    );
+    let replacement = DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
+    assert_eq!(replacement.select(BackendSelection::OwnedLocal).await.unwrap().ownership, BackendOwnership::OwnedLocal);
     replacement.shutdown().await.unwrap();
     backend.shutdown().await;
 }
@@ -260,24 +230,14 @@ async fn blocked_store_recovers() {
     fs::write(&blocker, b"occupied").unwrap();
     let owner = DesktopSession::with_local_backend(
         ConnectionSession::default(),
-        owned(
-            stub(root.path(), Publish::Ready(&backend.endpoint())),
-            &blocker,
-        ),
+        owned(stub(root.path(), Publish::Ready(&backend.endpoint())), &blocker),
     );
     let refused = owner.select(BackendSelection::OwnedLocal).await;
     assert!(matches!(refused, Err(DesktopSessionError::Startup { .. })));
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 
     fs::remove_file(&blocker).unwrap();
-    assert_eq!(
-        owner
-            .select(BackendSelection::OwnedLocal)
-            .await
-            .unwrap()
-            .ownership,
-        BackendOwnership::OwnedLocal
-    );
+    assert_eq!(owner.select(BackendSelection::OwnedLocal).await.unwrap().ownership, BackendOwnership::OwnedLocal);
     owner.shutdown().await.unwrap();
     backend.shutdown().await;
 }
@@ -287,16 +247,11 @@ async fn start_reports_phases() {
     let root = tempfile::tempdir().unwrap();
     let backend = Published::start(&root.path().join("published")).await;
     let store = root.path().join("store");
-    let executable = stub(
-        root.path(),
-        Publish::ReadyWithPhases(&backend.endpoint(), &["storage", "requests"]),
-    );
-    let owner =
-        DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
+    let executable = stub(root.path(), Publish::ReadyWithPhases(&backend.endpoint(), &["storage", "requests"]));
+    let owner = DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
 
     let selecting = owner.clone();
-    let mut task =
-        tokio::spawn(async move { selecting.select(BackendSelection::OwnedLocal).await });
+    let mut task = tokio::spawn(async move { selecting.select(BackendSelection::OwnedLocal).await });
 
     // TODO(source-hook): a DesktopSession status watch would replace this yield poll.
     let mut seen: Vec<String> = Vec::new();
@@ -319,11 +274,7 @@ async fn start_reports_phases() {
             () = tokio::task::yield_now() => {}
         }
     }
-    assert_eq!(
-        seen,
-        vec!["storage".to_owned(), "requests".to_owned()],
-        "observed phases: {seen:?}"
-    );
+    assert_eq!(seen, vec!["storage".to_owned(), "requests".to_owned()], "observed phases: {seen:?}");
 
     let started = task.await.unwrap().unwrap();
     assert_eq!(started.ownership, BackendOwnership::OwnedLocal);
@@ -339,24 +290,17 @@ async fn live_owner_refused() {
     let backend = Published::start(&root.path().join("published")).await;
     let store = root.path().join("store");
     let executable = stub(root.path(), Publish::Ready(&backend.endpoint()));
-    let stale = DesktopSession::with_local_backend(
-        ConnectionSession::default(),
-        owned(executable.clone(), &store),
-    );
+    let stale = DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable.clone(), &store));
     stale.select(BackendSelection::OwnedLocal).await.unwrap();
 
-    let successor =
-        DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
+    let successor = DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
     let refused = successor.select(BackendSelection::OwnedLocal).await;
     assert!(matches!(refused, Err(DesktopSessionError::Startup { .. })));
     assert_eq!(successor.status().ownership, BackendOwnership::None);
 
     stale.shutdown().await.unwrap();
     assert_eq!(store_owner(&store), None);
-    successor
-        .select(BackendSelection::OwnedLocal)
-        .await
-        .unwrap();
+    successor.select(BackendSelection::OwnedLocal).await.unwrap();
     successor.shutdown().await.unwrap();
     backend.shutdown().await;
 }
@@ -366,25 +310,16 @@ async fn failed_start_releases() {
     let root = tempfile::tempdir().unwrap();
     let backend = Published::start(&root.path().join("published")).await;
     let store = root.path().join("store");
-    let owner = DesktopSession::with_local_backend(
-        ConnectionSession::default(),
-        owned(stub(root.path(), Publish::Failure), &store),
-    );
+    let owner = DesktopSession::with_local_backend(ConnectionSession::default(), owned(stub(root.path(), Publish::Failure), &store));
     let refused = owner.select(BackendSelection::OwnedLocal).await;
     assert!(matches!(refused, Err(DesktopSessionError::Startup { .. })));
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 
     let successor = DesktopSession::with_local_backend(
         ConnectionSession::default(),
-        owned(
-            stub(root.path(), Publish::Ready(&backend.endpoint())),
-            &store,
-        ),
+        owned(stub(root.path(), Publish::Ready(&backend.endpoint())), &store),
     );
-    successor
-        .select(BackendSelection::OwnedLocal)
-        .await
-        .unwrap();
+    successor.select(BackendSelection::OwnedLocal).await.unwrap();
     successor.shutdown().await.unwrap();
     backend.shutdown().await;
 }
@@ -398,19 +333,13 @@ async fn crash_reports_diagnostics() {
         ConnectionSession::default(),
         owned(executable.clone(), &root.path().join("store")).with_logs(logs.clone()),
     );
-    let Err(DesktopSessionError::Startup {
-        message,
-        diagnostics: Some(diagnostics),
-    }) = owner.select(BackendSelection::OwnedLocal).await
+    let Err(DesktopSessionError::Startup { message, diagnostics: Some(diagnostics) }) = owner.select(BackendSelection::OwnedLocal).await
     else {
         panic!("a crashed backend reports startup diagnostics");
     };
 
     // The Headline And Exit
-    let not_ready = format!(
-        "The {} backend stopped before reporting readiness; review its diagnostics.",
-        dokime_gui::PRODUCT
-    );
+    let not_ready = format!("The {} backend stopped before reporting readiness; review its diagnostics.", dokime_gui::PRODUCT);
     assert_eq!(message, not_ready);
     assert_eq!(diagnostics.exit_code, Some(3));
     assert!(diagnostics.exit_status.is_some());
@@ -428,16 +357,8 @@ async fn crash_reports_diagnostics() {
     let log = std::path::PathBuf::from(diagnostics.log.expect("a log directory yields a log"));
     assert_eq!(stderr_logs(&logs), vec![log.clone()]);
     let written = fs::read_to_string(&log).unwrap();
-    assert!(
-        written
-            .lines()
-            .any(|line| line == "startup diagnostic line 1")
-    );
-    assert!(
-        written
-            .lines()
-            .any(|line| line == "plugin admission failed")
-    );
+    assert!(written.lines().any(|line| line == "startup diagnostic line 1"));
+    assert!(written.lines().any(|line| line == "plugin admission failed"));
     assert!(!written.contains("s3cret"));
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 
@@ -462,14 +383,7 @@ async fn stderr_beside_readiness() {
     // A drained stderr never blocks readiness.
     let started = owner.select(BackendSelection::OwnedLocal).await.unwrap();
     assert_eq!(started.ownership, BackendOwnership::OwnedLocal);
-    assert!(
-        !started
-            .connection
-            .endpoint
-            .unwrap_or_default()
-            .contains("192.0.2.1"),
-        "a ready line on stderr is never parsed as readiness"
-    );
+    assert!(!started.connection.endpoint.unwrap_or_default().contains("192.0.2.1"), "a ready line on stderr is never parsed as readiness");
 
     // The log streams while the backend runs; the pump may trail readiness and
     // exposes no signal, so the story polls the file the process writes.
@@ -482,11 +396,7 @@ async fn stderr_beside_readiness() {
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     };
-    assert!(
-        written
-            .lines()
-            .any(|line| line == "noise line 3000 padded well past the pipe buffer")
-    );
+    assert!(written.lines().any(|line| line == "noise line 3000 padded well past the pipe buffer"));
 
     owner.shutdown().await.unwrap();
     backend.shutdown().await;
@@ -499,10 +409,7 @@ async fn overlapping_selection() {
     let store = root.path().join("store");
     let owner = DesktopSession::with_local_backend(
         ConnectionSession::default(),
-        owned(
-            stub(root.path(), Publish::Ready(&backend.endpoint())),
-            &store,
-        ),
+        owned(stub(root.path(), Publish::Ready(&backend.endpoint())), &store),
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let pending_endpoint = format!("http://{}", listener.local_addr().unwrap());
@@ -513,8 +420,7 @@ async fn overlapping_selection() {
     first.abort();
     assert!(first.await.unwrap_err().is_cancelled());
     let second_owner = owner.clone();
-    let second =
-        tokio::spawn(async move { second_owner.select(BackendSelection::OwnedLocal).await });
+    let second = tokio::spawn(async move { second_owner.select(BackendSelection::OwnedLocal).await });
     let result = second.await.unwrap().unwrap();
     assert_eq!(result.ownership, BackendOwnership::OwnedLocal);
     owner.shutdown().await.unwrap();
@@ -531,42 +437,24 @@ async fn reset_restarts_backend() {
     let application = root.path().join("application");
     let storage = StorageRoot::new(store.clone(), application.clone());
     let executable = stub(root.path(), Publish::Ready(&backend.endpoint()));
-    let owner =
-        DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
+    let owner = DesktopSession::with_local_backend(ConnectionSession::default(), owned(executable, &store));
     let started = owner.select(BackendSelection::OwnedLocal).await.unwrap();
     populate(&store, root.path());
 
     // A Path Other Than The Data Root Leaves The Backend Running
     let artifacts = store.join("artifacts");
     for outside in [root.path(), application.as_path(), artifacts.as_path()] {
-        assert_eq!(
-            reason(owner.reset_local_storage(outside, storage.clone()).await),
-            Some(StorageResetReason::OutsideRoot)
-        );
+        assert_eq!(reason(owner.reset_local_storage(outside, storage.clone()).await), Some(StorageResetReason::OutsideRoot));
     }
     let enclosing = StorageRoot::new(root.path().to_path_buf(), application.clone());
-    assert_eq!(
-        reason(owner.reset_local_storage(root.path(), enclosing).await),
-        Some(StorageResetReason::OutsideRoot)
-    );
-    assert_eq!(
-        owner.status().connection.generation,
-        started.connection.generation
-    );
+    assert_eq!(reason(owner.reset_local_storage(root.path(), enclosing).await), Some(StorageResetReason::OutsideRoot));
+    assert_eq!(owner.status().connection.generation, started.connection.generation);
     assert!(store_owner(&store).is_some());
 
     // A Backend Still Holding The Store Keeps Every File
-    let lease = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(store.join("local.lock"))
-        .unwrap();
+    let lease = fs::OpenOptions::new().create(true).truncate(false).write(true).open(store.join("local.lock")).unwrap();
     lease.try_lock().unwrap();
-    assert_eq!(
-        reason(owner.reset_local_storage(&store, storage.clone()).await),
-        Some(StorageResetReason::BackendRunning)
-    );
+    assert_eq!(reason(owner.reset_local_storage(&store, storage.clone()).await), Some(StorageResetReason::BackendRunning));
     assert_eq!(owner.status().ownership, BackendOwnership::None);
     assert!(store.join("local.sqlite").exists());
     assert!(store.join("artifacts/evidence.bin").exists());
@@ -574,17 +462,11 @@ async fn reset_restarts_backend() {
 
     // The Reset Empties The Root And Starts Again On It
     let restarted = owner.select(BackendSelection::OwnedLocal).await.unwrap();
-    let reset = owner
-        .reset_local_storage(&store, storage.clone())
-        .await
-        .unwrap();
+    let reset = owner.reset_local_storage(&store, storage.clone()).await.unwrap();
     assert_eq!(reset.ownership, BackendOwnership::OwnedLocal);
     assert_ne!(reset.connection.generation, restarted.connection.generation);
     assert_eq!(owner.status().phase, None);
-    let mut remaining = fs::read_dir(&store)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .collect::<Vec<_>>();
+    let mut remaining = fs::read_dir(&store).unwrap().map(|entry| entry.unwrap().file_name().into_string().unwrap()).collect::<Vec<_>>();
     remaining.sort();
     // Only the restarted backend's own ownership marker is left.
     assert_eq!(remaining, vec!["owner.pid".to_owned()]);

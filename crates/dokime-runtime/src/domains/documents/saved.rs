@@ -21,18 +21,17 @@ use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion, ReadFile};
 
 // Local Imports
 use crate::execution_runtime::outputs::{
-    ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState,
-    MAX_ARTIFACT_READ_BYTES,
+    ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState, MAX_ARTIFACT_READ_BYTES,
 };
+use crate::storage::Manager;
 use crate::{runtime::Error, runtime::Result};
-use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::saved::validate_relative_output_path;
-use crate::storage::Manager;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -60,11 +59,7 @@ pub(crate) struct SavedOutputFile {
 /* === Implementations === */
 impl SavedOutputs {
     /// The latest sealed revision, or the exact checkpointed one.
-    pub(crate) async fn open(
-        storage: &Manager,
-        id: &TestExecutionId,
-        checkpoint: Option<&ExecutionCheckpoint>,
-    ) -> Result<Option<Self>> {
+    pub(crate) async fn open(storage: &Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>) -> Result<Option<Self>> {
         let version = match checkpoint {
             Some(point) => {
                 point.validate().map_err(crate::storage::Error::from)?;
@@ -75,9 +70,7 @@ impl SavedOutputs {
             }
             None => ObjectVersion::Latest,
         };
-        let Some(revision) =
-            crate::storage::objects::execution::read(storage, id, version).await?
-        else {
+        let Some(revision) = crate::storage::objects::execution::read(storage, id, version).await? else {
             return Ok(None);
         };
         if let Some(point) = checkpoint
@@ -91,58 +84,33 @@ impl SavedOutputs {
             }
             return Ok(None);
         };
-        seal.validate(&revision.value)
-            .map_err(crate::storage::Error::from)?;
+        seal.validate(&revision.value).map_err(crate::storage::Error::from)?;
         if revision.position.history != seal.dependencies_saved.history
             || revision.position.sequence <= seal.dependencies_saved.sequence
-            || checkpoint
-                .is_some_and(|point| point.evidence_through != seal.source.evidence_through)
+            || checkpoint.is_some_and(|point| point.evidence_through != seal.source.evidence_through)
         {
-            return Err(invalid(
-                "saved output seal admission or evidence cut differs",
-            ));
+            return Err(invalid("saved output seal admission or evidence cut differs"));
         }
-        Ok(Some(Self {
-            storage: storage.clone(),
-            revision,
-        }))
+        Ok(Some(Self { storage: storage.clone(), revision }))
     }
 
     fn outputs(&self) -> &[ExecutionOutput] {
-        &self
-            .revision
-            .value
-            .saved
-            .as_ref()
-            .expect("sealed output selection")
-            .source
-            .outputs
+        &self.revision.value.saved.as_ref().expect("sealed output selection").source.outputs
     }
 
     pub(crate) fn entries(&self) -> Result<Vec<ExecutionFileEntry>> {
         let id = &self.revision.value.test_execution_id;
-        let mut entries = self
-            .outputs()
-            .iter()
-            .map(|output| entry(id, output))
-            .collect::<harmos::Result<Vec<_>>>()?;
+        let mut entries = self.outputs().iter().map(|output| entry(id, output)).collect::<harmos::Result<Vec<_>>>()?;
         entries.sort_unstable_by(|left, right| left.relative_path.cmp(&right.relative_path));
         Ok(entries)
     }
 
     pub(crate) fn file(self, path: &str) -> Result<Option<SavedOutputFile>> {
         validate_relative_output_path(path).map_err(crate::storage::Error::from)?;
-        let Some(index) = self
-            .outputs()
-            .iter()
-            .position(|output| output.relative_path == path)
-        else {
+        let Some(index) = self.outputs().iter().position(|output| output.relative_path == path) else {
             return Ok(None);
         };
-        Ok(Some(SavedOutputFile {
-            outputs: self,
-            index,
-        }))
+        Ok(Some(SavedOutputFile { outputs: self, index }))
     }
 }
 
@@ -156,11 +124,7 @@ impl SavedOutputFile {
     }
 
     /// Up to `maximum` verified bytes from `offset`.
-    pub(crate) async fn window(
-        &self,
-        offset: u64,
-        maximum: NonZeroUsize,
-    ) -> Result<ExecutionFileContent> {
+    pub(crate) async fn window(&self, offset: u64, maximum: NonZeroUsize) -> Result<ExecutionFileContent> {
         let maximum = maximum.get().min(MAX_ARTIFACT_READ_BYTES);
         let output = self.descriptor();
         let offset = offset.min(output.file.length);
@@ -169,11 +133,7 @@ impl SavedOutputFile {
     }
 
     /// The whole file, or its first `maximum` bytes unless it must be complete.
-    pub(crate) async fn snapshot(
-        &self,
-        maximum: NonZeroUsize,
-        require_complete: bool,
-    ) -> Result<ExecutionFileContent> {
+    pub(crate) async fn snapshot(&self, maximum: NonZeroUsize, require_complete: bool) -> Result<ExecutionFileContent> {
         let output = self.descriptor();
         if require_complete && output.file.length > maximum.get() as u64 {
             return Err(crate::runtime::Error::ExecutionFileTooLarge);
@@ -186,13 +146,7 @@ impl SavedOutputFile {
         let mut reader = self
             .outputs
             .storage
-            .read_file(ReadFile {
-                file: self.descriptor().file.clone(),
-                range: ByteRange {
-                    offset,
-                    limit: Some(limit),
-                },
-            })
+            .read_file(ReadFile { file: self.descriptor().file.clone(), range: ByteRange { offset, limit: Some(limit) } })
             .await?;
         let mut bytes = Vec::new();
         while let Some(batch) = reader.next().await? {
@@ -203,10 +157,7 @@ impl SavedOutputFile {
 }
 
 /* === Public Functions === */
-pub(crate) fn entry(
-    id: &TestExecutionId,
-    output: &ExecutionOutput,
-) -> harmos::Result<ExecutionFileEntry> {
+pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::Result<ExecutionFileEntry> {
     let artifact_id = match &output.content {
         ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().to_owned(),
         ExecutionOutputContent::File => format!("{}:{}", id.as_str(), output.relative_path),
@@ -215,10 +166,7 @@ pub(crate) fn entry(
         artifact_id,
         relative_path: output.relative_path.clone(),
         content_type: Some(output.file.metadata.media_type.clone()),
-        content_kind: ExecutionFileContentKind::from_metadata(
-            &output.relative_path,
-            Some(&output.file.metadata.media_type),
-        ),
+        content_kind: ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&output.file.metadata.media_type)),
         stream_state: state(output),
         size_bytes: output.file.length,
         updated_at: output.created_at.clone(),
@@ -237,10 +185,7 @@ fn window(output: &ExecutionOutput, offset: u64, bytes: Vec<u8>) -> ExecutionFil
     ExecutionFileContent {
         relative_path: output.relative_path.clone(),
         content_type: Some(output.file.metadata.media_type.clone()),
-        content_kind: ExecutionFileContentKind::from_metadata(
-            &output.relative_path,
-            Some(&output.file.metadata.media_type),
-        ),
+        content_kind: ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&output.file.metadata.media_type)),
         stream_state: state(output),
         offset,
         size_bytes: output.file.length,

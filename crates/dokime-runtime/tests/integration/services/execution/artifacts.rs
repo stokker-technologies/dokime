@@ -13,18 +13,21 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
-use super::smoke::{Behaviour, Smoke, SOURCE, SUITE};
+use super::smoke::{Behaviour, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
-use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, SidecarTemplate, Workflow};
-use dokime_runtime::transport::{EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution, SidecarExecutionOutcome, SignalReply, TransportFuture};
 use dokime_runtime::Refusal;
+use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, SidecarTemplate, Workflow};
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
+use dokime_runtime::transport::{
+    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution,
+    SidecarExecutionOutcome, SignalReply, TransportFuture,
+};
 
 /* === Constants === */
 const WATCHED_CONTENT: &[u8] = b"the chamber log, rewritten in place\n";
@@ -76,7 +79,9 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
         self.workflow.template_identifier()
     }
 
-    fn run(&self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
+    fn run(
+        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller,
+    ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         let admitted = Arc::new(Admitted { host, watched: self.watched.clone() });
         self.workflow.run(request, admitted, output, caller)
     }
@@ -136,7 +141,9 @@ async fn chunked_artifacts_and_rewrite() {
     }
     assert!(expected.len() > dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES * 3);
     let artifacts = handle.artifacts().await.unwrap();
-    for (name, media, bytes) in [("evidence/pulse.csv", "text/csv", expected.as_bytes()), ("capture/chamber.log", "text/plain", WATCHED_CONTENT)] {
+    for (name, media, bytes) in
+        [("evidence/pulse.csv", "text/csv", expected.as_bytes()), ("capture/chamber.log", "text/plain", WATCHED_CONTENT)]
+    {
         let record = artifacts.iter().find(|record| record.filename == name).unwrap();
         assert_eq!(record.status, dokime_runtime::artifacts::ArtifactStatus::Complete);
         assert_eq!(record.scope.test_execution_id.as_ref(), Some(&execution.test_execution_id));
@@ -165,7 +172,12 @@ async fn abandoned_transfers_release_slots() {
     let log = String::from_utf8(log.bytes).unwrap();
     let received = dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;
     for index in 0..17 {
-        assert!(log.contains(&format!("[WARN] dropped execution artifact `evidence/partial-{index}.bin`: the producer aborted the transfer after {received} bytes")), "{log}");
+        assert!(
+            log.contains(&format!(
+                "[WARN] dropped execution artifact `evidence/partial-{index}.bin`: the producer aborted the transfer after {received} bytes"
+            )),
+            "{log}"
+        );
     }
     assert_eq!(log.matches("dropped execution artifact").count(), 17);
     drop(handle);

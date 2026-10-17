@@ -60,17 +60,11 @@ impl Operation for List {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::ListCheckpointRecords,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::ListCheckpointRecords, _: &mut (),
     ) -> Result<Response<dokime_domain::model::history::wire::CheckpointRecordPage>, Status> {
         value::text(&request.after)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
@@ -83,19 +77,12 @@ impl Operation for List {
             .execution_checkpoint_records(checkpoint, query)
             .await
             .map_err(wire::query_failure)
-            .and_then(|page| {
-                project(&page, self.resources.maximum)
-                    .map(Into::into)
-                    .map_err(|source| wire::query_failure(source.into()))
-            })
+            .and_then(|page| project(&page, self.resources.maximum).map(Into::into).map_err(|source| wire::query_failure(source.into())))
     }
 }
 
 /* === Public Functions === */
-fn project(
-    page: &ExecutionRecordPage,
-    maximum: usize,
-) -> harmos::Result<dokime_domain::model::history::wire::CheckpointRecordPage> {
+fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime_domain::model::history::wire::CheckpointRecordPage> {
     let mut records = projection::slots(page.records.len())?;
     for row in &page.records {
         records.push(dokime_domain::model::history::wire::SavedRecord {
@@ -112,9 +99,7 @@ fn project(
         });
     }
     let wire = dokime_domain::model::history::wire::CheckpointRecordPage {
-        checkpoint: Some(
-            super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?,
-        ),
+        checkpoint: Some(super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?),
         records,
         next_after: page.next.as_deref().map(projection::text).transpose()?,
         issues,
@@ -130,10 +115,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<List>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
@@ -143,15 +125,9 @@ fn original_error(source: Status) -> harmos::Error {
     if source.code() == Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend(
-        "encode original checkpoint record",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
+    harmos::Error::backend("encode original checkpoint record", harmos::BackendFailure::Corrupt, source)
 }
 fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "canonical checkpoint record page",
-    }
+    harmos::Error::ResourceExhausted { resource: "canonical checkpoint record page" }
 }
 /* === Tests === */

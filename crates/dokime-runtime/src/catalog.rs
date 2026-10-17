@@ -311,10 +311,7 @@ where
     P: harmos::plugin::Declared,
     T: TelemetryStream<Row: harmos::Message>,
 {
-    const ENTRY: Self::Entry = PublicationEntry {
-        id: T::ID,
-        publish: publish::<T, P>,
-    };
+    const ENTRY: Self::Entry = PublicationEntry { id: T::ID, publish: publish::<T, P> };
 }
 
 impl Visitor for Listeners {
@@ -323,10 +320,7 @@ impl Visitor for Listeners {
 
 #[cfg(feature = "native")]
 impl<T: crate::plugin::Listener> Member<T> for Listeners {
-    const ENTRY: Self::Entry = ListenerEntry {
-        operation: T::ID,
-        record: <T::Record as DeclaredRecord>::RECORD_TYPE,
-    };
+    const ENTRY: Self::Entry = ListenerEntry { operation: T::ID, record: <T::Record as DeclaredRecord>::RECORD_TYPE };
 }
 
 /* === Public Functions === */
@@ -348,19 +342,13 @@ where
 pub const fn flatten<E: Copy, const N: usize>(nodes: &[Node<E>], fill: E) -> [E; N] {
     let mut flat = [fill; N];
     let written = write(nodes, &mut flat, 0);
-    assert!(
-        written == N,
-        "a flattened catalog has exactly its leaf count"
-    );
+    assert!(written == N, "a flattened catalog has exactly its leaf count");
     flat
 }
 
 pub const fn joined<const N: usize>(id: &str, suffix: &str) -> [u8; N] {
     let (id, suffix) = (id.as_bytes(), suffix.as_bytes());
-    assert!(
-        id.len() + suffix.len() == N,
-        "a joined id has exactly its length"
-    );
+    assert!(id.len() + suffix.len() == N, "a joined id has exactly its length");
     let mut bytes = [0; N];
     let mut index = 0;
     while index < id.len() {
@@ -376,16 +364,14 @@ pub const fn joined<const N: usize>(id: &str, suffix: &str) -> [u8; N] {
 }
 
 pub const fn required_by(
-    required: &[Node<harmos::operations::WireDeclaration>],
-    granted: &[Node<harmos::catalog::RequirementEntry>],
+    required: &[Node<harmos::operations::WireDeclaration>], granted: &[Node<harmos::catalog::RequirementEntry>],
     provided: &[Node<harmos::operations::WireDeclaration>],
 ) -> bool {
     let mut index = 0;
     while index < required.len() {
         let covered = match &required[index] {
             Node::Leaf(declaration) => {
-                granted_id(granted, declaration.operation.id)
-                    || provided_privately(provided, declaration.operation.id)
+                granted_id(granted, declaration.operation.id) || provided_privately(provided, declaration.operation.id)
             }
             Node::Nested(nested) => required_by(nested, granted, provided),
         };
@@ -400,25 +386,16 @@ pub const fn required_by(
 /// Every stream a plugin's declarations publish, before deduplication: the
 /// streams its suites' templates and its evidence name, then its observers'.
 #[cfg(feature = "native")]
-pub const fn publication_count(
-    streams: &[Node<Publication>],
-    observers: &[Node<Observer>],
-) -> usize {
+pub const fn publication_count(streams: &[Node<Publication>], observers: &[Node<Observer>]) -> usize {
     harmos::catalog::count(streams) + observed_count(observers)
 }
 
 #[cfg(feature = "native")]
-pub const fn publications<const N: usize>(
-    streams: &[Node<Publication>],
-    observers: &[Node<Observer>],
-) -> [Publication; N] {
+pub const fn publications<const N: usize>(streams: &[Node<Publication>], observers: &[Node<Observer>]) -> [Publication; N] {
     let mut gathered = [UNSET; N];
     let at = write(streams, &mut gathered, 0);
     let written = write_observed(observers, &mut gathered, at);
-    assert!(
-        written == N,
-        "a plugin's publications are exactly its declared streams"
-    );
+    assert!(written == N, "a plugin's publications are exactly its declared streams");
     gathered
 }
 
@@ -454,10 +431,7 @@ pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publicat
         }
         index += 1;
     }
-    assert!(
-        written == N,
-        "a deduplicated grant has exactly its distinct streams"
-    );
+    assert!(written == N, "a deduplicated grant has exactly its distinct streams");
     distinct
 }
 
@@ -477,19 +451,12 @@ const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &st
     false
 }
 
-const fn provided_privately(
-    provided: &[Node<harmos::operations::WireDeclaration>],
-    id: &str,
-) -> bool {
+const fn provided_privately(provided: &[Node<harmos::operations::WireDeclaration>], id: &str) -> bool {
     let mut index = 0;
     while index < provided.len() {
         let found = match &provided[index] {
             Node::Leaf(declaration) => {
-                same(declaration.operation.id, id)
-                    && matches!(
-                        declaration.operation.visibility,
-                        harmos::operations::Visibility::Private
-                    )
+                same(declaration.operation.id, id) && matches!(declaration.operation.visibility, harmos::operations::Visibility::Private)
             }
             Node::Nested(nested) => provided_privately(nested, id),
         };
@@ -526,11 +493,7 @@ const fn observed_count(observers: &[Node<Observer>]) -> usize {
 }
 
 #[cfg(feature = "native")]
-const fn write_observed<const N: usize>(
-    observers: &[Node<Observer>],
-    flat: &mut [Publication; N],
-    at: usize,
-) -> usize {
+const fn write_observed<const N: usize>(observers: &[Node<Observer>], flat: &mut [Publication; N], at: usize) -> usize {
     let mut cursor = at;
     let mut index = 0;
     while index < observers.len() {
@@ -607,9 +570,7 @@ const fn write<E: Copy, const N: usize>(nodes: &[Node<E>], flat: &mut [E; N], at
 
 #[cfg(feature = "native")]
 fn publish<'a, T, P>(
-    host: &'a harmos::sidecar::Supervisor,
-    token: &'a str,
-    rows: &'a [crate::execution::StampedRow],
+    host: &'a harmos::sidecar::Supervisor, token: &'a str, rows: &'a [crate::execution::StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>
 where
     T: TelemetryStream<Row: harmos::Message>,
@@ -623,10 +584,7 @@ where
         // would leave them.
         let mut refused = None;
         for row in rows {
-            let bytes = row
-                .storage_payload
-                .as_ref()
-                .ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
+            let bytes = row.storage_payload.as_ref().ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
             match <T::Row as harmos::Message>::decode(bytes) {
                 Ok(encoded) => batch.push_at(encoded, row.published_unix_micros),
                 Err(error) => {
@@ -635,10 +593,7 @@ where
                 }
             }
         }
-        publisher
-            .publish_batch_on_context::<T>(&batch, Some(token))
-            .await
-            .map_err(|error| error.to_string())?;
+        publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())?;
         refused.map_or(Ok(()), Err)
     })
 }

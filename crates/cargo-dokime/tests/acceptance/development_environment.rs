@@ -42,8 +42,7 @@
 fn command(cwd: &std::path::Path) -> std::process::Command {
     let server = super::support::host();
     // The dokime CLI built beside this tool launches the prepared server.
-    let cli =
-        super::support::tool().with_file_name(format!("dokime{}", std::env::consts::EXE_SUFFIX));
+    let cli = super::support::tool().with_file_name(format!("dokime{}", std::env::consts::EXE_SUFFIX));
     let mut command = std::process::Command::new(super::support::tool());
     command
         .current_dir(cwd)
@@ -63,17 +62,8 @@ fn refusal(mut command: std::process::Command) -> String {
 }
 
 fn state(output: &str) -> std::path::PathBuf {
-    let line = output
-        .lines()
-        .find(|line| line.contains("Development data"))
-        .expect(output);
-    let path = line
-        .split_once("Development data")
-        .unwrap()
-        .1
-        .trim()
-        .trim_start_matches([':', '·'])
-        .trim();
+    let line = output.lines().find(|line| line.contains("Development data")).expect(output);
+    let path = line.split_once("Development data").unwrap().1.trim().trim_start_matches([':', '·']).trim();
     std::path::PathBuf::from(path)
 }
 
@@ -87,11 +77,7 @@ fn temporary_state_is_unique_and_removed_persistent_state_stays() {
     };
     let first = state(&run());
     let second = state(&run());
-    assert!(
-        first.starts_with(development.canonicalize().unwrap()),
-        "{}",
-        first.display()
-    );
+    assert!(first.starts_with(development.canonicalize().unwrap()), "{}", first.display());
     assert_ne!(first, second);
     assert!(!first.exists());
     assert!(!second.exists());
@@ -99,9 +85,7 @@ fn temporary_state_is_unique_and_removed_persistent_state_stays() {
     let invalid = root.path().join("file");
     std::fs::write(&invalid, "file").unwrap();
     let mut c = command(root.path());
-    c.env("DOKIME_DEV_ROOT", &invalid)
-        .arg("--state-dir")
-        .arg(&persistent);
+    c.env("DOKIME_DEV_ROOT", &invalid).arg("--state-dir").arg(&persistent);
     assert_eq!(state(&refusal(c)), persistent.canonicalize().unwrap());
     assert!(persistent.is_dir());
     let mut c = command(root.path());
@@ -116,11 +100,7 @@ fn root_and_dotenv_precedence_preserve_shell_then_nearest_file() {
     std::fs::write(root.path().join(".env"), "DOKIME_DEV_ROOT=ancestor\n").unwrap();
     let chosen = root.path().join("chosen.env");
     std::fs::write(&chosen, "DOKIME_DEV_ROOT=chosen\nDOKIME_DEV_ROOT=ignored\n").unwrap();
-    for (explicit, shell, expected) in [
-        (false, None, "ancestor"),
-        (true, None, "chosen"),
-        (true, Some("shell"), "shell"),
-    ] {
+    for (explicit, shell, expected) in [(false, None, "ancestor"), (true, None, "chosen"), (true, Some("shell"), "shell")] {
         let mut c = command(&nested);
         if explicit {
             c.arg("--env-file").arg(&chosen);

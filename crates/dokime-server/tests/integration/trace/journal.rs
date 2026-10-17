@@ -42,13 +42,7 @@ fn event(cycle: Option<&str>, execution: Option<&str>, message: &str) -> Event {
 /* === Tests === */
 #[test]
 fn journal_bounds_retention() {
-    let journal = Journal::new(Limits {
-        instance_events: 2,
-        scope_events: 2,
-        cycles: 1,
-        executions: 1,
-        ..Limits::default()
-    });
+    let journal = Journal::new(Limits { instance_events: 2, scope_events: 2, cycles: 1, executions: 1, ..Limits::default() });
     let scope = Scope::Cycle("cycle-a".into());
     journal.record(event(Some("cycle-a"), Some("execution-a"), "one"));
     journal.record(event(None, Some("execution-a"), "two"));
@@ -56,13 +50,7 @@ fn journal_bounds_retention() {
     let page = journal.read(&scope, 0, |_| true, 2, 4096).unwrap();
     assert_eq!(page.missed, 1);
     assert_eq!(page.next, 3);
-    assert_eq!(
-        page.events
-            .iter()
-            .map(|(_, event)| event.message.as_str())
-            .collect::<Vec<_>>(),
-        ["two", "three"]
-    );
+    assert_eq!(page.events.iter().map(|(_, event)| event.message.as_str()).collect::<Vec<_>>(), ["two", "three"]);
     assert_eq!(page.events[0].1.cycle.as_deref(), Some("cycle-a"));
     let selected = journal.read(&scope, 1, |_| false, 2, 4096).unwrap();
     assert!(selected.events.is_empty());
@@ -75,16 +63,9 @@ fn journal_bounds_retention() {
     assert!(journal.read(&scope, 3, |_| true, 2, 4096).is_err());
     journal.record(event(Some("cycle-a"), None, "recreated"));
     assert!(journal.read(&scope, 3, |_| true, 2, 4096).is_err());
-    assert_eq!(
-        journal.read(&scope, 0, |_| true, 2, 4096).unwrap().events[0].0,
-        5
-    );
+    assert_eq!(journal.read(&scope, 0, |_| true, 2, 4096).unwrap().events[0].0, 5);
 
-    let bounded = Journal::new(Limits {
-        instance_bytes: 128,
-        scope_bytes: 128,
-        ..Limits::default()
-    });
+    let bounded = Journal::new(Limits { instance_bytes: 128, scope_bytes: 128, ..Limits::default() });
     bounded.record(event(Some("cycle-a"), None, &"large".repeat(100)));
     let page = bounded.read(&Scope::Instance, 0, |_| true, 1, 128).unwrap();
     assert!(page.events.is_empty());
@@ -101,11 +82,7 @@ fn capture_scrubs_secrets() {
     let journal = Journal::new(Limits::default());
     let subscriber = tracing_subscriber::registry().with(Capture::new(journal.clone()));
     tracing::subscriber::with_default(subscriber, || {
-        let span = tracing::info_span!(
-            "execution",
-            cycle_id = "cycle-a",
-            execution_id = tracing::field::Empty
-        );
+        let span = tracing::info_span!("execution", cycle_id = "cycle-a", execution_id = tracing::field::Empty);
         let _entered = span.enter();
         span.record("execution_id", "execution-a");
         tracing::info!(target: "sidecar", plugin_id = "plugin-a", api_token = "must-not-leak", line = "hello Bearer must-not-leak", timestamp = "2026-10-13T00:00:00Z");
@@ -115,9 +92,7 @@ fn capture_scrubs_secrets() {
         let _watch = watch.enter();
         tracing::info!("reader traffic");
     });
-    let page = journal
-        .read(&Scope::Instance, 0, |_| true, 10, 65536)
-        .unwrap();
+    let page = journal.read(&Scope::Instance, 0, |_| true, 10, 65536).unwrap();
     assert_eq!(page.events.len(), 2);
     let first = &page.events[0].1;
     assert_eq!(first.cycle.as_deref(), Some("cycle-a"));
@@ -136,17 +111,14 @@ fn capture_scrubs_secrets() {
 #[test]
 fn capture_filters_independently() {
     let filtered = Journal::new(Limits::default());
-    let subscriber =
-        tracing_subscriber::registry().with(dokime_server::trace::layer(filtered.clone()));
+    let subscriber = tracing_subscriber::registry().with(dokime_server::trace::layer(filtered.clone()));
     tracing::subscriber::with_default(subscriber, || {
         tracing::trace!(target: "sidecar", "plugin trace");
         tracing::debug!(target: "dokime_server", "host detail");
         tracing::info!(target: "h2", "transport traffic");
         tracing::debug!(target: "unrelated", "unselected detail");
     });
-    let captured = filtered
-        .read(&Scope::Instance, 0, |_| true, 10, 65536)
-        .unwrap();
+    let captured = filtered.read(&Scope::Instance, 0, |_| true, 10, 65536).unwrap();
     assert_eq!(captured.events.len(), 2);
     assert_eq!(captured.events[0].1.level, tracing::Level::TRACE);
     assert_eq!(captured.events[1].1.level, tracing::Level::DEBUG);

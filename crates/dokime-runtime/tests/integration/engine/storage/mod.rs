@@ -25,24 +25,15 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::storage::{
-    ScanPage, StorageBackend, StorageBatch, StorageCursor, StoragePart, StorageSchema,
-    StoredRecord, query::RecordSelection,
+    ScanPage, StorageBackend, StorageBatch, StorageCursor, StoragePart, StorageSchema, StoredRecord, query::RecordSelection,
 };
 
 // Local Imports
 use dokime_domain::model;
 use {
-    dokime_runtime::Identifier,
-    dokime_runtime::RecordId,
-    dokime_runtime::RecordScope,
-    dokime_runtime::SessionId,
-    dokime_runtime::Timestamp,
-    dokime_runtime::Value,
-    model::records::evidence::RecordEntry,
-    model::records::publication::RecordPublishRequest,
-    dokime_runtime::records::RecordSeverity,
-    dokime_runtime::storage::records,
-    dokime_runtime::storage::sqlite::Backend,
+    dokime_runtime::Identifier, dokime_runtime::RecordId, dokime_runtime::RecordScope, dokime_runtime::SessionId,
+    dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::records::RecordSeverity, dokime_runtime::storage::records,
+    dokime_runtime::storage::sqlite::Backend, model::records::evidence::RecordEntry, model::records::publication::RecordPublishRequest,
 };
 
 /* === Constants === */
@@ -64,11 +55,7 @@ const FRAME_BYTES: usize = 1024 * 1024;
 
 /* === Private Functions === */
 fn entry(sequence: u64, volts: f64) -> RecordEntry {
-    let mut record = RecordPublishRequest::new(
-        Identifier::new("charger.measurement").unwrap(),
-        RecordSeverity::Info,
-    )
-    .into_record(
+    let mut record = RecordPublishRequest::new(Identifier::new("charger.measurement").unwrap(), RecordSeverity::Info).into_record(
         RecordId::from_seed(sequence.to_string()),
         1,
         Timestamp::new("2026-10-04T12:00:00Z"),
@@ -79,10 +66,7 @@ fn entry(sequence: u64, volts: f64) -> RecordEntry {
         ("voltage".into(), Value::Number(volts)),
         ("current".into(), Value::Number(3.25)),
         ("ready".into(), Value::Bool(true)),
-        (
-            "limits".into(),
-            Value::Array(vec![Value::Integer(-2), Value::Unsigned(u64::MAX)]),
-        ),
+        ("limits".into(), Value::Array(vec![Value::Integer(-2), Value::Unsigned(u64::MAX)])),
     ]);
     RecordEntry::from_record(sequence, record)
 }
@@ -92,15 +76,10 @@ fn entry(sequence: u64, volts: f64) -> RecordEntry {
 #[tokio::test]
 async fn portable_records_identity() {
     let root = tempfile::tempdir().unwrap();
-    let writer = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let writer = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     writer.open().await.unwrap();
     let history = writer.history().clone();
-    let position = |sequence| StorageCursor {
-        history: history.clone(),
-        sequence,
-    };
+    let position = |sequence| StorageCursor { history: history.clone(), sequence };
     let schema = records::schema();
     writer
         .write(
@@ -130,44 +109,19 @@ async fn portable_records_identity() {
             payload: records::encode(entry, FRAME_BYTES).unwrap(),
         })
         .collect::<Vec<_>>();
-    writer
-        .write(
-            StorageBatch::new(
-                &[StoragePart::Records(&stored)],
-                (16 * 1024 * 1024).try_into().unwrap(),
-            )
-            .unwrap(),
-        )
-        .await
-        .unwrap();
+    writer.write(StorageBatch::new(&[StoragePart::Records(&stored)], (16 * 1024 * 1024).try_into().unwrap()).unwrap()).await.unwrap();
     let saved = writer.cursor_saved().await.unwrap();
     writer.close().await.unwrap();
 
-    let reader = Backend::<()>::primary(root.path().to_path_buf())
-        .await
-        .unwrap();
+    let reader = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     assert_eq!(reader.history(), &history);
     let snapshot = reader.open_snapshot(&saved).await.unwrap();
-    let selection = RecordSelection {
-        schema,
-        scope: None,
-        item: None,
-        source_start: None,
-        source_end: None,
-    };
+    let selection = RecordSelection { schema, scope: None, item: None, source_start: None, source_end: None };
     let mut after = 0;
     let mut actual = Vec::new();
     for stored in &stored {
         let page = reader
-            .read_records(
-                &snapshot,
-                &selection,
-                ScanPage {
-                    after,
-                    rows: 1.try_into().unwrap(),
-                    bytes: FRAME_BYTES.try_into().unwrap(),
-                },
-            )
+            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() })
             .await
             .unwrap();
         assert_eq!(page.as_slice(), std::slice::from_ref(stored));
@@ -176,15 +130,7 @@ async fn portable_records_identity() {
     }
     assert!(
         reader
-            .read_records(
-                &snapshot,
-                &selection,
-                ScanPage {
-                    after,
-                    rows: 1.try_into().unwrap(),
-                    bytes: FRAME_BYTES.try_into().unwrap(),
-                },
-            )
+            .read_records(&snapshot, &selection, ScanPage { after, rows: 1.try_into().unwrap(), bytes: FRAME_BYTES.try_into().unwrap() },)
             .await
             .unwrap()
             .is_empty()

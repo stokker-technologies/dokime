@@ -18,8 +18,8 @@ use std::pin::Pin;
 // Third Party Imports
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use dokime_server::grpc::access::Role;
 
 /* === Constants === */
@@ -286,14 +286,8 @@ fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
 fn cases() -> impl Iterator<Item = &'static Case> {
     use dokime_runtime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
-        Case {
-            path: GetHealth::PATH,
-            call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH),
-        },
-        Case {
-            path: GetIdentity::PATH,
-            call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH),
-        },
+        Case { path: GetHealth::PATH, call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH) },
+        Case { path: GetIdentity::PATH, call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH) },
     ];
     CASES.iter().chain(STREAMING_CASES).chain(OPERATIONS)
 }
@@ -306,28 +300,16 @@ where
     Box::pin(async move {
         use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec = Codec::<
-            O::Response,
-            harmos::operations::Response<dokime_runtime::operations::runtime::Request>,
-        >::new(
-            DecodeSettings {
-                message_bytes: bytes,
-                retained_bytes: bytes,
-            },
-            EncodeSettings {
-                message_bytes: bytes,
-                buffer_bytes: bytes,
-            },
+        let codec = Codec::<O::Response, harmos::operations::Response<dokime_runtime::operations::runtime::Request>>::new(
+            DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
+            EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
         )
         .unwrap();
         let mut client = tonic::client::Grpc::new(channel);
         client.ready().await.unwrap();
         client
             .unary(
-                credentialed(
-                    harmos::operations::Response::new(dokime_runtime::operations::runtime::Request {}),
-                    token,
-                ),
+                credentialed(harmos::operations::Response::new(dokime_runtime::operations::runtime::Request {}), token),
                 tonic::codegen::http::uri::PathAndQuery::from_static(path),
                 codec,
             )
@@ -338,14 +320,9 @@ where
 
 #[test]
 fn table_covers_serves() {
-    let served: std::collections::BTreeSet<_> = dokime_server::grpc::methods()
-        .map(|(path, _)| path)
-        .collect();
+    let served: std::collections::BTreeSet<_> = dokime_server::grpc::methods().map(|(path, _)| path).collect();
     let covered: std::collections::BTreeSet<_> = cases().map(|case| case.path).collect();
-    assert_eq!(
-        served, covered,
-        "every served method needs a row here, and a row needs a served method"
-    );
+    assert_eq!(served, covered, "every served method needs a row here, and a row needs a served method");
     assert_eq!(covered.len(), cases().count(), "no duplicate rows");
 }
 
@@ -353,57 +330,35 @@ fn table_covers_serves() {
 async fn permission_matrix_enforcement() {
     const PRINCIPALS: &[(Role, &str)] = &[
         (Role::Read, "read-token-012345678901234567890123456789"),
-        (
-            Role::Control,
-            "control-token-012345678901234567890123456789",
-        ),
+        (Role::Control, "control-token-012345678901234567890123456789"),
         (Role::Admin, "admin-token-012345678901234567890123456789"),
     ];
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let grants = PRINCIPALS
-        .iter()
-        .map(|(role, token)| BearerGrant::new(format!("{role:?}"), *role, token).unwrap())
-        .collect();
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(grants).unwrap(),
-    )
-    .await
-    .unwrap();
-    let channel = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let grants = PRINCIPALS.iter().map(|(role, token)| BearerGrant::new(format!("{role:?}"), *role, token).unwrap()).collect();
+    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(grants).unwrap()).await.unwrap();
+    let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let roles: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
 
     // Every Method Requires Authentication Before Payload Decoding.
     for case in cases() {
-        let refusal = (case.call)(channel.clone(), None)
-            .await
-            .unwrap_or_else(|| panic!("{} admitted a call with no credential", case.path));
+        let refusal =
+            (case.call)(channel.clone(), None).await.unwrap_or_else(|| panic!("{} admitted a call with no credential", case.path));
         assert_eq!(refusal.code(), Code::Unauthenticated, "{}", case.path);
     }
 
     // Distinct Credentials Exercise Every Insufficient Role On One Listener.
     for &(role, token) in PRINCIPALS {
         let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
-            .unary::<contracts::backend::GetAvailability>(credentialed(
-                contracts::backend::GetAvailability {},
-                Some(token),
-            ))
+            .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, Some(token)))
             .await
             .unwrap()
             .into_inner()
             .methods
             .into_iter()
             .collect();
-        let expected: std::collections::BTreeSet<_> = roles
-            .iter()
-            .filter(|(_, required)| role >= **required)
-            .map(|(path, _)| (*path).to_owned())
-            .collect();
+        let expected: std::collections::BTreeSet<_> =
+            roles.iter().filter(|(_, required)| role >= **required).map(|(path, _)| (*path).to_owned()).collect();
         assert_eq!(advertised, expected, "{role:?} advertised permissions");
 
         for case in cases() {
@@ -414,12 +369,7 @@ async fn permission_matrix_enforcement() {
             let refusal = (case.call)(channel.clone(), Some(token))
                 .await
                 .unwrap_or_else(|| panic!("{} admitted {role:?}, needs {required:?}", case.path));
-            assert_eq!(
-                refusal.code(),
-                Code::PermissionDenied,
-                "{} for {role:?}",
-                case.path
-            );
+            assert_eq!(refusal.code(), Code::PermissionDenied, "{} for {role:?}", case.path);
         }
     }
 
@@ -436,20 +386,13 @@ async fn remote_refuses_local() {
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let config = Config::remote(
-        "127.0.0.1:0".parse().unwrap(),
-        TlsIdentity::from_pem(certificate.clone(), key),
-        vec![grant(Role::Control)],
-    )
-    .unwrap();
+    let config =
+        Config::remote("127.0.0.1:0".parse().unwrap(), TlsIdentity::from_pem(certificate.clone(), key), vec![grant(Role::Control)])
+            .unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let channel = Endpoint::from_shared(server.local_endpoint())
         .unwrap()
-        .tls_config(
-            ClientTlsConfig::new()
-                .domain_name("localhost")
-                .ca_certificate(Certificate::from_pem(&certificate)),
-        )
+        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
         .unwrap()
         .connect()
         .await
@@ -465,17 +408,11 @@ async fn remote_refuses_local() {
         "/dokime.v1.Files/FileWatch",
     ];
     for case in cases().filter(|case| local_only.contains(&case.path)) {
-        let refusal = (case.call)(channel.clone(), Some(TOKEN))
-            .await
-            .unwrap_or_else(|| panic!("{} admitted a remote Control caller", case.path));
+        let refusal =
+            (case.call)(channel.clone(), Some(TOKEN)).await.unwrap_or_else(|| panic!("{} admitted a remote Control caller", case.path));
         assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
     }
-    assert_eq!(
-        cases()
-            .filter(|case| local_only.contains(&case.path))
-            .count(),
-        local_only.len()
-    );
+    assert_eq!(cases().filter(|case| local_only.contains(&case.path)).count(), local_only.len());
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

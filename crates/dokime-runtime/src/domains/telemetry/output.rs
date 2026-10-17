@@ -20,11 +20,11 @@ use harmos::Aggregate;
 use harmos::signal::{Aggregates, Series};
 
 // Local Imports
+use crate::telemetry::{TelemetryContract, TelemetrySample};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-use crate::telemetry::{TelemetryContract, TelemetrySample};
 
 /* === Constants === */
 
@@ -41,20 +41,12 @@ use crate::telemetry::{TelemetryContract, TelemetrySample};
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn project_samples(
-    contracts: &[TelemetryContract],
-    samples: &[TelemetrySample],
-) -> Vec<AggregateOutput> {
+pub(crate) fn project_samples(contracts: &[TelemetryContract], samples: &[TelemetrySample]) -> Vec<AggregateOutput> {
     let mut outputs = Vec::new();
     for contract in contracts {
-        let stream_samples = samples
-            .iter()
-            .filter(|sample| sample.stream == contract.stream)
-            .collect::<Vec<_>>();
+        let stream_samples = samples.iter().filter(|sample| sample.stream == contract.stream).collect::<Vec<_>>();
         for column in
-            contract.normalized().columns.into_iter().filter(|column| {
-                matches!(column.value_type, ValueType::Integer | ValueType::Number)
-            })
+            contract.normalized().columns.into_iter().filter(|column| matches!(column.value_type, ValueType::Integer | ValueType::Number))
         {
             let values = stream_samples
                 .iter()
@@ -67,11 +59,7 @@ pub(crate) fn project_samples(
                 })
                 .filter(|value| value.is_finite())
                 .collect::<Vec<_>>();
-            outputs.extend(project_field(
-                &contract.stream,
-                column.metadata.identifier.as_str(),
-                &values,
-            ));
+            outputs.extend(project_field(&contract.stream, column.metadata.identifier.as_str(), &values));
         }
     }
     outputs
@@ -86,15 +74,8 @@ fn project_field(stream: &Identifier, field: &str, values: &[f64]) -> Vec<Aggreg
     series.sort();
     // `first`, `last` and `max_abs` read the capture order and magnitude, which
     // no member of the vocabulary names; every statistic is the Harmos one.
-    let statistic = |aggregate: Aggregate| {
-        series
-            .aggregate(aggregate)
-            .map(|value| (Cow::Owned(aggregate.name()), value))
-    };
-    let max_abs = values
-        .iter()
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max);
+    let statistic = |aggregate: Aggregate| series.aggregate(aggregate).map(|value| (Cow::Owned(aggregate.name()), value));
+    let max_abs = values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
     let statistics = [
         statistic(Aggregate::Count),
         Some((Cow::Borrowed("first"), *first)),
@@ -110,28 +91,16 @@ fn project_field(stream: &Identifier, field: &str, values: &[f64]) -> Vec<Aggreg
         statistic(Aggregate::Percentile(95)),
         statistic(Aggregate::Percentile(99)),
     ];
-    statistics
-        .into_iter()
-        .flatten()
-        .map(|(stat, value)| output(stream, field, &stat, value))
-        .collect()
+    statistics.into_iter().flatten().map(|(stat, value)| output(stream, field, &stat, value)).collect()
 }
 
 fn output(stream: &Identifier, field: &str, stat: &str, value: f64) -> AggregateOutput {
-    let key = valid_identifier(&format!(
-        "telemetry.{}.values.{field}.{stat}",
-        stream.as_str()
-    ));
+    let key = valid_identifier(&format!("telemetry.{}.values.{field}.{stat}", stream.as_str()));
     AggregateOutput {
         metadata: {
             let mut metadata = Metadata::definition(
                 Identifier::new(&key).expect("aggregate keys are sanitized"),
-                format!(
-                    "{} {} {}",
-                    stream,
-                    field.replace('_', " "),
-                    stat.replace('_', " ")
-                ),
+                format!("{} {} {}", stream, field.replace('_', " "), stat.replace('_', " ")),
                 Some(format!("Telemetry aggregate {stat} for {stream} {field}.")),
                 ["output", "telemetry", "aggregate"],
             );
@@ -146,13 +115,7 @@ fn output(stream: &Identifier, field: &str, stat: &str, value: f64) -> Aggregate
 fn valid_identifier(value: &str) -> String {
     value
         .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
-                character
-            } else {
-                '_'
-            }
-        })
+        .map(|character| if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') { character } else { '_' })
         .collect()
 }
 

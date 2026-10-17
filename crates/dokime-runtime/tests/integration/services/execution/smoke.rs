@@ -14,20 +14,20 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 use std::io::Write;
+use std::sync::Arc;
 
 // Third Party Imports
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::schema::Described;
-use dokime_runtime::runtime::EmbeddedProvider;
-use dokime_runtime::InstalledPlugin;
-use dokime_runtime::runtime::Result;
 use super::artifacts::Observed;
+use dokime_runtime::InstalledPlugin;
+use dokime_runtime::execution::Runnable;
+use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::runtime::Result;
+use dokime_runtime::schema::Described;
 
 /* === Constants === */
 /// The plugin source and suite the smoke check registers under.
@@ -154,9 +154,7 @@ impl Behaviour {
 
 impl Smoke {
     pub(crate) fn new(behaviour: Behaviour) -> Self {
-        Self {
-            behaviour: Arc::new(behaviour),
-        }
+        Self { behaviour: Arc::new(behaviour) }
     }
 
     pub(crate) fn behaviour(&self) -> Arc<Behaviour> {
@@ -177,20 +175,14 @@ impl Check {
     fn document() -> dokime_runtime::prelude::Document {
         let mut plot = dokime_runtime::prelude::Plot::time_series("Pulse");
         plot.id(PULSE_PLOT);
-        plot.y(dokime_runtime::expressions::telemetry(
-            "fixture-suites.pulse",
-            "value",
-        ));
+        plot.y(dokime_runtime::expressions::telemetry("fixture-suites.pulse", "value"));
         plot.display_points = Some(PULSE_DISPLAY_POINTS);
         plot.downsample = dokime_runtime::document::DownsampleTechnique::MinMax;
         let mut section = dokime_runtime::prelude::Section::new("Pulse");
         section.plot(plot);
         let mut spectrum = dokime_runtime::prelude::Plot::fft("Spectrum");
         spectrum.id("fixture.checks.smoke.spectrum");
-        spectrum.y(dokime_runtime::expressions::telemetry(
-            "fixture-suites.spectrum",
-            "value",
-        ));
+        spectrum.y(dokime_runtime::expressions::telemetry("fixture-suites.spectrum", "value"));
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
         section.plot(spectrum);
         let mut document = dokime_runtime::prelude::Document::new("default", "Fixture Smoke");
@@ -198,9 +190,7 @@ impl Check {
         document
     }
 
-    async fn initialize(
-        ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(ctx: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         let behaviour = Arc::clone(ctx.environment().binding::<Arc<Behaviour>>());
         Ok(Self { behaviour })
     }
@@ -213,27 +203,16 @@ impl Check {
         if behaviour.pulse_rows > 0 {
             let pulse = ctx.stream::<Pulse>().open();
             for index in 0..behaviour.pulse_rows {
-                pulse
-                    .push(Pulse {
-                        value: f64::from(index),
-                    })
-                    .await;
+                pulse.push(Pulse { value: f64::from(index) }).await;
             }
         }
         if behaviour.spectrum_rows > 0 {
             let spectrum = ctx.stream::<Spectrum>().open();
             for index in 0..behaviour.spectrum_rows {
-                spectrum
-                    .push(Spectrum {
-                        value: f64::from(index % 16),
-                    })
-                    .await;
+                spectrum.push(Spectrum { value: f64::from(index % 16) }).await;
             }
         }
-        ctx.publish(PulseProduced {
-            rows: behaviour.pulse_rows,
-        })
-        .await;
+        ctx.publish(PulseProduced { rows: behaviour.pulse_rows }).await;
 
         // Stream Artifacts Through The Same Host Bridge As A Sidecar.
         if behaviour.artifacts {
@@ -273,21 +252,10 @@ impl Check {
         description = "Passed when the host handed back every pulse row the step produced, each exactly once."
     )]
     fn pulse_replayed(ctx: &dokime_runtime::execution::CriterionContext<'_>) -> dokime_runtime::Result<bool> {
-        let produced = ctx
-            .records::<PulseProduced>()?
-            .last()
-            .map_or(0, |produced| produced.rows);
-        let mut values = ctx
-            .samples::<Pulse>()
-            .iter()
-            .map(|row| row.value)
-            .collect::<Vec<_>>();
+        let produced = ctx.records::<PulseProduced>()?.last().map_or(0, |produced| produced.rows);
+        let mut values = ctx.samples::<Pulse>().iter().map(|row| row.value).collect::<Vec<_>>();
         values.sort_by(f64::total_cmp);
-        Ok(values.len() == produced as usize
-            && values
-                .iter()
-                .enumerate()
-                .all(|(index, value)| *value == index as f64))
+        Ok(values.len() == produced as usize && values.iter().enumerate().all(|(index, value)| *value == index as f64))
     }
 }
 
@@ -309,12 +277,10 @@ impl EmbeddedProvider for Smoke {
 
     async fn start(&self) -> Result<Vec<Arc<dyn Runnable>>> {
         let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(self.behaviour());
-        Ok(vec![
-            Arc::new(Observed {
-                workflow: dokime_runtime::execution::Workflow::<Check>::new(SUITE, SOURCE).bound(binding),
-                watched: self.behaviour.watched.clone(),
-            }) as Arc<dyn Runnable>,
-        ])
+        Ok(vec![Arc::new(Observed {
+            workflow: dokime_runtime::execution::Workflow::<Check>::new(SUITE, SOURCE).bound(binding),
+            watched: self.behaviour.watched.clone(),
+        }) as Arc<dyn Runnable>])
     }
 
     async fn stop(&self) -> Result<()> {
@@ -336,11 +302,8 @@ where
         id: <R as harmos::StreamSpec>::ID.into(),
         schema: <R as harmos::StreamSpec>::VERSION,
         window: <R as harmos::StreamSpec>::WINDOW,
-        row: harmos::schema::graph::Schema::from_declaration(
-            <R as Described>::DEFINITION,
-            &harmos::config::SchemaSettings::default(),
-        )
-        .unwrap(),
+        row: harmos::schema::graph::Schema::from_declaration(<R as Described>::DEFINITION, &harmos::config::SchemaSettings::default())
+            .unwrap(),
     }
 }
 

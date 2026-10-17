@@ -17,14 +17,14 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
-use crate::records::declared::DeclaredRecord;
-use dokime_domain::model::records::evidence::Record;
 use crate::records::RecordContract;
 use crate::records::RecordSeverity;
 use crate::records::builtin_record_contracts;
+use crate::records::declared::DeclaredRecord;
 use crate::values::{FieldError, field};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::evidence::Record;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const PRODUCT_SCHEMA_VERSION: u32 = dokime_domain::model::records::product::PRODUCT_RECORD_SCHEMA_VERSION;
@@ -106,13 +106,7 @@ host_record!(
     "tool.connection.acquired",
     RecordSeverity::Info,
     "a unit came online",
-    [
-        resource_id,
-        resource_kind,
-        connection_transport,
-        connection_endpoint,
-        status_message,
-    ]
+    [resource_id, resource_kind, connection_transport, connection_endpoint, status_message,]
 );
 
 host_record!(
@@ -131,13 +125,7 @@ host_record!(
     [resource_id, resource_kind, status_message]
 );
 
-host_record!(
-    TargetLost,
-    "target.lost",
-    RecordSeverity::Warning,
-    "a target lock was lost",
-    [resource_id, resource_kind, status_message]
-);
+host_record!(TargetLost, "target.lost", RecordSeverity::Warning, "a target lock was lost", [resource_id, resource_kind, status_message]);
 
 /* === Type Aliases === */
 
@@ -217,10 +205,7 @@ impl DeclaredRecord for TestCycleCompleted {
 
     fn from_record(record: &Record) -> crate::Result<Self> {
         if record.record_type.as_str() != Self::RECORD_TYPE {
-            return Err(crate::Error::record_mismatched(
-                Self::RECORD_TYPE,
-                &record.record_type,
-            ));
+            return Err(crate::Error::record_mismatched(Self::RECORD_TYPE, &record.record_type));
         }
 
         Ok(Self)
@@ -250,10 +235,7 @@ impl DeclaredRecord for ProcessExited {
     fn into_details(self) -> BTreeMap<String, Value> {
         BTreeMap::from([
             ("program".to_owned(), Value::Text(self.program)),
-            (
-                "exit_code".to_owned(),
-                self.exit_code.map_or(Value::Null, Value::Integer),
-            ),
+            ("exit_code".to_owned(), self.exit_code.map_or(Value::Null, Value::Integer)),
             ("duration_ms".to_owned(), Value::Integer(self.duration_ms)),
             ("cancelled".to_owned(), Value::Bool(self.cancelled)),
         ])
@@ -282,10 +264,7 @@ impl DeclaredRecord for StepHandleCancelled {
     }
 
     fn message(&self) -> String {
-        format!(
-            "step `{}` ended with its {} `{}` still running; it was cancelled",
-            self.step, self.kind, self.name
-        )
+        format!("step `{}` ended with its {} `{}` still running; it was cancelled", self.step, self.kind, self.name)
     }
 
     fn into_details(self) -> BTreeMap<String, Value> {
@@ -301,11 +280,7 @@ impl DeclaredRecord for StepHandleCancelled {
     }
 
     fn from_details(values: &BTreeMap<String, Value>) -> Result<Self, FieldError> {
-        Ok(Self {
-            step: field(values, "step")?,
-            kind: field(values, "kind")?,
-            name: field(values, "name")?,
-        })
+        Ok(Self { step: field(values, "step")?, kind: field(values, "kind")?, name: field(values, "name")? })
     }
 }
 
@@ -318,10 +293,7 @@ impl crate::execution::Listenable for TestCycleCompleted {
         crate::definition::Subscription::Record(<Self as DeclaredRecord>::contract().record_type)
     }
 
-    fn listening(
-        _streams: &crate::telemetry::Streams,
-        deliveries: &crate::records::Deliveries,
-    ) -> Self::Listening {
+    fn listening(_streams: &crate::telemetry::Streams, deliveries: &crate::records::Deliveries) -> Self::Listening {
         crate::execution::ListeningRecords::new(deliveries)
     }
 }
@@ -343,22 +315,15 @@ pub fn declared() -> Vec<Identifier> {
 
 fn checked<R: DeclaredRecord>(record: &Record) -> crate::Result<R> {
     if record.record_type.as_str() != R::RECORD_TYPE {
-        return Err(crate::Error::record_mismatched(
-            R::RECORD_TYPE,
-            &record.record_type,
-        ));
+        return Err(crate::Error::record_mismatched(R::RECORD_TYPE, &record.record_type));
     }
-    R::from_details(&record.details)
-        .map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))
+    R::from_details(&record.details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))
 }
 
 fn builtin(record_type: &str) -> RecordContract {
-    builtin_record_contracts()
-        .into_iter()
-        .find(|contract| contract.record_type.as_str() == record_type)
-        .unwrap_or_else(|| {
-            panic!("the host declares a builtin contract for {record_type:?}");
-        })
+    builtin_record_contracts().into_iter().find(|contract| contract.record_type.as_str() == record_type).unwrap_or_else(|| {
+        panic!("the host declares a builtin contract for {record_type:?}");
+    })
 }
 
 /* === Tests === */

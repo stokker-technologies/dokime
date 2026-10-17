@@ -63,19 +63,8 @@ struct Watched {
 
 /* === Implementations === */
 impl Directories {
-    pub(super) fn new(
-        token: Arc<str>,
-        sink: Arc<dyn ArtifactSink>,
-        ordinals: Arc<AtomicU64>,
-    ) -> Self {
-        Self {
-            area: working_area(&token),
-            token,
-            sink,
-            ordinals,
-            registered: BTreeMap::new(),
-            watched: BTreeMap::new(),
-        }
+    pub(super) fn new(token: Arc<str>, sink: Arc<dyn ArtifactSink>, ordinals: Arc<AtomicU64>) -> Self {
+        Self { area: working_area(&token), token, sink, ordinals, registered: BTreeMap::new(), watched: BTreeMap::new() }
     }
 
     pub(super) fn directory(&mut self, name: &str) -> io::Result<PathBuf> {
@@ -114,10 +103,7 @@ impl Directories {
         }
         let mut notes = self.walk(true);
         if let Err(error) = std::fs::remove_dir_all(&self.area) {
-            notes.push(format!(
-                "the execution's artifact directory {} could not be removed: {error}",
-                self.area.display()
-            ));
+            notes.push(format!("the execution's artifact directory {} could not be removed: {error}", self.area.display()));
         }
         self.registered.clear();
 
@@ -142,11 +128,7 @@ impl Directories {
     }
 
     fn file(&mut self, name: String, path: &Path, sweeping: bool, notes: &mut Vec<String>) {
-        if self
-            .watched
-            .get(&name)
-            .is_some_and(|watched| watched.refused)
-        {
+        if self.watched.get(&name).is_some_and(|watched| watched.refused) {
             return;
         }
         // A file that vanished between the walk and the stat is skipped rather
@@ -168,13 +150,9 @@ impl Directories {
                 }
             };
             let transfer_id = transfer_identity(&self.token, &self.ordinals);
-            self.watched
-                .insert(name.clone(), Watched::new(transfer_id, mime));
+            self.watched.insert(name.clone(), Watched::new(transfer_id, mime));
         }
-        let watched = self
-            .watched
-            .get_mut(&name)
-            .expect("the file was just inserted");
+        let watched = self.watched.get_mut(&name).expect("the file was just inserted");
         let length = metadata.len();
         if length > MAX_ARTIFACT_BYTES {
             notes.push(format!(
@@ -192,9 +170,7 @@ impl Directories {
         }
 
         let modified = metadata.modified().ok();
-        let restart = watched.restart
-            || length < watched.sent
-            || (length == watched.sent && modified != watched.modified);
+        let restart = watched.restart || length < watched.sent || (length == watched.sent && modified != watched.modified);
         let from = if restart { 0 } else { watched.sent };
         let pending = length.saturating_sub(from);
         if !sweeping && pending < GROWTH_FLOOR {
@@ -223,32 +199,19 @@ impl Directories {
             // bytes are still on disk, and the next tick — or the sweep — sends
             // them. Only a file that never becomes readable goes unreported,
             // and the sweep's own failure is what reports that.
-            Err(error) if sweeping => notes.push(format!(
-                "artifact `{name}` could not be read from the execution's directory: {error}"
-            )),
+            Err(error) if sweeping => notes.push(format!("artifact `{name}` could not be read from the execution's directory: {error}")),
             Err(_) => {}
         }
     }
 
     fn refuse(&mut self, name: String) {
-        self.watched
-            .entry(name)
-            .or_insert_with(|| Watched::new(String::new(), String::new()))
-            .refused = true;
+        self.watched.entry(name).or_insert_with(|| Watched::new(String::new(), String::new())).refused = true;
     }
 }
 
 impl Watched {
     fn new(transfer_id: String, mime: String) -> Self {
-        Self {
-            transfer_id,
-            mime,
-            sequence: 0,
-            sent: 0,
-            modified: None,
-            restart: false,
-            refused: false,
-        }
+        Self { transfer_id, mime, sequence: 0, sent: 0, modified: None, restart: false, refused: false }
     }
 
     fn piece(&mut self, name: &str, bytes: Vec<u8>, last: bool, replace: bool) -> ArtifactChunk {
@@ -268,10 +231,7 @@ impl Watched {
     }
 
     fn abandon(&mut self, name: &str) -> ArtifactChunk {
-        ArtifactChunk {
-            aborted: true,
-            ..self.piece(name, Vec::new(), true, false)
-        }
+        ArtifactChunk { aborted: true, ..self.piece(name, Vec::new(), true, false) }
     }
 }
 
@@ -282,11 +242,7 @@ fn working_area(token: &str) -> PathBuf {
     use std::hash::{DefaultHasher, Hash, Hasher};
     let mut hasher = DefaultHasher::new();
     token.hash(&mut hasher);
-    let readable = token
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
-        .take(32)
-        .collect::<String>();
+    let readable = token.chars().filter(|character| character.is_ascii_alphanumeric() || *character == '-').take(32).collect::<String>();
 
     std::env::temp_dir().join(format!("dokime-{readable}-{:016x}", hasher.finish()))
 }
@@ -304,17 +260,10 @@ fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathB
                 continue;
             };
             let Some(segment) = entry.file_name().to_str().map(str::to_owned) else {
-                notes.push(format!(
-                    "the file {} is not named in UTF-8 and cannot be filed as an artifact",
-                    entry.path().display()
-                ));
+                notes.push(format!("the file {} is not named in UTF-8 and cannot be filed as an artifact", entry.path().display()));
                 continue;
             };
-            let artifact = if prefix.is_empty() {
-                segment
-            } else {
-                format!("{prefix}/{segment}")
-            };
+            let artifact = if prefix.is_empty() { segment } else { format!("{prefix}/{segment}") };
             if kind.is_dir() {
                 children.push((artifact, entry.path()));
             } else if kind.is_file() {

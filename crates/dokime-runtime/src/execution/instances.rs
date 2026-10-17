@@ -154,19 +154,12 @@ impl Handles {
 }
 
 impl LocalRun {
-    pub(crate) fn spawn<F>(
-        serve: impl FnOnce(watch::Receiver<bool>) -> F,
-        cooperative: bool,
-    ) -> Self
+    pub(crate) fn spawn<F>(serve: impl FnOnce(watch::Receiver<bool>) -> F, cooperative: bool) -> Self
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
     {
         let (cancel, cancelled) = watch::channel(false);
-        Self {
-            task: tokio::spawn(serve(cancelled)),
-            cancel,
-            cooperative,
-        }
+        Self { task: tokio::spawn(serve(cancelled)), cancel, cooperative }
     }
 
     fn request_cancel(&self) {
@@ -179,11 +172,7 @@ impl LocalRun {
     fn status(&self) -> Status {
         let finished = self.task.is_finished();
         Status {
-            phase: if finished {
-                Phase::Settled
-            } else {
-                Phase::Running
-            },
+            phase: if finished { Phase::Settled } else { Phase::Running },
             outcome: None,
             cancellation_requested: *self.cancel.borrow(),
             attempt: 1,
@@ -214,17 +203,9 @@ impl<O: Callable> StepInstance<O> {
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
-        let slot = Arc::new(Slot {
-            running: tokio::sync::Mutex::new(Some(running)),
-            kind,
-            name,
-        });
+        let slot = Arc::new(Slot { running: tokio::sync::Mutex::new(Some(running)), kind, name });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self {
-            id,
-            slot,
-            released: false,
-        }
+        Self { id, slot, released: false }
     }
 
     pub fn id(&self) -> Id {
@@ -257,18 +238,11 @@ impl<O: Callable> StepInstance<O> {
             Some(Running::Host(instance)) => instance.join().await,
             Some(Running::Local(run)) => {
                 let bytes = run.join(O::ID).await?;
-                let response = O::Response::decode(bytes.as_slice()).map_err(|error| {
-                    CallError::Malformed {
-                        method: O::ID,
-                        message: error.to_string(),
-                    }
-                })?;
+                let response = O::Response::decode(bytes.as_slice())
+                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
                 Ok(Response::new(response))
             }
-            None => Err(refused(format!(
-                "`{}` was cancelled when its step ended",
-                O::ID
-            ))),
+            None => Err(refused(format!("`{}` was cancelled when its step ended", O::ID))),
         }
     }
 
@@ -333,17 +307,11 @@ impl<O: Callable> Sweep for Slot<O> {
             let running = self.running.lock().await.take()?;
             let settled = match running {
                 Running::Host(instance) => {
-                    if instance
-                        .status()
-                        .await
-                        .is_ok_and(|status| status.is_settled())
-                    {
+                    if instance.status().await.is_ok_and(|status| status.is_settled()) {
                         // Settled on its own; dropping the handle releases it.
                         return None;
                     }
-                    tokio::time::timeout(SETTLE, instance.cancel_and_join())
-                        .await
-                        .is_ok()
+                    tokio::time::timeout(SETTLE, instance.cancel_and_join()).await.is_ok()
                 }
                 Running::Local(run) => {
                     if run.task.is_finished() {
@@ -360,21 +328,14 @@ impl<O: Callable> Sweep for Slot<O> {
                     "an instance cancelled at step end did not settle in time"
                 );
             }
-            Some(StepHandleCancelled {
-                step,
-                kind: self.kind.to_owned(),
-                name: self.name.clone(),
-            })
+            Some(StepHandleCancelled { step, kind: self.kind.to_owned(), name: self.name.clone() })
         })
     }
 }
 
 /* === Public Functions === */
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
-    CallError::Refused {
-        code: STEP_REFUSAL,
-        failure: refusal_failure(message),
-    }
+    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) }
 }
 
 pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
@@ -383,12 +344,7 @@ pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
 
 /* === Private Functions === */
 fn swept() -> Status {
-    Status {
-        phase: Phase::Settled,
-        outcome: Some(Outcome::Cancelled),
-        cancellation_requested: true,
-        attempt: 1,
-    }
+    Status { phase: Phase::Settled, outcome: Some(Outcome::Cancelled), cancellation_requested: true, attempt: 1 }
 }
 
 // What a warning calls the instance: the program a process runs, the

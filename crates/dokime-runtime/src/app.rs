@@ -18,10 +18,10 @@
 use harmos::{Application, state::Origin as HarmosOrigin};
 // Local Imports
 use crate::config::Config;
-use dokime_domain::state::records::Records;
 use crate::runtime_state::RuntimeState;
 use crate::streams::Streams as StreamCatalog;
 use crate::transactions::Transactions;
+use dokime_domain::state::records::Records;
 
 /* === Constants === */
 
@@ -56,11 +56,7 @@ pub struct Resources {
 
 impl Resources {
     pub fn new(storage_settings: crate::config::StorageSettings) -> Self {
-        Self {
-            analysis: crate::report::analysis::Resources::new(),
-            renderer: crate::report::Renderer,
-            storage_settings,
-        }
+        Self { analysis: crate::report::analysis::Resources::new(), renderer: crate::report::Renderer, storage_settings }
     }
 }
 
@@ -126,13 +122,8 @@ pub async fn launch(config: Config) -> crate::runtime::Result<crate::Runtime> {
 
 #[cfg(feature = "simulation")]
 #[tracing::instrument(level = "debug", skip_all, fields(seed))]
-pub fn simulate(
-    origin: impl Into<Origin>,
-    seed: u64,
-) -> Result<Simulated, harmos::runtime::Incompatible> {
-    builder(origin, Resources::new(crate::config::storage_defaults()))
-        .entropy_seed(seed)
-        .simulate()
+pub fn simulate(origin: impl Into<Origin>, seed: u64) -> Result<Simulated, harmos::runtime::Incompatible> {
+    builder(origin, Resources::new(crate::config::storage_defaults())).entropy_seed(seed).simulate()
 }
 
 /* === Private Functions === */

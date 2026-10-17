@@ -92,28 +92,19 @@ def from_contract(
         raise ValueError("operation projection requires positive limits")
     chunks: list[str] = []
     size = 0
-    for chunk in json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).iterencode(
-        contract
-    ):
+    for chunk in json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).iterencode(contract):
         size += len(chunk.encode("utf-8"))
         if size > max_bytes:
             raise ValueError("operation contract exceeds byte ceiling")
         chunks.append(chunk)
     encoded = "".join(chunks)
-    if (
-        set(contract) != {"operation", "version", "codec", "schema", "grpc"}
-        or contract.get("codec") != "postcard"
-    ):
+    if set(contract) != {"operation", "version", "codec", "schema", "grpc"} or contract.get("codec") != "postcard":
         raise ValueError("invalid canonical operation contract")
     grpc = contract.get("grpc")
     if not isinstance(grpc, Mapping) or set(grpc) != {"package", "service", "method"}:
         raise ValueError("operation has no gRPC declaration")
-    package, service, method = (
-        grpc.get(key) for key in ("package", "service", "method")
-    )
-    if not isinstance(package, str) or not all(
-        IDENTIFIER.fullmatch(part) for part in package.split(".")
-    ):
+    package, service, method = (grpc.get(key) for key in ("package", "service", "method"))
+    if not isinstance(package, str) or not all(IDENTIFIER.fullmatch(part) for part in package.split(".")):
         raise ValueError("invalid protobuf package")
     if not isinstance(service, str) or not IDENTIFIER.fullmatch(service):
         raise ValueError("invalid protobuf service")
@@ -123,11 +114,7 @@ def from_contract(
     if not isinstance(schema, Mapping) or set(schema) != {"root", "definitions"}:
         raise ValueError("operation has no finite schema")
     root, definitions = schema.get("root"), schema.get("definitions")
-    if (
-        not isinstance(root, int)
-        or isinstance(root, bool)
-        or not isinstance(definitions, list)
-    ):
+    if not isinstance(root, int) or isinstance(root, bool) or not isinstance(definitions, list):
         raise TypeError("invalid finite schema table")
     if not 0 <= root < len(definitions) <= max_definitions:
         raise ValueError("invalid or excessive finite schema definitions")
@@ -147,16 +134,9 @@ def from_contract(
         projected_names: set[str] = set()
         tags: set[int] = set()
         refs: set[int] = set()
-        variants = any(
-            isinstance(field, Mapping) and field.get("cardinality") == "variant"
-            for field in fields
-        )
+        variants = any(isinstance(field, Mapping) and field.get("cardinality") == "variant" for field in fields)
         row = file.message_type.add(name=_row(index, root))
-        all_names = {
-            _field_name(str(field.get("name")))
-            for field in fields
-            if isinstance(field, Mapping)
-        }
+        all_names = {_field_name(str(field.get("name"))) for field in fields if isinstance(field, Mapping)}
         variant_name = _available("_harmos_variant", all_names)
         if variants:
             row.oneof_decl.add(name=variant_name)
@@ -168,31 +148,16 @@ def from_contract(
                 "cardinality",
             }:
                 raise ValueError("invalid schema field shape")
-            name, tag, kind, cardinality = (
-                field[key] for key in ("name", "tag", "kind", "cardinality")
-            )
-            if (
-                not isinstance(name, str)
-                or not IDENTIFIER.fullmatch(name)
-                or len(name.encode("utf-8")) > 256
-                or name in names
-            ):
+            name, tag, kind, cardinality = (field[key] for key in ("name", "tag", "kind", "cardinality"))
+            if not isinstance(name, str) or not IDENTIFIER.fullmatch(name) or len(name.encode("utf-8")) > 256 or name in names:
                 raise ValueError("invalid or duplicate protobuf field name")
-            if (
-                not isinstance(tag, int)
-                or isinstance(tag, bool)
-                or not 0 < tag <= 536870911
-                or 19000 <= tag <= 19999
-                or tag in tags
-            ):
+            if not isinstance(tag, int) or isinstance(tag, bool) or not 0 < tag <= 536870911 or 19000 <= tag <= 19999 or tag in tags:
                 raise ValueError("invalid or duplicate protobuf tag")
             if cardinality not in ("required", "optional", "repeated", "variant"):
                 raise ValueError("invalid field cardinality")
             projected_name = _field_name(name)
             if projected_name in projected_names:
-                raise ValueError(
-                    "protobuf field names collide after reserved-member escaping"
-                )
+                raise ValueError("protobuf field names collide after reserved-member escaping")
             extra = len(name) + 1 if projected_name != name else 0
             work += len(name.encode("utf-8")) * 2 + extra + len(namespace) + 32
             admitted += 256 + (len(name.encode("utf-8")) + extra) * 4
@@ -204,30 +169,15 @@ def from_contract(
             target = row.field.add(
                 name=projected_name,
                 number=tag,
-                label=pb.FieldDescriptorProto.LABEL_REPEATED
-                if cardinality == "repeated"
-                else pb.FieldDescriptorProto.LABEL_OPTIONAL,
+                label=pb.FieldDescriptorProto.LABEL_REPEATED if cardinality == "repeated" else pb.FieldDescriptorProto.LABEL_OPTIONAL,
             )
             if projected_name != name:
                 target.json_name = name
-            if (
-                isinstance(kind, Mapping)
-                and set(kind) == {"type"}
-                and isinstance(kind["type"], str)
-                and kind["type"] in SCALARS
-            ):
+            if isinstance(kind, Mapping) and set(kind) == {"type"} and isinstance(kind["type"], str) and kind["type"] in SCALARS:
                 target.type = SCALARS[kind["type"]]
-            elif (
-                isinstance(kind, Mapping)
-                and set(kind) == {"type", "definition"}
-                and kind["type"] == "message"
-            ):
+            elif isinstance(kind, Mapping) and set(kind) == {"type", "definition"} and kind["type"] == "message":
                 reference = kind["definition"]
-                if (
-                    not isinstance(reference, int)
-                    or isinstance(reference, bool)
-                    or not 0 <= reference < len(definitions)
-                ):
+                if not isinstance(reference, int) or isinstance(reference, bool) or not 0 <= reference < len(definitions):
                     raise ValueError("invalid message reference")
                 refs.add(reference)
                 target.type = pb.FieldDescriptorProto.TYPE_MESSAGE
@@ -235,22 +185,12 @@ def from_contract(
             else:
                 raise ValueError("invalid field kind")
             if variants:
-                if (
-                    cardinality != "variant"
-                    or target.type != pb.FieldDescriptorProto.TYPE_MESSAGE
-                ):
-                    raise ValueError(
-                        "enum definitions require message-valued variants only"
-                    )
+                if cardinality != "variant" or target.type != pb.FieldDescriptorProto.TYPE_MESSAGE:
+                    raise ValueError("enum definitions require message-valued variants only")
                 target.oneof_index = 0
-            elif (
-                cardinality == "optional"
-                and target.type != pb.FieldDescriptorProto.TYPE_MESSAGE
-            ):
+            elif cardinality == "optional" and target.type != pb.FieldDescriptorProto.TYPE_MESSAGE:
                 target.oneof_index = len(row.oneof_decl)
-                row.oneof_decl.add(
-                    name=_available(f"_harmos_presence_{tag}", all_names)
-                )
+                row.oneof_decl.add(name=_available(f"_harmos_presence_{tag}", all_names))
                 target.proto3_optional = True
         references.append(refs)
     reachable, pending = set(), [root]
@@ -278,10 +218,7 @@ def from_contract(
         for index, field in enumerate(directions)
     ):
         raise ValueError("invalid operation direction declaration")
-    direction_types = {
-        field["name"]: f"{namespace}.{_row(field['kind']['definition'], root)}"
-        for field in directions
-    }
+    direction_types = {field["name"]: f"{namespace}.{_row(field['kind']['definition'], root)}" for field in directions}
     service_file = pb.FileDescriptorProto(
         name=f"{package.replace('.', '/')}/{service}.proto",
         package=package,
@@ -324,10 +261,7 @@ def from_contract(
     if len(serialized) + len(service_bytes) > max_bytes:
         raise ValueError("protobuf service exceeds byte ceiling")
     pool.AddSerializedFile(service_bytes)
-    classes = {
-        key: GetMessageClass(pool.FindMessageTypeByName(value))
-        for key, value in direction_types.items()
-    }
+    classes = {key: GetMessageClass(pool.FindMessageTypeByName(value)) for key, value in direction_types.items()}
     operation, version = contract.get("operation"), contract.get("version")
     if (
         not isinstance(operation, Mapping)
@@ -378,9 +312,7 @@ def _available(name: str, names: set[str]) -> str:
     return name
 
 
-def _envelope(
-    file: pb.FileDescriptorProto, name: str, alternatives: list[tuple[str, str]]
-) -> str:
+def _envelope(file: pb.FileDescriptorProto, name: str, alternatives: list[tuple[str, str]]) -> str:
     row = file.message_type.add(name=name)
     row.oneof_decl.add(name="value")
     for index, (field, message) in enumerate(alternatives, 1):

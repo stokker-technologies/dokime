@@ -19,18 +19,18 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
+use crate::storage::objects::presentation as native;
+use crate::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use crate::{runtime::Error, runtime::Result};
-use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::identity::SuiteId;
 use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::validation::ValidationMode;
+use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::ValueType;
-use crate::storage::objects::presentation as native;
-use crate::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
 
 /* === Constants === */
 
@@ -99,10 +99,7 @@ impl TryFrom<&Declarations> for Contracts {
             for contract in versions.values() {
                 contracts.push(Contract::try_from(contract)?);
             }
-            streams.push(Stream {
-                key: key.as_str().to_owned(),
-                versions: contracts,
-            });
+            streams.push(Stream { key: key.as_str().to_owned(), versions: contracts });
         }
         Ok(Self { streams })
     }
@@ -159,20 +156,9 @@ impl TryFrom<Contract> for TelemetryContract {
         Ok(Self {
             stream: Identifier::new(value.stream).map_err(crate::storage::Error::from)?,
             schema_version: value.schema_version,
-            metadata: value
-                .metadata
-                .ok_or_else(|| invalid("telemetry contract metadata is missing"))?
-                .try_into()?,
-            template_id: value
-                .template_id
-                .map(TemplateId::from_uuid)
-                .transpose()
-                .map_err(crate::storage::Error::from)?,
-            owner: value
-                .owner
-                .map(SuiteId::from_uuid)
-                .transpose()
-                .map_err(crate::storage::Error::from)?,
+            metadata: value.metadata.ok_or_else(|| invalid("telemetry contract metadata is missing"))?.try_into()?,
+            template_id: value.template_id.map(TemplateId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
+            owner: value.owner.map(SuiteId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             columns,
             storage_schema: value.storage_schema,
             default_x: value.default_x,
@@ -193,24 +179,12 @@ impl TryFrom<&TelemetryColumn> for Column {
             metadata: Some((&value.metadata).try_into()?),
             value_type: value_type_code(&value.value_type),
             role: role_code(&value.role),
-            unit: value
-                .unit
-                .as_ref()
-                .map(native::MeasurementUnit::try_from)
-                .transpose()?,
+            unit: value.unit.as_ref().map(native::MeasurementUnit::try_from).transpose()?,
             display_unit: value.display_unit.clone(),
             required: value.required,
             nullable: value.nullable,
-            default: value
-                .default
-                .as_ref()
-                .map(native::Value::try_from)
-                .transpose()?,
-            format: value
-                .format
-                .as_ref()
-                .map(native::ValueFormat::try_from)
-                .transpose()?,
+            default: value.default.as_ref().map(native::Value::try_from).transpose()?,
+            format: value.format.as_ref().map(native::ValueFormat::try_from).transpose()?,
         })
     }
 }
@@ -218,10 +192,7 @@ impl TryFrom<Column> for TelemetryColumn {
     type Error = Error;
     fn try_from(value: Column) -> Result<Self> {
         Ok(Self {
-            metadata: value
-                .metadata
-                .ok_or_else(|| invalid("telemetry column metadata is missing"))?
-                .try_into()?,
+            metadata: value.metadata.ok_or_else(|| invalid("telemetry column metadata is missing"))?.try_into()?,
             value_type: value_type(value.value_type)?,
             role: role(value.role)?,
             unit: value.unit.map(MeasurementUnit::try_from).transpose()?,
@@ -243,9 +214,7 @@ fn invalid(message: &str) -> Error {
 }
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("telemetry declaration allocation failed"))?;
+    values.try_reserve_exact(count).map_err(|_| invalid("telemetry declaration allocation failed"))?;
     if values.capacity() > count {
         return Err(invalid("telemetry declaration slots exceed admission"));
     }

@@ -81,51 +81,30 @@ impl Transaction<RuntimeState> for CompleteRun {
                 return Err("an unsealed completion cannot carry a seal".into());
             }
             let members = &state.cycles[&request.summary.cycle_id].execution_ids;
-            if unsealed
-                .execution_ids
-                .iter()
-                .any(|id| !members.contains(id))
-            {
+            if unsealed.execution_ids.iter().any(|id| !members.contains(id)) {
                 return Err("unsealed executions differ from cycle membership".into());
             }
         }
         if let Some(sealed) = &self.sealed_cycle {
             let current = &state.cycles[&request.summary.cycle_id];
-            let seal = sealed
-                .saved
-                .as_ref()
-                .ok_or("completed cycle has no saved seal")?;
+            let seal = sealed.saved.as_ref().ok_or("completed cycle has no saved seal")?;
             if current.saved.as_ref().is_some_and(|saved| saved != seal) {
                 return Err("cycle already has a different immutable report seal".into());
             }
             seal.validate(sealed).map_err(|source| source.to_string())?;
             if self.sealed_executions.len() != sealed.execution_ids.len()
-                || self
-                    .sealed_executions
-                    .iter()
-                    .zip(&sealed.execution_ids)
-                    .any(|(seal, id)| &seal.source.execution.execution_id != id)
+                || self.sealed_executions.iter().zip(&sealed.execution_ids).any(|(seal, id)| &seal.source.execution.execution_id != id)
             {
                 return Err("sealed executions differ from cycle membership".into());
             }
             for (member, seal) in seal.executions.iter().zip(&self.sealed_executions) {
-                if state.executions[&member.execution_id]
-                    .saved
-                    .as_ref()
-                    .is_some_and(|saved| saved != seal)
-                {
+                if state.executions[&member.execution_id].saved.as_ref().is_some_and(|saved| saved != seal) {
                     return Err("execution already has a different immutable report seal".into());
                 }
-                if !member
-                    .position
-                    .covers(&seal.dependencies_saved)
-                    .map_err(|source| source.to_string())?
-                {
+                if !member.position.covers(&seal.dependencies_saved).map_err(|source| source.to_string())? {
                     return Err("cycle member is not saved after its dependencies".into());
                 }
-                seal.source
-                    .validate(&member.execution_id)
-                    .map_err(|source| source.to_string())?;
+                seal.source.validate(&member.execution_id).map_err(|source| source.to_string())?;
             }
             if sealed.test_cycle_id != current.test_cycle_id
                 || sealed.execution_ids != current.execution_ids
@@ -145,19 +124,13 @@ impl Transaction<RuntimeState> for CompleteRun {
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if let Some(unsealed) = &self.unsealed
-            && !state.run_requests[&self.request_id]
-                .summary
-                .phase
-                .terminal()
+            && !state.run_requests[&self.request_id].summary.phase.terminal()
         {
             self.unsealed_drafts(state, unsealed).collect(out);
         }
     }
     fn apply(&self, state: &mut RuntimeState) {
-        let request = state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request");
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if request.summary.phase.terminal() {
             if self.sealed_cycle.is_some() {
                 request.publication_failure = None;
@@ -169,19 +142,10 @@ impl Transaction<RuntimeState> for CompleteRun {
         let status = conclusion(request);
         if let Some(unsealed) = &self.unsealed {
             let records = self.unsealed_drafts(state, unsealed);
-            record_publication_failure(
-                state
-                    .run_requests
-                    .get_mut(&self.request_id)
-                    .expect("checked request"),
-                &unsealed.cause,
-            );
+            record_publication_failure(state.run_requests.get_mut(&self.request_id).expect("checked request"), &unsealed.cause);
             records.apply(state);
         }
-        let request = state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request");
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         request.summary.phase = if self.unsealed.is_some() {
             RunPhase::Failed
         } else {
@@ -191,39 +155,19 @@ impl Transaction<RuntimeState> for CompleteRun {
         request.summary.finished_at = Some(self.at.clone());
         // A target group the policy or a Stop never let start still owes the
         // receipt its planned attempts, as unstarted.
-        request.summary.unstarted += request
-            .groups
-            .iter()
-            .map(|group| group.pending.len() as u64)
-            .sum::<u64>();
+        request.summary.unstarted += request.groups.iter().map(|group| group.pending.len() as u64).sum::<u64>();
         request.summary.unstarted += request.pending.len() as u64;
         request.pending.clear();
         request.groups.clear();
-        let cycle = state
-            .cycles
-            .get_mut(&request.summary.cycle_id)
-            .expect("request cycle");
+        let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
         for id in &cycle.execution_ids {
-            if request
-                .test_execution_id
-                .as_ref()
-                .is_some_and(|selected| selected != id)
-            {
+            if request.test_execution_id.as_ref().is_some_and(|selected| selected != id) {
                 continue;
             }
-            let execution = state
-                .executions
-                .get_mut(id)
-                .expect("cycle execution owner exists");
-            if self.unsealed.is_none()
-                && execution.status == ExecutionStatus::Skipped
-                && execution.finished_at.is_none()
-            {
+            let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
+            if self.unsealed.is_none() && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none() {
                 execution.finished_at = Some(self.at.clone());
-                execution.result = Some(ResultSummary {
-                    skipped: 1,
-                    ..summary(ResultStatus::Cancelled)
-                });
+                execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
                 for step in &mut execution.steps {
                     if step.status == StepStatus::Pending {
                         step.status = StepStatus::Skipped;
@@ -233,12 +177,7 @@ impl Transaction<RuntimeState> for CompleteRun {
             }
         }
         cycle.result = Some(crate::transactions::provider_finish::summarize(
-            cycle.execution_ids.iter().map(|id| {
-                state
-                    .executions
-                    .get(id)
-                    .expect("cycle execution owner exists")
-            }),
+            cycle.execution_ids.iter().map(|id| state.executions.get(id).expect("cycle execution owner exists")),
         ));
         cycle.lifecycle = if request.test_execution_id.is_some()
             && cycle.execution_ids.iter().any(|id| {
@@ -259,32 +198,18 @@ impl Transaction<RuntimeState> for CompleteRun {
 impl CompleteRun {
     fn install_seals(&self, state: &mut RuntimeState) {
         if let Some(sealed) = &self.sealed_cycle {
-            state
-                .cycles
-                .insert(sealed.test_cycle_id.clone(), sealed.clone());
-            state
-                .cycle_report_finalizations
-                .remove(&sealed.test_cycle_id);
+            state.cycles.insert(sealed.test_cycle_id.clone(), sealed.clone());
+            state.cycle_report_finalizations.remove(&sealed.test_cycle_id);
             for seal in &self.sealed_executions {
-                state
-                    .executions
-                    .get_mut(&seal.source.execution.execution_id)
-                    .expect("checked member")
-                    .saved = Some(seal.clone());
-                state
-                    .report_finalizations
-                    .remove(&seal.source.execution.execution_id);
+                state.executions.get_mut(&seal.source.execution.execution_id).expect("checked member").saved = Some(seal.clone());
+                state.report_finalizations.remove(&seal.source.execution.execution_id);
             }
         }
     }
 
     /// The permanent finalization cause, recorded once against every execution
     /// it left unsealed and once against the cycle as its terminal diagnosis.
-    fn unsealed_drafts(
-        &self,
-        state: &RuntimeState,
-        unsealed: &Unsealed,
-    ) -> crate::transactions::records::draft::Drafts {
+    fn unsealed_drafts(&self, state: &RuntimeState, unsealed: &Unsealed) -> crate::transactions::records::draft::Drafts {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         let mut draft = |record_type: BuiltinRecordType, scope: RecordScope| {
@@ -301,15 +226,9 @@ impl CompleteRun {
             );
         };
         for id in &unsealed.execution_ids {
-            draft(
-                BuiltinRecordType::TestExecutionFinalizationFailed,
-                state.executions[id].scope.clone(),
-            );
+            draft(BuiltinRecordType::TestExecutionFinalizationFailed, state.executions[id].scope.clone());
         }
-        draft(
-            BuiltinRecordType::TestCycleFinalizationFailed,
-            RecordScope::default().with_cycle(request.summary.cycle_id.clone()),
-        );
+        draft(BuiltinRecordType::TestCycleFinalizationFailed, RecordScope::default().with_cycle(request.summary.cycle_id.clone()));
         records
     }
 
@@ -321,14 +240,9 @@ impl CompleteRun {
         }
         let status = conclusion(request);
         let cycle_status = if request.test_execution_id.is_some() {
-            crate::transactions::provider_finish::lifecycle_for(Some(
-                &crate::transactions::provider_finish::summarize(
-                    state.cycles[&request.summary.cycle_id]
-                        .execution_ids
-                        .iter()
-                        .map(|id| &state.executions[id]),
-                ),
-            ))
+            crate::transactions::provider_finish::lifecycle_for(Some(&crate::transactions::provider_finish::summarize(
+                state.cycles[&request.summary.cycle_id].execution_ids.iter().map(|id| &state.executions[id]),
+            )))
         } else {
             status
         };
@@ -338,36 +252,20 @@ impl CompleteRun {
             _ => BuiltinRecordType::TestCycleFailed,
         };
         let cycle_complete = request.test_execution_id.as_ref().is_none_or(|selected| {
-            !state.cycles[&request.summary.cycle_id]
-                .execution_ids
-                .iter()
-                .any(|id| {
-                    let execution = &state.executions[id];
-                    id != selected
-                        && execution.status == ExecutionStatus::Skipped
-                        && execution.finished_at.is_none()
-                })
+            !state.cycles[&request.summary.cycle_id].execution_ids.iter().any(|id| {
+                let execution = &state.executions[id];
+                id != selected && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
+            })
         });
         if cycle_complete {
             records.draft(
                 BuiltinDraft {
                     record_type: name,
                     source: "runtime".into(),
-                    severity: if cycle_status == CycleStatus::Failed {
-                        RecordSeverity::Error
-                    } else {
-                        RecordSeverity::Info
-                    },
-                    message: Some(
-                        request
-                            .failure
-                            .clone()
-                            .unwrap_or_else(|| "Cycle provider outcome settled.".into()),
-                    ),
+                    severity: if cycle_status == CycleStatus::Failed { RecordSeverity::Error } else { RecordSeverity::Info },
+                    message: Some(request.failure.clone().unwrap_or_else(|| "Cycle provider outcome settled.".into())),
                     details: BTreeMap::new(),
-                    scope: Some(
-                        RecordScope::default().with_cycle(request.summary.cycle_id.clone()),
-                    ),
+                    scope: Some(RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
                 },
                 self.at.clone(),
             );
@@ -380,17 +278,8 @@ impl CompleteRun {
                     _ => BuiltinRecordType::ProviderExecutionFailed,
                 },
                 source: "provider".into(),
-                severity: if status == CycleStatus::Failed {
-                    RecordSeverity::Error
-                } else {
-                    RecordSeverity::Info
-                },
-                message: Some(
-                    request
-                        .failure
-                        .clone()
-                        .unwrap_or_else(|| "Cycle provider work settled.".into()),
-                ),
+                severity: if status == CycleStatus::Failed { RecordSeverity::Error } else { RecordSeverity::Info },
+                message: Some(request.failure.clone().unwrap_or_else(|| "Cycle provider work settled.".into())),
                 details: BTreeMap::new(),
                 scope: Some(
                     request
@@ -398,9 +287,7 @@ impl CompleteRun {
                         .as_ref()
                         .and_then(|id| state.executions.get(id))
                         .map(|execution| execution.scope.clone())
-                        .unwrap_or_else(|| {
-                            RecordScope::default().with_cycle(request.summary.cycle_id.clone())
-                        }),
+                        .unwrap_or_else(|| RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
                 ),
             },
             self.at.clone(),
@@ -439,11 +326,7 @@ impl Transaction<RuntimeState> for SettleRun {
             unsealed: None,
         }
         .drafts(state);
-        state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request")
-            .completion_at = Some(self.at.clone());
+        state.run_requests.get_mut(&self.request_id).expect("checked request").completion_at = Some(self.at.clone());
         records.apply(state);
     }
 }
@@ -475,10 +358,7 @@ fn conclusion(request: &RunRequest) -> CycleStatus {
 }
 
 fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), String> {
-    let request = state
-        .run_requests
-        .get(request_id)
-        .ok_or("request not found")?;
+    let request = state.run_requests.get(request_id).ok_or("request not found")?;
     if request.summary.phase.terminal() {
         return Ok(());
     }
@@ -506,11 +386,7 @@ mod tests {
                 saved: None,
                 test_cycle_id: cycle_id.clone(),
                 session_id: None,
-                metadata: Metadata::new(
-                    Identifier::new("publication.fixture").unwrap(),
-                    "Publication",
-                    None,
-                ),
+                metadata: Metadata::new(Identifier::new("publication.fixture").unwrap(), "Publication", None),
                 lifecycle: CycleStatus::Running,
                 created_at: at.clone(),
                 started_at: Some(at.clone()),
@@ -542,9 +418,7 @@ mod tests {
                 },
                 target: ExecutionProviderTarget {
                     source: "fixture".into(),
-                    binding: crate::domains::SidecarExecutionBinding {
-                        workflow: "fixture".into(),
-                    },
+                    binding: crate::domains::SidecarExecutionBinding { workflow: "fixture".into() },
                 },
                 test_execution_id: None,
                 pending: Default::default(),
@@ -564,10 +438,7 @@ mod tests {
                 at,
                 sealed_cycle: None,
                 sealed_executions: Vec::new(),
-                unsealed: Some(Unsealed {
-                    cause: "report memory exhausted".into(),
-                    execution_ids: Vec::new(),
-                }),
+                unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }),
             },
         )
     }
@@ -582,28 +453,15 @@ mod tests {
             assert_eq!(request.summary.phase, RunPhase::Failed);
             assert_eq!(request.summary.failed, 0);
             assert!(request.failure.is_none());
-            assert_eq!(
-                request.publication_failure.as_deref(),
-                Some("report memory exhausted")
-            );
+            assert_eq!(request.publication_failure.as_deref(), Some("report memory exhausted"));
             let cycle = &state.cycles[&request.summary.cycle_id];
-            assert_eq!(
-                cycle.lifecycle,
-                if stopped {
-                    CycleStatus::Stopped
-                } else {
-                    CycleStatus::Completed
-                }
-            );
+            assert_eq!(cycle.lifecycle, if stopped { CycleStatus::Stopped } else { CycleStatus::Completed });
             assert!(cycle.saved.is_none());
             let record_count = state.record_count;
             let summary = request.summary.clone();
             complete.check(&state).unwrap();
             complete.apply(&mut state);
-            assert_eq!(
-                state.record_count, record_count,
-                "retrying a failed completion adds no duplicate records"
-            );
+            assert_eq!(state.record_count, record_count, "retrying a failed completion adds no duplicate records");
             assert_eq!(state.run_requests[&complete.request_id].summary, summary);
         }
     }
@@ -614,15 +472,9 @@ mod tests {
         let request = state.run_requests.get_mut(&complete.request_id).unwrap();
         request.failure = Some("device disconnected".into());
         record_publication_failure(request, "report memory exhausted");
-        assert_eq!(
-            request.interruption().as_deref(),
-            Some("device disconnected; report memory exhausted")
-        );
+        assert_eq!(request.interruption().as_deref(), Some("device disconnected; report memory exhausted"));
         request.publication_failure = None;
-        assert_eq!(
-            request.interruption().as_deref(),
-            Some("device disconnected")
-        );
+        assert_eq!(request.interruption().as_deref(), Some("device disconnected"));
         assert_eq!(conclusion(request), CycleStatus::Failed);
     }
 }

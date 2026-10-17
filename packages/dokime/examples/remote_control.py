@@ -53,9 +53,7 @@ async def run(arguments: argparse.Namespace) -> int:
         )
 
         async def record(item: Record) -> None:
-            print(
-                f"Record: {item.type} #{item.sequence} {item.message or ''}", flush=True
-            )
+            print(f"Record: {item.type} #{item.sequence} {item.message or ''}", flush=True)
 
         async def sample(item: Sample) -> None:
             print(f"Sample: {item.stream} #{item.sequence} {item.values!r}", flush=True)
@@ -75,21 +73,13 @@ async def run(arguments: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--endpoint", required=True, help="Authenticated HTTPS listener"
-    )
+    parser.add_argument("--endpoint", required=True, help="Authenticated HTTPS listener")
     parser.add_argument("--token-file", required=True, type=Path)
     parser.add_argument("--ca-certificate", type=Path)
-    parser.add_argument(
-        "--execution", required=True, help="Existing planned execution ID"
-    )
-    parser.add_argument(
-        "--request-key", required=True, help="Retain this key for recovery"
-    )
+    parser.add_argument("--execution", required=True, help="Existing planned execution ID")
+    parser.add_argument("--request-key", required=True, help="Retain this key for recovery")
     parser.add_argument("--rpc-timeout", type=float, default=30)
-    parser.add_argument(
-        "--timeout", type=float, help="Local wait timeout; never stops remote work"
-    )
+    parser.add_argument("--timeout", type=float, help="Local wait timeout; never stops remote work")
     arguments = parser.parse_args()
     if urlsplit(arguments.endpoint).scheme != "https":
         parser.error("remote control requires an HTTPS endpoint")
@@ -97,8 +87,7 @@ def main() -> int:
         return asyncio.run(run(arguments))
     except KeyboardInterrupt:
         print(
-            "Local Client Closed; Remote Work May Still Be Running. "
-            f"Execution: {arguments.execution} Request Key: {arguments.request_key}",
+            f"Local Client Closed; Remote Work May Still Be Running. Execution: {arguments.execution} Request Key: {arguments.request_key}",
             flush=True,
         )
         return 130

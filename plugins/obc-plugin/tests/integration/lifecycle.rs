@@ -22,11 +22,8 @@ use std::time::Duration;
 use dokime_domain::model;
 use dokime_runtime::Value;
 use dokime_runtime::execution::Workflow;
+use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use model::records::publication::RecordPublishRequest;
-use dokime_runtime::transport::{
-    EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome,
-    StepAdmission,
-};
 use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
 
 /* === Constants === */
@@ -80,47 +77,24 @@ fn workflow() -> Workflow<Pulse> {
 }
 
 fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {
-    let reply = workflow
-        .drain(token, cursor)
-        .expect("the execution remains drainable");
+    let reply = workflow.drain(token, cursor).expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(
-            token,
-            &StepAdmission {
-                attempt_id: start.attempt_id.to_string(),
-                accepted: true,
-                message: String::new(),
-            },
-        );
+        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
 }
 
 async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {
-    let reply = workflow
-        .next(token, cursor)
-        .await
-        .expect("the execution remains drainable");
+    let reply = workflow.next(token, cursor).await.expect("the execution remains drainable");
     for encoded in &reply.step_begins {
         let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-        workflow.admit(
-            token,
-            &StepAdmission {
-                attempt_id: start.attempt_id.to_string(),
-                accepted: true,
-                message: String::new(),
-            },
-        );
+        workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
 }
 
-async fn drain_until_terminal(
-    workflow: &Workflow<Pulse>,
-    token: &str,
-    mut cursor: u64,
-) -> Vec<EvidenceBatch> {
+async fn drain_until_terminal(workflow: &Workflow<Pulse>, token: &str, mut cursor: u64) -> Vec<EvidenceBatch> {
     let mut replies = Vec::new();
     loop {
         let reply = next(workflow, token, cursor).await;
@@ -130,22 +104,15 @@ async fn drain_until_terminal(
         if terminal {
             return replies;
         }
-        }
+    }
 }
 
 fn outcome(replies: &[EvidenceBatch]) -> &SidecarExecutionOutcome {
-    replies
-        .iter()
-        .find_map(|reply| reply.outcome.as_ref())
-        .expect("the drain stream terminates once")
+    replies.iter().find_map(|reply| reply.outcome.as_ref()).expect("the drain stream terminates once")
 }
 
 fn records(replies: &[EvidenceBatch]) -> Vec<RecordPublishRequest> {
-    replies
-        .iter()
-        .flat_map(|reply| reply.records.iter())
-        .map(|record| serde_json::from_str(record).expect("every event decodes"))
-        .collect()
+    replies.iter().flat_map(|reply| reply.records.iter()).map(|record| serde_json::from_str(record).expect("every event decodes")).collect()
 }
 
 /* === Tests === */
@@ -154,12 +121,8 @@ fn records(replies: &[EvidenceBatch]) -> Vec<RecordPublishRequest> {
 async fn execution_streams_outcome() {
     let workflow = workflow();
     let request = start_request("streaming", 3);
-    workflow
-        .start(request.clone())
-        .expect("the execution starts");
-    workflow
-        .start(request)
-        .expect("an identical start is idempotent");
+    workflow.start(request.clone()).expect("the execution starts");
+    workflow.start(request).expect("an identical start is idempotent");
 
     let replies = drain_until_terminal(&workflow, "streaming", 0).await;
     let samples = workflow.take_local_samples("streaming").unwrap();
@@ -168,24 +131,12 @@ async fn execution_streams_outcome() {
 
     // The declared stream sampled until the step had what it waited for.
     assert!(samples.len() >= 3);
-    assert!(samples.iter().all(|sample| {
-        sample
-            .scope
-            .as_ref()
-            .is_some_and(|scope| scope.test_execution_id.is_some())
-    }));
-    assert!(
-        samples
-            .iter()
-            .all(|sample| { sample.stream.as_str() == <PulseRow as dokime_runtime::StreamSpec>::ID })
-    );
+    assert!(samples.iter().all(|sample| { sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) }));
+    assert!(samples.iter().all(|sample| { sample.stream.as_str() == <PulseRow as dokime_runtime::StreamSpec>::ID }));
     // The values are the sidecar's own deterministic function of the index,
     // compared with a tolerance because they round-trip through JSON.
     for (index, sample) in samples.iter().enumerate() {
-        assert_eq!(
-            sample.values.get("sample_index"),
-            Some(&Value::from(index as i64))
-        );
+        assert_eq!(sample.values.get("sample_index"), Some(&Value::from(index as i64)));
         let Some(Value::Number(value)) = sample.values.get("value") else {
             panic!("every sample carries a numeric value");
         };
@@ -195,10 +146,7 @@ async fn execution_streams_outcome() {
         assert!(sample.values.contains_key("timestamp"));
     }
     assert_eq!(
-        records
-            .iter()
-            .map(|record| record.record_type.as_str())
-            .collect::<Vec<_>>(),
+        records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>(),
         vec![
             <suites::checks::pulse::RunStarted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
             <suites::checks::pulse::RunCompleted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
@@ -207,19 +155,14 @@ async fn execution_streams_outcome() {
     assert!(outcome.passed);
     let criterion = &outcome.criteria[0];
     assert_eq!(criterion.identifier, suites::checks::pulse::ACCEPTANCE);
-    assert_eq!(
-        SidecarCriterionStatus::try_from(criterion.status),
-        Ok(SidecarCriterionStatus::Passed)
-    );
+    assert_eq!(SidecarCriterionStatus::try_from(criterion.status), Ok(SidecarCriterionStatus::Passed));
     workflow.shutdown().await;
 }
 
 #[tokio::test]
 async fn repeated_cursor_output() {
     let workflow = workflow();
-    workflow
-        .start(start_request("replay", 3))
-        .expect("the execution starts");
+    workflow.start(start_request("replay", 3)).expect("the execution starts");
     // Replay is asserted after the run is over, so the buffer this reads
     // twice is a buffer nothing is still writing to.
     let finished = drain_until_terminal(&workflow, "replay", 0).await;
@@ -250,9 +193,7 @@ async fn repeated_cursor_output() {
 #[tokio::test]
 async fn cancellation_measures_criterion() {
     let workflow = workflow();
-    workflow
-        .start(start_request("cancelled", 64))
-        .expect("the execution is admitted");
+    workflow.start(start_request("cancelled", 64)).expect("the execution is admitted");
     // Admission precedes initialization. Advance through phase boundaries
     // until execution starts, retaining the evidence for the final assertions.
     let mut cursor = 0;
@@ -260,18 +201,13 @@ async fn cancellation_measures_criterion() {
     loop {
         let reply = next(&workflow, "cancelled", cursor).await;
         cursor = reply.cursor;
-        assert!(
-            reply.outcome.is_none(),
-            "the execution ended before cancellation"
-        );
-        let started = records(std::slice::from_ref(&reply))
-            .iter()
-            .any(|record| record.record_type.as_str() == "obc.run.started");
+        assert!(reply.outcome.is_none(), "the execution ended before cancellation");
+        let started = records(std::slice::from_ref(&reply)).iter().any(|record| record.record_type.as_str() == "obc.run.started");
         replies.push(reply);
         if started {
             break;
         }
-        }
+    }
     // Cancelling is idempotent: the second request is a successful no-op.
     workflow.cancel("cancelled");
     workflow.cancel("cancelled");
@@ -280,18 +216,10 @@ async fn cancellation_measures_criterion() {
     let outcome = outcome(&replies);
 
     assert!(!outcome.passed);
-    assert!(
-        outcome
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("cancelled"))
-    );
+    assert!(outcome.message.as_deref().is_some_and(|message| message.contains("cancelled")));
     // A cancelled run measured less, so its criterion decided over less.
     // That is a smaller verdict, not an absent one.
-    assert_eq!(
-        SidecarCriterionStatus::try_from(outcome.criteria[0].status),
-        Ok(SidecarCriterionStatus::Failed)
-    );
+    assert_eq!(SidecarCriterionStatus::try_from(outcome.criteria[0].status), Ok(SidecarCriterionStatus::Failed));
     workflow.shutdown().await;
 }
 
@@ -301,9 +229,7 @@ async fn unknown_workflow_refused() {
     let mut request = start_request("wrong", 1);
     request.workflow = "someone.elses.suite".to_owned();
 
-    let refusal = workflow
-        .start(request)
-        .expect_err("an unknown workflow is refused");
+    let refusal = workflow.start(request).expect_err("an unknown workflow is refused");
 
     assert!(refusal.to_string().contains("someone.elses.suite"));
     workflow.shutdown().await;

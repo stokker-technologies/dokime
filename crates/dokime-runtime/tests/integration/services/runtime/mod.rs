@@ -48,14 +48,7 @@ use dokime_domain::model;
 
 /* === Private Functions === */
 async fn record_health(runtime: &RuntimeHandle, message: &str) -> dokime_runtime::runtime::Result<()> {
-    runtime
-        .add_health_item(
-            RecordScope::default(),
-            model::execution::HealthSeverity::Info,
-            message.to_owned(),
-            None,
-        )
-        .await
+    runtime.add_health_item(RecordScope::default(), model::execution::HealthSeverity::Info, message.to_owned(), None).await
 }
 
 /* === Tests === */

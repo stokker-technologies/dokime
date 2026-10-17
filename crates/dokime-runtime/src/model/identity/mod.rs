@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Runtime Creation Of Domain Values.
 
 /* === Modules === */
@@ -21,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 
@@ -43,8 +41,7 @@ where
     T: TryFrom<String>,
     T::Error: std::fmt::Debug,
 {
-    T::try_from(uuid::Uuid::now_v7().to_string())
-        .expect("a freshly generated UUID is a valid Dokime identity")
+    T::try_from(uuid::Uuid::now_v7().to_string()).expect("a freshly generated UUID is a valid Dokime identity")
 }
 
 /* === Private Functions === */
@@ -58,17 +55,10 @@ mod tests {
         let identifiers = std::thread::scope(|scope| {
             let workers = (0..4)
                 .map(|_| {
-                    scope.spawn(|| {
-                        (0..10_000)
-                            .map(|_| super::new_id::<dokime_domain::model::identity::ArtifactId>())
-                            .collect::<Vec<_>>()
-                    })
+                    scope.spawn(|| (0..10_000).map(|_| super::new_id::<dokime_domain::model::identity::ArtifactId>()).collect::<Vec<_>>())
                 })
                 .collect::<Vec<_>>();
-            workers
-                .into_iter()
-                .flat_map(|worker| worker.join().unwrap())
-                .collect::<Vec<_>>()
+            workers.into_iter().flat_map(|worker| worker.join().unwrap()).collect::<Vec<_>>()
         });
         let mut unique = std::collections::BTreeSet::new();
         for identifier in identifiers {

@@ -106,7 +106,6 @@ pub mod __answer {
     }
 }
 
-
 #[cfg(feature = "host")]
 pub mod app;
 #[cfg(feature = "host")]
@@ -138,23 +137,21 @@ pub mod brand {
 
 /* === Re-Exports === */
 
-
 pub use dokime_domain::model::expressions;
 
-
 pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
+pub use dokime_domain::DEV_PROTOCOL;
 pub use dokime_domain::Error as ApiError;
+pub use dokime_domain::READINESS_PROTOCOL;
 pub use dokime_domain::model::appearance::*;
-pub use dokime_domain::model::execution::*;
 pub use dokime_domain::model::credentials::*;
 pub use dokime_domain::model::diagnostics::*;
+pub use dokime_domain::model::execution::*;
 pub use dokime_domain::model::identity::*;
+pub use dokime_domain::model::settings;
 pub use dokime_domain::model::time::*;
 pub use dokime_domain::model::validation::*;
 pub use dokime_domain::model::values::*;
-pub use dokime_domain::model::settings;
-pub use dokime_domain::DEV_PROTOCOL;
-pub use dokime_domain::READINESS_PROTOCOL;
 pub use error::{Error, Result};
 pub use execution::Slot;
 pub use parameters::{FromParameters, ParameterChoice, ParameterHandle, ParameterValue};
@@ -181,15 +178,15 @@ pub use values::{FieldError, FieldValue};
 // [`plugin`] are the API, and these are the path most authors take to them.
 #[cfg(feature = "derive")]
 pub use dokime_macros::{
-    catalog, choice, criterion, listener, message, observer, operation, parameters, plugin, prompt,
-    record, row, section, settings, step, stream, suite, template,
+    catalog, choice, criterion, listener, message, observer, operation, parameters, plugin, prompt, record, row, section, settings, step,
+    stream, suite, template,
 };
 pub use harmos::{Message, StreamSpec, schema};
 
 // Generated authoring code resolves implementation dependencies through the SDK.
 
-pub use harmos as __harmos;
 pub use dokime_domain as __domain;
+pub use harmos as __harmos;
 
 pub use prost as __prost;
 
@@ -210,7 +207,6 @@ pub(crate) use runtime::query as queries;
 #[cfg(feature = "host")]
 pub(crate) use runtime::{handle, state as runtime_state};
 
-
 #[cfg(feature = "host")]
 pub use app::Dokime;
 #[cfg(feature = "host")]
@@ -220,17 +216,12 @@ pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, Sidec
 pub use dokime_domain::model::plugins::InstalledPlugin;
 #[cfg(feature = "host")]
 pub use domains::documents::{
-    CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower,
-    ExecutionFileStream, PreparedCurrentDocument,
+    CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument,
 };
 #[cfg(feature = "host")]
-pub use domains::execution::outputs::{
-    ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState,
-};
+pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};
 #[cfg(feature = "host")]
-pub use domains::execution::provider::{
-    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
-};
+pub use domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 #[cfg(feature = "host")]
 pub use domains::telemetry::LeaseFact;
 
@@ -240,7 +231,6 @@ pub(crate) use runtime::RuntimeState;
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
 #[cfg(feature = "host")]
 pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
-
 
 /* === Imports === */
 

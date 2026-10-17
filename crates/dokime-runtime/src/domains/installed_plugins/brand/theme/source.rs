@@ -48,9 +48,7 @@ pub trait Source {
 /* === Implementations === */
 impl Directory {
     pub fn new(root: &Path) -> io::Result<Self> {
-        Ok(Self {
-            root: root.canonicalize()?,
-        })
+        Ok(Self { root: root.canonicalize()? })
     }
 }
 
@@ -58,10 +56,7 @@ impl Source for Directory {
     fn read(&self, relative: &str) -> io::Result<Vec<u8>> {
         let path = self.root.join(relative).canonicalize()?;
         if !path.starts_with(&self.root) {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "path leaves the brand bundle",
-            ));
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "path leaves the brand bundle"));
         }
         std::fs::read(path)
     }
@@ -69,23 +64,17 @@ impl Source for Directory {
 
 impl Bundled {
     pub fn manifest() -> &'static str {
-        std::str::from_utf8(Self::file("brand.toml").expect("the bundle has a manifest"))
-            .expect("brand.toml is UTF-8")
+        std::str::from_utf8(Self::file("brand.toml").expect("the bundle has a manifest")).expect("brand.toml is UTF-8")
     }
 
     pub fn file(relative: &str) -> Option<&'static [u8]> {
-        FILES
-            .iter()
-            .find(|(name, _)| *name == relative)
-            .map(|(_, bytes)| *bytes)
+        FILES.iter().find(|(name, _)| *name == relative).map(|(_, bytes)| *bytes)
     }
 }
 
 impl Source for Bundled {
     fn read(&self, relative: &str) -> io::Result<Vec<u8>> {
-        Self::file(relative)
-            .map(<[u8]>::to_vec)
-            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+        Self::file(relative).map(<[u8]>::to_vec).ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
     }
 }
 

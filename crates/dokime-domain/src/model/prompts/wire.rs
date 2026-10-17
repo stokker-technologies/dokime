@@ -103,9 +103,7 @@ pub struct PromptDefinition {
     pub template_identifier: Option<String>,
     pub examples: Vec<Value>,
     // The declared level on the record severity scale; Unspecified reads as Info.
-    #[row(
-        description = "The declared level on the record severity scale; Unspecified reads as Info."
-    )]
+    #[row(description = "The declared level on the record severity scale; Unspecified reads as Info.")]
     pub level: Severity,
 }
 

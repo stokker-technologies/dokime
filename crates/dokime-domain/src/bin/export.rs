@@ -40,9 +40,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     if !arguments.is_empty() {
-        return Err(
-            "the exporter takes no arguments; output belongs to the selected Cargo build".into(),
-        );
+        return Err("the exporter takes no arguments; output belongs to the selected Cargo build".into());
     }
     let artifacts = crate::operations::artifacts()?;
     let directory = std::path::Path::new(env!("OUT_DIR"));

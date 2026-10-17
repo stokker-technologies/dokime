@@ -47,13 +47,10 @@ fn settings_json(root: &Path) -> serde_json::Value {
 }
 
 fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize) -> Vec<u8> {
-    let identity = Identity {
-        name: package.into(),
-        version: version.parse().unwrap(),
-        description: "A fixture.".into(),
-        package: Default::default(),
-    };
-    let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
+    let identity =
+        Identity { name: package.into(), version: version.parse().unwrap(), description: "A fixture.".into(), package: Default::default() };
+    let declaration =
+        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
@@ -61,23 +58,14 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
         restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(
-            harmos::operations::lifecycle::Action::Initialize,
-            policy,
-        )
-        .unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(
-            harmos::operations::lifecycle::Action::Shutdown,
-            policy,
-        )
-        .unwrap(),
+        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
-    let contracts = serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
+    let contracts =
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
-    let publications =
-        serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
-    let observers =
-        serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
+    let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
+    let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
         prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
@@ -95,11 +83,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
                     registrations: vec![],
                 }),
             },
-            Source {
-                path: "resources/payload.bin",
-                bytes: &resource,
-                executable: None,
-            },
+            Source { path: "resources/payload.bin", bytes: &resource, executable: None },
         ],
         Limits::default(),
     )
@@ -141,10 +125,7 @@ fn immutable_executable_survive() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = fs::metadata(store.path(second_id))
-            .unwrap()
-            .permissions()
-            .mode();
+        let mode = fs::metadata(store.path(second_id)).unwrap().permissions().mode();
         assert_eq!(mode & 0o111, 0o111, "installed bundles are executable");
     }
 
@@ -155,13 +136,11 @@ fn immutable_executable_survive() {
     assert!(entry.get("metadata").is_none());
     assert!(entry.get("version").is_none());
     assert!(!saved.to_string().contains(".dokime"));
-    assert!(fs::read_dir(store.root()).unwrap().all(|entry| {
-        entry
+    assert!(
+        fs::read_dir(store.root())
             .unwrap()
-            .path()
-            .extension()
-            .is_some_and(|extension| extension == "dokime")
-    }));
+            .all(|entry| { entry.unwrap().path().extension().is_some_and(|extension| extension == "dokime") })
+    );
     store.sweep().unwrap();
     assert!(!store.path(first_id).exists());
     assert_eq!(store.list().unwrap().len(), 1);
@@ -174,25 +153,11 @@ fn consent_rechecks_host() {
     let root = tempfile::tempdir().unwrap();
     let left = store(root.path());
     let right = store(root.path());
-    let a = left
-        .stage(&bundle("left", "shared", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
-    let b = right
-        .stage(&bundle("right", "shared", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
-    assert!(matches!(
-        left.consent(a, &[], &BTreeSet::from(["shared".into()])),
-        Err(PluginError::Collision(_))
-    ));
+    let a = left.stage(&bundle("left", "shared", "1.0.0")).unwrap().installation.install_id;
+    let b = right.stage(&bundle("right", "shared", "1.0.0")).unwrap().installation.install_id;
+    assert!(matches!(left.consent(a, &[], &BTreeSet::from(["shared".into()])), Err(PluginError::Collision(_))));
     left.consent(a, &[], &BTreeSet::new()).unwrap();
-    assert!(matches!(
-        right.consent(b, &[], &BTreeSet::new()),
-        Err(PluginError::Collision(_))
-    ));
+    assert!(matches!(right.consent(b, &[], &BTreeSet::new()), Err(PluginError::Collision(_))));
     assert_eq!(right.list().unwrap().len(), 2);
 }
 
@@ -200,20 +165,13 @@ fn consent_rechecks_host() {
 fn unavailable_bytes_metadata() {
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
-    let id = store
-        .stage(&bundle("fixture", "fixture", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let id = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap().installation.install_id;
     fs::write(store.path(id), bundle("untrusted", "other", "2.0.0")).unwrap();
     let entry = store.list().unwrap().remove(0);
     assert_eq!(entry.installation.install_id, id);
     assert!(entry.metadata.is_none());
     assert!(entry.error.is_some());
-    assert!(matches!(
-        store.consent(id, &[], &BTreeSet::new()),
-        Err(PluginError::Changed(_))
-    ));
+    assert!(matches!(store.consent(id, &[], &BTreeSet::new()), Err(PluginError::Changed(_))));
     fs::remove_file(store.path(id)).unwrap();
     assert!(store.list().unwrap()[0].metadata.is_none());
     store.remove(id).unwrap();
@@ -227,11 +185,7 @@ fn unauthorized_files_kept() {
     let root = tempfile::tempdir().unwrap();
     let plugins = root.path().join("plugins");
     fs::create_dir_all(&plugins).unwrap();
-    fs::write(
-        plugins.join("manual.dokime"),
-        bundle("manual", "manual", "1.0.0"),
-    )
-    .unwrap();
+    fs::write(plugins.join("manual.dokime"), bundle("manual", "manual", "1.0.0")).unwrap();
     fs::write(plugins.join(".tmpABC123"), b"interrupted stage").unwrap();
     let store = store(root.path());
     assert!(store.list().unwrap().is_empty());
@@ -251,11 +205,7 @@ fn failed_settings_bytes() {
 
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
-    let id = store
-        .stage(&bundle("fixture", "fixture", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let id = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap().installation.install_id;
     let bytes = fs::read(store.path(id)).unwrap();
     let before = fs::read(root.path().join("settings.json")).unwrap();
 
@@ -275,11 +225,7 @@ fn failed_settings_bytes() {
 fn failed_cleanup_retry() {
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
-    let id = store
-        .stage(&bundle("fixture", "fixture", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let id = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap().installation.install_id;
     store.consent(id, &[], &BTreeSet::new()).unwrap();
     store.remove(id).unwrap();
     fs::remove_file(store.path(id)).unwrap();
@@ -287,10 +233,7 @@ fn failed_cleanup_retry() {
     store.sweep().unwrap();
     let row = store.list().unwrap().remove(0);
     assert_eq!(row.installation.state, PluginState::RemovalPending);
-    assert!(matches!(
-        row.installation.last_boot,
-        Some(PluginLastBoot::Failed { .. })
-    ));
+    assert!(matches!(row.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
     fs::remove_dir(store.path(id)).unwrap();
     store.sweep().unwrap();
     assert!(store.list().unwrap().is_empty());
@@ -303,11 +246,7 @@ fn removal_pending_sweep() {
     let root = tempfile::tempdir().unwrap();
     let id = {
         let store = store(root.path());
-        let id = store
-            .stage(&bundle("fixture", "fixture", "1.0.0"))
-            .unwrap()
-            .installation
-            .install_id;
+        let id = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap().installation.install_id;
         store.consent(id, &[], &BTreeSet::new()).unwrap();
         store.remove(id).unwrap();
         assert!(store.path(id).is_file(), "consented bytes stop next boot");
@@ -315,10 +254,7 @@ fn removal_pending_sweep() {
     };
 
     let restarted = store(root.path());
-    assert_eq!(
-        restarted.get(id).unwrap().installation.state,
-        PluginState::RemovalPending
-    );
+    assert_eq!(restarted.get(id).unwrap().installation.state, PluginState::RemovalPending);
     assert!(restarted.installed().unwrap().is_empty());
     restarted.sweep().unwrap();
     assert!(!restarted.path(id).exists());
@@ -331,45 +267,27 @@ fn removal_pending_sweep() {
 fn discarding_unconsented_failed() {
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
-    let original = store
-        .stage(&bundle("fixture", "fixture", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let original = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap().installation.install_id;
     store.consent(original, &[], &BTreeSet::new()).unwrap();
     store.record_boot(original, None).unwrap();
     let before = fs::read(store.path(original)).unwrap();
-    let staged = store
-        .stage(&bundle("fixture", "fixture", "2.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let staged = store.stage(&bundle("fixture", "fixture", "2.0.0")).unwrap().installation.install_id;
     store.remove(staged).unwrap();
     assert!(!store.path(staged).exists());
     let rows = store.list().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].installation.install_id, original);
-    assert!(matches!(
-        rows[0].installation.last_boot,
-        Some(PluginLastBoot::Loaded { .. })
-    ));
+    assert!(matches!(rows[0].installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
     assert_eq!(fs::read(store.path(original)).unwrap(), before);
 
-    let blocked = store
-        .stage(&bundle("other", "other", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let blocked = store.stage(&bundle("other", "other", "1.0.0")).unwrap().installation.install_id;
     fs::remove_file(store.path(blocked)).unwrap();
     fs::create_dir(store.path(blocked)).unwrap();
     store.remove(blocked).unwrap();
     let failed = store.get(blocked).unwrap();
     assert_eq!(failed.installation.state, PluginState::RemovalPending);
     assert!(failed.installation.consented_at.is_none());
-    assert!(matches!(
-        failed.installation.last_boot,
-        Some(PluginLastBoot::Failed { .. })
-    ));
+    assert!(matches!(failed.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
     assert!(store.consent(blocked, &[], &BTreeSet::new()).is_err());
     fs::remove_dir(store.path(blocked)).unwrap();
     store.remove(blocked).unwrap();
@@ -389,15 +307,9 @@ fn disabling_retains_next() {
     store.set_enabled(id, false).unwrap();
     assert!(store.installed().unwrap().is_empty());
     assert!(store.path(id).is_file());
-    assert_eq!(
-        store.list().unwrap()[0].installation.state,
-        PluginState::Disabled
-    );
+    assert_eq!(store.list().unwrap()[0].installation.state, PluginState::Disabled);
     let collision = store.stage(&bundle("other", "fixture", "1.0.0")).unwrap();
-    assert!(matches!(
-        store.consent(collision.installation.install_id, &[], &BTreeSet::new()),
-        Err(PluginError::Collision(_))
-    ));
+    assert!(matches!(store.consent(collision.installation.install_id, &[], &BTreeSet::new()), Err(PluginError::Collision(_))));
     store.set_enabled(id, true).unwrap();
     assert_eq!(store.installed().unwrap().len(), 1);
     store.remove(id).unwrap();
@@ -411,35 +323,17 @@ fn bounded_pages_unknown() {
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
     let ids = (0..3)
-        .map(|i| {
-            store
-                .stage(&bundle(
-                    &format!("package{i}"),
-                    &format!("owner{i}"),
-                    "1.0.0",
-                ))
-                .unwrap()
-                .installation
-                .install_id
-        })
+        .map(|i| store.stage(&bundle(&format!("package{i}"), &format!("owner{i}"), "1.0.0")).unwrap().installation.install_id)
         .collect::<Vec<_>>();
     let first = store.page(None, 1).unwrap();
     assert_eq!(first.total, 3);
     assert_eq!(first.entries[0].installation.install_id, ids[0]);
-    let second = store
-        .page(Some((first.next.unwrap(), &first.manifest_sha256)), 1)
-        .unwrap();
+    let second = store.page(Some((first.next.unwrap(), &first.manifest_sha256)), 1).unwrap();
     assert_eq!(second.entries[0].installation.install_id, ids[1]);
     assert_eq!(store.get(ids[2]).unwrap().installation.install_id, ids[2]);
-    assert!(matches!(
-        store.page(Some((uuid::Uuid::from_u128(7), &first.manifest_sha256)), 1),
-        Err(PluginError::Cursor)
-    ));
+    assert!(matches!(store.page(Some((uuid::Uuid::from_u128(7), &first.manifest_sha256)), 1), Err(PluginError::Cursor)));
     store.remove(ids[2]).unwrap();
-    assert!(matches!(
-        store.page(Some((first.next.unwrap(), &first.manifest_sha256)), 1),
-        Err(PluginError::Cursor)
-    ));
+    assert!(matches!(store.page(Some((first.next.unwrap(), &first.manifest_sha256)), 1), Err(PluginError::Cursor)));
     assert!(matches!(store.page(None, 101), Err(PluginError::Limit)));
 }
 
@@ -453,8 +347,7 @@ fn sweep_expires_cleanup() {
     let installed = store.stage(&bundle("kept", "kept", "1.0.0")).unwrap();
     let expired = store.stage(&bundle("old", "old", "1.0.0")).unwrap();
     let blocked = store.stage(&bundle("stuck", "stuck", "1.0.0")).unwrap();
-    let [fresh, installed, expired, blocked] =
-        [fresh, installed, expired, blocked].map(|entry| entry.installation.install_id);
+    let [fresh, installed, expired, blocked] = [fresh, installed, expired, blocked].map(|entry| entry.installation.install_id);
     store.consent(installed, &[], &BTreeSet::new()).unwrap();
     fs::remove_file(store.path(blocked)).unwrap();
     fs::create_dir(store.path(blocked)).unwrap();
@@ -464,11 +357,7 @@ fn sweep_expires_cleanup() {
     for id in [expired, blocked] {
         saved["plugins"][id.to_string()]["expires_at"] = "2000-01-01T00:00:00Z".into();
     }
-    fs::write(
-        root.path().join("settings.json"),
-        serde_json::to_vec(&saved).unwrap(),
-    )
-    .unwrap();
+    fs::write(root.path().join("settings.json"), serde_json::to_vec(&saved).unwrap()).unwrap();
 
     let store = self::store(root.path());
     store.sweep().unwrap();
@@ -476,16 +365,10 @@ fn sweep_expires_cleanup() {
     assert!(store.path(fresh).is_file());
     assert!(store.path(installed).is_file());
     assert_eq!(store.list().unwrap().len(), 3);
-    assert_eq!(
-        store.get(fresh).unwrap().installation.state,
-        PluginState::Staged
-    );
+    assert_eq!(store.get(fresh).unwrap().installation.state, PluginState::Staged);
     let stuck = store.get(blocked).unwrap().installation;
     assert_eq!(stuck.state, PluginState::RemovalPending);
-    assert!(matches!(
-        stuck.last_boot,
-        Some(PluginLastBoot::Failed { .. })
-    ));
+    assert!(matches!(stuck.last_boot, Some(PluginLastBoot::Failed { .. })));
     fs::remove_dir(store.path(blocked)).unwrap();
     store.sweep().unwrap();
     assert_eq!(store.list().unwrap().len(), 2);
@@ -514,25 +397,10 @@ async fn startup_reclaims_staging() {
 fn app_roots_independent() {
     let root = tempfile::tempdir().unwrap();
     let first = store(&root.path().join("one"));
-    let a = first
-        .stage(&bundle("one", "one", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
+    let a = first.stage(&bundle("one", "one", "1.0.0")).unwrap().installation.install_id;
     let second = store(&root.path().join("two"));
-    let b = second
-        .stage(&bundle("two", "two", "1.0.0"))
-        .unwrap()
-        .installation
-        .install_id;
-    let ids = |store: &PluginStore| {
-        store
-            .list()
-            .unwrap()
-            .iter()
-            .map(|entry| entry.installation.install_id)
-            .collect::<Vec<_>>()
-    };
+    let b = second.stage(&bundle("two", "two", "1.0.0")).unwrap().installation.install_id;
+    let ids = |store: &PluginStore| store.list().unwrap().iter().map(|entry| entry.installation.install_id).collect::<Vec<_>>();
     assert_eq!(ids(&first), [a]);
     assert_eq!(ids(&second), [b]);
 }

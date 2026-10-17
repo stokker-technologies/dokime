@@ -15,9 +15,7 @@
 // Standard Library Imports
 use std::path::Path;
 // Third Party Imports
-use tracing_subscriber::{
-    EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
-};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 // Local Imports
 use crate::host::{Error, Result};
 
@@ -94,17 +92,11 @@ where
     N: for<'a> fmt::FormatFields<'a> + 'static,
 {
     fn format_event(
-        &self,
-        _context: &fmt::FmtContext<'_, S, N>,
-        mut writer: fmt::format::Writer<'_>,
-        event: &tracing::Event<'_>,
+        &self, _context: &fmt::FmtContext<'_, S, N>, mut writer: fmt::format::Writer<'_>, event: &tracing::Event<'_>,
     ) -> std::fmt::Result {
         let mut fields = ConsoleFields::default();
         event.record(&mut fields);
-        let timestamp = fields
-            .timestamp
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(dokime_runtime::execution::log::timestamp);
+        let timestamp = fields.timestamp.filter(|value| !value.is_empty()).unwrap_or_else(dokime_runtime::execution::log::timestamp);
         let time = timestamp.get(11..23).unwrap_or(&timestamp);
         let plugin = fields.plugin.as_deref().unwrap_or("host");
         let location = match fields.execution.as_deref() {
@@ -144,12 +136,7 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
     let (file_layer, file_appender_guard) = file_fmt_layer(root)?;
     let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(root)?;
     #[cfg_attr(not(debug_assertions), allow(unused_mut))]
-    let mut layers: Vec<BoxedLayer> = vec![
-        layer,
-        file_layer,
-        hub_log_layer,
-        crate::trace::layer(crate::trace::Journal::global().clone()),
-    ];
+    let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(crate::trace::Journal::global().clone())];
 
     #[cfg(debug_assertions)]
     let profile = match super::profiles::dev_profile_layers(root)? {
@@ -180,88 +167,45 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
 }
 
 /* === Private Functions === */
-fn stderr_fmt_layer(
-    ansi: bool,
-) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
+fn stderr_fmt_layer(ansi: bool) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
     let (writer, guard) = tracing_appender::non_blocking(std::io::stderr());
     Ok((fmt_layer(LogFormat::from_env(), writer, ansi)?, guard))
 }
 
-fn file_fmt_layer(
-    root: &Path,
-) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
+fn file_fmt_layer(root: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
     let directory = root.join("logs");
-    std::fs::create_dir_all(&directory).map_err(|error| {
-        Error::Setup(format!(
-            "failed to create log directory {}: {error}",
-            directory.display()
-        ))
-    })?;
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| Error::Setup(format!("failed to create log directory {}: {error}", directory.display())))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("dokime-serve")
         .filename_suffix("log")
         .max_log_files(KEEP_LOG_FILES)
         .build(&directory)
-        .map_err(|error| {
-            Error::Setup(format!(
-                "failed to open a log file under {}: {error}",
-                directory.display()
-            ))
-        })?;
+        .map_err(|error| Error::Setup(format!("failed to open a log file under {}: {error}", directory.display())))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);
     Ok((fmt_layer(LogFormat::from_env(), writer, false)?, guard))
 }
 
 fn log_filter(host: Option<&str>, plugin: Option<&str>) -> Result<EnvFilter> {
-    let mut filter = host
-        .and_then(|value| EnvFilter::try_new(value).ok())
-        .unwrap_or_else(|| EnvFilter::new("info"));
+    let mut filter = host.and_then(|value| EnvFilter::try_new(value).ok()).unwrap_or_else(|| EnvFilter::new("info"));
     if let Some(plugin) = plugin {
-        let plugin = EnvFilter::try_new(plugin)
-            .map_err(|error| Error::Setup(format!("invalid DOKIME_PLUGIN_LOG: {error}")))?;
-        let level = plugin
-            .max_level_hint()
-            .unwrap_or(tracing::level_filters::LevelFilter::TRACE);
-        let stderr = if level == tracing::level_filters::LevelFilter::OFF {
-            "off"
-        } else {
-            "trace"
-        };
+        let plugin = EnvFilter::try_new(plugin).map_err(|error| Error::Setup(format!("invalid DOKIME_PLUGIN_LOG: {error}")))?;
+        let level = plugin.max_level_hint().unwrap_or(tracing::level_filters::LevelFilter::TRACE);
+        let stderr = if level == tracing::level_filters::LevelFilter::OFF { "off" } else { "trace" };
 
         filter = filter
             .add_directive(format!("sidecar={level}").parse().expect("valid level"))
-            .add_directive(
-                format!("sidecar::stderr={stderr}")
-                    .parse()
-                    .expect("valid level"),
-            );
+            .add_directive(format!("sidecar::stderr={stderr}").parse().expect("valid level"));
     }
     Ok(filter)
 }
 
-fn fmt_layer(
-    format: LogFormat,
-    writer: tracing_appender::non_blocking::NonBlocking,
-    ansi: bool,
-) -> Result<BoxedLayer> {
-    let filter = log_filter(
-        std::env::var("RUST_LOG").ok().as_deref(),
-        std::env::var("DOKIME_PLUGIN_LOG").ok().as_deref(),
-    )?;
+fn fmt_layer(format: LogFormat, writer: tracing_appender::non_blocking::NonBlocking, ansi: bool) -> Result<BoxedLayer> {
+    let filter = log_filter(std::env::var("RUST_LOG").ok().as_deref(), std::env::var("DOKIME_PLUGIN_LOG").ok().as_deref())?;
     Ok(match format {
-        LogFormat::Json => fmt::layer()
-            .json()
-            .with_writer(writer)
-            .with_target(true)
-            .with_filter(filter)
-            .boxed(),
-        LogFormat::Pretty => fmt::layer()
-            .event_format(CompactConsole)
-            .with_ansi(ansi)
-            .with_writer(writer)
-            .with_filter(filter)
-            .boxed(),
+        LogFormat::Json => fmt::layer().json().with_writer(writer).with_target(true).with_filter(filter).boxed(),
+        LogFormat::Pretty => fmt::layer().event_format(CompactConsole).with_ansi(ansi).with_writer(writer).with_filter(filter).boxed(),
     })
 }
 

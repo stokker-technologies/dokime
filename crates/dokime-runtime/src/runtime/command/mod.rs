@@ -21,12 +21,12 @@ pub use dokime_domain::model::identity::JobRunId;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::runtime::Error;
+use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::CorrelationId;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::diagnostics::ValidationIssue;
 
 /* === Constants === */
 
@@ -71,10 +71,7 @@ pub enum CommandStatus {
 
 /* === Public Functions === */
 pub fn accepted_receipt(
-    command_id: CommandId,
-    context: &CommandContext,
-    accepted_at: Timestamp,
-    job_id: Option<JobRunId>,
+    command_id: CommandId, context: &CommandContext, accepted_at: Timestamp, job_id: Option<JobRunId>,
 ) -> CommandReceipt {
     CommandReceipt {
         command_id,
@@ -90,12 +87,7 @@ pub fn accepted_receipt(
     }
 }
 
-pub fn rejected_receipt<E>(
-    command_id: CommandId,
-    context: &CommandContext,
-    accepted_at: Timestamp,
-    rejection: E,
-) -> CommandReceipt
+pub fn rejected_receipt<E>(command_id: CommandId, context: &CommandContext, accepted_at: Timestamp, rejection: E) -> CommandReceipt
 where
     E: Into<Error>,
 {
@@ -124,15 +116,9 @@ pub fn internal_rejection(message: impl Into<String>) -> Error {
 /* === Private Functions === */
 fn command_rejection(error: Error) -> CommandRejection {
     match error {
-        Error::Admission(AdmissionFailure::Validation {
-            code,
-            message,
-            issues,
-        }) => CommandRejection {
-            code,
-            message,
-            validation_issues: issues,
-        },
+        Error::Admission(AdmissionFailure::Validation { code, message, issues }) => {
+            CommandRejection { code, message, validation_issues: issues }
+        }
         Error::Admission(AdmissionFailure::Conflict { code, message })
         | Error::Admission(AdmissionFailure::Overload { code, message })
         | Error::Admission(AdmissionFailure::Unavailable { code, message })
@@ -140,16 +126,10 @@ fn command_rejection(error: Error) -> CommandRejection {
         | Error::Admission(AdmissionFailure::NotFound { code, message })
         | Error::Admission(AdmissionFailure::Timeout { code, message })
         | Error::Admission(AdmissionFailure::Cancelled { code, message })
-        | Error::Admission(AdmissionFailure::Internal { code, message }) => CommandRejection {
-            code,
-            message,
-            validation_issues: Vec::new(),
-        },
-        error => CommandRejection {
-            code: "runtime_internal".to_owned(),
-            message: error.to_string(),
-            validation_issues: Vec::new(),
-        },
+        | Error::Admission(AdmissionFailure::Internal { code, message }) => {
+            CommandRejection { code, message, validation_issues: Vec::new() }
+        }
+        error => CommandRejection { code: "runtime_internal".to_owned(), message: error.to_string(), validation_issues: Vec::new() },
     }
 }
 

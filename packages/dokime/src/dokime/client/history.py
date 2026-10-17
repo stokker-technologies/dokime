@@ -58,15 +58,9 @@ class StorageCursor:
 
     @classmethod
     def _from_wire(cls, value: Message) -> "StorageCursor":
-        if (
-            not value.HasField("history")
-            or not _identifier(value.history.store)
-            or not _identifier(value.history.epoch)
-        ):
+        if not value.HasField("history") or not _identifier(value.history.store) or not _identifier(value.history.epoch):
             raise ProtocolError("checkpoint storage history is missing")
-        return cls(
-            StoreHistory(value.history.store, value.history.epoch), value.sequence
-        )
+        return cls(StoreHistory(value.history.store, value.history.epoch), value.sequence)
 
     def _wire(self) -> Message:
         return _wire.nested(
@@ -95,11 +89,7 @@ class Checkpoint:
 
     @classmethod
     def _from_wire(cls, value: Message) -> "Checkpoint":
-        if (
-            not value.HasField("position")
-            or not value.HasField("evidence_through")
-            or not 0 < len(value.version) <= 4096
-        ):
+        if not value.HasField("position") or not value.HasField("evidence_through") or not 0 < len(value.version) <= 4096:
             raise ProtocolError("native execution checkpoint is incomplete")
         try:
             identity = UUID(value.execution_identifier)
@@ -112,10 +102,7 @@ class Checkpoint:
         history, revision = _version_token(bytes(value.version))
         if history != position.history or revision != position.sequence:
             raise ProtocolError("checkpoint version differs from inspected history")
-        if (
-            position.history != evidence.history
-            or evidence.sequence > position.sequence
-        ):
+        if position.history != evidence.history or evidence.sequence > position.sequence:
             raise ProtocolError("checkpoint evidence differs from inspected history")
         return cls(value.execution_identifier, position, bytes(value.version), evidence)
 
@@ -185,9 +172,7 @@ class ExecutionEvidence:
         await self._transport.verify(self._backend)
         from .execution.handle import TestExecutionHandle
 
-        reply = await TestExecutionHandle(
-            self.checkpoint.execution_id, self._transport, self._backend
-        )._document_at(self.checkpoint)
+        reply = await TestExecutionHandle(self.checkpoint.execution_id, self._transport, self._backend)._document_at(self.checkpoint)
         return _json(reply.document.execution)
 
     async def traceability(self) -> tuple[Traceability, ...]:
@@ -195,18 +180,14 @@ class ExecutionEvidence:
         reply = await self._transport.unary(
             "History",
             "GetCheckpointContext",
-            _wire.request(
-                "History", "GetCheckpointContext", checkpoint=self.checkpoint._wire()
-            ),
+            _wire.request("History", "GetCheckpointContext", checkpoint=self.checkpoint._wire()),
         )
         _same_checkpoint(self.checkpoint, reply)
         return tuple(
             Traceability(
                 group.traceability_id,
                 _wire.scope(group.scope),
-                _wire.datetime_value(group.created_at)._wire_text
-                if group.HasField("created_at")
-                else None,
+                _wire.datetime_value(group.created_at)._wire_text if group.HasField("created_at") else None,
                 _json(group.metadata) if group.HasField("metadata") else None,
                 tuple(
                     TraceabilityEntry(
@@ -285,16 +266,12 @@ class ExecutionEvidence:
                 page.issues
                 or page.issues_truncated
                 or len(page.records) > 100
-                or any(
-                    not row.epoch or not row.HasField("record") for row in page.records
-                )
+                or any(not row.epoch or not row.HasField("record") for row in page.records)
             ):
                 raise ProtocolError("saved record page is incomplete or invalid")
             next_after = page.next_after if page.HasField("next_after") else None
             if next_after is not None:
-                position = _page_cursor(
-                    self.checkpoint, "records", "", next_after, position
-                )
+                position = _page_cursor(self.checkpoint, "records", "", next_after, position)
             for item in page.records:
                 yield SavedRecord(item.epoch, _wire.record(item.record))
             if next_after is None:
@@ -305,9 +282,7 @@ class ExecutionEvidence:
         inventory = await self._inventory()
         tables = sorted(item.table for item in inventory.telemetry_tables)
         if any(not table for table in tables) or len(set(tables)) != len(tables):
-            raise ProtocolError(
-                "saved telemetry inventory has empty or duplicate streams"
-            )
+            raise ProtocolError("saved telemetry inventory has empty or duplicate streams")
         for table in tables:
             after = ""
             position = 0
@@ -331,30 +306,19 @@ class ExecutionEvidence:
                     or page.issues
                     or page.issues_truncated
                     or len(page.rows) > 100
-                    or any(
-                        not row.epoch
-                        or not row.HasField("sample")
-                        or row.sample.stream != table
-                        for row in page.rows
-                    )
+                    or any(not row.epoch or not row.HasField("sample") or row.sample.stream != table for row in page.rows)
                 ):
                     raise ProtocolError("saved telemetry page is incomplete or invalid")
                 next_after = page.next_after if page.HasField("next_after") else None
                 if next_after is not None:
-                    position = _page_cursor(
-                        self.checkpoint, "telemetry", table, next_after, position
-                    )
+                    position = _page_cursor(self.checkpoint, "telemetry", table, next_after, position)
                 for item in page.rows:
-                    yield SavedSample(
-                        item.epoch, item.ordinal, _wire.sample(item.sample)
-                    )
+                    yield SavedSample(item.epoch, item.ordinal, _wire.sample(item.sample))
                 if next_after is None:
                     break
                 after = next_after
 
-    async def download_artifact(
-        self, artifact: Artifact, destination: str | Path
-    ) -> Download:
+    async def download_artifact(self, artifact: Artifact, destination: str | Path) -> Download:
         """Download captured bytes; incomplete artifact states remain explicit."""
         await self._transport.verify(self._backend)
         path = Path(destination)
@@ -381,9 +345,7 @@ async def download_report(
     identifier: str,
 ) -> Download:
     size, sha256, metadata = await transport.download_file(
-        _wire.request(
-            "Reports", "DownloadCycleReport", cycle_id=cycle_id, identifier=identifier
-        ),
+        _wire.request("Reports", "DownloadCycleReport", cycle_id=cycle_id, identifier=identifier),
         destination,
     )
     return Download(destination, size, sha256, _json(metadata))
@@ -440,26 +402,18 @@ def _json(message: Message) -> dict[str, Any]:
 
 
 def _same_checkpoint(point: Checkpoint, message: Message) -> None:
-    if not message.HasField("checkpoint") or not _wire.equal(
-        message.checkpoint, point._wire()
-    ):
+    if not message.HasField("checkpoint") or not _wire.equal(message.checkpoint, point._wire()):
         raise ProtocolError("history returned a different checkpoint")
 
 
-def _page_cursor(
-    point: Checkpoint, kind: str, source: str, token: str, previous: int
-) -> int:
+def _page_cursor(point: Checkpoint, kind: str, source: str, token: str, previous: int) -> int:
     if len(token) != 55:
         raise ProtocolError("saved page cursor length differs")
     try:
         raw = base64.b64decode(token + "=", altchars=b"-_", validate=True)
     except ValueError as error:
         raise ProtocolError("saved page cursor is invalid") from error
-    if (
-        len(raw) != 41
-        or raw[0] != 1
-        or base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii") != token
-    ):
+    if len(raw) != 41 or raw[0] != 1 or base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii") != token:
         raise ProtocolError("saved page cursor version or encoding differs")
     digest = hashlib.sha256()
     for text in (
@@ -478,10 +432,7 @@ def _page_cursor(
     digest.update(point.position.sequence.to_bytes(8, "big"))
     digest.update(point.evidence_through.sequence.to_bytes(8, "big"))
     position = int.from_bytes(raw[33:], "big")
-    if (
-        raw[1:33] != digest.digest()
-        or not previous < position <= point.evidence_through.sequence
-    ):
+    if raw[1:33] != digest.digest() or not previous < position <= point.evidence_through.sequence:
         raise ProtocolError("saved evidence continuation differs or does not advance")
     return position
 

@@ -25,9 +25,7 @@ use super::value::{self, Budget, canonical};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::operations::query as wire;
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::query::aggregate::{
-    AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
-};
+use dokime_runtime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
 /* === Constants === */
 
@@ -56,29 +54,16 @@ impl Operation for Aggregate {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::Aggregate,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::Aggregate, _: &mut (),
     ) -> Result<Response<dokime_domain::model::query::wire::AggregateReply>, Status> {
         let query = decode(request)?;
-        self.resources
-            .runtime
-            .aggregate(query)
-            .await
-            .map_err(status)
-            .and_then(|outcome| {
-                codec::project(&outcome, self.resources.max_message_bytes)
-                    .map(Into::into)
-                    .map_err(|error| status(error.into()))
-            })
+        self.resources.runtime.aggregate(query).await.map_err(status).and_then(|outcome| {
+            codec::project(&outcome, self.resources.max_message_bytes).map(Into::into).map_err(|error| status(error.into()))
+        })
     }
 }
 
@@ -87,10 +72,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     runtime.operations().register_wire_operation::<Aggregate>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            max_message_bytes: maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
     )?;
     Ok(())
 }
@@ -123,25 +105,13 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
             dokime_domain::model::query::wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
             dokime_domain::model::query::wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
             dokime_domain::model::query::wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
-            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => {
-                AggregateOperator::IsNull
-            }
+            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
             dokime_domain::model::query::wire::QueryFilterOperator::Unspecified => {
-                return Err(Status::invalid_argument(
-                    "aggregate filter operator is unspecified",
-                ));
+                return Err(Status::invalid_argument("aggregate filter operator is unspecified"));
             }
         };
-        let values = filter
-            .values
-            .into_iter()
-            .map(|value| canonical::decode(value, &mut budget, 0))
-            .collect::<Result<_, Status>>()?;
-        filters.push(AggregateFilter {
-            column: filter.column,
-            op,
-            values,
-        });
+        let values = filter.values.into_iter().map(|value| canonical::decode(value, &mut budget, 0)).collect::<Result<_, Status>>()?;
+        filters.push(AggregateFilter { column: filter.column, op, values });
     }
     for column in &request.group_by {
         value::text(column)?;
@@ -153,34 +123,20 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
         }
         value::text(&aggregate.alias)?;
         if !aggregate.aggregate.answerable() {
-            return Err(Status::invalid_argument(
-                "aggregate percentile rank exceeds 100",
-            ));
+            return Err(Status::invalid_argument("aggregate percentile rank exceeds 100"));
         }
-        aggregates.push(AggregateColumn {
-            aggregate: aggregate.aggregate,
-            column: aggregate.column,
-            alias: aggregate.alias,
-        });
+        aggregates.push(AggregateColumn { aggregate: aggregate.aggregate, column: aggregate.column, alias: aggregate.alias });
     }
 
-    Ok(AggregateQuery {
-        source,
-        filters,
-        group_by: std::mem::take(&mut request.group_by),
-        aggregates,
-        limit: request.limit as usize,
-    })
+    Ok(AggregateQuery { source, filters, group_by: std::mem::take(&mut request.group_by), aggregates, limit: request.limit as usize })
 }
 
 fn status(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation {
-            message, ..
-        }) => Status::invalid_argument(message.clone()),
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
-            Status::not_found("aggregate source was not found")
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => {
+            Status::invalid_argument(message.clone())
         }
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }
@@ -189,9 +145,7 @@ fn status(error: dokime_runtime::runtime::Error) -> Status {
         }
         dokime_runtime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
         | dokime_runtime::runtime::Error::ShuttingDown
-        | dokime_runtime::runtime::Error::Interrupted => {
-            Status::unavailable("aggregate query could not be served")
-        }
+        | dokime_runtime::runtime::Error::Interrupted => Status::unavailable("aggregate query could not be served"),
         _ => Status::internal("aggregate query failed"),
     };
     detailed(status, &error)

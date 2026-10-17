@@ -18,9 +18,9 @@
 
 // Local Imports
 use crate::RuntimeHandle;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
@@ -38,15 +38,8 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub(crate) async fn finalize_execution_aggregate_outputs(
-        &self,
-        test_execution_id: &TestExecutionId,
-    ) {
-        let scope = self
-            .state_read()
-            .executions
-            .get(test_execution_id)
-            .map(|execution| execution.scope.clone());
+    pub(crate) async fn finalize_execution_aggregate_outputs(&self, test_execution_id: &TestExecutionId) {
+        let scope = self.state_read().executions.get(test_execution_id).map(|execution| execution.scope.clone());
         let Some(scope) = scope else {
             return;
         };
@@ -58,10 +51,7 @@ impl RuntimeHandle {
             }
         };
         if let Err(error) = self
-            .commit(crate::transactions::outputs::FinalizeExecutionOutputs {
-                test_execution_id: test_execution_id.clone(),
-                outputs,
-            })
+            .commit(crate::transactions::outputs::FinalizeExecutionOutputs { test_execution_id: test_execution_id.clone(), outputs })
             .await
         {
             tracing::warn!(%error, %test_execution_id, "failed to record execution aggregates");
@@ -69,11 +59,7 @@ impl RuntimeHandle {
     }
 
     pub async fn update_execution_phase(
-        &self,
-        scope: RecordScope,
-        identifier: Identifier,
-        label: String,
-        status: String,
+        &self, scope: RecordScope, identifier: Identifier, label: String, status: String,
     ) -> crate::runtime::Result<()> {
         self.commit_execution_phase(crate::traceability_runtime::phase::UpdateExecutionPhase {
             scope,
@@ -86,10 +72,7 @@ impl RuntimeHandle {
     }
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {
-        self.state_read()
-            .cycles
-            .get(test_cycle_id)
-            .map(|cycle| cycle.lifecycle)
+        self.state_read().cycles.get(test_cycle_id).map(|cycle| cycle.lifecycle)
     }
 
     pub async fn wait_if_paused(&self, test_cycle_id: &TestCycleId) {
@@ -97,14 +80,7 @@ impl RuntimeHandle {
         state
             .wait_until(|snapshot| {
                 snapshot.state().shutting_down
-                    || !matches!(
-                        snapshot
-                            .state()
-                            .cycles
-                            .get(test_cycle_id)
-                            .map(|cycle| cycle.lifecycle),
-                        Some(CycleStatus::Paused),
-                    )
+                    || !matches!(snapshot.state().cycles.get(test_cycle_id).map(|cycle| cycle.lifecycle), Some(CycleStatus::Paused),)
             })
             .await;
     }
@@ -115,13 +91,7 @@ impl RuntimeHandle {
             .wait_until(|snapshot| {
                 snapshot.state().shutting_down
                     || test_cycle_id.is_some_and(|test_cycle_id| {
-                        cycle_is_stopped(
-                            snapshot
-                                .state()
-                                .cycles
-                                .get(test_cycle_id)
-                                .map(|cycle| cycle.lifecycle),
-                        )
+                        cycle_is_stopped(snapshot.state().cycles.get(test_cycle_id).map(|cycle| cycle.lifecycle))
                     })
             })
             .await;
@@ -134,13 +104,7 @@ impl RuntimeHandle {
 fn cycle_is_stopped(lifecycle: Option<CycleStatus>) -> bool {
     matches!(
         lifecycle,
-        None | Some(
-            CycleStatus::Stopping
-                | CycleStatus::Stopped
-                | CycleStatus::Completed
-                | CycleStatus::Failed
-                | CycleStatus::Blocked
-        )
+        None | Some(CycleStatus::Stopping | CycleStatus::Stopped | CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked)
     )
 }
 

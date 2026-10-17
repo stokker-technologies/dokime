@@ -57,13 +57,9 @@ impl MultipleChoice {
         // route named beside it is what an open card asks. One declared
         // statically still has to be a list an operator could pick from.
         if (self.choices.is_empty() && self.provider.is_none())
-            || self.choices.iter().any(|c| {
-                c.value.trim().is_empty() || c.title.trim().is_empty() || !values.insert(&c.value)
-            })
+            || self.choices.iter().any(|c| c.value.trim().is_empty() || c.title.trim().is_empty() || !values.insert(&c.value))
         {
-            return Err(
-                SettingsError::invalid(&self.id, "choices must be nonempty and unique").into(),
-            );
+            return Err(SettingsError::invalid(&self.id, "choices must be nonempty and unique").into());
         }
         self.validate_value(&self.default_value())
     }
@@ -80,11 +76,7 @@ impl MultipleChoice {
                 matches!(value, Value::Text(text) if self.choices.iter().any(|c| c.value == *text))
             }
         };
-        if admitted {
-            Ok(())
-        } else {
-            Err(SettingsError::invalid(&self.id, "value is not a declared choice").into())
-        }
+        if admitted { Ok(()) } else { Err(SettingsError::invalid(&self.id, "value is not a declared choice").into()) }
     }
 }
 

@@ -39,11 +39,7 @@ pub(crate) struct Published {}
 
 /* === Implementations === */
 impl Resources {
-    pub(super) async fn publish_record(
-        &self,
-        host: &Supervisor,
-        publication: RecordPublication,
-    ) -> Result<Published, Refusal> {
+    pub(super) async fn publish_record(&self, host: &Supervisor, publication: RecordPublication) -> Result<Published, Refusal> {
         // Relayed as it came, so the host's own admission is what refuses a
         // publication it cannot file under this plugin's identity.
         host.call_as::<PublishRecord>(publication)

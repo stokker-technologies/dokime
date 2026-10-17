@@ -19,8 +19,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::app;
 use dokime_runtime::SessionId;
+use dokime_runtime::app;
 use dokime_runtime::state::RuntimeState;
 
 /* === Constants === */

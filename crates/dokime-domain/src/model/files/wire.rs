@@ -38,9 +38,7 @@ use crate::model::values::ValueType;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileRule {
     // A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.
-    #[row(
-        description = "A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments."
-    )]
+    #[row(description = "A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.")]
     pub glob: String,
     pub action: FileRuleAction,
 }
@@ -59,14 +57,10 @@ pub struct LocalWatchSource {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FtpWatchSource {
     // `ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.
-    #[row(
-        description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password."
-    )]
+    #[row(description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
     pub url: String,
     // The host credential store entry holding the password; absent logs in anonymously.
-    #[row(
-        description = "The host credential store entry holding the password; absent logs in anonymously."
-    )]
+    #[row(description = "The host credential store entry holding the password; absent logs in anonymously.")]
     pub credential_id: Option<String>,
 }
 
@@ -265,10 +259,7 @@ impl LineMatcher {
                         ValueType::Boolean => LineFieldKind::Boolean,
                         _ => return None,
                     };
-                    Some(LineField {
-                        name: column.metadata.identifier.to_string(),
-                        kind,
-                    })
+                    Some(LineField { name: column.metadata.identifier.to_string(), kind })
                 })
                 .collect(),
         }
@@ -277,10 +268,7 @@ impl LineMatcher {
 
 impl LineMarker {
     pub fn new(pattern: impl Into<String>, record_type: impl Into<String>) -> Self {
-        Self {
-            pattern: pattern.into(),
-            record_type: record_type.into(),
-        }
+        Self { pattern: pattern.into(), record_type: record_type.into() }
     }
 }
 

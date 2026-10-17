@@ -24,11 +24,10 @@ use std::time::Duration;
 use harmos::plugin::Contribution;
 
 // Local Imports
-use dokime_runtime::analysis::{
-    Analysis, Axis, Definition, Error, Handler, Limits, Operation, Output, Request, Response,
-    ResultData, Samples, Values,
-};
 use dokime_runtime::Value;
+use dokime_runtime::analysis::{
+    Analysis, Axis, Definition, Error, Handler, Limits, Operation, Output, Request, Response, ResultData, Samples, Values,
+};
 
 /* === Constants === */
 
@@ -84,21 +83,12 @@ impl ResultData for Scaled {
             key: "scaled".into(),
             label: "Scaled Signal".into(),
             unit: Some("V".into()),
-            axis: Some(Axis {
-                key: "time".into(),
-                unit: Some("s".into()),
-            }),
+            axis: Some(Axis { key: "time".into(), unit: Some("s".into()) }),
         }]
     }
     fn into_response(self) -> Response {
         Response {
-            outputs: vec![Values {
-                key: "scaled".into(),
-                unit: "V".into(),
-                axis_unit: "s".into(),
-                axis: self.axis,
-                values: self.values,
-            }],
+            outputs: vec![Values { key: "scaled".into(), unit: "V".into(), axis_unit: "s".into(), axis: self.axis, values: self.values }],
         }
     }
 }
@@ -112,20 +102,10 @@ impl Analysis for Scale {
     const LABEL: &'static str = "Scale Signal";
     const DESCRIPTION: &'static str = "Multiply Original Samples By A Typed Factor";
     const TIMEOUT: Duration = Duration::from_secs(5);
-    const LIMITS: Limits = Limits {
-        max_samples: 64,
-        max_output_values: 64,
-    };
+    const LIMITS: Limits = Limits { max_samples: 64, max_output_values: 64 };
 
     fn evaluate(samples: &Samples, parameters: &Parameters) -> Result<Scaled, Self::Error> {
-        Ok(Scaled {
-            axis: samples.axis.clone(),
-            values: samples
-                .values
-                .iter()
-                .map(|value| value * parameters.factor)
-                .collect(),
-        })
+        Ok(Scaled { axis: samples.axis.clone(), values: samples.values.iter().map(|value| value * parameters.factor).collect() })
     }
 }
 
@@ -146,10 +126,7 @@ impl Analysis for Held {
         STARTED.notify_one();
         release.recv()?;
         FINISHED.fetch_add(1, Ordering::SeqCst);
-        Ok(Scaled {
-            axis: samples.axis.clone(),
-            values: samples.values.clone(),
-        })
+        Ok(Scaled { axis: samples.axis.clone(), values: samples.values.clone() })
     }
 }
 
@@ -166,12 +143,7 @@ impl harmos::Application for Host {
 /* === Private Functions === */
 fn request(parameters: BTreeMap<String, Value>) -> Request {
     Request {
-        samples: Some(Samples {
-            axis: vec![0.0, 0.25, 0.5],
-            values: vec![2.0, -1.0, 3.0],
-            axis_unit: "s".into(),
-            unit: "V".into(),
-        }),
+        samples: Some(Samples { axis: vec![0.0, 0.25, 0.5], values: vec![2.0, -1.0, 3.0], axis_unit: "s".into(), unit: "V".into() }),
         parameters: serde_json::to_vec(&parameters).unwrap(),
     }
 }
@@ -186,27 +158,14 @@ async fn serve() -> harmos::Runtime<Host> {
         .runtime()
         .await
         .unwrap();
-    runtime
-        .operations
-        .register_wire_operations::<Handlers, ()>("analysis-fixture", Lanes::Open, Arc::new(()))
-        .unwrap();
+    runtime.operations.register_wire_operations::<Handlers, ()>("analysis-fixture", Lanes::Open, Arc::new(())).unwrap();
     runtime
 }
 
-async fn call<A: Analysis>(
-    operations: &harmos::operations::OperationManager,
-    request: Request,
-) -> harmos::Result<Response> {
-    let payload = operations
-        .call_encoded(A::ID, harmos::Message::encode_to_vec(&request))
-        .await?;
-    <Response as harmos::Message>::decode(&payload).map_err(|source| {
-        harmos::Error::backend(
-            "decode analysis answer",
-            harmos::BackendFailure::Corrupt,
-            source,
-        )
-    })
+async fn call<A: Analysis>(operations: &harmos::operations::OperationManager, request: Request) -> harmos::Result<Response> {
+    let payload = operations.call_encoded(A::ID, harmos::Message::encode_to_vec(&request)).await?;
+    <Response as harmos::Message>::decode(&payload)
+        .map_err(|source| harmos::Error::backend("decode analysis answer", harmos::BackendFailure::Corrupt, source))
 }
 
 /* === Tests === */
@@ -216,38 +175,24 @@ fn named_analysis_params() {
     let mut registrar = harmos::plugin::Registrar::new();
     dokime_runtime::Evidence::<(), Analyses>::register(&mut registrar).unwrap();
     let registrations = registrar.finish();
-    let declaration = registrations
-        .iter()
-        .find(|entry| entry.namespace == dokime_runtime::plugin::registration::ANALYSES_NAMESPACE)
-        .unwrap();
+    let declaration =
+        registrations.iter().find(|entry| entry.namespace == dokime_runtime::plugin::registration::ANALYSES_NAMESPACE).unwrap();
     let definitions: Vec<Definition> = serde_json::from_slice(&declaration.payload).unwrap();
     assert_eq!(definitions.len(), 2);
     assert_eq!(definitions[0].id, Scale::ID);
     assert_eq!(definitions[0].version, 1);
-    assert_eq!(
-        definitions[0].parameters[0].metadata.identifier.as_str(),
-        "factor"
-    );
+    assert_eq!(definitions[0].parameters[0].metadata.identifier.as_str(), "factor");
     assert_eq!(definitions[0].outputs[0].axis.as_ref().unwrap().key, "time");
 }
 
 #[tokio::test]
 async fn analysis_original_lifecycle() {
     let runtime = serve().await;
-    let response = call::<Scale>(&runtime.operations, request(BTreeMap::new()))
-        .await
-        .unwrap();
+    let response = call::<Scale>(&runtime.operations, request(BTreeMap::new())).await.unwrap();
     assert_eq!(response.outputs[0].axis, [0.0, 0.25, 0.5]);
     assert_eq!(response.outputs[0].values, [4.0, -2.0, 6.0]);
-    let invalid = call::<Scale>(
-        &runtime.operations,
-        request(BTreeMap::from([("factor".into(), Value::Number(11.0))])),
-    )
-    .await;
-    assert!(
-        invalid.is_err(),
-        "typed parameter bounds must survive the native carrier"
-    );
+    let invalid = call::<Scale>(&runtime.operations, request(BTreeMap::from([("factor".into(), Value::Number(11.0))]))).await;
+    assert!(invalid.is_err(), "typed parameter bounds must survive the native carrier");
     runtime.stop().await.unwrap();
 }
 
@@ -257,8 +202,7 @@ async fn cancelled_analysis_shutdown() {
     *RELEASE.lock().unwrap() = Some(receiver);
     let runtime = serve().await;
     let operations = runtime.operations.clone();
-    let pending =
-        tokio::spawn(async move { call::<Held>(&operations, request(BTreeMap::new())).await });
+    let pending = tokio::spawn(async move { call::<Held>(&operations, request(BTreeMap::new())).await });
     STARTED.notified().await;
     pending.abort();
     assert!(pending.await.unwrap_err().is_cancelled());
@@ -271,22 +215,14 @@ async fn cancelled_analysis_shutdown() {
     assert_eq!(FINISHED.load(Ordering::SeqCst), 0);
     release.send(()).unwrap();
     shutdown.await.unwrap();
-    assert_eq!(
-        CALLS.load(Ordering::SeqCst),
-        1,
-        "cancelled work must not replay"
-    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "cancelled work must not replay");
     assert_eq!(FINISHED.load(Ordering::SeqCst), 1);
 }
 
 #[test]
 fn analysis_refuses_them() {
     let mut definition = Operation::<Scale>::definition().unwrap();
-    definition.parameters[0].expression = dokime_runtime::definition::ParameterExpr::Linspace {
-        start: 0.0,
-        stop: 1.0,
-        count: usize::MAX,
-    };
+    definition.parameters[0].expression = dokime_runtime::definition::ParameterExpr::Linspace { start: 0.0, stop: 1.0, count: usize::MAX };
     assert!(definition.check().unwrap_err().contains("literal defaults"));
 }
 

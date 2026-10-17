@@ -17,9 +17,9 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::document::{DocumentDefinition, DocumentPayload};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::time::Timestamp;
-use crate::document::{DocumentDefinition, DocumentPayload};
 
 /* === Constants === */
 
@@ -42,11 +42,7 @@ pub struct DocumentInstance {
 /* === Implementations === */
 impl DocumentInstance {
     pub fn new(definition: DocumentDefinition, updated_at: Timestamp) -> Self {
-        Self {
-            definition,
-            payload: None,
-            updated_at,
-        }
+        Self { definition, payload: None, updated_at }
     }
 
     pub fn document_id(&self) -> &DocumentId {

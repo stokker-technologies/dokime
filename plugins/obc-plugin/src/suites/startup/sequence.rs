@@ -90,11 +90,7 @@ pub struct Startup {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime_runtime::record(
-    id = "obc.charger.startup.started",
-    label = "AC Supply Energized",
-    description = "The AC supply was energized."
-)]
+#[dokime_runtime::record(id = "obc.charger.startup.started", label = "AC Supply Energized", description = "The AC supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
@@ -162,10 +158,7 @@ pub struct Parameters {
         description = "Whether a host stop is the expected end of this run, named once more on the template's own `graceful_stop`."
     )]
     pub continuous: bool,
-    #[parameter(
-        label = "Wait for the unit to report itself connected",
-        default = false
-    )]
+    #[parameter(label = "Wait for the unit to report itself connected", default = false)]
     pub await_connection: bool,
     #[parameter(
         label = "Connection wait budget",
@@ -235,32 +228,18 @@ bench!(Parameters);
     attributes(path = "Testbench/Startup", provider = "sidecar"),
     parameters = Parameters, description = "Measure AC startup inrush, inspect the Charger, then observe settling.")]
 impl Startup {
-    async fn initialize(
-        inputs: &Parameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(inputs: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         // The route rather than the handle: a template names no plugin at all,
         // so `ctx.call` selecting the explicit route type is the only road
         // to it — and the one that holds the answer to the timeout the route
         // declared, which is what a host call would get.
-        if ctx
-            .call::<crate::operations::readiness::AskReadiness>(())
-            .await?
-            .stopped
-        {
+        if ctx.call::<crate::operations::readiness::AskReadiness>(()).await?.stopped {
             return Err(Error::Device(obc_runtime::Error::Stopped));
         }
         let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
         let log = charger_log();
         device.logging(&log);
-        Ok(Self {
-            produced: 0,
-            device,
-            log,
-            accepted: false,
-            prompt_action: String::new(),
-            operator_note: String::new(),
-        })
+        Ok(Self { produced: 0, device, log, accepted: false, prompt_action: String::new(), operator_note: String::new() })
     }
 
     fn document() -> Document {
@@ -275,28 +254,18 @@ impl Startup {
         if !ctx.parameters().await_connection {
             return Ok(());
         }
-        let connections = ctx
-            .call::<crate::operations::connections::ListConnections>(())
-            .await?;
-        ctx.info(format!(
-            "record=bench_connections count={}",
-            connections.resources.len()
-        ));
+        let connections = ctx.call::<crate::operations::connections::ListConnections>(()).await?;
+        ctx.info(format!("record=bench_connections count={}", connections.resources.len()));
         // The host's own record type, so the step names no id and reads no
         // detail map: the unit's identity is a field of the fact it waited for.
         let connected = ctx
             .listen::<ToolConnectionAcquired>()
-            .timeout(Duration::from_secs_f64(
-                ctx.parameters().connection_budget_s,
-            ))
+            .timeout(Duration::from_secs_f64(ctx.parameters().connection_budget_s))
             .next()
             .await
             .transpose()?
             .expect("a live subscription yields until it is dropped");
-        ctx.info(format!(
-            "record=connected resource={}",
-            connected.resource_id
-        ));
+        ctx.info(format!("record=connected resource={}", connected.resource_id));
         Ok(())
     }
 
@@ -324,9 +293,7 @@ impl Startup {
             .submit_as::<WatchFile>(WatchFile {
                 execution_id: None,
                 source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                        root: self.log.to_string_lossy().into_owned(),
-                    })),
+                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: self.log.to_string_lossy().into_owned() })),
                 }),
                 output: "charger".into(),
                 artifact: Some("charger/device.log".into()),
@@ -349,14 +316,7 @@ impl Startup {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
         let captured = watch.join().await?.into_owned();
-        ctx.info(format!(
-            "record=charger_log bytes={}",
-            captured
-                .artifacts
-                .iter()
-                .map(|artifact| artifact.size_bytes)
-                .sum::<u64>()
-        ));
+        ctx.info(format!("record=charger_log bytes={}", captured.artifacts.iter().map(|artifact| artifact.size_bytes).sum::<u64>()));
         Ok(())
     }
 
@@ -370,15 +330,7 @@ impl Startup {
         let interval = Duration::from_secs_f64(interval_s);
         if continuous {
             loop {
-                publish_runtime_sample(
-                    ctx,
-                    interval_s,
-                    &mut self.device,
-                    self.produced,
-                    total,
-                    checkpoint,
-                )
-                .await?;
+                publish_runtime_sample(ctx, interval_s, &mut self.device, self.produced, total, checkpoint).await?;
                 self.produced += 1;
                 tokio::time::sleep(interval).await;
             }
@@ -386,8 +338,7 @@ impl Startup {
             let remaining = sample_range(self.produced, checkpoint)?;
             for index in ctx.progress("Measuring startup inrush", remaining) {
                 let index = index as u64;
-                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint)
-                    .await?;
+                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint).await?;
                 self.produced = index + 1;
                 if realtime {
                     tokio::time::sleep(interval).await;
@@ -400,25 +351,14 @@ impl Startup {
 
     #[dokime_runtime::step(label = "Inspect Powered Charger")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Checkpoint {
-            sample_index: self.produced,
-            prompt_type: "obc.charger.startup.check".into(),
-        })
-        .await;
+        ctx.publish(Checkpoint { sample_index: self.produced, prompt_type: "obc.charger.startup.check".into() }).await;
         ctx.info("record=prompt_requested");
-        let response = ctx
-            .ask(checkpoint::StartupCheck {
-                operator_note: "charger status indicator steady".into(),
-                ..Default::default()
-            })
-            .await?;
+        let response =
+            ctx.ask(checkpoint::StartupCheck { operator_note: "charger status indicator steady".into(), ..Default::default() }).await?;
         self.accepted = response.accepted;
         self.operator_note = response.operator_note;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();
-        ctx.info(format!(
-            "record=prompt_answered action={} accepted={}",
-            self.prompt_action, self.accepted
-        ));
+        ctx.info(format!("record=prompt_answered action={} accepted={}", self.prompt_action, self.accepted));
         Ok(())
     }
 
@@ -431,8 +371,7 @@ impl Startup {
             let remaining = sample_range(self.produced, total)?;
             for index in ctx.progress("Observing settling", remaining) {
                 let index = index as u64;
-                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint)
-                    .await?;
+                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint).await?;
                 self.produced = index + 1;
                 if inputs.realtime {
                     tokio::time::sleep(Duration::from_secs_f64(interval_s)).await;
@@ -455,25 +394,18 @@ impl Startup {
                 "operator_note": self.operator_note,
                 "accepted": self.accepted,
             }))?;
-            ctx.artifacts()
-                .write("charger/startup-summary.json", summary)?;
+            ctx.artifacts().write("charger/startup-summary.json", summary)?;
         }
         if inputs.attach_reference {
-            let directory: PathBuf = ctx
-                .parameter("images_directory")
-                .map_err(|error| Error::Image(error.to_string()))?;
+            let directory: PathBuf = ctx.parameter("images_directory").map_err(|error| Error::Image(error.to_string()))?;
             let path = directory.join("reference.png");
             // The image is an installed asset this step never holds in memory:
             // the size is read from the entry, and the bytes stream past.
-            let size = std::fs::metadata(&path)
-                .map_err(|error| Error::Image(error.to_string()))?
-                .len();
+            let size = std::fs::metadata(&path).map_err(|error| Error::Image(error.to_string()))?.len();
             if size > 4 * 1024 * 1024 {
                 return Err(Error::Image("reference.png exceeds 4 MiB".into()));
             }
-            ctx.artifacts()
-                .import(&path, "charger/reference.png")
-                .map_err(|error| Error::Image(error.to_string()))?;
+            ctx.artifacts().import(&path, "charger/reference.png").map_err(|error| Error::Image(error.to_string()))?;
         }
         Ok(())
     }
@@ -499,8 +431,7 @@ impl Startup {
             };
             return Ok(last.phase != "fault");
         }
-        Ok(samples.len() as u64 >= ctx.parameters().sample_count()?
-            && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
+        Ok(samples.len() as u64 >= ctx.parameters().sample_count()? && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
     }
 }
 
@@ -508,12 +439,7 @@ impl Startup {
 
 /* === Private Functions === */
 async fn publish_runtime_sample<T, O, I>(
-    ctx: &mut StepContext<'_, T, O, I>,
-    interval_s: f64,
-    device: &mut Device,
-    index: u64,
-    total: u64,
-    checkpoint: u64,
+    ctx: &mut StepContext<'_, T, O, I>, interval_s: f64, device: &mut Device, index: u64, total: u64, checkpoint: u64,
 ) -> Result<(), Error> {
     let reading = device.sample(index as f64 * interval_s);
     let phase = if device.power == Power::Faulted {
@@ -537,18 +463,13 @@ async fn publish_runtime_sample<T, O, I>(
 // The charger's log lives outside the execution's artifact folder, where only
 // the watch's capture of it becomes evidence.
 fn charger_log() -> PathBuf {
-    let started = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
+    let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
     std::env::temp_dir().join(format!("obc-charger-{}-{started}.log", std::process::id()))
 }
 
 fn sample_range(start: u64, end: u64) -> Result<std::ops::Range<usize>, Error> {
-    let start = usize::try_from(start)
-        .map_err(|_| Error::Observation("sample index exceeds platform capacity".into()))?;
-    let end = usize::try_from(end)
-        .map_err(|_| Error::Observation("sample count exceeds platform capacity".into()))?;
+    let start = usize::try_from(start).map_err(|_| Error::Observation("sample index exceeds platform capacity".into()))?;
+    let end = usize::try_from(end).map_err(|_| Error::Observation("sample count exceeds platform capacity".into()))?;
     Ok(start..end)
 }
 
@@ -641,27 +562,15 @@ fn startup_document() -> Document {
     document.section(timeline);
 
     let mut distributions = Section::new("Signal Distributions");
-    distributions.plot(voltage_distribution(
-        "obc.charger.startup.sequence.voltage_distribution",
-    ));
-    distributions.plot(current_distribution(
-        "obc.charger.startup.sequence.current_distribution",
-    ));
-    distributions.plot(voltage_by_phase(
-        "obc.charger.startup.sequence.voltage_by_phase",
-    ));
+    distributions.plot(voltage_distribution("obc.charger.startup.sequence.voltage_distribution"));
+    distributions.plot(current_distribution("obc.charger.startup.sequence.current_distribution"));
+    distributions.plot(voltage_by_phase("obc.charger.startup.sequence.voltage_by_phase"));
     document.section(distributions);
 
     let mut phase_breakdown = Section::new("Phase Breakdown");
-    phase_breakdown.plot(mean_signal_by_phase(
-        "obc.charger.startup.sequence.mean_signal_by_phase",
-    ));
-    phase_breakdown.plot(sample_count_by_phase(
-        "obc.charger.startup.sequence.sample_count_by_phase",
-    ));
-    phase_breakdown.plot(signal_correlation(
-        "obc.charger.startup.sequence.signal_correlation",
-    ));
+    phase_breakdown.plot(mean_signal_by_phase("obc.charger.startup.sequence.mean_signal_by_phase"));
+    phase_breakdown.plot(sample_count_by_phase("obc.charger.startup.sequence.sample_count_by_phase"));
+    phase_breakdown.plot(signal_correlation("obc.charger.startup.sequence.signal_correlation"));
     document.section(phase_breakdown);
 
     // === The Current, And The Host Around It === //

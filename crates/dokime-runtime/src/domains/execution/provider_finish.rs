@@ -42,26 +42,19 @@ const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100
 impl RuntimeHandle {
     pub(crate) async fn finish_provider_cycle(&self, finish: Finish) -> Result<()> {
         let runtime = self.clone();
-        tokio::spawn(async move { runtime.finish_provider_cycle_inner(finish).await })
-            .await
-            .map_err(|source| Error::Join { source })?
+        tokio::spawn(async move { runtime.finish_provider_cycle_inner(finish).await }).await.map_err(|source| Error::Join { source })?
     }
     async fn finish_provider_cycle_inner(&self, mut finish: Finish) -> Result<()> {
         let request_id = self
             .state_read()
             .run_requests
             .values()
-            .find(|request| {
-                request.summary.cycle_id == finish.test_cycle_id
-                    && !request.summary.phase.terminal()
-            })
+            .find(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal())
             .map(|request| request.summary.request_id.clone());
         let Some(request_id) = request_id else {
             return self.finish_provider_attempts(finish, true).await;
         };
-        let selected_execution = self.state_read().run_requests[&request_id]
-            .test_execution_id
-            .clone();
+        let selected_execution = self.state_read().run_requests[&request_id].test_execution_id.clone();
         let cycle_id = finish.test_cycle_id.clone();
         let ids = std::mem::take(&mut finish.started_execution_ids);
         let mut projections = match &mut finish.outcome {
@@ -85,11 +78,7 @@ impl RuntimeHandle {
             self.finish_provider_attempts(part, false).await?;
             let summary = self.state_read().run_requests[&request_id].summary.clone();
             loop {
-                match self
-                    .request_storage
-                    .update(&request_id, |receipt| receipt.summary = summary.clone())
-                    .await
-                {
+                match self.request_storage.update(&request_id, |receipt| receipt.summary = summary.clone()).await {
                     Ok(()) => break,
                     Err(error) if self.is_shutting_down() => return Err(error),
                     Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
@@ -102,17 +91,11 @@ impl RuntimeHandle {
         if self.advance_to_next_group(&request_id, &cycle_id).await {
             return Ok(());
         }
-        let settled = self.state_read().run_requests[&request_id]
-            .settled_execution_ids
-            .iter()
-            .cloned()
-            .collect::<std::collections::BTreeSet<_>>();
-        self.commit(crate::transactions::SettleRun {
-            request_id: request_id.clone(),
-            at: finish.finished_at.clone(),
-        })
-        .await
-        .map_err(|error| Error::Operation(error.to_string()))?;
+        let settled =
+            self.state_read().run_requests[&request_id].settled_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+        self.commit(crate::transactions::SettleRun { request_id: request_id.clone(), at: finish.finished_at.clone() })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
         let mut complete = crate::transactions::CompleteRun {
             request_id: request_id.clone(),
             at: self.state_read().run_requests[&request_id]
@@ -126,37 +109,23 @@ impl RuntimeHandle {
         let cycle = {
             use harmos::state::Transaction;
             let state = self.state_read();
-            let request = state
-                .run_requests
-                .get(&request_id)
-                .ok_or_else(|| Error::Operation("report request disappeared".into()))?;
-            let header = state
-                .cycles
-                .get(&cycle_id)
-                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
+            let request = state.run_requests.get(&request_id).ok_or_else(|| Error::Operation("report request disappeared".into()))?;
+            let header = state.cycles.get(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
             let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
-            preview
-                .run_requests
-                .insert(request_id.clone(), request.clone());
+            preview.run_requests.insert(request_id.clone(), request.clone());
             preview.cycles.insert(cycle_id.clone(), header.clone());
             for id in &header.execution_ids {
-                preview
-                    .executions
-                    .insert(id.clone(), state.executions[id].clone());
+                preview.executions.insert(id.clone(), state.executions[id].clone());
             }
             complete.check(&preview).map_err(Error::Operation)?;
             complete.apply(&mut preview);
-            preview
-                .cycle_view(&cycle_id)
-                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?
+            preview.cycle_view(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?
         };
         let mut pending = cycle
             .test_executions
             .iter()
             .filter(|execution| {
-                selected_execution
-                    .as_ref()
-                    .is_none_or(|id| id == &execution.test_execution_id)
+                selected_execution.as_ref().is_none_or(|id| id == &execution.test_execution_id)
                     && (ids.contains(&execution.test_execution_id)
                         || settled.contains(&execution.test_execution_id)
                         || execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped)
@@ -181,11 +150,7 @@ impl RuntimeHandle {
                     None => {
                         tracing::debug!(%error, %cycle_id, "final execution saves failed");
                         cause.get_or_insert_with(|| unsealed_cause("execution", &error));
-                        unsealed.extend(
-                            pending
-                                .drain(..)
-                                .map(|execution| execution.test_execution_id),
-                        );
+                        unsealed.extend(pending.drain(..).map(|execution| execution.test_execution_id));
                         continue;
                     }
                 },
@@ -259,29 +224,18 @@ impl RuntimeHandle {
         if let Some(sealed_cycle) = sealed_cycle {
             complete.sealed_cycle = Some(sealed_cycle.header.clone());
             complete.sealed_executions = sealed_cycle.executions.clone();
-            self.commit(complete)
-                .await
-                .map_err(|error| Error::Operation(error.to_string()))?;
+            self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
             self.execution_storage.retire_cycle_report(&cycle_id).await;
         } else {
             // Report publication failure leaves the frozen inputs available
             // for retry. It does not change the recorded test outcome.
             if let Some(cause) = &cause {
                 tracing::error!(%cycle_id, %cause, "final report could not be sealed");
-                complete.unsealed = Some(crate::transactions::Unsealed {
-                    cause: cause.clone(),
-                    execution_ids: unsealed,
-                });
+                complete.unsealed = Some(crate::transactions::Unsealed { cause: cause.clone(), execution_ids: unsealed });
             }
-            self.commit(complete)
-                .await
-                .map_err(|error| Error::Operation(error.to_string()))?;
+            self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
             loop {
-                match self
-                    .execution_storage
-                    .save_cycle_header(cycle_id.clone())
-                    .await
-                {
+                match self.execution_storage.save_cycle_header(cycle_id.clone()).await {
                     Ok(()) => break,
                     Err(error) if self.is_shutting_down() => return Err(error),
                     Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
@@ -313,9 +267,7 @@ impl RuntimeHandle {
         Ok(())
     }
     async fn advance_to_next_group(
-        &self,
-        request_id: &dokime_domain::model::identity::CommandId,
-        cycle_id: &dokime_domain::model::identity::TestCycleId,
+        &self, request_id: &dokime_domain::model::identity::CommandId, cycle_id: &dokime_domain::model::identity::TestCycleId,
     ) -> bool {
         {
             let state = self.state_read();
@@ -328,20 +280,14 @@ impl RuntimeHandle {
             // Fail-fast is the cycle's policy, and it spans groups: a target
             // whose group failed stops the targets queued behind it.
             let failed = request.summary.failed > 0 || request.failure.is_some();
-            let continues = state
-                .cycles
-                .get(cycle_id)
-                .is_some_and(|cycle| cycle.continue_on_failure);
+            let continues = state.cycles.get(cycle_id).is_some_and(|cycle| cycle.continue_on_failure);
             if failed && !continues {
                 return false;
             }
         }
         let before = self.state_manager.applied();
         if self
-            .commit(crate::transactions::AdvanceRunGroup {
-                request_id: request_id.clone(),
-                at: crate::model::time::now_utc(),
-            })
+            .commit(crate::transactions::AdvanceRunGroup { request_id: request_id.clone(), at: crate::model::time::now_utc() })
             .await
             .is_err()
         {
@@ -353,11 +299,7 @@ impl RuntimeHandle {
             (request.summary.clone(), request.target.clone())
         };
         loop {
-            match self
-                .request_storage
-                .update(request_id, |receipt| receipt.summary = summary.clone())
-                .await
-            {
+            match self.request_storage.update(request_id, |receipt| receipt.summary = summary.clone()).await {
                 Ok(()) => break,
                 Err(error) if self.is_shutting_down() => {
                     tracing::error!(%error, "failed to checkpoint the advanced run request");
@@ -377,11 +319,7 @@ impl RuntimeHandle {
 
     async fn finish_provider_attempts(&self, finish: Finish, finalize_cycle: bool) -> Result<()> {
         let cycle_id = finish.test_cycle_id.clone();
-        let execution_ids = finish
-            .started_execution_ids
-            .iter()
-            .cloned()
-            .collect::<std::collections::BTreeSet<_>>();
+        let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
         let effects = prepare_finish_effects(&self.state_read(), &finish);
         let finalize_execution_ids = effects.terminal_execution_ids.clone();
@@ -415,11 +353,7 @@ impl RuntimeHandle {
                 .executions
                 .values()
                 .filter(|execution| execution_ids.contains(&execution.test_execution_id))
-                .filter_map(|execution| {
-                    state
-                        .cycle_view(&execution.test_cycle_id)
-                        .map(|cycle| (cycle, execution.clone()))
-                })
+                .filter_map(|execution| state.cycle_view(&execution.test_cycle_id).map(|cycle| (cycle, execution.clone())))
                 .collect::<Vec<_>>()
         };
         let mut storage_error = None;

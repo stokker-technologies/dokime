@@ -62,9 +62,7 @@ fn confirmation_refusal_retry() {
             if calls == cutoff { Err(cutoff) } else { Ok(()) }
         });
         if calls == cutoff {
-            assert!(
-                matches!(result, Err(filesystem::ConfirmError::Checkpoint(value)) if value == cutoff)
-            );
+            assert!(matches!(result, Err(filesystem::ConfirmError::Checkpoint(value)) if value == cutoff));
         } else {
             result.unwrap();
         }
@@ -99,10 +97,7 @@ fn install_preserves_existing() {
     fs::write(&first, b"first").unwrap();
     fs::write(&next, b"next").unwrap();
     filesystem::install(&first, &published).unwrap();
-    assert_eq!(
-        filesystem::install(&next, &published).unwrap_err().kind(),
-        ErrorKind::AlreadyExists
-    );
+    assert_eq!(filesystem::install(&next, &published).unwrap_err().kind(), ErrorKind::AlreadyExists);
     assert_eq!(fs::read(&published).unwrap(), b"first");
     let mut pinned = fs::File::open(&published).unwrap();
     filesystem::confirm(&published).unwrap();
@@ -116,19 +111,11 @@ fn install_preserves_existing() {
     {
         let link = root.path().join("substituted");
         std::os::unix::fs::symlink(&published, &link).unwrap();
-        assert_eq!(
-            filesystem::remove(&link).unwrap_err().kind(),
-            ErrorKind::InvalidInput
-        );
+        assert_eq!(filesystem::remove(&link).unwrap_err().kind(), ErrorKind::InvalidInput);
         assert_eq!(fs::read(&published).unwrap(), b"next");
         fs::remove_file(&link).unwrap();
         std::os::unix::fs::symlink(&parent, &link).unwrap();
-        assert_eq!(
-            filesystem::remove(&link.join("published"))
-                .unwrap_err()
-                .kind(),
-            ErrorKind::InvalidInput
-        );
+        assert_eq!(filesystem::remove(&link.join("published")).unwrap_err().kind(), ErrorKind::InvalidInput);
         assert_eq!(fs::read(&published).unwrap(), b"next");
         fs::remove_file(&link).unwrap();
     }
@@ -136,11 +123,7 @@ fn install_preserves_existing() {
     {
         use std::os::windows::fs::OpenOptionsExt;
 
-        let mut blocked = fs::OpenOptions::new()
-            .read(true)
-            .share_mode(0)
-            .open(&published)
-            .unwrap();
+        let mut blocked = fs::OpenOptions::new().read(true).share_mode(0).open(&published).unwrap();
         assert!(filesystem::remove(&published).is_err());
         let mut preserved = Vec::new();
         blocked.read_to_end(&mut preserved).unwrap();
@@ -161,10 +144,7 @@ fn install_preserves_existing() {
     pinned.rewind().unwrap();
     pinned.read_to_end(&mut original).unwrap();
     assert_eq!(original, b"first");
-    assert_eq!(
-        filesystem::remove(&parent).unwrap_err().kind(),
-        ErrorKind::InvalidInput
-    );
+    assert_eq!(filesystem::remove(&parent).unwrap_err().kind(), ErrorKind::InvalidInput);
     assert!(parent.is_dir());
 }
 
@@ -200,20 +180,11 @@ fn failed_publication_cause() {
     let destination = root.path().join("published");
     let error = filesystem::install(&source, &destination).unwrap_err();
     assert_eq!(error.kind(), ErrorKind::NotFound);
-    let dokime_filesystem::Error::Publication {
-        operation,
-        path,
-        source: cause,
-    } = &error;
+    let dokime_filesystem::Error::Publication { operation, path, source: cause } = &error;
     assert_eq!(*operation, "flush staged file");
     assert_eq!(path, &source);
     assert_eq!(cause.kind(), ErrorKind::NotFound);
-    assert!(
-        std::error::Error::source(&error)
-            .unwrap()
-            .downcast_ref::<std::io::Error>()
-            .is_some()
-    );
+    assert!(std::error::Error::source(&error).unwrap().downcast_ref::<std::io::Error>().is_some());
     let io: std::io::Error = error.into();
     assert_eq!(io.kind(), ErrorKind::NotFound);
     assert!(!destination.exists());
@@ -231,12 +202,7 @@ fn directory_migration_conflicts() {
     assert_eq!(fs::read(destination.join("owned")).unwrap(), b"evidence");
     fs::create_dir(&source).unwrap();
     fs::write(source.join("different"), b"preserved").unwrap();
-    assert_eq!(
-        filesystem::move_directory(&source, &destination)
-            .unwrap_err()
-            .kind(),
-        ErrorKind::AlreadyExists
-    );
+    assert_eq!(filesystem::move_directory(&source, &destination).unwrap_err().kind(), ErrorKind::AlreadyExists);
     assert_eq!(fs::read(source.join("different")).unwrap(), b"preserved");
     assert_eq!(fs::read(destination.join("owned")).unwrap(), b"evidence");
 }

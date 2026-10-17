@@ -33,9 +33,7 @@ use crate::model::values::wire::Value;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecordSelection {
     // Conjunction of exact supplied fields. Missing record fields do not match.
-    #[row(
-        description = "Conjunction of exact supplied fields. Missing record fields do not match."
-    )]
+    #[row(description = "Conjunction of exact supplied fields. Missing record fields do not match.")]
     pub scope: Option<EvidenceScope>,
     pub record_types: Vec<String>,
     pub sources: Vec<String>,
@@ -52,9 +50,7 @@ pub struct RecordPage {
     pub through: Option<Cursor>,
     pub replay_complete: bool,
     // This process retains all captured facts. Zero is currently the only value.
-    #[row(
-        description = "This process retains all captured facts. Zero is currently the only value."
-    )]
+    #[row(description = "This process retains all captured facts. Zero is currently the only value.")]
     pub retained_after: u64,
 }
 

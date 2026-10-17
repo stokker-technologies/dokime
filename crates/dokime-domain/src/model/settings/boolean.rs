@@ -49,11 +49,7 @@ impl Boolean {
         Value::Bool(self.default)
     }
     pub fn validate_value(&self, value: &Value) -> crate::Result<()> {
-        if matches!(value, Value::Bool(_)) {
-            Ok(())
-        } else {
-            Err(SettingsError::invalid(&self.id, "invalid boolean value").into())
-        }
+        if matches!(value, Value::Bool(_)) { Ok(()) } else { Err(SettingsError::invalid(&self.id, "invalid boolean value").into()) }
     }
 }
 

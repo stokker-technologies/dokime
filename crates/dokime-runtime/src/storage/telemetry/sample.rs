@@ -19,12 +19,12 @@ use std::{collections::BTreeMap, num::NonZeroUsize};
 // Third Party Imports
 
 // Local Imports
+use crate::storage::{Error, Result, records::ScopeRow, values};
+use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TelemetrySampleId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::storage::{Error, Result, records::ScopeRow, values};
-use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
 
@@ -74,16 +74,13 @@ impl Sample {
             sample.source.as_str(),
         ]
         .into_iter()
-        .fold(std::mem::size_of::<Self>(), |bytes, text| {
-            bytes.saturating_add(text.len())
-        });
+        .fold(std::mem::size_of::<Self>(), |bytes, text| bytes.saturating_add(text.len()));
         for map in [&sample.values, &sample.summary, &sample.metadata] {
             let native = values::encoding_memory(map)?;
             if native == usize::MAX {
                 return Ok(usize::MAX);
             }
-            bytes = bytes
-                .saturating_add(native.saturating_sub(std::mem::size_of::<Vec<values::Cell>>()));
+            bytes = bytes.saturating_add(native.saturating_sub(std::mem::size_of::<Vec<values::Cell>>()));
         }
         if let Some(scope) = &sample.scope {
             let native = ScopeRow::encoding_memory(scope);
@@ -114,13 +111,7 @@ impl Sample {
     }
     pub fn projection_memory(&self) -> Result<usize> {
         projection_memory(Fields {
-            strings: [
-                &self.sample_id,
-                &self.stream,
-                &self.timestamp,
-                &self.received_at,
-                &self.source,
-            ],
+            strings: [&self.sample_id, &self.stream, &self.timestamp, &self.received_at, &self.source],
             maps: [&self.values, &self.summary, &self.metadata],
             scope: self.scope.as_ref(),
         })
@@ -128,9 +119,7 @@ impl Sample {
     pub fn into_sample(self, allowance: NonZeroUsize) -> Result<TelemetrySample> {
         let bound = self.projection_memory()?;
         if bound == usize::MAX || bound > allowance.get() {
-            return Err(error(
-                "telemetry sample projection exceeds memory allowance",
-            ));
+            return Err(error("telemetry sample projection exceeds memory allowance"));
         }
         if self.schema_version == 0 {
             return Err(error("telemetry schema version must be positive"));
@@ -169,33 +158,24 @@ impl Sample {
 
 /* === Private Functions === */
 pub(super) fn projection_memory(fields: Fields<'_>) -> Result<usize> {
-    let mut bytes = fields
-        .strings
-        .into_iter()
-        .fold(std::mem::size_of::<TelemetrySample>(), |bytes, text| {
-            bytes.saturating_add(text.capacity())
-        });
+    let mut bytes =
+        fields.strings.into_iter().fold(std::mem::size_of::<TelemetrySample>(), |bytes, text| bytes.saturating_add(text.capacity()));
     for cells in fields.maps {
         let owned = values::owned_memory(cells)?;
         if owned == usize::MAX {
             return Ok(usize::MAX);
         }
-        bytes = bytes
-            .saturating_add(owned.saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()));
+        bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()));
     }
     if let Some(scope) = fields.scope {
-        bytes = bytes.saturating_add(
-            scope
-                .projection_memory()
-                .saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
-        );
+        bytes = bytes
+            .saturating_add(scope.projection_memory().saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()));
     }
     Ok(bytes)
 }
 pub(super) fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
-    text.try_reserve_exact(source.len())
-        .map_err(|_| error("telemetry text allocation failed"))?;
+    text.try_reserve_exact(source.len()).map_err(|_| error("telemetry text allocation failed"))?;
     if text.capacity() > source.len() {
         return Err(error("telemetry text capacity exceeds admission"));
     }

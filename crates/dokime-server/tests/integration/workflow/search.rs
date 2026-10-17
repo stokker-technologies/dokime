@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 
 /* === Constants === */
 
@@ -37,11 +37,7 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn labelled(
-    identifier: &str,
-    label: &str,
-    description: Option<&str>,
-) -> contracts::execution::CreateCycle {
+fn labelled(identifier: &str, label: &str, description: Option<&str>) -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
         metadata: Some(model::identity::wire::Metadata {
             identifier: identifier.into(),
@@ -54,30 +50,14 @@ fn labelled(
 }
 
 async fn walk(
-    client: &mut WireClient,
-    filter: model::execution::wire::CycleFilter,
-    order: model::execution::wire::CycleOrder,
-    limit: u32,
+    client: &mut WireClient, filter: model::execution::wire::CycleFilter, order: model::execution::wire::CycleOrder, limit: u32,
 ) -> Vec<String> {
-    let mut request = contracts::execution::ListCycles {
-        limit,
-        filter: Some(filter),
-        order: Some(order),
-        ..Default::default()
-    };
+    let mut request = contracts::execution::ListCycles { limit, filter: Some(filter), order: Some(order), ..Default::default() };
     let mut walked = Vec::new();
     loop {
-        let page = client
-            .unary::<contracts::execution::ListCycles>(request.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let page = client.unary::<contracts::execution::ListCycles>(request.clone()).await.unwrap().into_inner();
         assert!(page.cycles.len() as u32 <= limit);
-        walked.extend(
-            page.cycles
-                .iter()
-                .map(|cycle| cycle.metadata.as_ref().unwrap().label.clone()),
-        );
+        walked.extend(page.cycles.iter().map(|cycle| cycle.metadata.as_ref().unwrap().label.clone()));
         let Some(next) = page.next_after_cycle_id else {
             break;
         };
@@ -94,79 +74,37 @@ async fn cycle_search_once() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for (identifier, label, description) in [
         ("grpc.burn-c", "Burn In Gamma", None),
-        (
-            "grpc.calibration",
-            "Calibration Sweep",
-            Some("Thermal soak"),
-        ),
+        ("grpc.calibration", "Calibration Sweep", Some("Thermal soak")),
         ("grpc.burn-a", "Burn In Alpha", Some("Thermal soak")),
         ("grpc.burn-b", "Burn In Beta", None),
     ] {
-        client
-            .unary::<contracts::execution::CreateCycle>(labelled(identifier, label, description))
-            .await
-            .unwrap();
+        client.unary::<contracts::execution::CreateCycle>(labelled(identifier, label, description)).await.unwrap();
     }
-    let by_label = model::execution::wire::CycleOrder {
-        key: model::execution::wire::CycleOrderKey::Label,
-        descending: false,
-    };
+    let by_label = model::execution::wire::CycleOrder { key: model::execution::wire::CycleOrderKey::Label, descending: false };
 
     // Text narrows on the server, and one cycle per page still yields the
     // whole match set once, in the declared order.
-    let walked = walk(
-        &mut client,
-        model::execution::wire::CycleFilter {
-            text: "BURN in".into(),
-            ..Default::default()
-        },
-        by_label.clone(),
-        1,
-    )
-    .await;
+    let walked =
+        walk(&mut client, model::execution::wire::CycleFilter { text: "BURN in".into(), ..Default::default() }, by_label.clone(), 1).await;
     assert_eq!(walked, ["Burn In Alpha", "Burn In Beta", "Burn In Gamma"]);
 
     // The same matches, in one page, are the same sequence.
-    let single = walk(
-        &mut client,
-        model::execution::wire::CycleFilter {
-            text: "burn in".into(),
-            ..Default::default()
-        },
-        by_label.clone(),
-        50,
-    )
-    .await;
+    let single =
+        walk(&mut client, model::execution::wire::CycleFilter { text: "burn in".into(), ..Default::default() }, by_label.clone(), 50).await;
     assert_eq!(single, walked);
 
     // Text also matches the description, and the identifier.
-    let by_description = walk(
-        &mut client,
-        model::execution::wire::CycleFilter {
-            text: "thermal SOAK".into(),
-            ..Default::default()
-        },
-        by_label.clone(),
-        1,
-    )
-    .await;
+    let by_description =
+        walk(&mut client, model::execution::wire::CycleFilter { text: "thermal SOAK".into(), ..Default::default() }, by_label.clone(), 1)
+            .await;
     assert_eq!(by_description, ["Burn In Alpha", "Calibration Sweep"]);
-    let by_identifier = walk(
-        &mut client,
-        model::execution::wire::CycleFilter {
-            text: "grpc.burn-b".into(),
-            ..Default::default()
-        },
-        by_label.clone(),
-        2,
-    )
-    .await;
+    let by_identifier =
+        walk(&mut client, model::execution::wire::CycleFilter { text: "grpc.burn-b".into(), ..Default::default() }, by_label.clone(), 2)
+            .await;
     assert_eq!(by_identifier, ["Burn In Beta"]);
 
     // A status the runtime has not reached selects nothing; the one it has
@@ -174,10 +112,7 @@ async fn cycle_search_once() {
     assert!(
         walk(
             &mut client,
-            model::execution::wire::CycleFilter {
-                statuses: vec![model::execution::wire::CycleStatus::Completed],
-                ..Default::default()
-            },
+            model::execution::wire::CycleFilter { statuses: vec![model::execution::wire::CycleStatus::Completed], ..Default::default() },
             by_label.clone(),
             10,
         )
@@ -187,10 +122,7 @@ async fn cycle_search_once() {
     assert_eq!(
         walk(
             &mut client,
-            model::execution::wire::CycleFilter {
-                statuses: vec![model::execution::wire::CycleStatus::Ready],
-                ..Default::default()
-            },
+            model::execution::wire::CycleFilter { statuses: vec![model::execution::wire::CycleStatus::Ready], ..Default::default() },
             by_label.clone(),
             10,
         )
@@ -200,29 +132,16 @@ async fn cycle_search_once() {
     );
 
     // A continuation the filter excludes is rejected, not silently restarted.
-    let excluded = client
-        .unary::<contracts::execution::ListCycles>(
-            contracts::execution::ListCycles::default(),
-        )
-        .await
-        .unwrap()
-        .into_inner();
-    let outsider = excluded
-        .cycles
-        .iter()
-        .find(|cycle| cycle.metadata.as_ref().unwrap().label == "Calibration Sweep")
-        .unwrap()
-        .cycle_id
-        .clone();
+    let excluded =
+        client.unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles::default()).await.unwrap().into_inner();
+    let outsider =
+        excluded.cycles.iter().find(|cycle| cycle.metadata.as_ref().unwrap().label == "Calibration Sweep").unwrap().cycle_id.clone();
     assert_eq!(
         client
             .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                 after_cycle_id: outsider,
                 cursor: excluded.cursor.clone(),
-                filter: Some(model::execution::wire::CycleFilter {
-                    text: "burn in".into(),
-                    ..Default::default()
-                }),
+                filter: Some(model::execution::wire::CycleFilter { text: "burn in".into(), ..Default::default() }),
                 order: Some(by_label),
                 ..Default::default()
             })
@@ -257,18 +176,11 @@ async fn listed_cases_page() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle_id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
-        .await
-        .unwrap();
+    let cycle_id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let page = client
-        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
-            cycle_id,
-            ..Default::default()
-        })
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases { cycle_id, ..Default::default() })
         .await
         .unwrap()
         .into_inner();
@@ -279,10 +191,7 @@ async fn listed_cases_page() {
         assert_eq!(case.status, model::execution::wire::CaseStatus::Queued);
         assert_eq!(case.attempt_count, 1);
         assert!(!case.rerun_scheduled);
-        assert_eq!(
-            case.latest_execution_status,
-            Some(model::execution::wire::ExecutionStatus::Skipped)
-        );
+        assert_eq!(case.latest_execution_status, Some(model::execution::wire::ExecutionStatus::Skipped));
         assert!(case.latest_execution_id.is_some());
         let actions = case.actions.as_ref().unwrap();
         assert!(actions.run);

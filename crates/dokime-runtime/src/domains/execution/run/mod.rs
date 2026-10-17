@@ -29,26 +29,25 @@ use harmos::operations::OperationManager;
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
-use dokime_domain::model::execution::result::CycleView;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::records::publication::RecordPublishRequest;
-use artifacts::DiscardedArtifact;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::values::Value;
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
 use crate::execution::ExecutionScope;
 use crate::plugin::Diagnostic;
 use crate::prompts::PromptRequest;
 use crate::telemetry::SamplingScope;
 use crate::transport::{
-    EvidenceBatch, ExecutionSignal, ProviderCriterionOutcome, ProviderCycleOutcome,
-    ProviderExecutionFailure, ProviderExecutionOutcome, ProviderPhaseOutcome,
-    ProviderStatusOutcome, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus,
-    SidecarExecutionOutcome, SignalReply,
+    EvidenceBatch, ExecutionSignal, ProviderCriterionOutcome, ProviderCycleOutcome, ProviderExecutionFailure, ProviderExecutionOutcome,
+    ProviderPhaseOutcome, ProviderStatusOutcome, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome,
+    SignalReply,
 };
+use artifacts::DiscardedArtifact;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use dokime_domain::model::values::Value;
 use session::Session;
 
 /* === Constants === */
@@ -148,10 +147,7 @@ enum DropReason {
 /* === Implementations === */
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a CycleView,
-        target: &'a ExecutionProviderTarget,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move { run_sidecar_cycle(context, cycle, target).await })
     }
@@ -165,17 +161,10 @@ impl Drop for ProgressCleanup {
 
 impl Target {
     pub(crate) fn of(operations: OperationManager, template: &str) -> Self {
-        Self {
-            operations,
-            run: format!("{template}.run"),
-            signal: format!("{template}.signal"),
-        }
+        Self { operations, run: format!("{template}.run"), signal: format!("{template}.signal") }
     }
 
-    async fn run(
-        &self,
-        request: RunExecution,
-    ) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
+    async fn run(&self, request: RunExecution) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
         let mut context = harmos::operations::CallContext::default();
         context
             .insert_portable(ExecutionScope::execution(request.execution_token.clone()))
@@ -186,57 +175,33 @@ impl Target {
             .call_encoded(&self.run, request.encode_to_vec())
             .await
             .map_err(|error| sidecar_failure("execution_run", error))?;
-        SidecarExecutionOutcome::decode(bytes.as_slice()).map_err(|error| {
-            failure(
-                "execution_run",
-                format!("run `{}` answered malformed protobuf: {error}", self.run),
-            )
-        })
+        SidecarExecutionOutcome::decode(bytes.as_slice())
+            .map_err(|error| failure("execution_run", format!("run `{}` answered malformed protobuf: {error}", self.run)))
     }
 
-    pub(crate) async fn signal(
-        &self,
-        signal: ExecutionSignal,
-    ) -> Result<SignalReply, ProviderExecutionFailure> {
+    pub(crate) async fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, ProviderExecutionFailure> {
         let bytes = self
             .operations
             .call_encoded(&self.signal, signal.encode_to_vec())
             .await
             .map_err(|error| sidecar_failure("execution_signal", error))?;
-        SignalReply::decode(bytes.as_slice()).map_err(|error| {
-            failure(
-                "execution_signal",
-                format!(
-                    "signal `{}` answered malformed protobuf: {error}",
-                    self.signal
-                ),
-            )
-        })
+        SignalReply::decode(bytes.as_slice())
+            .map_err(|error| failure("execution_signal", format!("signal `{}` answered malformed protobuf: {error}", self.signal)))
     }
 }
 
 impl PromptBridge {
     fn new(declared: Vec<crate::prompts::PromptDefinition>) -> Self {
-        Self {
-            outstanding: BTreeMap::new(),
-            declared,
-        }
+        Self { outstanding: BTreeMap::new(), declared }
     }
 
-    fn admit_replay(
-        &self,
-        prompt: &PromptRequest,
-    ) -> Result<Option<[u8; 32]>, ProviderExecutionFailure> {
+    fn admit_replay(&self, prompt: &PromptRequest) -> Result<Option<[u8; 32]>, ProviderExecutionFailure> {
         use sha2::Digest;
-        let encoded = serde_json::to_vec(prompt)
-            .map_err(|error| failure("sidecar_prompt", error.to_string()))?;
+        let encoded = serde_json::to_vec(prompt).map_err(|error| failure("sidecar_prompt", error.to_string()))?;
         let fingerprint: [u8; 32] = sha2::Sha256::digest(encoded).into();
         if let Some(previous) = self.outstanding.get(&prompt.prompt_id) {
             if previous != &fingerprint {
-                return Err(failure(
-                    "sidecar_prompt",
-                    "replayed question identity has different values or definition",
-                ));
+                return Err(failure("sidecar_prompt", "replayed question identity has different values or definition"));
             }
             return Ok(None);
         }
@@ -244,17 +209,10 @@ impl PromptBridge {
     }
 
     async fn request(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        scope: &RecordScope,
-        encoded: &str,
+        &mut self, context: &ExecutionFixtureContext, scope: &RecordScope, encoded: &str,
     ) -> Result<PromptId, ProviderExecutionFailure> {
-        let mut prompt: PromptRequest = serde_json::from_str(encoded).map_err(|error| {
-            failure(
-                "sidecar_prompt",
-                format!("the run sent a malformed operator prompt: {error}"),
-            )
-        })?;
+        let mut prompt: PromptRequest = serde_json::from_str(encoded)
+            .map_err(|error| failure("sidecar_prompt", format!("the run sent a malformed operator prompt: {error}")))?;
         admit_prompt(&self.declared, &prompt)?;
         // Scope is the host's to assign, exactly as it is for samples and
         // records: a run must not be able to raise a prompt against another
@@ -264,12 +222,10 @@ impl PromptBridge {
         let Some(fingerprint) = self.admit_replay(&prompt)? else {
             return Ok(prompt_id);
         };
-        context.request_prompt(prompt).await.map_err(|rejection| {
-            failure(
-                "sidecar_prompt",
-                format!("the runtime refused an operator prompt: {rejection:?}"),
-            )
-        })?;
+        context
+            .request_prompt(prompt)
+            .await
+            .map_err(|rejection| failure("sidecar_prompt", format!("the runtime refused an operator prompt: {rejection:?}")))?;
         self.outstanding.insert(prompt_id.clone(), fingerprint);
         Ok(prompt_id)
     }
@@ -278,29 +234,18 @@ impl PromptBridge {
         for prompt_id in self.outstanding.keys().cloned().collect::<Vec<_>>() {
             // Answered, or already settled by the stop that ended its owner.
             let runtime = &context.runtime;
-            if runtime.prompt_response(&prompt_id).await.is_some()
-                || runtime.prompt_settled_at(&prompt_id).await.is_some()
-            {
+            if runtime.prompt_response(&prompt_id).await.is_some() || runtime.prompt_settled_at(&prompt_id).await.is_some() {
                 self.outstanding.remove(&prompt_id);
                 continue;
             }
             // Not accepted: nobody agreed to anything, the run was stopped.
             let settled = context
                 .runtime
-                .submit_prompt_response(
-                    prompt_id.clone(),
-                    "cancel".to_owned(),
-                    "runtime".to_owned(),
-                    BTreeMap::new(),
-                    false,
-                )
+                .submit_prompt_response(prompt_id.clone(), "cancel".to_owned(), "runtime".to_owned(), BTreeMap::new(), false)
                 .await;
             self.outstanding.remove(&prompt_id);
             if let Err(detail) = settled
-                && !matches!(
-                    detail.code(),
-                    Some("prompt_already_answered" | "prompt_settled")
-                )
+                && !matches!(detail.code(), Some("prompt_already_answered" | "prompt_settled"))
             {
                 tracing::warn!(
                     %prompt_id,
@@ -335,10 +280,7 @@ impl Finalization {
         }
     }
 
-    pub(crate) async fn finish(
-        &self,
-        context: &ExecutionFixtureContext,
-    ) -> Result<(), ProviderExecutionFailure> {
+    pub(crate) async fn finish(&self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
         let mut active = self.active.lock().await;
         if let Some(cleanup) = active.as_mut() {
             cleanup.finish(context).await?;
@@ -349,20 +291,10 @@ impl Finalization {
 }
 
 impl ExecutionCleanup {
-    async fn finish(
-        &mut self,
-        context: &ExecutionFixtureContext,
-    ) -> Result<(), ProviderExecutionFailure> {
+    async fn finish(&mut self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
         if !self.settled {
-            self.session
-                .prompts
-                .lock()
-                .await
-                .settle_on_cancel(context)
-                .await;
-            let deadline = *self
-                .stop_deadline
-                .get_or_insert_with(|| tokio::time::Instant::now() + STOP_SETTLEMENT);
+            self.session.prompts.lock().await.settle_on_cancel(context).await;
+            let deadline = *self.stop_deadline.get_or_insert_with(|| tokio::time::Instant::now() + STOP_SETTLEMENT);
             let signal = self.session.target.signal(ExecutionSignal {
                 execution_token: self.execution.test_execution_id.to_string(),
                 cancel: true,
@@ -381,20 +313,11 @@ impl ExecutionCleanup {
         }
         let publication_started = Instant::now();
         tracing::debug!(execution_id = %self.execution.test_execution_id, "execution publication flush started");
-        context
-            .runtime
-            .flush_plugin_publications()
-            .await
-            .map_err(|error| failure("sidecar_telemetry", error.to_string()))?;
+        context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_telemetry", error.to_string()))?;
         tracing::debug!(execution_id = %self.execution.test_execution_id,
             elapsed_ms = publication_started.elapsed().as_millis() as u64, "execution publication flush settled");
         close_record_subscriptions(context, &self.execution).await?;
-        self.session
-            .prompts
-            .lock()
-            .await
-            .settle_on_cancel(context)
-            .await;
+        self.session.prompts.lock().await.settle_on_cancel(context).await;
         let capture_started = Instant::now();
         tracing::debug!(execution_id = %self.execution.test_execution_id, "execution capture release started");
         self.session.step_leases.release_all(context).await?;
@@ -407,87 +330,48 @@ impl ExecutionCleanup {
 
 impl StepLeaseBridge {
     async fn request(
-        &self,
-        context: &ExecutionFixtureContext,
-        execution: &TestExecution,
-        source: &str,
-        request: crate::telemetry::LeaseRequest,
+        &self, context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, request: crate::telemetry::LeaseRequest,
     ) -> crate::transport::LeaseResolution {
-        let answer = context
-            .runtime
-            .lease_streams(
-                sampling_scope(execution),
-                std::slice::from_ref(&request.stream),
-                source,
-            )
-            .await;
+        let answer = context.runtime.lease_streams(sampling_scope(execution), std::slice::from_ref(&request.stream), source).await;
         let (granted, message) = match answer {
             Ok(leases) => match leases.first() {
                 Some(lease_id) => {
-                    self.held
-                        .lock()
-                        .await
-                        .insert(request.lease_token.clone(), lease_id.clone());
+                    self.held.lock().await.insert(request.lease_token.clone(), lease_id.clone());
                     (true, String::new())
                 }
                 // A grant with no hold behind it would be the worst of both: a
                 // step that believes it is capturing and a stream nobody
                 // started.
-                None => (
-                    false,
-                    format!("the host took no hold on {}", request.stream),
-                ),
+                None => (false, format!("the host took no hold on {}", request.stream)),
             },
             Err(error) => (false, error.to_string()),
         };
         crate::transport::LeaseResolution { granted, message }
     }
 
-    async fn release(
-        &self,
-        context: &ExecutionFixtureContext,
-        released: &[String],
-    ) -> Result<(), ProviderExecutionFailure> {
+    async fn release(&self, context: &ExecutionFixtureContext, released: &[String]) -> Result<(), ProviderExecutionFailure> {
         if released.is_empty() {
             return Ok(());
         }
         let held = self.held.lock().await;
-        let leases = released
-            .iter()
-            .filter_map(|token| held.get(token).map(|lease| (token.clone(), lease.clone())))
-            .collect::<Vec<_>>();
+        let leases = released.iter().filter_map(|token| held.get(token).map(|lease| (token.clone(), lease.clone()))).collect::<Vec<_>>();
         drop(held);
         self.release_owned(context, leases).await
     }
 
-    async fn release_all(
-        &self,
-        context: &ExecutionFixtureContext,
-    ) -> Result<(), ProviderExecutionFailure> {
-        let leases = self
-            .held
-            .lock()
-            .await
-            .iter()
-            .map(|(token, lease)| (token.clone(), lease.clone()))
-            .collect::<Vec<_>>();
+    async fn release_all(&self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
+        let leases = self.held.lock().await.iter().map(|(token, lease)| (token.clone(), lease.clone())).collect::<Vec<_>>();
         self.release_owned(context, leases).await
     }
 
     async fn release_owned(
-        &self,
-        context: &ExecutionFixtureContext,
-        leases: Vec<(String, String)>,
+        &self, context: &ExecutionFixtureContext, leases: Vec<(String, String)>,
     ) -> Result<(), ProviderExecutionFailure> {
         if leases.is_empty() {
             return Ok(());
         }
         let lease_ids = leases.iter().map(|(_, lease)| lease.clone()).collect();
-        context
-            .runtime
-            .release_stream_leases(lease_ids)
-            .await
-            .map_err(|error| failure("sidecar_leases", error.to_string()))?;
+        context.runtime.release_stream_leases(lease_ids).await.map_err(|error| failure("sidecar_leases", error.to_string()))?;
         let mut held = self.held.lock().await;
         for (token, lease) in leases {
             if held.get(&token) == Some(&lease) {
@@ -500,37 +384,18 @@ impl StepLeaseBridge {
 
 impl PhaseTracker {
     pub(super) async fn observe(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        scope: &RecordScope,
-        phase: &str,
-        execution: &TestExecution,
-        publish: bool,
+        &mut self, context: &ExecutionFixtureContext, scope: &RecordScope, phase: &str, execution: &TestExecution, publish: bool,
     ) -> Result<(), ProviderExecutionFailure> {
-        if phase.is_empty()
-            || self
-                .current
-                .as_ref()
-                .is_some_and(|(identifier, _)| identifier.as_str() == phase)
-        {
+        if phase.is_empty() || self.current.as_ref().is_some_and(|(identifier, _)| identifier.as_str() == phase) {
             return Ok(());
         }
 
-        let identifier = Identifier::new(phase).map_err(|error| {
-            failure(
-                "sidecar_phase",
-                format!("sidecar returned invalid phase identifier `{phase}`: {error}"),
-            )
-        })?;
+        let identifier = Identifier::new(phase)
+            .map_err(|error| failure("sidecar_phase", format!("sidecar returned invalid phase identifier `{phase}`: {error}")))?;
         let label = execution
             .snapshot
             .template()
-            .and_then(|template| {
-                template
-                    .phases
-                    .iter()
-                    .find(|step| step.metadata.identifier.as_str() == phase)
-            })
+            .and_then(|template| template.phases.iter().find(|step| step.metadata.identifier.as_str() == phase))
             .map(|step| step.metadata.label.clone())
             .unwrap_or_else(|| phase_label(phase));
         if publish {
@@ -538,24 +403,13 @@ impl PhaseTracker {
         }
         if let Some((previous_identifier, previous_label)) = self.current.take() {
             if publish {
-                update_phase(
-                    context,
-                    scope,
-                    previous_identifier,
-                    previous_label,
-                    "passed",
-                )
-                .await?;
+                update_phase(context, scope, previous_identifier, previous_label, "passed").await?;
             }
             if let Some(previous) = self.phases.last_mut() {
                 previous.status = "passed".to_owned();
             }
         }
-        self.phases.push(ProviderPhaseOutcome {
-            identifier: phase.to_owned(),
-            label: label.clone(),
-            status: "running".to_owned(),
-        });
+        self.phases.push(ProviderPhaseOutcome { identifier: phase.to_owned(), label: label.clone(), status: "running".to_owned() });
         self.current = Some((identifier, label));
         Ok(())
     }
@@ -570,11 +424,7 @@ impl PhaseTracker {
 
 impl StreamLog {
     pub(super) async fn append(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        execution: &TestExecution,
-        workflow: &str,
-        source: &str,
+        &mut self, context: &ExecutionFixtureContext, execution: &TestExecution, workflow: &str, source: &str,
         entries: &[crate::execution::log::Entry],
     ) {
         if entries.is_empty() {
@@ -627,11 +477,7 @@ impl StreamLog {
             // Prefix every physical line, including blank messages, so multiline
             // diagnostics retain severity when read as plain text.
             for line in entry.message.split('\n') {
-                let timestamp = if entry.timestamp.is_empty() {
-                    crate::execution::log::timestamp()
-                } else {
-                    entry.timestamp.clone()
-                };
+                let timestamp = if entry.timestamp.is_empty() { crate::execution::log::timestamp() } else { entry.timestamp.clone() };
                 let formatted = format!("{timestamp} [{level}] {line}\n");
                 let bytes = formatted.as_bytes();
                 let mut remaining = bytes;
@@ -640,10 +486,7 @@ impl StreamLog {
                     buffer.extend_from_slice(&remaining[..count]);
                     remaining = &remaining[count..];
                     if buffer.len() == 64 * 1024 {
-                        if !self
-                            .persist(context, execution, source, &path, &buffer)
-                            .await
-                        {
+                        if !self.persist(context, execution, source, &path, &buffer).await {
                             return;
                         }
                         buffer.clear();
@@ -652,27 +495,17 @@ impl StreamLog {
             }
         }
         if !buffer.is_empty() {
-            self.persist(context, execution, source, &path, &buffer)
-                .await;
+            self.persist(context, execution, source, &path, &buffer).await;
         }
     }
 
     async fn persist(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        execution: &TestExecution,
-        source: &str,
-        path: &str,
-        bytes: &[u8],
+        &mut self, context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, path: &str, bytes: &[u8],
     ) -> bool {
         let storage = &context.runtime.execution_storage;
         let persisted = async {
-            storage
-                .reserve_output(&execution.test_execution_id, path)
-                .await?;
-            storage
-                .append_output(&execution.test_execution_id, path, bytes)
-                .await
+            storage.reserve_output(&execution.test_execution_id, path).await?;
+            storage.append_output(&execution.test_execution_id, path, bytes).await
         }
         .await;
         if let Err(error) = persisted {
@@ -686,20 +519,11 @@ impl StreamLog {
 }
 
 impl HostCapture {
-    async fn start(
-        context: &ExecutionFixtureContext,
-        execution: &TestExecution,
-        streams: &[Identifier],
-        source: &str,
-    ) -> Self {
+    async fn start(context: &ExecutionFixtureContext, execution: &TestExecution, streams: &[Identifier], source: &str) -> Self {
         if streams.is_empty() {
             return Self::default();
         }
-        match context
-            .runtime
-            .lease_streams(sampling_scope(execution), streams, source)
-            .await
-        {
+        match context.runtime.lease_streams(sampling_scope(execution), streams, source).await {
             Ok(leases) => Self { leases },
             Err(error) => {
                 tracing::warn!(
@@ -717,15 +541,8 @@ impl HostCapture {
         }
     }
 
-    async fn release(
-        &mut self,
-        context: &ExecutionFixtureContext,
-    ) -> Result<(), ProviderExecutionFailure> {
-        context
-            .runtime
-            .release_stream_leases(self.leases.clone())
-            .await
-            .map_err(|error| failure("sidecar_leases", error.to_string()))?;
+    async fn release(&mut self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
+        context.runtime.release_stream_leases(self.leases.clone()).await.map_err(|error| failure("sidecar_leases", error.to_string()))?;
         self.leases.clear();
         Ok(())
     }
@@ -741,12 +558,10 @@ impl DropReason {
 
     fn entry(self, name: &str, received: u64) -> String {
         match self {
-            Self::Abandoned => format!(
-                "dropped execution artifact `{name}`: the producer aborted the transfer after {received} bytes"
-            ),
-            Self::Incomplete => format!(
-                "discarded incomplete execution artifact `{name}`: {received} bytes arrived before the execution ended"
-            ),
+            Self::Abandoned => format!("dropped execution artifact `{name}`: the producer aborted the transfer after {received} bytes"),
+            Self::Incomplete => {
+                format!("discarded incomplete execution artifact `{name}`: {received} bytes arrived before the execution ended")
+            }
         }
     }
 }
@@ -756,19 +571,11 @@ impl DropReason {
 /* === Private Functions === */
 #[allow(clippy::too_many_arguments)]
 async fn execute_case(
-    context: &ExecutionFixtureContext,
-    cycle: &CycleView,
-    case: &TestCase,
-    execution: &TestExecution,
-    workflow: &str,
-    source: &str,
+    context: &ExecutionFixtureContext, cycle: &CycleView, case: &TestCase, execution: &TestExecution, workflow: &str, source: &str,
     operations: OperationManager,
 ) -> Result<CaseResult, ProviderExecutionFailure> {
     if context.finalization.pending().await {
-        return Err(failure(
-            "sidecar_cleanup",
-            "previous execution cleanup remains unresolved",
-        ));
+        return Err(failure("sidecar_cleanup", "previous execution cleanup remains unresolved"));
     }
     let execution_token = execution.test_execution_id.to_string();
     let parameters = execution
@@ -792,18 +599,10 @@ async fn execute_case(
         test_execution_id: execution.test_execution_id.to_string(),
         template_identifier: case.metadata.identifier.to_string(),
         workflow: workflow.to_owned(),
-        secrets_json: serde_json::to_string(&secrets).map_err(|_| {
-            failure(
-                "sidecar_start",
-                "failed to encode execution secret bindings",
-            )
-        })?,
-        parameters_json: serde_json::to_string(&parameters).map_err(|error| {
-            failure(
-                "sidecar_start",
-                format!("failed to encode resolved case parameters: {error}"),
-            )
-        })?,
+        secrets_json: serde_json::to_string(&secrets)
+            .map_err(|_| failure("sidecar_start", "failed to encode execution secret bindings"))?,
+        parameters_json: serde_json::to_string(&parameters)
+            .map_err(|error| failure("sidecar_start", format!("failed to encode resolved case parameters: {error}")))?,
     };
     let declared = template_declarations(context, case, source).await;
     let publication_scope = execution
@@ -815,23 +614,13 @@ async fn execute_case(
     let publication_admission = context
         .runtime
         .native_executions
-        .admit(
-            source,
-            &execution_token,
-            publication_scope,
-            declared.streams.clone(),
-        )
+        .admit(source, &execution_token, publication_scope, declared.streams.clone())
         .map_err(|error| failure("sidecar_start", error))?;
     let record_subscription_after = context.runtime.state_manager.applied().0;
     let mut phase = PhaseTracker::default();
-    phase
-        .observe(context, &execution.scope, "initialization", execution, true)
-        .await?;
+    phase.observe(context, &execution.scope, "initialization", execution, true).await?;
     context
-        .capture_phase(
-            execution.scope.clone(),
-            dokime_domain::model::execution::CapturePhase::Initialization,
-        )
+        .capture_phase(execution.scope.clone(), dokime_domain::model::execution::CapturePhase::Initialization)
         .await
         .map_err(|error| failure("sidecar_capture_phase", error.to_string()))?;
     let record_demand = match context.runtime.hold_record_demand(&declared.records) {
@@ -845,10 +634,7 @@ async fn execute_case(
     if context.is_cancelled() {
         capture.release(context).await?;
         close_record_subscriptions(context, execution).await?;
-        return Err(failure(
-            "cancel",
-            "provider invocation cancelled before the run started",
-        ));
+        return Err(failure("cancel", "provider invocation cancelled before the run started"));
     }
 
     let target = Target::of(operations, case.metadata.identifier.as_str());
@@ -870,18 +656,12 @@ async fn execute_case(
             _record_demand: record_demand,
             execution: execution.clone(),
             session: Arc::clone(&session),
-            _progress: ProgressCleanup {
-                registry: Arc::clone(&context.runtime.progress),
-                execution: execution.test_execution_id.clone(),
-            },
+            _progress: ProgressCleanup { registry: Arc::clone(&context.runtime.progress), execution: execution.test_execution_id.clone() },
             settled: false,
             stop_deadline: None,
         })
         .await;
-    context
-        .runtime
-        .execution_sessions
-        .insert(&execution_token, Arc::clone(&session));
+    context.runtime.execution_sessions.insert(&execution_token, Arc::clone(&session));
 
     let provider_started = Instant::now();
     tracing::debug!(execution_id = %execution.test_execution_id, cycle_id = %cycle.test_cycle_id, "execution provider run started");
@@ -910,11 +690,7 @@ async fn execute_case(
                 // Cancel the pending operator questions before signalling the run.
                 session.cancel().await;
                 if let Err(error) = target
-                    .signal(ExecutionSignal {
-                        execution_token: execution_token.clone(),
-                        cancel: true,
-                        ..ExecutionSignal::default()
-                    })
+                    .signal(ExecutionSignal { execution_token: execution_token.clone(), cancel: true, ..ExecutionSignal::default() })
                     .await
                 {
                     session.refuse(error).await;
@@ -940,10 +716,7 @@ async fn execute_case(
     // A run can wind down before the watch loop sees its stop, for instance
     // when the stop settled the question it was waiting on. It still ended
     // because it was stopped.
-    if !cancelled
-        && (cancellation_requested(context, cycle).await
-            || context.execution_stop_requested(&execution.test_execution_id))
-    {
+    if !cancelled && (cancellation_requested(context, cycle).await || context.execution_stop_requested(&execution.test_execution_id)) {
         cancelled = true;
     }
     let Some(answered) = answered else {
@@ -952,13 +725,9 @@ async fn execute_case(
         // once more and releases everything the execution held.
         tracing::warn!(execution_id = %execution.test_execution_id,
             budget_s = STOP_SETTLEMENT.as_secs(), "cancelled run did not settle; host settled it as stopped");
-        let message = format!(
-            "the run did not answer its stop within {} seconds; the host settled it as stopped",
-            STOP_SETTLEMENT.as_secs()
-        );
-        session
-            .narrate_refusal(&failure("stop_settlement", message.clone()))
-            .await;
+        let message =
+            format!("the run did not answer its stop within {} seconds; the host settled it as stopped", STOP_SETTLEMENT.as_secs());
+        session.narrate_refusal(&failure("stop_settlement", message.clone())).await;
         // A late run may close its own step first; cleanup still owns release.
         if let Err(error) = close_stopped_attempt(context, execution).await {
             tracing::warn!(execution_id = %execution.test_execution_id,
@@ -966,16 +735,7 @@ async fn execute_case(
         }
         context.finalization.finish(context).await?;
         return Ok(CaseResult {
-            execution: execution_outcome(
-                case,
-                execution,
-                source,
-                "cancelled",
-                Vec::new(),
-                Some(message),
-                Vec::new(),
-                None,
-            ),
+            execution: execution_outcome(case, execution, source, "cancelled", Vec::new(), Some(message), Vec::new(), None),
             cancelled: true,
         });
     };
@@ -984,9 +744,7 @@ async fn execute_case(
     let concluded = match answered {
         Ok(outcome) => {
             context.finalization.settled().await;
-            session
-                .conclude(case, outcome, cancelled, &declared.criteria)
-                .await
+            session.conclude(case, outcome, cancelled, &declared.criteria).await
         }
         Err(error) => Err(error),
     };
@@ -1008,9 +766,7 @@ async fn execute_case(
 }
 
 async fn run_sidecar_cycle(
-    context: ExecutionFixtureContext,
-    cycle: &CycleView,
-    target: &ExecutionProviderTarget,
+    context: ExecutionFixtureContext, cycle: &CycleView, target: &ExecutionProviderTarget,
 ) -> Result<ProviderCycleOutcome, ProviderExecutionFailure> {
     let SidecarExecutionBinding { workflow } = &target.binding;
     let operations = context.runtime.operations.clone();
@@ -1061,16 +817,7 @@ async fn run_sidecar_cycle(
             ));
             continue;
         }
-        let result = execute_case(
-            &context,
-            cycle,
-            case,
-            execution,
-            workflow,
-            &target.source,
-            operations.clone(),
-        )
-        .await;
+        let result = execute_case(&context, cycle, case, execution, workflow, &target.source, operations.clone()).await;
         // An operator stop of this one execution is not a cycle stop and not a
         // failure: the siblings behind it still run, even when the stopped run
         // unwound through a refusal rather than an outcome.
@@ -1084,10 +831,7 @@ async fn run_sidecar_cycle(
                     &target.source,
                     "cancelled",
                     Vec::new(),
-                    Some(format!(
-                        "execution stopped by the operator: {}",
-                        error.message
-                    )),
+                    Some(format!("execution stopped by the operator: {}", error.message)),
                     Vec::new(),
                     None,
                 ),
@@ -1095,8 +839,7 @@ async fn run_sidecar_cycle(
             },
             Err(error) => return Err(error),
         };
-        stop_after_failure =
-            !cycle.continue_on_failure && result.execution.status != "passed" && !stopped_alone;
+        stop_after_failure = !cycle.continue_on_failure && result.execution.status != "passed" && !stopped_alone;
         cancelled |= result.cancelled && !stopped_alone;
         failures.extend(result.execution.failures.iter().cloned());
         executions.push(result.execution);
@@ -1124,48 +867,25 @@ async fn run_sidecar_cycle(
     })
 }
 
-pub(crate) fn with_failed_stage(
-    mut phases: Vec<ProviderPhaseOutcome>,
-    failed_in: Option<&str>,
-) -> Vec<ProviderPhaseOutcome> {
+pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
     let Some(stage) = failed_in else {
         return phases;
     };
     if phases.iter().any(|phase| phase.identifier == stage) {
         return phases;
     }
-    phases.push(ProviderPhaseOutcome {
-        identifier: stage.to_owned(),
-        label: phase_label(stage),
-        status: "failed".to_owned(),
-    });
+    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
     phases
 }
 
-fn admit_prompt(
-    declared: &[crate::prompts::PromptDefinition],
-    prompt: &PromptRequest,
-) -> Result<(), ProviderExecutionFailure> {
-    if !declared
-        .iter()
-        .any(|definition| definition.prompt_type == prompt.prompt_type)
-    {
-        return Err(failure(
-            "sidecar_prompt",
-            format!(
-                "operator question {} is not declared by this template",
-                prompt.prompt_type
-            ),
-        ));
+fn admit_prompt(declared: &[crate::prompts::PromptDefinition], prompt: &PromptRequest) -> Result<(), ProviderExecutionFailure> {
+    if !declared.iter().any(|definition| definition.prompt_type == prompt.prompt_type) {
+        return Err(failure("sidecar_prompt", format!("operator question {} is not declared by this template", prompt.prompt_type)));
     }
     Ok(())
 }
 
-async fn template_declarations(
-    context: &ExecutionFixtureContext,
-    case: &TestCase,
-    source: &str,
-) -> TemplateDeclarations {
+async fn template_declarations(context: &ExecutionFixtureContext, case: &TestCase, source: &str) -> TemplateDeclarations {
     for snapshot in context.runtime.test_suites().await {
         if snapshot.source != source {
             continue;
@@ -1174,27 +894,13 @@ async fn template_declarations(
             if template.test_case_template_id == case.test_case_template_id {
                 return TemplateDeclarations {
                     prompts: template.prompt_definitions.clone(),
-                    records: template
-                        .subscriptions
-                        .iter()
-                        .filter_map(crate::definition::Subscription::record)
-                        .cloned()
-                        .collect(),
-                    samples: template
-                        .subscriptions
-                        .iter()
-                        .filter_map(crate::definition::Subscription::stream)
-                        .cloned()
-                        .collect(),
+                    records: template.subscriptions.iter().filter_map(crate::definition::Subscription::record).cloned().collect(),
+                    samples: template.subscriptions.iter().filter_map(crate::definition::Subscription::stream).cloned().collect(),
                     criteria: template.criteria.clone(),
                     streams: snapshot
                         .telemetry_contracts
                         .iter()
-                        .filter(|contract| {
-                            !contract.foreign
-                                && contract.template_id.as_ref()
-                                    == Some(&template.test_case_template_id)
-                        })
+                        .filter(|contract| !contract.foreign && contract.template_id.as_ref() == Some(&template.test_case_template_id))
                         .map(|contract| contract.stream.clone())
                         .collect(),
                 };
@@ -1206,28 +912,15 @@ async fn template_declarations(
 
 fn sampling_scope(execution: &TestExecution) -> SamplingScope {
     SamplingScope {
-        test_cycle_id: execution
-            .scope
-            .test_cycle_id
-            .as_ref()
-            .map(ToString::to_string),
-        test_case_id: execution
-            .scope
-            .test_case_id
-            .as_ref()
-            .map(ToString::to_string),
+        test_cycle_id: execution.scope.test_cycle_id.as_ref().map(ToString::to_string),
+        test_case_id: execution.scope.test_case_id.as_ref().map(ToString::to_string),
         test_execution_id: Some(execution.test_execution_id.to_string()),
     }
 }
 
 async fn report_dropped(
-    context: &ExecutionFixtureContext,
-    execution: &TestExecution,
-    workflow: &str,
-    source: &str,
-    stream_log: &mut StreamLog,
-    dropped: &[DiscardedArtifact],
-    reason: DropReason,
+    context: &ExecutionFixtureContext, execution: &TestExecution, workflow: &str, source: &str, stream_log: &mut StreamLog,
+    dropped: &[DiscardedArtifact], reason: DropReason,
 ) {
     if dropped.is_empty() {
         return;
@@ -1243,26 +936,15 @@ async fn report_dropped(
                 "{}",
                 reason.trace()
             );
-            crate::execution::log::Entry::new(
-                crate::execution::log::Level::Warn,
-                reason.entry(&artifact.name, artifact.received),
-            )
+            crate::execution::log::Entry::new(crate::execution::log::Level::Warn, reason.entry(&artifact.name, artifact.received))
         })
         .collect::<Vec<_>>();
-    stream_log
-        .append(context, execution, workflow, source, &diagnostics)
-        .await;
+    stream_log.append(context, execution, workflow, source, &diagnostics).await;
 }
 
 fn validate_cursor(requested: u64, reply: &EvidenceBatch) -> Result<(), ProviderExecutionFailure> {
     if reply.cursor < requested {
-        return Err(failure(
-            "sidecar_drain",
-            format!(
-                "sidecar drain cursor regressed from {requested} to {}",
-                reply.cursor
-            ),
-        ));
+        return Err(failure("sidecar_drain", format!("sidecar drain cursor regressed from {requested} to {}", reply.cursor)));
     }
     let has_output = !reply.phase.is_empty()
         || !reply.step_begins.is_empty()
@@ -1279,71 +961,43 @@ fn validate_cursor(requested: u64, reply: &EvidenceBatch) -> Result<(), Provider
         || !reply.artifact_chunks.is_empty()
         || reply.progress.is_some();
     if has_output && reply.cursor == requested {
-        return Err(failure(
-            "sidecar_drain",
-            format!("sidecar returned output without advancing drain cursor {requested}"),
-        ));
+        return Err(failure("sidecar_drain", format!("sidecar returned output without advancing drain cursor {requested}")));
     }
     Ok(())
 }
 
 fn publish_progress(
-    context: &ExecutionFixtureContext,
-    execution: &TestExecution,
-    reply: &EvidenceBatch,
+    context: &ExecutionFixtureContext, execution: &TestExecution, reply: &EvidenceBatch,
 ) -> Result<(), ProviderExecutionFailure> {
     let Some(progress) = reply.progress.clone() else {
         return Ok(());
     };
     if progress.phase.trim().is_empty() {
-        return Err(failure(
-            "sidecar_progress",
-            "sidecar progress phase must not be empty",
-        ));
+        return Err(failure("sidecar_progress", "sidecar progress phase must not be empty"));
     }
     if progress.completed > progress.total {
         return Err(failure(
             "sidecar_progress",
-            format!(
-                "sidecar progress completed {} exceeds total {}",
-                progress.completed, progress.total
-            ),
+            format!("sidecar progress completed {} exceeds total {}", progress.completed, progress.total),
         ));
     }
-    let step = Identifier::new(&reply.phase).map_err(|error| {
-        failure(
-            "sidecar_progress",
-            format!("sidecar progress has no valid current step: {error}"),
-        )
-    })?;
-    let declared = execution.snapshot.template().is_some_and(|template| {
-        template
-            .phases
-            .iter()
-            .any(|phase| phase.metadata.identifier == step)
-    });
+    let step = Identifier::new(&reply.phase)
+        .map_err(|error| failure("sidecar_progress", format!("sidecar progress has no valid current step: {error}")))?;
+    let declared =
+        execution.snapshot.template().is_some_and(|template| template.phases.iter().any(|phase| phase.metadata.identifier == step));
     if !declared {
-        return Err(failure(
-            "sidecar_progress",
-            format!("sidecar progress names undeclared current step `{step}`"),
-        ));
+        return Err(failure("sidecar_progress", format!("sidecar progress names undeclared current step `{step}`")));
     }
-    context
-        .runtime
-        .progress
-        .update(crate::domains::execution::progress::LiveExecutionProgress {
-            test_execution_id: execution.test_execution_id.clone(),
-            step,
-            progress,
-        });
+    context.runtime.progress.update(crate::domains::execution::progress::LiveExecutionProgress {
+        test_execution_id: execution.test_execution_id.clone(),
+        step,
+        progress,
+    });
     Ok(())
 }
 
 async fn publish_records(
-    context: &ExecutionFixtureContext,
-    scope: &RecordScope,
-    source: &str,
-    reply: &EvidenceBatch,
+    context: &ExecutionFixtureContext, scope: &RecordScope, source: &str, reply: &EvidenceBatch,
 ) -> Result<(), ProviderExecutionFailure> {
     let records = decode_records(reply, scope)?;
     for record in records {
@@ -1351,21 +1005,13 @@ async fn publish_records(
             .runtime
             .publish_sidecar_record(record, source)
             .await
-            .map_err(|error| {
-                failure(
-                    "sidecar_record",
-                    format!("sidecar `{source}` record was rejected: {error}"),
-                )
-            })?;
+            .map_err(|error| failure("sidecar_record", format!("sidecar `{source}` record was rejected: {error}")))?;
     }
     Ok(())
 }
 
 async fn publish_traceability(
-    context: &ExecutionFixtureContext,
-    scope: &RecordScope,
-    source: &str,
-    reply: &EvidenceBatch,
+    context: &ExecutionFixtureContext, scope: &RecordScope, source: &str, reply: &EvidenceBatch,
 ) -> Result<(), ProviderExecutionFailure> {
     if reply.traceability.is_empty() {
         return Ok(());
@@ -1374,40 +1020,24 @@ async fn publish_traceability(
         .traceability
         .iter()
         .map(|encoded| {
-            serde_json::from_str::<dokime_domain::model::traceability::TraceabilitySection>(encoded).map_err(
-                |error| {
-                    failure(
-                        "sidecar_traceability",
-                        format!("sidecar `{source}` traceability section is invalid: {error}"),
-                    )
-                },
-            )
+            serde_json::from_str::<dokime_domain::model::traceability::TraceabilitySection>(encoded)
+                .map_err(|error| failure("sidecar_traceability", format!("sidecar `{source}` traceability section is invalid: {error}")))
         })
         .collect::<Result<Vec<_>, ProviderExecutionFailure>>()?;
 
     context
         .runtime
-        .commit_execution_traceability(
-            crate::traceability_runtime::phase::RecordExecutionTraceability {
-                scope: scope.clone(),
-                sections,
-                occurred_at: crate::model::time::now_utc(),
-            },
-        )
-        .await
-        .map_err(|error| {
-            failure(
-                "sidecar_traceability",
-                format!("sidecar `{source}` traceability was rejected: {}", error),
-            )
+        .commit_execution_traceability(crate::traceability_runtime::phase::RecordExecutionTraceability {
+            scope: scope.clone(),
+            sections,
+            occurred_at: crate::model::time::now_utc(),
         })
+        .await
+        .map_err(|error| failure("sidecar_traceability", format!("sidecar `{source}` traceability was rejected: {}", error)))
 }
 
 async fn publish_document_parts(
-    context: &ExecutionFixtureContext,
-    scope: &RecordScope,
-    source: &str,
-    reply: &EvidenceBatch,
+    context: &ExecutionFixtureContext, scope: &RecordScope, source: &str, reply: &EvidenceBatch,
 ) -> Result<(), ProviderExecutionFailure> {
     if reply.documents.is_empty() {
         return Ok(());
@@ -1416,45 +1046,25 @@ async fn publish_document_parts(
         .documents
         .iter()
         .map(|encoded| {
-            serde_json::from_str::<crate::document::DocumentAddition>(encoded).map_err(|error| {
-                failure(
-                    "sidecar_document",
-                    format!("sidecar `{source}` document addition is invalid: {error}"),
-                )
-            })
+            serde_json::from_str::<crate::document::DocumentAddition>(encoded)
+                .map_err(|error| failure("sidecar_document", format!("sidecar `{source}` document addition is invalid: {error}")))
         })
         .collect::<Result<Vec<_>, ProviderExecutionFailure>>()?;
 
     context
         .add_document_parts(scope.clone(), additions)
         .await
-        .map_err(|error| {
-            failure(
-                "sidecar_document",
-                format!("sidecar `{source}` document addition was rejected: {error}"),
-            )
-        })
+        .map_err(|error| failure("sidecar_document", format!("sidecar `{source}` document addition was rejected: {error}")))
 }
 
-fn decode_records(
-    reply: &EvidenceBatch,
-    scope: &RecordScope,
-) -> Result<Vec<RecordPublishRequest>, ProviderExecutionFailure> {
+fn decode_records(reply: &EvidenceBatch, scope: &RecordScope) -> Result<Vec<RecordPublishRequest>, ProviderExecutionFailure> {
     let mut records = Vec::with_capacity(reply.records.len());
     for encoded in &reply.records {
-        let mut value: serde_json::Value = serde_json::from_str(encoded).map_err(|error| {
-            failure(
-                "sidecar_record",
-                format!("sidecar returned malformed record JSON: {error}"),
-            )
-        })?;
+        let mut value: serde_json::Value = serde_json::from_str(encoded)
+            .map_err(|error| failure("sidecar_record", format!("sidecar returned malformed record JSON: {error}")))?;
         ensure_nullable_field(&mut value, "scope");
-        let mut record: RecordPublishRequest = serde_json::from_value(value).map_err(|error| {
-            failure(
-                "sidecar_record",
-                format!("sidecar returned an invalid record publish request: {error}"),
-            )
-        })?;
+        let mut record: RecordPublishRequest = serde_json::from_value(value)
+            .map_err(|error| failure("sidecar_record", format!("sidecar returned an invalid record publish request: {error}")))?;
         record.scope = Some(scope.clone());
         records.push(record);
     }
@@ -1463,68 +1073,46 @@ fn decode_records(
 
 fn ensure_nullable_field(value: &mut serde_json::Value, field: &str) {
     if let Some(object) = value.as_object_mut() {
-        object
-            .entry(field.to_owned())
-            .or_insert(serde_json::Value::Null);
+        object.entry(field.to_owned()).or_insert(serde_json::Value::Null);
     }
 }
 
-async fn close_record_subscriptions(
-    context: &ExecutionFixtureContext,
-    execution: &TestExecution,
-) -> Result<(), ProviderExecutionFailure> {
+async fn close_record_subscriptions(context: &ExecutionFixtureContext, execution: &TestExecution) -> Result<(), ProviderExecutionFailure> {
     let test_cycle_id = execution.test_cycle_id.clone();
     context
         .runtime
         .state_manager
-        .commit(crate::transactions::CloseRecordSubscriptions {
-            test_cycle_id,
-            test_execution_id: execution.test_execution_id.clone(),
-        })
+        .commit(crate::transactions::CloseRecordSubscriptions { test_cycle_id, test_execution_id: execution.test_execution_id.clone() })
         .await
         .map_err(|error| failure("sidecar_records", error.to_string()))?;
     Ok(())
 }
 
 async fn update_phase(
-    context: &ExecutionFixtureContext,
-    scope: &RecordScope,
-    identifier: Identifier,
-    label: String,
-    status: &str,
+    context: &ExecutionFixtureContext, scope: &RecordScope, identifier: Identifier, label: String, status: &str,
 ) -> Result<(), ProviderExecutionFailure> {
     context
         .update_execution_phase(scope.clone(), identifier, label, status.to_owned())
         .await
-        .map_err(|error| {
-            failure(
-                "sidecar_phase",
-                format!("sidecar phase update was rejected: {error}"),
-            )
-        })
+        .map_err(|error| failure("sidecar_phase", format!("sidecar phase update was rejected: {error}")))
 }
 
 async fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &CycleView) -> bool {
     context.is_cancelled()
         || matches!(
             context.cycle_lifecycle(&cycle.test_cycle_id).await,
-            Some(dokime_domain::model::execution::result::CycleStatus::Stopping | dokime_domain::model::execution::result::CycleStatus::Stopped)
+            Some(
+                dokime_domain::model::execution::result::CycleStatus::Stopping
+                    | dokime_domain::model::execution::result::CycleStatus::Stopped
+            )
         )
 }
 
 fn runnable_executions(cycle: &CycleView) -> impl Iterator<Item = &TestExecution> {
-    cycle.test_executions.iter().filter(|execution| {
-        matches!(
-            execution.status,
-            ExecutionStatus::Pending | ExecutionStatus::Running
-        )
-    })
+    cycle.test_executions.iter().filter(|execution| matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
 }
 
-fn criterion_outcomes(
-    criteria: &[SidecarCriterionOutcome],
-    declared: &[CriterionDefinition],
-) -> Vec<ProviderCriterionOutcome> {
+fn criterion_outcomes(criteria: &[SidecarCriterionOutcome], declared: &[CriterionDefinition]) -> Vec<ProviderCriterionOutcome> {
     criteria
         .iter()
         .map(|criterion| ProviderCriterionOutcome {
@@ -1533,9 +1121,7 @@ fn criterion_outcomes(
             status: match SidecarCriterionStatus::try_from(criterion.status) {
                 Ok(SidecarCriterionStatus::Passed) => "passed",
                 Ok(SidecarCriterionStatus::Failed) => "failed",
-                Ok(SidecarCriterionStatus::Indeterminate)
-                | Ok(SidecarCriterionStatus::Unspecified)
-                | Err(_) => "indeterminate",
+                Ok(SidecarCriterionStatus::Indeterminate) | Ok(SidecarCriterionStatus::Unspecified) | Err(_) => "indeterminate",
             }
             .to_owned(),
             // A sidecar reports what it decided, not what it was asked for.
@@ -1543,9 +1129,7 @@ fn criterion_outcomes(
             // so the host supplies it rather than trusting a copy on the wire.
             expected: declared
                 .iter()
-                .find(|declaration| {
-                    declaration.metadata.identifier.as_str() == criterion.identifier
-                })
+                .find(|declaration| declaration.metadata.identifier.as_str() == criterion.identifier)
                 .and_then(|declaration| declaration.expected.clone()),
             required: Some(true),
             message: criterion.message.clone(),
@@ -1555,23 +1139,15 @@ fn criterion_outcomes(
 
 #[allow(clippy::too_many_arguments)]
 fn execution_outcome(
-    case: &TestCase,
-    execution: &TestExecution,
-    source: &str,
-    status: &str,
-    phases: Vec<ProviderPhaseOutcome>,
-    message: Option<String>,
-    criteria: Vec<ProviderCriterionOutcome>,
-    detail: Option<&Diagnostic>,
+    case: &TestCase, execution: &TestExecution, source: &str, status: &str, phases: Vec<ProviderPhaseOutcome>, message: Option<String>,
+    criteria: Vec<ProviderCriterionOutcome>, detail: Option<&Diagnostic>,
 ) -> ProviderExecutionOutcome {
     let failures = if status == "failed" {
         let mut failure = ProviderExecutionFailure {
             stage: "sidecar_execution".to_owned(),
             template_identifier: Some(case.metadata.identifier.to_string()),
             module: Some(source.to_owned()),
-            message: message
-                .clone()
-                .unwrap_or_else(|| "sidecar execution failed".to_owned()),
+            message: message.clone().unwrap_or_else(|| "sidecar execution failed".to_owned()),
             detail: None,
         };
         // `detailed` is what redacts, so the failure that gets written down
@@ -1656,21 +1232,13 @@ fn failure(stage: impl Into<String>, message: impl Into<String>) -> ProviderExec
 ///
 /// Interrupted is reserved for recovery that never resumed the run; an
 /// explicit stop the host settled keeps its stop outcome.
-async fn close_stopped_attempt(
-    context: &ExecutionFixtureContext,
-    execution: &TestExecution,
-) -> Result<(), ProviderExecutionFailure> {
+async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &TestExecution) -> Result<(), ProviderExecutionFailure> {
     let execution_id = execution.test_execution_id.clone();
     let active = context
         .runtime
         .state_manager
         .state()
-        .read(move |state| {
-            state
-                .executions
-                .get(&execution_id)
-                .and_then(|execution| execution.active_step_attempt.clone())
-        })
+        .read(move |state| state.executions.get(&execution_id).and_then(|execution| execution.active_step_attempt.clone()))
         .await
         .map_err(|error| failure("stop_settlement", error.to_string()))?
         .value;
@@ -1685,29 +1253,20 @@ async fn close_stopped_attempt(
         termination: dokime_domain::model::execution::termination::TerminationReason::Cancelled,
         detail: None,
     };
-    context
-        .record_step_attempt(execution.scope.clone(), attempt)
-        .await
-        .map_err(|error| failure("stop_settlement", error.to_string()))
+    context.record_step_attempt(execution.scope.clone(), attempt).await.map_err(|error| failure("stop_settlement", error.to_string()))
 }
 
 /// Hands the run every captured sample after its stream's `replayed`
 /// position, advancing that position past each signal the run has received.
 async fn replay_sample_inputs(
-    context: &ExecutionFixtureContext,
-    target: &Target,
-    execution: &TestExecution,
-    replayed: &mut BTreeMap<harmos::Identifier, u64>,
+    context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, replayed: &mut BTreeMap<harmos::Identifier, u64>,
 ) -> Result<(), ProviderExecutionFailure> {
     // The run's own evidence is fixed once its publications are flushed. Each
     // stream is one query against that cut, read through its own pages. The
     // positions outlive this call: a settling page the run sends again after
     // its call ran out of time resumes each stream instead of starting over.
     let storage = context.runtime.storage();
-    let cut = storage
-        .flush()
-        .await
-        .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let cut = storage.flush().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let mut at = storage.cursor_saved();
     at.sequence = cut.sequence;
     let contracts = context.runtime.state_read().telemetry_contracts();
@@ -1720,21 +1279,15 @@ async fn replay_sample_inputs(
 
 // One Stream's Samples In Storage Order, Read Through A Single Query.
 async fn replay_stream(
-    context: &ExecutionFixtureContext,
-    target: &Target,
-    execution: &TestExecution,
-    at: &harmos::storage::StorageCursor,
-    contract: &crate::telemetry::TelemetryContract,
-    replayed: &mut u64,
+    context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
+    contract: &crate::telemetry::TelemetryContract, replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
     use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
     let samples_failure = |error: harmos::Error| failure("sidecar_samples", error.to_string());
-    let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
-        .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let scope_json = serde_json::to_string(&execution.scope)
-        .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let codec = crate::storage::telemetry::codec(contract)
-        .map_err(|error| samples_failure(replay_codec_error(error)))?;
+    let scope =
+        harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let scope_json = serde_json::to_string(&execution.scope).map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let codec = crate::storage::telemetry::codec(contract).map_err(|error| samples_failure(replay_codec_error(error)))?;
     let mut reader = context
         .runtime
         .storage()
@@ -1769,12 +1322,11 @@ async fn replay_stream(
             .and_then(|metadata| metadata.column_by_name("position"))
             .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
             .ok_or_else(|| failure("sidecar_samples", "storage positions are missing"))?;
-        let entries = crate::storage::telemetry::decode_batch(&codec, &batch)
-            .map_err(|error| samples_failure(replay_codec_error(error)))?;
+        let entries =
+            crate::storage::telemetry::decode_batch(&codec, &batch).map_err(|error| samples_failure(replay_codec_error(error)))?;
         for (index, entry) in entries.into_iter().enumerate() {
-            let captured = entry.sample.scope.as_ref().ok_or_else(|| {
-                failure("sidecar_samples", "captured sample has no execution scope")
-            })?;
+            let captured =
+                entry.sample.scope.as_ref().ok_or_else(|| failure("sidecar_samples", "captured sample has no execution scope"))?;
             if captured.session_id != owner.session_id
                 || captured.test_cycle_id != owner.test_cycle_id
                 || captured.test_case_id != owner.test_case_id
@@ -1782,16 +1334,11 @@ async fn replay_stream(
                 || captured.template_id != owner.template_id
                 || captured.suite_id != owner.suite_id
             {
-                return Err(failure(
-                    "sidecar_samples",
-                    "captured sample differs from its execution owner",
-                ));
+                return Err(failure("sidecar_samples", "captured sample differs from its execution owner"));
             }
-            let encoded = serde_json::to_string(&entry.sample)
-                .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+            let encoded = serde_json::to_string(&entry.sample).map_err(|error| failure("sidecar_samples", error.to_string()))?;
             if !samples.is_empty() && bytes + encoded.len() > REPLAY_SIGNAL_BYTES {
-                deliver_replayed(target, execution, &scope_json, std::mem::take(&mut samples))
-                    .await?;
+                deliver_replayed(target, execution, &scope_json, std::mem::take(&mut samples)).await?;
                 *replayed = through;
                 bytes = 0;
             }
@@ -1809,19 +1356,12 @@ async fn replay_stream(
 fn replay_codec_error(source: crate::storage::Error) -> harmos::Error {
     match source {
         crate::storage::Error::Runtime(source) => source,
-        source => harmos::Error::backend(
-            "decode typed sample replay",
-            harmos::BackendFailure::Corrupt,
-            source,
-        ),
+        source => harmos::Error::backend("decode typed sample replay", harmos::BackendFailure::Corrupt, source),
     }
 }
 
 async fn deliver_replayed(
-    target: &Target,
-    execution: &TestExecution,
-    scope_json: &str,
-    samples: Vec<String>,
+    target: &Target, execution: &TestExecution, scope_json: &str, samples: Vec<String>,
 ) -> Result<(), ProviderExecutionFailure> {
     if samples.is_empty() {
         return Ok(());
@@ -1829,11 +1369,7 @@ async fn deliver_replayed(
     target
         .signal(ExecutionSignal {
             execution_token: execution.test_execution_id.to_string(),
-            samples: Some(crate::transport::DeliverSamplesRequest {
-                scope_json: scope_json.to_owned(),
-                samples,
-                gaps: Vec::new(),
-            }),
+            samples: Some(crate::transport::DeliverSamplesRequest { scope_json: scope_json.to_owned(), samples, gaps: Vec::new() }),
             ..ExecutionSignal::default()
         })
         .await?;

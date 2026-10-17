@@ -37,10 +37,7 @@ use crate::model::identity::Identifier;
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum DocumentAddition {
     Section(Box<DocumentSection>),
-    Card {
-        section: Identifier,
-        card: Box<DocumentCard>,
-    },
+    Card { section: Identifier, card: Box<DocumentCard> },
 }
 
 /* === Traits === */
@@ -52,10 +49,7 @@ impl DocumentAddition {
     }
 
     pub fn card(section: Identifier, card: DocumentCard) -> Self {
-        Self::Card {
-            section,
-            card: Box::new(card),
-        }
+        Self::Card { section, card: Box::new(card) }
     }
 }
 
@@ -71,21 +65,12 @@ impl DocumentDefinition {
 
     pub fn has_section(&self, section_id: &Identifier) -> bool {
         nodes_carry_section(&self.layout.nodes, section_id)
-            || self
-                .sections
-                .iter()
-                .any(|section| &section.metadata.identifier == section_id)
+            || self.sections.iter().any(|section| &section.metadata.identifier == section_id)
     }
 
     pub fn has_card(&self, card_id: &Identifier) -> bool {
-        self.cards
-            .iter()
-            .any(|card| &card.metadata.identifier == card_id)
-            || self
-                .sections
-                .iter()
-                .flat_map(|section| section.cards.iter())
-                .any(|card| &card.metadata.identifier == card_id)
+        self.cards.iter().any(|card| &card.metadata.identifier == card_id)
+            || self.sections.iter().flat_map(|section| section.cards.iter()).any(|card| &card.metadata.identifier == card_id)
     }
 
     pub fn section_card_count(&self, section_id: &Identifier) -> Option<usize> {
@@ -93,10 +78,7 @@ impl DocumentDefinition {
             return Some(count);
         }
 
-        self.sections
-            .iter()
-            .find(|section| &section.metadata.identifier == section_id)
-            .map(|section| section.cards.len())
+        self.sections.iter().find(|section| &section.metadata.identifier == section_id).map(|section| section.cards.len())
     }
 
     fn add_section(&mut self, section: DocumentSection) -> Result<(), String> {
@@ -107,11 +89,7 @@ impl DocumentDefinition {
                  replaced from a stage"
             ));
         }
-        if let Some(card) = section
-            .cards
-            .iter()
-            .find(|card| self.has_card(&card.metadata.identifier))
-        {
+        if let Some(card) = section.cards.iter().find(|card| self.has_card(&card.metadata.identifier)) {
             return Err(format!(
                 "card \"{}\" is already in this document; rename the card section \"{section_id}\" \
                  carries",
@@ -150,9 +128,7 @@ impl DocumentDefinition {
 /* === Private Functions === */
 fn nodes_carry_section(nodes: &[DocumentNode], section_id: &Identifier) -> bool {
     nodes.iter().any(|node| match node {
-        DocumentNode::Section(section) => {
-            &section.node_id == section_id || nodes_carry_section(&section.children, section_id)
-        }
+        DocumentNode::Section(section) => &section.node_id == section_id || nodes_carry_section(&section.children, section_id),
         DocumentNode::Card(_) => false,
     })
 }
@@ -163,13 +139,7 @@ fn nodes_section_card_count(nodes: &[DocumentNode], section_id: &Identifier) -> 
             continue;
         };
         if &section.node_id == section_id {
-            return Some(
-                section
-                    .children
-                    .iter()
-                    .filter(|child| matches!(child, DocumentNode::Card(_)))
-                    .count(),
-            );
+            return Some(section.children.iter().filter(|child| matches!(child, DocumentNode::Card(_))).count());
         }
         if let Some(count) = nodes_section_card_count(&section.children, section_id) {
             return Some(count);

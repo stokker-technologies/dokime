@@ -85,11 +85,7 @@ impl Cursor {
             return Err(Error::Missing);
         }
         self.validate(given, true)?;
-        Ok(if limit == 0 {
-            DEFAULT_PAGE_ITEMS
-        } else {
-            limit
-        } as usize)
+        Ok(if limit == 0 { DEFAULT_PAGE_ITEMS } else { limit } as usize)
     }
 }
 

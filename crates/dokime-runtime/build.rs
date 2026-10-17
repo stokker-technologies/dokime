@@ -40,10 +40,7 @@ const BRAND_FOLDERS: &[&str] = &["theme", "fonts", "logos"];
 
 /* === Private Functions === */
 fn main() {
-    println!(
-        "cargo:rustc-env=DOKIME_NATIVE_TARGET={}",
-        env::var("TARGET").expect("Cargo supplies TARGET")
-    );
+    println!("cargo:rustc-env=DOKIME_NATIVE_TARGET={}", env::var("TARGET").expect("Cargo supplies TARGET"));
 
     if env::var_os("CARGO_FEATURE_HOST").is_some() {
         embed_report_template();
@@ -52,19 +49,15 @@ fn main() {
 }
 
 fn embed_report_template() {
-    let source = PathBuf::from(
-        env::var("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR for build scripts"),
-    )
-    .join("dist-report/report.html");
+    let source = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR for build scripts"))
+        .join("dist-report/report.html");
 
     // Emitted unconditionally, including when the file does not exist yet:
     // that is what makes Cargo re-run this script once the report is built.
     println!("cargo:rerun-if-changed={}", source.display());
 
     if !source.is_file() {
-        eprintln!(
-            "the report template is not built; run `mise run build` (or `pnpm --dir crates/dokime-gui run build:report`)"
-        );
+        eprintln!("the report template is not built; run `mise run build` (or `pnpm --dir crates/dokime-gui run build:report`)");
         std::process::exit(1);
     }
 
@@ -72,20 +65,14 @@ fn embed_report_template() {
     let destination = out_dir.join("report-template.html");
 
     fs::copy(&source, &destination).unwrap_or_else(|error| {
-        panic!(
-            "failed to copy the report template from {} to {}: {error}",
-            source.display(),
-            destination.display()
-        )
+        panic!("failed to copy the report template from {} to {}: {error}", source.display(), destination.display())
     });
 }
 
 fn embed_brand_bundle() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies it"));
     let bundle = manifest.join("../../branding");
-    let bundle = bundle
-        .canonicalize()
-        .unwrap_or_else(|error| panic!("branding bundle {}: {error}", bundle.display()));
+    let bundle = bundle.canonicalize().unwrap_or_else(|error| panic!("branding bundle {}: {error}", bundle.display()));
 
     // Collect The Bundle Files
     let mut files = vec![("brand.toml".to_owned(), bundle.join("brand.toml"))];
@@ -99,25 +86,16 @@ fn embed_brand_bundle() {
             .collect();
         entries.sort();
         for path in entries {
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .expect("UTF-8 name");
+            let name = path.file_name().and_then(|name| name.to_str()).expect("UTF-8 name");
             files.push((format!("{folder}/{name}"), path));
         }
     }
-    println!(
-        "cargo:rerun-if-changed={}",
-        bundle.join("brand.toml").display()
-    );
+    println!("cargo:rerun-if-changed={}", bundle.join("brand.toml").display());
 
     // Emit The Embedded Table
     let mut table = String::from("static FILES: &[(&str, &[u8])] = &[\n");
     for (relative, path) in &files {
-        table.push_str(&format!(
-            "    ({relative:?}, include_bytes!({:?})),\n",
-            path.display().to_string()
-        ));
+        table.push_str(&format!("    ({relative:?}, include_bytes!({:?})),\n", path.display().to_string()));
     }
     table.push_str("];\n");
     let output = Path::new(&env::var_os("OUT_DIR").expect("Cargo supplies it")).join("bundled.rs");

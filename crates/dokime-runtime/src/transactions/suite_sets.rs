@@ -35,11 +35,7 @@ pub struct SetSuiteSet {
     pub catalog: SuiteSet,
 }
 
-#[harmos::transaction(
-    id = "dokime.execution.catalog.unregister-source",
-    version = 2,
-    irreversible
-)]
+#[harmos::transaction(id = "dokime.execution.catalog.unregister-source", version = 2, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RemoveSuiteSet {
     pub source: String,
@@ -62,8 +58,7 @@ impl Transaction<RuntimeState> for SetSuiteSet {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
-        set_suites(state, &self.source, &self.catalog)
-            .expect("Harmos checked the suite set before applying it");
+        set_suites(state, &self.source, &self.catalog).expect("Harmos checked the suite set before applying it");
     }
 }
 
@@ -79,8 +74,7 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
-        remove_suites(state, &self.source)
-            .expect("Harmos checked suite removal before applying it");
+        remove_suites(state, &self.source).expect("Harmos checked suite removal before applying it");
     }
 }
 
@@ -92,9 +86,7 @@ fn ensure_host_source(state: &RuntimeState, source: &str) -> Result<(), String> 
         state.plugin_owners.get(source),
         Some(crate::state::PluginOwner::Bundle { .. } | crate::state::PluginOwner::Embedded { .. })
     ) {
-        Err(format!(
-            "source `{source}` belongs to a registered provider"
-        ))
+        Err(format!("source `{source}` belongs to a registered provider"))
     } else {
         Ok(())
     }
@@ -103,15 +95,11 @@ fn ensure_host_source(state: &RuntimeState, source: &str) -> Result<(), String> 
 fn set_suites(state: &mut RuntimeState, source: &str, suites: &SuiteSet) -> Result<(), String> {
     ensure_host_source(state, source)?;
     state.suites.set(source, suites.clone())?;
-    state
-        .sync_suite_definitions()
-        .map_err(|error| error.to_string())?;
+    state.sync_suite_definitions().map_err(|error| error.to_string())?;
     if let Some(installation) = state.installed_plugins.get_mut(source) {
         installation.suites = suites.clone();
     }
-    state
-        .plugin_owners
-        .insert(source.to_owned(), crate::state::PluginOwner::Host);
+    state.plugin_owners.insert(source.to_owned(), crate::state::PluginOwner::Host);
     Ok(())
 }
 
@@ -124,9 +112,7 @@ fn remove_suites(state: &mut RuntimeState, source: &str) -> Result<(), String> {
         state.install_plugin(installation)
     } else {
         state.suites.unregister_source(source);
-        state
-            .sync_suite_definitions()
-            .map_err(|error| error.to_string())?;
+        state.sync_suite_definitions().map_err(|error| error.to_string())?;
         state.plugin_owners.remove(source);
         Ok(())
     }

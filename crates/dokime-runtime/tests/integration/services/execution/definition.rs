@@ -18,15 +18,13 @@
 use tempfile::tempdir;
 // Local Imports
 use super::*;
-use dokime_runtime::{RecordScope, Value};
 use dokime_runtime::definition::{
-    Parameter, ParameterDefault, RustTemplate, Step, TemplateContext,
-    authored_criterion as criterion, authored_metadata as metadata, authored_unit as unit,
+    Parameter, ParameterDefault, RustTemplate, Step, TemplateContext, authored_criterion as criterion, authored_metadata as metadata,
+    authored_unit as unit,
 };
 use dokime_runtime::domains::evidence::RecordSelection;
-use dokime_runtime::domains::execution::authoring::{
-    RuntimeResource, SidecarStepContext, StepContextError,
-};
+use dokime_runtime::domains::execution::authoring::{RuntimeResource, SidecarStepContext, StepContextError};
+use dokime_runtime::{RecordScope, Value};
 
 /* === Constants === */
 
@@ -65,23 +63,11 @@ impl RustTemplate for TrackingTestTemplate {
         ctx.set_parameters(vec![
             Parameter::text("instrument_ip", "Instrument IP").default("192.168.43.1"),
             Parameter::text("prism", "Prism").default("poa_25"),
-            Parameter::number("runtime_minutes", "Runtime Minutes")
-                .default(0.0)
-                .unit(Some(unit("min"))),
-            Parameter::text("operator.name", "Operator Name").default(ParameterDefault::source(
-                || std::env::var("USERNAME").ok(),
-                "",
-            )),
+            Parameter::number("runtime_minutes", "Runtime Minutes").default(0.0).unit(Some(unit("min"))),
+            Parameter::text("operator.name", "Operator Name").default(ParameterDefault::source(|| std::env::var("USERNAME").ok(), "")),
         ]);
-        ctx.set_steps(vec![
-            Step::new("setup", "Setup"),
-            Step::new("collect_tracking", "Collect Tracking"),
-        ]);
-        ctx.set_criteria(vec![criterion(
-            "tracking_samples_captured",
-            "Tracking Samples Captured",
-            Some(Value::from(true)),
-        )]);
+        ctx.set_steps(vec![Step::new("setup", "Setup"), Step::new("collect_tracking", "Collect Tracking")]);
+        ctx.set_criteria(vec![criterion("tracking_samples_captured", "Tracking Samples Captured", Some(Value::from(true)))]);
     }
 }
 
@@ -93,17 +79,8 @@ impl RustTemplate for TrackingTestTemplate {
 impl TrackingTestTemplate {
     async fn setup(&self, ctx: &mut SidecarStepContext) -> Result<(), StepContextError> {
         let session = open_tool_session(ctx).await?;
-        ctx.resources()
-            .set_async(RuntimeResource::new(
-                "tooling.session",
-                "tooling",
-                "Tooling Session",
-                session,
-            ))
-            .await?;
-        ctx.resources()
-            .mark_opened_async("tooling.session", Default::default())
-            .await?;
+        ctx.resources().set_async(RuntimeResource::new("tooling.session", "tooling", "Tooling Session", session)).await?;
+        ctx.resources().mark_opened_async("tooling.session", Default::default()).await?;
         Ok(())
     }
 
@@ -149,10 +126,7 @@ async fn doc_example_contract() -> Result<(), Box<dyn std::error::Error>> {
     let template = TrackingTestTemplate.to_test_case_template()?;
     // --8<-- [end:compile]
 
-    assert_eq!(
-        template.metadata.identifier.as_str(),
-        "plt400.ract.tracking"
-    );
+    assert_eq!(template.metadata.identifier.as_str(), "plt400.ract.tracking");
     assert_eq!(template.phases.len(), 2);
     assert_eq!(template.criteria.len(), 1);
     assert_eq!(template.parameters.len(), 4);
@@ -175,19 +149,9 @@ async fn doc_example_context() -> Result<(), Box<dyn std::error::Error>> {
     template.setup(&mut ctx).await?;
     // --8<-- [end:execution]
 
-    assert!(
-        ctx.resources()
-            .get::<ToolSession>("tooling.session")
-            .is_some_and(|session| session.connected)
-    );
-    let records = handle
-        .selected_records(RecordSelection::default())
-        .await
-        .unwrap();
-    let record_types = records
-        .iter()
-        .map(|record| record.record_type.as_str())
-        .collect::<Vec<_>>();
+    assert!(ctx.resources().get::<ToolSession>("tooling.session").is_some_and(|session| session.connected));
+    let records = handle.selected_records(RecordSelection::default()).await.unwrap();
+    let record_types = records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>();
     assert!(record_types.contains(&"resource.registered"));
     assert!(record_types.contains(&"resource.opened"));
 
@@ -220,28 +184,14 @@ fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
     // voltage (2) × mode (2) = 4 cases, one per combination. Expansion is capped
     // at `DEFAULT_MATERIALIZED_CASE_CAP` (1000); a grid past the cap is refused
     // unless the cycle forces it.
-    let generated = materialize_template_cases(
-        "fixture.registration",
-        &template,
-        Default::default(),
-        Default::default(),
-    )?;
+    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default())?;
     assert_eq!(generated.case_count, 4);
     assert!(!generated.exceeds_default_cap);
 
     // A fresh admission creates new immutable cases, even for identical inputs.
-    let regenerated = materialize_template_cases(
-        "fixture.registration",
-        &template,
-        Default::default(),
-        Default::default(),
-    )?;
+    let regenerated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default())?;
     let case_ids = |output: &dokime_runtime::definition::CaseMaterializationOutput| {
-        output
-            .test_cases
-            .iter()
-            .map(|case| case.test_case_id.clone())
-            .collect::<Vec<_>>()
+        output.test_cases.iter().map(|case| case.test_case_id.clone()).collect::<Vec<_>>()
     };
     assert_ne!(case_ids(&generated), case_ids(&regenerated));
 
@@ -252,12 +202,7 @@ fn doc_example_matrix() -> Result<(), Box<dyn std::error::Error>> {
         case_overrides: BTreeMap::from([("mode".to_owned(), vec!["fast".into()])]),
         ..CaseMaterializationSelection::default()
     };
-    let sliced = materialize_template_cases(
-        "fixture.registration",
-        &template,
-        selection,
-        Default::default(),
-    )?;
+    let sliced = materialize_template_cases("fixture.registration", &template, selection, Default::default())?;
     assert_eq!(sliced.case_count, 2);
 
     Ok(())

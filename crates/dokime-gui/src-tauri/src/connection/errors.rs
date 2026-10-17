@@ -49,11 +49,7 @@ impl From<dokime_client::Error> for ConnectionError {
                 issues: rejection
                     .issues
                     .into_iter()
-                    .map(|issue| AdmissionIssue {
-                        path: issue.path,
-                        message: issue.message,
-                        expected: issue.expected,
-                    })
+                    .map(|issue| AdmissionIssue { path: issue.path, message: issue.message, expected: issue.expected })
                     .collect(),
             },
             dokime_client::Error::WaitTimedOut { .. } => Self::WaitTimedOut,
@@ -64,9 +60,7 @@ impl From<dokime_client::Error> for ConnectionError {
 
 /* === Public Functions === */
 pub(super) fn invalid_target(message: &str) -> ConnectionError {
-    ConnectionError::InvalidTarget {
-        message: message.into(),
-    }
+    ConnectionError::InvalidTarget { message: message.into() }
 }
 
 pub(super) fn rpc_error(status: tonic::Status) -> ConnectionError {

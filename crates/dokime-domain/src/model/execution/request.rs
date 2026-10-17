@@ -118,157 +118,67 @@ pub enum StepCommandPhase {
 impl harmos::MemorySize for RunSummary {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.request_id),
-                std::mem::size_of_val(&self.request_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cycle_id),
-                std::mem::size_of_val(&self.cycle_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.accepted_at),
-                std::mem::size_of_val(&self.accepted_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.provider_started_at),
-                std::mem::size_of_val(&self.provider_started_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.finished_at),
-                std::mem::size_of_val(&self.finished_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.request_id), std::mem::size_of_val(&self.request_id)),
+            (harmos::MemorySize::memory_size(&self.cycle_id), std::mem::size_of_val(&self.cycle_id)),
+            (harmos::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
+            (harmos::MemorySize::memory_size(&self.provider_started_at), std::mem::size_of_val(&self.provider_started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for RunReceipt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.node_id),
-                std::mem::size_of_val(&self.node_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.summary),
-                std::mem::size_of_val(&self.summary),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.fingerprint),
-                std::mem::size_of_val(&self.fingerprint),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.submitted_by),
-                std::mem::size_of_val(&self.submitted_by),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.last_claim),
-                std::mem::size_of_val(&self.last_claim),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.interruption),
-                std::mem::size_of_val(&self.interruption),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.commands),
-                std::mem::size_of_val(&self.commands),
-            ),
+            (harmos::MemorySize::memory_size(&self.node_id), std::mem::size_of_val(&self.node_id)),
+            (harmos::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
+            (harmos::MemorySize::memory_size(&self.fingerprint), std::mem::size_of_val(&self.fingerprint)),
+            (harmos::MemorySize::memory_size(&self.submitted_by), std::mem::size_of_val(&self.submitted_by)),
+            (harmos::MemorySize::memory_size(&self.last_claim), std::mem::size_of_val(&self.last_claim)),
+            (harmos::MemorySize::memory_size(&self.interruption), std::mem::size_of_val(&self.interruption)),
+            (harmos::MemorySize::memory_size(&self.commands), std::mem::size_of_val(&self.commands)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for AttemptClaim {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.case_id),
-                std::mem::size_of_val(&self.case_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.execution_id),
-                std::mem::size_of_val(&self.execution_id),
-            ),
+            (harmos::MemorySize::memory_size(&self.case_id), std::mem::size_of_val(&self.case_id)),
+            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for StepCommandReceipt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.command_id),
-                std::mem::size_of_val(&self.command_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.execution_id),
-                std::mem::size_of_val(&self.execution_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.action),
-                std::mem::size_of_val(&self.action),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.attempt_id),
-                std::mem::size_of_val(&self.attempt_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.accepted_at),
-                std::mem::size_of_val(&self.accepted_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.updated_at),
-                std::mem::size_of_val(&self.updated_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.detail),
-                std::mem::size_of_val(&self.detail),
-            ),
+            (harmos::MemorySize::memory_size(&self.command_id), std::mem::size_of_val(&self.command_id)),
+            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
+            (harmos::MemorySize::memory_size(&self.action), std::mem::size_of_val(&self.action)),
+            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
+            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl RunReceipt {
     pub fn known_step_command(
-        &self,
-        command_id: &CommandId,
-        execution_id: &TestExecutionId,
-        action: &StepCommand,
+        &self, command_id: &CommandId, execution_id: &TestExecutionId, action: &StepCommand,
     ) -> Result<Option<&StepCommandReceipt>, &'static str> {
         let Some(known) = self.commands.get(command_id) else {
             return Ok(None);
@@ -280,11 +190,7 @@ impl RunReceipt {
     }
 
     pub fn admit_step_command(
-        &mut self,
-        command_id: CommandId,
-        execution_id: TestExecutionId,
-        action: StepCommand,
-        at: Timestamp,
+        &mut self, command_id: CommandId, execution_id: TestExecutionId, action: StepCommand, at: Timestamp,
     ) -> Result<&StepCommandReceipt, &'static str> {
         if self.commands.contains_key(&command_id) {
             self.known_step_command(&command_id, &execution_id, &action)?;
@@ -294,32 +200,20 @@ impl RunReceipt {
             || self.summary.phase != RunPhase::Running
             || self.summary.stop_requested
             || self.summary.paused
-            || self
-                .last_claim
-                .as_ref()
-                .is_none_or(|claim| claim.execution_id != execution_id)
+            || self.last_claim.as_ref().is_none_or(|claim| claim.execution_id != execution_id)
         {
             return Err("step command requires the active interactive execution");
         }
         if self.commands.values().any(|command| {
             (command.action == StepCommand::Finish && command.phase != StepCommandPhase::Refused)
-                || matches!(
-                    command.phase,
-                    StepCommandPhase::Failed | StepCommandPhase::Interrupted
-                )
+                || matches!(command.phase, StepCommandPhase::Failed | StepCommandPhase::Interrupted)
         }) {
             return Err("step command admission is closed");
         }
-        if self
-            .commands
-            .values()
-            .any(|command| !command.phase.terminal())
-        {
+        if self.commands.values().any(|command| !command.phase.terminal()) {
             return Err("another step command is unsettled");
         }
-        if self.commands.len() >= 4096
-            && (action != StepCommand::Finish || self.commands.len() >= 4097)
-        {
+        if self.commands.len() >= 4096 && (action != StepCommand::Finish || self.commands.len() >= 4097) {
             return Err("step command receipt capacity exceeded");
         }
         let receipt = StepCommandReceipt {
@@ -337,24 +231,14 @@ impl RunReceipt {
     }
 
     pub fn reconcile_step_command(
-        &mut self,
-        id: &CommandId,
-        phase: StepCommandPhase,
-        attempt_id: Option<StepAttemptId>,
-        detail: Option<String>,
-        at: Timestamp,
+        &mut self, id: &CommandId, phase: StepCommandPhase, attempt_id: Option<StepAttemptId>, detail: Option<String>, at: Timestamp,
     ) -> Result<bool, &'static str> {
         let receipt = self.commands.get_mut(id).ok_or("step command not found")?;
         if receipt.phase == phase && receipt.attempt_id == attempt_id && receipt.detail == detail {
             return Ok(false);
         }
         if receipt.phase == StepCommandPhase::Accepted
-            && !matches!(
-                phase,
-                StepCommandPhase::Dispatching
-                    | StepCommandPhase::Refused
-                    | StepCommandPhase::Interrupted
-            )
+            && !matches!(phase, StepCommandPhase::Dispatching | StepCommandPhase::Refused | StepCommandPhase::Interrupted)
         {
             return Err("command dispatch has not been durably marked");
         }
@@ -365,8 +249,7 @@ impl RunReceipt {
             return Err("step command attempt identity cannot change");
         }
         if matches!(phase, StepCommandPhase::Accepted)
-            || (receipt.phase == StepCommandPhase::Running
-                && phase == StepCommandPhase::Dispatching)
+            || (receipt.phase == StepCommandPhase::Running && phase == StepCommandPhase::Dispatching)
         {
             return Err("step command receipt cannot regress");
         }
@@ -378,11 +261,7 @@ impl RunReceipt {
     }
 
     pub fn interrupt_step_commands(&mut self, reason: &str, at: &Timestamp) {
-        for command in self
-            .commands
-            .values_mut()
-            .filter(|command| !command.phase.terminal())
-        {
+        for command in self.commands.values_mut().filter(|command| !command.phase.terminal()) {
             command.phase = StepCommandPhase::Interrupted;
             command.updated_at = at.clone();
             command.detail = Some(reason.into());
@@ -398,10 +277,7 @@ impl StepCommandPhase {
 
 impl RunPhase {
     pub fn terminal(self) -> bool {
-        matches!(
-            self,
-            Self::Completed | Self::Failed | Self::Stopped | Self::Interrupted
-        )
+        matches!(self, Self::Completed | Self::Failed | Self::Stopped | Self::Interrupted)
     }
 }
 

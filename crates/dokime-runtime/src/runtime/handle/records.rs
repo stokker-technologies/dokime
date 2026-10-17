@@ -52,36 +52,19 @@ pub struct CapturedRecords {
 
 /* === Implementations === */
 impl RecordSubscription {
-    pub(crate) fn new(
-        source: &Arc<Source>,
-        state_manager: &crate::app::StateManager,
-        after: harmos::state::Position,
-    ) -> Self {
-        Self {
-            source: source.clone(),
-            state_manager: state_manager.clone(),
-            delivered: after.0,
-            reader: Process::default(),
-        }
+    pub(crate) fn new(source: &Arc<Source>, state_manager: &crate::app::StateManager, after: harmos::state::Position) -> Self {
+        Self { source: source.clone(), state_manager: state_manager.clone(), delivered: after.0, reader: Process::default() }
     }
 
     pub async fn next(&mut self) -> Option<Result<CapturedRecord>> {
         loop {
             self.reader.release_completed(self.delivered);
-            let through = match self
-                .source
-                .wait_after(&self.state_manager, self.delivered)
-                .await
-            {
+            let through = match self.source.wait_after(&self.state_manager, self.delivered).await {
                 Ok(Some(through)) => through,
                 Ok(None) => return None,
                 Err(error) => return Some(Err(error)),
             };
-            match self
-                .reader
-                .next(&self.source, &self.state_manager, self.delivered, through)
-                .await
-            {
+            match self.reader.next(&self.source, &self.state_manager, self.delivered, through).await {
                 Ok(Some(record)) => {
                     self.delivered = record.sequence;
                     return Some(Ok(record));
@@ -105,9 +88,7 @@ impl CapturedRecords {
     pub async fn next(&self, after: u64, through: u64) -> Result<Option<CapturedRecord>> {
         let mut reader = self.reader.lock().await;
         reader.release_completed(after);
-        reader
-            .next(&self.source, &self.state_manager, after, through)
-            .await
+        reader.next(&self.source, &self.state_manager, after, through).await
     }
 
     pub async fn wait_after(&self, after: u64) -> Result<Option<u64>> {

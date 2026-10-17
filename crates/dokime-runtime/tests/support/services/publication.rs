@@ -21,9 +21,8 @@ use std::sync::{
 use std::num::NonZeroUsize;
 
 use harmos::storage::{
-    BackendSnapshot, FileCheckpoint, FileMetadata, FileProgress, FileReference, MutationReceipt,
-    ObjectEntry, ObjectKey, ObjectPoint, ReadLimits, ScanPage, SchemaKey, StagedFile,
-    StorageBackend, StorageBatch, StorageCursor, StorageFuture, StorageSchema, StoreHistory,
+    BackendSnapshot, FileCheckpoint, FileMetadata, FileProgress, FileReference, MutationReceipt, ObjectEntry, ObjectKey, ObjectPoint,
+    ReadLimits, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture, StorageSchema, StoreHistory,
     StoredRecord, StoredRow,
     query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection},
 };
@@ -91,16 +90,10 @@ impl PublicationBackend {
 }
 impl StorageBackend for PublicationBackend {
     fn finish_file<'a>(
-        &'a self,
-        staging: &'a StagedFile,
-        position: &'a StorageCursor,
-        length: u64,
-        sha256: [u8; 32],
+        &'a self, staging: &'a StagedFile, position: &'a StorageCursor, length: u64, sha256: [u8; 32],
     ) -> StorageFuture<'a, FileReference> {
         Box::pin(async move {
-            if staging.id.as_str().ends_with(self.fault.suffix)
-                && self.fault.enabled.load(Ordering::SeqCst)
-            {
+            if staging.id.as_str().ends_with(self.fault.suffix) && self.fault.enabled.load(Ordering::SeqCst) {
                 if let Some(status) = self.fault.exit {
                     std::process::exit(status);
                 }
@@ -108,29 +101,19 @@ impl StorageBackend for PublicationBackend {
                 return Err(harmos::Error::Backend {
                     operation: "fixture report publication",
                     kind: harmos::BackendFailure::Transient,
-                    source: Box::new(std::io::Error::other(
-                        "controlled report publication interruption",
-                    )),
+                    source: Box::new(std::io::Error::other("controlled report publication interruption")),
                 });
             }
-            let reference = self
-                .inner
-                .finish_file(staging, position, length, sha256)
-                .await?;
+            let reference = self.inner.finish_file(staging, position, length, sha256).await?;
             self.fault.finished.lock().unwrap().push(reference.clone());
             Ok(reference)
         })
     }
     fn release_object_history<'a>(
-        &'a self,
-        schema: &'a SchemaKey,
-        item: &'a ObjectKey,
-        through: &'a StorageCursor,
+        &'a self, schema: &'a SchemaKey, item: &'a ObjectKey, through: &'a StorageCursor,
     ) -> StorageFuture<'a, ()> {
         Box::pin(async move {
-            self.inner
-                .release_object_history(schema, item, through)
-                .await?;
+            self.inner.release_object_history(schema, item, through).await?;
             self.fault.released.fetch_add(1, Ordering::SeqCst);
             Ok(())
         })
@@ -157,77 +140,45 @@ impl StorageBackend for PublicationBackend {
         self.inner.release_snapshot(snapshot)
     }
     fn read_schemas<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        selection: &'a SchemaSelection,
-        page: ScanPage,
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a SchemaSelection, page: ScanPage,
     ) -> StorageFuture<'a, Vec<StorageSchema>> {
         self.inner.read_schemas(snapshot, selection, page)
     }
     fn read_objects<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        selection: &'a ObjectSelection,
-        page: ScanPage,
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a ObjectSelection, page: ScanPage,
     ) -> StorageFuture<'a, Vec<ObjectEntry>> {
         self.inner.read_objects(snapshot, selection, page)
     }
     fn read_records<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        selection: &'a RecordSelection,
-        page: ScanPage,
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a RecordSelection, page: ScanPage,
     ) -> StorageFuture<'a, Vec<StoredRecord>> {
         self.inner.read_records(snapshot, selection, page)
     }
     fn read_stream<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        selection: &'a StreamSelection,
-        page: ScanPage,
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a StreamSelection, page: ScanPage,
     ) -> StorageFuture<'a, Vec<StoredRow>> {
         self.inner.read_stream(snapshot, selection, page)
     }
     fn read_files<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        selection: &'a FileSelection,
-        page: ScanPage,
+        &'a self, snapshot: &'a BackendSnapshot, selection: &'a FileSelection, page: ScanPage,
     ) -> StorageFuture<'a, Vec<FileReference>> {
         self.inner.read_files(snapshot, selection, page)
     }
-    fn read_object<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        point: &'a ObjectPoint,
-    ) -> StorageFuture<'a, Option<ObjectEntry>> {
+    fn read_object<'a>(&'a self, snapshot: &'a BackendSnapshot, point: &'a ObjectPoint) -> StorageFuture<'a, Option<ObjectEntry>> {
         self.inner.read_object(snapshot, point)
     }
     fn read_file<'a>(
-        &'a self,
-        snapshot: &'a BackendSnapshot,
-        file: &'a FileReference,
-        offset: u64,
-        max_bytes: NonZeroUsize,
+        &'a self, snapshot: &'a BackendSnapshot, file: &'a FileReference, offset: u64, max_bytes: NonZeroUsize,
     ) -> StorageFuture<'a, Vec<u8>> {
         self.inner.read_file(snapshot, file, offset, max_bytes)
     }
-    fn prune_objects<'a>(
-        &'a self,
-        through: &'a StorageCursor,
-        max_entries: NonZeroUsize,
-    ) -> StorageFuture<'a, bool> {
+    fn prune_objects<'a>(&'a self, through: &'a StorageCursor, max_entries: NonZeroUsize) -> StorageFuture<'a, bool> {
         self.inner.prune_objects(through, max_entries)
     }
     fn create_file<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
         self.inner.create_file(metadata)
     }
-    fn write_file<'a>(
-        &'a self,
-        staging: &'a StagedFile,
-        offset: u64,
-        bytes: &'a [u8],
-    ) -> StorageFuture<'a, ()> {
+    fn write_file<'a>(&'a self, staging: &'a StagedFile, offset: u64, bytes: &'a [u8]) -> StorageFuture<'a, ()> {
         self.inner.write_file(staging, offset, bytes)
     }
     fn abort_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {
@@ -236,18 +187,10 @@ impl StorageBackend for PublicationBackend {
     fn supports_file_sessions(&self) -> bool {
         self.inner.supports_file_sessions()
     }
-    fn create_production<'a>(
-        &'a self,
-        metadata: &'a FileMetadata,
-    ) -> StorageFuture<'a, StagedFile> {
+    fn create_production<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
         self.inner.create_production(metadata)
     }
-    fn fence_production<'a>(
-        &'a self,
-        file: &'a StagedFile,
-        expected: u64,
-        next: u64,
-    ) -> StorageFuture<'a, ()> {
+    fn fence_production<'a>(&'a self, file: &'a StagedFile, expected: u64, next: u64) -> StorageFuture<'a, ()> {
         self.inner.fence_production(file, expected, next)
     }
     fn save_production<'a>(&'a self, checkpoint: &'a FileCheckpoint) -> StorageFuture<'a, ()> {
@@ -259,12 +202,7 @@ impl StorageBackend for PublicationBackend {
     fn file_progress<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, FileProgress> {
         self.inner.file_progress(file)
     }
-    fn read_production<'a>(
-        &'a self,
-        file: &'a StagedFile,
-        offset: u64,
-        max_bytes: NonZeroUsize,
-    ) -> StorageFuture<'a, Vec<u8>> {
+    fn read_production<'a>(&'a self, file: &'a StagedFile, offset: u64, max_bytes: NonZeroUsize) -> StorageFuture<'a, Vec<u8>> {
         self.inner.read_production(file, offset, max_bytes)
     }
     fn abandon_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {

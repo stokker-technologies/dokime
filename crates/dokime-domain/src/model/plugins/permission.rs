@@ -53,16 +53,8 @@ pub enum PermissionError {
 
 /* === Implementations === */
 impl Permission {
-    pub fn new(
-        family: impl Into<String>,
-        action: impl Into<String>,
-        target: impl Into<String>,
-    ) -> crate::Result<Self> {
-        let permission = Self {
-            family: family.into(),
-            action: action.into(),
-            target: target.into(),
-        };
+    pub fn new(family: impl Into<String>, action: impl Into<String>, target: impl Into<String>) -> crate::Result<Self> {
+        let permission = Self { family: family.into(), action: action.into(), target: target.into() };
         permission.validate()?;
         Ok(permission)
     }
@@ -109,15 +101,9 @@ impl FromStr for Permission {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let mut segments = value.splitn(3, ':');
-        let family = segments
-            .next()
-            .ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
-        let action = segments
-            .next()
-            .ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
-        let target = segments
-            .next()
-            .ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
+        let family = segments.next().ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
+        let action = segments.next().ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
+        let target = segments.next().ok_or_else(|| crate::Error::from(PermissionError::WrongSegmentCount))?;
         Self::new(family, action, target)
     }
 }

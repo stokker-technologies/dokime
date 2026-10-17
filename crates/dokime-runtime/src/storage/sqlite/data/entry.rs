@@ -91,11 +91,7 @@ impl<'a> From<StorageEntry<'a>> for Borrowed<'a> {
 
 impl Entry {
     pub(super) fn portable_bytes(kind: &str, body: &[u8]) -> Result<usize, Error> {
-        if kind == "object" {
-            object::portable_bytes(body)
-        } else {
-            Ok(body.len())
-        }
+        if kind == "object" { object::portable_bytes(body) } else { Ok(body.len()) }
     }
 
     pub(super) fn decode(kind: &str, body: &[u8]) -> Result<Self, Error> {
@@ -152,30 +148,13 @@ impl Write for Buffer {
 impl Encoded {
     pub(super) fn encoded_bytes(value: StorageEntry<'_>, maximum: usize) -> Result<usize, Error> {
         let (schema, item, scope, stream, version, body) = match value {
-            StorageEntry::Schema(value) => (
-                Some(&value.key),
-                value.key.id.as_str(),
-                None,
-                None,
-                None,
-                Borrowed::Schema(value),
-            ),
-            StorageEntry::Object(value) => (
-                Some(&value.value.schema),
-                value.value.item.as_str(),
-                None,
-                None,
-                Some(&value.version),
-                Borrowed::Object(value),
-            ),
-            StorageEntry::Record(value) => (
-                Some(&value.schema),
-                value.item.as_str(),
-                value.scope.as_ref(),
-                None,
-                None,
-                Borrowed::Record(value),
-            ),
+            StorageEntry::Schema(value) => (Some(&value.key), value.key.id.as_str(), None, None, None, Borrowed::Schema(value)),
+            StorageEntry::Object(value) => {
+                (Some(&value.value.schema), value.value.item.as_str(), None, None, Some(&value.version), Borrowed::Object(value))
+            }
+            StorageEntry::Record(value) => {
+                (Some(&value.schema), value.item.as_str(), value.scope.as_ref(), None, None, Borrowed::Record(value))
+            }
             StorageEntry::Row(value) => (
                 Some(&value.record.schema),
                 value.record.item.as_str(),
@@ -184,23 +163,14 @@ impl Encoded {
                 None,
                 Borrowed::Stream(value),
             ),
-            StorageEntry::File(value) => (
-                None,
-                value.metadata.id.as_str(),
-                value.metadata.scope.as_ref(),
-                None,
-                None,
-                Borrowed::File(value),
-            ),
+            StorageEntry::File(value) => {
+                (None, value.metadata.id.as_str(), value.metadata.scope.as_ref(), None, None, Borrowed::File(value))
+            }
         };
-        for key in [
-            Some(item),
-            schema.map(|schema| schema.id.as_str()),
-            scope.map(|scope| scope.as_str()),
-            stream.map(|stream| stream.as_str()),
-        ]
-        .into_iter()
-        .flatten()
+        for key in
+            [Some(item), schema.map(|schema| schema.id.as_str()), scope.map(|scope| scope.as_str()), stream.map(|stream| stream.as_str())]
+                .into_iter()
+                .flatten()
         {
             if key.len() > MAX_KEY_BYTES {
                 return Err(Error::Data("storage index identity exceeds 1024 bytes"));
@@ -226,36 +196,11 @@ impl Encoded {
             _ => None,
         };
         let (kind, schema, item, borrowed) = match value {
-            StorageEntry::Schema(value) => (
-                "schema",
-                Some(&value.key),
-                value.key.id.as_str(),
-                Borrowed::Schema(value),
-            ),
-            StorageEntry::Object(value) => (
-                "object",
-                Some(&value.value.schema),
-                value.value.item.as_str(),
-                Borrowed::Object(value),
-            ),
-            StorageEntry::Record(value) => (
-                "record",
-                Some(&value.schema),
-                value.item.as_str(),
-                Borrowed::Record(value),
-            ),
-            StorageEntry::Row(value) => (
-                "stream",
-                Some(&value.record.schema),
-                value.record.item.as_str(),
-                Borrowed::Stream(value),
-            ),
-            StorageEntry::File(value) => (
-                "file",
-                None,
-                value.metadata.id.as_str(),
-                Borrowed::File(value),
-            ),
+            StorageEntry::Schema(value) => ("schema", Some(&value.key), value.key.id.as_str(), Borrowed::Schema(value)),
+            StorageEntry::Object(value) => ("object", Some(&value.value.schema), value.value.item.as_str(), Borrowed::Object(value)),
+            StorageEntry::Record(value) => ("record", Some(&value.schema), value.item.as_str(), Borrowed::Record(value)),
+            StorageEntry::Row(value) => ("stream", Some(&value.record.schema), value.record.item.as_str(), Borrowed::Stream(value)),
+            StorageEntry::File(value) => ("file", None, value.metadata.id.as_str(), Borrowed::File(value)),
         };
         let position = value.position().sequence;
         let item = key(item)?;
@@ -296,9 +241,7 @@ impl Encoded {
             item,
             scope,
             stream,
-            source_time: record
-                .and_then(|record| record.source_time)
-                .map(timestamp_key),
+            source_time: record.and_then(|record| record.source_time).map(timestamp_key),
             object_version,
             body,
             digest,
@@ -322,9 +265,7 @@ pub(super) fn encode<T: Serialize>(value: &T, maximum: usize) -> Result<Vec<u8>,
 
 fn encode_counted<T: Serialize>(value: &T, length: usize) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(length)
-        .map_err(std::io::Error::other)?;
+    bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
     let mut buffer = Buffer { bytes, length };
     serde_json::to_writer(&mut buffer, value)?;
     if buffer.bytes.len() != length {

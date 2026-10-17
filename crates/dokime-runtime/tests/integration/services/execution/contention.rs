@@ -19,10 +19,10 @@ use std::sync::Arc;
 use tokio::sync::Barrier;
 
 // Local Imports
-use super::smoke::{Behaviour, Smoke, PULSE_STREAM, SOURCE, SUITE};
+use super::smoke::{Behaviour, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
-use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 use dokime_domain::model::execution::request::RunPhase;
+use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 
 /* === Constants === */
 const LIVE_PLOTS: usize = 15;
@@ -71,9 +71,8 @@ async fn contended_reads_stay_interactive() {
         scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
         ..Default::default()
     };
-    until_telemetry(&handle, || async {
-        (handle.selected_telemetry(selection.clone()).await.len() == PULSE_ROWS as usize).then_some(())
-    }).await;
+    until_telemetry(&handle, || async { (handle.selected_telemetry(selection.clone()).await.len() == PULSE_ROWS as usize).then_some(()) })
+        .await;
 
     // Each Round Starts All Readers And The Operator Together; No Warmup Timer.
     let barrier = Arc::new(Barrier::new(LIVE_PLOTS + 2));
@@ -112,7 +111,10 @@ async fn contended_reads_stay_interactive() {
                 let opened = handle.open_execution_report(&execution).await.unwrap();
                 assert!(!opened.html.is_empty());
                 let payload = crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
-                assert_eq!(payload["case_runs"][0]["plots"]["fixture.checks.smoke.pulse"]["series"][0]["raw_points"], serde_json::json!(PULSE_ROWS));
+                assert_eq!(
+                    payload["case_runs"][0]["plots"]["fixture.checks.smoke.pulse"]["series"][0]["raw_points"],
+                    serde_json::json!(PULSE_ROWS)
+                );
                 barrier.wait().await;
             }
         })

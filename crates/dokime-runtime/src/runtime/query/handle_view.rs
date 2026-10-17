@@ -19,8 +19,8 @@
 // Local Imports
 use crate::RuntimeHandle;
 use crate::queries::{
-    RuntimeCursor, RuntimeListFrame, RuntimeResolution, RuntimeStateSnapshot, RuntimeViewFrame,
-    RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic,
+    RuntimeCursor, RuntimeListFrame, RuntimeResolution, RuntimeStateSnapshot, RuntimeViewFrame, RuntimeViewPayload, RuntimeViewQuery,
+    RuntimeViewTopic,
 };
 
 /* === Constants === */
@@ -37,19 +37,14 @@ use crate::queries::{
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn query_runtime_view(
-        &self,
-        query: RuntimeViewQuery,
-    ) -> crate::runtime::Result<RuntimeViewFrame> {
+    pub async fn query_runtime_view(&self, query: RuntimeViewQuery) -> crate::runtime::Result<RuntimeViewFrame> {
         let snapshot = self.capture_state().await?;
 
         self.view_frame(&query, &snapshot).await
     }
 
     pub(crate) async fn view_frame(
-        &self,
-        query: &RuntimeViewQuery,
-        snapshot: &RuntimeStateSnapshot,
+        &self, query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot,
     ) -> crate::runtime::Result<RuntimeViewFrame> {
         let scope = query.scope.as_ref();
         let window = &query.window;
@@ -70,11 +65,9 @@ impl RuntimeHandle {
                     let frame = match scope.and_then(|scope| scope.test_execution_id.as_ref()) {
                         Some(id) => {
                             let files = self.execution_files(id).await?;
-                            crate::queries::RuntimeExecutionFileRead::from_frame(
-                                crate::queries::artifacts::execution_file_frame(
-                                    id, &files, window, resolution,
-                                ),
-                            )
+                            crate::queries::RuntimeExecutionFileRead::from_frame(crate::queries::artifacts::execution_file_frame(
+                                id, &files, window, resolution,
+                            ))
                         }
                         None => crate::queries::RuntimeExecutionFileRead::unselected(),
                     };
@@ -86,23 +79,11 @@ impl RuntimeHandle {
                         scope.and_then(|scope| scope.test_execution_id.as_ref()),
                     );
                     let filter = crate::queries::records::view_filter(snapshot, scope, captured)?;
-                    let records = self
-                        .record_source
-                        .saved_filtered_records(&self.state_manager, snapshot.revision(), filter)
-                        .await?;
-                    let frame = crate::queries::records::record_frame(
-                        records.iter(),
-                        window,
-                        resolution,
-                        |record| {
-                            captured.and_then(|captures| {
-                                captures.subscribed_records().get(&record.record_id)
-                            })
-                        },
-                    );
-                    RuntimeViewPayload::Records {
-                        frame: Box::new(frame),
-                    }
+                    let records = self.record_source.saved_filtered_records(&self.state_manager, snapshot.revision(), filter).await?;
+                    let frame = crate::queries::records::record_frame(records.iter(), window, resolution, |record| {
+                        captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))
+                    });
+                    RuntimeViewPayload::Records { frame: Box::new(frame) }
                 }
                 RuntimeViewTopic::Telemetry { stream } => {
                     // Live views use the bounded Harmos window. Historical execution
@@ -130,9 +111,7 @@ impl RuntimeHandle {
                         )
                     })
                     .await
-                    .map_err(|error| {
-                        crate::runtime::Error::Operation(format!("telemetry frame task failed: {error}"))
-                    });
+                    .map_err(|error| crate::runtime::Error::Operation(format!("telemetry frame task failed: {error}")));
                 }
                 RuntimeViewTopic::Document { document_id } => {
                     // Documents embed telemetry, which lives on async durable streams —
@@ -140,28 +119,16 @@ impl RuntimeHandle {
                     // the on-demand `resolve_cycle_document` route (same data seam).
                     let telemetry = self
                         .collect_telemetry(&crate::evidence_runtime::TelemetrySelection {
-                            scope: crate::document::DocumentSelection {
-                                scope: query.scope.clone().unwrap_or_default(),
-                            }
-                            .evidence_scope(),
+                            scope: crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() }.evidence_scope(),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
                         .await;
                     let records = self.records_at(snapshot).await?;
                     let artifacts = self.artifacts().await?.to_vec();
                     let state = snapshot.state();
-                    let cycles = state
-                        .cycle_views()
-                        .map(crate::definition::TestCycleInstance::new)
-                        .collect::<Vec<_>>();
-                    let data = crate::documents::RuntimeDocumentData {
-                        records,
-                        telemetry,
-                        artifacts,
-                    };
-                    let selection = crate::document::DocumentSelection {
-                        scope: query.scope.clone().unwrap_or_default(),
-                    };
+                    let cycles = state.cycle_views().map(crate::definition::TestCycleInstance::new).collect::<Vec<_>>();
+                    let data = crate::documents::RuntimeDocumentData { records, telemetry, artifacts };
+                    let selection = crate::document::DocumentSelection { scope: query.scope.clone().unwrap_or_default() };
 
                     RuntimeViewPayload::Document {
                         frame: Box::new(crate::queries::documents::resolved_document_frame(
@@ -177,131 +144,73 @@ impl RuntimeHandle {
                     let artifacts = self.artifacts().await?.to_vec();
 
                     RuntimeViewPayload::Artifacts {
-                        frame: Box::new(crate::queries::artifacts::artifact_frame(
-                            artifacts.iter(),
-                            scope,
-                            window,
-                            resolution,
-                        )),
+                        frame: Box::new(crate::queries::artifacts::artifact_frame(artifacts.iter(), scope, window, resolution)),
                     }
                 }
                 RuntimeViewTopic::Traceability => {
-                    let mut snapshots =
-                        crate::evidence_runtime::state::traceability_snapshots(snapshot.state());
+                    let mut snapshots = crate::evidence_runtime::state::traceability_snapshots(snapshot.state());
                     self.enrich_host_traceability(&mut snapshots, scope).await;
                     self.enrich_lease_traceability(&mut snapshots, scope).await;
 
                     RuntimeViewPayload::Traceability {
-                        frame: Box::new(crate::queries::projections::traceability_frame(
-                            snapshots.iter(),
-                            scope,
-                            window,
-                            resolution,
-                        )),
+                        frame: Box::new(crate::queries::projections::traceability_frame(snapshots.iter(), scope, window, resolution)),
                     }
                 }
                 _ => unreachable!("state-backed topics were projected above"),
             }
         };
 
-        Ok(RuntimeViewFrame {
-            cursor: RuntimeCursor(snapshot.revision()),
-            window: query.window.clone(),
-            payload,
-        })
+        Ok(RuntimeViewFrame { cursor: RuntimeCursor(snapshot.revision()), window: query.window.clone(), payload })
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn state_payload(
-    query: &RuntimeViewQuery,
-    snapshot: &RuntimeStateSnapshot,
-) -> Option<RuntimeViewPayload> {
+fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> Option<RuntimeViewPayload> {
     let scope = query.scope.as_ref();
     let window = &query.window;
     let resolution = &query.resolution;
     Some(match &query.topic {
-        RuntimeViewTopic::Overview => RuntimeViewPayload::Overview {
-            frame: Box::new(crate::runtime_state::overview_entity_counts(
-                snapshot.state(),
-                0,
-            )),
-        },
+        RuntimeViewTopic::Overview => {
+            RuntimeViewPayload::Overview { frame: Box::new(crate::runtime_state::overview_entity_counts(snapshot.state(), 0)) }
+        }
         RuntimeViewTopic::InstalledPlugins => RuntimeViewPayload::InstalledPlugins {
-            frame: Box::new(crate::queries::installed_plugins::installed_plugin_frame(
-                snapshot.state(),
-            )),
+            frame: Box::new(crate::queries::installed_plugins::installed_plugin_frame(snapshot.state())),
         },
         RuntimeViewTopic::Suites => RuntimeViewPayload::Suites {
-            frame: list_frame(
-                snapshot
-                    .state()
-                    .suites
-                    .suites()
-                    .map(|snapshot| snapshot.suite.metadata.identifier.to_string()),
-            ),
+            frame: list_frame(snapshot.state().suites.suites().map(|snapshot| snapshot.suite.metadata.identifier.to_string())),
         },
-        RuntimeViewTopic::Cycle => RuntimeViewPayload::Cycles {
-            frame: list_frame(
-                snapshot
-                    .state()
-                    .cycles
-                    .keys()
-                    .map(|cycle_id| cycle_id.to_string()),
-            ),
-        },
+        RuntimeViewTopic::Cycle => {
+            RuntimeViewPayload::Cycles { frame: list_frame(snapshot.state().cycles.keys().map(|cycle_id| cycle_id.to_string())) }
+        }
         RuntimeViewTopic::Execution => RuntimeViewPayload::Execution {
             frame: list_frame(
                 snapshot
                     .state()
                     .executions
                     .values()
-                    .filter(|execution| {
-                        scope.is_none_or(|scope| execution.scope.is_visible_in(scope))
-                    })
+                    .filter(|execution| scope.is_none_or(|scope| execution.scope.is_visible_in(scope)))
                     .map(|execution| execution.test_execution_id.to_string()),
             ),
         },
         RuntimeViewTopic::RecordDefinitions => RuntimeViewPayload::RecordDefinitions {
+            frame: list_frame(snapshot.state().record_definitions.values().map(|definition| definition.record_type.to_string())),
+        },
+        RuntimeViewTopic::TelemetryDefinitions { stream } => RuntimeViewPayload::TelemetryDefinitions {
             frame: list_frame(
                 snapshot
                     .state()
-                    .record_definitions
+                    .telemetry_definitions
                     .values()
-                    .map(|definition| definition.record_type.to_string()),
+                    .filter(|definition| stream.as_ref().is_none_or(|stream| &definition.stream == stream))
+                    .map(|definition| definition.stream.to_string()),
             ),
         },
-        RuntimeViewTopic::TelemetryDefinitions { stream } => {
-            RuntimeViewPayload::TelemetryDefinitions {
-                frame: list_frame(
-                    snapshot
-                        .state()
-                        .telemetry_definitions
-                        .values()
-                        .filter(|definition| {
-                            stream
-                                .as_ref()
-                                .is_none_or(|stream| &definition.stream == stream)
-                        })
-                        .map(|definition| definition.stream.to_string()),
-                ),
-            }
-        }
         RuntimeViewTopic::Documents => {
-            let cycles = snapshot
-                .state()
-                .cycle_views()
-                .map(crate::definition::TestCycleInstance::new)
-                .collect::<Vec<_>>();
+            let cycles = snapshot.state().cycle_views().map(crate::definition::TestCycleInstance::new).collect::<Vec<_>>();
 
-            RuntimeViewPayload::Documents {
-                frame: Box::new(crate::queries::documents::document_frame(
-                    cycles.iter(),
-                    scope,
-                )),
-            }
+            RuntimeViewPayload::Documents { frame: Box::new(crate::queries::documents::document_frame(cycles.iter(), scope)) }
         }
         RuntimeViewTopic::Resources => RuntimeViewPayload::Resources {
             frame: Box::new(crate::queries::projections::resource_frame(
@@ -323,20 +232,10 @@ fn state_payload(
             // Health items carry no sequence, so `Since` never filters them —
             // the cursor is pure change detection, stamped from the journal
             // like every other topic.
-            frame: Box::new(crate::queries::projections::health_frame(
-                snapshot.state().health_items().iter(),
-                scope,
-                window,
-                resolution,
-            )),
+            frame: Box::new(crate::queries::projections::health_frame(snapshot.state().health_items().iter(), scope, window, resolution)),
         },
         RuntimeViewTopic::Notes => RuntimeViewPayload::Notes {
-            frame: Box::new(crate::queries::projections::note_frame(
-                snapshot.state().notes().iter(),
-                scope,
-                window,
-                resolution,
-            )),
+            frame: Box::new(crate::queries::projections::note_frame(snapshot.state().notes().iter(), scope, window, resolution)),
         },
         RuntimeViewTopic::ExecutionFiles
         | RuntimeViewTopic::Records
@@ -350,10 +249,7 @@ fn state_payload(
 fn list_frame(items: impl Iterator<Item = String>) -> RuntimeListFrame {
     let items = items.collect::<Vec<_>>();
 
-    RuntimeListFrame {
-        count: items.len(),
-        items,
-    }
+    RuntimeListFrame { count: items.len(), items }
 }
 
 /* === Tests === */

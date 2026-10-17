@@ -67,42 +67,23 @@ impl Authorization {
             });
             Ok::<_, Error>(())
         })?;
-        requirements.sort_unstable_by(|left, right| {
-            left.required
-                .contract
-                .operation()
-                .id
-                .cmp(&right.required.contract.operation().id)
-        });
-        if requirements.windows(2).any(|pair| {
-            pair[0].required.contract.operation().id == pair[1].required.contract.operation().id
-        }) {
-            return Err(Error::Configuration(
-                "duplicate declared authorization identity",
-            ));
+        requirements.sort_unstable_by(|left, right| left.required.contract.operation().id.cmp(&right.required.contract.operation().id));
+        if requirements.windows(2).any(|pair| pair[0].required.contract.operation().id == pair[1].required.contract.operation().id) {
+            return Err(Error::Configuration("duplicate declared authorization identity"));
         }
-        Ok(Self {
-            local_only,
-            requirements,
-        })
+        Ok(Self { local_only, requirements })
     }
 }
 
 impl Authorizer for Authorization {
-    fn required(
-        &self,
-        context: &CallContext,
-        provider: Provider<'_>,
-    ) -> harmos::Result<Option<Required>> {
+    fn required(&self, context: &CallContext, provider: Provider<'_>) -> harmos::Result<Option<Required>> {
         let Some(principal) = context.get::<Principal>() else {
             return Ok(None);
         };
         // Canonical Product Providers Belong To The Original Dokime Runtime Owner.
         // A Plugin Reusing A Public Operation ID Does Not Inherit Its Role Policy.
         if provider.owner.as_str() != "dokime" {
-            let Some(permission) =
-                principal.operation(provider.owner.as_str(), provider.definition.id.as_str())
-            else {
+            let Some(permission) = principal.operation(provider.owner.as_str(), provider.definition.id.as_str()) else {
                 return Ok(None);
             };
             return Ok(Some(Required {
@@ -111,14 +92,9 @@ impl Authorizer for Authorization {
                 grants: permission.grants.clone(),
             }));
         }
-        let Ok(index) = self.requirements.binary_search_by(|requirement| {
-            requirement
-                .required
-                .contract
-                .operation()
-                .id
-                .cmp(&provider.definition.id)
-        }) else {
+        let Ok(index) =
+            self.requirements.binary_search_by(|requirement| requirement.required.contract.operation().id.cmp(&provider.definition.id))
+        else {
             // Unmapped Product Operations Remain Refused.
             return Ok(None);
         };
@@ -134,16 +110,11 @@ impl Authorizer for Authorization {
 }
 
 /* === Public Functions === */
-pub(super) fn register(
-    runtime: &dokime_runtime::RuntimeHandle,
-    config: &Config,
-) -> Result<(), Error> {
+pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle, config: &Config) -> Result<(), Error> {
     config.validate()?;
     let authorizer = Arc::new(Authorization::new(config.local_only())?);
     runtime.operations().register_authorizer(authorizer)?;
-    runtime.grpc().register_middleware(Arc::new(
-        harmos::grpc::authentication::Authenticate::new(Arc::new(config.policy.clone())),
-    ))?;
+    runtime.grpc().register_middleware(Arc::new(harmos::grpc::authentication::Authenticate::new(Arc::new(config.policy.clone()))))?;
     Ok(())
 }
 

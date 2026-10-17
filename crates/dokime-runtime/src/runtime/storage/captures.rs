@@ -59,20 +59,12 @@ pub(crate) struct Captures {
 impl Captures {
     pub(crate) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
-        self.open
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .entry(execution.clone())
-            .or_default()
-            .push((id, seal));
+        self.open.lock().unwrap_or_else(std::sync::PoisonError::into_inner).entry(execution.clone()).or_default().push((id, seal));
         id
     }
 
     pub(crate) fn release(&self, execution: &TestExecutionId, id: u64) {
-        let mut open = self
-            .open
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut open = self.open.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(captures) = open.get_mut(execution) {
             captures.retain(|(capture, _)| *capture != id);
             if captures.is_empty() {
@@ -83,12 +75,7 @@ impl Captures {
 
     // Seals every capture of the execution before its output admission closes.
     pub(crate) async fn close(&self, execution: &TestExecutionId) {
-        let captures = self
-            .open
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(execution)
-            .unwrap_or_default();
+        let captures = self.open.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(execution).unwrap_or_default();
 
         // Ask All, Then Await Each Stored Artifact
         let mut stored = Vec::with_capacity(captures.len());

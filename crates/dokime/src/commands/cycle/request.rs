@@ -49,8 +49,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime_domain::model::identity::CommandId::from_uuid(&args.request_id)
-        .map_err(|error| crate::Error::Input(error.to_string()))?;
+    let id =
+        dokime_domain::model::identity::CommandId::from_uuid(&args.request_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let cycle = args
         .cycle_id
         .map(dokime_domain::model::identity::TestCycleId::from_uuid)
@@ -70,10 +70,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     print(&receipt, args.json)
 }
 
-pub(super) fn print(
-    receipt: &dokime_domain::model::execution::wire::RunRequestReceipt,
-    json: bool,
-) -> crate::Result<()> {
+pub(super) fn print(receipt: &dokime_domain::model::execution::wire::RunRequestReceipt, json: bool) -> crate::Result<()> {
     let phase = receipt.phase;
     if phase == dokime_domain::model::execution::wire::RunRequestPhase::Unspecified {
         return Err(crate::Error::Setup("invalid native request phase".into()));

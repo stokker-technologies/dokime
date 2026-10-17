@@ -174,12 +174,7 @@ pub enum GitlabUpdateStatus {
 /* === Implementations === */
 impl GitlabDesktopState {
     fn from_app(app: &App) -> Self {
-        Self {
-            inner: Arc::new(GitlabDesktopStateInner {
-                config: GitlabConfig::from_app(app),
-                pending_auth: Mutex::new(None),
-            }),
-        }
+        Self { inner: Arc::new(GitlabDesktopStateInner { config: GitlabConfig::from_app(app), pending_auth: Mutex::new(None) }) }
     }
 
     async fn auth_status(&self) -> Result<GitlabAuthStatus> {
@@ -195,25 +190,13 @@ impl GitlabDesktopState {
         // Reading the token means a keyring round trip; keep it off this
         // async task's Tokio worker thread (see `sign_out` above).
         let this = self.clone();
-        let token = tauri::async_runtime::spawn_blocking(move || this.token())
-            .await
-            .context("GitLab token lookup task failed")??;
+        let token = tauri::async_runtime::spawn_blocking(move || this.token()).await.context("GitLab token lookup task failed")??;
         let Some(token) = token else {
-            return Ok(GitlabAuthStatus {
-                configured: true,
-                signed_in: false,
-                user: None,
-                message: None,
-            });
+            return Ok(GitlabAuthStatus { configured: true, signed_in: false, user: None, message: None });
         };
 
         let user = self.fetch_user(&token).await.ok();
-        Ok(GitlabAuthStatus {
-            configured: true,
-            signed_in: true,
-            user,
-            message: None,
-        })
+        Ok(GitlabAuthStatus { configured: true, signed_in: true, user, message: None })
     }
 
     async fn sign_in(&self, app: &AppHandle) -> Result<GitlabAuthStatus> {
@@ -230,50 +213,29 @@ impl GitlabDesktopState {
         {
             let mut pending = self.lock_pending_auth()?;
             if let Some(existing) = pending.take() {
-                let _ = existing
-                    .sender
-                    .send(Err(anyhow!("A newer GitLab sign-in was started.")));
+                let _ = existing.sender.send(Err(anyhow!("A newer GitLab sign-in was started.")));
             }
-            pending.replace(PendingAuth {
-                config: config.clone(),
-                state: state.clone(),
-                verifier,
-                sender,
-            });
+            pending.replace(PendingAuth { config: config.clone(), state: state.clone(), verifier, sender });
         }
 
         let authorize_url = config.authorize_url(&state, &challenge)?;
         let app = app.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            app.opener()
-                .open_url(authorize_url, None::<&str>)
-                .context("failed to open GitLab sign-in page")
+            app.opener().open_url(authorize_url, None::<&str>).context("failed to open GitLab sign-in page")
         })
         .await
         .context("GitLab sign-in page open task failed")??;
 
-        let user = timeout(SIGN_IN_TIMEOUT, receiver)
-            .await
-            .context("GitLab sign-in timed out")?
-            .context("GitLab sign-in was canceled")??;
+        let user =
+            timeout(SIGN_IN_TIMEOUT, receiver).await.context("GitLab sign-in timed out")?.context("GitLab sign-in was canceled")??;
 
-        Ok(GitlabAuthStatus {
-            configured: true,
-            signed_in: true,
-            user: Some(user),
-            message: None,
-        })
+        Ok(GitlabAuthStatus { configured: true, signed_in: true, user: Some(user), message: None })
     }
 
     async fn sign_out(&self) -> Result<GitlabAuthStatus> {
         let configured = self.config().is_configured();
         tauri::async_runtime::spawn_blocking(move || match keyring_entry()?.delete_credential() {
-            Ok(()) | Err(KeyringError::NoEntry) => Ok(GitlabAuthStatus {
-                configured,
-                signed_in: false,
-                user: None,
-                message: None,
-            }),
+            Ok(()) | Err(KeyringError::NoEntry) => Ok(GitlabAuthStatus { configured, signed_in: false, user: None, message: None }),
             Err(error) => Err(error).context("failed to delete GitLab token"),
         })
         .await
@@ -298,9 +260,7 @@ impl GitlabDesktopState {
         // Reading the token means a keyring round trip; keep it off this
         // async task's Tokio worker thread (see `sign_out` above).
         let this = self.clone();
-        let token = tauri::async_runtime::spawn_blocking(move || this.token())
-            .await
-            .context("GitLab token lookup task failed")??;
+        let token = tauri::async_runtime::spawn_blocking(move || this.token()).await.context("GitLab token lookup task failed")??;
         let Some(token) = token else {
             return Ok(GitlabUpdateCheck {
                 status: GitlabUpdateStatus::SignedOut,
@@ -313,11 +273,7 @@ impl GitlabDesktopState {
         };
 
         let updater = self.authenticated_updater(app, &token).await?;
-        match updater
-            .check()
-            .await
-            .context("failed to check for Tauri updates")?
-        {
+        match updater.check().await.context("failed to check for Tauri updates")? {
             Some(update) => Ok(GitlabUpdateCheck {
                 status: GitlabUpdateStatus::Available,
                 current_version: update.current_version,
@@ -347,19 +303,11 @@ impl GitlabDesktopState {
             .context("GitLab token lookup task failed")??
             .ok_or_else(|| anyhow!("Sign in with GitLab before installing updates."))?;
         let updater = self.authenticated_updater(app, &token).await?;
-        let update = updater
-            .check()
-            .await
-            .context("failed to check for Tauri updates")?
-            .ok_or_else(|| anyhow!("No update is available."))?;
+        let update =
+            updater.check().await.context("failed to check for Tauri updates")?.ok_or_else(|| anyhow!("No update is available."))?;
         let version = update.version.clone();
-        let bytes = update
-            .download(|_, _| {}, || {})
-            .await
-            .context("failed to download signed update")?;
-        update
-            .install(bytes)
-            .context("failed to install signed update")?;
+        let bytes = update.download(|_, _| {}, || {}).await.context("failed to download signed update")?;
+        update.install(bytes).context("failed to install signed update")?;
         Ok(GitlabInstallResult { version })
     }
 
@@ -375,11 +323,7 @@ impl GitlabDesktopState {
                 // above).
                 let store_token = token.clone();
                 let store_result = match tauri::async_runtime::spawn_blocking(move || {
-                    keyring_entry().and_then(|entry| {
-                        entry
-                            .set_password(&store_token)
-                            .context("failed to store GitLab token")
-                    })
+                    keyring_entry().and_then(|entry| entry.set_password(&store_token).context("failed to store GitLab token"))
                 })
                 .await
                 {
@@ -397,23 +341,14 @@ impl GitlabDesktopState {
     }
 
     #[cfg(feature = "updater")]
-    async fn authenticated_updater(
-        &self,
-        app: &AppHandle,
-        token: &str,
-    ) -> Result<tauri_plugin_updater::Updater> {
+    async fn authenticated_updater(&self, app: &AppHandle, token: &str) -> Result<tauri_plugin_updater::Updater> {
         let manifest_url = self.latest_manifest_url(token).await?;
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {token}"))
-                .context("failed to build GitLab authorization header")?,
+            HeaderValue::from_str(&format!("Bearer {token}")).context("failed to build GitLab authorization header")?,
         );
-        app.updater_builder()
-            .headers(headers)
-            .endpoints(vec![manifest_url])?
-            .build()
-            .context("failed to build authenticated updater")
+        app.updater_builder().headers(headers).endpoints(vec![manifest_url])?.build().context("failed to build authenticated updater")
     }
 
     #[cfg(feature = "updater")]
@@ -469,17 +404,11 @@ impl GitlabDesktopState {
     }
 
     fn lock_pending_auth(&self) -> Result<std::sync::MutexGuard<'_, Option<PendingAuth>>> {
-        self.inner
-            .pending_auth
-            .lock()
-            .map_err(|_| anyhow!("GitLab auth state lock is poisoned"))
+        self.inner.pending_auth.lock().map_err(|_| anyhow!("GitLab auth state lock is poisoned"))
     }
 
     fn take_matching_pending_auth(&self, url: &Url) -> Option<(PendingAuth, String)> {
-        if url.scheme() != CALLBACK_SCHEME
-            || url.host_str() != Some(CALLBACK_HOST)
-            || url.path() != CALLBACK_PATH
-        {
+        if url.scheme() != CALLBACK_SCHEME || url.host_str() != Some(CALLBACK_HOST) || url.path() != CALLBACK_PATH {
             return None;
         }
 
@@ -498,21 +427,15 @@ impl GitlabDesktopState {
         let mut pending = self.lock_pending_auth().ok()?;
         let pending_auth = pending.take()?;
         if let Some(error) = error {
-            let _ = pending_auth
-                .sender
-                .send(Err(anyhow!("GitLab sign-in failed: {error}")));
+            let _ = pending_auth.sender.send(Err(anyhow!("GitLab sign-in failed: {error}")));
             return None;
         }
         if callback_state.as_deref() != Some(pending_auth.state.as_str()) {
-            let _ = pending_auth
-                .sender
-                .send(Err(anyhow!("GitLab sign-in state did not match.")));
+            let _ = pending_auth.sender.send(Err(anyhow!("GitLab sign-in state did not match.")));
             return None;
         }
         let Some(code) = code else {
-            let _ = pending_auth.sender.send(Err(anyhow!(
-                "GitLab sign-in callback did not include a code."
-            )));
+            let _ = pending_auth.sender.send(Err(anyhow!("GitLab sign-in callback did not include a code.")));
             return None;
         };
 
@@ -527,10 +450,8 @@ impl GitlabConfig {
             client_id: string_field(plugin, "oauthClientId").unwrap_or_default(),
             gitlab_host: string_field(plugin, "host").unwrap_or_else(|| GITLAB_HOST.to_string()),
             #[cfg(feature = "updater")]
-            project_id: string_field(plugin, "projectId")
-                .unwrap_or_else(|| GITLAB_PROJECT_ID.to_string()),
-            redirect_uri: string_field(plugin, "redirectUri")
-                .unwrap_or_else(|| OAUTH_REDIRECT_URI.to_string()),
+            project_id: string_field(plugin, "projectId").unwrap_or_else(|| GITLAB_PROJECT_ID.to_string()),
+            redirect_uri: string_field(plugin, "redirectUri").unwrap_or_else(|| OAUTH_REDIRECT_URI.to_string()),
         }
     }
 
@@ -539,8 +460,7 @@ impl GitlabConfig {
     }
 
     fn authorize_url(&self, state: &str, challenge: &str) -> Result<String> {
-        let mut url = Url::parse(&format!("{}/oauth/authorize", self.gitlab_host))
-            .context("GitLab authorize URL is invalid")?;
+        let mut url = Url::parse(&format!("{}/oauth/authorize", self.gitlab_host)).context("GitLab authorize URL is invalid")?;
         url.query_pairs_mut()
             .append_pair("client_id", &self.client_id)
             .append_pair("redirect_uri", &self.redirect_uri)
@@ -562,10 +482,7 @@ impl GitlabConfig {
 
     #[cfg(feature = "updater")]
     fn latest_release_api_url(&self) -> String {
-        format!(
-            "{}/api/v4/projects/{}/releases/permalink/latest",
-            self.gitlab_host, self.project_id
-        )
+        format!("{}/api/v4/projects/{}/releases/permalink/latest", self.gitlab_host, self.project_id)
     }
 }
 
@@ -599,29 +516,19 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn gitlab_auth_status(
-    state: State<'_, GitlabDesktopState>,
-) -> Result<GitlabAuthStatus, String> {
+pub async fn gitlab_auth_status(state: State<'_, GitlabDesktopState>) -> Result<GitlabAuthStatus, String> {
     state.auth_status().await.map_err(render_error)
 }
 
-pub async fn gitlab_sign_in(
-    app: AppHandle,
-    state: State<'_, GitlabDesktopState>,
-) -> Result<GitlabAuthStatus, String> {
+pub async fn gitlab_sign_in(app: AppHandle, state: State<'_, GitlabDesktopState>) -> Result<GitlabAuthStatus, String> {
     state.sign_in(&app).await.map_err(render_error)
 }
 
-pub async fn gitlab_sign_out(
-    state: State<'_, GitlabDesktopState>,
-) -> Result<GitlabAuthStatus, String> {
+pub async fn gitlab_sign_out(state: State<'_, GitlabDesktopState>) -> Result<GitlabAuthStatus, String> {
     state.sign_out().await.map_err(render_error)
 }
 
-pub async fn gitlab_check_for_updates(
-    app: AppHandle,
-    state: State<'_, GitlabDesktopState>,
-) -> Result<GitlabUpdateCheck, String> {
+pub async fn gitlab_check_for_updates(app: AppHandle, state: State<'_, GitlabDesktopState>) -> Result<GitlabUpdateCheck, String> {
     #[cfg(feature = "updater")]
     {
         state.check_for_updates(&app).await.map_err(render_error)
@@ -633,10 +540,7 @@ pub async fn gitlab_check_for_updates(
     }
 }
 
-pub async fn gitlab_install_update(
-    app: AppHandle,
-    state: State<'_, GitlabDesktopState>,
-) -> Result<GitlabInstallResult, String> {
+pub async fn gitlab_install_update(app: AppHandle, state: State<'_, GitlabDesktopState>) -> Result<GitlabInstallResult, String> {
     #[cfg(feature = "updater")]
     {
         state.install_update(&app).await.map_err(render_error)
@@ -668,10 +572,7 @@ async fn exchange_code(config: &GitlabConfig, code: &str, verifier: &str) -> Res
     // Exchange The Authorization Code
     let response = reqwest::Client::new()
         .post(config.token_url())
-        .header(
-            reqwest::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form)
         .send()
         .await
@@ -702,12 +603,7 @@ fn render_error(error: anyhow::Error) -> String {
 }
 
 fn string_field(plugin: Option<&Value>, field: &str) -> Option<String> {
-    plugin?
-        .get(field)?
-        .as_str()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+    plugin?.get(field)?.as_str().map(str::trim).filter(|value| !value.is_empty()).map(ToOwned::to_owned)
 }
 
 /* === Tests === */

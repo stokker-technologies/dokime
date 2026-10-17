@@ -262,9 +262,7 @@ DOKIME_BACKEND_GET_DIAGNOSTICS: Operation[
 DokimeBackendGetHealthRequest = _wire_5.Row1
 DokimeBackendGetHealthResponse = _wire_5.Row2
 
-DOKIME_BACKEND_GET_HEALTH: Operation[
-    DokimeBackendGetHealthRequest, DokimeBackendGetHealthResponse, Message, Message
-] = Operation(
+DOKIME_BACKEND_GET_HEALTH: Operation[DokimeBackendGetHealthRequest, DokimeBackendGetHealthResponse, Message, Message] = Operation(
     id="dokime.backend.get_health",
     version=1,
     mode="unary",
@@ -283,9 +281,7 @@ DOKIME_BACKEND_GET_HEALTH: Operation[
 DokimeBackendGetIdentityRequest = _wire_6.Row1
 DokimeBackendGetIdentityResponse = _wire_6.Row2
 
-DOKIME_BACKEND_GET_IDENTITY: Operation[
-    DokimeBackendGetIdentityRequest, DokimeBackendGetIdentityResponse, Message, Message
-] = Operation(
+DOKIME_BACKEND_GET_IDENTITY: Operation[DokimeBackendGetIdentityRequest, DokimeBackendGetIdentityResponse, Message, Message] = Operation(
     id="dokime.backend.get_identity",
     version=1,
     mode="unary",
@@ -378,9 +374,7 @@ DOKIME_CATALOG_GET_RECORD_SCHEMA: Operation[
 DokimeCatalogGetSuiteRequest = _wire_10.Row1
 DokimeCatalogGetSuiteResponse = _wire_10.Row2
 
-DOKIME_CATALOG_GET_SUITE: Operation[
-    DokimeCatalogGetSuiteRequest, DokimeCatalogGetSuiteResponse, Message, Message
-] = Operation(
+DOKIME_CATALOG_GET_SUITE: Operation[DokimeCatalogGetSuiteRequest, DokimeCatalogGetSuiteResponse, Message, Message] = Operation(
     id="dokime.catalog.get_suite",
     version=1,
     mode="unary",
@@ -447,9 +441,7 @@ DOKIME_CATALOG_LIST_RECORD_SCHEMAS: Operation[
 DokimeCatalogListSuitesRequest = _wire_13.Row1
 DokimeCatalogListSuitesResponse = _wire_13.Row2
 
-DOKIME_CATALOG_LIST_SUITES: Operation[
-    DokimeCatalogListSuitesRequest, DokimeCatalogListSuitesResponse, Message, Message
-] = Operation(
+DOKIME_CATALOG_LIST_SUITES: Operation[DokimeCatalogListSuitesRequest, DokimeCatalogListSuitesResponse, Message, Message] = Operation(
     id="dokime.catalog.list_suites",
     version=1,
     mode="unary",
@@ -835,9 +827,7 @@ DOKIME_EXECUTION_APPEND_PLANNED_CASES: Operation[
 DokimeExecutionCopyCycleRequest = _wire_32.Row1
 DokimeExecutionCopyCycleResponse = _wire_32.Row2
 
-DOKIME_EXECUTION_COPY_CYCLE: Operation[
-    DokimeExecutionCopyCycleRequest, DokimeExecutionCopyCycleResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_COPY_CYCLE: Operation[DokimeExecutionCopyCycleRequest, DokimeExecutionCopyCycleResponse, Message, Message] = Operation(
     id="dokime.execution.copy_cycle",
     version=1,
     mode="unary",
@@ -904,9 +894,7 @@ DOKIME_EXECUTION_DELETE_CASE: Operation[
 DokimeExecutionGetCaseRequest = _wire_35.Row1
 DokimeExecutionGetCaseResponse = _wire_35.Row2
 
-DOKIME_EXECUTION_GET_CASE: Operation[
-    DokimeExecutionGetCaseRequest, DokimeExecutionGetCaseResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_GET_CASE: Operation[DokimeExecutionGetCaseRequest, DokimeExecutionGetCaseResponse, Message, Message] = Operation(
     id="dokime.execution.get_case",
     version=1,
     mode="unary",
@@ -925,9 +913,7 @@ DOKIME_EXECUTION_GET_CASE: Operation[
 DokimeExecutionGetCycleRequest = _wire_36.Row1
 DokimeExecutionGetCycleResponse = _wire_36.Row2
 
-DOKIME_EXECUTION_GET_CYCLE: Operation[
-    DokimeExecutionGetCycleRequest, DokimeExecutionGetCycleResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_GET_CYCLE: Operation[DokimeExecutionGetCycleRequest, DokimeExecutionGetCycleResponse, Message, Message] = Operation(
     id="dokime.execution.get_cycle",
     version=1,
     mode="unary",
@@ -1042,9 +1028,7 @@ DOKIME_EXECUTION_LIST_CASE_PARAMETERS: Operation[
 DokimeExecutionListCasesRequest = _wire_41.Row1
 DokimeExecutionListCasesResponse = _wire_41.Row2
 
-DOKIME_EXECUTION_LIST_CASES: Operation[
-    DokimeExecutionListCasesRequest, DokimeExecutionListCasesResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_LIST_CASES: Operation[DokimeExecutionListCasesRequest, DokimeExecutionListCasesResponse, Message, Message] = Operation(
     id="dokime.execution.list_cases",
     version=1,
     mode="unary",
@@ -1327,9 +1311,7 @@ DOKIME_EXECUTION_RESUME_EXECUTION: Operation[
 DokimeExecutionRunCaseRequest = _wire_53.Row1
 DokimeExecutionRunCaseResponse = _wire_53.Row2
 
-DOKIME_EXECUTION_RUN_CASE: Operation[
-    DokimeExecutionRunCaseRequest, DokimeExecutionRunCaseResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_RUN_CASE: Operation[DokimeExecutionRunCaseRequest, DokimeExecutionRunCaseResponse, Message, Message] = Operation(
     id="dokime.execution.run_case",
     version=1,
     mode="unary",
@@ -1348,9 +1330,7 @@ DOKIME_EXECUTION_RUN_CASE: Operation[
 DokimeExecutionRunCycleRequest = _wire_54.Row1
 DokimeExecutionRunCycleResponse = _wire_54.Row2
 
-DOKIME_EXECUTION_RUN_CYCLE: Operation[
-    DokimeExecutionRunCycleRequest, DokimeExecutionRunCycleResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_RUN_CYCLE: Operation[DokimeExecutionRunCycleRequest, DokimeExecutionRunCycleResponse, Message, Message] = Operation(
     id="dokime.execution.run_cycle",
     version=1,
     mode="unary",
@@ -1465,9 +1445,7 @@ DOKIME_EXECUTION_SET_EXECUTION_ARCHIVED: Operation[
 DokimeExecutionStopCycleRequest = _wire_59.Row1
 DokimeExecutionStopCycleResponse = _wire_59.Row2
 
-DOKIME_EXECUTION_STOP_CYCLE: Operation[
-    DokimeExecutionStopCycleRequest, DokimeExecutionStopCycleResponse, Message, Message
-] = Operation(
+DOKIME_EXECUTION_STOP_CYCLE: Operation[DokimeExecutionStopCycleRequest, DokimeExecutionStopCycleResponse, Message, Message] = Operation(
     id="dokime.execution.stop_cycle",
     version=1,
     mode="unary",
@@ -1583,9 +1561,7 @@ DOKIME_FILES_FILE_WATCH: Operation[
 DokimeHealthListHealthRequest = _wire_65.Row1
 DokimeHealthListHealthResponse = _wire_65.Row2
 
-DOKIME_HEALTH_LIST_HEALTH: Operation[
-    DokimeHealthListHealthRequest, DokimeHealthListHealthResponse, Message, Message
-] = Operation(
+DOKIME_HEALTH_LIST_HEALTH: Operation[DokimeHealthListHealthRequest, DokimeHealthListHealthResponse, Message, Message] = Operation(
     id="dokime.health.list_health",
     version=1,
     mode="unary",
@@ -1895,9 +1871,7 @@ DOKIME_MEDIA_CAMERA_RECORDING: Operation[
 DokimeMediaPhotoRequest = _wire_80.Row1
 DokimeMediaPhotoResponse = _wire_80.Row2
 
-DOKIME_MEDIA_PHOTO: Operation[
-    DokimeMediaPhotoRequest, DokimeMediaPhotoResponse, Message, Message
-] = Operation(
+DOKIME_MEDIA_PHOTO: Operation[DokimeMediaPhotoRequest, DokimeMediaPhotoResponse, Message, Message] = Operation(
     id="dokime.media.photo",
     version=1,
     mode="unary",
@@ -1941,9 +1915,7 @@ DOKIME_MEDIA_SCREEN_RECORDING: Operation[
 DokimeMediaScreenshotRequest = _wire_82.Row1
 DokimeMediaScreenshotResponse = _wire_82.Row2
 
-DOKIME_MEDIA_SCREENSHOT: Operation[
-    DokimeMediaScreenshotRequest, DokimeMediaScreenshotResponse, Message, Message
-] = Operation(
+DOKIME_MEDIA_SCREENSHOT: Operation[DokimeMediaScreenshotRequest, DokimeMediaScreenshotResponse, Message, Message] = Operation(
     id="dokime.media.screenshot",
     version=1,
     mode="unary",
@@ -1962,9 +1934,7 @@ DOKIME_MEDIA_SCREENSHOT: Operation[
 DokimeNotesCreateNoteRequest = _wire_83.Row1
 DokimeNotesCreateNoteResponse = _wire_83.Row2
 
-DOKIME_NOTES_CREATE_NOTE: Operation[
-    DokimeNotesCreateNoteRequest, DokimeNotesCreateNoteResponse, Message, Message
-] = Operation(
+DOKIME_NOTES_CREATE_NOTE: Operation[DokimeNotesCreateNoteRequest, DokimeNotesCreateNoteResponse, Message, Message] = Operation(
     id="dokime.notes.create_note",
     version=1,
     mode="unary",
@@ -1983,9 +1953,7 @@ DOKIME_NOTES_CREATE_NOTE: Operation[
 DokimeNotesEditNoteRequest = _wire_84.Row1
 DokimeNotesEditNoteResponse = _wire_84.Row2
 
-DOKIME_NOTES_EDIT_NOTE: Operation[
-    DokimeNotesEditNoteRequest, DokimeNotesEditNoteResponse, Message, Message
-] = Operation(
+DOKIME_NOTES_EDIT_NOTE: Operation[DokimeNotesEditNoteRequest, DokimeNotesEditNoteResponse, Message, Message] = Operation(
     id="dokime.notes.edit_note",
     version=1,
     mode="unary",
@@ -2004,9 +1972,7 @@ DOKIME_NOTES_EDIT_NOTE: Operation[
 DokimeNotesListNotesRequest = _wire_85.Row1
 DokimeNotesListNotesResponse = _wire_85.Row2
 
-DOKIME_NOTES_LIST_NOTES: Operation[
-    DokimeNotesListNotesRequest, DokimeNotesListNotesResponse, Message, Message
-] = Operation(
+DOKIME_NOTES_LIST_NOTES: Operation[DokimeNotesListNotesRequest, DokimeNotesListNotesResponse, Message, Message] = Operation(
     id="dokime.notes.list_notes",
     version=1,
     mode="unary",
@@ -2171,9 +2137,7 @@ DOKIME_PLANNING_REGISTER_SELECTION: Operation[
 DokimePlotsListAnalysesRequest = _wire_93.Row1
 DokimePlotsListAnalysesResponse = _wire_93.Row2
 
-DOKIME_PLOTS_LIST_ANALYSES: Operation[
-    DokimePlotsListAnalysesRequest, DokimePlotsListAnalysesResponse, Message, Message
-] = Operation(
+DOKIME_PLOTS_LIST_ANALYSES: Operation[DokimePlotsListAnalysesRequest, DokimePlotsListAnalysesResponse, Message, Message] = Operation(
     id="dokime.plots.list_analyses",
     version=1,
     mode="unary",
@@ -2217,9 +2181,7 @@ DokimePlotsWatchRequest = _wire_95.Row1
 DokimePlotsWatchResponse = _wire_95.Row2
 DokimePlotsWatchOutput = _wire_95.Row3
 
-DOKIME_PLOTS_WATCH: Operation[
-    DokimePlotsWatchRequest, DokimePlotsWatchResponse, Message, DokimePlotsWatchOutput
-] = Operation(
+DOKIME_PLOTS_WATCH: Operation[DokimePlotsWatchRequest, DokimePlotsWatchResponse, Message, DokimePlotsWatchOutput] = Operation(
     id="dokime.plots.watch",
     version=1,
     mode="server_stream",
@@ -2238,9 +2200,7 @@ DOKIME_PLOTS_WATCH: Operation[
 DokimePluginsConsentRequest = _wire_97.Row1
 DokimePluginsConsentResponse = _wire_97.Row2
 
-DOKIME_PLUGINS_CONSENT: Operation[
-    DokimePluginsConsentRequest, DokimePluginsConsentResponse, Message, Message
-] = Operation(
+DOKIME_PLUGINS_CONSENT: Operation[DokimePluginsConsentRequest, DokimePluginsConsentResponse, Message, Message] = Operation(
     id="dokime.plugins.consent",
     version=1,
     mode="unary",
@@ -2331,9 +2291,7 @@ DOKIME_PLUGINS_LIST_INSTALLATIONS: Operation[
 DokimePluginsRemoveRequest = _wire_101.Row1
 DokimePluginsRemoveResponse = _wire_101.Row2
 
-DOKIME_PLUGINS_REMOVE: Operation[
-    DokimePluginsRemoveRequest, DokimePluginsRemoveResponse, Message, Message
-] = Operation(
+DOKIME_PLUGINS_REMOVE: Operation[DokimePluginsRemoveRequest, DokimePluginsRemoveResponse, Message, Message] = Operation(
     id="dokime.plugins.remove",
     version=1,
     mode="unary",
@@ -2352,9 +2310,7 @@ DOKIME_PLUGINS_REMOVE: Operation[
 DokimePluginsSetEnabledRequest = _wire_102.Row1
 DokimePluginsSetEnabledResponse = _wire_102.Row2
 
-DOKIME_PLUGINS_SET_ENABLED: Operation[
-    DokimePluginsSetEnabledRequest, DokimePluginsSetEnabledResponse, Message, Message
-] = Operation(
+DOKIME_PLUGINS_SET_ENABLED: Operation[DokimePluginsSetEnabledRequest, DokimePluginsSetEnabledResponse, Message, Message] = Operation(
     id="dokime.plugins.set_enabled",
     version=1,
     mode="unary",
@@ -2422,9 +2378,7 @@ DOKIME_PROMPTS_GET_DEFINITION: Operation[
 DokimePromptsGetPromptRequest = _wire_106.Row1
 DokimePromptsGetPromptResponse = _wire_106.Row2
 
-DOKIME_PROMPTS_GET_PROMPT: Operation[
-    DokimePromptsGetPromptRequest, DokimePromptsGetPromptResponse, Message, Message
-] = Operation(
+DOKIME_PROMPTS_GET_PROMPT: Operation[DokimePromptsGetPromptRequest, DokimePromptsGetPromptResponse, Message, Message] = Operation(
     id="dokime.prompts.get_prompt",
     version=1,
     mode="unary",
@@ -2467,9 +2421,7 @@ DOKIME_PROMPTS_LIST_DEFINITIONS: Operation[
 DokimePromptsListPendingRequest = _wire_108.Row1
 DokimePromptsListPendingResponse = _wire_108.Row2
 
-DOKIME_PROMPTS_LIST_PENDING: Operation[
-    DokimePromptsListPendingRequest, DokimePromptsListPendingResponse, Message, Message
-] = Operation(
+DOKIME_PROMPTS_LIST_PENDING: Operation[DokimePromptsListPendingRequest, DokimePromptsListPendingResponse, Message, Message] = Operation(
     id="dokime.prompts.list_pending",
     version=1,
     mode="unary",
@@ -2488,9 +2440,7 @@ DOKIME_PROMPTS_LIST_PENDING: Operation[
 DokimePromptsRespondRequest = _wire_109.Row1
 DokimePromptsRespondResponse = _wire_109.Row2
 
-DOKIME_PROMPTS_RESPOND: Operation[
-    DokimePromptsRespondRequest, DokimePromptsRespondResponse, Message, Message
-] = Operation(
+DOKIME_PROMPTS_RESPOND: Operation[DokimePromptsRespondRequest, DokimePromptsRespondResponse, Message, Message] = Operation(
     id="dokime.prompts.respond",
     version=1,
     mode="unary",
@@ -2509,9 +2459,7 @@ DOKIME_PROMPTS_RESPOND: Operation[
 DokimeQueryAggregateRequest = _wire_110.Row1
 DokimeQueryAggregateResponse = _wire_110.Row2
 
-DOKIME_QUERY_AGGREGATE: Operation[
-    DokimeQueryAggregateRequest, DokimeQueryAggregateResponse, Message, Message
-] = Operation(
+DOKIME_QUERY_AGGREGATE: Operation[DokimeQueryAggregateRequest, DokimeQueryAggregateResponse, Message, Message] = Operation(
     id="dokime.query.aggregate",
     version=1,
     mode="unary",
@@ -2604,9 +2552,7 @@ DOKIME_REPORTS_MATERIALIZE_REPORT: Operation[
 DokimeRuntimeHealthRequest = _wire_115.Row1
 DokimeRuntimeHealthResponse = _wire_115.Row2
 
-DOKIME_RUNTIME_HEALTH: Operation[
-    DokimeRuntimeHealthRequest, DokimeRuntimeHealthResponse, Message, Message
-] = Operation(
+DOKIME_RUNTIME_HEALTH: Operation[DokimeRuntimeHealthRequest, DokimeRuntimeHealthResponse, Message, Message] = Operation(
     id="dokime.runtime.health",
     version=1,
     mode="unary",
@@ -2625,9 +2571,7 @@ DOKIME_RUNTIME_HEALTH: Operation[
 DokimeRuntimeIdentityRequest = _wire_116.Row1
 DokimeRuntimeIdentityResponse = _wire_116.Row2
 
-DOKIME_RUNTIME_IDENTITY: Operation[
-    DokimeRuntimeIdentityRequest, DokimeRuntimeIdentityResponse, Message, Message
-] = Operation(
+DOKIME_RUNTIME_IDENTITY: Operation[DokimeRuntimeIdentityRequest, DokimeRuntimeIdentityResponse, Message, Message] = Operation(
     id="dokime.runtime.identity",
     version=1,
     mode="unary",
@@ -2982,9 +2926,7 @@ DOKIME_TELEMETRY_LIST_SAMPLES: Operation[
 HostOperationsRequest = _wire_131.Row1
 HostOperationsResponse = _wire_131.Row2
 
-HOST_OPERATIONS: Operation[
-    HostOperationsRequest, HostOperationsResponse, Message, Message
-] = Operation(
+HOST_OPERATIONS: Operation[HostOperationsRequest, HostOperationsResponse, Message, Message] = Operation(
     id="host.operations",
     version=1,
     mode="unary",

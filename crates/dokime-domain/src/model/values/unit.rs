@@ -56,38 +56,18 @@ pub enum UnitFamily {
 impl harmos::MemorySize for MeasurementUnit {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.symbol),
-                std::mem::size_of_val(&self.symbol),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.symbol), std::mem::size_of_val(&self.symbol)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl MeasurementUnit {
-    pub fn custom(
-        identifier: Identifier,
-        label: impl Into<String>,
-        symbol: impl Into<String>,
-    ) -> Self {
-        Self {
-            metadata: Metadata::new(identifier, label, None),
-            family: UnitFamily::Custom,
-            symbol: symbol.into(),
-        }
+    pub fn custom(identifier: Identifier, label: impl Into<String>, symbol: impl Into<String>) -> Self {
+        Self { metadata: Metadata::new(identifier, label, None), family: UnitFamily::Custom, symbol: symbol.into() }
     }
 }
 

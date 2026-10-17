@@ -24,8 +24,8 @@ use std::{
 
 // Local Imports
 use super::{
-    Client, Error, ExecutionRequestHandle, ResponseStream, Result, TestExecutionHandle, contracts,
-    validate_observed_cursor, validate_observed_epoch,
+    Client, Error, ExecutionRequestHandle, ResponseStream, Result, TestExecutionHandle, contracts, validate_observed_cursor,
+    validate_observed_epoch,
 };
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
@@ -60,11 +60,7 @@ impl Client {
     /// template named by its readable ID. Not idempotent: a retry after an
     /// ambiguous failure may leave an extra cycle.
     pub async fn plan_cycle(
-        &self,
-        suite: &str,
-        template: &str,
-        parameters: BTreeMap<String, dokime_domain::model::values::Value>,
-        label: Option<String>,
+        &self, suite: &str, template: &str, parameters: BTreeMap<String, dokime_domain::model::values::Value>, label: Option<String>,
     ) -> Result<TestCycleHandle> {
         let definition = self.suite(suite).await?;
         let (plan, default_label) = single_plan(&definition, template, parameters)?;
@@ -88,87 +84,48 @@ impl Client {
     }
 
     pub fn cycle(&self, id: TestCycleId) -> TestCycleHandle {
-        TestCycleHandle {
-            client: self.clone(),
-            id,
-        }
+        TestCycleHandle { client: self.clone(), id }
     }
 
     pub async fn preview_selection(
-        &self,
-        request: planning::PreviewSelection,
+        &self, request: planning::PreviewSelection,
     ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
         self.verify(true).await?;
-        let reply = self
-            .unary::<planning::PreviewSelection>(planning::PreviewSelection::PATH, request)
-            .await?;
-        validate_observed_epoch(
-            &self.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
+        let reply = self.unary::<planning::PreviewSelection>(planning::PreviewSelection::PATH, request).await?;
+        validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
     }
 
     pub async fn register_selection(
-        &self,
-        request: planning::RegisterSelection,
+        &self, request: planning::RegisterSelection,
     ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
-        dokime_domain::model::execution::command::validate_idempotency_key(
-            &request.idempotency_key,
-        )
-        .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
+            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.verify(true).await?;
-        let reply = self
-            .unary::<planning::RegisterSelection>(planning::RegisterSelection::PATH, request)
-            .await?;
-        validate_observed_epoch(
-            &self.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
+        let reply = self.unary::<planning::RegisterSelection>(planning::RegisterSelection::PATH, request).await?;
+        validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         for case in &reply.cases {
-            CaseId::from_wire(&case.case_id)
-                .map_err(|_| invalid("registered case has an invalid identity"))?;
+            CaseId::from_wire(&case.case_id).map_err(|_| invalid("registered case has an invalid identity"))?;
         }
         super::transport::value(reply)
     }
 
     pub async fn create_cycle(&self, request: contract::CreateCycle) -> Result<TestCycleHandle> {
         self.verify(true).await?;
-        let reply = self
-            .unary::<contract::CreateCycle>(contract::CreateCycle::PATH, request)
-            .await?;
-        validate_observed_epoch(
-            &self.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
-        let id = TestCycleId::from_uuid(&reply.cycle_id)
-            .map_err(|_| invalid("created cycle has an invalid identity"))?;
+        let reply = self.unary::<contract::CreateCycle>(contract::CreateCycle::PATH, request).await?;
+        validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
+        let id = TestCycleId::from_uuid(&reply.cycle_id).map_err(|_| invalid("created cycle has an invalid identity"))?;
         Ok(self.cycle(id))
     }
 }
 
 impl TestCycleHandle {
     pub fn samples(
-        &self,
-        streams: Vec<String>,
-        execution_id: Option<TestExecutionId>,
-        until: Option<&ExecutionRequestHandle>,
-        page_size: u32,
+        &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>, page_size: u32,
         interval: Option<Duration>,
     ) -> Result<ResponseStream<contracts::telemetry::TelemetrySamplesReply>> {
         let interval = super::execution::sample_interval(page_size, interval)?;
-        let until = until
-            .map(|request| request.bind_cycle(&self.client, &self.id))
-            .transpose()?;
+        let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
@@ -190,16 +147,7 @@ impl TestCycleHandle {
                     suite_id: None,
                     origin: None,
                 };
-                super::execution::read_samples(
-                    &handle.client,
-                    scope,
-                    streams,
-                    page_size,
-                    interval,
-                    completion,
-                    &sender,
-                )
-                .await
+                super::execution::read_samples(&handle.client, scope, streams, page_size, interval, completion, &sender).await
             }
             .await;
             if let Err(error) = result {
@@ -209,14 +157,9 @@ impl TestCycleHandle {
     }
 
     pub fn records(
-        &self,
-        record_types: Vec<String>,
-        execution_id: Option<TestExecutionId>,
-        until: Option<&ExecutionRequestHandle>,
+        &self, record_types: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>,
     ) -> Result<ResponseStream<contracts::evidence::RecordPage>> {
-        let until = until
-            .map(|request| request.bind_cycle(&self.client, &self.id))
-            .transpose()?;
+        let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
@@ -233,14 +176,7 @@ impl TestCycleHandle {
                     suite_id: None,
                     origin: None,
                 };
-                super::execution::read_records(
-                    &handle.client,
-                    scope,
-                    record_types,
-                    completion,
-                    &sender,
-                )
-                .await
+                super::execution::read_records(&handle.client, scope, record_types, completion, &sender).await
             }
             .await;
             if let Err(error) = result {
@@ -260,23 +196,8 @@ impl TestCycleHandle {
     pub async fn stop(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         use dokime_domain::operations::execution::StopCycle;
         self.client.verify(true).await?;
-        let reply = self
-            .client
-            .unary::<StopCycle>(
-                StopCycle::PATH,
-                StopCycle {
-                    cycle_id: self.id.to_string(),
-                    context: None,
-                },
-            )
-            .await?;
-        validate_observed_epoch(
-            &self.client.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
+        let reply = self.client.unary::<StopCycle>(StopCycle::PATH, StopCycle { cycle_id: self.id.to_string(), context: None }).await?;
+        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
     }
 
@@ -300,10 +221,7 @@ impl TestCycleHandle {
     /// Creation is not idempotent: every accepted call appends another attempt.
     /// Earlier attempts and their evidence are never reused or changed; admit
     /// the new one with [`Self::run_case`].
-    pub async fn schedule_rerun(
-        &self,
-        case_id: &str,
-    ) -> Result<contracts::execution::ControlReply> {
+    pub async fn schedule_rerun(&self, case_id: &str) -> Result<contracts::execution::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -313,22 +231,12 @@ impl TestCycleHandle {
                 context: None,
             })
             .await?;
-        validate_observed_epoch(
-            &self.client.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
+        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         Ok(reply)
     }
 
     /// Admit the case's queued attempt once under a caller-retained key.
-    pub async fn run_case(
-        &self,
-        case_id: &str,
-        key: &str,
-    ) -> Result<contracts::execution::Admission> {
+    pub async fn run_case(&self, case_id: &str, key: &str) -> Result<contracts::execution::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
@@ -346,17 +254,9 @@ impl TestCycleHandle {
 
     pub async fn snapshot(&self) -> Result<contracts::execution::CycleSummary> {
         self.client.verify(true).await?;
-        let snapshot = self
-            .client
-            .execution_get_cycle(contracts::execution::GetCycle {
-                cycle_id: self.id.to_string(),
-            })
-            .await?;
+        let snapshot = self.client.execution_get_cycle(contracts::execution::GetCycle { cycle_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &snapshot)?;
-        validate_observed_cursor(
-            &self.client.backend().epoch,
-            snapshot.observed_cursor.as_ref(),
-        )?;
+        validate_observed_cursor(&self.client.backend().epoch, snapshot.observed_cursor.as_ref())?;
         Ok(snapshot)
     }
 
@@ -373,17 +273,8 @@ impl TestCycleHandle {
                 let mut handles = Vec::new();
                 let mut seen = HashSet::new();
                 loop {
-                    let page = self
-                        .client
-                        .execution_list_executions(request.clone())
-                        .await?;
-                    let ids = execution_members(
-                        &self.client.backend().epoch,
-                        &request,
-                        &page,
-                        handles.len() as u64,
-                        &mut seen,
-                    )?;
+                    let page = self.client.execution_list_executions(request.clone()).await?;
+                    let ids = execution_members(&self.client.backend().epoch, &request, &page, handles.len() as u64, &mut seen)?;
                     handles.extend(ids.into_iter().map(|id| self.client.execution(id)));
                     match page.next_after_execution_id {
                         None => return Ok(handles),
@@ -400,28 +291,17 @@ impl TestCycleHandle {
     /// Appends the planned cases to this cycle; template selections continue
     /// the cycle's case numbering.
     pub async fn append_cases(
-        &self,
-        plan: dokime_domain::model::planning::wire::SelectionPlan,
+        &self, plan: dokime_domain::model::planning::wire::SelectionPlan,
     ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
             .unary::<contract::AppendPlannedCases>(
                 contract::AppendPlannedCases::PATH,
-                contract::AppendPlannedCases {
-                    cycle_id: self.id.to_string(),
-                    plan: Some(plan),
-                    context: None,
-                },
+                contract::AppendPlannedCases { cycle_id: self.id.to_string(), plan: Some(plan), context: None },
             )
             .await?;
-        validate_observed_epoch(
-            &self.client.backend().epoch,
-            reply
-                .observed_cursor
-                .as_ref()
-                .map(|cursor| cursor.epoch.as_str()),
-        )?;
+        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
     }
 }
@@ -430,14 +310,10 @@ impl TestCycleHandle {
 
 /* === Private Functions === */
 fn single_plan(
-    definition: &dokime_domain::model::catalog::wire::SuiteDefinition,
-    template: &str,
+    definition: &dokime_domain::model::catalog::wire::SuiteDefinition, template: &str,
     parameters: BTreeMap<String, dokime_domain::model::values::Value>,
 ) -> Result<(dokime_domain::model::planning::wire::SelectionPlan, String)> {
-    let identity = definition
-        .identity
-        .as_ref()
-        .ok_or_else(|| invalid("suite definition has no identity"))?;
+    let identity = definition.identity.as_ref().ok_or_else(|| invalid("suite definition has no identity"))?;
     // Templates are referenced by their readable id; the UUID stays internal.
     let selected = super::catalog::registered_template(definition, template)?;
     let plan = dokime_domain::model::planning::wire::SelectionPlan {
@@ -448,32 +324,21 @@ fn single_plan(
             template_id: selected.template_id.clone(),
             parameters: parameters
                 .into_iter()
-                .map(|(key, value)| {
-                    dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
-                        key,
-                        value: Some(dokime_domain::model::planning::wire::SelectionValues {
-                            values: vec![Value::from(value)],
-                        }),
-                    }
+                .map(|(key, value)| dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
+                    key,
+                    value: Some(dokime_domain::model::planning::wire::SelectionValues { values: vec![Value::from(value)] }),
                 })
                 .collect(),
             files: Vec::new(),
         }],
         cycle_id: String::new(),
     };
-    let label = selected
-        .metadata
-        .as_ref()
-        .map(|metadata| metadata.label.clone())
-        .unwrap_or_default();
+    let label = selected.metadata.as_ref().map(|metadata| metadata.label.clone()).unwrap_or_default();
     Ok((plan, label))
 }
 
 fn execution_members(
-    epoch: &str,
-    request: &contracts::execution::ListExecutions,
-    page: &contracts::execution::ListExecutionsReply,
-    first_ordinal: u64,
+    epoch: &str, request: &contracts::execution::ListExecutions, page: &contracts::execution::ListExecutionsReply, first_ordinal: u64,
     seen: &mut HashSet<TestExecutionId>,
 ) -> Result<Vec<TestExecutionId>> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;
@@ -481,9 +346,7 @@ fn execution_members(
         return Err(invalid("execution membership changed its runtime cursor"));
     }
     if page.executions.len() > request.limit as usize {
-        return Err(invalid(
-            "execution membership exceeds the requested page limit",
-        ));
+        return Err(invalid("execution membership exceeds the requested page limit"));
     }
     if let Some(after) = &page.next_after_execution_id
         && (after.is_empty() || page.executions.last().map(|row| &row.execution_id) != Some(after))
@@ -492,26 +355,18 @@ fn execution_members(
     }
     let mut ids = Vec::with_capacity(page.executions.len());
     for (offset, execution) in page.executions.iter().enumerate() {
-        let id = TestExecutionId::from_uuid(&execution.execution_id)
-            .map_err(|_| invalid("execution membership has an invalid identity"))?;
-        CaseId::from_wire(&execution.case_id)
-            .map_err(|_| invalid("execution membership has an invalid case identity"))?;
-        if first_ordinal.checked_add(offset as u64) != Some(execution.ordinal)
-            || !seen.insert(id.clone())
-        {
-            return Err(invalid(
-                "execution membership has repeated identity or invalid order",
-            ));
+        let id =
+            TestExecutionId::from_uuid(&execution.execution_id).map_err(|_| invalid("execution membership has an invalid identity"))?;
+        CaseId::from_wire(&execution.case_id).map_err(|_| invalid("execution membership has an invalid case identity"))?;
+        if first_ordinal.checked_add(offset as u64) != Some(execution.ordinal) || !seen.insert(id.clone()) {
+            return Err(invalid("execution membership has repeated identity or invalid order"));
         }
         ids.push(id);
     }
     Ok(ids)
 }
 
-fn validate_snapshot(
-    id: &TestCycleId,
-    snapshot: &contracts::execution::CycleSummary,
-) -> Result<()> {
+fn validate_snapshot(id: &TestCycleId, snapshot: &contracts::execution::CycleSummary) -> Result<()> {
     if snapshot.cycle_id != id.as_str() {
         return Err(invalid("cycle snapshot identity differs"));
     }

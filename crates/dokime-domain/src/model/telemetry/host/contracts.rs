@@ -152,9 +152,7 @@ impl FieldValue for HostTimestamp {
     }
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
-        Timestamp::from_value(value).map(|timestamp| Self {
-            value: timestamp.as_str().to_owned(),
-        })
+        Timestamp::from_value(value).map(|timestamp| Self { value: timestamp.as_str().to_owned() })
     }
 }
 
@@ -172,19 +170,11 @@ impl FieldValue for HostTextList {
 
 /* === Public Functions === */
 pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
-    HOST_STREAMS
-        .iter()
-        .copied()
-        .map(host_telemetry_contract)
-        .collect()
+    HOST_STREAMS.iter().copied().map(host_telemetry_contract).collect()
 }
 
 /* === Private Functions === */
-fn project_host_field(
-    values: &mut BTreeMap<String, Value>,
-    name: &str,
-    kind: ValueType,
-) -> Result<(), FieldError> {
+fn project_host_field(values: &mut BTreeMap<String, Value>, name: &str, kind: ValueType) -> Result<(), FieldError> {
     let member = match kind {
         ValueType::Datetime => "value",
         ValueType::Array => "values",
@@ -197,11 +187,7 @@ fn project_host_field(
         values.insert(name.to_owned(), value);
         return Ok(());
     }
-    let invalid = || FieldError {
-        field: name.to_owned(),
-        declared: kind.clone(),
-        found: Some("invalid host message value".to_owned()),
-    };
+    let invalid = || FieldError { field: name.to_owned(), declared: kind.clone(), found: Some("invalid host message value".to_owned()) };
     let Value::Object(mut object) = value else {
         return Err(invalid());
     };
@@ -210,9 +196,7 @@ fn project_host_field(
     }
     let value = object.remove(member).ok_or_else(invalid)?;
     let value = match (&kind, value) {
-        (ValueType::Datetime, Value::Text(text)) => {
-            Value::Datetime(Timestamp::new(text).to_datetime().map_err(|_| invalid())?)
-        }
+        (ValueType::Datetime, Value::Text(text)) => Value::Datetime(Timestamp::new(text).to_datetime().map_err(|_| invalid())?),
         (ValueType::Array, Value::Array(items)) => {
             if items.iter().any(|item| !matches!(item, Value::Text(_))) {
                 return Err(invalid());
@@ -225,18 +209,8 @@ fn project_host_field(
     Ok(())
 }
 
-fn column(
-    identifier_value: &str,
-    label: &str,
-    value_type: ValueType,
-    role: TelemetryRole,
-) -> TelemetryColumn {
-    TelemetryColumn::new(
-        Metadata::new(identifier(identifier_value), label, None),
-        value_type,
-        role,
-    )
-    .optional()
+fn column(identifier_value: &str, label: &str, value_type: ValueType, role: TelemetryRole) -> TelemetryColumn {
+    TelemetryColumn::new(Metadata::new(identifier(identifier_value), label, None), value_type, role).optional()
 }
 
 fn identifier(value: &str) -> Identifier {

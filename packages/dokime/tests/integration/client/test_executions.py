@@ -159,9 +159,7 @@ def test_callback_failure_isolated() -> None:
                     on_record=on_record,
                     poll_interval=0.005,
                 )
-            assert any(
-                isinstance(error, RuntimeError) for error in failed.value.exceptions
-            )
+            assert any(isinstance(error, RuntimeError) for error in failed.value.exceptions)
             assert server.stop_calls == 0
 
             outcome = await handle.wait(poll_interval=0.005)
@@ -307,9 +305,7 @@ def test_execution_mode_recovery() -> None:
             assert failure.mode == "interactive"
             assert failure.__cause__ is not None
 
-            recovered = await handle.start(
-                request_key=failure.request_key, mode=failure.mode
-            )
+            recovered = await handle.start(request_key=failure.request_key, mode=failure.mode)
             assert recovered.id == REQUEST_ID
             assert server.created == 0
             assert server.run_calls == 2
@@ -349,9 +345,7 @@ def test_malformed_checkpoint(mutation: str) -> None:
         async with serve() as (server, client):
             server.sealed.set()
             handle = await client.execution(EXECUTION_ID)
-            valid = _message(
-                "History", "GetExecutionCheckpoint", direction="response", path=""
-            )
+            valid = _message("History", "GetExecutionCheckpoint", direction="response", path="")
             valid.CopyFrom(server.point)
 
             field, value = MALFORMED_CHECKPOINTS[mutation]

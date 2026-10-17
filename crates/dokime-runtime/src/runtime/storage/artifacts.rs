@@ -28,20 +28,20 @@ use super::{
     executions::{Acquisition, ExecutionStorage},
     native_outputs::FrozenFile,
 };
-use crate::{runtime::Error, runtime::Result, RuntimeHandle, runtime::progress::Operation};
 use crate::artifacts::ArtifactRecord;
 use crate::artifacts::ArtifactStatus;
 use crate::artifacts::ArtifactUploadInput;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::identity::UploadId;
+use crate::{RuntimeHandle, runtime::Error, runtime::Result, runtime::progress::Operation};
 use dokime_domain::model::execution::saved::ExecutionCheckpoint as Checkpoint;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::execution::saved::SavedStreamState;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::identity::UploadId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 const CHUNK_BYTES: usize = 1024 * 1024;
@@ -108,33 +108,20 @@ impl ArtifactUpload {
         }
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
 
-        let chunk = Chunk {
-            upload: self.clone(),
-            bytes: bytes.to_vec(),
-        };
+        let chunk = Chunk { upload: self.clone(), bytes: bytes.to_vec() };
         let appended = tokio::spawn(async move {
             // Retain The Producer Token Through Admission
             let ingress = &chunk;
             let upload = &ingress.upload;
-            let owner = storage
-                .acquisition(&upload.execution)
-                .await
-                .ok_or_else(|| error("execution acquisition is closed"))?;
+            let owner = storage.acquisition(&upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
             let mut acquisition = owner.lock().await;
-            let state = acquisition
-                .artifacts
-                .get_mut(&upload.id)
-                .ok_or_else(|| error("artifact upload is missing"))?;
+            let state = acquisition.artifacts.get_mut(&upload.id).ok_or_else(|| error("artifact upload is missing"))?;
             append(state, &ingress.bytes).await
         })
         .await
         .map_err(error)
         .and_then(|appended| appended);
-        let sent = self
-            .progress
-            .sent
-            .fetch_add(bytes.len() as u64, Ordering::Relaxed)
-            + bytes.len() as u64;
+        let sent = self.progress.sent.fetch_add(bytes.len() as u64, Ordering::Relaxed) + bytes.len() as u64;
         let operation = &self.progress.operation;
         operation.progress(sent, self.progress.expected);
         operation.track(appended)
@@ -173,10 +160,7 @@ impl ArtifactUpload {
         tokio::spawn(async move {
             if let Some(owner) = storage.acquisition(&upload.execution).await {
                 let mut acquisition = owner.lock().await;
-                let state = acquisition
-                    .artifacts
-                    .get_mut(&upload.id)
-                    .ok_or_else(|| error("artifact upload is missing"))?;
+                let state = acquisition.artifacts.get_mut(&upload.id).ok_or_else(|| error("artifact upload is missing"))?;
                 if state.closing.is_none()
                     && let Some(value) = sha256
                 {
@@ -191,10 +175,7 @@ impl ArtifactUpload {
             }
             // A successful publication can retire its process-local owner.
             // Exact finish retries resolve the persisted identity instead.
-            let stored = storage
-                .find_artifact(&upload.id)
-                .await?
-                .ok_or_else(|| error("artifact upload is missing"))?;
+            let stored = storage.find_artifact(&upload.id).await?.ok_or_else(|| error("artifact upload is missing"))?;
             outcome(stored, complete)
         })
         .await
@@ -205,25 +186,14 @@ impl ArtifactUpload {
 impl RuntimeHandle {
     // Stores a finished local file as the artifact `name`, a relative path.
     pub async fn upload_artifact_file(
-        &self,
-        scope: dokime_domain::model::execution::RecordScope,
-        path: impl AsRef<std::path::Path>,
-        filename: String,
+        &self, scope: dokime_domain::model::execution::RecordScope, path: impl AsRef<std::path::Path>, filename: String,
         content_type: Option<String>,
     ) -> Result<ArtifactRecord> {
         use tokio::io::AsyncReadExt;
         let path = path.as_ref();
         let mut file = tokio::fs::File::open(path).await.map_err(error)?;
         let size_bytes = file.metadata().await.map_err(error)?.len();
-        let upload = self
-            .begin_artifact_upload(ArtifactUploadInput {
-                scope,
-                filename,
-                content_type,
-                size_bytes,
-                sha256: None,
-            })
-            .await?;
+        let upload = self.begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes, sha256: None }).await?;
         let mut buffer = vec![0; 64 * 1024];
         loop {
             let count = file.read(&mut buffer).await.map_err(error)?;
@@ -239,70 +209,39 @@ impl RuntimeHandle {
         self.execution_storage.artifact_reader(id).await
     }
     pub(crate) async fn capture_publication_scope(
-        &self,
-        scope: dokime_domain::model::execution::RecordScope,
+        &self, scope: dokime_domain::model::execution::RecordScope,
     ) -> Result<dokime_domain::model::execution::RecordScope> {
         let _order = self.telemetry_admission.lock().await;
-        self.state_manager
-            .state()
-            .read(move |state| state.capture_scope(&scope))
-            .await
-            .map_err(error)?
-            .value
-            .map_err(error)
+        self.state_manager.state().read(move |state| state.capture_scope(&scope)).await.map_err(error)?.value.map_err(error)
     }
 
-    pub async fn begin_artifact_upload(
-        &self,
-        mut input: ArtifactUploadInput,
-    ) -> Result<ArtifactUpload> {
+    pub async fn begin_artifact_upload(&self, mut input: ArtifactUploadInput) -> Result<ArtifactUpload> {
         let created_at = crate::model::time::now_utc();
         input.scope = self.capture_publication_scope(input.scope).await?;
         self.begin_captured_artifact_upload(input, created_at).await
     }
 
-    pub(crate) async fn begin_captured_artifact_upload(
-        &self,
-        input: ArtifactUploadInput,
-        created_at: Timestamp,
-    ) -> Result<ArtifactUpload> {
+    pub(crate) async fn begin_captured_artifact_upload(&self, input: ArtifactUploadInput, created_at: Timestamp) -> Result<ArtifactUpload> {
         validate_input(&input)?;
-        let id = input
-            .scope
-            .test_execution_id
-            .clone()
-            .ok_or_else(|| error("artifact execution scope is required"))?;
+        let id = input.scope.test_execution_id.clone().ok_or_else(|| error("artifact execution scope is required"))?;
         let (cycle, execution) = {
             let state = self.state_read();
-            let execution = state
-                .executions
-                .get(&id)
-                .ok_or_else(|| error("artifact execution not found"))?;
-            let cycle = state
-                .cycle_view(&execution.test_cycle_id)
-                .ok_or_else(|| error("artifact cycle not found"))?;
+            let execution = state.executions.get(&id).ok_or_else(|| error("artifact execution not found"))?;
+            let cycle = state.cycle_view(&execution.test_cycle_id).ok_or_else(|| error("artifact cycle not found"))?;
             if input.scope.test_cycle_id.as_ref() != Some(&cycle.test_cycle_id)
-                || input
-                    .scope
-                    .test_case_id
-                    .as_ref()
-                    .is_some_and(|case| case != &execution.test_case_id)
+                || input.scope.test_case_id.as_ref().is_some_and(|case| case != &execution.test_case_id)
             {
                 return Err(error("artifact scope does not match its execution"));
             }
             (cycle.clone(), execution.clone())
         };
-        let operation = self
-            .operation_progress()
-            .begin(format!("Storing {}", input.filename));
+        let operation = self.operation_progress().begin(format!("Storing {}", input.filename));
         operation.phase("Receiving");
         let storage = self.execution_storage.clone();
         let progress = operation.clone();
         let begun = tokio::spawn(async move {
             storage.prepare_execution(&cycle, &execution).await?;
-            storage
-                .begin_artifact(id, input, created_at, progress)
-                .await
+            storage.begin_artifact(id, input, created_at, progress).await
         })
         .await
         .map_err(error)
@@ -313,66 +252,40 @@ impl RuntimeHandle {
     pub async fn finish_execution_for_test(&self, id: &TestExecutionId) -> Result<()> {
         let (cycle, execution) = {
             let state = self.state_read();
-            let execution = state
-                .executions
-                .get(id)
-                .ok_or_else(|| error("artifact execution not found"))?;
-            let cycle = state
-                .cycle_view(&execution.test_cycle_id)
-                .ok_or_else(|| error("artifact cycle not found"))?;
+            let execution = state.executions.get(id).ok_or_else(|| error("artifact execution not found"))?;
+            let cycle = state.cycle_view(&execution.test_cycle_id).ok_or_else(|| error("artifact cycle not found"))?;
             (cycle.clone(), execution.clone())
         };
         self.finish_saved_execution(&cycle, &execution).await
     }
-    pub async fn checkpoint_artifact(
-        &self,
-        checkpoint: Checkpoint,
-        id: &ArtifactId,
-    ) -> Result<ArtifactReader> {
-        checkpoint
-            .validate()
-            .map_err(crate::storage::Error::from)?;
-        let inspection =
-            ExecutionView::open_checkpoint(&self.execution_storage.storage, &checkpoint)
-                .await?
-                .ok_or_else(|| error("artifact checkpoint is missing from its saved view"))?;
+    pub async fn checkpoint_artifact(&self, checkpoint: Checkpoint, id: &ArtifactId) -> Result<ArtifactReader> {
+        checkpoint.validate().map_err(crate::storage::Error::from)?;
+        let inspection = ExecutionView::open_checkpoint(&self.execution_storage.storage, &checkpoint)
+            .await?
+            .ok_or_else(|| error("artifact checkpoint is missing from its saved view"))?;
         ArtifactReader::open(&inspection, id).await
     }
 }
 
 impl ExecutionStorage {
     async fn begin_artifact(
-        self: Arc<Self>,
-        execution: TestExecutionId,
-        input: ArtifactUploadInput,
-        created_at: Timestamp,
-        operation: Operation,
+        self: Arc<Self>, execution: TestExecutionId, input: ArtifactUploadInput, created_at: Timestamp, operation: Operation,
     ) -> Result<ArtifactUpload> {
-        let acquisition_owner = self
-            .acquisition(&execution)
-            .await
-            .ok_or_else(|| error("execution has no open artifact acquisition"))?;
+        let acquisition_owner = self.acquisition(&execution).await.ok_or_else(|| error("execution has no open artifact acquisition"))?;
         let mut acquisition = acquisition_owner.lock().await;
         if acquisition.finish_requested
             || acquisition.outputs_sealed
             || acquisition.outputs_quiescent
             || acquisition.execution.saved.is_some()
         {
-            return Err(Error::conflict(
-                "execution_sealed",
-                "execution no longer accepts artifacts",
-            ));
+            return Err(Error::conflict("execution_sealed", "execution no longer accepts artifacts"));
         }
         let id = crate::model::identity::new_id::<ArtifactId>();
         let owner = Arc::new(());
         let filename = crate::exports::storage::paths::safe_artifact_path(&input.filename);
         let metadata = {
-            let mut metadata = Metadata::definition(
-                Identifier::new(id.as_str()).map_err(error)?,
-                &filename,
-                None,
-                std::iter::empty::<String>(),
-            );
+            let mut metadata =
+                Metadata::definition(Identifier::new(id.as_str()).map_err(error)?, &filename, None, std::iter::empty::<String>());
             metadata.created_at = Some(created_at.to_datetime().map_err(error)?);
             metadata
         };
@@ -385,15 +298,9 @@ impl ExecutionStorage {
             size_bytes: 0,
             sha256: None,
             status: ArtifactStatus::Staged,
-            created_at: Timestamp::from_datetime(
-                metadata.created_at.expect("runtime artifact creation time"),
-            ),
+            created_at: Timestamp::from_datetime(metadata.created_at.expect("runtime artifact creation time")),
         };
-        let progress = Arc::new(UploadProgress {
-            operation,
-            sent: AtomicU64::new(0),
-            expected: input.size_bytes,
-        });
+        let progress = Arc::new(UploadProgress { operation, sent: AtomicU64::new(0), expected: input.size_bytes });
         let state = Upload {
             file: tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?),
             closing: None,
@@ -408,13 +315,7 @@ impl ExecutionStorage {
         };
         acquisition.artifacts.insert(id.clone(), state);
         drop(acquisition);
-        Ok(ArtifactUpload {
-            storage: Arc::downgrade(&self),
-            execution,
-            id,
-            progress,
-            _owner: owner,
-        })
+        Ok(ArtifactUpload { storage: Arc::downgrade(&self), execution, id, progress, _owner: owner })
     }
 
     pub(crate) async fn artifact_records(&self) -> Result<Vec<ArtifactRecord>> {
@@ -433,11 +334,10 @@ impl ExecutionStorage {
                 found = Some(output.clone());
             }
             Ok(())
-        }).await?;
+        })
+        .await?;
         match found {
-            Some(output) => Ok(Some(
-                ArtifactReader::from_output(&self.storage, output).await?,
-            )),
+            Some(output) => Ok(Some(ArtifactReader::from_output(&self.storage, output).await?)),
             None => Ok(None),
         }
     }
@@ -483,10 +383,7 @@ pub(super) async fn checkpoint(acquisition: &mut Acquisition) -> Result<()> {
 }
 
 pub(super) fn has_live_upload(acquisition: &Acquisition) -> bool {
-    acquisition
-        .artifacts
-        .values()
-        .any(|upload| upload.closing.is_none() && upload.owner.upgrade().is_some())
+    acquisition.artifacts.values().any(|upload| upload.closing.is_none() && upload.owner.upgrade().is_some())
 }
 
 /* === Private Functions === */
@@ -494,25 +391,13 @@ async fn append(upload: &mut Upload, bytes: &[u8]) -> Result<()> {
     if upload.closing.is_some() || upload.record.status != ArtifactStatus::Staged {
         return Err(error("artifact upload is closed"));
     }
-    let size = upload
-        .record
-        .size_bytes
-        .checked_add(bytes.len() as u64)
-        .ok_or_else(|| error("artifact size overflow"))?;
+    let size = upload.record.size_bytes.checked_add(bytes.len() as u64).ok_or_else(|| error("artifact size overflow"))?;
     if size > upload.expected_size {
         return Err(error("artifact exceeds declared size"));
     }
     // Discard Only An Unacknowledged Private Write Prefix Before Retrying
-    upload
-        .file
-        .set_len(upload.record.size_bytes)
-        .await
-        .map_err(error)?;
-    upload
-        .file
-        .seek(std::io::SeekFrom::Start(upload.record.size_bytes))
-        .await
-        .map_err(error)?;
+    upload.file.set_len(upload.record.size_bytes).await.map_err(error)?;
+    upload.file.seek(std::io::SeekFrom::Start(upload.record.size_bytes)).await.map_err(error)?;
     upload.file.write_all(bytes).await.map_err(error)?;
     upload.digest.update(bytes);
     upload.record.size_bytes = size;
@@ -521,9 +406,7 @@ async fn append(upload: &mut Upload, bytes: &[u8]) -> Result<()> {
 
 fn outcome(record: ArtifactRecord, complete: bool) -> Result<ArtifactRecord> {
     if complete && record.status != ArtifactStatus::Complete {
-        return Err(error(
-            "artifact was cancelled or failed size/hash validation",
-        ));
+        return Err(error("artifact was cancelled or failed size/hash validation"));
     }
     Ok(record)
 }
@@ -532,18 +415,9 @@ async fn close(upload: &mut Upload, complete: bool) -> Result<()> {
     if upload.closing.is_some() {
         return Ok(());
     }
-    let digest = upload
-        .digest
-        .clone()
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    let valid = upload.record.size_bytes == upload.expected_size
-        && upload
-            .expected_digest
-            .as_ref()
-            .is_none_or(|expected| expected == &digest);
+    let digest = upload.digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let valid =
+        upload.record.size_bytes == upload.expected_size && upload.expected_digest.as_ref().is_none_or(|expected| expected == &digest);
     let status = if complete && valid {
         ArtifactStatus::Complete
     } else if complete {
@@ -567,60 +441,29 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
     }
     if upload.pending.is_none() {
         // The Private File Is Frozen By The Execution Gate And Closing Decision
-        upload
-            .file
-            .set_len(upload.record.size_bytes)
-            .await
-            .map_err(error)?;
+        upload.file.set_len(upload.record.size_bytes).await.map_err(error)?;
         upload.file.flush().await.map_err(error)?;
         let file = upload.file.try_clone().await.map_err(error)?;
-        let media_type = upload
-            .record
-            .content_type
-            .as_deref()
-            .unwrap_or("application/octet-stream");
+        let media_type = upload.record.content_type.as_deref().unwrap_or("application/octet-stream");
         let metadata = FileMetadata {
             id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
-            scope: upload
-                .record
-                .scope
-                .test_execution_id
-                .as_ref()
-                .map(|id| Identifier::new(id.as_str()))
-                .transpose()
-                .map_err(error)?,
+            scope: upload.record.scope.test_execution_id.as_ref().map(|id| Identifier::new(id.as_str())).transpose().map_err(error)?,
             media_type: media_type.to_owned(),
             expected_length: Some(upload.record.size_bytes),
             expected_sha256: Some(upload.digest.clone().finalize().into()),
         };
         upload.pending = Some(FrozenFile::new(file, metadata));
     }
-    let reference = upload
-        .pending
-        .as_mut()
-        .expect("original artifact producer retained")
-        .finish(storage)
-        .await?;
+    let reference = upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await?;
     let mut record = upload.record.clone();
     record.status = status.clone();
-    let relative_path = format!(
-        "{UPLOAD_PREFIX}{}/{}",
-        record.artifact_id.as_str(),
-        record.filename
-    );
+    let relative_path = format!("{UPLOAD_PREFIX}{}/{}", record.artifact_id.as_str(), record.filename);
     let descriptor = ExecutionOutput {
         relative_path,
         created_at: record.created_at.clone(),
         file: reference,
-        stream_state: Some(if *status == ArtifactStatus::Complete {
-            SavedStreamState::Finalized
-        } else {
-            SavedStreamState::Interrupted
-        }),
-        content: ExecutionOutputContent::Artifact {
-            record: Box::new(record),
-            metadata: upload.metadata.clone(),
-        },
+        stream_state: Some(if *status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted }),
+        content: ExecutionOutputContent::Artifact { record: Box::new(record), metadata: upload.metadata.clone() },
     };
     // A Refused Descriptor Retains The Original Finished Handle For Retry
     upload.record.status = status.clone();
@@ -630,22 +473,12 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
 }
 
 async fn save(acquisition: &mut Acquisition, id: &ArtifactId) -> Result<()> {
-    stage(
-        &acquisition.storage,
-        acquisition.artifacts.get_mut(id).unwrap(),
-    )
-    .await
+    stage(&acquisition.storage, acquisition.artifacts.get_mut(id).unwrap()).await
 }
 
 fn validate_input(input: &ArtifactUploadInput) -> Result<()> {
-    crate::artifacts::name::validate(&input.filename)
-        .map_err(|source| error(format!("invalid artifact name: {source}")))?;
-    if input
-        .content_type
-        .as_ref()
-        .is_some_and(|value| value.is_empty() || value.len() > 255)
-        || input.size_bytes > i64::MAX as u64
-    {
+    crate::artifacts::name::validate(&input.filename).map_err(|source| error(format!("invalid artifact name: {source}")))?;
+    if input.content_type.as_ref().is_some_and(|value| value.is_empty() || value.len() > 255) || input.size_bytes > i64::MAX as u64 {
         return Err(error("invalid artifact media type or size"));
     }
     if let Some(digest) = &input.sha256 {
@@ -656,9 +489,7 @@ fn validate_input(input: &ArtifactUploadInput) -> Result<()> {
 
 fn validate_digest(value: &str) -> Result<()> {
     if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(error(
-            "artifact sha256 must contain 64 hexadecimal characters",
-        ));
+        return Err(error("artifact sha256 must contain 64 hexadecimal characters"));
     }
     Ok(())
 }

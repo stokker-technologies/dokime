@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeek, AsyncSeekExt};
 // Local Imports
 use crate::runtime::storage::executions::ExecutionStorage;
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
@@ -63,10 +63,7 @@ enum TailError {
 /* === Implementations === */
 impl RuntimeHandle {
     pub async fn start_execution_log_tail(
-        &self,
-        execution: TestExecutionId,
-        relative_path: impl Into<String>,
-        source: impl Into<PathBuf>,
+        &self, execution: TestExecutionId, relative_path: impl Into<String>, source: impl Into<PathBuf>,
     ) -> Result<String> {
         let runtime = self.clone();
         let relative_path = relative_path.into();
@@ -76,25 +73,16 @@ impl RuntimeHandle {
             super::validate_relative_path(&path)?;
             let name = format!(
                 "execution-log:{execution}:{}",
-                Sha256::digest(path.as_bytes())
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>()
+                Sha256::digest(path.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
             );
             let preparation = runtime.execution_storage.prepare_tail_stop(&name)?;
             let mut stops = runtime.execution_storage.tail_stops.lock().await;
-            runtime
-                .execution_storage
-                .reserve_output(&execution, &path)
-                .await?;
+            runtime.execution_storage.reserve_output(&execution, &path).await?;
             let storage = runtime.execution_storage.clone();
             runtime
                 .operations
                 .register_service(
-                    harmos::services::ServiceDefinition {
-                        id: name.clone(),
-                        policy: harmos::services::POLICY,
-                    },
+                    harmos::services::ServiceDefinition { id: name.clone(), policy: harmos::services::POLICY },
                     move |_: Arc<()>| LogTail {
                         storage: Arc::clone(&storage),
                         source: source.clone(),
@@ -113,11 +101,7 @@ impl RuntimeHandle {
             let lease = match runtime.operations.submit_resident(&name).await {
                 Ok(lease) => lease,
                 Err(error) => {
-                    runtime
-                        .operations
-                        .unregister_resident(&name)
-                        .await
-                        .map_err(|error| Error::Operation(error.to_string()))?;
+                    runtime.operations.unregister_resident(&name).await.map_err(|error| Error::Operation(error.to_string()))?;
                     return Err(Error::Operation(error.to_string()));
                 }
             };
@@ -133,13 +117,7 @@ impl RuntimeHandle {
         let runtime = self.clone();
         let name = name.to_owned();
         tokio::spawn(async move {
-            let barrier = runtime
-                .execution_storage
-                .tail_stops
-                .lock()
-                .await
-                .get(&name)
-                .cloned();
+            let barrier = runtime.execution_storage.tail_stops.lock().await.get(&name).cloned();
             if let Some(barrier) = barrier {
                 let mut lease = barrier.lease.lock().await;
                 let released = match lease.take() {
@@ -160,10 +138,7 @@ impl RuntimeHandle {
         .await
         .map_err(|error| Error::Operation(error.to_string()))?
     }
-    pub(crate) async fn stop_execution_log_tails(
-        &self,
-        execution: Option<&TestExecutionId>,
-    ) -> Result<()> {
+    pub(crate) async fn stop_execution_log_tails(&self, execution: Option<&TestExecutionId>) -> Result<()> {
         let names = self.execution_storage.tail_names(execution).await?;
         let mut failure = None;
         for name in names.iter() {
@@ -185,9 +160,7 @@ impl RuntimeHandle {
         self.execution_storage.captures.close(execution).await;
         {
             let _starts = self.execution_storage.tail_stops.lock().await;
-            self.execution_storage
-                .seal_output_admission(execution)
-                .await?;
+            self.execution_storage.seal_output_admission(execution).await?;
         }
         self.stop_execution_log_tails(Some(execution)).await?;
         self.execution_storage.finish_outputs(execution).await
@@ -196,10 +169,7 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for LogTail {
     type Error = TailError;
-    async fn run(
-        &mut self,
-        mut context: Service<crate::app::Dokime>,
-    ) -> std::result::Result<(), Fault<TailError>> {
+    async fn run(&mut self, mut context: Service<crate::app::Dokime>) -> std::result::Result<(), Fault<TailError>> {
         self.pump(&mut context).await
     }
 
@@ -210,29 +180,18 @@ impl Resident<crate::app::Dokime> for LogTail {
         {
             // Drain The Original Tokio Read Or Seek Before Releasing Its File.
             // A Failed Blocking Join Must Not Be Polled Again On Cleanup Retry.
-            if let Err(error) = poll_fn(|context| Pin::new(&mut *file).poll_complete(context)).await
-            {
+            if let Err(error) = poll_fn(|context| Pin::new(&mut *file).poll_complete(context)).await {
                 self.source_failure = Some(error);
             }
         }
         if self.source_failure.is_none() && !self.drained {
             // Resume From The Acknowledged Prefix After Any Cancelled Append Wait.
-            self.offset = self
-                .storage
-                .log_prefix(&self.execution, &self.path)
-                .await
-                .map_err(TailError::Storage)?;
-            let file = self
-                .file
-                .as_mut()
-                .ok_or(TailError::State("log source is missing"))?;
+            self.offset = self.storage.log_prefix(&self.execution, &self.path).await.map_err(TailError::Storage)?;
+            let file = self.file.as_mut().ok_or(TailError::State("log source is missing"))?;
             let end = match self.final_end {
                 Some(end) => end,
                 None => {
-                    let end = file
-                        .seek(std::io::SeekFrom::End(0))
-                        .await
-                        .map_err(TailError::Source)?;
+                    let end = file.seek(std::io::SeekFrom::End(0)).await.map_err(TailError::Source)?;
                     self.final_end = Some(end);
                     end
                 }
@@ -242,16 +201,9 @@ impl Resident<crate::app::Dokime> for LogTail {
             }
             while self.offset < end {
                 let count = (end - self.offset).min(self.buffer.len() as u64) as usize;
-                file.seek(std::io::SeekFrom::Start(self.offset))
-                    .await
-                    .map_err(TailError::Source)?;
-                file.read_exact(&mut self.buffer[..count])
-                    .await
-                    .map_err(TailError::Source)?;
-                self.storage
-                    .append_output(&self.execution, &self.path, &self.buffer[..count])
-                    .await
-                    .map_err(TailError::Storage)?;
+                file.seek(std::io::SeekFrom::Start(self.offset)).await.map_err(TailError::Source)?;
+                file.read_exact(&mut self.buffer[..count]).await.map_err(TailError::Source)?;
+                self.storage.append_output(&self.execution, &self.path, &self.buffer[..count]).await.map_err(TailError::Storage)?;
                 self.offset += count as u64;
             }
             self.drained = true;
@@ -266,13 +218,8 @@ impl Resident<crate::app::Dokime> for LogTail {
             }
         }
         // Normal EOF Already Closed The Writer; This Also Settles Interrupted Attempts.
-        self.storage
-            .close_output(&self.execution, &self.path, self.source_failure.is_some())
-            .await
-            .map_err(TailError::Storage)?;
-        self.source_failure
-            .take()
-            .map_or(Ok(()), |error| Err(TailError::Source(error)))
+        self.storage.close_output(&self.execution, &self.path, self.source_failure.is_some()).await.map_err(TailError::Storage)?;
+        self.source_failure.take().map_or(Ok(()), |error| Err(TailError::Source(error)))
     }
 }
 
@@ -283,55 +230,34 @@ impl LogTail {
         };
         let result = opening.await;
         self.opening = None;
-        let file = result
-            .map_err(TailError::Opening)?
-            .map_err(TailError::Source)?;
+        let file = result.map_err(TailError::Opening)?.map_err(TailError::Source)?;
         let mut file = tokio::fs::File::from_std(file);
         file.set_max_buf_size(LOG_BUFFER_BYTES);
         self.file = Some(file);
         Ok(())
     }
 
-    async fn pump(
-        &mut self,
-        context: &mut Service<crate::app::Dokime>,
-    ) -> std::result::Result<(), Fault<TailError>> {
+    async fn pump(&mut self, context: &mut Service<crate::app::Dokime>) -> std::result::Result<(), Fault<TailError>> {
         // Resume From The Original Private Acknowledged Prefix.
-        self.offset = self
-            .storage
-            .log_prefix(&self.execution, &self.path)
-            .await
-            .map_err(storage_error)?;
+        self.offset = self.storage.log_prefix(&self.execution, &self.path).await.map_err(storage_error)?;
         if self.file.is_none() {
             if self.opening.is_none() {
                 let source = self.source.clone();
-                self.opening = Some(tokio::task::spawn_blocking(move || {
-                    std::fs::File::open(source)
-                }));
+                self.opening = Some(tokio::task::spawn_blocking(move || std::fs::File::open(source)));
             }
             self.finish_opening().await.map_err(Fault::Environmental)?;
         }
-        let file = self.file.as_mut().ok_or_else(|| {
-            Fault::Application(TailError::State("log source acquisition is missing"))
-        })?;
+        let file = self.file.as_mut().ok_or_else(|| Fault::Application(TailError::State("log source acquisition is missing")))?;
         context.ready();
 
         loop {
             // Observe stop before measuring EOF: the producer may append after
             // an earlier metadata read and then request this drain barrier.
             let stopping = context.is_stopping();
-            let length = file
-                .seek(std::io::SeekFrom::End(0))
-                .await
-                .map_err(|error| Fault::Environmental(TailError::Source(error)))?;
+            let length = file.seek(std::io::SeekFrom::End(0)).await.map_err(|error| Fault::Environmental(TailError::Source(error)))?;
             if length < self.offset {
-                self.storage
-                    .close_output(&self.execution, &self.path, true)
-                    .await
-                    .map_err(storage_error)?;
-                return Err(Fault::Application(TailError::State(
-                    "append-only log was truncated",
-                )));
+                self.storage.close_output(&self.execution, &self.path, true).await.map_err(storage_error)?;
+                return Err(Fault::Application(TailError::State("append-only log was truncated")));
             }
             if stopping && self.final_end.is_none() {
                 self.final_end = Some(length);
@@ -340,26 +266,15 @@ impl LogTail {
             if self.offset == end {
                 if self.final_end.is_some() {
                     self.drained = true;
-                    return self
-                        .storage
-                        .close_output(&self.execution, &self.path, false)
-                        .await
-                        .map_err(storage_error);
+                    return self.storage.close_output(&self.execution, &self.path, false).await.map_err(storage_error);
                 }
                 context.rest(std::time::Duration::from_millis(25)).await;
                 continue;
             }
             let count = (end - self.offset).min(self.buffer.len() as u64) as usize;
-            file.seek(std::io::SeekFrom::Start(self.offset))
-                .await
-                .map_err(|error| Fault::Environmental(TailError::Source(error)))?;
-            file.read_exact(&mut self.buffer[..count])
-                .await
-                .map_err(|error| Fault::Environmental(TailError::Source(error)))?;
-            self.storage
-                .append_output(&self.execution, &self.path, &self.buffer[..count])
-                .await
-                .map_err(storage_error)?;
+            file.seek(std::io::SeekFrom::Start(self.offset)).await.map_err(|error| Fault::Environmental(TailError::Source(error)))?;
+            file.read_exact(&mut self.buffer[..count]).await.map_err(|error| Fault::Environmental(TailError::Source(error)))?;
+            self.storage.append_output(&self.execution, &self.path, &self.buffer[..count]).await.map_err(storage_error)?;
             self.offset += count as u64;
         }
     }

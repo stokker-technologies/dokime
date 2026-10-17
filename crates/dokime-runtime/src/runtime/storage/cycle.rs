@@ -20,13 +20,13 @@ use std::sync::Arc;
 use harmos::storage::StorageCursor;
 
 // Local Imports
-use crate::{runtime::Error, runtime::Result, installed_plugins::RuntimeAppearanceFrame};
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::time::Timestamp;
+use crate::{installed_plugins::RuntimeAppearanceFrame, runtime::Error, runtime::Result};
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::execution::saved::validate_cycle_revisions;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -55,44 +55,26 @@ struct State {
 /* === Implementations === */
 impl CycleSnapshot {
     pub(crate) fn capture(
-        saved: StorageCursor,
-        source: Arc<TestCycle>,
-        revisions: Arc<Vec<ExecutionRevision>>,
-        appearance: Arc<RuntimeAppearanceFrame>,
+        saved: StorageCursor, source: Arc<TestCycle>, revisions: Arc<Vec<ExecutionRevision>>, appearance: Arc<RuntimeAppearanceFrame>,
         owner_node_id: &NodeId,
     ) -> Result<Self> {
         if source.saved.is_some() || source.session_id.is_none() {
-            return Err(invalid(
-                "final cycle snapshot requires an unsealed source and frozen session",
-            ));
+            return Err(invalid("final cycle snapshot requires an unsealed source and frozen session"));
         }
-        validate_cycle_revisions(&source, &saved, &revisions)
-            .map_err(crate::storage::Error::from)?;
+        validate_cycle_revisions(&source, &saved, &revisions).map_err(crate::storage::Error::from)?;
         // A Final Report Is Generated At Its Frozen Cycle's Last Update; The
         // Durable Publication Check Refuses Any Other Header Time.
         let captured_at = source.updated_at.clone();
-        Ok(Self(Arc::new(State {
-            saved,
-            source,
-            revisions,
-            appearance,
-            captured_at,
-            owner_node_id: owner_node_id.clone(),
-        })))
+        Ok(Self(Arc::new(State { saved, source, revisions, appearance, captured_at, owner_node_id: owner_node_id.clone() })))
     }
 
     /// Frozen Presentation Metadata For An Unsealed Cycle Report.
     /// The Operation Supplies Its Separately Materialized Member Inputs.
     pub(crate) fn current(
-        saved: StorageCursor,
-        source: Arc<TestCycle>,
-        appearance: Arc<RuntimeAppearanceFrame>,
-        owner_node_id: &NodeId,
+        saved: StorageCursor, source: Arc<TestCycle>, appearance: Arc<RuntimeAppearanceFrame>, owner_node_id: &NodeId,
     ) -> Result<Self> {
         if source.saved.is_some() || source.session_id.is_none() {
-            return Err(invalid(
-                "current cycle snapshot requires an unsealed source and its session",
-            ));
+            return Err(invalid("current cycle snapshot requires an unsealed source and its session"));
         }
         Ok(Self(Arc::new(State {
             saved,
@@ -124,11 +106,7 @@ impl CycleSnapshot {
         &self.0.owner_node_id
     }
     pub(crate) fn session_id(&self) -> &SessionId {
-        self.0
-            .source
-            .session_id
-            .as_ref()
-            .expect("validated frozen cycle session")
+        self.0.source.session_id.as_ref().expect("validated frozen cycle session")
     }
 }
 

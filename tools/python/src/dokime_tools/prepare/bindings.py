@@ -217,7 +217,7 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
     for relative in selected:
         (source / relative).write_bytes(generated[relative])
     paths = [str(source / relative) for relative in selected]
-    configuration = str(root / "packages/dokime/pyproject.toml")
+    configuration = str(root / "packages/dokime/ruff.toml")
     subprocess.run(
         [
             sys.executable,

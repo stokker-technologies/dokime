@@ -24,10 +24,10 @@ use std::collections::BTreeMap;
 use regex::{Regex, RegexBuilder};
 
 // Local Imports
-use dokime_domain::model::values::Value;
 use dokime_domain::model::files::wire::LineFieldKind;
 use dokime_domain::model::files::wire::LineMarker;
 use dokime_domain::model::files::wire::LineMatcher;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 // The most matchers and markers one watch may carry together.
@@ -71,16 +71,8 @@ pub struct LineBuffer {
 /* === Enums === */
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineMatch {
-    Row {
-        storage_schema: harmos::schema::graph::Schema,
-        stream: String,
-        values: BTreeMap<String, Value>,
-    },
-    Marker {
-        record_type: String,
-        details: BTreeMap<String, Value>,
-        line: String,
-    },
+    Row { storage_schema: harmos::schema::graph::Schema, stream: String, values: BTreeMap<String, Value> },
+    Marker { record_type: String, details: BTreeMap<String, Value>, line: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -105,10 +97,7 @@ pub enum InvalidLineMatcher {
 
 /* === Implementations === */
 impl LineMatchers {
-    pub fn compile(
-        matchers: &[LineMatcher],
-        markers: &[LineMarker],
-    ) -> Result<Self, InvalidLineMatcher> {
+    pub fn compile(matchers: &[LineMatcher], markers: &[LineMarker]) -> Result<Self, InvalidLineMatcher> {
         if matchers.len() + markers.len() > MAX_LINE_MATCHERS {
             return Err(InvalidLineMatcher::Count);
         }
@@ -133,30 +122,20 @@ impl LineMatchers {
                         Kind::String => LineFieldKind::Text,
                         _ => return true,
                     };
-                    matches!(
-                        field.cardinality,
-                        Cardinality::Repeated | Cardinality::Variant
-                    ) || !matcher
-                        .fields
-                        .iter()
-                        .any(|capture| capture.name == field.name && capture.kind == expected)
+                    matches!(field.cardinality, Cardinality::Repeated | Cardinality::Variant)
+                        || !matcher.fields.iter().any(|capture| capture.name == field.name && capture.kind == expected)
                 })
             {
                 return Err(InvalidLineMatcher::Schema { index });
             }
             let named = pattern.capture_names().flatten().collect::<Vec<_>>();
-            if declaration.iter().any(|field| {
-                field.cardinality == Cardinality::Required && !named.contains(&field.name.as_ref())
-            }) {
+            if declaration.iter().any(|field| field.cardinality == Cardinality::Required && !named.contains(&field.name.as_ref())) {
                 return Err(InvalidLineMatcher::Schema { index });
             }
             let mut fields = Vec::with_capacity(matcher.fields.len());
             for field in &matcher.fields {
                 if field.kind == LineFieldKind::Unspecified {
-                    return Err(InvalidLineMatcher::Field {
-                        index,
-                        field: field.name.clone(),
-                    });
+                    return Err(InvalidLineMatcher::Field { index, field: field.name.clone() });
                 }
                 // A column the pattern does not capture is left to its default.
                 if named.contains(&field.name.as_str()) {
@@ -210,11 +189,7 @@ impl LineMatchers {
                 }
             }
             if readable && !values.is_empty() {
-                found.push(LineMatch::Row {
-                    storage_schema: row.storage_schema.clone(),
-                    stream: row.stream.clone(),
-                    values,
-                });
+                found.push(LineMatch::Row { storage_schema: row.storage_schema.clone(), stream: row.stream.clone(), values });
             }
         }
         for (pattern, record_type) in &self.markers {
@@ -224,17 +199,9 @@ impl LineMatchers {
             let details = pattern
                 .capture_names()
                 .flatten()
-                .filter_map(|name| {
-                    captures
-                        .name(name)
-                        .map(|capture| (name.to_owned(), Value::Text(capture.as_str().to_owned())))
-                })
+                .filter_map(|name| captures.name(name).map(|capture| (name.to_owned(), Value::Text(capture.as_str().to_owned()))))
                 .collect();
-            found.push(LineMatch::Marker {
-                record_type: record_type.clone(),
-                details,
-                line: line.to_owned(),
-            });
+            found.push(LineMatch::Marker { record_type: record_type.clone(), details, line: line.to_owned() });
         }
         found
     }
@@ -283,26 +250,15 @@ fn pattern(index: usize, source: &str) -> Result<Regex, InvalidLineMatcher> {
     RegexBuilder::new(source)
         .size_limit(PATTERN_SIZE)
         .build()
-        .map_err(|source| InvalidLineMatcher::Pattern {
-            index,
-            reason: source.to_string(),
-        })
+        .map_err(|source| InvalidLineMatcher::Pattern { index, reason: source.to_string() })
 }
 
 fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
     let text = text.trim();
     match kind {
         LineFieldKind::Text => Some(Value::Text(text.to_owned())),
-        LineFieldKind::Integer => text
-            .parse::<i64>()
-            .ok()
-            .map(Value::Integer)
-            .or_else(|| text.parse::<u64>().ok().map(Value::Unsigned)),
-        LineFieldKind::Number => text
-            .parse::<f64>()
-            .ok()
-            .filter(|number| number.is_finite())
-            .map(Value::Number),
+        LineFieldKind::Integer => text.parse::<i64>().ok().map(Value::Integer).or_else(|| text.parse::<u64>().ok().map(Value::Unsigned)),
+        LineFieldKind::Number => text.parse::<f64>().ok().filter(|number| number.is_finite()).map(Value::Number),
         LineFieldKind::Boolean => match text.to_ascii_lowercase().as_str() {
             "true" | "1" | "yes" | "on" => Some(Value::Bool(true)),
             "false" | "0" | "no" | "off" => Some(Value::Bool(false)),
@@ -339,20 +295,11 @@ mod tests {
                 pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
                 stream: "bench.charger.log".into(),
                 fields: vec![
-                    LineField {
-                        name: "temperature_c".into(),
-                        kind: LineFieldKind::Number,
-                    },
-                    LineField {
-                        name: "state".into(),
-                        kind: LineFieldKind::Text,
-                    },
+                    LineField { name: "temperature_c".into(), kind: LineFieldKind::Number },
+                    LineField { name: "state".into(), kind: LineFieldKind::Text },
                 ],
             }],
-            &[LineMarker::new(
-                r"FAULT (?P<code>\w+)",
-                "bench.charger.fault",
-            )],
+            &[LineMarker::new(r"FAULT (?P<code>\w+)", "bench.charger.fault")],
         )
         .unwrap();
         let mut buffer = LineBuffer::default();
@@ -385,19 +332,13 @@ mod tests {
     #[test]
     fn malformed_matchers_are_refused() {
         let refused = LineMatchers::compile(&[], &[LineMarker::new("(", "x")]).unwrap_err();
-        assert!(matches!(
-            refused,
-            InvalidLineMatcher::Pattern { index: 0, .. }
-        ));
+        assert!(matches!(refused, InvalidLineMatcher::Pattern { index: 0, .. }));
         let unnamed = LineMatchers::compile(
             &[LineMatcher {
                 storage_schema: row_schema(),
                 pattern: r"(\d+)".into(),
                 stream: "s".into(),
-                fields: vec![LineField {
-                    name: "value".into(),
-                    kind: LineFieldKind::Integer,
-                }],
+                fields: vec![LineField { name: "value".into(), kind: LineFieldKind::Integer }],
             }],
             &[],
         )

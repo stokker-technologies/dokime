@@ -45,15 +45,9 @@ pub(crate) enum Command {
     Auth(auth::Command),
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
     Status(status::Args),
-    #[command(
-        subcommand,
-        about = "Manage Saved Backend Profiles Without Connecting."
-    )]
+    #[command(subcommand, about = "Manage Saved Backend Profiles Without Connecting.")]
     Backend(backend::Command),
-    #[command(
-        subcommand,
-        about = "Submit Cycles And Recover Durable Request Progress."
-    )]
+    #[command(subcommand, about = "Submit Cycles And Recover Durable Request Progress.")]
     Cycle(cycle::Command),
     #[command(subcommand, about = "Control One Execution Of A Cycle.")]
     Execution(execution::Command),

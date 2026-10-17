@@ -22,17 +22,17 @@ use harmos::storage::StorageCursor;
 use tokio::sync::Mutex;
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::request::RunPhase;
+use dokime_domain::model::execution::request::RunSummary;
+use dokime_domain::model::execution::request::StepCommandReceipt;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::request::RunSummary;
-use dokime_domain::model::execution::request::RunPhase;
-use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Constants === */
-const RECOVERY_INTERRUPTION: &str = "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";
-const INITIAL_INTERRUPTION: &str =
-    "Initial receipt publication was interrupted; no provider work was submitted.";
+const RECOVERY_INTERRUPTION: &str =
+    "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";
+const INITIAL_INTERRUPTION: &str = "Initial receipt publication was interrupted; no provider work was submitted.";
 const TERMINAL_INTERRUPTION: &str = "Run settled before command completion was recorded.";
 
 /* === Macros === */
@@ -66,44 +66,27 @@ pub(crate) struct RequestStorage {
 /* === Implementations === */
 impl<R: Clone + std::ops::Deref<Target = RunReceipt>> Pending<R> {
     fn new(receipt: R) -> Self {
-        Self {
-            receipt,
-            previous: None,
-            position: None,
-        }
+        Self { receipt, previous: None, position: None }
     }
 
     fn changed(receipt: R, previous: &R) -> Self {
-        Self {
-            receipt,
-            previous: Some(previous.clone()),
-            position: None,
-        }
+        Self { receipt, previous: Some(previous.clone()), position: None }
     }
 
     fn changed_commands(&self) -> impl Iterator<Item = (&CommandId, &StepCommandReceipt)> {
-        self.receipt.commands.iter().filter(|(id, command)| {
-            self.previous
-                .as_ref()
-                .is_none_or(|previous| previous.commands.get(*id) != Some(*command))
-        })
+        self.receipt
+            .commands
+            .iter()
+            .filter(|(id, command)| self.previous.as_ref().is_none_or(|previous| previous.commands.get(*id) != Some(*command)))
     }
 }
 
 impl RequestStorage {
     pub(crate) fn new(storage: crate::storage::Manager, node: NodeId) -> Self {
-        Self {
-            storage,
-            node,
-            now: crate::model::time::now_utc,
-            active: Mutex::new(BTreeMap::new()),
-        }
+        Self { storage, node, now: crate::model::time::now_utc, active: Mutex::new(BTreeMap::new()) }
     }
 
-    pub(crate) async fn recover<'a>(
-        &self,
-        completed: impl Fn(&CommandId) -> Option<&'a RunSummary>,
-    ) -> Result<()> {
+    pub(crate) async fn recover<'a>(&self, completed: impl Fn(&CommandId) -> Option<&'a RunSummary>) -> Result<()> {
         for id in native::pending(&self.storage, &self.node).await? {
             self.get_recovered(&id, completed(&id)).await?;
         }
@@ -114,11 +97,7 @@ impl RequestStorage {
         self.get_recovered(id, None).await
     }
 
-    async fn get_recovered(
-        &self,
-        id: &CommandId,
-        completed: Option<&RunSummary>,
-    ) -> Result<Option<Arc<RunReceipt>>> {
+    async fn get_recovered(&self, id: &CommandId, completed: Option<&RunSummary>) -> Result<Option<Arc<RunReceipt>>> {
         let (mut active, stored) = self.lock_read(id).await?;
         if let Some(stored) = stored {
             let Some(receipt) = stored else {
@@ -135,9 +114,7 @@ impl RequestStorage {
                     || summary.phase == RunPhase::Interrupted
                     || summary.finished_at.is_none())
             {
-                return Err(error(
-                    "saved completion differs from receipt identity or phase",
-                ));
+                return Err(error("saved completion differs from receipt identity or phase"));
             }
             let recovered = revise(&receipt, |receipt| {
                 if let Some(summary) = completed {
@@ -149,14 +126,7 @@ impl RequestStorage {
                 }
                 Ok(())
             })?;
-            active.insert(
-                id.clone(),
-                Active {
-                    pending: Some(Pending::changed(recovered, &receipt)),
-                    receipt,
-                    admitted: false,
-                },
-            );
+            active.insert(id.clone(), Active { pending: Some(Pending::changed(recovered, &receipt)), receipt, admitted: false });
         }
         let owner = active.get_mut(id).expect("request owner exists");
         self.publish(owner).await?;
@@ -176,23 +146,14 @@ impl RequestStorage {
         Ok(Some(receipt))
     }
 
-    pub(crate) async fn pending_command(
-        &self,
-        id: &CommandId,
-    ) -> Result<Option<StepCommandReceipt>> {
+    pub(crate) async fn pending_command(&self, id: &CommandId) -> Result<Option<StepCommandReceipt>> {
         let mut active = self.active.lock().await;
-        let owner = active
-            .get_mut(id)
-            .ok_or_else(|| error("request has no live command owner"))?;
+        let owner = active.get_mut(id).ok_or_else(|| error("request has no live command owner"))?;
         self.publish(owner).await?;
         if owner.receipt.summary.phase.terminal() {
             return Ok(None);
         }
-        let mut pending = owner
-            .receipt
-            .commands
-            .values()
-            .filter(|command| !command.phase.terminal());
+        let mut pending = owner.receipt.commands.values().filter(|command| !command.phase.terminal());
         let first = pending.next();
         if pending.next().is_some() {
             return Err(error("multiple unsettled commands"));
@@ -200,11 +161,7 @@ impl RequestStorage {
         Ok(first.cloned())
     }
 
-    pub(crate) async fn command(
-        &self,
-        id: &CommandId,
-        command: &CommandId,
-    ) -> Result<Option<StepCommandReceipt>> {
+    pub(crate) async fn command(&self, id: &CommandId, command: &CommandId) -> Result<Option<StepCommandReceipt>> {
         let Some(receipt) = self.get(id).await? else {
             return Ok(None);
         };
@@ -213,9 +170,7 @@ impl RequestStorage {
 
     pub(crate) async fn begin(&self, receipt: RunReceipt) -> Result<()> {
         if receipt.node_id != self.node || receipt.summary.phase.terminal() {
-            return Err(error(
-                "new request must belong to this node and be nonterminal",
-            ));
+            return Err(error("new request must belong to this node and be nonterminal"));
         }
         let receipt = Arc::new(receipt);
         let id = &receipt.summary.request_id;
@@ -223,32 +178,17 @@ impl RequestStorage {
         if stored.is_none_or(|stored| stored.is_some()) {
             return Err(error("request identity already exists"));
         }
-        active.insert(
-            id.clone(),
-            Active {
-                pending: Some(Pending::new(receipt.clone())),
-                receipt: receipt.clone(),
-                admitted: false,
-            },
-        );
+        active.insert(id.clone(), Active { pending: Some(Pending::new(receipt.clone())), receipt: receipt.clone(), admitted: false });
         let owner = active.get_mut(id).expect("request owner inserted");
         self.publish(owner).await?;
         owner.admitted = true;
         Ok(())
     }
 
-    pub(crate) async fn update(
-        &self,
-        id: &CommandId,
-        change: impl FnOnce(&mut RunReceipt),
-    ) -> Result<()> {
+    pub(crate) async fn update(&self, id: &CommandId, change: impl FnOnce(&mut RunReceipt)) -> Result<()> {
         let mut active = self.active.lock().await;
         let Some(owner) = active.get_mut(id) else {
-            if self
-                .read(id)
-                .await?
-                .is_some_and(|receipt| receipt.summary.phase.terminal())
-            {
+            if self.read(id).await?.is_some_and(|receipt| receipt.summary.phase.terminal()) {
                 return Ok(());
             }
             return Err(error("request has no active owner"));
@@ -261,10 +201,7 @@ impl RequestStorage {
             let now = (self.now)();
             let receipt = revise(&owner.receipt, |receipt| {
                 change(receipt);
-                if receipt.summary.request_id != *id
-                    || receipt.node_id != self.node
-                    || receipt.fingerprint != owner.receipt.fingerprint
-                {
+                if receipt.summary.request_id != *id || receipt.node_id != self.node || receipt.fingerprint != owner.receipt.fingerprint {
                     return Err(error("request identity cannot change"));
                 }
                 if receipt.summary.phase.terminal() {
@@ -286,12 +223,8 @@ impl RequestStorage {
 
     /// Reads Storage Without Holding The Request Registry, Then Rechecks Ownership.
     async fn lock_read(
-        &self,
-        id: &CommandId,
-    ) -> Result<(
-        tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active>>,
-        Option<Option<Arc<RunReceipt>>>,
-    )> {
+        &self, id: &CommandId,
+    ) -> Result<(tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active>>, Option<Option<Arc<RunReceipt>>>)> {
         let active = self.active.lock().await;
         if active.contains_key(id) {
             return Ok((active, None));
@@ -328,10 +261,7 @@ impl RequestStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn revise(
-    receipt: &Arc<RunReceipt>,
-    change: impl FnOnce(&mut RunReceipt) -> Result<()>,
-) -> Result<Arc<RunReceipt>> {
+fn revise(receipt: &Arc<RunReceipt>, change: impl FnOnce(&mut RunReceipt) -> Result<()>) -> Result<Arc<RunReceipt>> {
     let mut revised = (**receipt).clone();
     change(&mut revised)?;
     Ok(Arc::new(revised))

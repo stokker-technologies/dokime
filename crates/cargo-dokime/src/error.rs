@@ -57,9 +57,7 @@ impl From<dokime_packaging::Error> for Error {
 
 /* === Public Functions === */
 pub fn guest_refused(path: &str) -> Error {
-    Error::Invalid(format!(
-        "Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"
-    ))
+    Error::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
 
 /* === Private Functions === */

@@ -20,14 +20,13 @@ use std::mem::{size_of, size_of_val};
 use harmos::MemorySize;
 
 // Local Imports
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::values::Value;
 use crate::document::{
-    ArtifactListDescriptor, DocumentCardBody, DocumentCardDefinition, DocumentCardPayload,
-    DocumentFilter, PlotDescriptor, PlotInput, TelemetrySummaryGroupPayload,
-    TelemetrySummaryTilePayload,
+    ArtifactListDescriptor, DocumentCardBody, DocumentCardDefinition, DocumentCardPayload, DocumentFilter, PlotDescriptor, PlotInput,
+    TelemetrySummaryGroupPayload, TelemetrySummaryTilePayload,
 };
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -45,36 +44,20 @@ use crate::document::{
 
 /* === Public Functions === */
 pub(super) fn memory(
-    metadata: &Metadata,
-    filters: &Vec<DocumentFilter>,
-    body: &DocumentCardBody,
-    scope: &RecordScope,
-    largest_value: usize,
+    metadata: &Metadata, filters: &Vec<DocumentFilter>, body: &DocumentCardBody, scope: &RecordScope, largest_value: usize,
 ) -> usize {
-    let definition = size_of::<DocumentCardDefinition>()
-        .saturating_add(owned(metadata))
-        .saturating_add(owned(filters))
-        .saturating_add(owned(body));
+    let definition =
+        size_of::<DocumentCardDefinition>().saturating_add(owned(metadata)).saturating_add(owned(filters)).saturating_add(owned(body));
     let mut payload = size_of::<DocumentCardPayload>().saturating_add(owned(metadata));
     match body {
         DocumentCardBody::Text { markdown } => payload = payload.saturating_add(markdown.len()),
         DocumentCardBody::Table { rows } => payload = payload.saturating_add(owned(rows)),
         DocumentCardBody::TelemetrySummary { summary } => {
-            payload = payload.saturating_add(
-                summary
-                    .groups
-                    .len()
-                    .saturating_mul(size_of::<TelemetrySummaryGroupPayload>()),
-            );
+            payload = payload.saturating_add(summary.groups.len().saturating_mul(size_of::<TelemetrySummaryGroupPayload>()));
             for group in &summary.groups {
                 payload = payload
                     .saturating_add(owned(&group.metadata))
-                    .saturating_add(
-                        group
-                            .tiles
-                            .len()
-                            .saturating_mul(size_of::<TelemetrySummaryTilePayload>()),
-                    );
+                    .saturating_add(group.tiles.len().saturating_mul(size_of::<TelemetrySummaryTilePayload>()));
                 for tile in &group.tiles {
                     payload = payload
                         .saturating_add(owned(&tile.metadata))
@@ -88,9 +71,7 @@ pub(super) fn memory(
             // PlotInput clones a subset of these declared owned fields, plus
             // selection scope. No available-stream strings are built by current
             // resolution, which supplies the plot builder an empty sample slice.
-            let input = size_of::<PlotInput>()
-                .saturating_add(owned(plot.as_ref()))
-                .saturating_add(owned(scope));
+            let input = size_of::<PlotInput>().saturating_add(owned(plot.as_ref())).saturating_add(owned(scope));
             let descriptor = size_of::<PlotDescriptor>()
                 .saturating_add(owned(&plot.metadata))
                 .saturating_add(owned(&plot.metadata.identifier))
@@ -101,9 +82,7 @@ pub(super) fn memory(
         DocumentCardBody::Artifacts | DocumentCardBody::Media => {
             let descriptor = size_of::<ArtifactListDescriptor>().saturating_add(owned(scope));
             // The card owns one descriptor; artifact_lists retains another.
-            payload = payload
-                .saturating_add(descriptor)
-                .saturating_add(descriptor);
+            payload = payload.saturating_add(descriptor).saturating_add(descriptor);
         }
         DocumentCardBody::Steps
         | DocumentCardBody::Criteria
@@ -122,11 +101,7 @@ fn owned<T: MemorySize>(value: &T) -> usize {
 }
 
 fn heap(bytes: usize, inline: usize) -> usize {
-    if bytes == usize::MAX {
-        usize::MAX
-    } else {
-        bytes.saturating_sub(inline)
-    }
+    if bytes == usize::MAX { usize::MAX } else { bytes.saturating_sub(inline) }
 }
 
 /* === Tests === */

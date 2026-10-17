@@ -44,36 +44,20 @@ pub(super) fn selection(
 ) -> Result<dokime_runtime::analysis::Selection, Status> {
     value::text(&value.id)?;
     if value.id.is_empty() || value.version == 0 {
-        return Err(Status::invalid_argument(
-            "analysis requires an ID and positive version",
-        ));
+        return Err(Status::invalid_argument("analysis requires an ID and positive version"));
     }
-    let parameters = match value
-        .parameters
-        .map(|value| canonical::decode(value, &mut Budget::new(), 0))
-        .transpose()?
-    {
+    let parameters = match value.parameters.map(|value| canonical::decode(value, &mut Budget::new(), 0)).transpose()? {
         None => Default::default(),
         Some(dokime_domain::model::values::Value::Object(fields)) => fields,
         Some(_) => {
-            return Err(Status::invalid_argument(
-                "analysis parameters must be an object",
-            ));
+            return Err(Status::invalid_argument("analysis parameters must be an object"));
         }
     };
-    let selection = dokime_runtime::analysis::Selection {
-        id: value.id,
-        version: value.version,
-        parameters,
-    };
-    if serde_json::to_vec(&selection.parameters)
-        .map_err(|error| Status::invalid_argument(error.to_string()))?
-        .len()
+    let selection = dokime_runtime::analysis::Selection { id: value.id, version: value.version, parameters };
+    if serde_json::to_vec(&selection.parameters).map_err(|error| Status::invalid_argument(error.to_string()))?.len()
         > dokime_runtime::analysis::MAX_PARAMETER_BYTES
     {
-        return Err(Status::resource_exhausted(
-            "analysis configuration exceeds its budget",
-        ));
+        return Err(Status::resource_exhausted("analysis configuration exceeds its budget"));
     }
     Ok(selection)
 }
@@ -106,12 +90,10 @@ pub(super) fn definition(
                 key: output.key.clone(),
                 label: output.label.clone(),
                 unit: output.unit.clone(),
-                axis: output.axis.as_ref().map(|axis| {
-                    dokime_domain::model::plots::wire::AnalysisAxis {
-                        key: axis.key.clone(),
-                        unit: axis.unit.clone(),
-                    }
-                }),
+                axis: output
+                    .axis
+                    .as_ref()
+                    .map(|axis| dokime_domain::model::plots::wire::AnalysisAxis { key: axis.key.clone(), unit: axis.unit.clone() }),
             })
             .collect(),
         max_samples: definition.limits.max_samples,
@@ -128,23 +110,13 @@ pub(super) fn computation(
         source: Some(dokime_domain::model::plots::wire::AnalysisEvidence {
             epoch: computed.source.epoch,
             stream: computed.source.stream,
-            scope: computed
-                .source
-                .scope
-                .as_ref()
-                .map(canonical::scope)
-                .transpose()?,
+            scope: computed.source.scope.as_ref().map(canonical::scope).transpose()?,
             telemetry_streams: computed
                 .source
                 .cursor
                 .telemetry_streams
                 .into_iter()
-                .map(|(key, value)| {
-                    dokime_domain::model::plots::wire::AnalysisEvidenceTelemetryStreamsEntry {
-                        key,
-                        value,
-                    }
-                })
+                .map(|(key, value)| dokime_domain::model::plots::wire::AnalysisEvidenceTelemetryStreamsEntry { key, value })
                 .collect(),
             record_sequence: computed.source.cursor.record_sequence,
             window_s: computed.source.window_s,
@@ -166,11 +138,7 @@ pub(super) fn computation(
                     .outputs
                     .into_iter()
                     .map(|output| dokime_domain::model::plots::wire::AnalysisValues {
-                        display_indices: series
-                            .display_indices
-                            .get(&output.key)
-                            .cloned()
-                            .unwrap_or_default(),
+                        display_indices: series.display_indices.get(&output.key).cloned().unwrap_or_default(),
                         key: output.key,
                         unit: output.unit,
                         axis_unit: output.axis_unit,

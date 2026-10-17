@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Runtime Creation Of Domain Values.
 
 /* === Modules === */
@@ -23,7 +22,6 @@ pub mod time;
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 

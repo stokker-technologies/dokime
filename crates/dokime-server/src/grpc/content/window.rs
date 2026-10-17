@@ -38,8 +38,7 @@ use dokime_runtime::ExecutionFileContent;
 
 /* === Public Functions === */
 pub(super) fn project(
-    content: &ExecutionFileContent,
-    maximum: usize,
+    content: &ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
     let wire = dokime_domain::model::content::wire::ExecutionFileWindow {
         relative_path: text(&content.relative_path)?,
@@ -57,8 +56,7 @@ pub(super) fn project(
 }
 
 pub(in crate::grpc) fn owned(
-    content: ExecutionFileContent,
-    maximum: usize,
+    content: ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
     let response = dokime_domain::model::content::wire::ExecutionFileWindow {
         kind: files::kind(&content.content_kind),
@@ -78,9 +76,7 @@ pub(in crate::grpc) fn owned(
 /* === Private Functions === */
 fn text(source: &str) -> harmos::Result<String> {
     let mut target = String::new();
-    target
-        .try_reserve_exact(source.len())
-        .map_err(|_| exhausted())?;
+    target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
     if target.capacity() > source.len() {
         return Err(exhausted());
     }
@@ -90,9 +86,7 @@ fn text(source: &str) -> harmos::Result<String> {
 
 fn bytes(source: &[u8]) -> harmos::Result<Vec<u8>> {
     let mut target = Vec::new();
-    target
-        .try_reserve_exact(source.len())
-        .map_err(|_| exhausted())?;
+    target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
     if target.capacity() > source.len() {
         return Err(exhausted());
     }
@@ -101,9 +95,7 @@ fn bytes(source: &[u8]) -> harmos::Result<Vec<u8>> {
 }
 
 fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "canonical file window projection",
-    }
+    harmos::Error::ResourceExhausted { resource: "canonical file window projection" }
 }
 
 /* === Tests === */

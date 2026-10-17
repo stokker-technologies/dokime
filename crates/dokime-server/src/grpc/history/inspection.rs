@@ -64,35 +64,22 @@ impl Operation for Inspect {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut history::GetExecutionCheckpoint,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut history::GetExecutionCheckpoint, _: &mut (),
     ) -> Result<Response<checkpoint::ExecutionCheckpoint>, Status> {
         value::text(&request.execution_identifier)?;
         let id = TestExecutionId::from_uuid(request.execution_identifier.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
-        let response = self
-            .resources
-            .runtime
-            .execution_saved_checkpoint(id)
-            .await
-            .map_err(|source| match source {
-                dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound {
-                    ..
-                }) => detailed(Status::not_found("execution has no saved seal"), &source),
-                source => wire::query_failure(source),
-            })?;
-        project(&response, self.resources.max_message_bytes)
-            .map(Into::into)
-            .map_err(|source| wire::query_failure(source.into()))
+        let response = self.resources.runtime.execution_saved_checkpoint(id).await.map_err(|source| match source {
+            dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
+                detailed(Status::not_found("execution has no saved seal"), &source)
+            }
+            source => wire::query_failure(source),
+        })?;
+        project(&response, self.resources.max_message_bytes).map(Into::into).map_err(|source| wire::query_failure(source.into()))
     }
 }
 
@@ -102,42 +89,23 @@ impl Operation for Delete {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut history::DeleteExecution,
-        _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::DeleteExecutionResponse>, Status>
-    {
-        if self
-            .resources
-            .runtime
-            .watch_state()
-            .latest()
-            .state()
-            .shutting_down
-        {
+        &mut self, _: Self::Context<'a>, request: &mut history::DeleteExecution, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::history::wire::DeleteExecutionResponse>, Status> {
+        if self.resources.runtime.watch_state().latest().state().shutting_down {
             return Err(Status::unavailable("listener is stopping"));
         }
         wire::checkpoint(request.checkpoint.take())?;
         wire::deletion_request_identifier(request.request_identifier.clone())?;
-        Err(Status::unimplemented(
-            "execution deletion is not supported by native storage",
-        ))
+        Err(Status::unimplemented("execution deletion is not supported by native storage"))
     }
 }
 
 /* === Public Functions === */
-pub(in crate::grpc) fn register(
-    runtime: &RuntimeHandle,
-    max_message_bytes: usize,
-) -> Result<(), crate::grpc::Error> {
+pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     super::browse::register(runtime, max_message_bytes)?;
     super::read::register(runtime, max_message_bytes)?;
     super::window::register(runtime, max_message_bytes)?;
@@ -146,33 +114,21 @@ pub(in crate::grpc) fn register(
     super::evidence::register(runtime, max_message_bytes)?;
     super::capture::register(runtime, max_message_bytes)?;
     super::context::register(runtime, max_message_bytes)?;
-    runtime
-        .operations()
-        .register_wire_operations::<Operations, Resources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            Arc::new(Resources {
-                runtime: runtime.clone(),
-                max_message_bytes,
-            }),
-        )?;
+    runtime.operations().register_wire_operations::<Operations, Resources>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+    )?;
     Ok(())
 }
 
 /* === Private Functions === */
-pub(super) fn project(
-    source: &ExecutionCheckpoint,
-    maximum: usize,
-) -> harmos::Result<checkpoint::ExecutionCheckpoint> {
+pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::Result<checkpoint::ExecutionCheckpoint> {
     let value = wire::checkpoint_wire_ref(source).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
         }
-        harmos::Error::backend(
-            "project inspected execution checkpoint",
-            harmos::BackendFailure::Corrupt,
-            source,
-        )
+        harmos::Error::backend("project inspected execution checkpoint", harmos::BackendFailure::Corrupt, source)
     })?;
     if Protobuf::encoded_len(&value) > maximum {
         return Err(exhausted());
@@ -180,9 +136,7 @@ pub(super) fn project(
     Ok(value)
 }
 fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "historical checkpoint response",
-    }
+    harmos::Error::ResourceExhausted { resource: "historical checkpoint response" }
 }
 
 /* === Tests === */

@@ -17,11 +17,11 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::diagnostics::Diagnostic;
+use crate::records::RecordSeverity;
+use dokime_domain::model::records::error::RecordErrorDetail;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::diagnostics::Diagnostic;
-use dokime_domain::model::records::error::RecordErrorDetail;
-use crate::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -107,10 +107,7 @@ pub struct ProviderTelemetryRow {
 impl ProviderTelemetryRow {
     pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
         let payload = row.encode_to_vec();
-        Self {
-            values: row.into_row(),
-            payload,
-        }
+        Self { values: row.into_row(), payload }
     }
 }
 
@@ -175,13 +172,7 @@ impl ProviderCycleOutcome {
 
 impl ProviderExecutionFailure {
     pub fn new(stage: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            stage: stage.into(),
-            template_identifier: None,
-            module: None,
-            message: message.into(),
-            detail: None,
-        }
+        Self { stage: stage.into(), template_identifier: None, module: None, message: message.into(), detail: None }
     }
 
     #[must_use]

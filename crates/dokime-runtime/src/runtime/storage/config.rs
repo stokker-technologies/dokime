@@ -19,9 +19,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{
-    StorageBudget, StorageRequestSettings, StorageResponseSettings, StorageSettings,
-};
+use harmos::storage::{StorageBudget, StorageRequestSettings, StorageResponseSettings, StorageSettings};
 
 // Local Imports
 
@@ -46,13 +44,9 @@ use harmos::storage::{
 pub fn storage_defaults() -> StorageSettings {
     let memory = effective_memory();
     let read = nonzero(memory / 4);
-    let active = std::thread::available_parallelism()
-        .map_or(4, NonZeroUsize::get)
-        .clamp(4, 16);
+    let active = std::thread::available_parallelism().map_or(4, NonZeroUsize::get).clamp(4, 16);
     StorageSettings {
-        budget: StorageBudget {
-            read_memory_bytes: read,
-        },
+        budget: StorageBudget { read_memory_bytes: read },
         request: StorageRequestSettings {
             max_pending_queries: nonzero(128),
             max_active_queries: nonzero(active),
@@ -74,19 +68,14 @@ fn nonzero(value: usize) -> NonZeroUsize {
 }
 
 fn effective_memory() -> usize {
-    let system = sysinfo::System::new_with_specifics(
-        sysinfo::RefreshKind::nothing()
-            .with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram()),
-    );
+    let system =
+        sysinfo::System::new_with_specifics(sysinfo::RefreshKind::nothing().with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram()));
     let physical = match system.total_memory() {
         0 => 4 * 1024 * 1024 * 1024,
         bytes => bytes,
     };
-    let effective = system
-        .cgroup_limits()
-        .map(|limits| limits.total_memory)
-        .filter(|bytes| *bytes > 0)
-        .map_or(physical, |bytes| physical.min(bytes));
+    let effective =
+        system.cgroup_limits().map(|limits| limits.total_memory).filter(|bytes| *bytes > 0).map_or(physical, |bytes| physical.min(bytes));
     usize::try_from(effective).unwrap_or(usize::MAX)
 }
 

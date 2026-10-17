@@ -63,10 +63,7 @@ impl Client {
     }
 
     pub fn execution(&self, id: TestExecutionId) -> TestExecutionHandle {
-        TestExecutionHandle {
-            client: self.clone(),
-            id,
-        }
+        TestExecutionHandle { client: self.clone(), id }
     }
 }
 
@@ -80,33 +77,22 @@ impl ExecutionRequestHandle {
     }
 
     pub(super) fn bind_cycle(&self, client: &Client, cycle: &TestCycleId) -> Result<Self> {
-        if !Arc::ptr_eq(&self.client.inner, &client.inner)
-            || self.cycle.get_or_init(|| cycle.clone()) != cycle
-        {
-            return Err(Error::Rpc(tonic::Status::invalid_argument(
-                "request belongs to another cycle or connection",
-            )));
+        if !Arc::ptr_eq(&self.client.inner, &client.inner) || self.cycle.get_or_init(|| cycle.clone()) != cycle {
+            return Err(Error::Rpc(tonic::Status::invalid_argument("request belongs to another cycle or connection")));
         }
         Ok(self.clone())
     }
 
     pub(super) fn new(client: Client, id: CommandId, cycle: Option<TestCycleId>) -> Self {
         let bound = cycle.map(OnceLock::from).unwrap_or_default();
-        Self {
-            client,
-            id,
-            cycle: Arc::new(bound),
-        }
+        Self { client, id, cycle: Arc::new(bound) }
     }
 
     pub fn id(&self) -> &CommandId {
         &self.id
     }
 
-    pub fn updates(
-        &self,
-        interval: Option<std::time::Duration>,
-    ) -> Result<ResponseStream<contracts::execution::RunRequestReceipt>> {
+    pub fn updates(&self, interval: Option<std::time::Duration>) -> Result<ResponseStream<contracts::execution::RunRequestReceipt>> {
         let interval = poll_interval(interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -137,20 +123,14 @@ impl ExecutionRequestHandle {
 
     pub async fn status(&self) -> Result<contracts::execution::RunRequestReceipt> {
         self.client.verify(false).await?;
-        let receipt = self
-            .client
-            .execution_get_run_request(contracts::execution::GetRunRequest {
-                request_id: self.id.to_string(),
-            })
-            .await?;
+        let receipt =
+            self.client.execution_get_run_request(contracts::execution::GetRunRequest { request_id: self.id.to_string() }).await?;
         validate_request_receipt(&self.id, &self.cycle, &receipt)?;
         Ok(receipt)
     }
 
     pub async fn wait(
-        &self,
-        timeout: Option<std::time::Duration>,
-        interval: Option<std::time::Duration>,
+        &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
     ) -> Result<contracts::execution::RunRequestReceipt> {
         let interval = poll_interval(interval)?;
         let wait = self.client.guard(async {
@@ -163,9 +143,7 @@ impl ExecutionRequestHandle {
             }
         });
         match timeout {
-            Some(timeout) => tokio::time::timeout(timeout, wait)
-                .await
-                .map_err(|source| Error::WaitTimedOut { source })??,
+            Some(timeout) => tokio::time::timeout(timeout, wait).await.map_err(|source| Error::WaitTimedOut { source })??,
             None => wait.await?,
         }
     }
@@ -178,17 +156,9 @@ impl TestExecutionHandle {
 
     pub async fn snapshot(&self) -> Result<contracts::execution::ExecutionDetail> {
         self.client.verify(true).await?;
-        let detail = self
-            .client
-            .execution_get_execution(contracts::execution::GetExecution {
-                execution_id: self.id.to_string(),
-            })
-            .await?;
+        let detail = self.client.execution_get_execution(contracts::execution::GetExecution { execution_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &detail)?;
-        validate_observed_cursor(
-            &self.client.backend().epoch,
-            detail.observed_cursor.as_ref(),
-        )?;
+        validate_observed_cursor(&self.client.backend().epoch, detail.observed_cursor.as_ref())?;
         Ok(detail)
     }
 
@@ -196,34 +166,27 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
-                execution_identifier: self.id.to_string(),
-            })
+            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint { execution_identifier: self.id.to_string() })
             .await?;
         validate_checkpoint(&self.id, &checkpoint)?;
         Ok(checkpoint)
     }
 
     pub async fn document_at(
-        &self,
-        checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
+        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
     ) -> Result<contracts::history::CheckpointDocument> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
         let document = self
             .client
-            .history_get_checkpoint_document(contracts::history::GetCheckpointDocument {
-                checkpoint: Some(checkpoint.clone()),
-            })
+            .history_get_checkpoint_document(contracts::history::GetCheckpointDocument { checkpoint: Some(checkpoint.clone()) })
             .await?;
         validate_outcome(&self.id, checkpoint, &document)?;
         Ok(document)
     }
 
     pub async fn wait(
-        &self,
-        timeout: Option<std::time::Duration>,
-        interval: Option<std::time::Duration>,
+        &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
     ) -> Result<contracts::history::CheckpointDocument> {
         let interval = poll_interval(interval)?;
         let wait = self.client.guard(async {
@@ -243,18 +206,12 @@ impl TestExecutionHandle {
             }
         });
         match timeout {
-            Some(timeout) => tokio::time::timeout(timeout, wait)
-                .await
-                .map_err(|source| Error::WaitTimedOut { source })??,
+            Some(timeout) => tokio::time::timeout(timeout, wait).await.map_err(|source| Error::WaitTimedOut { source })??,
             None => wait.await?,
         }
     }
 
-    pub async fn start(
-        &self,
-        key: &str,
-        mode: ExecutionMode,
-    ) -> Result<contracts::execution::Admission> {
+    pub async fn start(&self, key: &str, mode: ExecutionMode) -> Result<contracts::execution::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
@@ -275,9 +232,7 @@ impl TestExecutionHandle {
     }
 
     pub async fn command_receipt(
-        &self,
-        request_id: &CommandId,
-        command_id: &CommandId,
+        &self, request_id: &CommandId, command_id: &CommandId,
     ) -> Result<contracts::execution::ExecutionCommandReceipt> {
         self.client.verify(false).await?;
         let receipt = self
@@ -292,18 +247,12 @@ impl TestExecutionHandle {
     }
 
     pub async fn command(
-        &self,
-        request_id: &CommandId,
-        command_id: &CommandId,
-        command: &StepCommand,
+        &self, request_id: &CommandId, command_id: &CommandId, command: &StepCommand,
     ) -> Result<contracts::execution::ExecutionCommandReceipt> {
         self.client.verify(true).await?;
         let (action, step_id) = match command {
             StepCommand::Next => (contracts::execution::ExecutionCommandAction::Next, None),
-            StepCommand::RunStep { step_id } => (
-                contracts::execution::ExecutionCommandAction::RunStep,
-                Some(step_id.to_string()),
-            ),
+            StepCommand::RunStep { step_id } => (contracts::execution::ExecutionCommandAction::RunStep, Some(step_id.to_string())),
             StepCommand::Finish => (contracts::execution::ExecutionCommandAction::Finish, None),
         };
         let request = contracts::execution::SubmitExecutionCommand {
@@ -313,10 +262,7 @@ impl TestExecutionHandle {
             action,
             step_id,
         };
-        let receipt = self
-            .client
-            .execution_submit_execution_command(request.clone())
-            .await?;
+        let receipt = self.client.execution_submit_execution_command(request.clone()).await?;
         validate_command_receipt(&self.id, request_id, command_id, &receipt)?;
         if receipt.action != request.action || receipt.step_id != request.step_id {
             return Err(invalid("command receipt differs from submitted action"));
@@ -328,10 +274,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::PauseExecution {
-                execution_id: self.id.to_string(),
-                context: None,
-            })
+            .execution_pause_execution(contracts::execution::PauseExecution { execution_id: self.id.to_string(), context: None })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -341,10 +284,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ResumeExecution {
-                execution_id: self.id.to_string(),
-                context: None,
-            })
+            .execution_resume_execution(contracts::execution::ResumeExecution { execution_id: self.id.to_string(), context: None })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -354,10 +294,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::StopExecution {
-                execution_id: self.id.to_string(),
-                context: None,
-            })
+            .execution_stop_execution(contracts::execution::StopExecution { execution_id: self.id.to_string(), context: None })
             .await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         Ok(reply)
@@ -365,18 +302,13 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
-pub(super) fn admission(
-    epoch: &str,
-    reply: contracts::execution::RunReply,
-) -> Result<contracts::execution::Admission> {
+pub(super) fn admission(epoch: &str, reply: contracts::execution::RunReply) -> Result<contracts::execution::Admission> {
     match reply.outcome {
         Some(contracts::execution::RunReplyOutcome::Accepted(admission)) => {
             validate_admission(epoch, &admission)?;
             Ok(admission)
         }
-        Some(contracts::execution::RunReplyOutcome::Rejected(rejection)) => {
-            Err(Error::ExecutionRejected { rejection })
-        }
+        Some(contracts::execution::RunReplyOutcome::Rejected(rejection)) => Err(Error::ExecutionRejected { rejection }),
         None => Err(invalid("execution admission has no outcome")),
     }
 }
@@ -384,24 +316,19 @@ pub(super) fn admission(
 /* === Private Functions === */
 fn evidence_complete(receipt: &contracts::execution::RunRequestReceipt) -> Result<bool> {
     if receipt.phase == contracts::execution::RunRequestPhase::Interrupted {
-        return Err(invalid(
-            "interrupted acquisition does not certify complete live evidence",
-        ));
+        return Err(invalid("interrupted acquisition does not certify complete live evidence"));
     }
     request_terminal(receipt.phase)
 }
 
 fn validate_request_receipt(
-    id: &CommandId,
-    cycle: &OnceLock<TestCycleId>,
-    receipt: &contracts::execution::RunRequestReceipt,
+    id: &CommandId, cycle: &OnceLock<TestCycleId>, receipt: &contracts::execution::RunRequestReceipt,
 ) -> Result<()> {
     if receipt.request_id != id.as_str() {
         return Err(invalid("request receipt identity differs"));
     }
     request_terminal(receipt.phase)?;
-    let observed = TestCycleId::from_uuid(&receipt.cycle_id)
-        .map_err(|_| invalid("request receipt has an invalid cycle identity"))?;
+    let observed = TestCycleId::from_uuid(&receipt.cycle_id).map_err(|_| invalid("request receipt has an invalid cycle identity"))?;
     if cycle.get_or_init(|| observed.clone()) != &observed {
         return Err(invalid("request receipt belongs to another cycle"));
     }
@@ -411,16 +338,13 @@ fn validate_request_receipt(
 fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Duration> {
     let interval = interval.unwrap_or(REQUEST_POLL_INTERVAL);
     if interval.is_zero() {
-        return Err(Error::Rpc(tonic::Status::invalid_argument(
-            "poll interval must be positive",
-        )));
+        return Err(Error::Rpc(tonic::Status::invalid_argument("poll interval must be positive")));
     }
     Ok(interval)
 }
 
 fn validate_checkpoint(
-    id: &TestExecutionId,
-    checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
+    id: &TestExecutionId, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
 ) -> Result<dokime_domain::model::execution::ExecutionCheckpoint> {
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
@@ -433,9 +357,7 @@ fn validate_checkpoint(
         NonZeroUsize::new(4096 + std::mem::size_of::<ObjectVersionToken>()).unwrap(),
     )
     .map_err(|_| invalid("saved checkpoint version is invalid"))?;
-    let canonical = version
-        .encode_bounded(NonZeroUsize::new(4096).unwrap())
-        .map_err(|_| invalid("saved checkpoint version is invalid"))?;
+    let canonical = version.encode_bounded(NonZeroUsize::new(4096).unwrap()).map_err(|_| invalid("saved checkpoint version is invalid"))?;
     if canonical != checkpoint.version {
         return Err(invalid("saved checkpoint version is noncanonical"));
     }
@@ -445,20 +367,13 @@ fn validate_checkpoint(
         version,
         evidence_through: checkpoint_cursor(checkpoint.evidence_through.as_ref())?,
     };
-    original
-        .validate()
-        .map_err(|_| invalid("saved checkpoint cut differs"))?;
+    original.validate().map_err(|_| invalid("saved checkpoint cut differs"))?;
     Ok(original)
 }
 
-fn checkpoint_cursor(
-    cursor: Option<&contracts::checkpoint::StorageCursor>,
-) -> Result<harmos::storage::StorageCursor> {
+fn checkpoint_cursor(cursor: Option<&contracts::checkpoint::StorageCursor>) -> Result<harmos::storage::StorageCursor> {
     let cursor = cursor.ok_or_else(|| invalid("saved checkpoint cursor is missing"))?;
-    let history = cursor
-        .history
-        .as_ref()
-        .ok_or_else(|| invalid("saved checkpoint history is missing"))?;
+    let history = cursor.history.as_ref().ok_or_else(|| invalid("saved checkpoint history is missing"))?;
     if history.store.len() > 4096 || history.epoch.len() > 4096 {
         return Err(invalid("saved checkpoint history exceeds its bound"));
     }
@@ -488,16 +403,12 @@ fn request_terminal(phase: contracts::execution::RunRequestPhase) -> Result<bool
 }
 
 fn validate_admission(epoch: &str, admission: &contracts::execution::Admission) -> Result<()> {
-    CommandId::from_uuid(&admission.command_id)
-        .map_err(|_| invalid("invalid admission identity"))?;
+    CommandId::from_uuid(&admission.command_id).map_err(|_| invalid("invalid admission identity"))?;
     validate_observed_cursor(epoch, admission.cursor.as_ref())
 }
 
 fn validate_command_receipt(
-    execution_id: &TestExecutionId,
-    request_id: &CommandId,
-    command_id: &CommandId,
-    receipt: &contracts::execution::ExecutionCommandReceipt,
+    execution_id: &TestExecutionId, request_id: &CommandId, command_id: &CommandId, receipt: &contracts::execution::ExecutionCommandReceipt,
 ) -> Result<()> {
     if receipt.execution_id != execution_id.as_str()
         || receipt.request_id != request_id.as_str()
@@ -506,14 +417,9 @@ fn validate_command_receipt(
         return Err(invalid("command receipt identity differs"));
     }
     match (receipt.action, &receipt.step_id) {
-        (
-            contracts::execution::ExecutionCommandAction::Next
-            | contracts::execution::ExecutionCommandAction::Finish,
-            None,
-        ) => {}
+        (contracts::execution::ExecutionCommandAction::Next | contracts::execution::ExecutionCommandAction::Finish, None) => {}
         (contracts::execution::ExecutionCommandAction::RunStep, Some(step_id)) => {
-            StepId::from_uuid(step_id)
-                .map_err(|_| invalid("command receipt has an invalid step identity"))?;
+            StepId::from_uuid(step_id).map_err(|_| invalid("command receipt has an invalid step identity"))?;
         }
         _ => return Err(invalid("command receipt has an invalid action")),
     }
@@ -528,20 +434,13 @@ fn validate_command_receipt(
         _ => return Err(invalid("command receipt has an unknown phase")),
     }
     if let Some(attempt_id) = &receipt.attempt_id {
-        StepAttemptId::from_uuid(attempt_id)
-            .map_err(|_| invalid("command receipt has an invalid attempt identity"))?;
+        StepAttemptId::from_uuid(attempt_id).map_err(|_| invalid("command receipt has an invalid attempt identity"))?;
     }
     Ok(())
 }
 
-fn validate_snapshot(
-    id: &TestExecutionId,
-    detail: &contracts::execution::ExecutionDetail,
-) -> Result<()> {
-    let summary = detail
-        .summary
-        .as_ref()
-        .ok_or_else(|| invalid("execution snapshot has no identity"))?;
+fn validate_snapshot(id: &TestExecutionId, detail: &contracts::execution::ExecutionDetail) -> Result<()> {
+    let summary = detail.summary.as_ref().ok_or_else(|| invalid("execution snapshot has no identity"))?;
     if summary.execution_id != id.as_str() {
         return Err(invalid("execution snapshot identity differs"));
     }
@@ -549,9 +448,7 @@ fn validate_snapshot(
 }
 
 fn validate_outcome(
-    id: &TestExecutionId,
-    checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-    outcome: &contracts::history::CheckpointDocument,
+    id: &TestExecutionId, checkpoint: &contracts::checkpoint::ExecutionCheckpoint, outcome: &contracts::history::CheckpointDocument,
 ) -> Result<()> {
     if outcome.checkpoint.as_ref() != Some(checkpoint) || !outcome.acquisition_finished {
         return Err(invalid("execution outcome differs from the persisted seal"));
@@ -562,13 +459,9 @@ fn validate_outcome(
         .and_then(|document| document.execution.as_ref())
         .ok_or_else(|| invalid("sealed execution outcome is missing"))?;
     if execution.execution_id != id.as_str() || execution.result.is_none() {
-        return Err(invalid(
-            "sealed execution outcome identity or result is missing",
-        ));
+        return Err(invalid("sealed execution outcome identity or result is missing"));
     }
-    if execution.result.as_ref().expect("checked result").status
-        == contracts::execution::ResultStatus::Unspecified
-    {
+    if execution.result.as_ref().expect("checked result").status == contracts::execution::ResultStatus::Unspecified {
         return Err(invalid("sealed execution result has an unknown status"));
     }
     match execution.status {

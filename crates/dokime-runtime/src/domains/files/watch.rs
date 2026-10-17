@@ -31,21 +31,21 @@ use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::source::{Entry, Listing, ReadFailure, Source};
 use super::{GapReason, Phase, Policy, Settings, capped, invalid, unreachable_source};
-use crate::execution_runtime::outputs::media_type_for_path;
-use crate::runtime::storage::captures::SealRequest;
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::TestExecutionId;
+use crate::execution_runtime::outputs::media_type_for_path;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
-use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::records::RecordSeverity;
+use crate::runtime::storage::captures::SealRequest;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::artifacts::name;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Constants === */
 // Consecutive failed passes after which an unreachable source ends the watch.
@@ -115,36 +115,17 @@ struct Tracked {
 /* === Enums === */
 #[derive(Debug)]
 pub enum WatchEvent {
-    Progress {
-        path: String,
-        offset: u64,
-        phase: Phase,
-    },
-    Gap {
-        path: String,
-        offset: u64,
-        reason: GapReason,
-    },
-    Sealed {
-        path: String,
-        record: Box<ArtifactRecord>,
-    },
+    Progress { path: String, offset: u64, phase: Phase },
+    Gap { path: String, offset: u64, reason: GapReason },
+    Sealed { path: String, record: Box<ArtifactRecord> },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
 impl FileWatch {
-    pub(super) async fn open(
-        runtime: RuntimeHandle,
-        settings: Settings,
-        source: Source,
-    ) -> Result<Self> {
-        let execution = settings
-            .scope
-            .test_execution_id
-            .clone()
-            .ok_or_else(|| invalid("a file watch requires an execution"))?;
+    pub(super) async fn open(runtime: RuntimeHandle, settings: Settings, source: Source) -> Result<Self> {
+        let execution = settings.scope.test_execution_id.clone().ok_or_else(|| invalid("a file watch requires an execution"))?;
         let spools = tempfile::Builder::new()
             .prefix("dokime-watch-")
             .tempdir()
@@ -152,10 +133,7 @@ impl FileWatch {
 
         // Seal Into The Execution Before It Stops Admitting Artifacts
         let (seal_sender, seal_request) = oneshot::channel();
-        let registration = runtime
-            .execution_storage
-            .captures
-            .register(&execution, seal_sender as SealRequest);
+        let registration = runtime.execution_storage.captures.register(&execution, seal_sender as SealRequest);
         Ok(Self {
             state: Some(State {
                 runtime,
@@ -236,15 +214,11 @@ impl FileWatch {
     }
 
     fn state(&self) -> &State {
-        self.state
-            .as_ref()
-            .expect("file watch state lives until drop")
+        self.state.as_ref().expect("file watch state lives until drop")
     }
 
     fn state_mut(&mut self) -> &mut State {
-        self.state
-            .as_mut()
-            .expect("file watch state lives until drop")
+        self.state.as_mut().expect("file watch state lives until drop")
     }
 }
 
@@ -330,10 +304,7 @@ impl State {
     }
 
     fn release(&mut self) {
-        self.runtime
-            .execution_storage
-            .captures
-            .release(&self.execution, self.registration);
+        self.runtime.execution_storage.captures.release(&self.execution, self.registration);
         if let Some(answer) = self.seal_answer.take() {
             let _ = answer.send(());
         }
@@ -359,19 +330,11 @@ impl State {
                     (Some(before), Some(after)) if before != after
                 )
             {
-                events.push(WatchEvent::Gap {
-                    path: path.clone(),
-                    offset: tracked.written,
-                    reason: GapReason::Replaced,
-                });
+                events.push(WatchEvent::Gap { path: path.clone(), offset: tracked.written, reason: GapReason::Replaced });
                 self.seal_file(path, events).await?;
             }
             if !self.tracked.contains_key(path) {
-                let baseline = if first && self.policy == Policy::Stream {
-                    entry.size
-                } else {
-                    0
-                };
+                let baseline = if first && self.policy == Policy::Stream { entry.size } else { 0 };
                 self.discover(path, *entry, baseline, events).await?;
             }
             match self.capture(path, *entry, events).await {
@@ -382,19 +345,10 @@ impl State {
         }
 
         // A Vanished File Is Sealed With A Gap
-        let vanished = self
-            .tracked
-            .keys()
-            .filter(|path| !listing.contains_key(*path))
-            .cloned()
-            .collect::<Vec<_>>();
+        let vanished = self.tracked.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
         for path in vanished {
             let offset = self.tracked[&path].written;
-            events.push(WatchEvent::Gap {
-                path: path.clone(),
-                offset,
-                reason: GapReason::Vanished,
-            });
+            events.push(WatchEvent::Gap { path: path.clone(), offset, reason: GapReason::Vanished });
             self.seal_file(&path, events).await?;
         }
         Ok(())
@@ -411,27 +365,15 @@ impl State {
     }
 
     // Starts tracking one file, refusing it explicitly past the caps.
-    async fn discover(
-        &mut self,
-        path: &str,
-        entry: Entry,
-        baseline: u64,
-        events: &mut Vec<WatchEvent>,
-    ) -> Result<()> {
+    async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, events: &mut Vec<WatchEvent>) -> Result<()> {
         if self.artifact.is_some() && self.files >= 1 {
-            return Err(capped(format!(
-                "a watch into one named artifact tracks one file; {path:?} would be a second"
-            )));
+            return Err(capped(format!("a watch into one named artifact tracks one file; {path:?} would be a second")));
         }
         if self.files >= self.maximum_files {
-            return Err(capped(format!(
-                "the watch tracks at most {} files; {path:?} would exceed it",
-                self.maximum_files
-            )));
+            return Err(capped(format!("the watch tracks at most {} files; {path:?} would exceed it", self.maximum_files)));
         }
         let artifact = self.artifact_name(path);
-        name::validate(&artifact)
-            .map_err(|source| invalid(format!("artifact {artifact:?}: {source}")))?;
+        name::validate(&artifact).map_err(|source| invalid(format!("artifact {artifact:?}: {source}")))?;
         let spool = tempfile::NamedTempFile::new_in(self.spools.path())
             .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
             .into_temp_path();
@@ -449,24 +391,12 @@ impl State {
                 sealable: self.policy == Policy::Stream,
             },
         );
-        events.push(WatchEvent::Progress {
-            path: path.to_owned(),
-            offset: 0,
-            phase: Phase::Baseline,
-        });
+        events.push(WatchEvent::Progress { path: path.to_owned(), offset: 0, phase: Phase::Baseline });
         Ok(())
     }
 
-    async fn capture(
-        &mut self,
-        path: &str,
-        entry: Entry,
-        events: &mut Vec<WatchEvent>,
-    ) -> Result<()> {
-        let tracked = self
-            .tracked
-            .get_mut(path)
-            .expect("captured files are tracked");
+    async fn capture(&mut self, path: &str, entry: Entry, events: &mut Vec<WatchEvent>) -> Result<()> {
+        let tracked = self.tracked.get_mut(path).expect("captured files are tracked");
         if tracked.mirrored {
             return self.mirror(path, entry, events).await;
         }
@@ -475,11 +405,7 @@ impl State {
         if entry.size < tracked.offset {
             tracked.offset = 0;
             tracked.pending.reset();
-            events.push(WatchEvent::Gap {
-                path: path.to_owned(),
-                offset: tracked.written,
-                reason: GapReason::Truncated,
-            });
+            events.push(WatchEvent::Gap { path: path.to_owned(), offset: tracked.written, reason: GapReason::Truncated });
         }
         tracked.entry = entry;
         if entry.size <= tracked.offset {
@@ -492,11 +418,7 @@ impl State {
             return Err(over_bytes(self.maximum_bytes, path));
         }
         let mut spool = open_spool(&tracked.spool, tracked.written, false).await?;
-        match self
-            .source
-            .read_range(path, tracked.offset, length, &mut spool)
-            .await
-        {
+        match self.source.read_range(path, tracked.offset, length, &mut spool).await {
             Ok(copied) => {
                 tracked.offset += copied;
                 tracked.written += copied;
@@ -504,11 +426,7 @@ impl State {
                 if copied == 0 {
                     return Ok(());
                 }
-                events.push(WatchEvent::Progress {
-                    path: path.to_owned(),
-                    offset: tracked.written,
-                    phase: Phase::Capturing,
-                });
+                events.push(WatchEvent::Progress { path: path.to_owned(), offset: tracked.written, phase: Phase::Capturing });
                 drop(spool);
                 if self.lines.is_empty() {
                     return Ok(());
@@ -522,11 +440,7 @@ impl State {
             // A Source That Cannot Resume Mirrors This File From Now On
             Err(ReadFailure::ResumeUnsupported) => {
                 tracked.mirrored = true;
-                events.push(WatchEvent::Gap {
-                    path: path.to_owned(),
-                    offset: tracked.written,
-                    reason: GapReason::ResumeUnsupported,
-                });
+                events.push(WatchEvent::Gap { path: path.to_owned(), offset: tracked.written, reason: GapReason::ResumeUnsupported });
                 self.mirror(path, entry, events).await
             }
             Err(ReadFailure::Failed(source)) => Err(source),
@@ -534,16 +448,8 @@ impl State {
     }
 
     // Refetches the whole file when its size or modification time changed.
-    async fn mirror(
-        &mut self,
-        path: &str,
-        entry: Entry,
-        events: &mut Vec<WatchEvent>,
-    ) -> Result<()> {
-        let tracked = self
-            .tracked
-            .get_mut(path)
-            .expect("mirrored files are tracked");
+    async fn mirror(&mut self, path: &str, entry: Entry, events: &mut Vec<WatchEvent>) -> Result<()> {
+        let tracked = self.tracked.get_mut(path).expect("mirrored files are tracked");
         if tracked.synced
             && tracked.entry.size == entry.size
             && tracked.entry.modified == entry.modified
@@ -561,11 +467,7 @@ impl State {
             .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
             .into_temp_path();
         let mut spool = open_spool(&fresh, 0, true).await?;
-        let copied = match self
-            .source
-            .read_range(path, 0, entry.size, &mut spool)
-            .await
-        {
+        let copied = match self.source.read_range(path, 0, entry.size, &mut spool).await {
             Ok(copied) => copied,
             Err(ReadFailure::Failed(source)) => return Err(source),
             Err(ReadFailure::ResumeUnsupported) => {
@@ -579,11 +481,7 @@ impl State {
         tracked.synced = true;
         tracked.sealable = true;
         self.captured = held + copied;
-        events.push(WatchEvent::Progress {
-            path: path.to_owned(),
-            offset: copied,
-            phase: Phase::Synced,
-        });
+        events.push(WatchEvent::Progress { path: path.to_owned(), offset: copied, phase: Phase::Synced });
         Ok(())
     }
 
@@ -592,10 +490,7 @@ impl State {
         let listing: Listing = self.source.scan(&self.matcher).await?;
         for (path, entry) in listing {
             self.discover(&path, entry, 0, events).await?;
-            self.tracked
-                .get_mut(&path)
-                .expect("discovered files are tracked")
-                .mirrored = true;
+            self.tracked.get_mut(&path).expect("discovered files are tracked").mirrored = true;
             self.mirror(&path, entry, events).await?;
         }
         Ok(())
@@ -618,18 +513,10 @@ impl State {
         let artifact = self.artifact_name(path);
         let record = self
             .runtime
-            .upload_artifact_file(
-                self.scope.clone(),
-                &tracked.spool,
-                artifact,
-                media_type_for_path(path).map(str::to_owned),
-            )
+            .upload_artifact_file(self.scope.clone(), &tracked.spool, artifact, media_type_for_path(path).map(str::to_owned))
             .await?;
         self.sealed.push(record.clone());
-        events.push(WatchEvent::Sealed {
-            path: path.to_owned(),
-            record: Box::new(record),
-        });
+        events.push(WatchEvent::Sealed { path: path.to_owned(), record: Box::new(record) });
         Ok(())
     }
 
@@ -650,15 +537,8 @@ impl State {
         for line in lines {
             for found in self.lines.matches(&line) {
                 match found {
-                    LineMatch::Row {
-                        stream,
-                        values,
-                        storage_schema,
-                    } => {
-                        let payload = match crate::telemetry::capture_payload(
-                            &storage_schema,
-                            &values,
-                        ) {
+                    LineMatch::Row { stream, values, storage_schema } => {
+                        let payload = match crate::telemetry::capture_payload(&storage_schema, &values) {
                             Ok(payload) => payload,
                             Err(error) => {
                                 tracing::warn!(%error, %stream, "file matcher row was rejected");
@@ -669,24 +549,18 @@ impl State {
                             continue;
                         };
                         let sequence = self.sequences.entry(stream.clone()).or_default();
-                        let mut sample =
-                            TelemetrySample::new(crate::model::identity::new_id(), identifier, *sequence, now.clone(), SOURCE);
+                        let mut sample = TelemetrySample::new(crate::model::identity::new_id(), identifier, *sequence, now.clone(), SOURCE);
                         *sequence += 1;
                         sample.scope = Some(self.scope.clone());
                         sample.values.extend(values);
                         sample.storage_payload = Some(payload);
                         rows.entry(stream).or_default().push(sample);
                     }
-                    LineMatch::Marker {
-                        record_type,
-                        details,
-                        line,
-                    } => {
+                    LineMatch::Marker { record_type, details, line } => {
                         let Ok(record_type) = Identifier::new(&record_type) else {
                             continue;
                         };
-                        let mut record =
-                            RecordPublishRequest::new(record_type, RecordSeverity::Info);
+                        let mut record = RecordPublishRequest::new(record_type, RecordSeverity::Info);
                         record.message = Some(line);
                         record.details = details;
                         record.scope = Some(self.scope.clone());
@@ -699,10 +573,8 @@ impl State {
             let Ok(identifier) = Identifier::new(&stream) else {
                 continue;
             };
-            if let Err(error) = self
-                .runtime
-                .publish_telemetry_batch(TelemetryBatch::new(crate::model::identity::new_id(), identifier, samples))
-                .await
+            if let Err(error) =
+                self.runtime.publish_telemetry_batch(TelemetryBatch::new(crate::model::identity::new_id(), identifier, samples)).await
             {
                 tracing::warn!(%error, %stream, "file watch rows were refused");
             }
@@ -720,9 +592,7 @@ impl State {
 
 /* === Private Functions === */
 fn over_bytes(maximum: u64, path: &str) -> Error {
-    capped(format!(
-        "the watch captures at most {maximum} bytes; {path:?} would exceed it"
-    ))
+    capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))
 }
 
 // The `length` bytes a capture appended at `from`.
@@ -743,12 +613,8 @@ async fn open_spool(path: &TempPath, length: u64, truncate: bool) -> Result<toki
         .await
         .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
     let length = if truncate { 0 } else { length };
-    file.set_len(length)
-        .await
-        .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
-    file.seek(std::io::SeekFrom::Start(length))
-        .await
-        .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
+    file.set_len(length).await.map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
+    file.seek(std::io::SeekFrom::Start(length)).await.map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
     Ok(file)
 }
 

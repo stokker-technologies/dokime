@@ -54,8 +54,7 @@ enum Streams {
 
 /* === Implementations === */
 impl dokime_runtime::harmos::operations::lifecycle::Policy for DirectStreams {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -77,16 +76,8 @@ impl dokime_runtime::Plugin for DirectStreams {
 
     async fn initialize(&mut self, host: &Supervisor) -> Result<(), Refusal> {
         let publisher = host.publisher::<Self>();
-        dokime_runtime::plugin::refusal(
-            publisher
-                .publish_on::<Inlet>(&DirectReading { value: 7 })
-                .await,
-        )?;
-        dokime_runtime::plugin::refusal(
-            publisher
-                .publish_on::<Outlet>(&DirectReading { value: 8 })
-                .await,
-        )?;
+        dokime_runtime::plugin::refusal(publisher.publish_on::<Inlet>(&DirectReading { value: 7 }).await)?;
+        dokime_runtime::plugin::refusal(publisher.publish_on::<Outlet>(&DirectReading { value: 8 }).await)?;
         self.host = Some(host.clone());
         Ok(())
     }
@@ -104,15 +95,9 @@ impl dokime_runtime::Plugin for DirectStreams {
     }
 
     async fn cleanup(&mut self) -> Result<(), Refusal> {
-        let host = self
-            .host
-            .take()
-            .expect("initialization kept its supervisor");
+        let host = self.host.take().expect("initialization kept its supervisor");
         assert!(
-            host.publisher::<Self>()
-                .publish_on::<Inlet>(&DirectReading { value: 9 })
-                .await
-                .is_err(),
+            host.publisher::<Self>().publish_on::<Inlet>(&DirectReading { value: 9 }).await.is_err(),
             "a retired plugin publishes nothing"
         );
         Ok(())
@@ -130,10 +115,7 @@ async fn stream_alias_publication() {
     use dokime_runtime::telemetry::TelemetryStream;
 
     assert_eq!(
-        <DirectStreams as Declared>::STREAMS
-            .iter()
-            .map(|entry| entry.id)
-            .collect::<Vec<_>>(),
+        <DirectStreams as Declared>::STREAMS.iter().map(|entry| entry.id).collect::<Vec<_>>(),
         ["sdk-streams.inlet", "sdk-streams.outlet"],
         "plugin streams are declared without any observers",
     );
@@ -148,16 +130,8 @@ async fn stream_alias_publication() {
         vec![],
     )
     .await;
-    let inlet = native
-        .runtime
-        .streams
-        .publication("sdk-streams.inlet", 1)
-        .unwrap();
-    let outlet = native
-        .runtime
-        .streams
-        .publication("sdk-streams.outlet", 1)
-        .unwrap();
+    let inlet = native.runtime.streams.publication("sdk-streams.inlet", 1).unwrap();
+    let outlet = native.runtime.streams.publication("sdk-streams.outlet", 1).unwrap();
 
     // Original Read Handles Preserve Lifecycle Evidence After Producer Retirement.
     native.retire().await;

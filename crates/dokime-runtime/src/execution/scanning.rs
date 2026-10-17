@@ -43,12 +43,7 @@ pub(super) struct Scanning {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn start(
-    artifacts: Artifacts,
-    executions: &Executions,
-    token: &str,
-    tasks: &Tasks,
-) -> Scanning {
+pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, tasks: &Tasks) -> Scanning {
     let (stop, mut listener) = watch::channel(false);
     let (completed, completion) = oneshot::channel();
     let owner = Arc::clone(executions);
@@ -71,27 +66,18 @@ pub(super) fn start(
     Scanning { stop, completion }
 }
 
-pub(super) async fn settle(
-    scanning: Scanning,
-    artifacts: &Artifacts,
-    executions: &Executions,
-    token: &str,
-) {
+pub(super) async fn settle(scanning: Scanning, artifacts: &Artifacts, executions: &Executions, token: &str) {
     scanning.stop.send_replace(true);
     let _ = scanning.completion.await;
     let artifacts = artifacts.clone();
-    let notes = tokio::task::spawn_blocking(move || artifacts.sweep())
-        .await
-        .expect("the final sweep does not panic");
+    let notes = tokio::task::spawn_blocking(move || artifacts.sweep()).await.expect("the final sweep does not panic");
     report(executions, token, notes);
 }
 
 /* === Private Functions === */
 async fn scan_blocking(artifacts: &Artifacts) -> Vec<String> {
     let artifacts = artifacts.clone();
-    tokio::task::spawn_blocking(move || artifacts.scan())
-        .await
-        .expect("a scan tick does not panic")
+    tokio::task::spawn_blocking(move || artifacts.scan()).await.expect("a scan tick does not panic")
 }
 
 fn report(executions: &Executions, token: &str, notes: Vec<String>) {

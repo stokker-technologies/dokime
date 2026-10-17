@@ -26,12 +26,12 @@ use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::RuntimeHandle;
+use crate::domains::{DispatchContext, StatusResponse};
 use dokime_domain::model::appearance::HostCardBlock;
 use dokime_domain::model::appearance::HostCardBody;
 use dokime_domain::model::appearance::HostCardTone;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-use crate::domains::{DispatchContext, StatusResponse};
 use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
 /* === Constants === */
@@ -112,12 +112,9 @@ impl RuntimeHandle {
             let plugin_id = Identifier::new(&module.source).expect("installed source is valid");
             let (sections, cards) = presentation(module);
             let (state, dispatch_context) = self.settings_card_posture(module);
-            let dispatcher = (module.enabled
-                && module.settings_status.is_some()
-                && !cards.is_empty()
-                && dispatch_context.is_some())
-            .then(|| self.action_dispatcher(&plugin_id))
-            .flatten();
+            let dispatcher = (module.enabled && module.settings_status.is_some() && !cards.is_empty() && dispatch_context.is_some())
+                .then(|| self.action_dispatcher(&plugin_id))
+                .flatten();
             async move {
                 let live_status = match dispatcher {
                     Some(dispatcher) => Some(
@@ -128,31 +125,20 @@ impl RuntimeHandle {
                     ),
                     None => None,
                 };
-                SettingsSource {
-                    plugin_id,
-                    sections,
-                    cards,
-                    state,
-                    live_status,
-                }
+                SettingsSource { plugin_id, sections, cards, state, live_status }
             }
         }))
         .await;
         settings_frame_from_sources(sources)
     }
 
-    fn settings_card_posture(
-        &self,
-        module: &crate::InstalledPlugin,
-    ) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
+    fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
         if !module.enabled {
             return (RuntimeSettingsCardState::Disabled, None);
         }
 
         match self.action_dispatch_context(module) {
-            Ok(context) if context.credentials_configured => {
-                (RuntimeSettingsCardState::Ready, Some(context))
-            }
+            Ok(context) if context.credentials_configured => (RuntimeSettingsCardState::Ready, Some(context)),
             Ok(context) => (RuntimeSettingsCardState::Disconnected, Some(context)),
             Err(_) => (RuntimeSettingsCardState::Error, None),
         }
@@ -162,27 +148,14 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn presentation(
-    module: &crate::InstalledPlugin,
-) -> (
-    Vec<SettingsSectionContribution>,
-    Vec<SettingsCardContribution>,
-) {
+fn presentation(module: &crate::InstalledPlugin) -> (Vec<SettingsSectionContribution>, Vec<SettingsCardContribution>) {
     let section_id = Identifier::new(&module.source).expect("valid installed source");
-    let metadata = || {
-        dokime_domain::model::identity::Metadata::new(
-            section_id.clone(),
-            module.source.clone(),
-            Some(module.description.clone()),
-        )
-    };
+    let metadata =
+        || dokime_domain::model::identity::Metadata::new(section_id.clone(), module.source.clone(), Some(module.description.clone()));
     let sections = if module.settings.contributions.is_empty() && module.settings_status.is_none() {
         Vec::new()
     } else {
-        vec![SettingsSectionContribution {
-            metadata: metadata(),
-            order: None,
-        }]
+        vec![SettingsSectionContribution { metadata: metadata(), order: None }]
     };
 
     // One card per plugin, identified and labelled the way the plugin is: the
@@ -219,17 +192,13 @@ fn settings_frame_from_sources(sources: Vec<SettingsSource>) -> RuntimeSettingsF
 
     for source in &sources {
         for section in &source.sections {
-            sections
-                .entry(section.metadata.identifier.clone())
-                .or_insert_with(|| RuntimeSettingsSection {
-                    section_id: section.metadata.identifier.clone(),
-                    label: section.metadata.label.clone(),
-                    description: section.metadata.description.clone(),
-                    owner: RuntimeSettingsSectionOwner::InstalledPlugin {
-                        plugin_id: source.plugin_id.clone(),
-                    },
-                    order: section.order.unwrap_or(1_000),
-                });
+            sections.entry(section.metadata.identifier.clone()).or_insert_with(|| RuntimeSettingsSection {
+                section_id: section.metadata.identifier.clone(),
+                label: section.metadata.label.clone(),
+                description: section.metadata.description.clone(),
+                owner: RuntimeSettingsSectionOwner::InstalledPlugin { plugin_id: source.plugin_id.clone() },
+                order: section.order.unwrap_or(1_000),
+            });
         }
     }
 
@@ -261,33 +230,23 @@ fn settings_frame_from_sources(sources: Vec<SettingsSource>) -> RuntimeSettingsF
 
     let mut sections = sections.into_values().collect::<Vec<_>>();
     sections.sort_by(|left, right| {
-        left.order
-            .cmp(&right.order)
-            .then_with(|| left.label.cmp(&right.label))
-            .then_with(|| left.section_id.cmp(&right.section_id))
+        left.order.cmp(&right.order).then_with(|| left.label.cmp(&right.label)).then_with(|| left.section_id.cmp(&right.section_id))
     });
     cards.sort_by(|left, right| {
-        left.order
-            .cmp(&right.order)
-            .then_with(|| left.label.cmp(&right.label))
-            .then_with(|| left.card_id.cmp(&right.card_id))
+        left.order.cmp(&right.order).then_with(|| left.label.cmp(&right.label)).then_with(|| left.card_id.cmp(&right.card_id))
     });
 
     RuntimeSettingsFrame { sections, cards }
 }
 
 fn apply_live_status(
-    body: &mut HostCardBody,
-    fallback_state: RuntimeSettingsCardState,
-    live_status: Option<&Result<StatusResponse, String>>,
+    body: &mut HostCardBody, fallback_state: RuntimeSettingsCardState, live_status: Option<&Result<StatusResponse, String>>,
 ) -> RuntimeSettingsCardState {
     match live_status {
         None => fallback_state,
         Some(Err(error)) => {
-            if let Some(HostCardBlock::Status { detail, .. }) = body
-                .blocks
-                .iter_mut()
-                .find(|block| matches!(block, HostCardBlock::Status { .. }))
+            if let Some(HostCardBlock::Status { detail, .. }) =
+                body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
             {
                 *detail = Some(format!("Live status unavailable: {error}"));
             }
@@ -295,14 +254,8 @@ fn apply_live_status(
         }
         Some(Ok(status)) => {
             let (state, label, tone) = live_state(&status.state);
-            if let Some(HostCardBlock::Status {
-                label: card_label,
-                tone: card_tone,
-                detail,
-            }) = body
-                .blocks
-                .iter_mut()
-                .find(|block| matches!(block, HostCardBlock::Status { .. }))
+            if let Some(HostCardBlock::Status { label: card_label, tone: card_tone, detail }) =
+                body.blocks.iter_mut().find(|block| matches!(block, HostCardBlock::Status { .. }))
             {
                 *card_label = label.to_owned();
                 *card_tone = tone;
@@ -330,46 +283,14 @@ fn apply_live_status(
 
 fn live_state(state: &str) -> (RuntimeSettingsCardState, &'static str, HostCardTone) {
     match state.trim().to_ascii_lowercase().as_str() {
-        "connected" => (
-            RuntimeSettingsCardState::Ready,
-            "Connected",
-            HostCardTone::Success,
-        ),
-        "disconnected" => (
-            RuntimeSettingsCardState::Disconnected,
-            "Disconnected",
-            HostCardTone::Warning,
-        ),
-        state if state.starts_with("missing_") => (
-            RuntimeSettingsCardState::Disconnected,
-            "Disconnected",
-            HostCardTone::Warning,
-        ),
-        "disabled" => (
-            RuntimeSettingsCardState::Disabled,
-            "Disabled",
-            HostCardTone::Neutral,
-        ),
-        "stale" => (
-            RuntimeSettingsCardState::Stale,
-            "Stale",
-            HostCardTone::Warning,
-        ),
-        "permission_denied" => (
-            RuntimeSettingsCardState::PermissionDenied,
-            "Permission denied",
-            HostCardTone::Danger,
-        ),
-        "error" | "failed" | "unknown" => (
-            RuntimeSettingsCardState::Error,
-            "Error",
-            HostCardTone::Danger,
-        ),
-        _ => (
-            RuntimeSettingsCardState::Error,
-            "Error",
-            HostCardTone::Danger,
-        ),
+        "connected" => (RuntimeSettingsCardState::Ready, "Connected", HostCardTone::Success),
+        "disconnected" => (RuntimeSettingsCardState::Disconnected, "Disconnected", HostCardTone::Warning),
+        state if state.starts_with("missing_") => (RuntimeSettingsCardState::Disconnected, "Disconnected", HostCardTone::Warning),
+        "disabled" => (RuntimeSettingsCardState::Disabled, "Disabled", HostCardTone::Neutral),
+        "stale" => (RuntimeSettingsCardState::Stale, "Stale", HostCardTone::Warning),
+        "permission_denied" => (RuntimeSettingsCardState::PermissionDenied, "Permission denied", HostCardTone::Danger),
+        "error" | "failed" | "unknown" => (RuntimeSettingsCardState::Error, "Error", HostCardTone::Danger),
+        _ => (RuntimeSettingsCardState::Error, "Error", HostCardTone::Danger),
     }
 }
 
@@ -382,9 +303,7 @@ fn display_value(value: &Value) -> String {
         Value::Number(value) => value.to_string(),
         Value::Text(value) => value.clone(),
         Value::Datetime(timestamp) => dokime_domain::model::time::datetime_text(*timestamp),
-        Value::Array(_) | Value::Object(_) => {
-            serde_json::to_string(value).unwrap_or_else(|_| "Unavailable".to_owned())
-        }
+        Value::Array(_) | Value::Object(_) => serde_json::to_string(value).unwrap_or_else(|_| "Unavailable".to_owned()),
     }
 }
 

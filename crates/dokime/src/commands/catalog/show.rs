@@ -50,11 +50,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let result = client.suite(&args.suite).await;
     client.close_and_wait().await;
     let suite = super::readable(&result?)?;
-    let output = if args.json {
-        serde_json::to_string(&suite)?
-    } else {
-        serde_json::to_string_pretty(&suite)?
-    };
+    let output = if args.json { serde_json::to_string(&suite)? } else { serde_json::to_string_pretty(&suite)? };
     println!("{output}");
     Ok(())
 }

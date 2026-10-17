@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::{Map, Value};
-use dokime_domain::model::identity::Identifier;
 use crate::definition::RuntimeCondition;
 use crate::records::RecordCondition;
 use crate::storage::{Error, Result};
 use crate::telemetry::{TelemetryCondition, TelemetryConditionOperator};
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 const MAX_NODES: usize = 4096;
@@ -88,9 +88,7 @@ impl TryFrom<&RuntimeCondition> for Condition {
             return Err(Error::Invalid("condition encoding memory overflows"));
         }
         let mut nodes = Vec::new();
-        nodes
-            .try_reserve_exact(count)
-            .map_err(|_| Error::Invalid("condition nodes allocation failed"))?;
+        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("condition nodes allocation failed"))?;
         append_condition(value, &mut nodes)?;
         Ok(Self { nodes })
     }
@@ -109,18 +107,13 @@ impl TryFrom<Condition> for RuntimeCondition {
 }
 
 impl Serialize for Condition {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let value: RuntimeCondition = self.clone().try_into().map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 }
 impl<'de> Deserialize<'de> for Condition {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let source = crate::definition::RuntimeCondition::deserialize(deserializer)?;
         Self::try_from(&source).map_err(serde::de::Error::custom)
     }
@@ -150,12 +143,7 @@ fn encoding_memory(value: &RuntimeCondition, depth: usize, count: &mut usize) ->
             if condition.tolerance.is_some_and(|value| !value.is_finite()) {
                 return Err(Error::Invalid("condition tolerance is nonfinite"));
             }
-            let target = condition
-                .target
-                .as_ref()
-                .map(Value::encoding_memory)
-                .transpose()?
-                .unwrap_or(0);
+            let target = condition.target.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
             if target == usize::MAX {
                 return Ok(usize::MAX);
             }
@@ -239,9 +227,7 @@ fn validate_node(node: &Node) -> Result<()> {
         (node.operator.is_some(), kind == "telemetry"),
     ];
     if !arity
-        || required
-            .iter()
-            .any(|(present, expected)| present != expected)
+        || required.iter().any(|(present, expected)| present != expected)
         || (kind != "telemetry" && (node.target.is_some() || node.tolerance.is_some()))
     {
         return Err(Error::Invalid("condition fields or arity differ"));
@@ -259,9 +245,7 @@ fn condition_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usiz
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));
     }
-    let node = nodes
-        .get(*at)
-        .ok_or(Error::Invalid("condition child is missing"))?;
+    let node = nodes.get(*at).ok_or(Error::Invalid("condition child is missing"))?;
     *at += 1;
     validate_node(node)?;
     if node.children as usize > nodes.len().saturating_sub(*at) {
@@ -271,37 +255,21 @@ fn condition_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usiz
         node.record_type.as_ref().map_or(0, String::capacity),
         node.stream.as_ref().map_or(0, String::capacity),
         node.field.as_ref().map_or(0, String::capacity),
-        node.match_fields
-            .as_ref()
-            .map(Map::projection_memory)
-            .transpose()?
-            .unwrap_or(0),
-        node.target
-            .as_ref()
-            .map(Value::projection_memory)
-            .transpose()?
-            .unwrap_or(0),
+        node.match_fields.as_ref().map(Map::projection_memory).transpose()?.unwrap_or(0),
+        node.target.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0),
     ];
-    let mut bytes = fields.into_iter().fold(
-        std::mem::size_of::<RuntimeCondition>(),
-        usize::saturating_add,
-    );
+    let mut bytes = fields.into_iter().fold(std::mem::size_of::<RuntimeCondition>(), usize::saturating_add);
     for _ in 0..node.children {
         bytes = bytes.saturating_add(condition_memory(nodes, at, depth + 1)?);
     }
     Ok(bytes)
 }
 
-fn consume_condition(
-    nodes: &mut std::vec::IntoIter<Node>,
-    depth: usize,
-) -> Result<RuntimeCondition> {
+fn consume_condition(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<RuntimeCondition> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));
     }
-    let node = nodes
-        .next()
-        .ok_or(Error::Invalid("condition child is missing"))?;
+    let node = nodes.next().ok_or(Error::Invalid("condition child is missing"))?;
     match node.kind.as_str() {
         "record" => Ok(RuntimeCondition::Record {
             condition: RecordCondition {
@@ -320,17 +288,11 @@ fn consume_condition(
         }),
         "all" | "any" => {
             let mut conditions = Vec::new();
-            conditions
-                .try_reserve_exact(node.children as usize)
-                .map_err(|_| Error::Invalid("condition children allocation failed"))?;
+            conditions.try_reserve_exact(node.children as usize).map_err(|_| Error::Invalid("condition children allocation failed"))?;
             for _ in 0..node.children {
                 conditions.push(consume_condition(nodes, depth + 1)?);
             }
-            if node.kind == "all" {
-                Ok(RuntimeCondition::All { conditions })
-            } else {
-                Ok(RuntimeCondition::Any { conditions })
-            }
+            if node.kind == "all" { Ok(RuntimeCondition::All { conditions }) } else { Ok(RuntimeCondition::Any { conditions }) }
         }
         _ => Err(Error::Invalid("unknown condition kind")),
     }

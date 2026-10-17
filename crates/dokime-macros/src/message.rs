@@ -53,10 +53,7 @@ pub(crate) fn check(input: &DeriveInput) -> Result<(), Error> {
         let Some(name) = attribute.path().segments.last() else {
             continue;
         };
-        if ["message", "record", "row", "stream", "choice"]
-            .iter()
-            .any(|kind| name.ident == *kind)
-        {
+        if ["message", "record", "row", "stream", "choice"].iter().any(|kind| name.ident == *kind) {
             return Err(Error::new_spanned(
                 attribute,
                 "declare one message shape: use message, record, row, stream or choice without stacking them",
@@ -71,10 +68,7 @@ fn declare(kind: Kind, attribute: TokenStream, item: TokenStream) -> Result<Toke
     let mut input: DeriveInput = syn::parse2(item)?;
     check(&input)?;
     let (shared, domain) = match kind {
-        Kind::Plain => (
-            crate::facade::harmos_attribute("message", attribute, quote!(#input)),
-            quote!(),
-        ),
+        Kind::Plain => (crate::facade::harmos_attribute("message", attribute, quote!(#input)), quote!()),
         Kind::Row => {
             crate::row::prepare(&mut input)?;
             let domain = crate::row::implementation(&input)?;

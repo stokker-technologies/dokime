@@ -48,11 +48,9 @@ impl Publisher {
         V: Publishable,
     {
         let Publication::Record(request) = value.publication().into() else {
-            return Err(crate::Error::Publish(
-                crate::error::PublishFailure::Undeclared {
-                    declared_as: "a stream row; publish rows through the Harmos publisher".into(),
-                },
-            ));
+            return Err(crate::Error::Publish(crate::error::PublishFailure::Undeclared {
+                declared_as: "a stream row; publish rows through the Harmos publisher".into(),
+            }));
         };
         let publication = RecordPublication {
             request_json: serde_json::to_string(&request).map_err(|error| crate::Error::Call {
@@ -61,14 +59,10 @@ impl Publisher {
             })?,
             produced_at: crate::model::time::now_utc().as_str().to_owned(),
         };
-        self.host
-            .call_as::<PublishRecord>(publication)
-            .await
-            .map(|response| response.into_owned())
-            .map_err(|error| crate::Error::Call {
-                operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
-                reason: error.to_string(),
-            })
+        self.host.call_as::<PublishRecord>(publication).await.map(|response| response.into_owned()).map_err(|error| crate::Error::Call {
+            operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
+            reason: error.to_string(),
+        })
     }
 }
 

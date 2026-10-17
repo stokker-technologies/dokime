@@ -34,9 +34,7 @@ pub enum Error {
     Input(String),
     #[error("{0}")]
     Setup(String),
-    #[error(
-        "Credential store deadline elapsed; an already-started store operation may still complete."
-    )]
+    #[error("Credential store deadline elapsed; an already-started store operation may still complete.")]
     CredentialTimeout,
     #[error(transparent)]
     Credentials(#[from] dokime_client::credentials::Error),
@@ -69,11 +67,7 @@ impl From<dokime_client::profiles::Error> for Error {
 
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        if error.kind() == std::io::ErrorKind::InvalidInput {
-            Self::Input(error.to_string())
-        } else {
-            Self::Io(error)
-        }
+        if error.kind() == std::io::ErrorKind::InvalidInput { Self::Input(error.to_string()) } else { Self::Io(error) }
     }
 }
 
@@ -90,17 +84,18 @@ impl Error {
             Self::Operation(dokime_client::operations::Error::CatalogTooLarge) => ExitCode::from(4),
             Self::Input(_) => ExitCode::from(2),
             Self::Client(dokime_client::Error::Rpc(status))
-            | Self::Operation(dokime_client::operations::Error::Client(
-                dokime_client::Error::Rpc(status),
-            )) if status.code() == dokime_client::RpcCode::ResourceExhausted => ExitCode::from(4),
+            | Self::Operation(dokime_client::operations::Error::Client(dokime_client::Error::Rpc(status)))
+                if status.code() == dokime_client::RpcCode::ResourceExhausted =>
+            {
+                ExitCode::from(4)
+            }
             Self::Client(dokime_client::Error::Rpc(status))
-            | Self::Operation(dokime_client::operations::Error::Client(
-                dokime_client::Error::Rpc(status),
-            )) if status.code() == dokime_client::RpcCode::InvalidArgument => ExitCode::from(2),
-            Self::Client(
-                dokime_client::Error::InvalidTarget { .. }
-                | dokime_client::Error::AuthenticationRequired,
-            ) => ExitCode::from(2),
+            | Self::Operation(dokime_client::operations::Error::Client(dokime_client::Error::Rpc(status)))
+                if status.code() == dokime_client::RpcCode::InvalidArgument =>
+            {
+                ExitCode::from(2)
+            }
+            Self::Client(dokime_client::Error::InvalidTarget { .. } | dokime_client::Error::AuthenticationRequired) => ExitCode::from(2),
             Self::Operation(
                 dokime_client::operations::Error::Unknown(_)
                 | dokime_client::operations::Error::Ambiguous(_)

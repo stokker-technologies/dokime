@@ -18,14 +18,12 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
+use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::{Runtime, RuntimeConfig};
 use tempfile::tempdir;
 
-use dokime_server::diagnostics_assembly::{
-    DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey,
-};
+use dokime_server::diagnostics_assembly::{DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey};
 
 /* === Constants === */
 
@@ -59,38 +57,26 @@ fn storage_root_check(diagnostics: &DiagnosticsSnapshot) -> &StartupDoctorCheck 
 async fn assembles_counts_runtime() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
-            root.path(),
-            Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None),
-        );
+        let runtime_config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None));
         Runtime::start(runtime_config)
     }
     .await
     .unwrap();
     let runtime = runtime_owner.handle();
 
-    let diagnostics = DiagnosticsSnapshot::from_runtime(
-        runtime.runtime_overview().await.unwrap(),
-        root.path(),
-        &runtime.application_root(),
-    );
+    let diagnostics =
+        DiagnosticsSnapshot::from_runtime(runtime.runtime_overview().await.unwrap(), root.path(), &runtime.application_root());
 
     // Counts derive from the authoritative runtime overview.
     assert!(!diagnostics.identity.node.node_id.as_str().is_empty());
-    assert_eq!(
-        diagnostics.counts.installed_plugin_errors,
-        diagnostics.installed_plugin_errors.len()
-    );
+    assert_eq!(diagnostics.counts.installed_plugin_errors, diagnostics.installed_plugin_errors.len());
 
     // The startup-doctor passes on a healthy, present storage root.
     assert_eq!(diagnostics.startup_doctor.status, DiagnosticCheckStatus::Ok);
     let present = storage_root_check(&diagnostics);
     assert_eq!(present.status, DiagnosticCheckStatus::Ok);
     assert_eq!(present.message, "storage root exists");
-    assert_eq!(
-        present.detail.as_deref(),
-        Some(root.path().to_string_lossy().as_ref())
-    );
+    assert_eq!(present.detail.as_deref(), Some(root.path().to_string_lossy().as_ref()));
     let accepting = diagnostics
         .startup_doctor
         .checks
@@ -107,16 +93,10 @@ async fn assembles_counts_runtime() {
         &parent.path().join("absent"),
         &runtime.application_root(),
     );
-    assert_eq!(
-        pending.startup_doctor.status,
-        DiagnosticCheckStatus::Warning
-    );
+    assert_eq!(pending.startup_doctor.status, DiagnosticCheckStatus::Warning);
     let created = storage_root_check(&pending);
     assert_eq!(created.status, DiagnosticCheckStatus::Warning);
-    assert_eq!(
-        created.message,
-        "storage root will be created on first write"
-    );
+    assert_eq!(created.message, "storage root will be created on first write");
 
     // A root without a parent fails the doctor.
     let orphan = DiagnosticsSnapshot::from_runtime(
@@ -130,22 +110,12 @@ async fn assembles_counts_runtime() {
     assert_eq!(refused.message, "storage root parent does not exist");
 
     // The bundle carries the runtime's storage-layout contract.
-    assert_eq!(
-        diagnostics.storage_root,
-        root.path().to_string_lossy().into_owned()
-    );
-    let hub_log = diagnostics
-        .path_conventions
-        .iter()
-        .find(|path| path.key == DiagnosticPathKey::HubLog)
-        .expect("the hub log convention is present");
+    assert_eq!(diagnostics.storage_root, root.path().to_string_lossy().into_owned());
+    let hub_log =
+        diagnostics.path_conventions.iter().find(|path| path.key == DiagnosticPathKey::HubLog).expect("the hub log convention is present");
     assert_eq!(hub_log.relative_path, "logs/dokime.jsonl");
     assert!(
-        hub_log
-            .absolute_path
-            .as_ref()
-            .unwrap()
-            .starts_with(&runtime.application_root().to_string_lossy().into_owned()),
+        hub_log.absolute_path.as_ref().unwrap().starts_with(&runtime.application_root().to_string_lossy().into_owned()),
         "logs belong to the application root"
     );
 

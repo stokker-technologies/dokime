@@ -24,13 +24,15 @@ use harmos::{
 // Local Imports
 use super::saved::{SavedOutputFile, SavedOutputs};
 use crate::{
-    runtime::Error, runtime::Result, RuntimeHandle,
+    RuntimeHandle,
+    runtime::Error,
+    runtime::Result,
     runtime::storage::native_outputs::follow::{LiveOutput, NativeAdmission, Settlement},
 };
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::wire_checkpoint as checkpoint;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::content as wire;
 
 /* === Constants === */
@@ -71,37 +73,25 @@ enum Source {
 /* === Implementations === */
 impl RuntimeHandle {
     pub async fn follow_execution_file(
-        &self,
-        execution: &TestExecutionId,
-        path: &str,
-        expected: Option<&dokime_domain::model::content::wire::ExecutionFileIdentity>,
+        &self, execution: &TestExecutionId, path: &str, expected: Option<&dokime_domain::model::content::wire::ExecutionFileIdentity>,
         offset: u64,
     ) -> Result<Option<ExecutionFileFollower>> {
-        dokime_domain::model::execution::saved::validate_relative_output_path(path)
-            .map_err(crate::storage::Error::from)?;
+        dokime_domain::model::execution::saved::validate_relative_output_path(path).map_err(crate::storage::Error::from)?;
         if offset != 0 && expected.is_none() {
             return Err(invalid("resume offset requires original identity"));
         }
         let expected_staged = expected
             .map(|identity| {
                 if identity.execution_id != execution.as_str() || identity.relative_path != path {
-                    return Err(invalid(
-                        "resume identity belongs to another registered output",
-                    ));
+                    return Err(invalid("resume identity belongs to another registered output"));
                 }
-                let history = identity
-                    .history
-                    .as_ref()
-                    .ok_or_else(|| invalid("resume identity has no original history"))?;
+                let history = identity.history.as_ref().ok_or_else(|| invalid("resume identity has no original history"))?;
                 Ok(StagedFile {
                     history: harmos::storage::StoreHistory {
-                        store: Identifier::new(&history.store)
-                            .map_err(|_| invalid("invalid original store identity"))?,
-                        epoch: Identifier::new(&history.epoch)
-                            .map_err(|_| invalid("invalid original store epoch"))?,
+                        store: Identifier::new(&history.store).map_err(|_| invalid("invalid original store identity"))?,
+                        epoch: Identifier::new(&history.epoch).map_err(|_| invalid("invalid original store epoch"))?,
                     },
-                    id: Identifier::new(&identity.file_id)
-                        .map_err(|_| invalid("invalid original file identity"))?,
+                    id: Identifier::new(&identity.file_id).map_err(|_| invalid("invalid original file identity"))?,
                 })
             })
             .transpose()?;
@@ -110,14 +100,8 @@ impl RuntimeHandle {
                 return Ok(None);
             };
             let reference = &file.descriptor().file;
-            let staged = StagedFile {
-                history: reference.position.history.clone(),
-                id: reference.metadata.id.clone(),
-            };
-            if expected_staged
-                .as_ref()
-                .is_some_and(|expected| expected != &staged)
-            {
+            let staged = StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() };
+            if expected_staged.as_ref().is_some_and(|expected| expected != &staged) {
                 return Err(invalid("saved output replaced the selected identity"));
             }
             if offset > reference.length {
@@ -135,76 +119,46 @@ impl RuntimeHandle {
                 execution,
                 path,
                 &output.file.metadata.media_type,
-                Position {
-                    phase,
-                    length: output.file.length,
-                    offset,
-                },
+                Position { phase, length: output.file.length, offset },
             );
-            return Ok(Some(ExecutionFileFollower {
-                reader,
-                source: Source::Saved(Box::new(file)),
-                metadata,
-                finished: false,
-            }));
+            return Ok(Some(ExecutionFileFollower { reader, source: Source::Saved(Box::new(file)), metadata, finished: false }));
         }
-        let (reader, live, abandoned) = match self
-            .execution_storage
-            .native_follower(execution, path, offset, expected_staged.as_ref())
-            .await?
-        {
-            None => return Ok(None),
-            Some(NativeAdmission::Live {
-                follower,
-                output,
-                abandoned,
-            }) => (follower, output, abandoned),
-            Some(NativeAdmission::Captured {
-                reference,
-                interrupted,
-            }) => {
-                let staged = StagedFile {
-                    history: reference.position.history.clone(),
-                    id: reference.metadata.id.clone(),
-                };
-                if expected_staged
-                    .as_ref()
-                    .is_some_and(|expected| expected != &staged)
-                {
-                    return Err(invalid("captured output replaced the selected identity"));
+        let (reader, live, abandoned) =
+            match self.execution_storage.native_follower(execution, path, offset, expected_staged.as_ref()).await? {
+                None => return Ok(None),
+                Some(NativeAdmission::Live { follower, output, abandoned }) => (follower, output, abandoned),
+                Some(NativeAdmission::Captured { reference, interrupted }) => {
+                    let staged = StagedFile { history: reference.position.history.clone(), id: reference.metadata.id.clone() };
+                    if expected_staged.as_ref().is_some_and(|expected| expected != &staged) {
+                        return Err(invalid("captured output replaced the selected identity"));
+                    }
+                    if offset > reference.length {
+                        return Err(invalid("resume offset exceeds captured output length"));
+                    }
+                    let reader = self.storage().follow_file(&staged, offset).await?;
+                    let phase = if interrupted {
+                        dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
+                    } else {
+                        dokime_domain::model::content::wire::ExecutionFilePhase::Finished
+                    };
+                    let metadata = metadata(
+                        &staged,
+                        execution,
+                        path,
+                        &reference.metadata.media_type,
+                        Position { phase, length: reference.length, offset },
+                    );
+                    return Ok(Some(ExecutionFileFollower {
+                        reader,
+                        source: Source::Captured(Box::new(reference), interrupted),
+                        metadata,
+                        finished: false,
+                    }));
                 }
-                if offset > reference.length {
-                    return Err(invalid("resume offset exceeds captured output length"));
-                }
-                let reader = self.storage().follow_file(&staged, offset).await?;
-                let phase = if interrupted {
-                    dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned
-                } else {
-                    dokime_domain::model::content::wire::ExecutionFilePhase::Finished
-                };
-                let metadata = metadata(
-                    &staged,
-                    execution,
-                    path,
-                    &reference.metadata.media_type,
-                    Position {
-                        phase,
-                        length: reference.length,
-                        offset,
-                    },
-                );
-                return Ok(Some(ExecutionFileFollower {
-                    reader,
-                    source: Source::Captured(Box::new(reference), interrupted),
-                    metadata,
-                    finished: false,
-                }));
-            }
-        };
+            };
         self.start_execution_file_capture(execution, &live).await?;
         let progress = reader.progress();
-        let media = crate::execution_runtime::outputs::media_type_for_path(path)
-            .unwrap_or("application/octet-stream");
+        let media = crate::execution_runtime::outputs::media_type_for_path(path).unwrap_or("application/octet-stream");
         let metadata = metadata(
             &live.identity,
             execution,
@@ -222,21 +176,12 @@ impl RuntimeHandle {
                 offset,
             },
         );
-        Ok(Some(ExecutionFileFollower {
-            reader,
-            source: Source::Live(live),
-            metadata,
-            finished: false,
-        }))
+        Ok(Some(ExecutionFileFollower { reader, source: Source::Live(live), metadata, finished: false }))
     }
 }
 
 impl RuntimeHandle {
-    async fn start_execution_file_capture(
-        &self,
-        execution: &TestExecutionId,
-        source: &LiveOutput,
-    ) -> Result<()> {
+    async fn start_execution_file_capture(&self, execution: &TestExecutionId, source: &LiveOutput) -> Result<()> {
         let runtime = self.clone();
         let source = source.clone();
         let name = format!("execution-log:{execution}:native-{}", source.file_id());
@@ -249,23 +194,14 @@ impl RuntimeHandle {
             runtime
                 .operations
                 .register_service(
-                    harmos::services::ServiceDefinition {
-                        id: name.clone(),
-                        policy: harmos::services::POLICY,
-                    },
-                    move |_: Arc<()>| NativeCapture {
-                        source: source.clone(),
-                    },
+                    harmos::services::ServiceDefinition { id: name.clone(), policy: harmos::services::POLICY },
+                    move |_: Arc<()>| NativeCapture { source: source.clone() },
                 )
                 .map_err(Error::from)?;
             let lease = match runtime.operations.submit_resident(&name).await {
                 Ok(lease) => lease,
                 Err(error) => {
-                    runtime
-                        .operations
-                        .unregister_resident(&name)
-                        .await
-                        .map_err(Error::from)?;
+                    runtime.operations.unregister_resident(&name).await.map_err(Error::from)?;
                     return Err(error.into());
                 }
             };
@@ -280,17 +216,10 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for NativeCapture {
     type Error = Error;
-    async fn run(
-        &mut self,
-        mut context: Service<crate::app::Dokime>,
-    ) -> std::result::Result<(), Fault<Error>> {
+    async fn run(&mut self, mut context: Service<crate::app::Dokime>) -> std::result::Result<(), Fault<Error>> {
         context.ready();
         loop {
-            let stable = self
-                .source
-                .synchronize()
-                .await
-                .map_err(Fault::Application)?;
+            let stable = self.source.synchronize().await.map_err(Fault::Application)?;
             if context.is_stopping() {
                 return Ok(());
             }
@@ -316,15 +245,12 @@ impl ExecutionFileFollower {
 
     pub fn metadata_frame(&self) -> dokime_domain::model::content::wire::ExecutionFileFollowFrame {
         dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(
-                self.metadata.clone(),
-            )),
+            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(self.metadata.clone())),
         }
     }
 
     pub async fn next_frame(
-        &mut self,
-        maximum: NonZeroUsize,
+        &mut self, maximum: NonZeroUsize,
     ) -> Result<Option<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {
         if maximum.get() > 64 * 1024 {
             return Err(invalid("follow chunk exceeds 64 KiB"));
@@ -353,21 +279,15 @@ impl ExecutionFileFollower {
                     return self.chunk(offset, chunk).map(Some);
                 }
                 return match live.settlement().await? {
-                    Settlement::Abandoned => {
-                        self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned)
-                    }
+                    Settlement::Abandoned => self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned),
                     Settlement::Finished(reference) => {
                         self.terminal(Some(&reference), dokime_domain::model::content::wire::ExecutionFilePhase::Finished)
                     }
                     // A Dropped Original Producer Abandons The File Before Any Capture.
-                    Settlement::Producing
-                        if self.reader.progress().phase == FilePhase::Abandoned =>
-                    {
+                    Settlement::Producing if self.reader.progress().phase == FilePhase::Abandoned => {
                         self.terminal(None, dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned)
                     }
-                    Settlement::Producing => Err(invalid(
-                        "finished original production has no sealed reference",
-                    )),
+                    Settlement::Producing => Err(invalid("finished original production has no sealed reference")),
                 }
                 .map(Some);
             }
@@ -382,13 +302,9 @@ impl ExecutionFileFollower {
                 } else {
                     dokime_domain::model::content::wire::ExecutionFilePhase::Finished
                 };
-                return self
-                    .terminal((!interrupted).then_some(&reference), phase)
-                    .map(Some);
+                return self.terminal((!interrupted).then_some(&reference), phase).map(Some);
             }
-            let Source::Saved(file) = &mut self.source else {
-                unreachable!()
-            };
+            let Source::Saved(file) = &mut self.source else { unreachable!() };
             let interrupted = file.descriptor().stream_state == Some(SavedStreamState::Interrupted);
             let reference = file.descriptor().file.clone();
             let phase = if interrupted {
@@ -396,49 +312,34 @@ impl ExecutionFileFollower {
             } else {
                 dokime_domain::model::content::wire::ExecutionFilePhase::Finished
             };
-            return self
-                .terminal((!interrupted).then_some(&reference), phase)
-                .map(Some);
+            return self.terminal((!interrupted).then_some(&reference), phase).map(Some);
         }
     }
 
     fn chunk(&self, offset: u64, chunk: FileBatch) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
         Ok(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
             payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk {
-                    offset,
-                    data: chunk.bytes,
-                },
+                dokime_domain::model::content::wire::ArtifactChunk { offset, data: chunk.bytes },
             )),
         })
     }
 
     fn terminal(
-        &mut self,
-        reference: Option<&FileReference>,
-        phase: dokime_domain::model::content::wire::ExecutionFilePhase,
+        &mut self, reference: Option<&FileReference>, phase: dokime_domain::model::content::wire::ExecutionFilePhase,
     ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowFrame> {
         let length = self.reader.offset();
         let metadata = &self.metadata;
         let frame = {
             let sealed = reference
                 .map(|reference| {
-                    let identity = metadata
-                        .identity
-                        .as_ref()
-                        .ok_or_else(|| refused("follow metadata has no original identity"))?;
+                    let identity = metadata.identity.as_ref().ok_or_else(|| refused("follow metadata has no original identity"))?;
                     if phase != dokime_domain::model::content::wire::ExecutionFilePhase::Finished
                         || reference.length != length
                         || reference.metadata.id.as_str() != identity.file_id
                         || history(&reference.position.history)
-                            != identity
-                                .history
-                                .clone()
-                                .ok_or_else(|| refused("follow identity has no history"))?
+                            != identity.history.clone().ok_or_else(|| refused("follow identity has no history"))?
                     {
-                        return Err(refused(
-                            "original sealed reference differs from followed identity or length",
-                        ));
+                        return Err(refused("original sealed reference differs from followed identity or length"));
                     }
                     Ok(dokime_domain::model::content::wire::ExecutionFileSeal {
                         identity: Some(identity.clone()),
@@ -453,11 +354,7 @@ impl ExecutionFileFollower {
                 .transpose()?;
             dokime_domain::model::content::wire::ExecutionFileFollowFrame {
                 payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(
-                    dokime_domain::model::content::wire::ExecutionFileFollowTerminal {
-                        phase,
-                        length,
-                        sealed,
-                    },
+                    dokime_domain::model::content::wire::ExecutionFileFollowTerminal { phase, length, sealed },
                 )),
             }
         };
@@ -470,17 +367,9 @@ impl ExecutionFileFollower {
 
 /* === Private Functions === */
 fn metadata(
-    staged: &StagedFile,
-    execution: &TestExecutionId,
-    path: &str,
-    media: &str,
-    position: Position,
+    staged: &StagedFile, execution: &TestExecutionId, path: &str, media: &str, position: Position,
 ) -> dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
-    let Position {
-        phase,
-        length,
-        offset,
-    } = position;
+    let Position { phase, length, offset } = position;
     dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
         identity: Some(dokime_domain::model::content::wire::ExecutionFileIdentity {
             history: Some(history(&staged.history)),
@@ -505,10 +394,7 @@ fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::Executi
     }
 }
 fn history(value: &harmos::storage::StoreHistory) -> checkpoint::StoreHistory {
-    checkpoint::StoreHistory {
-        store: value.store.as_str().to_owned(),
-        epoch: value.epoch.as_str().to_owned(),
-    }
+    checkpoint::StoreHistory { store: value.store.as_str().to_owned(), epoch: value.epoch.as_str().to_owned() }
 }
 fn hex(value: &[u8; 32]) -> String {
     const ALPHABET: &[u8; 16] = b"0123456789abcdef";
@@ -520,10 +406,7 @@ fn hex(value: &[u8; 32]) -> String {
     text
 }
 fn refused(reason: &'static str) -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "execution file follow",
-        reason,
-    }
+    harmos::Error::InvalidInput { field: "execution file follow", reason }
 }
 fn invalid(reason: &'static str) -> Error {
     refused(reason).into()

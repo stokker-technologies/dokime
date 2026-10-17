@@ -61,9 +61,7 @@ class DatetimeValue(datetime):
         result._wire_text = text
         fraction = re.search(r"\.(\d+)", text)
         if fraction:
-            result._nanosecond_remainder = (
-                int(fraction.group(1).ljust(9, "0")[:9]) % 1000
-            )
+            result._nanosecond_remainder = int(fraction.group(1).ljust(9, "0")[:9]) % 1000
         return result
 
     def __eq__(self, other: object) -> bool:
@@ -75,17 +73,11 @@ class DatetimeValue(datetime):
 
     def __hash__(self) -> int:
         projected = datetime.__hash__(self)
-        return (
-            hash((projected, self._nanosecond_remainder))
-            if self._nanosecond_remainder
-            else projected
-        )
+        return hash((projected, self._nanosecond_remainder)) if self._nanosecond_remainder else projected
 
     def __lt__(self, other: datetime) -> bool:
         if datetime.__eq__(self, other):
-            return self._nanosecond_remainder < getattr(
-                other, "_nanosecond_remainder", 0
-            )
+            return self._nanosecond_remainder < getattr(other, "_nanosecond_remainder", 0)
         return datetime.__lt__(self, other)
 
     def __le__(self, other: datetime) -> bool:
@@ -93,9 +85,7 @@ class DatetimeValue(datetime):
 
     def __gt__(self, other: datetime) -> bool:
         if datetime.__eq__(self, other):
-            return self._nanosecond_remainder > getattr(
-                other, "_nanosecond_remainder", 0
-            )
+            return self._nanosecond_remainder > getattr(other, "_nanosecond_remainder", 0)
         return datetime.__gt__(self, other)
 
     def __ge__(self, other: datetime) -> bool:

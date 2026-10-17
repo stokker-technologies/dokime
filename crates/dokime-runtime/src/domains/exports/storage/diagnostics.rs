@@ -69,52 +69,22 @@ pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention
     let collect_bundle = format!("{DIAGNOSTICS_DIR}/{DIAGNOSTICS_COLLECT_BUNDLE_FILENAME}");
 
     vec![
-        root_path_convention(
-            DiagnosticPathKey::HubLog,
-            DiagnosticFileFormat::Jsonl,
-            application_root,
-            hub_log,
-        ),
-        root_path_convention(
-            DiagnosticPathKey::StartupDoctor,
-            DiagnosticFileFormat::Json,
-            application_root,
-            startup_doctor,
-        ),
-        root_path_convention(
-            DiagnosticPathKey::DiagnosticsSnapshot,
-            DiagnosticFileFormat::Json,
-            application_root,
-            diagnostics_snapshot,
-        ),
-        root_path_convention(
-            DiagnosticPathKey::CollectBundle,
-            DiagnosticFileFormat::Zip,
-            application_root,
-            collect_bundle,
-        ),
+        root_path_convention(DiagnosticPathKey::HubLog, DiagnosticFileFormat::Jsonl, application_root, hub_log),
+        root_path_convention(DiagnosticPathKey::StartupDoctor, DiagnosticFileFormat::Json, application_root, startup_doctor),
+        root_path_convention(DiagnosticPathKey::DiagnosticsSnapshot, DiagnosticFileFormat::Json, application_root, diagnostics_snapshot),
+        root_path_convention(DiagnosticPathKey::CollectBundle, DiagnosticFileFormat::Zip, application_root, collect_bundle),
     ]
 }
 
 /* === Private Functions === */
 fn root_path_convention(
-    key: DiagnosticPathKey,
-    format: DiagnosticFileFormat,
-    root: &Path,
-    relative_path: String,
+    key: DiagnosticPathKey, format: DiagnosticFileFormat, root: &Path, relative_path: String,
 ) -> DiagnosticPathConvention {
-    DiagnosticPathConvention {
-        key,
-        format,
-        absolute_path: Some(path_to_string(&join_relative(root, &relative_path))),
-        relative_path,
-    }
+    DiagnosticPathConvention { key, format, absolute_path: Some(path_to_string(&join_relative(root, &relative_path))), relative_path }
 }
 
 fn join_relative(root: &Path, relative_path: &str) -> PathBuf {
-    relative_path
-        .split('/')
-        .fold(root.to_path_buf(), |path, segment| path.join(segment))
+    relative_path.split('/').fold(root.to_path_buf(), |path, segment| path.join(segment))
 }
 
 fn path_to_string(path: &Path) -> String {

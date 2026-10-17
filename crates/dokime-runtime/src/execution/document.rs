@@ -17,10 +17,10 @@ use std::sync::{Mutex, PoisonError};
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::document::{Card, DocumentAddition, DocumentDefinition, PlotDefinition, Section};
 use crate::execution::log::Level;
 use crate::transport::ExecutionTransport;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -45,17 +45,12 @@ pub struct DocumentHandle<'a> {
 /* === Implementations === */
 impl DocumentIndex {
     pub(crate) fn new(declared: Option<DocumentDefinition>) -> Self {
-        Self {
-            document: declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document")),
-        }
+        Self { document: declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document")) }
     }
 }
 
 impl<'a> DocumentHandle<'a> {
-    pub(crate) fn new(
-        index: &'a Mutex<DocumentIndex>,
-        transport: &'a dyn ExecutionTransport,
-    ) -> Self {
+    pub(crate) fn new(index: &'a Mutex<DocumentIndex>, transport: &'a dyn ExecutionTransport) -> Self {
         Self { index, transport }
     }
 
@@ -87,10 +82,7 @@ impl<'a> DocumentHandle<'a> {
             return;
         };
 
-        self.add(DocumentAddition::card(
-            section.clone(),
-            Card::text(format!("{section}.note.{ordinal}"), "Note", text),
-        ));
+        self.add(DocumentAddition::card(section.clone(), Card::text(format!("{section}.note.{ordinal}"), "Note", text)));
     }
 
     fn add(&mut self, addition: DocumentAddition) {
@@ -106,9 +98,7 @@ impl<'a> DocumentHandle<'a> {
         match Identifier::new(section_id) {
             Ok(identifier) => Some(identifier),
             Err(error) => {
-                self.refuse(format!(
-                    "\"{section_id}\" is not a section identifier: {error}"
-                ));
+                self.refuse(format!("\"{section_id}\" is not a section identifier: {error}"));
                 None
             }
         }
@@ -119,10 +109,7 @@ impl<'a> DocumentHandle<'a> {
     }
 
     fn refuse(&self, reason: String) {
-        self.transport.log(
-            Level::Error,
-            format!("the document was not changed: {reason}"),
-        );
+        self.transport.log(Level::Error, format!("the document was not changed: {reason}"));
     }
 }
 

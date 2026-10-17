@@ -17,13 +17,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use {
-    dokime_runtime::Identifier,
-    dokime_runtime::Timestamp,
-    dokime_runtime::Value,
-    dokime_runtime::telemetry::TelemetryBatch,
+    dokime_runtime::Identifier, dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::telemetry::TelemetryBatch,
     dokime_runtime::telemetry::TelemetrySample,
 };
 
@@ -49,11 +46,7 @@ fn sequences(reply: &model::telemetry::wire::TelemetrySamplesReply) -> Vec<u64> 
 }
 
 fn cursor(reply: &model::telemetry::wire::TelemetrySamplesReply, stream: &str) -> Option<u64> {
-    reply
-        .through_stream_cursors
-        .iter()
-        .find(|entry| entry.key == stream)
-        .map(|entry| entry.value)
+    reply.through_stream_cursors.iter().find(|entry| entry.key == stream).map(|entry| entry.value)
 }
 
 fn continuation(
@@ -62,12 +55,10 @@ fn continuation(
     reply
         .through_stream_cursors
         .iter()
-        .map(
-            |entry| model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
-                key: entry.key.clone(),
-                value: entry.value,
-            },
-        )
+        .map(|entry| model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+            key: entry.key.clone(),
+            value: entry.value,
+        })
         .collect()
 }
 
@@ -80,50 +71,33 @@ async fn telemetry_pages_window() {
     let id = Identifier::new("fixture.progress").unwrap();
     let samples = (0..5)
         .map(|index| {
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(),
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                id.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
                 "fixture",
             );
-            sample
-                .values
-                .insert("progress".into(), Value::Number(index as f64));
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow {
-                progress: index as f64,
-            }))
+            sample.values.insert("progress".into(), Value::Number(index as f64));
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    handle
-        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples))
-        .await
-        .unwrap();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 
-    let server = Server::start(handle.clone(), Config::local())
-        .await
-        .unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let stream = dokime_runtime::domains::telemetry::telemetry_stream_id(None, &id);
-    let base = contracts::telemetry::ListSamples {
-        streams: vec![id.to_string()],
-        limit: 2,
-        ..Default::default()
-    };
+    let base = contracts::telemetry::ListSamples { streams: vec![id.to_string()], limit: 2, ..Default::default() };
 
-    let first = client
-        .unary::<contracts::telemetry::ListSamples>(authenticated(base.clone()))
-        .await
-        .unwrap()
-        .into_inner();
+    let first = client.unary::<contracts::telemetry::ListSamples>(authenticated(base.clone())).await.unwrap().into_inner();
     assert_eq!(sequences(&first), [1, 2]);
     assert_eq!(cursor(&first, &stream), Some(2));
 
     let second = client
-        .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListSamples {
-                after_stream_cursors: continuation(&first),
-                ..base.clone()
-            },
-        ))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            after_stream_cursors: continuation(&first),
+            ..base.clone()
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -131,12 +105,7 @@ async fn telemetry_pages_window() {
     assert_eq!(cursor(&second, &stream), Some(4));
 
     let tail = client
-        .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListSamples {
-                latest: true,
-                ..base.clone()
-            },
-        ))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples { latest: true, ..base.clone() }))
         .await
         .unwrap()
         .into_inner();
@@ -144,13 +113,11 @@ async fn telemetry_pages_window() {
     assert!(tail.through_stream_cursors.is_empty());
 
     let rejected = client
-        .unary::<contracts::telemetry::ListSamples>(authenticated(
-            contracts::telemetry::ListSamples {
-                after_stream_cursors: continuation(&second),
-                latest: true,
-                ..base
-            },
-        ))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            after_stream_cursors: continuation(&second),
+            latest: true,
+            ..base
+        }))
         .await
         .unwrap_err();
     assert_eq!(rejected.code(), Code::InvalidArgument);

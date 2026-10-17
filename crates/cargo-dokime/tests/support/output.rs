@@ -57,10 +57,7 @@ impl Lines {
                 let _ = sent.send(line);
             }
         });
-        Self {
-            received,
-            transcript,
-        }
+        Self { received, transcript }
     }
 
     /// Awaits the next line that matches, failing once the stream closes.
@@ -70,10 +67,7 @@ impl Lines {
                 return line;
             }
         }
-        panic!(
-            "the stream closed before the expected line:\n{}",
-            self.transcript()
-        );
+        panic!("the stream closed before the expected line:\n{}", self.transcript());
     }
 
     pub async fn containing(&mut self, text: &str) -> String {

@@ -66,9 +66,7 @@ pub fn value_matches_type(value: &Value, value_type: &ValueType) -> bool {
 
 pub fn datetime_seconds(value: &Value) -> Option<f64> {
     match value {
-        Value::Datetime(timestamp) => {
-            Some(timestamp.unix_timestamp_nanos() as f64 / 1_000_000_000.0)
-        }
+        Value::Datetime(timestamp) => Some(timestamp.unix_timestamp_nanos() as f64 / 1_000_000_000.0),
         _ => None,
     }
 }
@@ -86,23 +84,13 @@ pub fn numeric_cmp(value: &Value, bound: &Value) -> Option<std::cmp::Ordering> {
     match (value, bound) {
         (Value::Integer(value), Value::Integer(bound)) => Some(value.cmp(bound)),
         (Value::Unsigned(value), Value::Unsigned(bound)) => Some(value.cmp(bound)),
-        (Value::Integer(value), Value::Unsigned(bound)) => {
-            Some(i128::from(*value).cmp(&i128::from(*bound)))
-        }
-        (Value::Unsigned(value), Value::Integer(bound)) => {
-            Some(i128::from(*value).cmp(&i128::from(*bound)))
-        }
+        (Value::Integer(value), Value::Unsigned(bound)) => Some(i128::from(*value).cmp(&i128::from(*bound))),
+        (Value::Unsigned(value), Value::Integer(bound)) => Some(i128::from(*value).cmp(&i128::from(*bound))),
         (Value::Unsigned(value), Value::Number(bound)) => unsigned_float_cmp(*value, *bound),
-        (Value::Number(value), Value::Unsigned(bound)) => {
-            unsigned_float_cmp(*bound, *value).map(std::cmp::Ordering::reverse)
-        }
-        (Value::Number(value), Value::Number(bound)) if value.is_finite() && bound.is_finite() => {
-            value.partial_cmp(bound)
-        }
+        (Value::Number(value), Value::Unsigned(bound)) => unsigned_float_cmp(*bound, *value).map(std::cmp::Ordering::reverse),
+        (Value::Number(value), Value::Number(bound)) if value.is_finite() && bound.is_finite() => value.partial_cmp(bound),
         (Value::Integer(value), Value::Number(bound)) => integer_float_cmp(*value, *bound),
-        (Value::Number(value), Value::Integer(bound)) => {
-            integer_float_cmp(*bound, *value).map(std::cmp::Ordering::reverse)
-        }
+        (Value::Number(value), Value::Integer(bound)) => integer_float_cmp(*bound, *value).map(std::cmp::Ordering::reverse),
         _ => None,
     }
 }

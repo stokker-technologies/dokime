@@ -17,9 +17,9 @@ use std::cmp::Ordering;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::state::RuntimeState;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::TestCycle;
-use crate::state::RuntimeState;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
@@ -73,48 +73,27 @@ impl std::fmt::Display for CyclePageError {
 }
 
 /* === Public Functions === */
-pub fn select_cycles<'a>(
-    state: &'a RuntimeState,
-    filter: &CycleFilter,
-    order: CycleOrder,
-) -> Vec<&'a TestCycle> {
-    let mut selected: Vec<&TestCycle> = state
-        .cycles
-        .values()
-        .filter(|cycle| matches_filter(state, cycle, filter))
-        .collect();
+pub fn select_cycles<'a>(state: &'a RuntimeState, filter: &CycleFilter, order: CycleOrder) -> Vec<&'a TestCycle> {
+    let mut selected: Vec<&TestCycle> = state.cycles.values().filter(|cycle| matches_filter(state, cycle, filter)).collect();
     selected.sort_by(|left, right| compare(left, right, order));
     selected
 }
 
 pub fn cycle_page<'a>(
-    selected: &[&'a TestCycle],
-    after: Option<&str>,
-    limit: usize,
+    selected: &[&'a TestCycle], after: Option<&str>, limit: usize,
 ) -> Result<(Vec<&'a TestCycle>, Option<String>), CyclePageError> {
     let start = match after {
         None => 0,
-        Some(id) => {
-            selected
-                .iter()
-                .position(|cycle| cycle.test_cycle_id.as_str() == id)
-                .ok_or(CyclePageError::UnknownContinuation)?
-                + 1
-        }
+        Some(id) => selected.iter().position(|cycle| cycle.test_cycle_id.as_str() == id).ok_or(CyclePageError::UnknownContinuation)? + 1,
     };
     let page: Vec<&TestCycle> = selected.iter().skip(start).take(limit).copied().collect();
-    let next = (start + page.len() < selected.len())
-        .then(|| page.last().map(|cycle| cycle.test_cycle_id.to_string()))
-        .flatten();
+    let next = (start + page.len() < selected.len()).then(|| page.last().map(|cycle| cycle.test_cycle_id.to_string())).flatten();
     Ok((page, next))
 }
 
 /* === Private Functions === */
 fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter) -> bool {
-    if !filter
-        .archive
-        .admits(state.archived_cycles.contains(&cycle.test_cycle_id))
-    {
+    if !filter.archive.admits(state.archived_cycles.contains(&cycle.test_cycle_id)) {
         return false;
     }
     if !filter.statuses.is_empty() && !filter.statuses.contains(&cycle.lifecycle) {
@@ -123,11 +102,7 @@ fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter)
     if !matches_text(cycle, &filter.text) {
         return false;
     }
-    within(
-        &cycle.created_at,
-        filter.created_after.as_ref(),
-        filter.created_before.as_ref(),
-    )
+    within(&cycle.created_at, filter.created_after.as_ref(), filter.created_before.as_ref())
 }
 
 fn matches_text(cycle: &TestCycle, text: &str) -> bool {
@@ -163,22 +138,10 @@ fn compare(left: &TestCycle, right: &TestCycle, order: CycleOrder) -> Ordering {
     let keyed = match order.key {
         CycleOrderKey::UpdatedAt => instants(&left.updated_at, &right.updated_at),
         CycleOrderKey::CreatedAt => instants(&left.created_at, &right.created_at),
-        CycleOrderKey::Label => left
-            .metadata
-            .label
-            .to_lowercase()
-            .cmp(&right.metadata.label.to_lowercase()),
+        CycleOrderKey::Label => left.metadata.label.to_lowercase().cmp(&right.metadata.label.to_lowercase()),
     };
-    let keyed = if order.descending {
-        keyed.reverse()
-    } else {
-        keyed
-    };
-    keyed.then_with(|| {
-        left.test_cycle_id
-            .as_str()
-            .cmp(right.test_cycle_id.as_str())
-    })
+    let keyed = if order.descending { keyed.reverse() } else { keyed };
+    keyed.then_with(|| left.test_cycle_id.as_str().cmp(right.test_cycle_id.as_str()))
 }
 
 fn instants(left: &Timestamp, right: &Timestamp) -> Ordering {

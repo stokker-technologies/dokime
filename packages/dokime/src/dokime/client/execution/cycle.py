@@ -86,52 +86,29 @@ class Cycle:
         return self._executions
 
     @classmethod
-    async def _bind(
-        cls, transport: Transport, cycle_id: str, backend: Backend
-    ) -> "Cycle":
+    async def _bind(cls, transport: Transport, cycle_id: str, backend: Backend) -> "Cycle":
         result = cls(cycle_id, transport, backend, ())
         await result._snapshot()
-        request = _wire.request(
-            "Execution", "ListExecutions", cycle_id=cycle_id, limit=100
-        )
+        request = _wire.request("Execution", "ListExecutions", cycle_id=cycle_id, limit=100)
         members = []
         seen = set()
         while True:
             page = await transport.unary("Execution", "ListExecutions", request)
             _cursor(backend, page, "cursor")
-            if (
-                request.HasField("cursor")
-                and not _wire.equal(request.cursor, page.cursor)
-                or len(page.executions) > request.limit
-            ):
-                raise ProtocolError(
-                    "execution membership changed cursor or exceeded limit"
-                )
+            if request.HasField("cursor") and not _wire.equal(request.cursor, page.cursor) or len(page.executions) > request.limit:
+                raise ProtocolError("execution membership changed cursor or exceeded limit")
             for row in page.executions:
                 try:
                     _identity(row.execution_id)
                 except ValueError as error:
-                    raise ProtocolError(
-                        "execution membership identity is invalid"
-                    ) from error
-                if (
-                    not row.case_id
-                    or row.ordinal != len(members)
-                    or row.execution_id in seen
-                ):
-                    raise ProtocolError(
-                        "execution membership identity or order differs"
-                    )
+                    raise ProtocolError("execution membership identity is invalid") from error
+                if not row.case_id or row.ordinal != len(members) or row.execution_id in seen:
+                    raise ProtocolError("execution membership identity or order differs")
                 seen.add(row.execution_id)
-                members.append(
-                    TestExecutionHandle(row.execution_id, transport, backend)
-                )
+                members.append(TestExecutionHandle(row.execution_id, transport, backend))
             if not page.HasField("next_after_execution_id"):
                 break
-            if (
-                not page.executions
-                or page.next_after_execution_id != page.executions[-1].execution_id
-            ):
+            if not page.executions or page.next_after_execution_id != page.executions[-1].execution_id:
                 raise ProtocolError("execution membership continuation is invalid")
             request.after_execution_id = page.next_after_execution_id
             _wire.copy(request.cursor, page.cursor)
@@ -140,9 +117,7 @@ class Cycle:
 
     def _check_request(self, request: "RunRequest | None") -> None:
         if request is not None and (
-            request.cycle_id != self.id
-            or request._transport is not self._transport
-            or request._backend != self._backend
+            request.cycle_id != self.id or request._transport is not self._transport or request._backend != self._backend
         ):
             raise ValueError("request belongs to another cycle or connection")
 
@@ -180,9 +155,7 @@ class Cycle:
         reply = await self._transport.unary(
             "Execution",
             "ScheduleCaseRerun",
-            _wire.request(
-                "Execution", "ScheduleCaseRerun", cycle_id=self.id, case_id=case_id
-            ),
+            _wire.request("Execution", "ScheduleCaseRerun", cycle_id=self.id, case_id=case_id),
         )
         _cursor(self._backend, reply)
 
@@ -241,9 +214,7 @@ class Cycle:
     ) -> Download:
         """Stream cycle HTML and verify the transfer before publishing the file."""
         await self._transport.verify(self._backend, live=True)
-        return await download_report(
-            self._transport, self.id, Path(destination), identifier
-        )
+        return await download_report(self._transport, self.id, Path(destination), identifier)
 
     async def pending_prompts(self) -> AsyncIterator[Prompt]:
         """List this cycle's pending interactions; never auto-accept a prompt."""
@@ -260,27 +231,17 @@ class Cycle:
                 or request.HasField("cursor")
                 and not _wire.equal(request.cursor, page.cursor)
             ):
-                raise ProtocolError(
-                    "pending prompt page changed cursor or exceeded limit"
-                )
+                raise ProtocolError("pending prompt page changed cursor or exceeded limit")
             previous = request.after_prompt_id
             for identity in page.prompts:
                 try:
                     _identity(identity.prompt_id)
                 except ValueError as error:
                     raise ProtocolError("pending prompt identity is invalid") from error
-                if (
-                    identity.prompt_id <= previous
-                    or not identity.HasField("scope")
-                    or identity.scope.cycle_id != self.id
-                ):
-                    raise ProtocolError(
-                        "pending prompt identity does not advance within cycle"
-                    )
+                if identity.prompt_id <= previous or not identity.HasField("scope") or identity.scope.cycle_id != self.id:
+                    raise ProtocolError("pending prompt identity does not advance within cycle")
                 previous = identity.prompt_id
-            if page.HasField("next_after_prompt_id") and (
-                not page.prompts or page.next_after_prompt_id != previous
-            ):
+            if page.HasField("next_after_prompt_id") and (not page.prompts or page.next_after_prompt_id != previous):
                 raise ProtocolError("pending prompt continuation is invalid")
             for identity in page.prompts:
                 view = await self._prompt(identity.prompt_id)
@@ -310,13 +271,9 @@ class Cycle:
                     item.prompt_id,
                     item.definition.prompt_type,
                     item.definition.title,
-                    item.definition.message
-                    if item.definition.HasField("message")
-                    else None,
+                    item.definition.message if item.definition.HasField("message") else None,
                     tuple(action.id for action in item.definition.actions),
-                    tuple(
-                        field.metadata.identifier for field in item.definition.fields
-                    ),
+                    tuple(field.metadata.identifier for field in item.definition.fields),
                     _wire.fields(item.values),
                     level=level,
                 )
@@ -413,9 +370,7 @@ class Cycle:
             assert until is not None
             status = await until.wait()
             if status.phase.value == "interrupted":
-                raise ProtocolError(
-                    "interrupted acquisition does not certify complete live evidence"
-                )
+                raise ProtocolError("interrupted acquisition does not certify complete live evidence")
 
         async with aclosing(
             read_records(
@@ -465,9 +420,7 @@ class Cycle:
                 return True
             status = await until.status()
             if status.phase.value == "interrupted":
-                raise ProtocolError(
-                    "interrupted acquisition does not certify complete live evidence"
-                )
+                raise ProtocolError("interrupted acquisition does not certify complete live evidence")
             return status.terminal
 
         async for page in read_samples(

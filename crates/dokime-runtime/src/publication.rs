@@ -18,8 +18,8 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
 use dokime_domain::model::records::publication::RecordPublishRequest;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -32,11 +32,7 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 /* === Enums === */
 #[derive(Clone, Debug, PartialEq)]
 pub enum Publication {
-    Row {
-        stream: Identifier,
-        values: BTreeMap<String, Value>,
-        payload: Vec<u8>,
-    },
+    Row { stream: Identifier, values: BTreeMap<String, Value>, payload: Vec<u8> },
     Record(Box<RecordPublishRequest>),
 }
 

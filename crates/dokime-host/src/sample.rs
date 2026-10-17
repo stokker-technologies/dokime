@@ -42,23 +42,11 @@ pub struct HostStreamSample {
 /* === Implementations === */
 impl HostStreamSample {
     pub fn new(stream: HostTelemetryStream, values: BTreeMap<String, Value>) -> Self {
-        Self::with_timestamp(
-            stream,
-            dokime_domain::model::time::Timestamp::from_system_time(std::time::SystemTime::now()),
-            values,
-        )
+        Self::with_timestamp(stream, dokime_domain::model::time::Timestamp::from_system_time(std::time::SystemTime::now()), values)
     }
 
-    pub fn with_timestamp(
-        stream: HostTelemetryStream,
-        timestamp: Timestamp,
-        values: BTreeMap<String, Value>,
-    ) -> Self {
-        Self {
-            stream,
-            timestamp,
-            values,
-        }
+    pub fn with_timestamp(stream: HostTelemetryStream, timestamp: Timestamp, values: BTreeMap<String, Value>) -> Self {
+        Self { stream, timestamp, values }
     }
 }
 

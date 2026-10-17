@@ -73,10 +73,7 @@ pub enum SettingsEntry {
 /* === Implementations === */
 impl SettingsError {
     pub(crate) fn invalid(id: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            message: message.into(),
-        }
+        Self { id: id.into(), message: message.into() }
     }
 }
 
@@ -94,11 +91,7 @@ impl Settings {
         for definition in &self.contributions {
             let id = definition.id();
             if crate::model::identity::Identifier::new(id).is_err() || id.trim() != id {
-                return Err(SettingsError::invalid(
-                    id,
-                    "id must be nonempty without surrounding whitespace",
-                )
-                .into());
+                return Err(SettingsError::invalid(id, "id must be nonempty without surrounding whitespace").into());
             }
             if !ids.insert(id) {
                 return Err(SettingsError::invalid(id, "duplicate id").into());
@@ -117,19 +110,10 @@ impl Settings {
 
     pub fn resolve(&self, saved: &SettingValues) -> crate::Result<SettingValues> {
         self.validate()?;
-        let mut values: SettingValues = self
-            .contributions
-            .iter()
-            .filter_map(|entry| {
-                entry
-                    .default_value()
-                    .map(|value| (entry.id().into(), value))
-            })
-            .collect();
+        let mut values: SettingValues =
+            self.contributions.iter().filter_map(|entry| entry.default_value().map(|value| (entry.id().into(), value))).collect();
         for (id, value) in saved {
-            let definition = self
-                .get(id)
-                .ok_or_else(|| SettingsError::invalid(id, "unknown id"))?;
+            let definition = self.get(id).ok_or_else(|| SettingsError::invalid(id, "unknown id"))?;
             definition.validate_value(value)?;
             values.insert(id.clone(), value.clone());
         }

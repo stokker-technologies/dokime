@@ -44,20 +44,12 @@ use dokime_runtime::config::{ApplicationOptions, Settings};
 #[test]
 fn explicit_root_local() {
     let root = tempfile::tempdir().unwrap();
-    let config = ApplicationOptions {
-        application_root: Some(root.path().to_owned()),
-        ..Default::default()
-    }
-    .resolve()
-    .unwrap();
+    let config = ApplicationOptions { application_root: Some(root.path().to_owned()), ..Default::default() }.resolve().unwrap();
     assert_eq!(config.output_root, root.path().join("data"));
     assert_eq!(config.application_root.as_deref(), Some(root.path()));
     assert_eq!(config.plugin_lookup, None);
     assert!(root.path().join("settings.json").is_file());
-    assert!(
-        !config.output_root.exists(),
-        "resolution must not start the backend"
-    );
+    assert!(!config.output_root.exists(), "resolution must not start the backend");
 }
 
 // the saved data root applies unless this process overrides it.
@@ -73,19 +65,10 @@ fn saved_data_overridden() {
             Ok::<_, std::io::Error>(())
         })
         .unwrap();
-    let options = ApplicationOptions {
-        application_root: Some(root.path().to_owned()),
-        ..Default::default()
-    };
+    let options = ApplicationOptions { application_root: Some(root.path().to_owned()), ..Default::default() };
     assert_eq!(options.clone().resolve().unwrap().output_root, saved);
-    let overridden = ApplicationOptions {
-        storage_root: Some(root.path().join("override")),
-        ..options
-    };
-    assert_eq!(
-        overridden.resolve().unwrap().output_root,
-        root.path().join("override")
-    );
+    let overridden = ApplicationOptions { storage_root: Some(root.path().join("override")), ..options };
+    assert_eq!(overridden.resolve().unwrap().output_root, root.path().join("override"));
 }
 
 // a data root keeps one identity across launches, so its first and later
@@ -94,19 +77,13 @@ fn saved_data_overridden() {
 #[tokio::test]
 async fn data_root_reopens() {
     let root = tempfile::tempdir().unwrap();
-    let options = ApplicationOptions {
-        application_root: Some(root.path().to_owned()),
-        ..Default::default()
-    };
+    let options = ApplicationOptions { application_root: Some(root.path().to_owned()), ..Default::default() };
     let first = options.clone().resolve().unwrap().output_root;
     assert!(!first.exists(), "the first launch creates the data root");
     for launch in 0..3 {
         // Resolve The Same Options The Way Every Shell Launch Does
         let mut config = options.clone().resolve().unwrap();
-        assert_eq!(
-            config.output_root, first,
-            "launch {launch} resolved a different data root form"
-        );
+        assert_eq!(config.output_root, first, "launch {launch} resolved a different data root form");
         #[cfg(windows)]
         assert!(
             !matches!(
@@ -117,15 +94,11 @@ async fn data_root_reopens() {
             config.output_root.display()
         );
         config.seed_plugins = false;
-        config.credential_backend = dokime_runtime::RuntimeCredentialConfig {
-            backend: dokime_runtime::CredentialBackendKind::Memory,
-            local_file: None,
-        };
+        config.credential_backend =
+            dokime_runtime::RuntimeCredentialConfig { backend: dokime_runtime::CredentialBackendKind::Memory, local_file: None };
 
         // Open, Prove Readiness, And Close The Root
-        let mut runtime = dokime_runtime::app::launch(config)
-            .await
-            .unwrap_or_else(|error| panic!("launch {launch} failed: {error}"));
+        let mut runtime = dokime_runtime::app::launch(config).await.unwrap_or_else(|error| panic!("launch {launch} failed: {error}"));
         let overview = runtime.handle().runtime_overview().await.unwrap();
         assert!(!overview.shutting_down, "launch {launch} accepts commands");
         runtime.shutdown().await.unwrap();

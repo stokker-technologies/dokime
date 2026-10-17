@@ -17,10 +17,10 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use crate::support;
 use crate::support::wire::*;
 use dokime_client::contracts;
+use dokime_domain::model;
 use dokime_server::grpc::{
     Config, Server,
     access::{BearerGrant, Role},
@@ -54,12 +54,7 @@ impl Drop for Child {
 
 /* === Private Functions === */
 fn config() -> Config {
-    Config::local()
-        .with_bearer_auth(vec![
-            grant(Role::Control),
-            BearerGrant::new("fixture".into(), Role::Read, READER).unwrap(),
-        ])
-        .unwrap()
+    Config::local().with_bearer_auth(vec![grant(Role::Control), BearerGrant::new("fixture".into(), Role::Read, READER).unwrap()]).unwrap()
 }
 
 /* === Tests === */
@@ -71,42 +66,31 @@ async fn crashed_run_replay() {
         let owner = fixture(&root, gate.clone()).await;
         let server = Server::start(owner.handle(), config()).await.unwrap();
         let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-        let cycle = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
-            .await
-            .unwrap();
+        let cycle = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
         let cases = client
-            .unary::<contracts::execution::ListCases>(authenticated(
-                contracts::execution::ListCases {
-                    cycle_id: cycle.clone(),
-                    ..Default::default()
-                },
-            ))
+            .unary::<contracts::execution::ListCases>(authenticated(contracts::execution::ListCases {
+                cycle_id: cycle.clone(),
+                ..Default::default()
+            }))
             .await
             .unwrap()
             .into_inner();
         let case = cases.cases[0].case_id.clone();
         let admission = accepted(
             client
-                .unary::<contracts::execution::RunCase>(authenticated(
-                    contracts::execution::RunCase {
-                        cycle_id: cycle.clone(),
-                        case_id: case.clone(),
-                        context: None,
-                        idempotency_key: Some("crash-operation".into()),
-                    },
-                ))
+                .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
+                    cycle_id: cycle.clone(),
+                    case_id: case.clone(),
+                    context: None,
+                    idempotency_key: Some("crash-operation".into()),
+                }))
                 .await
                 .unwrap()
                 .into_inner(),
         );
         gate.started.notified().await;
-        let receipt = lookup(&mut client, &admission.command_id, READER)
-            .await
-            .unwrap();
-        assert_eq!(
-            receipt.phase,
-            model::execution::wire::RunRequestPhase::Running
-        );
+        let receipt = lookup(&mut client, &admission.command_id, READER).await.unwrap();
+        assert_eq!(receipt.phase, model::execution::wire::RunRequestPhase::Running);
         // Crash recovery applies to saved work; ordinary admission may still be buffered.
         owner.handle().storage().flush().await.unwrap();
         owner.handle().storage().flush_recovery().await.unwrap();
@@ -128,47 +112,36 @@ async fn crashed_run_replay() {
 
     // The Child Reports Readiness On Stdout Once Its Run Is Saved
     let stdout = child.0.stdout.take().unwrap();
-    let (request_id, cycle_id, case_id): (String, String, String) =
-        tokio::task::spawn_blocking(move || {
-            use std::io::BufRead;
-            let line = std::io::BufReader::new(stdout)
-                .lines()
-                .map_while(Result::ok)
-                .find_map(|line| line.strip_prefix(READY).map(str::to_owned))
-                .expect("crash fixture exited before readiness");
-            serde_json::from_str(&line).unwrap()
-        })
-        .await
-        .unwrap();
+    let (request_id, cycle_id, case_id): (String, String, String) = tokio::task::spawn_blocking(move || {
+        use std::io::BufRead;
+        let line = std::io::BufReader::new(stdout)
+            .lines()
+            .map_while(Result::ok)
+            .find_map(|line| line.strip_prefix(READY).map(str::to_owned))
+            .expect("crash fixture exited before readiness");
+        serde_json::from_str(&line).unwrap()
+    })
+    .await
+    .unwrap();
     child.0.kill().unwrap();
     child.0.wait().unwrap();
     let mut owner = runtime(root.path()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let receipt = lookup(&mut client, &request_id, READER).await.unwrap();
-    assert_eq!(
-        receipt.phase,
-        model::execution::wire::RunRequestPhase::Interrupted
-    );
+    assert_eq!(receipt.phase, model::execution::wire::RunRequestPhase::Interrupted);
     assert_eq!(receipt.prepared_count, 1);
     assert_eq!(receipt.finished_count, 0);
     assert!(receipt.finished_at.is_some());
-    assert!(
-        receipt
-            .interruption
-            .as_ref()
-            .is_some_and(|reason| !reason.is_empty())
-    );
+    assert!(receipt.interruption.as_ref().is_some_and(|reason| !reason.is_empty()));
     let replay = accepted(
         client
-            .unary::<contracts::execution::RunCase>(authenticated(
-                contracts::execution::RunCase {
-                    cycle_id,
-                    case_id,
-                    context: None,
-                    idempotency_key: Some("crash-operation".into()),
-                },
-            ))
+            .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
+                cycle_id,
+                case_id,
+                context: None,
+                idempotency_key: Some("crash-operation".into()),
+            }))
             .await
             .unwrap()
             .into_inner(),
@@ -179,26 +152,14 @@ async fn crashed_run_replay() {
     let cycle = restored.state().cycle_views().next().unwrap();
     assert_eq!(cycle.test_executions.len(), 1);
     let execution = &cycle.test_executions[0];
-    assert_eq!(
-        execution.status,
-        dokime_domain::model::execution::result::ExecutionStatus::Interrupted
-    );
-    assert_eq!(
-        execution.test_execution_id.as_str(),
-        receipt.last_claim.as_ref().unwrap().execution_id
-    );
+    assert_eq!(execution.status, dokime_domain::model::execution::result::ExecutionStatus::Interrupted);
+    assert_eq!(execution.test_execution_id.as_str(), receipt.last_claim.as_ref().unwrap().execution_id);
     assert!(execution.finished_at.is_some());
     assert_eq!(restored.state().run_requests.len(), 1);
     let recovered = restored.state().run_requests.values().next().unwrap();
-    assert_eq!(
-        recovered.summary.phase,
-        dokime_domain::model::execution::request::RunPhase::Interrupted
-    );
+    assert_eq!(recovered.summary.phase, dokime_domain::model::execution::request::RunPhase::Interrupted);
     assert!(recovered.pending.is_empty());
-    assert_eq!(
-        lookup(&mut client, &request_id, READER).await.unwrap(),
-        receipt
-    );
+    assert_eq!(lookup(&mut client, &request_id, READER).await.unwrap(), receipt);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

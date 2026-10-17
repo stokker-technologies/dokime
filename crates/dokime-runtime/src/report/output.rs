@@ -28,8 +28,7 @@ use serde::Serialize;
 /* === Constants === */
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
-static REPORT_PARTS: LazyLock<(&str, &str)> =
-    LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
+static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
 
 /* === Macros === */
 
@@ -54,11 +53,7 @@ pub(super) struct Count {
 
 /* === Implementations === */
 impl serde_json::ser::Formatter for ScriptFormatter {
-    fn write_string_fragment<W: ?Sized + Write>(
-        &mut self,
-        writer: &mut W,
-        fragment: &str,
-    ) -> io::Result<()> {
+    fn write_string_fragment<W: ?Sized + Write>(&mut self, writer: &mut W, fragment: &str) -> io::Result<()> {
         let mut start = 0;
         for (at, character) in fragment.char_indices() {
             let escaped = match character {
@@ -82,9 +77,7 @@ impl Buffer {
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(maximum).map_err(io::Error::other)?;
         if bytes.capacity() > maximum {
-            return Err(io::Error::other(
-                "report output capacity exceeds its preclaim",
-            ));
+            return Err(io::Error::other("report output capacity exceeds its preclaim"));
         }
         Ok(Self { bytes, maximum })
     }
@@ -112,11 +105,7 @@ impl Write for Buffer {
 
 impl Count {
     pub(super) fn new(maximum: NonZeroUsize) -> Self {
-        Self {
-            bytes: 0,
-            maximum,
-            exceeded: false,
-        }
+        Self { bytes: 0, maximum, exceeded: false }
     }
     pub(super) fn len(&self) -> usize {
         self.bytes
@@ -129,14 +118,10 @@ impl Count {
 
 impl Write for Count {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes = self
-            .bytes
-            .checked_add(bytes.len())
-            .filter(|required| *required <= self.maximum.get())
-            .ok_or_else(|| {
-                self.exceeded = true;
-                io::Error::other("report output exceeds its byte limit")
-            })?;
+        self.bytes = self.bytes.checked_add(bytes.len()).filter(|required| *required <= self.maximum.get()).ok_or_else(|| {
+            self.exceeded = true;
+            io::Error::other("report output exceeds its byte limit")
+        })?;
         Ok(bytes.len())
     }
 
@@ -149,22 +134,12 @@ impl Write for Count {
 
 /* === Private Functions === */
 
-pub(super) fn write_html(
-    writer: &mut dyn Write,
-    payload: &impl Serialize,
-    template: &str,
-) -> io::Result<()> {
+pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, template: &str) -> io::Result<()> {
     // Reuse The Fixed Embedded Template; Other Inputs Keep Their Own Split.
-    let (prefix, suffix) = if std::ptr::eq(template, super::asset::REPORT_APP_TEMPLATE) {
-        *REPORT_PARTS
-    } else {
-        split_template(template)
-    };
+    let (prefix, suffix) = if std::ptr::eq(template, super::asset::REPORT_APP_TEMPLATE) { *REPORT_PARTS } else { split_template(template) };
     writer.write_all(prefix.as_bytes())?;
     let mut serializer = serde_json::Serializer::with_formatter(&mut *writer, ScriptFormatter);
-    payload
-        .serialize(&mut serializer)
-        .map_err(io::Error::other)?;
+    payload.serialize(&mut serializer).map_err(io::Error::other)?;
     writer.write_all(suffix.as_bytes())
 }
 

@@ -41,25 +41,13 @@ use super::*;
 async fn node_identity_restart() {
     let root = tempdir().unwrap();
     let (mut runtime, handle) = booted(root.path()).await;
-    let first = handle
-        .runtime_overview()
-        .await
-        .expect("runtime overview query succeeds")
-        .identity
-        .node
-        .node_id;
+    let first = handle.runtime_overview().await.expect("runtime overview query succeeds").identity.node.node_id;
     drop(handle);
     let stopped = runtime.shutdown().await.unwrap();
     assert_eq!(runtime.shutdown().await.unwrap(), stopped);
 
     let (mut rebooted, handle) = booted(root.path()).await;
-    let second = handle
-        .runtime_overview()
-        .await
-        .expect("runtime overview query succeeds")
-        .identity
-        .node
-        .node_id;
+    let second = handle.runtime_overview().await.expect("runtime overview query succeeds").identity.node.node_id;
     drop(handle);
 
     assert_eq!(second, first);
@@ -72,13 +60,7 @@ async fn starts_shutdown_commands() {
     let root = tempdir().unwrap();
     let (mut runtime, handle) = booted(root.path()).await;
 
-    assert!(
-        !handle
-            .runtime_overview()
-            .await
-            .expect("runtime overview query succeeds")
-            .shutting_down
-    );
+    assert!(!handle.runtime_overview().await.expect("runtime overview query succeeds").shutting_down);
     assert!(!handle.is_shutting_down());
 
     // Shutdown first publishes the product stop marker, then Harmos waits for
@@ -100,18 +82,8 @@ async fn starts_shutdown_commands() {
     // A shutdown marker survives long enough for the old process to drain, but
     // boot clears it for the fresh process before accepting new work.
     let (mut rebooted, rebooted_handle) = booted(root.path()).await;
-    assert!(
-        !rebooted_handle
-            .runtime_overview()
-            .await
-            .expect("runtime overview query succeeds")
-            .shutting_down
-    );
-    assert!(
-        record_health(&rebooted_handle, "rebooted probe")
-            .await
-            .is_ok()
-    );
+    assert!(!rebooted_handle.runtime_overview().await.expect("runtime overview query succeeds").shutting_down);
+    assert!(record_health(&rebooted_handle, "rebooted probe").await.is_ok());
     drop(rebooted_handle);
     rebooted.shutdown().await.unwrap();
 }
@@ -127,10 +99,7 @@ async fn old_incompatible_startup() {
     assert!(!handle.is_shutting_down());
     drop(handle);
     runtime.shutdown().await.unwrap();
-    assert_eq!(
-        std::fs::read(legacy.join("journal.jsonl")).unwrap(),
-        b"incompatible old history\n"
-    );
+    assert_eq!(std::fs::read(legacy.join("journal.jsonl")).unwrap(), b"incompatible old history\n");
 }
 
 /* === Tests === */
@@ -141,25 +110,14 @@ async fn boot_reboots_intact() {
     let metadata = Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None);
 
     // First boot installs and journals the bundled artifact composition.
-    start_bundled_composition(root.path(), metadata.clone())
-        .await
-        .shutdown()
-        .await
-        .unwrap();
+    start_bundled_composition(root.path(), metadata.clone()).await.shutdown().await.unwrap();
 
     // Every boot reconstructs the bundled composition into fresh state.
     // Reusing its storage root must preserve the default definitions.
-    start_bundled_composition(root.path(), metadata)
-        .await
-        .shutdown()
-        .await
-        .unwrap();
+    start_bundled_composition(root.path(), metadata).await.shutdown().await.unwrap();
 }
 
 async fn start_bundled_composition(root: &std::path::Path, metadata: Metadata) -> Runtime {
-    let config = crate::service_support::budgets::runtime_config(root, metadata)
-        .with_installed_plugins([dokime_host::installed_plugin()]);
-    Runtime::start(config)
-        .await
-        .expect("the shipped composition boots")
+    let config = crate::service_support::budgets::runtime_config(root, metadata).with_installed_plugins([dokime_host::installed_plugin()]);
+    Runtime::start(config).await.expect("the shipped composition boots")
 }

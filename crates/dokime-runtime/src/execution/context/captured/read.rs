@@ -23,9 +23,9 @@ use harmos::{
 
 // Local Imports
 use super::{native::source::Source, source::CapturedSource};
+use crate::storage::Manager;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::result::TestExecution;
-use crate::storage::Manager;
 
 /* === Constants === */
 
@@ -42,18 +42,9 @@ use crate::storage::Manager;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn read_execution(
-    storage: &Manager,
-    execution: &ObjectRevision<TestExecution>,
-) -> Result<CapturedSource> {
-    let seal = execution
-        .value
-        .saved
-        .as_ref()
-        .ok_or_else(|| invalid("execution has no captured source dependencies"))?;
-    if !execution.position.covers(&seal.dependencies_saved)?
-        || execution.position.sequence == seal.dependencies_saved.sequence
-    {
+pub(crate) async fn read_execution(storage: &Manager, execution: &ObjectRevision<TestExecution>) -> Result<CapturedSource> {
+    let seal = execution.value.saved.as_ref().ok_or_else(|| invalid("execution has no captured source dependencies"))?;
+    if !execution.position.covers(&seal.dependencies_saved)? || execution.position.sequence == seal.dependencies_saved.sequence {
         return Err(invalid("seal revision does not follow saved dependencies"));
     }
     let source = &seal.source;
@@ -81,17 +72,11 @@ pub(crate) async fn read_execution(
 }
 
 pub(crate) async fn read_file(storage: &Manager, file: &FileReference) -> Result<CapturedSource> {
-    read_native::<Source>(storage, file, super::native::source::MEDIA_TYPE)
-        .await?
-        .into_source()
+    read_native::<Source>(storage, file, super::native::source::MEDIA_TYPE).await?.into_source()
 }
 
 /* === Private Functions === */
-pub(super) async fn read_native<T: Protobuf>(
-    storage: &Manager,
-    file: &FileReference,
-    media_type: &str,
-) -> Result<T> {
+pub(super) async fn read_native<T: Protobuf>(storage: &Manager, file: &FileReference, media_type: &str) -> Result<T> {
     if file.metadata.media_type != media_type {
         return Err(invalid("sealed capture has a different native media type"));
     }

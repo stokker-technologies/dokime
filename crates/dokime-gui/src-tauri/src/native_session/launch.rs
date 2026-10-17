@@ -44,9 +44,7 @@ pub struct DesktopLaunch {
 /* === Public Functions === */
 // A command line names an attach target or nothing; the owned local backend
 // is the default and shared profiles are selected from the desktop session.
-pub fn parse(
-    arguments: impl IntoIterator<Item = String>,
-) -> Result<Option<ConnectRequest>, String> {
+pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<ConnectRequest>, String> {
     let mut arguments = arguments.into_iter();
     let mut endpoint = None;
     let mut backend_id = None;
@@ -77,23 +75,13 @@ pub fn parse(
     match endpoint {
         Some(endpoint) => {
             let remote = !endpoint.starts_with("http://");
-            let target = if remote {
-                ConnectionTarget::Remote {
-                    endpoint,
-                    ca_certificate_pem: None,
-                }
-            } else {
-                ConnectionTarget::Local { endpoint }
-            };
+            let target =
+                if remote { ConnectionTarget::Remote { endpoint, ca_certificate_pem: None } } else { ConnectionTarget::Local { endpoint } };
             crate::connection::ConnectionSession::validate_target(target.clone())
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
             Ok(Some(ConnectRequest {
                 target,
-                credentials: if remote {
-                    ConnectionCredentials::Saved
-                } else {
-                    ConnectionCredentials::None
-                },
+                credentials: if remote { ConnectionCredentials::Saved } else { ConnectionCredentials::None },
                 expected_backend_id: backend_id,
             }))
         }
@@ -123,9 +111,7 @@ pub fn configuration(arguments: impl IntoIterator<Item = String>) -> DesktopLaun
     launch
 }
 
-pub fn desktop_session_launch(
-    state: tauri::State<'_, DesktopLaunch>,
-) -> Result<DesktopLaunch, String> {
+pub fn desktop_session_launch(state: tauri::State<'_, DesktopLaunch>) -> Result<DesktopLaunch, String> {
     Ok(state.inner().clone())
 }
 

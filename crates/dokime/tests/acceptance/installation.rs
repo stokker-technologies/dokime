@@ -41,29 +41,18 @@ const ENDPOINT: &str = "http://127.0.0.1:8765";
 /// A directory holding `programs`, each linked from the build under test.
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
-    let directory = tempfile::Builder::new()
-        .prefix("dokime-installation-")
-        .tempdir_in(target)
-        .unwrap();
+    let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir_in(target).unwrap();
     for program in programs {
-        let program = program
-            .canonicalize()
-            .expect("the program under test exists");
-        std::fs::hard_link(
-            &program,
-            directory.path().join(program.file_name().unwrap()),
-        )
-        .unwrap();
+        let program = program.canonicalize().expect("the program under test exists");
+        std::fs::hard_link(&program, directory.path().join(program.file_name().unwrap())).unwrap();
     }
     directory
 }
 
 fn server() -> PathBuf {
     let platform = if cfg!(windows) { "windows" } else { "linux" };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
-    let server = root.join("dist/build").join(platform).join("bin")
-        .join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
+    let server = root.join("dist/build").join(platform).join("bin").join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
     assert!(server.is_file(), "run mise run build to produce {}", server.display());
     server
 }
@@ -79,20 +68,12 @@ fn dokime(directory: &Path) -> Command {
 fn stub_gui(path: &Path, arguments: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
-    std::fs::write(
-        path,
-        format!("#!/bin/sh\nprintf '%s' \"$*\" > {arguments:?}\n"),
-    )
-    .unwrap();
+    std::fs::write(path, format!("#!/bin/sh\nprintf '%s' \"$*\" > {arguments:?}\n")).unwrap();
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
 fn succeeded(output: std::process::Output) -> String {
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     String::from_utf8(output.stdout).unwrap()
 }
 
@@ -108,16 +89,10 @@ fn server_beside_cli() {
     let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
     let installed = installation(&[cli, &server()]);
 
-    let output = dokime(installed.path())
-        .args(["serve", "--", "version", "--json"])
-        .output()
-        .unwrap();
+    let output = dokime(installed.path()).args(["serve", "--", "version", "--json"]).output().unwrap();
     let identity: serde_json::Value = serde_json::from_str(&succeeded(output)).unwrap();
 
-    assert_eq!(
-        identity["version"].as_str(),
-        Some(env!("CARGO_PKG_VERSION"))
-    );
+    assert_eq!(identity["version"].as_str(), Some(env!("CARGO_PKG_VERSION")));
     assert!(identity["dev_protocol"].is_u64());
 }
 
@@ -128,11 +103,7 @@ fn home_supplies_server() {
     let installed = installation(&[cli]);
     let home = installation(&[&server()]);
 
-    let output = dokime(installed.path())
-        .env("DOKIME_HOME", home.path())
-        .args(["serve", "--", "version", "--json"])
-        .output()
-        .unwrap();
+    let output = dokime(installed.path()).env("DOKIME_HOME", home.path()).args(["serve", "--", "version", "--json"]).output().unwrap();
     succeeded(output);
 }
 
@@ -142,25 +113,13 @@ fn missing_programs_refused() {
     let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
     let installed = installation(&[cli]);
 
-    let refusal = refused(
-        dokime(installed.path())
-            .args(["gui", "--endpoint", ENDPOINT])
-            .output()
-            .unwrap(),
-    );
+    let refusal = refused(dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT]).output().unwrap());
     for expected in ["dokime-gui", "desktop installer", "DOKIME_HOME"] {
         assert!(refusal.contains(expected), "{refusal}");
     }
 
     let missing = installed.path().join("missing");
-    let refusal = refused(
-        dokime(installed.path())
-            .arg("serve")
-            .arg("--server")
-            .arg(&missing)
-            .output()
-            .unwrap(),
-    );
+    let refusal = refused(dokime(installed.path()).arg("serve").arg("--server").arg(&missing).output().unwrap());
     assert!(refusal.contains("is not a file"), "{refusal}");
 }
 
@@ -174,29 +133,16 @@ fn gui_receives_endpoint() {
 
     // Installed Beside The CLI
     stub_gui(&installed.path().join("dokime-gui"), &arguments);
-    let output = dokime(installed.path())
-        .args(["gui", "--endpoint", ENDPOINT, "--", "--shutdown-stdin"])
-        .output()
-        .unwrap();
+    let output = dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT, "--", "--shutdown-stdin"]).output().unwrap();
     succeeded(output);
-    assert_eq!(
-        std::fs::read_to_string(&arguments).unwrap(),
-        format!("--endpoint {ENDPOINT} --shutdown-stdin")
-    );
+    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--endpoint {ENDPOINT} --shutdown-stdin"));
 
     // Selected Explicitly
     let explicit = installed.path().join("custom-gui");
     std::fs::rename(installed.path().join("dokime-gui"), &explicit).unwrap();
-    let output = dokime(installed.path())
-        .args(["gui", "--endpoint", ENDPOINT, "--gui"])
-        .arg(&explicit)
-        .output()
-        .unwrap();
+    let output = dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT, "--gui"]).arg(&explicit).output().unwrap();
     succeeded(output);
-    assert_eq!(
-        std::fs::read_to_string(&arguments).unwrap(),
-        format!("--endpoint {ENDPOINT}")
-    );
+    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--endpoint {ENDPOINT}"));
 }
 
 #[test]

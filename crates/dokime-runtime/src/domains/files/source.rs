@@ -24,8 +24,8 @@ use std::{collections::BTreeMap, time::SystemTime};
 
 // Local Imports
 use super::{ftp::FtpSource, local::LocalSource};
-use crate::{runtime::Error, runtime::Result};
 use crate::files::FileMatcher;
+use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
 
@@ -74,9 +74,7 @@ impl Source {
     }
 
     pub(super) async fn ftp(url: &str, password: Option<String>, trusted: bool) -> Result<Self> {
-        Ok(Self::Ftp(Box::new(
-            FtpSource::open(url, password, trusted).await?,
-        )))
+        Ok(Self::Ftp(Box::new(FtpSource::open(url, password, trusted).await?)))
     }
 
     pub(super) async fn scan(&mut self, matcher: &FileMatcher) -> Result<Listing> {
@@ -89,17 +87,10 @@ impl Source {
     // Appends `length` bytes of the file from `offset` to the sink; fewer when
     // the file ends first.
     pub(super) async fn read_range(
-        &mut self,
-        relative: &str,
-        offset: u64,
-        length: u64,
-        sink: &mut tokio::fs::File,
+        &mut self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File,
     ) -> std::result::Result<u64, ReadFailure> {
         match self {
-            Self::Local(source) => source
-                .read_range(relative, offset, length, sink)
-                .await
-                .map_err(ReadFailure::Failed),
+            Self::Local(source) => source.read_range(relative, offset, length, sink).await.map_err(ReadFailure::Failed),
             Self::Ftp(source) => source.read_range(relative, offset, length, sink).await,
         }
     }

@@ -56,20 +56,13 @@ pub(super) fn capture_jpeg(camera: Option<u32>) -> Result<Vec<u8>> {
     // Open The Highest Resolution Stream
     let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
     let index = CameraIndex::Index(camera.unwrap_or(0));
-    let mut device = Camera::new(index, format)
-        .map_err(|source| unavailable(format!("no camera is available: {source}")))?;
-    device
-        .open_stream()
-        .map_err(|source| unavailable(format!("camera stream failed: {source}")))?;
+    let mut device = Camera::new(index, format).map_err(|source| unavailable(format!("no camera is available: {source}")))?;
+    device.open_stream().map_err(|source| unavailable(format!("camera stream failed: {source}")))?;
 
     // Settle, Then Keep One Frame
     let mut frame = None;
     for _ in 0..=WARMUP_FRAMES {
-        frame = Some(
-            device
-                .frame()
-                .map_err(|source| unavailable(format!("camera frame failed: {source}")))?,
-        );
+        frame = Some(device.frame().map_err(|source| unavailable(format!("camera frame failed: {source}")))?);
     }
     if let Err(source) = device.stop_stream() {
         tracing::warn!(error = %source, "camera stream did not stop cleanly");

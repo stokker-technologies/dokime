@@ -20,14 +20,10 @@ use std::mem::{size_of, size_of_val};
 use harmos::MemorySize;
 
 // Local Imports
-use dokime_domain::model::identity::Metadata;
 use crate::document::binding::Evidence;
-use crate::document::resolve::{
-    repeat_filter_memory, repeat_label_bound, repeat_selection_memory, repeat_template_memory,
-};
-use crate::document::{
-    DocumentCardBody, DocumentDefinition, DocumentFilter, DocumentNode, DocumentSectionRepeat,
-};
+use crate::document::resolve::{repeat_filter_memory, repeat_label_bound, repeat_selection_memory, repeat_template_memory};
+use crate::document::{DocumentCardBody, DocumentDefinition, DocumentFilter, DocumentNode, DocumentSectionRepeat};
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 
@@ -50,11 +46,7 @@ struct Selection {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn memory(
-    definition: &DocumentDefinition,
-    evidence: Evidence<'_>,
-    constructed: usize,
-) -> usize {
+pub(super) fn memory(definition: &DocumentDefinition, evidence: Evidence<'_>, constructed: usize) -> usize {
     let mut selected = Selection::default();
     inspect(&definition.layout.nodes, evidence, 0, &mut selected);
     for section in &definition.sections {
@@ -88,11 +80,7 @@ pub(super) fn memory(
             &selected,
         ));
     }
-    selected.filter.saturating_add(
-        largest
-            .saturating_add(sections)
-            .saturating_mul(constructed.saturating_add(1)),
-    )
+    selected.filter.saturating_add(largest.saturating_add(sections).saturating_mul(constructed.saturating_add(1)))
 }
 
 /* === Private Functions === */
@@ -113,26 +101,18 @@ fn inspect(nodes: &[DocumentNode], evidence: Evidence<'_>, depth: usize, selecte
     }
 }
 
-fn card_fields(
-    metadata: &Metadata,
-    filters: &Vec<DocumentFilter>,
-    body: &DocumentCardBody,
-    selected: &Selection,
-) -> usize {
+fn card_fields(metadata: &Metadata, filters: &Vec<DocumentFilter>, body: &DocumentCardBody, selected: &Selection) -> usize {
     let mut bytes = vector(filters, selected).saturating_add(identifier_fields(metadata, selected));
     match body {
         DocumentCardBody::Plot { plot } => {
-            bytes = bytes
-                .saturating_add(vector(&plot.filters, selected))
-                .saturating_add(identifier_fields(&plot.metadata, selected))
+            bytes = bytes.saturating_add(vector(&plot.filters, selected)).saturating_add(identifier_fields(&plot.metadata, selected))
         }
         DocumentCardBody::TelemetrySummary { summary } => {
             for group in &summary.groups {
                 bytes = bytes.saturating_add(identifier_fields(&group.metadata, selected));
                 for tile in &group.tiles {
-                    bytes = bytes
-                        .saturating_add(vector(&tile.filters, selected))
-                        .saturating_add(identifier_fields(&tile.metadata, selected));
+                    bytes =
+                        bytes.saturating_add(vector(&tile.filters, selected)).saturating_add(identifier_fields(&tile.metadata, selected));
                 }
             }
         }
@@ -141,24 +121,15 @@ fn card_fields(
     bytes
 }
 
-fn admit_repeat(
-    repeat: &DocumentSectionRepeat,
-    evidence: Evidence<'_>,
-    depth: usize,
-    selected: &mut Selection,
-) {
+fn admit_repeat(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>, depth: usize, selected: &mut Selection) {
     selected.depth = selected.depth.max(depth);
     selected.filter = selected.filter.max(repeat_filter_memory(repeat, evidence));
     // Sanitization Never Expands The UTF-8 Label; An Empty Segment Becomes "value".
-    selected.suffix = selected
-        .suffix
-        .max(repeat_label_bound(repeat, evidence).max("value".len()));
+    selected.suffix = selected.suffix.max(repeat_label_bound(repeat, evidence).max("value".len()));
 }
 
 fn identifier_fields(metadata: &Metadata, selected: &Selection) -> usize {
-    let ancestors = selected
-        .depth
-        .saturating_mul(selected.suffix.saturating_add(1));
+    let ancestors = selected.depth.saturating_mul(selected.suffix.saturating_add(1));
     identifier_copies(metadata.identifier.as_str().len().saturating_add(ancestors))
 }
 
@@ -172,10 +143,7 @@ fn identifier_copies(bytes: usize) -> usize {
     let placement = bytes.saturating_add(bytes);
     // Payload Metadata And Descriptor Identifier
     let payload = bytes.saturating_add(bytes);
-    generated
-        .saturating_add(definition)
-        .saturating_add(placement)
-        .saturating_add(payload)
+    generated.saturating_add(definition).saturating_add(placement).saturating_add(payload)
 }
 
 fn section_fields(nodes: &[DocumentNode], evidence: Evidence<'_>, selected: &Selection) -> usize {
@@ -186,14 +154,8 @@ fn section_fields(nodes: &[DocumentNode], evidence: Evidence<'_>, selected: &Sel
                 return None;
             };
             Some(
-                section_memory(
-                    &section.metadata,
-                    section.node_id.as_str().len(),
-                    section.repeat.as_ref(),
-                    evidence,
-                    selected,
-                )
-                .max(section_fields(&section.children, evidence, selected)),
+                section_memory(&section.metadata, section.node_id.as_str().len(), section.repeat.as_ref(), evidence, selected)
+                    .max(section_fields(&section.children, evidence, selected)),
             )
         })
         .max()
@@ -201,31 +163,20 @@ fn section_fields(nodes: &[DocumentNode], evidence: Evidence<'_>, selected: &Sel
 }
 
 fn section_memory(
-    metadata: &Metadata,
-    node_id_bytes: usize,
-    repeat: Option<&DocumentSectionRepeat>,
-    evidence: Evidence<'_>,
-    selected: &Selection,
+    metadata: &Metadata, node_id_bytes: usize, repeat: Option<&DocumentSectionRepeat>, evidence: Evidence<'_>, selected: &Selection,
 ) -> usize {
     let source = metadata.memory_size();
     if source == usize::MAX {
         return usize::MAX;
     }
-    let ancestors = selected
-        .depth
-        .saturating_mul(selected.suffix.saturating_add(1));
+    let ancestors = selected.depth.saturating_mul(selected.suffix.saturating_add(1));
     let identifier = node_id_bytes.saturating_add(ancestors);
-    let templates = repeat.map_or(0, |repeat| {
-        repeat_template_memory(repeat, identifier, evidence)
-    });
+    let templates = repeat.map_or(0, |repeat| repeat_template_memory(repeat, identifier, evidence));
     let candidates = repeat.map_or(0, |repeat| repeat_selection_memory(repeat, evidence));
     // The Template Count Contains Both Sequential Buffers, So Also Bounds The
     // Final Rendered Identifier And Label Moved Into Generated Metadata.
     let generated = identifier_copies(identifier.max(templates)).saturating_add(templates);
-    source
-        .saturating_add(templates)
-        .saturating_add(candidates)
-        .saturating_add(generated)
+    source.saturating_add(templates).saturating_add(candidates).saturating_add(generated)
 }
 
 fn vector(filters: &Vec<DocumentFilter>, selected: &Selection) -> usize {
@@ -234,14 +185,9 @@ fn vector(filters: &Vec<DocumentFilter>, selected: &Selection) -> usize {
         return usize::MAX;
     }
     let added = selected.depth.saturating_mul(selected.filter);
-    let slots = filters
-        .len()
-        .saturating_add(selected.depth)
-        .saturating_mul(size_of::<DocumentFilter>());
+    let slots = filters.len().saturating_add(selected.depth).saturating_mul(size_of::<DocumentFilter>());
     let source_heap = source.saturating_sub(size_of_val(filters));
-    let retained = size_of::<Vec<DocumentFilter>>()
-        .saturating_add(source_heap)
-        .saturating_add(added);
+    let retained = size_of::<Vec<DocumentFilter>>().saturating_add(source_heap).saturating_add(added);
     // The Stored Definition Coexists With A Repeated Definition Clone And Its
     // Old/New Filter Buffers While reserve_exact Appends An Ancestor Filter.
     let repeating = retained.saturating_add(slots).saturating_add(slots);
@@ -249,10 +195,7 @@ fn vector(filters: &Vec<DocumentFilter>, selected: &Selection) -> usize {
     // Counting Those Copies For Other Card Kinds Is A Conservative Upper Bound.
     let input = retained;
     let descriptor = retained;
-    retained
-        .saturating_add(repeating)
-        .saturating_add(input)
-        .saturating_add(descriptor)
+    retained.saturating_add(repeating).saturating_add(input).saturating_add(descriptor)
 }
 
 /* === Tests === */

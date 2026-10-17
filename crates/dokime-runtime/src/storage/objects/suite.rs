@@ -65,27 +65,17 @@ impl Suite {
         let restored: TestSuite = templates::convert(&definition)?;
         let original = persisted_definition(source);
         if original != restored {
-            return Err(Error::Invalid(
-                "suite definition cannot be represented losslessly",
-            ));
+            return Err(Error::Invalid("suite definition cannot be represented losslessly"));
         }
-        Ok(Self {
-            suite_id: suite_id.into(),
-            definition: Some(definition),
-        })
+        Ok(Self { suite_id: suite_id.into(), definition: Some(definition) })
     }
 
     pub fn restore(&self) -> Result<TestSuite> {
-        let definition = self
-            .definition
-            .as_ref()
-            .ok_or(Error::Invalid("suite definition is missing"))?;
+        let definition = self.definition.as_ref().ok_or(Error::Invalid("suite definition is missing"))?;
         let restored: TestSuite = templates::convert(definition)?;
         let canonical = Self::new(&self.suite_id, &restored)?;
         if canonical != *self {
-            return Err(Error::Invalid(
-                "suite definition contains noncanonical fields",
-            ));
+            return Err(Error::Invalid("suite definition contains noncanonical fields"));
         }
         Ok(restored)
     }
@@ -93,9 +83,7 @@ impl Suite {
 
 /* === Public Functions === */
 pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<TestSuite>> {
-    let saved = storage
-        .read_object::<Suite>(suite_id, ObjectVersion::Latest)
-        .await?;
+    let saved = storage.read_object::<Suite>(suite_id, ObjectVersion::Latest).await?;
     saved.map(|saved| saved.value.restore()).transpose()
 }
 

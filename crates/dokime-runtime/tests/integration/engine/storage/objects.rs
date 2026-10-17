@@ -20,17 +20,9 @@ use harmos::{Application, Runtime, state::Never, storage::StorageBackends};
 
 // Local Imports
 use {
-    dokime_runtime::CaseId,
-    dokime_runtime::Identifier,
-    dokime_runtime::Metadata,
-    dokime_runtime::TemplateId,
-    dokime_runtime::Value,
-    dokime_runtime::definition::TestCase,
-    dokime_runtime::definition::TestSuite,
-    dokime_runtime::storage::Backend,
-    dokime_runtime::storage::Manager,
-    dokime_runtime::storage::objects::case,
-    dokime_runtime::storage::objects::case::Case,
+    dokime_runtime::CaseId, dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::TemplateId, dokime_runtime::Value,
+    dokime_runtime::definition::TestCase, dokime_runtime::definition::TestSuite, dokime_runtime::storage::Backend,
+    dokime_runtime::storage::Manager, dokime_runtime::storage::objects::case, dokime_runtime::storage::objects::case::Case,
 };
 
 /* === Constants === */
@@ -70,27 +62,13 @@ async fn materialized_cases_reader() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let storage = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        super::sqlite::storage::storage_settings(),
-    )
-    .unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let storage = Manager::new(StorageBackends { primary, state: recovery }, super::sqlite::storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
     let expected = TestCase {
         suite_id: "fixture.registration".into(),
         test_case_id: CaseId::from_wire("fixture.case:1234567890").unwrap(),
         test_case_template_id: TemplateId::from_seed("template"),
-        metadata: Metadata::new(
-            Identifier::new("fixture.case").unwrap(),
-            "Stored Case",
-            None,
-        ),
+        metadata: Metadata::new(Identifier::new("fixture.case").unwrap(), "Stored Case", None),
         suite: None,
         parameters: std::collections::BTreeMap::from([("count".into(), Value::Unsigned(u64::MAX))]),
         generation_index: 17,
@@ -99,13 +77,7 @@ async fn materialized_cases_reader() {
     let row = Case::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
-    assert_eq!(
-        case::read(&storage, &expected.test_case_id)
-            .await
-            .unwrap()
-            .as_ref(),
-        Some(&expected)
-    );
+    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_ref(), Some(&expected));
     runtime.stop().await.unwrap();
 
     let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
@@ -114,41 +86,12 @@ async fn materialized_cases_reader() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let storage = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        crate::engine_support::local_storage::storage_settings(),
-    )
-    .unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
-    assert_eq!(
-        case::read(&storage, &expected.test_case_id)
-            .await
-            .unwrap()
-            .as_ref(),
-        Some(&expected)
-    );
-    assert_eq!(
-        case::read(
-            &storage,
-            &CaseId::from_wire("fixture.absent:1234567890").unwrap()
-        )
-        .await
-        .unwrap()
-        .as_ref(),
-        None
-    );
-    let absent = case::read(
-        &storage,
-        &CaseId::from_wire("fixture.absent:1234567890").unwrap(),
-    )
-    .await
-    .unwrap();
+    let storage =
+        Manager::new(StorageBackends { primary, state: recovery }, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+    assert_eq!(case::read(&storage, &expected.test_case_id).await.unwrap().as_ref(), Some(&expected));
+    assert_eq!(case::read(&storage, &CaseId::from_wire("fixture.absent:1234567890").unwrap()).await.unwrap().as_ref(), None);
+    let absent = case::read(&storage, &CaseId::from_wire("fixture.absent:1234567890").unwrap()).await.unwrap();
     assert!(absent.is_none());
     runtime.stop().await.unwrap();
 }
@@ -162,22 +105,11 @@ async fn suite_definitions_producer() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
-    let metadata = Metadata::new(
-        Identifier::new("fixture.authored").unwrap(),
-        "Stored Suite",
-        None,
-    );
+    let metadata = Metadata::new(Identifier::new("fixture.authored").unwrap(), "Stored Suite", None);
     let definition = serde_json::json!({
         "metadata": metadata,
         "test_case_templates": [{
@@ -193,15 +125,13 @@ async fn suite_definitions_producer() {
         }]
     });
     let mut expected: TestSuite = serde_json::from_value(definition).unwrap();
-    let stored =
-        dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
+    let stored = dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
     let receipt = storage.write_object(&stored).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
 
     expected.metadata.identifier = Identifier::new("fixture.changed_author").unwrap();
     expected.metadata.label = "Latest Suite".into();
-    let stored =
-        dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
+    let stored = dokime_runtime::storage::objects::suite::Suite::new("fixture.registration", &expected).unwrap();
     let receipt = storage.write_object(&stored).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
     runtime.stop().await.unwrap();
@@ -212,24 +142,13 @@ async fn suite_definitions_producer() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
-    let saved = dokime_runtime::storage::objects::suite::read(&storage, "fixture.registration")
-        .await
-        .unwrap();
+    let saved = dokime_runtime::storage::objects::suite::read(&storage, "fixture.registration").await.unwrap();
     assert_eq!(saved, Some(expected));
-    let absent = dokime_runtime::storage::objects::suite::read(&storage, "fixture.absent")
-        .await
-        .unwrap();
+    let absent = dokime_runtime::storage::objects::suite::read(&storage, "fixture.absent").await.unwrap();
     assert!(absent.is_none());
     drop(saved);
     runtime.stop().await.unwrap();
@@ -244,22 +163,11 @@ async fn cycles_reopen_producers() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
-    let metadata = Metadata::new(
-        Identifier::new("fixture.cycle").unwrap(),
-        "Stored Cycle",
-        None,
-    );
+    let metadata = Metadata::new(Identifier::new("fixture.cycle").unwrap(), "Stored Cycle", None);
     let at = dokime_runtime::Timestamp::new("2026-10-05T09:00:00Z");
     let mut expected = dokime_domain::model::execution::result::TestCycle {
         saved: None,
@@ -303,38 +211,18 @@ async fn cycles_reopen_producers() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+
+    let saved = dokime_runtime::storage::objects::cycle::read(&storage, &expected.test_cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap();
-
-    let saved = dokime_runtime::storage::objects::cycle::read(
-        &storage,
-        &expected.test_cycle_id,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap();
-    assert_eq!(
-        saved.as_ref().map(|revision| &revision.value),
-        Some(&expected)
-    );
+    assert_eq!(saved.as_ref().map(|revision| &revision.value), Some(&expected));
     assert_eq!(saved.as_ref().unwrap().position, receipt.position);
     assert_eq!(saved.as_ref().unwrap().version, receipt.version);
     let missing = dokime_runtime::TestCycleId::from_seed("native-missing-cycle");
-    let absent = dokime_runtime::storage::objects::cycle::read(
-        &storage,
-        &missing,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap();
+    let absent = dokime_runtime::storage::objects::cycle::read(&storage, &missing, harmos::storage::ObjectVersion::Latest).await.unwrap();
     assert!(absent.is_none());
     drop(saved);
     runtime.stop().await.unwrap();
@@ -349,26 +237,15 @@ async fn executions_reopen_results() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
     let case = TestCase {
         suite_id: "fixture.registration".into(),
         test_case_id: CaseId::from_wire("fixture.frozen:1234567890").unwrap(),
         test_case_template_id: TemplateId::from_seed("native-frozen-template"),
-        metadata: Metadata::new(
-            Identifier::new("fixture.frozen").unwrap(),
-            "Frozen Case",
-            None,
-        ),
+        metadata: Metadata::new(Identifier::new("fixture.frozen").unwrap(), "Frozen Case", None),
         suite: None,
         parameters: std::collections::BTreeMap::from([("count".into(), Value::Unsigned(u64::MAX))]),
         generation_index: 2,
@@ -414,9 +291,7 @@ async fn executions_reopen_results() {
     };
     let row = dokime_runtime::storage::objects::execution::Execution::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap_or_else(|error| {
-        let schema = crate::engine_support::local_storage::declared::<
-            dokime_runtime::storage::objects::execution::Execution,
-        >();
+        let schema = crate::engine_support::local_storage::declared::<dokime_runtime::storage::objects::execution::Execution>();
         panic!(
             "execution admission failed: {error}; payload={} resident={} schema={}",
             harmos::Message::encoded_len(&row),
@@ -451,45 +326,24 @@ async fn executions_reopen_results() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let backends = StorageBackends {
-        primary,
-        state: recovery,
-    };
-    let storage =
-        Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
-    let runtime = Runtime::<Reader>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
+    let backends = StorageBackends { primary, state: recovery };
+    let storage = Manager::new(backends, crate::engine_support::local_storage::storage_settings()).unwrap();
+    let runtime = Runtime::<Reader>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
 
-    let saved = dokime_runtime::storage::objects::execution::read(
-        &storage,
-        &expected.test_execution_id,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let saved =
+        dokime_runtime::storage::objects::execution::read(&storage, &expected.test_execution_id, harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
     assert_eq!(&saved.value, &expected);
     assert_eq!(saved.position, receipt.position);
     assert_eq!(saved.version, receipt.version);
     assert_eq!(saved.value.snapshot.case(), &case);
-    assert_eq!(
-        saved.value.snapshot.parameters()["count"].value,
-        Value::Unsigned(u64::MAX)
-    );
-    assert_eq!(
-        saved.value.effective_parameters()["count"].value,
-        Value::Integer(i64::MIN)
-    );
+    assert_eq!(saved.value.snapshot.parameters()["count"].value, Value::Unsigned(u64::MAX));
+    assert_eq!(saved.value.effective_parameters()["count"].value, Value::Integer(i64::MIN));
     let missing = dokime_runtime::TestExecutionId::from_seed("native-frozen-missing");
-    let absent = dokime_runtime::storage::objects::execution::read(
-        &storage,
-        &missing,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap();
+    let absent =
+        dokime_runtime::storage::objects::execution::read(&storage, &missing, harmos::storage::ObjectVersion::Latest).await.unwrap();
     assert!(absent.is_none());
     drop(saved);
     runtime.stop().await.unwrap();
@@ -503,8 +357,7 @@ fn prompt_level_rows() {
 
     // === Store A Raised Prompt === //
 
-    let expected =
-        ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
+    let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
     let expected = Prompt::definition(&expected);
     let row = PromptRow::try_from(&expected).unwrap();
     let restored = PromptDefinition::try_from(row.clone()).unwrap();

@@ -63,40 +63,16 @@ pub struct RecordErrorDetail {
 
 #[derive(Debug, PartialEq)]
 pub enum RecordFailure {
-    UnknownRecordType {
-        record_type: String,
-    },
-    SchemaVersionMismatch {
-        record_type: String,
-        expected: u32,
-        actual: u32,
-    },
-    MissingField {
-        record_type: String,
-        field: String,
-    },
-    InvalidField {
-        record_type: String,
-        field: String,
-    },
-    InvalidChoice {
-        record_type: String,
-        field: String,
-    },
-    UnexpectedFields {
-        record_type: String,
-        fields: Vec<String>,
-    },
-    SeverityTooLow {
-        record_type: String,
-        minimum: RecordSeverity,
-    },
+    UnknownRecordType { record_type: String },
+    SchemaVersionMismatch { record_type: String, expected: u32, actual: u32 },
+    MissingField { record_type: String, field: String },
+    InvalidField { record_type: String, field: String },
+    InvalidChoice { record_type: String, field: String },
+    UnexpectedFields { record_type: String, fields: Vec<String> },
+    SeverityTooLow { record_type: String, minimum: RecordSeverity },
     InvalidWindow,
     IncompatibleContract(String),
-    InvalidProductState {
-        field: String,
-        value: String,
-    },
+    InvalidProductState { field: String, value: String },
 }
 
 /* === Traits === */
@@ -105,44 +81,17 @@ pub enum RecordFailure {
 impl harmos::MemorySize for RecordErrorDetail {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.code),
-                std::mem::size_of_val(&self.code),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cause_chain),
-                std::mem::size_of_val(&self.cause_chain),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.stacktrace_attachment),
-                std::mem::size_of_val(&self.stacktrace_attachment),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.trace_id),
-                std::mem::size_of_val(&self.trace_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.correlation_id),
-                std::mem::size_of_val(&self.correlation_id),
-            ),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.code), std::mem::size_of_val(&self.code)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.cause_chain), std::mem::size_of_val(&self.cause_chain)),
+            (harmos::MemorySize::memory_size(&self.stacktrace_attachment), std::mem::size_of_val(&self.stacktrace_attachment)),
+            (harmos::MemorySize::memory_size(&self.trace_id), std::mem::size_of_val(&self.trace_id)),
+            (harmos::MemorySize::memory_size(&self.correlation_id), std::mem::size_of_val(&self.correlation_id)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 

@@ -50,11 +50,7 @@ pub fn plugin_bundle() -> PathBuf {
         .join("dist/build")
         .join(PLATFORM)
         .join("plugins/obc-plugin.dokime");
-    assert!(
-        path.is_file(),
-        "missing built artifact {}; run `mise run build`",
-        path.display()
-    );
+    assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }
 

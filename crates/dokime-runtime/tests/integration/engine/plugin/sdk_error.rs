@@ -100,10 +100,7 @@ impl Boundary {
     )]
     async fn secret(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let token = ctx.secret("token")?;
-        ctx.publish(Observed {
-            value: token.expose().len() as i64,
-        })
-        .await;
+        ctx.publish(Observed { value: token.expose().len() as i64 }).await;
         ctx.info(format!("note={}", self.note));
         Ok(())
     }
@@ -134,11 +131,7 @@ impl Boundary {
         description = "`.timeout(d)` answers a bare `Elapsed` per item, so reaching this plugin's `Sdk`-only error takes the same explicit step an author writes for any other type `dokime_runtime::Error` converts from with `?`. Unreached once `artifact` above has already failed the run; kept short in case that ever changes."
     )]
     async fn deadline(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.listen::<Observed>()
-            .timeout(Duration::from_millis(50))
-            .next()
-            .await
-            .transpose()?;
+        ctx.listen::<Observed>().timeout(Duration::from_millis(50)).next().await.transpose()?;
         Ok(())
     }
 
@@ -157,26 +150,15 @@ async fn sdk_error_boundary() {
     let report = Harness::template(TEMPLATE)
         .setting("note", "fixture")
         .secret("token", "sensitive-value")
-        .answer(
-            PROMPT,
-            "yes",
-            std::iter::empty::<(&str, dokime_runtime::Value)>(),
-        )
+        .answer(PROMPT, "yes", std::iter::empty::<(&str, dokime_runtime::Value)>())
         .run::<PluginSuites>()
         .await
         .expect("the run completes, whether or not the case passed");
 
-    assert!(
-        !report.passed(),
-        "the artifact step deliberately refuses an empty name: {}",
-        report.diagnostics()
-    );
+    assert!(!report.passed(), "the artifact step deliberately refuses an empty name: {}", report.diagnostics());
 
     let diagnostics = report.diagnostics();
-    assert!(
-        diagnostics.contains("caused by:"),
-        "a chained dokime_runtime::Error renders more than its own message: {diagnostics}"
-    );
+    assert!(diagnostics.contains("caused by:"), "a chained dokime_runtime::Error renders more than its own message: {diagnostics}");
     assert!(
         diagnostics.contains("must be a non-empty relative"),
         "the innermost cause — the io::Error `Artifacts::create` names — still renders: {diagnostics}"

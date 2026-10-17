@@ -23,11 +23,11 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
+use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 const MAX_BYTES: usize = 4 * 1024 * 1024;
@@ -51,10 +51,7 @@ pub(super) struct Captured {
 /* === Public Functions === */
 
 pub(super) fn capture_prepared(
-    state: &crate::RuntimeState,
-    cycle: &CycleView,
-    execution: &TestExecution,
-    brand: Option<&crate::installed_plugins::ResolvedBrand>,
+    state: &crate::RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
     prepared: Option<&CycleSource>,
 ) -> Result<Captured> {
     if execution.test_cycle_id != cycle.test_cycle_id
@@ -69,32 +66,15 @@ pub(super) fn capture_prepared(
         return Err(error("presentation case identity exceeds source budget"));
     }
     let cycle_scope = RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
-    let execution_scope = cycle_scope
-        .clone()
-        .with_test_case(execution.test_case_id.clone())
-        .with_test_execution(execution.test_execution_id.clone());
-    let default_id =
-        DocumentId::from_identifier(crate::documents::DEFAULT_DOCUMENT_ID).map_err(error)?;
+    let execution_scope =
+        cycle_scope.clone().with_test_case(execution.test_case_id.clone()).with_test_execution(execution.test_execution_id.clone());
+    let default_id = DocumentId::from_identifier(crate::documents::DEFAULT_DOCUMENT_ID).map_err(error)?;
     let cases = source::select_cases(cycle, Some(execution))?;
-    source::preflight(
-        state,
-        cycle,
-        execution,
-        brand,
-        (&execution_scope, &default_id),
-        &cases,
-        prepared,
-    )?;
+    source::preflight(state, cycle, execution, brand, (&execution_scope, &default_id), &cases, prepared)?;
     let mut execution_documents = BTreeMap::new();
-    let ids = execution
-        .documents
-        .keys()
-        .filter(|id| *id != &default_id)
-        .chain(std::iter::once(&default_id));
+    let ids = execution.documents.keys().filter(|id| *id != &default_id).chain(std::iter::once(&default_id));
     for id in ids {
-        if let Some(definition) =
-            crate::documents::captured_authored_document(&state.suites, execution, id)
-        {
+        if let Some(definition) = crate::documents::captured_authored_document(&state.suites, execution, id) {
             execution_documents.insert(id.clone(), definition);
         }
     }
@@ -112,15 +92,8 @@ pub(super) fn capture_prepared(
         .transpose()?;
     let context = ExecutionContext {
         scope: execution.scope.clone(),
-        session_id: cycle
-            .session_id
-            .clone()
-            .unwrap_or_else(|| state.session_id.clone()),
-        cycle: ExecutionCycleContext {
-            cycle: grouping,
-            cases: cases.clone_values()?,
-            execution_order,
-        },
+        session_id: cycle.session_id.clone().unwrap_or_else(|| state.session_id.clone()),
+        cycle: ExecutionCycleContext { cycle: grouping, cases: cases.clone_values()?, execution_order },
         execution_documents,
         traceability: {
             let mut snapshots = crate::traceability::snapshots_from_execution_parameters(
@@ -130,20 +103,11 @@ pub(super) fn capture_prepared(
                 cycle.updated_at.clone(),
             );
             // Freeze Resource Evidence Before Appending Derived Terminal Facts
-            snapshots.extend(crate::traceability::resource_traceability(
-                state,
-                cycle,
-                execution_scope.clone(),
-                cycle.updated_at.clone(),
-            ));
+            snapshots.extend(crate::traceability::resource_traceability(state, cycle, execution_scope.clone(), cycle.updated_at.clone()));
             // What the template stated travels with the rest: the report and
             // every historical read of this execution go through this blob, so
             // a section left out here is a section nobody sees again.
-            snapshots.extend(crate::traceability::stated_execution_snapshots(
-                execution,
-                &cycle.updated_at,
-                MAX_BYTES,
-            )?);
+            snapshots.extend(crate::traceability::stated_execution_snapshots(execution, &cycle.updated_at, MAX_BYTES)?);
             snapshots.retain(|snapshot| {
                 !snapshot.entries.iter().any(|entry| {
                     matches!(
@@ -158,11 +122,7 @@ pub(super) fn capture_prepared(
                     )
                 })
             });
-            snapshots.extend(crate::traceability::execution_traceability(
-                cycle,
-                execution,
-                cycle.updated_at.clone(),
-            ));
+            snapshots.extend(crate::traceability::execution_traceability(cycle, execution, cycle.updated_at.clone()));
             snapshots
         },
         prompts: source::clone_rows(|| source::prompt_rows(state, &execution_scope))?,
@@ -176,14 +136,10 @@ pub(super) fn capture_prepared(
 // Annotation context also retains session/global observations. Export selection
 // separately decides whether these belong to an explicitly cycle-scoped bundle.
 pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> bool {
-    if (scope.step_id.is_some() || scope.criterion_id.is_some())
-        && scope.test_execution_id.is_none()
-    {
+    if (scope.step_id.is_some() || scope.criterion_id.is_some()) && scope.test_execution_id.is_none() {
         return false;
     }
-    (scope.test_cycle_id.is_none()
-        && scope.test_case_id.is_none()
-        && scope.test_execution_id.is_none())
+    (scope.test_cycle_id.is_none() && scope.test_case_id.is_none() && scope.test_execution_id.is_none())
         || owns_projection(scope, execution)
 }
 
@@ -192,18 +148,9 @@ pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
 // Global items are deliberately outside the cycle export selection.
 fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
     (scope.test_cycle_id.is_some() || scope.test_execution_id.is_some())
-        && scope
-            .test_cycle_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
-        && scope
-            .test_case_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_case_id.as_ref())
-        && scope
-            .test_execution_id
-            .as_ref()
-            .is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
+        && scope.test_cycle_id.as_ref().is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
+        && scope.test_case_id.as_ref().is_none_or(|id| Some(id) == execution.test_case_id.as_ref())
+        && scope.test_execution_id.as_ref().is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
 }
 
 fn error(value: impl ToString) -> Error {

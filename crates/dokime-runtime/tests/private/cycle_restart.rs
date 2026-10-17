@@ -55,20 +55,14 @@ impl StateBackend for CrashAdoption {
     fn open(&self) -> StorageFuture<'_, RecoveryPosition> {
         self.inner.open()
     }
-    fn read_snapshot(
-        &self,
-        limit: std::num::NonZeroUsize,
-    ) -> StorageFuture<'_, Option<RecoverySnapshot>> {
+    fn read_snapshot(&self, limit: std::num::NonZeroUsize) -> StorageFuture<'_, Option<RecoverySnapshot>> {
         self.inner.read_snapshot(limit)
     }
     fn write_snapshot<'a>(&'a self, snapshot: &'a RecoverySnapshot) -> StorageFuture<'a, ()> {
         self.inner.write_snapshot(snapshot)
     }
     fn read_entries<'a>(
-        &'a self,
-        after: &'a RecoveryPosition,
-        through: &'a RecoveryPosition,
-        limits: ReadLimits,
+        &'a self, after: &'a RecoveryPosition, through: &'a RecoveryPosition, limits: ReadLimits,
     ) -> StorageFuture<'a, RecoveryPage> {
         self.inner.read_entries(after, through, limits)
     }
@@ -101,9 +95,9 @@ impl StateBackend for CrashAdoption {
 
 fn has_cycle_adoption(value: &serde_json::Value) -> bool {
     match value {
-        serde_json::Value::Object(fields) => fields.iter().any(|(key, value)| {
-            (key == "sealed_cycle" && value.is_object()) || has_cycle_adoption(value)
-        }),
+        serde_json::Value::Object(fields) => {
+            fields.iter().any(|(key, value)| (key == "sealed_cycle" && value.is_object()) || has_cycle_adoption(value))
+        }
         serde_json::Value::Array(values) => values.iter().any(has_cycle_adoption),
         _ => false,
     }
@@ -116,15 +110,8 @@ async fn cycle_restart_child() {
     };
     let phase = std::env::var(PHASE).unwrap();
     let adoption = phase == "adoption";
-    let fault = Arc::new(if adoption {
-        PublicationFault::new("unused")
-    } else {
-        PublicationFault::crash(".cycle-report", BEFORE_REPORT)
-    });
-    let providers = BTreeMap::from([(
-        "testdb".to_owned(),
-        Arc::new(PublishingExecutor) as Arc<dyn ExecutionFixture>,
-    )]);
+    let fault = Arc::new(if adoption { PublicationFault::new("unused") } else { PublicationFault::crash(".cycle-report", BEFORE_REPORT) });
+    let providers = BTreeMap::from([("testdb".to_owned(), Arc::new(PublishingExecutor) as Arc<dyn ExecutionFixture>)]);
     let parts = RuntimeHandle::boot_with_backends(
         config(PathBuf::from(root)),
         providers,
@@ -132,9 +119,7 @@ async fn cycle_restart_child() {
         Box::new(move |mut backends| {
             backends.primary = Arc::new(PublicationBackend::new(backends.primary, fault));
             if adoption {
-                backends.state = Arc::new(CrashAdoption {
-                    inner: backends.state,
-                });
+                backends.state = Arc::new(CrashAdoption { inner: backends.state });
             }
             backends
         }),
@@ -173,65 +158,27 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let (mut owner, runtime) =
-            booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+        let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
         let state = runtime.state_read();
         assert_eq!(state.cycle_report_finalizations.len(), 1);
-        let intent = state
-            .cycle_report_finalizations
-            .values()
-            .next()
-            .unwrap()
-            .clone();
+        let intent = state.cycle_report_finalizations.values().next().unwrap().clone();
         let id = intent.source.test_cycle_id.clone();
         assert_eq!(intent.source.lifecycle, CycleStatus::Completed);
-        assert_eq!(
-            state
-                .run_requests
-                .values()
-                .next()
-                .unwrap()
-                .completion_at
-                .as_ref(),
-            Some(&intent.source.updated_at)
-        );
-        assert!(
-            runtime
-                .storage()
-                .cursor_saved()
-                .covers(&intent.evidence_at)
-                .unwrap()
-        );
+        assert_eq!(state.run_requests.values().next().unwrap().completion_at.as_ref(), Some(&intent.source.updated_at));
+        assert!(runtime.storage().cursor_saved().covers(&intent.evidence_at).unwrap());
         let children = state.cycles[&id].execution_ids.clone();
         drop(state);
         for child in children {
-            let native = crate::runtime::storage::execution::ExecutionView::open(
-                runtime.storage(),
-                &child,
-                harmos::storage::ObjectVersion::Latest,
-            )
-            .await
-            .unwrap()
-            .unwrap();
-            let seal = native
-                .execution()
-                .saved
-                .as_ref()
-                .expect("every child was sealed before the intent");
-            assert!(
-                intent
-                    .evidence_at
-                    .covers(&native.revision().unwrap().position)
+            let native =
+                crate::runtime::storage::execution::ExecutionView::open(runtime.storage(), &child, harmos::storage::ObjectVersion::Latest)
+                    .await
                     .unwrap()
-            );
+                    .unwrap();
+            let seal = native.execution().saved.as_ref().expect("every child was sealed before the intent");
+            assert!(intent.evidence_at.covers(&native.revision().unwrap().position).unwrap());
             assert!(intent.evidence_at.covers(&seal.dependencies_saved).unwrap());
         }
-        let native = runtime
-            .storage()
-            .read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest)
-            .await
-            .unwrap()
-            .unwrap();
+        let native = runtime.storage().read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
         let before = native.value.restore().unwrap().saved;
         assert_eq!(before.is_some(), phase == "adoption");
         drop(native);
@@ -251,54 +198,25 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
             )
             .await
             .unwrap();
-        runtime
-            .storage()
-            .flush_until(&marker.position)
-            .await
-            .unwrap();
+        runtime.storage().flush_until(&marker.position).await.unwrap();
         assert!(marker.position.sequence > intent.evidence_at.sequence);
         let opened = runtime.open_cycle_report(&id).await.unwrap();
         let original_html = opened.html.to_vec();
         drop(opened);
         assert_eq!(runtime.state_read().cycle_report_finalizations[&id], intent);
         // Recovery Stops The Live Cycle; Stopping It Seals From The Frozen Intent.
-        assert_eq!(
-            runtime.state_read().cycles[&id].lifecycle,
-            CycleStatus::Stopped
-        );
-        runtime
-            .stop_cycle(id.clone(), CommandContext::default())
-            .await
-            .unwrap();
-        assert!(
-            !runtime
-                .state_read()
-                .cycle_report_finalizations
-                .contains_key(&id)
-        );
-        let native = runtime
-            .storage()
-            .read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest)
-            .await
-            .unwrap()
-            .unwrap();
+        assert_eq!(runtime.state_read().cycles[&id].lifecycle, CycleStatus::Stopped);
+        runtime.stop_cycle(id.clone(), CommandContext::default()).await.unwrap();
+        assert!(!runtime.state_read().cycle_report_finalizations.contains_key(&id));
+        let native = runtime.storage().read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
         let sealed = native.value.restore().unwrap();
         let seal = sealed.saved.as_ref().unwrap();
-        assert_eq!(
-            seal.evidence_through, intent.evidence_at,
-            "retry cannot adopt the later marker boundary"
-        );
+        assert_eq!(seal.evidence_through, intent.evidence_at, "retry cannot adopt the later marker boundary");
         let mut header = sealed.clone();
         header.saved = None;
-        assert_eq!(
-            header, intent.source,
-            "restart cannot rewrite the frozen terminal lifecycle"
-        );
+        assert_eq!(header, intent.source, "restart cannot rewrite the frozen terminal lifecycle");
         if let Some(before) = before {
-            assert_eq!(
-                seal, &before,
-                "durable seal adoption must not rerender or replace artifacts"
-            );
+            assert_eq!(seal, &before, "durable seal adoption must not rerender or replace artifacts");
         }
         let opened = runtime.open_cycle_report(&id).await.unwrap();
         assert_eq!(opened.origin, crate::ReportOrigin::Sealed);

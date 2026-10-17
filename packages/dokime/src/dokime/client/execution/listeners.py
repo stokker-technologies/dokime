@@ -46,9 +46,7 @@ async def read_records(
     record_types: Sequence[str],
     completion: Awaitable[object] | None,
 ) -> AsyncGenerator[Message]:
-    selection = _wire.nested(
-        "Evidence", "ListRecords", "selection", scope=scope, record_types=record_types
-    )
+    selection = _wire.nested("Evidence", "ListRecords", "selection", scope=scope, record_types=record_types)
     after = None
     if completion is not None:
         done = asyncio.ensure_future(completion)
@@ -62,18 +60,14 @@ async def read_records(
             )
             while True:
                 pending = asyncio.create_task(anext(reader))
-                finished, _ = await asyncio.wait(
-                    (done, pending), return_when=asyncio.FIRST_COMPLETED
-                )
+                finished, _ = await asyncio.wait((done, pending), return_when=asyncio.FIRST_COMPLETED)
                 if done in finished:
                     await done
                     break
                 try:
                     page = pending.result()
                 except StopAsyncIteration as error:
-                    raise ProtocolError(
-                        "record reader ended before completion"
-                    ) from error
+                    raise ProtocolError("record reader ended before completion") from error
                 _records(scope, backend.epoch, page, after)
                 after = _wire.nested(
                     "Evidence",
@@ -147,10 +141,7 @@ async def read_samples(
                 scope=scope,
                 streams=streams,
                 limit=page_size,
-                after_stream_cursors=[
-                    {"key": key, "value": value}
-                    for key, value in sorted(positions.items())
-                ],
+                after_stream_cursors=[{"key": key, "value": value} for key, value in sorted(positions.items())],
                 latest=False,
             ),
         )
@@ -160,23 +151,12 @@ async def read_samples(
         through = {entry.key: entry.value for entry in page.through_stream_cursors}
         if len(through) != len(page.through_stream_cursors):
             raise ProtocolError("telemetry page repeats a stream cursor")
-        if any(
-            stream in through and through[stream] < position
-            for stream, position in positions.items()
-        ) or (
-            not page.complete
-            and not any(
-                position > positions.get(stream, -1)
-                for stream, position in through.items()
-            )
+        if any(stream in through and through[stream] < position for stream, position in positions.items()) or (
+            not page.complete and not any(position > positions.get(stream, -1) for stream, position in through.items())
         ):
             raise ProtocolError("telemetry continuation did not advance")
         for item in page.samples:
-            if (
-                not item.HasField("scope")
-                or not _scope(scope, item.scope)
-                or (streams and item.stream not in streams)
-            ):
+            if not item.HasField("scope") or not _scope(scope, item.scope) or (streams and item.stream not in streams):
                 raise ProtocolError("sample identity or stream differs")
         positions.update(through)
         yield page
@@ -191,9 +171,7 @@ async def read_samples(
 
 def _scope(expected: Message, actual: Message) -> bool:
     return all(
-        not expected.HasField(field)
-        or actual.HasField(field)
-        and getattr(actual, field) == getattr(expected, field)
+        not expected.HasField(field) or actual.HasField(field) and getattr(actual, field) == getattr(expected, field)
         for field in ("execution_id", "cycle_id")
     )
 
@@ -204,12 +182,7 @@ def _records(
     page: Message,
     after: Message | None,
 ) -> None:
-    if (
-        not page.HasField("scanned")
-        or not page.HasField("through")
-        or page.scanned.epoch != epoch
-        or page.through.epoch != epoch
-    ):
+    if not page.HasField("scanned") or not page.HasField("through") or page.scanned.epoch != epoch or page.through.epoch != epoch:
         raise ProtocolError("record page epoch differs")
     scanned, through = page.scanned, page.through
     if (

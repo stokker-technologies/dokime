@@ -296,9 +296,7 @@ pub struct DiagnosticsBundleHeader {
     pub generated_at: Option<Timestamp>,
     // Present whenever the archive is complete before the first chunk, which is
     // how this backend builds it.
-    #[row(
-        description = "Present whenever the archive is complete before the first chunk, which is how this backend builds it."
-    )]
+    #[row(description = "Present whenever the archive is complete before the first chunk, which is how this backend builds it.")]
     pub total_size_bytes: Option<u64>,
     // The same inventory the archive's manifest.json carries.
     #[row(description = "The same inventory the archive's manifest.json carries.")]
@@ -467,11 +465,9 @@ pub fn compatible_api(package: &str, version: &str) -> bool {
     fn release(version: &str) -> Option<(&str, &str)> {
         let parts: Vec<_> = version.split('.').collect();
         if parts.len() != 3
-            || parts.iter().any(|part| {
-                part.is_empty()
-                    || !part.bytes().all(|byte| byte.is_ascii_digit())
-                    || (part.len() > 1 && part.starts_with('0'))
-            })
+            || parts
+                .iter()
+                .any(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) || (part.len() > 1 && part.starts_with('0')))
         {
             return None;
         }
@@ -479,8 +475,7 @@ pub fn compatible_api(package: &str, version: &str) -> bool {
         Some((parts[0], parts[1]))
     }
 
-    package == API_PACKAGE
-        && release(version).is_some_and(|version| Some(version) == release(API_VERSION))
+    package == API_PACKAGE && release(version).is_some_and(|version| Some(version) == release(API_VERSION))
 }
 
 /* === Public Functions === */

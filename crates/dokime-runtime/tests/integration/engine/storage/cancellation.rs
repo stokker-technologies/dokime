@@ -47,10 +47,7 @@ async fn cancellation() {
     let root = tempfile::tempdir().unwrap();
     let store = Store::<()>::open(root.path()).await;
     let backend = &store.backend;
-    backend
-        .write(write_batch(&[StoragePart::Schemas(&[store.schema()])]))
-        .await
-        .unwrap();
+    backend.write(write_batch(&[StoragePart::Schemas(&[store.schema()])])).await.unwrap();
 
     // Hold The Real SQLite Worker At A Deterministic Boundary
     let control = backend.local_state();
@@ -67,9 +64,7 @@ async fn cancellation() {
             .unwrap();
     });
     entered_rx.await.unwrap();
-    let records = (2..66)
-        .map(|sequence| store.record(sequence))
-        .collect::<Vec<_>>();
+    let records = (2..66).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
     let parts = [StoragePart::Records(&records)];
     let mut writing = backend.write(write_batch(&parts));
     assert!(futures_util::poll!(writing.as_mut()).is_pending());

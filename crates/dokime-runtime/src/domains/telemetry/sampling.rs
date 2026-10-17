@@ -17,15 +17,15 @@
 // Third Party Imports
 
 // Local Imports
+use crate::runtime::state::RuntimeState;
+use crate::telemetry::SamplingScope;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::StepStatus;
-use dokime_domain::model::execution::result::CycleStatus;
-use crate::runtime::state::RuntimeState;
 use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::telemetry::SamplingScope;
 
 /* === Constants === */
 
@@ -70,31 +70,18 @@ pub(crate) fn record_scope_from_sampling_scope(scope: &SamplingScope) -> RecordS
     record_scope
 }
 
-pub(crate) fn sampling_phase_state(
-    state: &RuntimeState,
-    scope: &RecordScope,
-    start_after: Option<&str>,
-) -> SamplingPhaseState {
-    let execution = scope
-        .test_execution_id
-        .as_ref()
-        .and_then(|id| state.executions.get(id));
+pub(crate) fn sampling_phase_state(state: &RuntimeState, scope: &RecordScope, start_after: Option<&str>) -> SamplingPhaseState {
+    let execution = scope.test_execution_id.as_ref().and_then(|id| state.executions.get(id));
     if scope.test_execution_id.is_some() && execution.is_none() {
         return SamplingPhaseState::Stopped;
     }
     // Pending executions own their capture before the first recorded step.
     if let Some(execution) = execution
-        && !matches!(
-            execution.status,
-            ExecutionStatus::Pending | ExecutionStatus::Running
-        )
+        && !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
     {
         return SamplingPhaseState::Stopped;
     }
-    let test_cycle_id = scope
-        .test_cycle_id
-        .as_ref()
-        .or_else(|| execution.map(|execution| &execution.test_cycle_id));
+    let test_cycle_id = scope.test_cycle_id.as_ref().or_else(|| execution.map(|execution| &execution.test_cycle_id));
     let Some(test_cycle_id) = test_cycle_id else {
         return SamplingPhaseState::Running;
     };
@@ -115,31 +102,14 @@ pub(crate) fn sampling_phase_state(
 
     let started = execution
         .into_iter()
-        .chain(
-            scope
-                .test_execution_id
-                .is_none()
-                .then_some(())
-                .into_iter()
-                .flat_map(|_| state.executions_for_cycle(cycle)),
-        )
+        .chain(scope.test_execution_id.is_none().then_some(()).into_iter().flat_map(|_| state.executions_for_cycle(cycle)))
         .any(|execution| {
             execution.steps.iter().any(|step| {
                 step.metadata.identifier.as_str() == start_after
-                    && matches!(
-                        step.status,
-                        StepStatus::Passed
-                            | StepStatus::Failed
-                            | StepStatus::Skipped
-                            | StepStatus::Cancelled
-                    )
+                    && matches!(step.status, StepStatus::Passed | StepStatus::Failed | StepStatus::Skipped | StepStatus::Cancelled)
             })
         });
-    if started {
-        SamplingPhaseState::Running
-    } else {
-        SamplingPhaseState::Paused
-    }
+    if started { SamplingPhaseState::Running } else { SamplingPhaseState::Paused }
 }
 
 /* === Private Functions === */

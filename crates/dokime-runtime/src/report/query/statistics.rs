@@ -25,11 +25,11 @@ use harmos::storage::{
 };
 // Local Imports
 use super::{invalid, telemetry};
-use crate::{
-    runtime::Result,
-    plot::{HistogramBin, HistogramSeries, HistogramStatistics, PlotSeriesSummary, PlotWindow},
-};
 use crate::telemetry::TelemetryContract;
+use crate::{
+    plot::{HistogramBin, HistogramSeries, HistogramStatistics, PlotSeriesSummary, PlotWindow},
+    runtime::Result,
+};
 
 /* === Constants === */
 
@@ -73,18 +73,11 @@ impl Statistics {
 
 /* === Public Functions === */
 pub(super) fn field(name: &str) -> FieldPath {
-    FieldPath {
-        fields: vec!["payload".into(), "values".into(), name.into()],
-    }
+    FieldPath { fields: vec!["payload".into(), "values".into(), name.into()] }
 }
 
 pub(super) async fn collect(
-    read: super::ReadContext<'_, '_>,
-    at: &StorageCursor,
-    scope: &str,
-    contract: &TelemetryContract,
-    key: &str,
-    x: FieldPath,
+    read: super::ReadContext<'_, '_>, at: &StorageCursor, scope: &str, contract: &TelemetryContract, key: &str, x: FieldPath,
 ) -> Result<Statistics> {
     let super::ReadContext { ctx, settings } = read;
     let codec = crate::storage::telemetry::codec(contract)?;
@@ -98,54 +91,24 @@ pub(super) async fn collect(
         ("std", harmos::Aggregate::Std),
         ("rms", harmos::Aggregate::Rms),
     ] {
-        measures.push(Measure {
-            field: field(key),
-            statistic,
-            name: name.into(),
-        });
+        measures.push(Measure { field: field(key), statistic, name: name.into() });
     }
     measures.extend([
         Measure {
-            field: FieldPath {
-                fields: vec!["payload".into(), "metadata".into(), "ordinal".into()],
-            },
+            field: FieldPath { fields: vec!["payload".into(), "metadata".into(), "ordinal".into()] },
             statistic: harmos::Aggregate::Count,
             name: "rows".into(),
         },
-        Measure {
-            field: x.clone(),
-            statistic: harmos::Aggregate::Min,
-            name: "x_min".into(),
-        },
-        Measure {
-            field: x,
-            statistic: harmos::Aggregate::Max,
-            name: "x_max".into(),
-        },
+        Measure { field: x.clone(), statistic: harmos::Aggregate::Min, name: "x_min".into() },
+        Measure { field: x, statistic: harmos::Aggregate::Max, name: "x_max".into() },
     ]);
-    let query = telemetry::plan(
-        at,
-        scope,
-        &codec,
-        vec![Transform::Aggregate(Aggregate {
-            groups: vec![],
-            measures,
-        })],
-    )?;
+    let query = telemetry::plan(at, scope, &codec, vec![Transform::Aggregate(Aggregate { groups: vec![], measures })])?;
     let batches = super::batches(ctx, settings, query).await?;
-    let batch = batches
-        .first()
-        .ok_or_else(|| invalid("aggregate query returned no identity row"))?
-        .as_record_batch();
+    let batch = batches.first().ok_or_else(|| invalid("aggregate query returned no identity row"))?.as_record_batch();
     if batch.num_rows() != 1 || batches.len() != 1 {
         return Err(invalid("ungrouped statistics returned multiple rows"));
     }
-    let value = |name: &str| {
-        FieldPath {
-            fields: vec![name.into()],
-        }
-        .value(batch, 0)
-    };
+    let value = |name: &str| FieldPath { fields: vec![name.into()] }.value(batch, 0);
     let count = count_value(value("count")?)?;
     let rows = count_value(value("rows")?)?;
     let minimum = number(value("x_min")?);
@@ -159,65 +122,32 @@ pub(super) async fn collect(
         median: number(value("median")?),
         std: number(value("std")?),
         rms: number(value("rms")?),
-        window: minimum
-            .zip(maximum)
-            .map(|(from, to)| PlotWindow { from, to }),
+        window: minimum.zip(maximum).map(|(from, to)| PlotWindow { from, to }),
     })
 }
 
 pub(super) async fn histogram(
-    read: super::ReadContext<'_, '_>,
-    at: &StorageCursor,
-    scope: &str,
-    contract: &TelemetryContract,
-    key: &str,
-    bins: usize,
+    read: super::ReadContext<'_, '_>, at: &StorageCursor, scope: &str, contract: &TelemetryContract, key: &str, bins: usize,
     statistics: &Statistics,
 ) -> Result<HistogramSeries> {
     let super::ReadContext { ctx, settings } = read;
     let count = bins.max(1);
     if count >= 65_536 {
-        return Err(invalid(
-            "histogram bin count exceeds storage transform limit",
-        ));
+        return Err(invalid("histogram bin count exceeds storage transform limit"));
     }
     let (minimum, maximum) = statistics.min.zip(statistics.max).unwrap_or((0.0, 0.0));
-    let width = if minimum == maximum {
-        1.0
-    } else {
-        (maximum - minimum) / count as f64
-    };
-    let edges = (0..=count)
-        .map(|index| {
-            if index == count && minimum != maximum {
-                maximum
-            } else {
-                minimum + index as f64 * width
-            }
-        })
-        .collect();
+    let width = if minimum == maximum { 1.0 } else { (maximum - minimum) / count as f64 };
+    let edges =
+        (0..=count).map(|index| if index == count && minimum != maximum { maximum } else { minimum + index as f64 * width }).collect();
     let codec = crate::storage::telemetry::codec(contract)?;
-    let query = telemetry::plan(
-        at,
-        scope,
-        &codec,
-        vec![Transform::Histogram(Histogram {
-            field: field(key),
-            edges,
-        })],
-    )?;
+    let query = telemetry::plan(at, scope, &codec, vec![Transform::Histogram(Histogram { field: field(key), edges })])?;
     let batches = super::batches(ctx, settings, query).await?;
     let mut output = Vec::with_capacity(count);
     let mut actual = 0usize;
     for batch in batches.iter() {
         let batch = batch.as_record_batch();
         for row in 0..batch.num_rows() {
-            let value = |name: &str| {
-                FieldPath {
-                    fields: vec![name.into()],
-                }
-                .value(batch, row)
-            };
+            let value = |name: &str| FieldPath { fields: vec![name.into()] }.value(batch, row);
             let amount = count_value(value("count")?)?;
             let lower = number(value("lower")?);
             let upper = number(value("upper")?);
@@ -227,20 +157,12 @@ pub(super) async fn histogram(
                 }
                 continue;
             };
-            actual = actual
-                .checked_add(amount)
-                .ok_or_else(|| invalid("histogram count overflow"))?;
-            output.push(HistogramBin {
-                lower,
-                upper,
-                count: amount,
-            });
+            actual = actual.checked_add(amount).ok_or_else(|| invalid("histogram count overflow"))?;
+            output.push(HistogramBin { lower, upper, count: amount });
         }
     }
     if actual != statistics.count || output.len() != count {
-        return Err(invalid(
-            "histogram does not cover the full selected dataset",
-        ));
+        return Err(invalid("histogram does not cover the full selected dataset"));
     }
     let statistics = (|| {
         Some(HistogramStatistics {
@@ -252,12 +174,7 @@ pub(super) async fn histogram(
             rms: statistics.rms?,
         })
     })();
-    Ok(HistogramSeries {
-        key: key.into(),
-        bins: output,
-        count: actual,
-        statistics,
-    })
+    Ok(HistogramSeries { key: key.into(), bins: output, count: actual, statistics })
 }
 
 pub(super) fn number(value: ScalarValue) -> Option<f64> {
@@ -266,10 +183,7 @@ pub(super) fn number(value: ScalarValue) -> Option<f64> {
         ScalarValue::Signed(value) => value as f64,
         ScalarValue::Unsigned(value) => value as f64,
         ScalarValue::Datetime(value) => value as f64 / 1_000_000_000.0,
-        ScalarValue::Exact(value) => {
-            (if value.negative { -1.0 } else { 1.0 }) * value.numerator as f64
-                / value.denominator.get() as f64
-        }
+        ScalarValue::Exact(value) => (if value.negative { -1.0 } else { 1.0 }) * value.numerator as f64 / value.denominator.get() as f64,
         _ => return None,
     };
     number.is_finite().then_some(number)

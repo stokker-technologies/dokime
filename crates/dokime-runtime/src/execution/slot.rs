@@ -37,9 +37,7 @@ pub struct Slot<T> {
 impl<T> Slot<T> {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            value: Mutex::new(None),
-        }
+        Self { value: Mutex::new(None) }
     }
 
     pub fn set(&self, value: T) -> Option<T> {
@@ -67,17 +65,13 @@ impl<T> Default for Slot<T> {
 
 impl<T> std::fmt::Debug for Slot<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Slot")
-            .field("set", &self.is_set())
-            .finish_non_exhaustive()
+        f.debug_struct("Slot").field("set", &self.is_set()).finish_non_exhaustive()
     }
 }
 
 impl<T> From<T> for Slot<T> {
     fn from(value: T) -> Self {
-        Self {
-            value: Mutex::new(Some(value)),
-        }
+        Self { value: Mutex::new(Some(value)) }
     }
 }
 

@@ -77,18 +77,12 @@ impl Operation for ListNotes {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::ListNotes,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::ListNotes, _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::ListNotesResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(
@@ -99,10 +93,7 @@ impl Operation for ListNotes {
             &snapshot,
             "notes",
         )?;
-        let sets = snapshot
-            .state()
-            .annotation_sets(page.owner.as_ref(), page.context)
-            .map_err(Status::resource_exhausted)?;
+        let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
         let mut items: Vec<_> = sets
             .iter()
             .flat_map(|set| set.notes())
@@ -112,16 +103,9 @@ impl Operation for ListNotes {
         let more = items.len() > page.limit;
         items.truncate(page.limit);
         self.resources.produce(|| {
-            let next_after_id = if more {
-                items.last().unwrap().note_id.to_string()
-            } else {
-                String::new()
-            };
+            let next_after_id = if more { items.last().unwrap().note_id.to_string() } else { String::new() };
             Ok(dokime_domain::model::notes::wire::ListNotesResponse {
-                notes: items
-                    .into_iter()
-                    .map(wire::note)
-                    .collect::<Result<_, _>>()?,
+                notes: items.into_iter().map(wire::note).collect::<Result<_, _>>()?,
                 cursor: Some(page.cursor),
                 next_after_id,
             })
@@ -136,18 +120,12 @@ impl Operation for ListHealth {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::ListHealth,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::ListHealth, _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::ListHealthResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(
@@ -158,31 +136,19 @@ impl Operation for ListHealth {
             &snapshot,
             "health",
         )?;
-        let sets = snapshot
-            .state()
-            .annotation_sets(page.owner.as_ref(), page.context)
-            .map_err(Status::resource_exhausted)?;
+        let sets = snapshot.state().annotation_sets(page.owner.as_ref(), page.context).map_err(Status::resource_exhausted)?;
         let mut items: Vec<_> = sets
             .iter()
             .flat_map(|set| set.health())
-            .filter(|item| {
-                page.matches(&item.scope) && item.health_item_id.as_str() > page.after.as_str()
-            })
+            .filter(|item| page.matches(&item.scope) && item.health_item_id.as_str() > page.after.as_str())
             .collect();
         items.sort_by(|a, b| a.health_item_id.cmp(&b.health_item_id));
         let more = items.len() > page.limit;
         items.truncate(page.limit);
         self.resources.produce(|| {
-            let next_after_id = if more {
-                items.last().unwrap().health_item_id.to_string()
-            } else {
-                String::new()
-            };
+            let next_after_id = if more { items.last().unwrap().health_item_id.to_string() } else { String::new() };
             Ok(dokime_domain::model::notes::wire::ListHealthResponse {
-                items: items
-                    .into_iter()
-                    .map(wire::health)
-                    .collect::<Result<_, _>>()?,
+                items: items.into_iter().map(wire::health).collect::<Result<_, _>>()?,
                 cursor: Some(page.cursor),
                 next_after_id,
             })
@@ -197,25 +163,15 @@ impl Operation for CreateNote {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        context: Self::Context<'a>,
-        request: &mut contract::CreateNote,
-        _: &mut (),
+        &mut self, context: Self::Context<'a>, request: &mut contract::CreateNote, _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::NoteReceipt>, Status> {
-        let actor = context
-            .context()
-            .get::<Principal>()
-            .ok_or_else(|| Status::unauthenticated("authentication required"))?
-            .subject()
-            .to_owned();
+        let actor =
+            context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
         let result = self
             .resources
             .runtime
@@ -241,25 +197,15 @@ impl Operation for EditNote {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        context: Self::Context<'a>,
-        request: &mut contract::EditNote,
-        _: &mut (),
+        &mut self, context: Self::Context<'a>, request: &mut contract::EditNote, _: &mut (),
     ) -> Result<Response<dokime_domain::model::notes::wire::EditNoteResponse>, Status> {
-        let actor = context
-            .context()
-            .get::<Principal>()
-            .ok_or_else(|| Status::unauthenticated("authentication required"))?
-            .subject()
-            .to_owned();
+        let actor =
+            context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
         let note = self
             .resources
             .runtime
@@ -273,24 +219,17 @@ impl Operation for EditNote {
             })
             .await
             .map_err(status)?;
-        self.resources.produce(|| {
-            Ok(dokime_domain::model::notes::wire::EditNoteResponse {
-                note: Some(wire::note(&note)?),
-            })
-        })
+        self.resources.produce(|| Ok(dokime_domain::model::notes::wire::EditNoteResponse { note: Some(wire::note(&note)?) }))
     }
 }
 
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
-        &self,
-        build: impl FnOnce() -> Result<T, Status>,
+        &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;
         if output.encoded_len() > self.maximum {
-            return Err(Status::resource_exhausted(
-                "annotation response exceeds byte budget",
-            ));
+            return Err(Status::resource_exhausted("annotation response exceeds byte budget"));
         }
         Ok(output.into())
     }
@@ -298,30 +237,11 @@ impl Resources {
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum: maximum.min(512 * 1024),
-    });
-    runtime.operations().register_wire_operation::<ListNotes>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<ListHealth>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<CreateNote>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime.operations().register_wire_operation::<EditNote>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources,
-    )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(512 * 1024) });
+    runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListHealth>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<CreateNote>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<EditNote>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
@@ -336,9 +256,7 @@ fn status(error: NoteError) -> Status {
         NoteError::Sealed => Status::failed_precondition(error.to_string()),
         NoteError::Absent => Status::not_found(error.to_string()),
         NoteError::NotAuthor => Status::permission_denied(error.to_string()),
-        NoteError::Unavailable(_) => {
-            Status::unavailable("note operation could not be confirmed; Get resolves commitment")
-        }
+        NoteError::Unavailable(_) => Status::unavailable("note operation could not be confirmed; Get resolves commitment"),
     }
 }
 

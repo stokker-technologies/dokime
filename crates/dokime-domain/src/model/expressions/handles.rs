@@ -46,9 +46,7 @@ pub struct RecordField {
 /* === Implementations === */
 impl RecordMarker {
     pub fn new(record_type: impl Into<String>) -> Self {
-        Self {
-            record_type: record_type.into(),
-        }
+        Self { record_type: record_type.into() }
     }
 
     pub fn record_type(&self) -> &str {
@@ -80,10 +78,7 @@ impl From<&String> for RecordMarker {
 
 impl RecordField {
     pub fn new(record_type: impl Into<String>, detail: impl Into<String>) -> Self {
-        Self {
-            record_type: record_type.into(),
-            detail: detail.into(),
-        }
+        Self { record_type: record_type.into(), detail: detail.into() }
     }
 
     pub fn record_type(&self) -> &str {
@@ -99,9 +94,7 @@ impl From<RecordField> for DataExpression {
     fn from(field: RecordField) -> Self {
         DataExpression {
             label: None,
-            source: DataSource::Record {
-                record_type: field.record_type,
-            },
+            source: DataSource::Record { record_type: field.record_type },
             transforms: vec![DataTransform::Detail { name: field.detail }],
         }
     }

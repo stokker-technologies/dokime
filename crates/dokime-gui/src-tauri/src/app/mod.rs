@@ -61,10 +61,7 @@ pub fn run() {
 }
 
 pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
-    app.state::<crate::native_session::DesktopSessionControl>()
-        .shutdown()
-        .await
-        .map_err(|error| format!("{error:?}"))?;
+    app.state::<crate::native_session::DesktopSessionControl>().shutdown().await.map_err(|error| format!("{error:?}"))?;
     app.request_restart();
     Ok(())
 }
@@ -80,10 +77,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let _log_guards = logging::init(&context.config().identifier);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
-    let shutdown_stdin = launch.error.is_none()
-        && arguments
-            .iter()
-            .any(|argument| argument == "--shutdown-stdin");
+    let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
     let controls = bindings::invoke_handler();
@@ -94,9 +88,7 @@ fn start_tauri_app() -> tauri::Result<()> {
         .manage(launch)
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
-                window
-                    .state::<crate::rpc::Bridge>()
-                    .cancel_owner(window.label());
+                window.state::<crate::rpc::Bridge>().cancel_owner(window.label());
                 // No single generation is authoritative at window teardown;
                 // drop the whole media preview cache rather than one slice
                 // of it.
@@ -110,9 +102,7 @@ fn start_tauri_app() -> tauri::Result<()> {
         // streams and uploads end with it rather than holding bridge capacity.
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
-                webview
-                    .state::<crate::rpc::Bridge>()
-                    .cancel_owner(webview.label());
+                webview.state::<crate::rpc::Bridge>().cancel_owner(webview.label());
             }
         })
         .plugin(tauri_plugin_deep_link::init())
@@ -125,14 +115,8 @@ fn start_tauri_app() -> tauri::Result<()> {
         .setup(move |app| {
             settings::setup(app);
             gitlab::setup(app)?;
-            let connection = app
-                .state::<crate::connection::ConnectionSession>()
-                .inner()
-                .clone();
-            let owner = crate::native_session::DesktopSession::with_local_configuration(
-                connection,
-                local::configuration(app.handle()),
-            );
+            let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
+            let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
             create_main_windows(app)?;
@@ -140,22 +124,14 @@ fn start_tauri_app() -> tauri::Result<()> {
                 let handle = app.handle().clone();
                 // A dedicated thread avoids retaining a blocking Tokio task on
                 // desktop exit. EOF uses the existing graceful exit owner.
-                std::thread::Builder::new()
-                    .name("desktop-parent".into())
-                    .spawn(move || {
-                        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
-                        handle.exit(0);
-                    })?;
+                std::thread::Builder::new().name("desktop-parent".into()).spawn(move || {
+                    let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+                    handle.exit(0);
+                })?;
             }
             Ok(())
         })
-        .invoke_handler(move |invoke| {
-            if crate::rpc::COMMANDS.contains(&invoke.message.command()) {
-                rpc(invoke)
-            } else {
-                controls(invoke)
-            }
-        })
+        .invoke_handler(move |invoke| if crate::rpc::COMMANDS.contains(&invoke.message.command()) { rpc(invoke) } else { controls(invoke) })
         .build(context);
     let app = match app {
         Ok(app) => app,
@@ -171,10 +147,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let shutdown_started = Arc::new(AtomicBool::new(false));
     let shutdown_complete = Arc::new(AtomicBool::new(false));
     app.run(move |app, event| {
-        if let tauri::RunEvent::WindowEvent {
-            event: tauri::WindowEvent::CloseRequested { api, .. },
-            ..
-        } = &event
+        if let tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event
             && !shutdown_complete.load(Ordering::Acquire)
         {
             api.prevent_close();
@@ -194,17 +167,11 @@ fn start_tauri_app() -> tauri::Result<()> {
                 }
                 tauri::async_runtime::spawn(async move {
                     loop {
-                        let result = app
-                            .state::<crate::native_session::DesktopSessionControl>()
-                            .shutdown()
-                            .await;
+                        let result = app.state::<crate::native_session::DesktopSessionControl>().shutdown().await;
                         if let Err(error) = result {
                             tracing::error!(?error, "native desktop shutdown failed");
                             for window in app.webview_windows().values() {
-                                let _ = window.set_title(&format!(
-                                    "{} — Report Finalization Failed",
-                                    crate::PRODUCT
-                                ));
+                                let _ = window.set_title(&format!("{} — Report Finalization Failed", crate::PRODUCT));
                             }
                             let (send, receive) = tokio::sync::oneshot::channel();
                             app.dialog()
@@ -218,13 +185,14 @@ fn start_tauri_app() -> tauri::Result<()> {
                                     "Exit Without Completed Reports".into(),
                                     "Keep Open".into(),
                                 ))
-                                .show_with_result(move |answer| { let _ = send.send(answer); });
+                                .show_with_result(move |answer| {
+                                    let _ = send.send(answer);
+                                });
                             match receive.await {
                                 Ok(MessageDialogResult::Yes) => continue,
                                 Ok(MessageDialogResult::Custom(answer)) if answer == "Retry" => continue,
-                                Ok(MessageDialogResult::No) => {},
-                                Ok(MessageDialogResult::Custom(answer))
-                                    if answer == "Exit Without Completed Reports" => {},
+                                Ok(MessageDialogResult::No) => {}
+                                Ok(MessageDialogResult::Custom(answer)) if answer == "Exit Without Completed Reports" => {}
                                 _ => {
                                     started.store(false, Ordering::Release);
                                     return;
@@ -246,18 +214,10 @@ fn start_tauri_app() -> tauri::Result<()> {
 }
 
 fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
-    for window in app
-        .config()
-        .app
-        .windows
-        .iter()
-        .filter(|window| !window.create)
-    {
+    for window in app.config().app.windows.iter().filter(|window| !window.create) {
         let navigation_config = app.config().clone();
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
-            .on_navigation(move |url| {
-                crate::native_session::trusted_application_url(url, &navigation_config)
-            });
+            .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
         // The window-level OLE handler would otherwise swallow file drops
         // before WebView2 raises the HTML5 events the plugin drop zone uses.
         #[cfg(windows)]

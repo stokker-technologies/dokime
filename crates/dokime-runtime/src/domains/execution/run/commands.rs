@@ -17,13 +17,13 @@
 // Third Party Imports
 // Local Imports
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::StepAttemptId;
-use dokime_domain::model::execution::termination::TerminationReason;
+use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
 use dokime_domain::model::execution::request::StepCommand;
 use dokime_domain::model::execution::request::StepCommandPhase;
 use dokime_domain::model::execution::request::StepCommandReceipt;
-use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
+use dokime_domain::model::execution::termination::TerminationReason;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::StepAttemptId;
 
 /* === Constants === */
 
@@ -41,11 +41,7 @@ use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
 
 /* === Public Functions === */
 pub(super) async fn reconcile(
-    context: &ExecutionFixtureContext,
-    target: &Target,
-    execution: &TestExecution,
-    terminal: bool,
-    cancelling: bool,
+    context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, terminal: bool, cancelling: bool,
 ) -> Result<(), ProviderExecutionFailure> {
     let Some(request_id) = &context.request_id else {
         return Ok(());
@@ -60,10 +56,7 @@ pub(super) async fn reconcile(
         return Ok(());
     };
     if command.execution_id != execution.test_execution_id {
-        return Err(failure(
-            "command_checkpoint",
-            "command belongs to another execution",
-        ));
+        return Err(failure("command_checkpoint", "command belongs to another execution"));
     }
     if command.phase == StepCommandPhase::Accepted {
         if terminal || cancelling {
@@ -78,15 +71,7 @@ pub(super) async fn reconcile(
             .await;
         }
         // The marker precedes the external call. Restart never resumes this intent.
-        save(
-            context,
-            request_id,
-            &command,
-            StepCommandPhase::Dispatching,
-            None,
-            None,
-        )
-        .await?;
+        save(context, request_id, &command, StepCommandPhase::Dispatching, None, None).await?;
     }
     let (action, step) = match &command.action {
         StepCommand::Next => ("next", String::new()),
@@ -95,18 +80,8 @@ pub(super) async fn reconcile(
             let phase = execution
                 .snapshot
                 .template()
-                .and_then(|template| {
-                    template
-                        .phases
-                        .iter()
-                        .find(|phase| &phase.step_id == step_id)
-                })
-                .ok_or_else(|| {
-                    failure(
-                        "command_dispatch",
-                        "step is absent from the frozen execution",
-                    )
-                })?;
+                .and_then(|template| template.phases.iter().find(|phase| &phase.step_id == step_id))
+                .ok_or_else(|| failure("command_dispatch", "step is absent from the frozen execution"))?;
             ("run_step", phase.metadata.identifier.to_string())
         }
     };
@@ -139,83 +114,43 @@ pub(super) async fn reconcile(
     if phase == StepCommandPhase::Completed || phase == StepCommandPhase::Failed {
         if command.action == StepCommand::Finish {
             if attempt_id.is_some() || phase == StepCommandPhase::Failed {
-                return Err(failure(
-                    "command_dispatch",
-                    "finish receipt has step provenance",
-                ));
+                return Err(failure("command_dispatch", "finish receipt has step provenance"));
             }
             if !terminal {
                 return Ok(());
             }
         } else {
-            let id = attempt_id.as_ref().ok_or_else(|| {
-                failure(
-                    "command_dispatch",
-                    "completed step command has no attempt receipt",
-                )
-            })?;
+            let id = attempt_id.as_ref().ok_or_else(|| failure("command_dispatch", "completed step command has no attempt receipt"))?;
             let state = context.runtime.state_read();
-            let admitted =
-                state
-                    .executions
-                    .get(&execution.test_execution_id)
-                    .and_then(|execution| {
-                        execution
-                            .step_attempts
-                            .iter()
-                            .find(|attempt| &attempt.attempt_id == id)
-                    });
+            let admitted = state
+                .executions
+                .get(&execution.test_execution_id)
+                .and_then(|execution| execution.step_attempts.iter().find(|attempt| &attempt.attempt_id == id));
             let Some(admitted) = admitted else {
                 if terminal {
-                    return Err(failure(
-                        "command_dispatch",
-                        "terminal command references an unadmitted attempt",
-                    ));
+                    return Err(failure("command_dispatch", "terminal command references an unadmitted attempt"));
                 }
                 return Ok(());
             };
             if let StepCommand::RunStep { step_id } = &command.action
                 && &admitted.step_id != step_id
             {
-                return Err(failure(
-                    "command_dispatch",
-                    "command receipt belongs to another step",
-                ));
+                return Err(failure("command_dispatch", "command receipt belongs to another step"));
             }
-            if (phase == StepCommandPhase::Completed)
-                != (admitted.termination == TerminationReason::Completed)
-            {
-                return Err(failure(
-                    "command_dispatch",
-                    "command outcome differs from its admitted attempt",
-                ));
+            if (phase == StepCommandPhase::Completed) != (admitted.termination == TerminationReason::Completed) {
+                return Err(failure("command_dispatch", "command outcome differs from its admitted attempt"));
             }
         }
     } else if attempt_id.is_some() {
-        return Err(failure(
-            "command_dispatch",
-            "nonterminal or refused command has unexpected attempt provenance",
-        ));
+        return Err(failure("command_dispatch", "nonterminal or refused command has unexpected attempt provenance"));
     }
-    save(
-        context,
-        request_id,
-        &command,
-        phase,
-        attempt_id,
-        (!reply.message.is_empty()).then_some(reply.message),
-    )
-    .await
+    save(context, request_id, &command, phase, attempt_id, (!reply.message.is_empty()).then_some(reply.message)).await
 }
 
 /* === Private Functions === */
 async fn save(
-    context: &ExecutionFixtureContext,
-    request_id: &CommandId,
-    command: &StepCommandReceipt,
-    phase: StepCommandPhase,
-    attempt_id: Option<StepAttemptId>,
-    detail: Option<String>,
+    context: &ExecutionFixtureContext, request_id: &CommandId, command: &StepCommandReceipt, phase: StepCommandPhase,
+    attempt_id: Option<StepAttemptId>, detail: Option<String>,
 ) -> Result<(), ProviderExecutionFailure> {
     if command.phase == phase && command.attempt_id == attempt_id && command.detail == detail {
         return Ok(());
@@ -226,23 +161,12 @@ async fn save(
         .runtime
         .request_storage
         .update(request_id, |receipt| {
-            decision = Some(receipt.reconcile_step_command(
-                &command.command_id,
-                phase,
-                attempt_id,
-                detail,
-                at,
-            ));
+            decision = Some(receipt.reconcile_step_command(&command.command_id, phase, attempt_id, detail, at));
         })
         .await
         .map_err(|error| failure("command_checkpoint", error.to_string()))?;
     decision
-        .ok_or_else(|| {
-            failure(
-                "command_checkpoint",
-                "run settled before command reconciliation",
-            )
-        })?
+        .ok_or_else(|| failure("command_checkpoint", "run settled before command reconciliation"))?
         .map(|_| ())
         .map_err(|error| failure("command_checkpoint", error))
 }

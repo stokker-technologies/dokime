@@ -21,9 +21,7 @@ pub(crate) mod catalog_lifecycle {
     struct CountedSuite;
 
     impl DeclaredSuite for CountedSuite {
-        const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<
-            dokime_runtime::harmos::operations::WireDeclaration,
-        >] = &[];
+        const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::harmos::operations::WireDeclaration>] = &[];
         const STREAMS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::catalog::Publication>] = &[];
 
         fn definition() -> dokime_runtime::domains::TestSuiteDefinition {
@@ -32,9 +30,7 @@ pub(crate) mod catalog_lifecycle {
         }
 
         fn bind<P: dokime_runtime::harmos::plugin::Declared>(
-            _: &mut WireTable<dokime_runtime::Supervisor>,
-            _: &str,
-            _: &[dokime_runtime::records::RecordContract],
+            _: &mut WireTable<dokime_runtime::Supervisor>, _: &str, _: &[dokime_runtime::records::RecordContract],
         ) -> Result<(), ServingError> {
             Ok(())
         }
@@ -86,11 +82,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::{Value, ValueType};
-use dokime_runtime::definition::{
-    Criterion, DeclaredTemplate, SuiteSet, authored_criterion as criterion,
-    materialize_template_cases,
-};
+use dokime_runtime::definition::{Criterion, DeclaredTemplate, SuiteSet, authored_criterion as criterion, materialize_template_cases};
 use dokime_runtime::execution::{CriterionContext, ObserverContext, StepContext};
 use dokime_runtime::execution::{Run, Signal, Workflow};
 use dokime_runtime::harmos::operations::OperationDeclaration;
@@ -98,9 +90,8 @@ use dokime_runtime::harmos::plugin::Contribution;
 use dokime_runtime::harmos::plugin::Registrar;
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, TELEMETRY_NAMESPACE};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
-use dokime_runtime::transport::{
-    EvidenceBatch, RunExecution, SidecarCriterionStatus, StepAdmission,
-};
+use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, StepAdmission};
+use dokime_runtime::{Value, ValueType};
 use error::Error;
 
 /* === Constants === */
@@ -196,12 +187,7 @@ impl SpikeChecks {
             TelemetryContract::declared(STREAM_ID, "Spike Pulse")
                 .typed::<PulseRow>()
                 .for_template(Probe::template_id())
-                .column(TelemetryColumn::declared(
-                    "value",
-                    "Value",
-                    ValueType::Number,
-                    TelemetryRole::Value,
-                ))
+                .column(TelemetryColumn::declared("value", "Value", ValueType::Number, TelemetryRole::Value))
                 .strict(),
         ]
     }
@@ -226,25 +212,15 @@ enum ProbeSubscribes {
     attributes(path = "Spike/Probe"),
     parameters = ProbeParameters)]
 impl Probe {
-    async fn initialize(
-        _: &ProbeParameters,
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(_: &ProbeParameters, _: &mut dokime_runtime::execution::InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
 
     fn criteria() -> Vec<Criterion> {
-        vec![criterion(
-            "spike.checks.probe.acceptance",
-            "Probe Completed",
-            Some(Value::from(true)),
-        )]
+        vec![criterion("spike.checks.probe.acceptance", "Probe Completed", Some(Value::from(true)))]
     }
 
-    #[dokime_runtime::step(
-        label = "Start",
-        description = "Arm the probe.\nThe **first** line is a summary; the rest is Markdown."
-    )]
+    #[dokime_runtime::step(label = "Start", description = "Arm the probe.\nThe **first** line is a summary; the rest is Markdown.")]
     fn start(&mut self, _run: &mut StepContext<'_>) -> Result<(), Error> {
         Ok(())
     }
@@ -272,8 +248,7 @@ impl PulseChecks {}
     parameters = PulseParameters, description = "Steps, a criterion, and a stream, written as functions.")]
 impl Pulse {
     async fn initialize(
-        _: &PulseParameters,
-        _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
+        _: &PulseParameters, _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
         let shared = PulseResources::default();
@@ -317,11 +292,7 @@ impl Pulse {
         let index = ctx.resources().produced.fetch_add(1, Ordering::AcqRel);
         ctx.resources().produced_changed.notify_waiters();
         let value = ctx.tick().index() as f64 * 0.25;
-        ctx.publish(PulseRow {
-            index: index as i64,
-            value,
-        })
-        .await;
+        ctx.publish(PulseRow { index: index as i64, value }).await;
 
         Ok(())
     }
@@ -346,11 +317,7 @@ fn pulse_start() -> RunExecution {
         workflow: PULSE_SUITE_ID.to_owned(),
 
         secrets_json: "{}".to_owned(),
-        parameters_json: serde_json::to_string(&std::collections::BTreeMap::from([(
-            "rows",
-            dokime_runtime::Value::Integer(3),
-        )]))
-        .unwrap(),
+        parameters_json: serde_json::to_string(&std::collections::BTreeMap::from([("rows", dokime_runtime::Value::Integer(3))])).unwrap(),
     }
 }
 
@@ -358,20 +325,11 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
     let mut replies = Vec::new();
     let mut cursor = 0;
     loop {
-        let reply = execution
-            .next("authoring", cursor)
-            .await
-            .expect("the execution remains drainable");
+        let reply = execution.next("authoring", cursor).await.expect("the execution remains drainable");
         for encoded in &reply.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            execution.admit(
-                "authoring",
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: true,
-                    message: String::new(),
-                },
-            );
+            execution
+                .admit("authoring", &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         cursor = reply.cursor;
         let terminal = reply.outcome.is_some();
@@ -385,16 +343,11 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
 #[tokio::test]
 async fn attributed_functions_runs() {
     let execution = Workflow::<Pulse>::new(PULSE_SUITE_ID, "authoring-spike");
-    execution
-        .start(pulse_start())
-        .expect("the execution starts");
+    execution.start(pulse_start()).expect("the execution starts");
 
     let replies = drain_until_terminal(&execution).await;
     let samples = execution.take_local_samples("authoring").unwrap();
-    let outcome = replies
-        .iter()
-        .find_map(|reply| reply.outcome.as_ref())
-        .expect("the drain stream terminates once");
+    let outcome = replies.iter().find_map(|reply| reply.outcome.as_ref()).expect("the drain stream terminates once");
 
     // The declared stream sampled, the step waited on what it produced, and the
     // criterion decided over it — three attributed functions, one run.
@@ -404,10 +357,7 @@ async fn attributed_functions_runs() {
     assert_eq!(replies.last().expect("a terminal reply").phase, "measure");
     assert!(outcome.passed);
     assert_eq!(outcome.criteria[0].identifier, PULSE_CRITERION_ID);
-    assert_eq!(
-        SidecarCriterionStatus::try_from(outcome.criteria[0].status),
-        Ok(SidecarCriterionStatus::Passed)
-    );
+    assert_eq!(SidecarCriterionStatus::try_from(outcome.criteria[0].status), Ok(SidecarCriterionStatus::Passed));
     execution.shutdown().await;
 }
 
@@ -416,49 +366,25 @@ async fn attributed_functions_runs() {
 #[test]
 fn registration_phase_envelope() {
     let mut registrar = Registrar::new();
-    dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar)
-        .expect("the spike registers its suites");
+    dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar).expect("the spike registers its suites");
     let registrations = registrar.finish();
     assert_eq!(registrations.len(), 1);
-    let suites = registrations
-        .iter()
-        .find(|registration| registration.namespace == SUITES_NAMESPACE)
-        .expect("suite domain");
-    assert_eq!(
-        suites.schema,
-        dokime_runtime::plugin::registration::domain_schema(SUITES_NAMESPACE)
-    );
+    let suites = registrations.iter().find(|registration| registration.namespace == SUITES_NAMESPACE).expect("suite domain");
+    assert_eq!(suites.schema, dokime_runtime::plugin::registration::domain_schema(SUITES_NAMESPACE));
     assert!(
-        !registrations
-            .iter()
-            .any(|registration| registration.namespace == TELEMETRY_NAMESPACE),
+        !registrations.iter().any(|registration| registration.namespace == TELEMETRY_NAMESPACE),
         "template telemetry stays with its suite; an empty standalone domain is absent"
     );
     let decoded = serde_json::from_slice::<SuiteSet>(&suites.payload).expect("valid suites");
-    assert_eq!(
-        decoded.suites[0].suite_id,
-        SpikeChecks::definition().suite_id
-    );
-    assert_eq!(
-        decoded.suites[0].suite.test_case_templates[0].test_case_template_id,
-        Probe::template_id()
-    );
+    assert_eq!(decoded.suites[0].suite_id, SpikeChecks::definition().suite_id);
+    assert_eq!(decoded.suites[0].suite.test_case_templates[0].test_case_template_id, Probe::template_id());
 }
 
 #[test]
 fn template_declares_operations() {
-    assert_eq!(
-        <Run<Pulse> as OperationDeclaration>::ID,
-        format!("{PULSE_TEMPLATE_ID}.run")
-    );
-    assert_eq!(
-        <Signal<Pulse> as OperationDeclaration>::ID,
-        format!("{PULSE_TEMPLATE_ID}.signal")
-    );
-    assert_eq!(
-        <Run<Pulse> as OperationDeclaration>::POLICY.timeout,
-        dokime_runtime::transport::RUN_BOUND
-    );
+    assert_eq!(<Run<Pulse> as OperationDeclaration>::ID, format!("{PULSE_TEMPLATE_ID}.run"));
+    assert_eq!(<Signal<Pulse> as OperationDeclaration>::ID, format!("{PULSE_TEMPLATE_ID}.signal"));
+    assert_eq!(<Run<Pulse> as OperationDeclaration>::POLICY.timeout, dokime_runtime::transport::RUN_BOUND);
 }
 
 #[test]
@@ -479,14 +405,8 @@ fn suite_declaration_contracts() {
     // One authored tag list reaches both the suite and its registration.
     assert_eq!(definition.tags, ["example", "plugin"]);
     assert_eq!(definition.suite.tags, definition.tags);
-    assert_eq!(
-        definition.telemetry_contracts[0].template_id,
-        Some(Probe::template_id())
-    );
-    assert_eq!(
-        definition.record_contracts[0].template_id,
-        Some(Probe::template_id())
-    );
+    assert_eq!(definition.telemetry_contracts[0].template_id, Some(Probe::template_id()));
+    assert_eq!(definition.record_contracts[0].template_id, Some(Probe::template_id()));
 }
 
 #[test]
@@ -499,40 +419,18 @@ fn template_reference_scoped() {
     assert_eq!(declaration.metadata.identifier.as_str(), TEMPLATE_ID);
     assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, TEMPLATE_ID);
     assert_eq!(template_identifier(SUITE_ID, TEMPLATE_ID), Ok(()));
-    assert_eq!(
-        template_identifier("obc.charger.steady", "obc.charger.steady.charging_input"),
-        Ok(())
-    );
+    assert_eq!(template_identifier("obc.charger.steady", "obc.charger.steady.charging_input"), Ok(()));
     for (template, refusal) in [
-        (
-            "spike.pulses.pulse",
-            TemplateIdentifierRefusal::OutsideSuite,
-        ),
+        ("spike.pulses.pulse", TemplateIdentifierRefusal::OutsideSuite),
         ("spike.checks", TemplateIdentifierRefusal::OutsideSuite),
         ("spike.checks.", TemplateIdentifierRefusal::OutsideSuite),
         ("spike.checksprobe", TemplateIdentifierRefusal::OutsideSuite),
-        (
-            "spike.checks.Probe",
-            TemplateIdentifierRefusal::InvalidSegment,
-        ),
-        (
-            "spike.checks.probe.deep",
-            TemplateIdentifierRefusal::InvalidSegment,
-        ),
-        (
-            "spike.checks.2probe",
-            TemplateIdentifierRefusal::InvalidSegment,
-        ),
-        (
-            "spike.checks.pro-be",
-            TemplateIdentifierRefusal::InvalidSegment,
-        ),
+        ("spike.checks.Probe", TemplateIdentifierRefusal::InvalidSegment),
+        ("spike.checks.probe.deep", TemplateIdentifierRefusal::InvalidSegment),
+        ("spike.checks.2probe", TemplateIdentifierRefusal::InvalidSegment),
+        ("spike.checks.pro-be", TemplateIdentifierRefusal::InvalidSegment),
     ] {
-        assert_eq!(
-            template_identifier(SUITE_ID, template),
-            Err(refusal),
-            "{template}"
-        );
+        assert_eq!(template_identifier(SUITE_ID, template), Err(refusal), "{template}");
     }
 }
 
@@ -540,14 +438,7 @@ fn template_reference_scoped() {
 fn one_step_phases() {
     let declaration = Probe::declaration();
 
-    assert_eq!(
-        declaration
-            .phases
-            .iter()
-            .map(|phase| phase.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
-        ["start", "complete"]
-    );
+    assert_eq!(declaration.phases.iter().map(|phase| phase.metadata.identifier.as_str()).collect::<Vec<_>>(), ["start", "complete"]);
 }
 
 #[test]
@@ -558,10 +449,7 @@ fn step_reads_rustdoc() {
         declaration.phases[0].metadata.description.as_deref(),
         Some("Arm the probe.\nThe **first** line is a summary; the rest is Markdown.")
     );
-    assert_eq!(
-        declaration.phases[1].metadata.description.as_deref(),
-        Some("Disarm and report.")
-    );
+    assert_eq!(declaration.phases[1].metadata.description.as_deref(), Some("Disarm and report."));
 }
 
 #[test]
@@ -571,35 +459,22 @@ fn template_declaration_declares() {
     assert_eq!(declaration.test_case_template_id, Probe::template_id());
     assert_eq!(declaration.metadata.identifier.as_str(), TEMPLATE_ID);
     assert_eq!(declaration.tags, ["example", "plugin"]);
-    assert_eq!(
-        declaration
-            .parameters
-            .iter()
-            .map(|parameter| parameter.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
-        ["sample_count"]
-    );
-    let parameters = <ProbeParameters as dokime_runtime::parameters::FromParameters>::from_parameters(
-        &std::collections::BTreeMap::from([("sample_count".to_owned(), Value::from(8_i64))]),
-    )
-    .unwrap();
+    assert_eq!(declaration.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(), ["sample_count"]);
+    let parameters =
+        <ProbeParameters as dokime_runtime::parameters::FromParameters>::from_parameters(&std::collections::BTreeMap::from([(
+            "sample_count".to_owned(),
+            Value::from(8_i64),
+        )]))
+        .unwrap();
     assert_eq!(parameters.sample_count, 8);
     assert_eq!(declaration.criteria.len(), 1);
-    assert_eq!(
-        declaration.attributes.get("path"),
-        Some(&Value::from("Spike/Probe"))
-    );
+    assert_eq!(declaration.attributes.get("path"), Some(&Value::from("Spike/Probe")));
     // A template that declares no document contributes none.
     assert!(declaration.document.is_none());
     assert_eq!(
-        materialize_template_cases(
-            "fixture.registration",
-            &declaration,
-            Default::default(),
-            Default::default()
-        )
-        .expect("the declaration generates cases")
-        .case_count,
+        materialize_template_cases("fixture.registration", &declaration, Default::default(), Default::default())
+            .expect("the declaration generates cases")
+            .case_count,
         1
     );
 }
@@ -607,13 +482,8 @@ fn template_declaration_declares() {
 #[test]
 fn obsolete_template_refused() {
     let current = serde_json::to_value(Probe::declaration()).unwrap();
-    assert!(
-        serde_json::from_value::<dokime_runtime::definition::TestCaseTemplate>(current.clone()).is_ok()
-    );
-    for (field, value) in [
-        ("prompts", serde_json::json!(true)),
-        ("samples", serde_json::json!(["host.system"])),
-    ] {
+    assert!(serde_json::from_value::<dokime_runtime::definition::TestCaseTemplate>(current.clone()).is_ok());
+    for (field, value) in [("prompts", serde_json::json!(true)), ("samples", serde_json::json!(["host.system"]))] {
         let mut obsolete = current.clone();
         obsolete[field] = value;
         assert!(serde_json::from_value::<dokime_runtime::definition::TestCaseTemplate>(obsolete).is_err());
@@ -623,16 +493,11 @@ fn obsolete_template_refused() {
 #[test]
 fn second_suite_refused() {
     let mut registrar = Registrar::new();
-    dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar)
-        .expect("the first suite set is accepted");
+    dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar).expect("the first suite set is accepted");
 
-    let refusal = dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar)
-        .expect_err("one artifact exports its suites once");
+    let refusal = dokime_runtime::Suites::<SpikeSuites>::register(&mut registrar).expect_err("one artifact exports its suites once");
 
-    assert_eq!(
-        refusal.to_string(),
-        "registration namespace `dokime.suites` was declared more than once"
-    );
+    assert_eq!(refusal.to_string(), "registration namespace `dokime.suites` was declared more than once");
 }
 
 #[test]
@@ -642,11 +507,7 @@ fn criterion_method_decides() {
     // No `criteria()` list anywhere in the block: the method that decides it is
     // what declared it.
     assert_eq!(
-        declaration
-            .criteria
-            .iter()
-            .map(|criterion| criterion.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
+        declaration.criteria.iter().map(|criterion| criterion.metadata.identifier.as_str()).collect::<Vec<_>>(),
         [PULSE_CRITERION_ID]
     );
     assert_eq!(declaration.criteria[0].metadata.label, "Rows Measured");
@@ -667,11 +528,7 @@ fn stream_method_publishes() {
         contract
             .columns
             .iter()
-            .map(|column| (
-                column.metadata.identifier.as_str(),
-                column.value_type.clone(),
-                column.role.clone(),
-            ))
+            .map(|column| (column.metadata.identifier.as_str(), column.value_type.clone(), column.role.clone(),))
             .collect::<Vec<_>>(),
         [
             ("timestamp", ValueType::Datetime, TelemetryRole::Value),

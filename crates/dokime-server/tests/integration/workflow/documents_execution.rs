@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use model::documents::wire::DocumentFrameFrame as Frame;
 
 /* === Constants === */
@@ -41,43 +41,25 @@ use model::documents::wire::DocumentFrameFrame as Frame;
 
 #[tokio::test]
 async fn running_execution_owners() {
-    let Gated {
-        root: _root,
-        gate,
-        mut owner,
-        service: _service,
-        server,
-        execution,
-        cycle,
-    } = Gated::open().await;
-    execution
-        .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle)))
-        .await
-        .unwrap();
+    let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
+    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let attempts = execution
-        .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutions {
-                cycle_id: cycle.clone(),
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
+            cycle_id: cycle.clone(),
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
     let id = attempts.executions[0].execution_id.clone();
     let documents = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let selected = model::documents::wire::DocumentScope {
-        cycle_id: cycle,
-        execution_id: id.clone(),
-    };
+    let selected = model::documents::wire::DocumentScope { cycle_id: cycle, execution_id: id.clone() };
     let mut stream = documents
-        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(selected),
-                document_id: "default".into(),
-            },
-        ))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            scope: Some(selected),
+            document_id: "default".into(),
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -85,10 +67,7 @@ async fn running_execution_owners() {
     let mut complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.frame.unwrap() {
-            Frame::Header(value) => assert_eq!(
-                value.scope.unwrap().execution_id.as_deref(),
-                Some(id.as_str())
-            ),
+            Frame::Header(value) => assert_eq!(value.scope.unwrap().execution_id.as_deref(), Some(id.as_str())),
             Frame::Card(model::documents::wire::DocumentCard {
                 body: Some(model::documents::wire::DocumentCardBody::Owner(reference)),
                 ..

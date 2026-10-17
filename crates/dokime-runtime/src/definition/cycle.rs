@@ -17,9 +17,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::execution::result::CycleView;
 use crate::execution::TestExecutionInstance;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -45,12 +45,7 @@ impl TestCycleInstance {
             .test_executions
             .iter()
             .cloned()
-            .map(|execution| {
-                (
-                    execution.test_execution_id.clone(),
-                    TestExecutionInstance::new(execution),
-                )
-            })
+            .map(|execution| (execution.test_execution_id.clone(), TestExecutionInstance::new(execution)))
             .collect();
 
         Self { cycle, executions }

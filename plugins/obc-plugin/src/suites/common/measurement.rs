@@ -65,18 +65,11 @@ pub struct InputMeasurement {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn publish<C, T, O, I>(
-    ctx: &mut StepContext<'_, T, O, I>,
-    index: u64,
-    reading: Reading,
-    phase: &str,
-) where
+pub(crate) async fn publish<C, T, O, I>(ctx: &mut StepContext<'_, T, O, I>, index: u64, reading: Reading, phase: &str)
+where
     C: OwnedStream<Row = InputMeasurement>,
 {
-    ctx.stream::<InputMeasurement>()
-        .into::<C>()
-        .push(row(index, reading, phase))
-        .await;
+    ctx.stream::<InputMeasurement>().into::<C>().push(row(index, reading, phase)).await;
 }
 
 pub(crate) fn row(index: u64, reading: Reading, phase: &str) -> InputMeasurement {
@@ -118,21 +111,9 @@ pub(crate) fn document(stream: &str, title: &str) -> Document {
 
     let mut charging = Section::new("Battery Charging");
     for (column, label, unit) in [
-        (
-            InputMeasurement::column_dc_voltage_v(),
-            "Battery Voltage",
-            "V",
-        ),
-        (
-            InputMeasurement::column_dc_current_a(),
-            "Charging Current",
-            "A",
-        ),
-        (
-            InputMeasurement::column_input_power_w(),
-            "AC Input Power",
-            "W",
-        ),
+        (InputMeasurement::column_dc_voltage_v(), "Battery Voltage", "V"),
+        (InputMeasurement::column_dc_current_a(), "Charging Current", "A"),
+        (InputMeasurement::column_input_power_w(), "AC Input Power", "W"),
     ] {
         let mut plot = Plot::xy_line(label);
         plot.id(format!("{stream}.{}", column.field()));

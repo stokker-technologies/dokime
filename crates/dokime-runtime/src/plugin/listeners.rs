@@ -21,13 +21,12 @@ use crate::records::DeclaredRecord;
 use dokime_domain::model::records::evidence::Record;
 
 /* === Constants === */
-pub const LISTENER_POLICY: harmos::operations::OperationPolicy =
-    harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(30),
-        attempt_timeout: std::time::Duration::from_secs(30),
-        retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
-    };
+pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+    timeout: std::time::Duration::from_secs(30),
+    attempt_timeout: std::time::Duration::from_secs(30),
+    retries: harmos::operations::RetryPolicy::Never,
+    restart: harmos::operations::RestartPolicy::Never,
+};
 
 /* === Macros === */
 
@@ -53,18 +52,12 @@ pub trait Listener: 'static {
 /* === Implementations === */
 impl Delivery {
     pub fn of(record: &Record) -> Self {
-        Self {
-            record_json: serde_json::to_string(record).expect("a filed record serializes"),
-        }
+        Self { record_json: serde_json::to_string(record).expect("a filed record serializes") }
     }
 
     pub fn record<R: DeclaredRecord>(&self) -> crate::Result<R> {
-        let record: Record = serde_json::from_str(&self.record_json).map_err(|error| {
-            crate::Error::RecordDecode {
-                record: R::RECORD_TYPE.to_owned(),
-                reason: error.to_string(),
-            }
-        })?;
+        let record: Record = serde_json::from_str(&self.record_json)
+            .map_err(|error| crate::Error::RecordDecode { record: R::RECORD_TYPE.to_owned(), reason: error.to_string() })?;
         R::from_record(&record)
     }
 }

@@ -17,8 +17,8 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::telemetry::TelemetryContract;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -39,9 +39,7 @@ pub(crate) struct RuntimeContractLookup {
 /* === Implementations === */
 impl RuntimeContractLookup {
     pub(crate) fn from_registries(telemetry: &BTreeMap<Identifier, TelemetryContract>) -> Self {
-        RuntimeContractLookup {
-            telemetry: telemetry.clone(),
-        }
+        RuntimeContractLookup { telemetry: telemetry.clone() }
     }
 
     pub(crate) fn telemetry_contract(&self, stream: &Identifier) -> Option<TelemetryContract> {

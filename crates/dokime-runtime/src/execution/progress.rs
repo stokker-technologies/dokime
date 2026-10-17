@@ -67,16 +67,7 @@ impl<I: ExactSizeIterator> Progress<I> {
     pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>) -> Self {
         let phase = phase.into();
         let total = u64::try_from(iterator.len()).unwrap_or(u64::MAX);
-        let progress = Self {
-            iterator,
-            sink,
-            phase,
-            started: Instant::now(),
-            completed: 0,
-            total,
-            pending: false,
-            finished: false,
-        };
+        let progress = Self { iterator, sink, phase, started: Instant::now(), completed: 0, total, pending: false, finished: false };
         progress.report();
 
         progress
@@ -98,9 +89,7 @@ impl<I: ExactSizeIterator> Progress<I> {
         } else if self.completed >= ETA_WARMUP_ITEMS {
             let elapsed_ms = elapsed.as_millis();
             let remaining = u128::from(self.total.saturating_sub(self.completed));
-            Some(saturating_u64(
-                elapsed_ms.saturating_mul(remaining) / u128::from(self.completed),
-            ))
+            Some(saturating_u64(elapsed_ms.saturating_mul(remaining) / u128::from(self.completed)))
         } else {
             None
         };

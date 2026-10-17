@@ -44,24 +44,20 @@ struct Pages {
 /* === Implementations === */
 impl TestExecutionHandle {
     pub async fn context_at(
-        &self,
-        checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
+        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
     ) -> Result<contracts::history::CheckpointContext> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
         let context = self
             .client
-            .history_get_checkpoint_context(contracts::history::GetCheckpointContext {
-                checkpoint: Some(checkpoint.clone()),
-            })
+            .history_get_checkpoint_context(contracts::history::GetCheckpointContext { checkpoint: Some(checkpoint.clone()) })
             .await?;
         same_checkpoint(checkpoint, context.checkpoint.as_ref())?;
         Ok(context)
     }
 
     pub async fn evidence_at(
-        &self,
-        checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
+        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
     ) -> Result<contracts::history::CheckpointEvidence> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
@@ -81,29 +77,22 @@ impl TestExecutionHandle {
     }
 
     pub fn records_at(
-        &self,
-        checkpoint: contracts::checkpoint::ExecutionCheckpoint,
+        &self, checkpoint: contracts::checkpoint::ExecutionCheckpoint,
     ) -> Result<ResponseStream<contracts::history::CheckpointRecordPage>> {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
-            let mut pages = Pages {
-                checkpoint: original,
-                position: 0,
-                after: String::new(),
-            };
+            let mut pages = Pages { checkpoint: original, position: 0, after: String::new() };
             loop {
                 let result = async {
                     handle.client.verify(false).await?;
                     let page = handle
                         .client
-                        .history_list_checkpoint_records(
-                            contracts::history::ListCheckpointRecords {
-                                checkpoint: Some(checkpoint.clone()),
-                                limit: PAGE_SIZE,
-                                after: pages.after.clone(),
-                            },
-                        )
+                        .history_list_checkpoint_records(contracts::history::ListCheckpointRecords {
+                            checkpoint: Some(checkpoint.clone()),
+                            limit: PAGE_SIZE,
+                            after: pages.after.clone(),
+                        })
                         .await?;
                     same_checkpoint(&checkpoint, page.checkpoint.as_ref())?;
                     records(&page)?;
@@ -127,8 +116,7 @@ impl TestExecutionHandle {
     }
 
     pub fn samples_at(
-        &self,
-        checkpoint: contracts::checkpoint::ExecutionCheckpoint,
+        &self, checkpoint: contracts::checkpoint::ExecutionCheckpoint,
     ) -> Result<ResponseStream<contracts::history::CheckpointTelemetryPage>> {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
@@ -143,43 +131,28 @@ impl TestExecutionHandle {
                     })
                     .await?;
                 same_checkpoint(&checkpoint, inventory.checkpoint.as_ref())?;
-                let mut tables: Vec<_> = inventory
-                    .telemetry_tables
-                    .into_iter()
-                    .map(|table| table.table)
-                    .collect();
+                let mut tables: Vec<_> = inventory.telemetry_tables.into_iter().map(|table| table.table).collect();
                 // The Inventory Is Response-Bounded; No Visited-Page Set Is Retained.
                 tables.sort();
-                if tables.iter().any(|table| table.is_empty())
-                    || tables.windows(2).any(|pair| pair[0] == pair[1])
-                {
-                    return Err(invalid(
-                        "saved telemetry inventory has empty or duplicate streams",
-                    ));
+                if tables.iter().any(|table| table.is_empty()) || tables.windows(2).any(|pair| pair[0] == pair[1]) {
+                    return Err(invalid("saved telemetry inventory has empty or duplicate streams"));
                 }
                 for table in tables {
-                    let mut pages = Pages {
-                        checkpoint: original.clone(),
-                        position: 0,
-                        after: String::new(),
-                    };
+                    let mut pages = Pages { checkpoint: original.clone(), position: 0, after: String::new() };
                     loop {
                         handle.client.verify(false).await?;
                         let page = handle
                             .client
-                            .history_list_checkpoint_telemetry(
-                                contracts::history::ListCheckpointTelemetry {
-                                    checkpoint: Some(checkpoint.clone()),
-                                    table: table.clone(),
-                                    limit: PAGE_SIZE,
-                                    after: pages.after.clone(),
-                                },
-                            )
+                            .history_list_checkpoint_telemetry(contracts::history::ListCheckpointTelemetry {
+                                checkpoint: Some(checkpoint.clone()),
+                                table: table.clone(),
+                                limit: PAGE_SIZE,
+                                after: pages.after.clone(),
+                            })
                             .await?;
                         same_checkpoint(&checkpoint, page.checkpoint.as_ref())?;
                         samples(&table, &page)?;
-                        let more =
-                            pages.advance("telemetry", &table, page.next_after.as_deref())?;
+                        let more = pages.advance("telemetry", &table, page.next_after.as_deref())?;
                         if sender.send(Ok(page)).await.is_err() {
                             return Ok(());
                         }
@@ -203,10 +176,8 @@ impl Pages {
         let Some(next) = next else {
             return Ok(false);
         };
-        let cursor =
-            PageCursor::open(&self.checkpoint, kind, source, Some(next)).map_err(|_| {
-                invalid("saved evidence continuation differs from its checkpoint or source")
-            })?;
+        let cursor = PageCursor::open(&self.checkpoint, kind, source, Some(next))
+            .map_err(|_| invalid("saved evidence continuation differs from its checkpoint or source"))?;
         if cursor.position() <= self.position {
             return Err(invalid("saved evidence continuation did not advance"));
         }
@@ -220,8 +191,7 @@ impl Pages {
 
 /* === Private Functions === */
 fn same_checkpoint(
-    expected: &contracts::checkpoint::ExecutionCheckpoint,
-    actual: Option<&contracts::checkpoint::ExecutionCheckpoint>,
+    expected: &contracts::checkpoint::ExecutionCheckpoint, actual: Option<&contracts::checkpoint::ExecutionCheckpoint>,
 ) -> Result<()> {
     if actual != Some(expected) {
         return Err(invalid("history returned a different checkpoint"));
@@ -231,19 +201,10 @@ fn same_checkpoint(
 
 fn records(page: &contracts::history::CheckpointRecordPage) -> Result<()> {
     if !page.issues.is_empty() || page.issues_truncated {
-        return Err(invalid(
-            "historical records are incomplete; history reported issues",
-        ));
+        return Err(invalid("historical records are incomplete; history reported issues"));
     }
-    if page.records.len() > PAGE_SIZE as usize
-        || page
-            .records
-            .iter()
-            .any(|row| row.epoch.is_empty() || row.record.is_none())
-    {
-        return Err(invalid(
-            "saved record page exceeds its bound or lacks source identity",
-        ));
+    if page.records.len() > PAGE_SIZE as usize || page.records.iter().any(|row| row.epoch.is_empty() || row.record.is_none()) {
+        return Err(invalid("saved record page exceeds its bound or lacks source identity"));
     }
     Ok(())
 }
@@ -253,22 +214,12 @@ fn samples(table: &str, page: &contracts::history::CheckpointTelemetryPage) -> R
         return Err(invalid("history returned a different telemetry stream"));
     }
     if !page.issues.is_empty() || page.issues_truncated {
-        return Err(invalid(
-            "historical samples are incomplete; history reported issues",
-        ));
+        return Err(invalid("historical samples are incomplete; history reported issues"));
     }
     if page.rows.len() > PAGE_SIZE as usize
-        || page.rows.iter().any(|row| {
-            row.epoch.is_empty()
-                || row
-                    .sample
-                    .as_ref()
-                    .is_none_or(|sample| sample.stream != table)
-        })
+        || page.rows.iter().any(|row| row.epoch.is_empty() || row.sample.as_ref().is_none_or(|sample| sample.stream != table))
     {
-        return Err(invalid(
-            "saved sample page exceeds its bound or lacks original stream identity",
-        ));
+        return Err(invalid("saved sample page exceeds its bound or lacks original stream identity"));
     }
     Ok(())
 }

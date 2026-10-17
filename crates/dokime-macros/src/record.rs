@@ -25,12 +25,7 @@ use crate::arguments::Arguments;
 /* === Constants === */
 const FIELD_ARGUMENTS: &[&str] = &["label", "unit", "format", "message", "description"];
 
-const SEVERITIES: &[(&str, &str)] = &[
-    ("debug", "Debug"),
-    ("info", "Info"),
-    ("warning", "Warning"),
-    ("error", "Error"),
-];
+const SEVERITIES: &[(&str, &str)] = &[("debug", "Debug"), ("info", "Info"), ("warning", "Warning"), ("error", "Error")];
 
 /* === Macros === */
 
@@ -63,31 +58,16 @@ struct FieldArguments {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn implementation(
-    attribute: TokenStream,
-    input: &DeriveInput,
-) -> Result<TokenStream, Error> {
+pub(crate) fn implementation(attribute: TokenStream, input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let arguments = Arguments::read(
-        attribute,
-        "a record",
-        &["id", "label", "severity", "description"],
-    )?;
-    let identifier = arguments
-        .required(
-            "id",
-            "a record declares the id its occurrences are filed under",
-        )?
-        .clone();
-    let label = arguments
-        .required("label", "an operator reads the record by its label")?
-        .clone();
+    let arguments = Arguments::read(attribute, "a record", &["id", "label", "severity", "description"])?;
+    let identifier = arguments.required("id", "a record declares the id its occurrences are filed under")?.clone();
+    let label = arguments.required("label", "an operator reads the record by its label")?.clone();
     let severity = match arguments.value("severity") {
         Some(written) => declared_severity(written, "a record is filed")?,
         None => quote!(#sdk::records::RecordSeverity::Info),
     };
-    let described = crate::arguments::description(arguments.value("description"), &input.attrs)
-        .map(|text| quote!(.described(#text)));
+    let described = crate::arguments::description(arguments.value("description"), &input.attrs).map(|text| quote!(.described(#text)));
     let fields = declarations(input)?;
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
@@ -194,11 +174,7 @@ pub(crate) fn implementation(
 pub(crate) fn declared_severity(value: &Expr, subject: &str) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let written = match value {
-        Expr::Path(path) => path
-            .path
-            .get_ident()
-            .map(ToString::to_string)
-            .unwrap_or_default(),
+        Expr::Path(path) => path.path.get_ident().map(ToString::to_string).unwrap_or_default(),
         Expr::Lit(literal) => match &literal.lit {
             syn::Lit::Str(text) => text.value(),
             _ => String::new(),
@@ -208,14 +184,7 @@ pub(crate) fn declared_severity(value: &Expr, subject: &str) -> Result<TokenStre
     let Some((_, variant)) = SEVERITIES.iter().find(|(name, _)| *name == written) else {
         return Err(Error::new(
             value.span(),
-            format!(
-                "{subject} at one of {}",
-                SEVERITIES
-                    .iter()
-                    .map(|(name, _)| *name)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            format!("{subject} at one of {}", SEVERITIES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ")),
         ));
     };
     let variant = Ident::new(variant, value.span());
@@ -256,17 +225,11 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RecordFieldDeclaration>, Erro
     let mut declared = Vec::new();
     let mut message: Option<proc_macro2::Span> = None;
     for field in &named.named {
-        let name = field
-            .ident
-            .clone()
-            .expect("a named field carries an identifier");
+        let name = field.ident.clone().expect("a named field carries an identifier");
         let written = arguments(field)?;
         if written.message {
             if let Some(first) = message {
-                let mut refusal = Error::new(
-                    name.span(),
-                    "a record says one thing: only one field is its message",
-                );
+                let mut refusal = Error::new(name.span(), "a record says one thing: only one field is its message");
                 refusal.combine(Error::new(first, "the message was already marked here"));
                 return Err(refusal);
             }
@@ -292,13 +255,7 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RecordFieldDeclaration>, Erro
 
 fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
     let mut written = FieldArguments::default();
-    let read = crate::arguments::field_arguments(
-        field,
-        "record",
-        "a record field argument",
-        FIELD_ARGUMENTS,
-        &["message"],
-    )?;
+    let read = crate::arguments::field_arguments(field, "record", "a record field argument", FIELD_ARGUMENTS, &["message"])?;
     written.message = read.flag("message");
     for (name, value) in read.values() {
         match name.to_string().as_str() {
@@ -347,11 +304,7 @@ fn contract_field(field: &RecordFieldDeclaration) -> TokenStream {
 
     // An optional field is a fact the occurrence may not have known: saying so
     // is what keeps the host from refusing an honest absence.
-    if crate::row::optional(&field.ty) {
-        quote!(#declaration.nullable())
-    } else {
-        declaration
-    }
+    if crate::row::optional(&field.ty) { quote!(#declaration.nullable()) } else { declaration }
 }
 
 fn detail(field: &RecordFieldDeclaration) -> TokenStream {

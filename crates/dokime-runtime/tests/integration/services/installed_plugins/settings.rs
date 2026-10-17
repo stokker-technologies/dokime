@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 
 // Installed-plugin runtime contract tests.
 use dokime_runtime::{
@@ -82,12 +82,7 @@ async fn boot_health_transaction() {
     let boot_health = evidence
         .health
         .iter()
-        .find(|health| {
-            health
-                .detail
-                .as_deref()
-                .is_some_and(|detail| detail.contains("fixture.missing: manifest missing"))
-        })
+        .find(|health| health.detail.as_deref().is_some_and(|detail| detail.contains("fixture.missing: manifest missing")))
         .unwrap();
     assert_eq!(boot_health.health_item_id, boot_health_item_id);
     assert_eq!(boot_health.observed_at, boot_health_observed_at);
@@ -111,29 +106,13 @@ async fn install_definition_harmos() {
         ..Default::default()
     };
     let (_owner, runtime) = started(config(root.path()).with_installed_plugins([artifact])).await;
-    let after = runtime
-        .runtime_overview()
-        .await
-        .expect("runtime overview query succeeds")
-        .revision;
+    let after = runtime.runtime_overview().await.expect("runtime overview query succeeds").revision;
     let suites = runtime.test_suites().await;
 
     assert!(after > 0);
     assert!(suites.iter().any(|suite| suite.source == "fixture.install"));
-    assert!(
-        runtime
-            .record_contracts()
-            .await
-            .iter()
-            .any(|contract| contract.record_type.as_str() == "fixture.event")
-    );
-    assert!(
-        runtime
-            .telemetry_contracts()
-            .await
-            .iter()
-            .any(|contract| contract.stream.as_str() == "fixture.telemetry")
-    );
+    assert!(runtime.record_contracts().await.iter().any(|contract| contract.record_type.as_str() == "fixture.event"));
+    assert!(runtime.telemetry_contracts().await.iter().any(|contract| contract.stream.as_str() == "fixture.telemetry"));
 }
 
 #[tokio::test]
@@ -144,19 +123,9 @@ async fn artifact_registration_visible() {
     registration.record_contracts = vec![fixture_record_contract()];
     registration.telemetry_contracts = vec![fixture_telemetry_contract()];
 
-    let register = runtime
-        .set_suites(
-            "fixture",
-            dokime_runtime::definition::SuiteSet::new([registration.clone()]),
-        )
-        .await;
-    let duplicate = runtime
-        .set_suites("fixture", dokime_runtime::definition::SuiteSet::new([registration]))
-        .await;
-    let overview = runtime
-        .runtime_overview()
-        .await
-        .expect("runtime overview query succeeds");
+    let register = runtime.set_suites("fixture", dokime_runtime::definition::SuiteSet::new([registration.clone()])).await;
+    let duplicate = runtime.set_suites("fixture", dokime_runtime::definition::SuiteSet::new([registration])).await;
+    let overview = runtime.runtime_overview().await.expect("runtime overview query succeeds");
     let record_contracts = runtime.record_contracts().await;
     let telemetry_contracts = runtime.telemetry_contracts().await;
     let suite_query = runtime
@@ -211,16 +180,8 @@ async fn artifact_registration_visible() {
     assert_eq!(suites.len(), 1);
     assert_eq!(overview.test_suite_count, 1);
     assert_eq!(suites[0].source, "fixture");
-    assert!(
-        record_contracts
-            .iter()
-            .any(|contract| contract.record_type.as_str() == "fixture.event")
-    );
-    assert!(
-        telemetry_contracts
-            .iter()
-            .any(|contract| contract.stream.as_str() == "fixture.telemetry")
-    );
+    assert!(record_contracts.iter().any(|contract| contract.record_type.as_str() == "fixture.event"));
+    assert!(telemetry_contracts.iter().any(|contract| contract.stream.as_str() == "fixture.telemetry"));
     let RuntimeViewPayload::Suites { frame } = suite_query.payload else {
         panic!("expected suite query frame");
     };
@@ -229,8 +190,7 @@ async fn artifact_registration_visible() {
         panic!("expected event definition query frame");
     };
     assert!(frame.items.iter().any(|item| item == "fixture.event"));
-    let RuntimeViewPayload::TelemetryDefinitions { frame } = telemetry_definition_query.payload
-    else {
+    let RuntimeViewPayload::TelemetryDefinitions { frame } = telemetry_definition_query.payload else {
         panic!("expected telemetry definition query frame");
     };
     assert!(frame.items.iter().any(|item| item == "fixture.telemetry"));
@@ -246,32 +206,18 @@ async fn artifact_registration_visible() {
 async fn composed_plugin_process() {
     let root = tempdir().unwrap();
     let credential_file = root.path().join("credentials.json");
-    let config = config(root.path())
-        .with_installed_plugins([settings_artifact()])
-        .with_credential_backend(RuntimeCredentialConfig {
-            backend: dokime_runtime::CredentialBackendKind::LocalFile,
-            local_file: Some(credential_file),
-        });
+    let config = config(root.path()).with_installed_plugins([settings_artifact()]).with_credential_backend(RuntimeCredentialConfig {
+        backend: dokime_runtime::CredentialBackendKind::LocalFile,
+        local_file: Some(credential_file),
+    });
     let artifact_id = Identifier::new("settings-fixture").unwrap();
     let (mut first, runtime) = started(config.clone()).await;
     let mut values = runtime.plugin_settings(&artifact_id).await.unwrap().values;
-    values.insert(
-        "workspace_id".to_owned(),
-        dokime_runtime::Value::from("recovered-workspace"),
-    );
+    values.insert("workspace_id".to_owned(), dokime_runtime::Value::from("recovered-workspace"));
 
+    runtime.save_plugin_settings(&artifact_id, PluginSettingsUpdate { values }).await.unwrap();
     runtime
-        .save_plugin_settings(&artifact_id, PluginSettingsUpdate { values })
-        .await
-        .unwrap();
-    runtime
-        .save_plugin_credential_secret(
-            &artifact_id,
-            "token",
-            PluginCredentialSecretUpdate {
-                secret: "first-run-secret".to_owned(),
-            },
-        )
+        .save_plugin_credential_secret(&artifact_id, "token", PluginCredentialSecretUpdate { secret: "first-run-secret".to_owned() })
         .await
         .unwrap();
     drop(runtime);

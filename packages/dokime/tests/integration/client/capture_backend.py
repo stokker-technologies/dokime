@@ -95,10 +95,7 @@ class CaptureBackend(BackendFixture):
             prompts=[
                 {
                     "prompt_id": prompt["prompt_id"],
-                    "definition": {
-                        key: prompt["definition"][key]
-                        for key in ("prompt_type", "schema_version", "title")
-                    },
+                    "definition": {key: prompt["definition"][key] for key in ("prompt_type", "schema_version", "title")},
                     "scope": prompt["scope"],
                     "created_at": prompt["created_at"],
                 }
@@ -116,9 +113,7 @@ class CaptureBackend(BackendFixture):
         )
 
     async def GetPrompt(self, request: Any, context: Any) -> Any:
-        (prompt,) = [
-            item for item in self.pending if item["prompt_id"] == request.prompt_id
-        ]
+        (prompt,) = [item for item in self.pending if item["prompt_id"] == request.prompt_id]
         return _message(
             "Prompts",
             "GetPrompt",
@@ -456,12 +451,8 @@ class CaptureBackend(BackendFixture):
                         "DownloadCycleReport",
                         direction="output",
                         path="payload.Report.field_0",
-                        test_cycle_id="wrong"
-                        if self.bad_report == "identity"
-                        else CYCLE_ID,
-                        identifier="wrong"
-                        if self.bad_report == "identifier"
-                        else request.identifier,
+                        test_cycle_id="wrong" if self.bad_report == "identity" else CYCLE_ID,
+                        identifier="wrong" if self.bad_report == "identifier" else request.identifier,
                     )
                 }
             },
@@ -503,9 +494,7 @@ class CaptureBackend(BackendFixture):
                         direction="output",
                         path="payload.Complete.field_0",
                         size_bytes=len(self.html),
-                        sha256="bad"
-                        if self.bad_report == "hash"
-                        else hashlib.sha256(self.html).hexdigest(),
+                        sha256="bad" if self.bad_report == "hash" else hashlib.sha256(self.html).hexdigest(),
                     )
                 }
             },
@@ -528,9 +517,7 @@ class CaptureBackend(BackendFixture):
                 },
             )
         if self.bad_report == "status":
-            await context.abort(
-                grpc.StatusCode.DATA_LOSS, "failed after completion frame"
-            )
+            await context.abort(grpc.StatusCode.DATA_LOSS, "failed after completion frame")
 
 
 # === Public Functions === #

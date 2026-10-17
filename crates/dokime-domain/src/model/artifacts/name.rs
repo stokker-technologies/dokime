@@ -41,9 +41,7 @@ pub const MAX_PATH_BYTES: usize = 1024;
 pub enum InvalidName {
     #[error("artifact name must contain 1–255 bytes")]
     Length,
-    #[error(
-        "artifact name must be a relative path with forward slashes and no empty, '.' or '..' segments"
-    )]
+    #[error("artifact name must be a relative path with forward slashes and no empty, '.' or '..' segments")]
     Path,
 }
 
@@ -61,22 +59,12 @@ pub fn is_relative_path(path: &str) -> bool {
     if path.chars().any(char::is_control) || path.contains('\\') {
         return false;
     }
-    if path
-        .split('/')
-        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
-    {
+    if path.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
         return false;
     }
-    let drive = path
-        .split('/')
-        .next()
-        .is_some_and(|first| first.len() == 2 && first.ends_with(':'));
-    let rooted = Path::new(path).components().any(|component| {
-        matches!(
-            component,
-            Component::ParentDir | Component::RootDir | Component::Prefix(_)
-        )
-    });
+    let drive = path.split('/').next().is_some_and(|first| first.len() == 2 && first.ends_with(':'));
+    let rooted =
+        Path::new(path).components().any(|component| matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)));
     !drive && !rooted
 }
 

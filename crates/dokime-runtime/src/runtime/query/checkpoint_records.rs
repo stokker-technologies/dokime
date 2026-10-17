@@ -16,7 +16,7 @@ pub use crate::runtime::storage::context_records::ContextRecord;
 // Standard Library Imports
 
 // Third Party Imports
-use crate::{runtime::Result, RuntimeHandle};
+use crate::{RuntimeHandle, runtime::Result};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
@@ -52,9 +52,7 @@ pub struct ExecutionRecordPage {
 
 impl RuntimeHandle {
     pub async fn execution_checkpoint_records(
-        &self,
-        checkpoint: ExecutionCheckpoint,
-        query: ExecutionRecordQuery,
+        &self, checkpoint: ExecutionCheckpoint, query: ExecutionRecordQuery,
     ) -> Result<ExecutionRecordPage> {
         let view = self.checkpoint_execution(&checkpoint).await?;
         crate::runtime::storage::record_pages::read(&view, query).await

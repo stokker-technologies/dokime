@@ -26,11 +26,7 @@ use clap::Parser;
 
 /* === Structs === */
 #[derive(Parser)]
-#[command(
-    name = "cargo dokime",
-    version,
-    about = "Build, develop and inspect Dokime plugins"
-)]
+#[command(name = "cargo dokime", version, about = "Build, develop and inspect Dokime plugins")]
 pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     pub color: dokime::terminal::ColorMode,

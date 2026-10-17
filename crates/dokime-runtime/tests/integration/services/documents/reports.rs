@@ -18,8 +18,8 @@
 use sha2::Digest;
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 
 /* === Constants === */
 
@@ -39,10 +39,7 @@ use super::*;
 
 /* === Private Functions === */
 fn whole() -> harmos::storage::ByteRange {
-    harmos::storage::ByteRange {
-        offset: 0,
-        limit: None,
-    }
+    harmos::storage::ByteRange { offset: 0, limit: None }
 }
 
 /* === Tests === */
@@ -54,20 +51,16 @@ async fn report_save_receipt() {
         Backend,
         objects::execution::{self, Execution},
     };
-    use {
-        dokime_runtime::NodeId,
-        dokime_runtime::definition::TestCase,
-        dokime_domain::model::execution::snapshot::ExecutionSnapshot,
-        dokime_domain::model::execution::result::TestExecution,
-        dokime_runtime::storage::Manager,
-    };
-    use {
-        dokime_domain::model::execution::result::CycleView,
-        dokime_runtime::report::CycleReportInput,
-        dokime_runtime::report::saved::CapturedExecutionReportInput,
-    };
     use harmos::storage::{ObjectVersion, StorageBackends};
     use std::sync::Arc;
+    use {
+        dokime_domain::model::execution::result::CycleView, dokime_runtime::report::CycleReportInput,
+        dokime_runtime::report::saved::CapturedExecutionReportInput,
+    };
+    use {
+        dokime_domain::model::execution::result::TestExecution, dokime_domain::model::execution::snapshot::ExecutionSnapshot,
+        dokime_runtime::NodeId, dokime_runtime::definition::TestCase, dokime_runtime::storage::Manager,
+    };
 
     let reads = crate::service_support::budgets::story_settings();
     let root = tempfile::tempdir().unwrap();
@@ -78,14 +71,7 @@ async fn report_save_receipt() {
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
         dokime_runtime::storage::state_settings(),
     ));
-    let manager = Manager::new(
-        StorageBackends {
-            primary,
-            state: recovery,
-        },
-        settings,
-    )
-    .unwrap();
+    let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let runtime = crate::service_support::reports::storage_runtime(&manager).await;
 
     // Use An Actual Admitted Execution Revision
@@ -118,14 +104,7 @@ async fn report_save_receipt() {
             .with_cycle(cycle_id.clone())
             .with_test_case(case.test_case_id.clone())
             .with_test_execution(execution_id),
-        snapshot: ExecutionSnapshot::materialize(
-            &case,
-            None,
-            Default::default(),
-            None,
-            Default::default(),
-        )
-        .unwrap(),
+        snapshot: ExecutionSnapshot::materialize(&case, None, Default::default(), None, Default::default()).unwrap(),
         invalidation: None,
         output_parameters: BTreeMap::new(),
         documents: BTreeMap::new(),
@@ -159,12 +138,7 @@ async fn report_save_receipt() {
         telemetry: vec![],
         traceability: vec![],
         artifact_links: vec![],
-        appearance: Some(
-            dokime_runtime::report::value::Value::try_from(
-                serde_json::json!({"app_name": "Later Renderer Brand"}),
-            )
-            .unwrap(),
-        ),
+        appearance: Some(dokime_runtime::report::value::Value::try_from(serde_json::json!({"app_name": "Later Renderer Brand"})).unwrap()),
         generated_at: finished_at.clone(),
     };
     let row = Execution::try_from(&original_execution).unwrap();
@@ -223,62 +197,33 @@ async fn report_save_receipt() {
     let captured = Arc::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();
-    let mut prepared = dokime_runtime::report::Renderer
-        .execution(captured.clone(), outputs, &manager.cursor_saved())
-        .unwrap();
+    let mut prepared = dokime_runtime::report::Renderer.execution(captured.clone(), outputs, &manager.cursor_saved()).unwrap();
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
-    let original = prepared
-        .save_dependencies(&manager, &runtime.operations, &sealed_at, &revision)
-        .await
-        .unwrap();
+    let original = prepared.save_dependencies(&manager, &runtime.operations, &sealed_at, &revision).await.unwrap();
     let saved = manager.status().saved;
-    let repeated = prepared
-        .save_dependencies(&manager, &runtime.operations, &sealed_at, &revision)
-        .await
-        .unwrap();
+    let repeated = prepared.save_dependencies(&manager, &runtime.operations, &sealed_at, &revision).await.unwrap();
     assert_eq!(original, repeated);
     assert_eq!(manager.status().saved, saved);
-    assert!(
-        prepared
-            .save_dependencies(
-                &manager,
-                &runtime.operations,
-                &Timestamp::new("2030-01-01T00:00:00Z"),
-                &revision
-            )
-            .await
-            .is_err()
-    );
+    assert!(prepared.save_dependencies(&manager, &runtime.operations, &Timestamp::new("2030-01-01T00:00:00Z"), &revision).await.is_err());
     assert_eq!(manager.status().saved, saved);
 
     // Read The Original Native Captured File
-    let bytes = dokime_runtime::storage::read_file_bytes(&manager, &original.source.context)
-        .await
-        .unwrap();
+    let bytes = dokime_runtime::storage::read_file_bytes(&manager, &original.source.context).await.unwrap();
     assert!(!bytes.is_empty());
     assert_eq!(bytes.len() as u64, original.source.context.length);
-    assert_eq!(
-        sha2::Sha256::digest(&bytes).as_slice(),
-        original.source.context.sha256.as_slice()
-    );
+    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), original.source.context.sha256.as_slice());
 
     // Flush The Seal's Own Original Receipt
     let mut sealed_execution = original_execution;
     sealed_execution.saved = Some(original.clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
     let receipt = manager.write_object(&sealed).await.unwrap();
-    execution::flush_seal(&manager, &sealed_execution, &receipt)
+    execution::flush_seal(&manager, &sealed_execution, &receipt).await.unwrap();
+    let restored = execution::read(&manager, &sealed_execution.test_execution_id, ObjectVersion::Exact(receipt.version.clone()))
         .await
+        .unwrap()
         .unwrap();
-    let restored = execution::read(
-        &manager,
-        &sealed_execution.test_execution_id,
-        ObjectVersion::Exact(receipt.version.clone()),
-    )
-    .await
-    .unwrap()
-    .unwrap();
     assert_eq!(restored.position, receipt.position);
     assert_eq!(restored.version, receipt.version);
     // Download The Sealed Bytes Without Rendering Or Admitting New Evidence.
@@ -287,29 +232,14 @@ async fn report_save_receipt() {
     let html = String::from_utf8(original_bytes.clone()).unwrap();
     let payload = crate::service_support::reports::parse(&html);
     assert_eq!(payload["appearance"]["app_name"], "Frozen Fixture");
-    assert_eq!(
-        payload["snapshot"]["notes"][0]["text"],
-        "Original operator note"
-    );
-    assert_eq!(
-        payload["snapshot"]["health"][0]["title"],
-        "Captured Warning"
-    );
+    assert_eq!(payload["snapshot"]["notes"][0]["text"], "Original operator note");
+    assert_eq!(payload["snapshot"]["health"][0]["title"], "Captured Warning");
     assert_eq!(payload["snapshot"]["health"][0]["level"], "warning");
-    assert_eq!(
-        payload["snapshot"]["notes"][0]["scope"]["test_execution_id"],
-        sealed_execution.test_execution_id.as_str()
-    );
+    assert_eq!(payload["snapshot"]["notes"][0]["scope"]["test_execution_id"], sealed_execution.test_execution_id.as_str());
     assert!(!html.contains("Later Renderer Brand"));
     assert_eq!(payload["test_executions"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        payload["test_executions"][0]["test_execution_id"],
-        sealed_execution.test_execution_id.as_str()
-    );
-    assert_eq!(
-        crate::service_support::reports::bytes(&manager, &original.report).await,
-        original_bytes
-    );
+    assert_eq!(payload["test_executions"][0]["test_execution_id"], sealed_execution.test_execution_id.as_str());
+    assert_eq!(crate::service_support::reports::bytes(&manager, &original.report).await, original_bytes);
     assert_eq!(manager.status().accepted, accepted);
 
     // Inspect The Original Seal And Preserve Its Earlier Evidence Cut
@@ -324,37 +254,22 @@ async fn report_save_receipt() {
     let checkpoint = inspection.checkpoint().unwrap();
     assert_eq!(checkpoint.position, receipt.position);
     assert_eq!(checkpoint.version, receipt.version);
-    assert_eq!(
-        checkpoint.evidence_through,
-        original.source.evidence_through
-    );
+    assert_eq!(checkpoint.evidence_through, original.source.evidence_through);
     assert_ne!(checkpoint.position, checkpoint.evidence_through);
-    let reopened = dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &checkpoint)
-        .await
-        .unwrap()
-        .unwrap();
+    let reopened = dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &checkpoint).await.unwrap().unwrap();
     assert_eq!(reopened.execution(), &sealed_execution);
     // Reopened Snapshots Keep The Exact Captured Context.
     assert!(reopened.context().is_err());
     let accepted = manager.status().accepted;
     let snapshot = reopened.snapshot().await.unwrap();
     assert_eq!(snapshot.context().unwrap(), &captured.context);
-    assert_eq!(
-        snapshot.captured_at().unwrap(),
-        &captured.input.generated_at
-    );
+    assert_eq!(snapshot.captured_at().unwrap(), &captured.input.generated_at);
     assert_eq!(snapshot.execution(), &sealed_execution);
     assert_eq!(snapshot.checkpoint().unwrap(), checkpoint);
     let shared = snapshot.snapshot().await.unwrap();
-    assert!(std::ptr::eq(
-        snapshot.context().unwrap(),
-        shared.context().unwrap(),
-    ));
+    assert!(std::ptr::eq(snapshot.context().unwrap(), shared.context().unwrap(),));
     assert!(std::ptr::eq(snapshot.execution(), shared.execution()));
-    assert_eq!(
-        shared.context().unwrap().notes[0].message,
-        "Original operator note"
-    );
+    assert_eq!(shared.context().unwrap().notes[0].message, "Original operator note");
     assert_eq!(manager.status().accepted, accepted);
     let mut report = shared.read_file(&original.report, whole()).await.unwrap();
     assert!(report.next().await.unwrap().is_some());
@@ -369,35 +284,21 @@ async fn report_save_receipt() {
     let mut wrong_cut = checkpoint.clone();
     wrong_cut.evidence_through.sequence = 0;
     wrong_cut.validate().unwrap();
-    assert!(
-        dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &wrong_cut)
-            .await
-            .is_err()
-    );
+    assert!(dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &wrong_cut).await.is_err());
     let unsealed = dokime_domain::model::execution::saved::ExecutionCheckpoint {
         execution_id: original.source.execution.execution_id.clone(),
         position: original.source.execution.position.clone(),
         version: original.source.execution.version.clone(),
         evidence_through: original.source.evidence_through.clone(),
     };
-    assert!(!matches!(
-        dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &unsealed).await,
-        Ok(Some(_))
-    ));
+    assert!(!matches!(dokime_runtime::runtime::ExecutionView::open_checkpoint(&manager, &unsealed).await, Ok(Some(_))));
     drop(reopened);
     drop(checkpoint);
     drop(inspection);
     assert_eq!(restored.value.saved, Some(original.clone()));
     drop(restored);
 
-    let unchanged = execution::read(
-        &manager,
-        &sealed_execution.test_execution_id,
-        ObjectVersion::Latest,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let unchanged = execution::read(&manager, &sealed_execution.test_execution_id, ObjectVersion::Latest).await.unwrap().unwrap();
     assert_eq!(unchanged.value, sealed_execution);
     assert_eq!(unchanged.position, receipt.position);
     drop(unchanged);
@@ -412,22 +313,15 @@ async fn report_opens_anytime() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime
-        .run_cycle_cases(id.clone(), CommandContext::default())
-        .await;
+    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
-    let execution = cycle_snapshot(&runtime, &id).await.test_executions[0]
-        .test_execution_id
-        .clone();
+    let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].test_execution_id.clone();
 
     // Running: Both Reports Render From Current Evidence And Seal Nothing
     let running = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
     let payload = crate::service_support::reports::parse(std::str::from_utf8(&running.html).unwrap());
-    assert_eq!(
-        payload["test_executions"][0]["test_execution_id"],
-        execution.as_str()
-    );
+    assert_eq!(payload["test_executions"][0]["test_execution_id"], execution.as_str());
     let running = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
     assert_eq!(running.test_execution_id.as_ref(), Some(&execution));
@@ -445,17 +339,9 @@ async fn report_opens_anytime() {
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
 
     // Missing Published Bytes Are An Error; A Seal Is Never Regenerated
-    let name = seal
-        .report
-        .sha256
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let name = seal.report.sha256.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let removed = remove_named(root.path(), &name);
-    assert!(
-        removed,
-        "the sealed cycle report file must exist under the root"
-    );
+    assert!(removed, "the sealed cycle report file must exist under the root");
     assert!(runtime.open_cycle_report(&id).await.is_err());
     assert_eq!(cycle_snapshot(&runtime, &id).await.saved, Some(seal));
     owner.shutdown().await.unwrap();
@@ -471,9 +357,7 @@ async fn open_report_repeatedly() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime
-        .run_cycle_cases(id.clone(), CommandContext::default())
-        .await;
+    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].clone();
     let recorded = execution.steps.len();
@@ -496,26 +380,15 @@ async fn open_report_repeatedly() {
             .flat_map(|row| row["steps"].as_array().unwrap())
             .filter(|row| row["record_type"] == "step")
             .count();
-        assert_eq!(
-            steps, recorded,
-            "render {attempt} carries every step the live execution holds"
-        );
+        assert_eq!(steps, recorded, "render {attempt} carries every step the live execution holds");
         renders.push(stable(payload));
     }
     for attempt in 0..3 {
-        runtime
-            .open_cycle_report(&id)
-            .await
-            .unwrap_or_else(|error| panic!("cycle render {attempt}: {error}"));
+        runtime.open_cycle_report(&id).await.unwrap_or_else(|error| panic!("cycle render {attempt}: {error}"));
     }
     assert_eq!(renders[0]["case_runs"], renders[2]["case_runs"]);
     let steps = |render: &serde_json::Value| {
-        render["test_executions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|row| row["steps"].clone())
-            .collect::<Vec<_>>()
+        render["test_executions"].as_array().unwrap().iter().map(|row| row["steps"].clone()).collect::<Vec<_>>()
     };
     assert_eq!(steps(&renders[0]), steps(&renders[2]));
     assert_eq!(renders[0]["warnings"], renders[2]["warnings"]);
@@ -530,13 +403,7 @@ async fn open_report_repeatedly() {
 fn stable(mut value: serde_json::Value) -> serde_json::Value {
     match &mut value {
         serde_json::Value::Object(fields) => {
-            for key in [
-                "generated_at",
-                "started_at",
-                "finished_at",
-                "updated_at",
-                "captured_at",
-            ] {
+            for key in ["generated_at", "started_at", "finished_at", "updated_at", "captured_at"] {
                 fields.remove(key);
             }
             for field in fields.values_mut() {
@@ -579,9 +446,7 @@ async fn cycle_report_reboot() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime
-        .run_cycle_cases(id.clone(), CommandContext::default())
-        .await;
+    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let waiting = tokio::spawn({
         let runtime = runtime.clone();
@@ -595,19 +460,8 @@ async fn cycle_report_reboot() {
     let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
     let original = cycle.saved.as_ref().unwrap().clone();
     // The Whole Report Is Rendered Before Publication, So Storage Verifies It.
-    assert_eq!(
-        original.report.metadata.expected_length,
-        Some(original.report.length)
-    );
-    assert_eq!(
-        original
-            .report
-            .metadata
-            .expected_sha256
-            .as_ref()
-            .map(|digest| digest.as_slice()),
-        Some(original.report.sha256.as_slice())
-    );
+    assert_eq!(original.report.metadata.expected_length, Some(original.report.length));
+    assert_eq!(original.report.metadata.expected_sha256.as_ref().map(|digest| digest.as_slice()), Some(original.report.sha256.as_slice()));
     assert_eq!(original.executions.len(), 1);
     assert!(cycle.test_executions[0].saved.is_some());
     let original_bytes = crate::service_support::reports::bytes(runtime.storage(), &original.report).await;
@@ -615,19 +469,10 @@ async fn cycle_report_reboot() {
     let document = &payload["documents"]["default"];
     assert_eq!(document["selection"]["scope"]["test_cycle_id"], id.as_str());
     assert!(document["selection"]["scope"]["test_execution_id"].is_null());
-    assert_eq!(
-        document["definition"]["layout"]["nodes"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(document["definition"]["layout"]["nodes"].as_array().unwrap().len(), 3);
     assert_eq!(document["cards"].as_array().unwrap().len(), 3);
     assert_eq!(payload["test_executions"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        payload["test_executions"][0]["test_execution_id"],
-        cycle.test_executions[0].test_execution_id.as_str()
-    );
+    assert_eq!(payload["test_executions"][0]["test_execution_id"], cycle.test_executions[0].test_execution_id.as_str());
     let reread = cycle_snapshot(&runtime, &id).await;
     assert_eq!(reread.saved.as_ref(), Some(&original));
     wait_for_record_type(&runtime, "provider.execution.completed").await;
@@ -639,23 +484,14 @@ async fn cycle_report_reboot() {
         .unwrap()
         .records
         .iter()
-        .map(|record| {
-            (
-                record.record_id.clone(),
-                record.record_type.as_str().to_owned(),
-            )
-        })
+        .map(|record| (record.record_id.clone(), record.record_type.as_str().to_owned()))
         .collect();
     assert!(
-        before
-            .iter()
-            .any(|(_, record_type)| record_type == "provider.execution.completed"),
+        before.iter().any(|(_, record_type)| record_type == "provider.execution.completed"),
         "the completed cycle emitted its terminal event before reboot",
     );
 
-    let checkpoint =
-        crate::service_support::native::checkpoint(&runtime, &cycle.test_executions[0].test_execution_id)
-            .await;
+    let checkpoint = crate::service_support::native::checkpoint(&runtime, &cycle.test_executions[0].test_execution_id).await;
     let created = cycle.created_at.clone();
     assert_wall_clock(&created);
     drop(runtime);
@@ -664,24 +500,11 @@ async fn cycle_report_reboot() {
     let (mut rebooted, handle) = booted(root.path()).await;
     let accepted = handle.storage().status().accepted;
     let downloaded = crate::service_support::reports::bytes(handle.storage(), &original.report).await;
-    assert_eq!(
-        downloaded, original_bytes,
-        "a reboot serves identical sealed HTML bytes"
-    );
-    assert_eq!(
-        crate::service_support::reports::parse(&String::from_utf8(downloaded).unwrap()),
-        payload
-    );
+    assert_eq!(downloaded, original_bytes, "a reboot serves identical sealed HTML bytes");
+    assert_eq!(crate::service_support::reports::parse(&String::from_utf8(downloaded).unwrap()), payload);
     assert_eq!(handle.storage().status().accepted, accepted);
 
-    assert!(
-        handle
-            .runtime_overview()
-            .await
-            .expect("runtime overview query succeeds")
-            .cycles
-            .is_empty()
-    );
+    assert!(handle.runtime_overview().await.expect("runtime overview query succeeds").cycles.is_empty());
     let mut reader = handle
         .storage()
         .read_records::<dokime_runtime::storage::records::RecordRow>(harmos::storage::RecordRead {
@@ -706,33 +529,19 @@ async fn cycle_report_reboot() {
         }
     }
     for record in &before {
-        assert!(
-            after.contains(record),
-            "event {record:?} was lost or changed identity across a reboot (after: {after:?})",
-        );
+        assert!(after.contains(record), "event {record:?} was lost or changed identity across a reboot (after: {after:?})",);
     }
     // The stored presentation carries the cycle's captured wall clock, without
     // constructing a live cycle to read it from.
     assert_eq!(
-        handle
-            .execution_checkpoint_context(checkpoint)
-            .await
-            .unwrap()
-            .cycle
-            .cycle
-            .created_at
-            .as_str(),
+        handle.execution_checkpoint_context(checkpoint).await.unwrap().cycle.cycle.created_at.as_str(),
         created.as_str(),
         "the checkpoint preserves the original wall-clock created_at",
     );
-    let stored = dokime_runtime::storage::objects::cycle::read(
-        handle.storage(),
-        &id,
-        harmos::storage::ObjectVersion::Latest,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let stored = dokime_runtime::storage::objects::cycle::read(handle.storage(), &id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(stored.value.saved.as_ref(), Some(&original));
     assert_eq!(
         crate::service_support::reports::payload(handle.storage(), &original.report).await,

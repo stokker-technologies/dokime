@@ -17,12 +17,8 @@ mod one_prelude {
     fn elapsed(_: Elapsed) {}
 
     fn stage_contexts(
-        _initialization: &InitializationContext<'_>,
-        _traceability: &TraceabilityContext<'_>,
-        _step: &StepContext<'_>,
-        _observer: &ObserverContext<'_>,
-        _cleanup: &CleanupContext<'_>,
-        _criterion: &CriterionContext<'_>,
+        _initialization: &InitializationContext<'_>, _traceability: &TraceabilityContext<'_>, _step: &StepContext<'_>,
+        _observer: &ObserverContext<'_>, _cleanup: &CleanupContext<'_>, _criterion: &CriterionContext<'_>,
     ) {
     }
 
@@ -39,9 +35,7 @@ mod one_prelude {
     }
 
     fn configuration(config: Configuration) -> Result<NoSettings, Refusal> {
-        config
-            .settings::<NoSettings>()
-            .map_err(|error| Refusal::of(error.to_string()))
+        config.settings::<NoSettings>().map_err(|error| Refusal::of(error.to_string()))
     }
 
     fn scope(_: &ExecutionScope) {}
@@ -65,13 +59,12 @@ mod one_prelude {
 mod bare_attributes {
     use dokime_runtime::prelude::*;
 
-    const POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        dokime_runtime::harmos::operations::OperationPolicy {
-            timeout: std::time::Duration::from_secs(5),
-            attempt_timeout: std::time::Duration::from_secs(5),
-            retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
-            restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
-        };
+    const POLICY: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
+        timeout: std::time::Duration::from_secs(5),
+        attempt_timeout: std::time::Duration::from_secs(5),
+        retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
+        restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
+    };
 
     #[message]
     #[derive(Clone, PartialEq)]
@@ -157,8 +150,7 @@ mod bare_attributes {
         }
 
         fn bind_operations(
-            &self,
-            table: &mut dokime_runtime::harmos::operations::WireTable<Supervisor>,
+            &self, table: &mut dokime_runtime::harmos::operations::WireTable<Supervisor>,
         ) -> Result<(), dokime_runtime::harmos::operations::ServingError> {
             table.bind_operations::<Operations, _>(self.resources())
         }

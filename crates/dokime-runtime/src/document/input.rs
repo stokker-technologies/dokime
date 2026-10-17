@@ -20,14 +20,14 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
 // Local Imports
 use crate::artifacts::ArtifactRecord;
-use dokime_domain::model::identity::RecordId;
-use dokime_domain::model::execution::RecordScope;
 use crate::document::definition::DocumentDefinition;
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::runtime::storage::record_capture::CapturedRecord;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -80,10 +80,7 @@ pub(super) struct RecordView<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum Records<'a> {
     Native(&'a [RecordEntry]),
-    Captured {
-        rows: &'a [CapturedRecord],
-        scopes: &'a BTreeMap<RecordId, RecordScope>,
-    },
+    Captured { rows: &'a [CapturedRecord], scopes: &'a BTreeMap<RecordId, RecordScope> },
 }
 
 #[derive(Clone, Copy)]
@@ -128,12 +125,7 @@ impl<'a> Records<'a> {
         native
             .iter()
             .chain(captured.iter().map(|row| &**row))
-            .map(move |entry| RecordView {
-                entry,
-                scope: scopes
-                    .and_then(|scopes| scopes.get(&entry.record_id))
-                    .or(entry.scope.as_ref()),
-            })
+            .map(move |entry| RecordView { entry, scope: scopes.and_then(|scopes| scopes.get(&entry.record_id)).or(entry.scope.as_ref()) })
     }
 }
 
@@ -163,12 +155,10 @@ impl<'a> Artifacts<'a> {
             Self::Native(rows) => (rows, &[][..]),
             Self::Outputs(outputs) => (&[][..], outputs),
         };
-        native
-            .iter()
-            .chain(outputs.iter().filter_map(|output| match &output.content {
-                ExecutionOutputContent::Artifact { record, .. } => Some(record.as_ref()),
-                _ => None,
-            }))
+        native.iter().chain(outputs.iter().filter_map(|output| match &output.content {
+            ExecutionOutputContent::Artifact { record, .. } => Some(record.as_ref()),
+            _ => None,
+        }))
     }
 }
 
@@ -194,33 +184,16 @@ impl harmos::MemorySize for BorrowedInput<'_> {
 
         // Count Reachable Native Values Without Claiming Their Existing Owners.
         let fields = [
-            (
-                self.definition.memory_size(),
-                std::mem::size_of::<DocumentDefinition>(),
-            ),
-            (
-                self.selection.memory_size(),
-                std::mem::size_of::<DocumentSelection>(),
-            ),
+            (self.definition.memory_size(), std::mem::size_of::<DocumentDefinition>()),
+            (self.selection.memory_size(), std::mem::size_of::<DocumentSelection>()),
         ];
-        let bytes = fields.into_iter().fold(
-            std::mem::size_of::<DocumentResolveInput>(),
-            |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            },
-        );
+        let bytes = fields.into_iter().fold(std::mem::size_of::<DocumentResolveInput>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        });
         self.data
             .records
             .iter()
-            .map(|row| {
-                row.entry
-                    .memory_size()
-                    .saturating_add(row.scope.map_or(0, MemorySize::memory_size))
-            })
+            .map(|row| row.entry.memory_size().saturating_add(row.scope.map_or(0, MemorySize::memory_size)))
             .chain(self.data.telemetry.iter().map(MemorySize::memory_size))
             .chain(self.data.artifacts.iter().map(MemorySize::memory_size))
             .fold(bytes, usize::saturating_add)
@@ -231,74 +204,35 @@ impl harmos::MemorySize for BorrowedInput<'_> {
 impl harmos::MemorySize for DocumentResolveInput {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.definition),
-                std::mem::size_of_val(&self.definition),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.selection),
-                std::mem::size_of_val(&self.selection),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.data),
-                std::mem::size_of_val(&self.data),
-            ),
+            (harmos::MemorySize::memory_size(&self.definition), std::mem::size_of_val(&self.definition)),
+            (harmos::MemorySize::memory_size(&self.selection), std::mem::size_of_val(&self.selection)),
+            (harmos::MemorySize::memory_size(&self.data), std::mem::size_of_val(&self.data)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentDataInput {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.records),
-                std::mem::size_of_val(&self.records),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.telemetry),
-                std::mem::size_of_val(&self.telemetry),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.artifacts),
-                std::mem::size_of_val(&self.artifacts),
-            ),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.telemetry), std::mem::size_of_val(&self.telemetry)),
+            (harmos::MemorySize::memory_size(&self.artifacts), std::mem::size_of_val(&self.artifacts)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentSelection {
     fn memory_size(&self) -> usize {
-        let fields = [(
-            harmos::MemorySize::memory_size(&self.scope),
-            std::mem::size_of_val(&self.scope),
-        )];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope))];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -307,14 +241,8 @@ impl DocumentSelection {
         self.scope.test_execution_id.is_some()
             && scope.is_some_and(|scope| {
                 scope.test_execution_id == self.scope.test_execution_id
-                    && (scope
-                        .test_cycle_id
-                        .as_ref()
-                        .is_some_and(|id| self.scope.test_cycle_id.as_ref() != Some(id))
-                        || scope
-                            .test_case_id
-                            .as_ref()
-                            .is_some_and(|id| self.scope.test_case_id.as_ref() != Some(id)))
+                    && (scope.test_cycle_id.as_ref().is_some_and(|id| self.scope.test_cycle_id.as_ref() != Some(id))
+                        || scope.test_case_id.as_ref().is_some_and(|id| self.scope.test_case_id.as_ref() != Some(id)))
             })
     }
 
@@ -328,43 +256,14 @@ impl DocumentSelection {
     }
 
     pub(crate) fn matches_scope(&self, scope: Option<&RecordScope>) -> bool {
-        self.scope
-            .test_cycle_id
-            .as_ref()
-            .is_none_or(|id| scope.and_then(|scope| scope.test_cycle_id.as_ref()) == Some(id))
-            && self.scope.test_execution_id.as_ref().is_none_or(|id| {
-                scope.and_then(|scope| scope.test_execution_id.as_ref()) == Some(id)
-            })
-            && self
-                .scope
-                .test_case_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.test_case_id.as_ref()) == Some(id))
-            && self
-                .scope
-                .template_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.template_id.as_ref()) == Some(id))
-            && self
-                .scope
-                .session_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.session_id.as_ref()) == Some(id))
-            && self
-                .scope
-                .step_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.step_id.as_ref()) == Some(id))
-            && self
-                .scope
-                .criterion_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.criterion_id.as_ref()) == Some(id))
-            && self
-                .scope
-                .suite_id
-                .as_ref()
-                .is_none_or(|id| scope.and_then(|scope| scope.suite_id.as_ref()) == Some(id))
+        self.scope.test_cycle_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.test_cycle_id.as_ref()) == Some(id))
+            && self.scope.test_execution_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.test_execution_id.as_ref()) == Some(id))
+            && self.scope.test_case_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.test_case_id.as_ref()) == Some(id))
+            && self.scope.template_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.template_id.as_ref()) == Some(id))
+            && self.scope.session_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.session_id.as_ref()) == Some(id))
+            && self.scope.step_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.step_id.as_ref()) == Some(id))
+            && self.scope.criterion_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.criterion_id.as_ref()) == Some(id))
+            && self.scope.suite_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.suite_id.as_ref()) == Some(id))
     }
 }
 

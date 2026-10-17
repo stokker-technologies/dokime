@@ -91,51 +91,22 @@ impl harmos::MemorySize for RunGroup {
         std::mem::size_of::<Self>()
             .saturating_add(self.target.source.capacity())
             .saturating_add(self.target.binding.workflow.capacity())
-            .saturating_add(
-                deque_memory(&self.pending).saturating_sub(std::mem::size_of_val(&self.pending)),
-            )
+            .saturating_add(deque_memory(&self.pending).saturating_sub(std::mem::size_of_val(&self.pending)))
     }
 }
 
 impl harmos::MemorySize for RunRequest {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                self.summary.memory_size(),
-                std::mem::size_of_val(&self.summary),
-            ),
-            (
-                self.test_execution_id.memory_size(),
-                std::mem::size_of_val(&self.test_execution_id),
-            ),
-            (
-                deque_memory(&self.pending),
-                std::mem::size_of_val(&self.pending),
-            ),
-            (
-                deque_memory(&self.groups),
-                std::mem::size_of_val(&self.groups),
-            ),
-            (
-                self.settled_execution_ids.memory_size(),
-                std::mem::size_of_val(&self.settled_execution_ids),
-            ),
-            (
-                self.stopped_execution_ids.memory_size(),
-                std::mem::size_of_val(&self.stopped_execution_ids),
-            ),
-            (
-                self.failure.memory_size(),
-                std::mem::size_of_val(&self.failure),
-            ),
-            (
-                self.publication_failure.memory_size(),
-                std::mem::size_of_val(&self.publication_failure),
-            ),
-            (
-                self.completion_at.memory_size(),
-                std::mem::size_of_val(&self.completion_at),
-            ),
+            (self.summary.memory_size(), std::mem::size_of_val(&self.summary)),
+            (self.test_execution_id.memory_size(), std::mem::size_of_val(&self.test_execution_id)),
+            (deque_memory(&self.pending), std::mem::size_of_val(&self.pending)),
+            (deque_memory(&self.groups), std::mem::size_of_val(&self.groups)),
+            (self.settled_execution_ids.memory_size(), std::mem::size_of_val(&self.settled_execution_ids)),
+            (self.stopped_execution_ids.memory_size(), std::mem::size_of_val(&self.stopped_execution_ids)),
+            (self.failure.memory_size(), std::mem::size_of_val(&self.failure)),
+            (self.publication_failure.memory_size(), std::mem::size_of_val(&self.publication_failure)),
+            (self.completion_at.memory_size(), std::mem::size_of_val(&self.completion_at)),
         ];
         fields.into_iter().fold(
             std::mem::size_of::<Self>()
@@ -147,13 +118,11 @@ impl harmos::MemorySize for RunRequest {
 }
 
 fn deque_memory<T: harmos::MemorySize>(values: &VecDeque<T>) -> usize {
-    values.iter().fold(
-        std::mem::size_of_val(values)
-            .saturating_add(values.capacity().saturating_mul(std::mem::size_of::<T>())),
-        |bytes, value| {
+    values
+        .iter()
+        .fold(std::mem::size_of_val(values).saturating_add(values.capacity().saturating_mul(std::mem::size_of::<T>())), |bytes, value| {
             bytes.saturating_add(value.memory_size().saturating_sub(std::mem::size_of::<T>()))
-        },
-    )
+        })
 }
 
 impl RunRequest {
@@ -169,10 +138,7 @@ impl RunRequest {
 impl Transaction<RuntimeState> for PrepareAttempt {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
-        let request = state
-            .run_requests
-            .get(&self.request_id)
-            .ok_or("run request not found")?;
+        let request = state.run_requests.get(&self.request_id).ok_or("run request not found")?;
         if self.ordinal < request.summary.prepared {
             return Ok(());
         }
@@ -181,17 +147,11 @@ impl Transaction<RuntimeState> for PrepareAttempt {
             return Err("invalid preparation position".into());
         }
         let execution_id = request.pending.front().expect("checked pending attempt");
-        let execution = state
-            .executions
-            .get(execution_id)
-            .ok_or("materialized execution is missing from the cycle")?;
+        let execution = state.executions.get(execution_id).ok_or("materialized execution is missing from the cycle")?;
         if execution.test_cycle_id != request.summary.cycle_id {
             return Err("queued execution belongs to another cycle".into());
         }
-        if execution.status != ExecutionStatus::Skipped
-            || execution.started_at.is_some()
-            || execution.finished_at.is_some()
-        {
+        if execution.status != ExecutionStatus::Skipped || execution.started_at.is_some() || execution.finished_at.is_some() {
             return Err("queued execution is no longer unstarted".into());
         }
         Ok(())
@@ -201,27 +161,15 @@ impl Transaction<RuntimeState> for PrepareAttempt {
     }
     fn apply(&self, state: &mut RuntimeState) {
         let records = self.drafts(state);
-        let request = state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request");
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if self.ordinal < request.summary.prepared {
             return;
         }
-        let execution_id = request
-            .pending
-            .pop_front()
-            .expect("checked pending attempt");
+        let execution_id = request.pending.pop_front().expect("checked pending attempt");
         request.summary.prepared += 1;
         request.summary.phase = RunPhase::Preparing;
-        let cycle = state
-            .cycles
-            .get_mut(&request.summary.cycle_id)
-            .expect("request cycle");
-        let existing = state
-            .executions
-            .get_mut(&execution_id)
-            .expect("checked materialized execution");
+        let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
+        let existing = state.executions.get_mut(&execution_id).expect("checked materialized execution");
         existing.mode = request.summary.mode;
         existing.status = ExecutionStatus::Pending;
         cycle.touch_at(self.at.clone());
@@ -237,10 +185,7 @@ impl PrepareAttempt {
             return records;
         }
         let execution_id = request.pending.front().expect("checked pending attempt");
-        let execution = state
-            .executions
-            .get(execution_id)
-            .expect("checked materialized execution");
+        let execution = state.executions.get(execution_id).expect("checked materialized execution");
         records.draft(
             BuiltinDraft {
                 record_type: BuiltinRecordType::TestExecutionPrepared,
@@ -259,10 +204,7 @@ impl PrepareAttempt {
 impl Transaction<RuntimeState> for DispatchProvider {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
-        let request = state
-            .run_requests
-            .get(&self.request_id)
-            .ok_or("run request not found")?;
+        let request = state.run_requests.get(&self.request_id).ok_or("run request not found")?;
         if request.summary.phase == RunPhase::Running {
             return Ok(());
         }
@@ -277,23 +219,14 @@ impl Transaction<RuntimeState> for DispatchProvider {
     }
     fn apply(&self, state: &mut RuntimeState) {
         let records = self.drafts(state);
-        let request = state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request");
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if request.summary.phase == RunPhase::Running {
             return;
         }
         request.summary.phase = RunPhase::Running;
         // Later groups of the same request rejoin a run that already started.
-        request
-            .summary
-            .provider_started_at
-            .get_or_insert_with(|| self.at.clone());
-        let cycle = state
-            .cycles
-            .get_mut(&request.summary.cycle_id)
-            .expect("request cycle");
+        request.summary.provider_started_at.get_or_insert_with(|| self.at.clone());
+        let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
         cycle.started_at.get_or_insert_with(|| self.at.clone());
         records.apply(state);
     }
@@ -304,15 +237,10 @@ impl DispatchProvider {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         // One run starts once, however many target groups it dispatches.
-        if request.summary.phase == RunPhase::Running
-            || request.summary.provider_started_at.is_some()
-        {
+        if request.summary.phase == RunPhase::Running || request.summary.provider_started_at.is_some() {
             return records;
         }
-        for name in [
-            BuiltinRecordType::TestCycleStarted,
-            BuiltinRecordType::ProviderExecutionStarted,
-        ] {
+        for name in [BuiltinRecordType::TestCycleStarted, BuiltinRecordType::ProviderExecutionStarted] {
             records.draft(
                 BuiltinDraft {
                     record_type: name,
@@ -320,9 +248,7 @@ impl DispatchProvider {
                     severity: RecordSeverity::Info,
                     message: Some("Cycle provider dispatch started.".into()),
                     details: BTreeMap::new(),
-                    scope: Some(
-                        RecordScope::default().with_cycle(request.summary.cycle_id.clone()),
-                    ),
+                    scope: Some(RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
                 },
                 self.at.clone(),
             );
@@ -334,10 +260,7 @@ impl DispatchProvider {
 impl Transaction<RuntimeState> for AdvanceRunGroup {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
-        let request = state
-            .run_requests
-            .get(&self.request_id)
-            .ok_or("run request not found")?;
+        let request = state.run_requests.get(&self.request_id).ok_or("run request not found")?;
         if request.completion_at.is_some() {
             return Err("run request completion has already been staged".into());
         }
@@ -357,10 +280,7 @@ impl Transaction<RuntimeState> for AdvanceRunGroup {
         Ok(())
     }
     fn apply(&self, state: &mut RuntimeState) {
-        let request = state
-            .run_requests
-            .get_mut(&self.request_id)
-            .expect("checked request");
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if !request.pending.is_empty() {
             return;
         }
@@ -376,36 +296,21 @@ impl Transaction<RuntimeState> for AdvanceRunGroup {
 }
 
 /* === Public Functions === */
-pub(super) fn queue(
-    state: &mut RuntimeState,
-    run: &RunProvider,
-) -> Result<ExecutionProviderTarget, Error> {
+pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {
     if let Some(request) = state.run_requests.get(&run.command_id) {
         if request.summary.cycle_id != run.test_cycle_id
             || request.test_execution_id != run.test_execution_id
             || request.summary.mode != run.mode
         {
-            return Err(Error::conflict(
-                "request_identity_conflict",
-                "request identity belongs to another selection",
-            ));
+            return Err(Error::conflict("request_identity_conflict", "request identity belongs to another selection"));
         }
         return Ok(request.target.clone());
     }
     let plan = prepare_run_provider(state, run)?;
-    let mut groups = plan
-        .into_iter()
-        .map(|group| RunGroup {
-            target: group.target,
-            pending: group.execution_ids.into(),
-        })
-        .collect::<VecDeque<_>>();
+    let mut groups =
+        plan.into_iter().map(|group| RunGroup { target: group.target, pending: group.execution_ids.into() }).collect::<VecDeque<_>>();
     let current = groups.pop_front().expect("admission planned one group");
-    let planned = current.pending.len()
-        + groups
-            .iter()
-            .map(|group| group.pending.len())
-            .sum::<usize>();
+    let planned = current.pending.len() + groups.iter().map(|group| group.pending.len()).sum::<usize>();
     // Queuing controls the cycle; its canonical executions remain unstarted.
     let summary = RunSummary {
         mode: run.mode,
@@ -425,14 +330,8 @@ pub(super) fn queue(
     };
     let records = queue_records(state, run);
     let target = current.target.clone();
-    let cycle = state
-        .cycles
-        .get_mut(&run.test_cycle_id)
-        .expect("checked cycle");
-    cycle.lifecycle = cycle
-        .lifecycle
-        .try_transition(CycleStatus::Running)
-        .unwrap_or(CycleStatus::Running);
+    let cycle = state.cycles.get_mut(&run.test_cycle_id).expect("checked cycle");
+    cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Running).unwrap_or(CycleStatus::Running);
     cycle.touch_at(run.accepted_at.clone());
     state.run_requests.insert(
         run.command_id.clone(),
@@ -454,10 +353,7 @@ pub(super) fn queue(
     Ok(target)
 }
 
-pub(super) fn queue_records(
-    state: &RuntimeState,
-    run: &RunProvider,
-) -> crate::transactions::records::draft::Drafts {
+pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::transactions::records::draft::Drafts {
     let mut records = crate::transactions::records::draft::Drafts::new(state);
     if state.run_requests.contains_key(&run.command_id) {
         return records;
@@ -484,10 +380,7 @@ fn active(state: &RuntimeState, request: &RunRequest) -> Result<(), String> {
     if request.summary.paused {
         return Err("run request is paused".into());
     }
-    if !matches!(
-        request.summary.phase,
-        RunPhase::Queued | RunPhase::Preparing
-    ) {
+    if !matches!(request.summary.phase, RunPhase::Queued | RunPhase::Preparing) {
         return Err("run request is already dispatched".into());
     }
     Ok(())

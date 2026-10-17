@@ -84,13 +84,7 @@ pub enum Fault {
 /* === Implementations === */
 impl Default for Supply {
     fn default() -> Self {
-        Self {
-            voltage_rms_v: 230.0,
-            load_ohm: 100.0,
-            frequency_hz: 50.0,
-            phase_deg: 15.0,
-            current_limit_a: 5.0,
-        }
+        Self { voltage_rms_v: 230.0, load_ohm: 100.0, frequency_hz: 50.0, phase_deg: 15.0, current_limit_a: 5.0 }
     }
 }
 
@@ -109,10 +103,7 @@ impl Device {
         {
             return Err(Error::InvalidSupply);
         }
-        Ok(Self {
-            supply,
-            ..Default::default()
-        })
+        Ok(Self { supply, ..Default::default() })
     }
 
     // Logs every sample to this file from now on.
@@ -151,32 +142,18 @@ impl Device {
             self.inject(Fault::Overcurrent);
         }
         let powered = self.power == Power::Running;
-        let voltage_rms = if powered {
-            self.supply.voltage_rms_v
-        } else {
-            0.0
-        };
+        let voltage_rms = if powered { self.supply.voltage_rms_v } else { 0.0 };
         let current_rms = if powered { current_rms } else { 0.0 };
         let angle = std::f64::consts::TAU * self.supply.frequency_hz * elapsed_s;
         let input_power_w = voltage_rms * current_rms * self.supply.phase_deg.to_radians().cos();
         let dc_voltage_v = if powered { 400.0 } else { 0.0 };
-        let dc_current_a = if powered {
-            input_power_w * 0.94 / dc_voltage_v
-        } else {
-            0.0
-        };
+        let dc_current_a = if powered { input_power_w * 0.94 / dc_voltage_v } else { 0.0 };
 
         if let Some(log) = &self.log {
             // A log the charger cannot write loses its lines, never the sample.
-            let line = format!(
-                "t={elapsed_s:.3} state={:?} input_power_w={input_power_w:.1}\n",
-                self.power
-            );
-            let written = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log)
-                .and_then(|mut file| file.write_all(line.as_bytes()));
+            let line = format!("t={elapsed_s:.3} state={:?} input_power_w={input_power_w:.1}\n", self.power);
+            let written =
+                std::fs::OpenOptions::new().create(true).append(true).open(log).and_then(|mut file| file.write_all(line.as_bytes()));
             if let Err(error) = written {
                 tracing::warn!(%error, log = %log.display(), "the charger log was not written");
             }
@@ -185,9 +162,7 @@ impl Device {
         Reading {
             elapsed_s,
             voltage_v: std::f64::consts::SQRT_2 * voltage_rms * angle.sin(),
-            current_a: std::f64::consts::SQRT_2
-                * current_rms
-                * (angle - self.supply.phase_deg.to_radians()).sin(),
+            current_a: std::f64::consts::SQRT_2 * current_rms * (angle - self.supply.phase_deg.to_radians()).sin(),
             voltage_rms_v: voltage_rms,
             current_rms_a: current_rms,
             frequency_hz: self.supply.frequency_hz,

@@ -17,14 +17,14 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::TelemetryStreamId;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::records::RecordPattern;
 use crate::records::RecordSeverity;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TelemetryStreamId;
+use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -55,12 +55,7 @@ pub struct RecordFilter {
 /* === Implementations === */
 impl RecordFilter {
     pub fn matches(&self, record: &RecordEntry) -> bool {
-        if !self.patterns.is_empty()
-            && !self
-                .patterns
-                .iter()
-                .any(|pattern| pattern.matches(record.record_type.as_str()))
-        {
+        if !self.patterns.is_empty() && !self.patterns.iter().any(|pattern| pattern.matches(record.record_type.as_str())) {
             return false;
         }
         if !self.record_types.is_empty() && !self.record_types.contains(&record.record_type) {

@@ -20,10 +20,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use harmos::Message;
-use harmos::operations::{
-    CallContext, Callable, ContextError, ContextValue, Declares, Host, OperationDeclaration,
-    Response,
-};
+use harmos::operations::{CallContext, Callable, ContextError, ContextValue, Declares, Host, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
@@ -39,9 +36,7 @@ const STEP_REFUSAL: i64 = -32_000;
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type Answering = Arc<
-    dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>> + Send + Sync,
->;
+pub type Answering = Arc<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>> + Send + Sync>;
 
 /* === Structs === */
 #[derive(Clone, Default)]
@@ -80,8 +75,7 @@ impl Caller {
     }
 
     pub async fn call<O>(
-        &self,
-        request: <O::Declaration as OperationDeclaration>::Request,
+        &self, request: <O::Declaration as OperationDeclaration>::Request,
     ) -> crate::Result<<O::Declaration as OperationDeclaration>::Response>
     where
         O: Declares,
@@ -92,12 +86,7 @@ impl Caller {
     }
 
     pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
-        StepHost {
-            caller: self.clone(),
-            stage: stage.to_owned(),
-            context: CallContext::default(),
-            binding,
-        }
+        StepHost { caller: self.clone(), stage: stage.to_owned(), context: CallContext::default(), binding }
     }
 
     fn hosted(&self) -> bool {
@@ -105,9 +94,7 @@ impl Caller {
     }
 
     pub(super) async fn call_at<O>(
-        &self,
-        stage: &str,
-        request: <O::Declaration as OperationDeclaration>::Request,
+        &self, stage: &str, request: <O::Declaration as OperationDeclaration>::Request,
     ) -> crate::Result<<O::Declaration as OperationDeclaration>::Response>
     where
         O: Declares,
@@ -117,9 +104,7 @@ impl Caller {
         let operation = <O::Declaration as OperationDeclaration>::ID;
         let refused = |reason: String| crate::Error::Call { operation, reason };
         match &self.0 {
-            Road::Unmounted => Err(refused(
-                "this template is running without a host to route through".into(),
-            )),
+            Road::Unmounted => Err(refused("this template is running without a host to route through".into())),
             Road::Host(host) => routed(host, stage, operation)
                 .map_err(|error| refused(error.to_string()))?
                 .call_as::<O::Declaration>(request)
@@ -128,14 +113,11 @@ impl Caller {
                 .try_unwrap()
                 .map_err(|_| refused("the sidecar response is shared".into())),
             Road::Local(operations) => {
-                let answer = operations.get(operation).ok_or_else(|| {
-                    refused("the harness registered no answer for this operation".into())
-                })?;
+                let answer =
+                    operations.get(operation).ok_or_else(|| refused("the harness registered no answer for this operation".into()))?;
                 let bytes = answer(request.encode_to_vec()).await.map_err(refused)?;
-                <<O::Declaration as OperationDeclaration>::Response as Message>::decode(
-                    bytes.as_slice(),
-                )
-                .map_err(|error| refused(error.to_string()))
+                <<O::Declaration as OperationDeclaration>::Response as Message>::decode(bytes.as_slice())
+                    .map_err(|error| refused(error.to_string()))
             }
         }
     }
@@ -162,10 +144,7 @@ impl Host for StepHost {
         Ok(child)
     }
 
-    async fn submit_as<O: Callable>(
-        &self,
-        request: O::Request,
-    ) -> Result<Self::Instance<O>, CallError> {
+    async fn submit_as<O: Callable>(&self, request: O::Request) -> Result<Self::Instance<O>, CallError> {
         let encoded = request.encode_to_vec();
         let handles = &self.binding.handles;
         if let Some(serve) = served(O::ID, self.caller.hosted()) {
@@ -177,16 +156,12 @@ impl Host for StepHost {
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
-                let instance = routed(host, &self.stage, O::ID)
-                    .map_err(refusal)?
-                    .submit_as::<O>(request)
-                    .await?;
+                let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit_as::<O>(request).await?;
                 Ok(StepInstance::host(handles, instance, &encoded))
             }
             Road::Local(operations) => {
-                let answer = operations.get(O::ID).cloned().ok_or_else(|| {
-                    step_refusal("the harness registered no answer for this operation")
-                })?;
+                let answer =
+                    operations.get(O::ID).cloned().ok_or_else(|| step_refusal("the harness registered no answer for this operation"))?;
                 let payload = encoded.clone();
                 let run = LocalRun::spawn(move |_| answer(payload), false);
                 Ok(StepInstance::local(handles, run, &encoded))
@@ -194,38 +169,23 @@ impl Host for StepHost {
         }
     }
 
-    async fn call_as<O: Callable>(
-        &self,
-        request: O::Request,
-    ) -> Result<Response<O::Response>, CallError> {
+    async fn call_as<O: Callable>(&self, request: O::Request) -> Result<Response<O::Response>, CallError> {
         if served(O::ID, self.caller.hosted()).is_some() {
             return self.submit_as::<O>(request).await?.join().await;
         }
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
-            Road::Host(host) => {
-                routed(host, &self.stage, O::ID)
-                    .map_err(refusal)?
-                    .call_as::<O>(request)
-                    .await
-            }
+            Road::Host(host) => routed(host, &self.stage, O::ID).map_err(refusal)?.call_as::<O>(request).await,
             Road::Local(operations) => {
                 let answer = operations.get(O::ID).ok_or_else(|| CallError::Refused {
                     code: STEP_REFUSAL,
                     failure: refusal_failure("the harness registered no answer for this operation"),
                 })?;
-                let bytes = answer(request.encode_to_vec()).await.map_err(|message| {
-                    CallError::Refused {
-                        code: STEP_REFUSAL,
-                        failure: refusal_failure(message),
-                    }
-                })?;
-                let response = O::Response::decode(bytes.as_slice()).map_err(|error| {
-                    CallError::Malformed {
-                        method: O::ID,
-                        message: error.to_string(),
-                    }
-                })?;
+                let bytes = answer(request.encode_to_vec())
+                    .await
+                    .map_err(|message| CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) })?;
+                let response = O::Response::decode(bytes.as_slice())
+                    .map_err(|error| CallError::Malformed { method: O::ID, message: error.to_string() })?;
 
                 Ok(Response::new(response))
             }
@@ -234,9 +194,7 @@ impl Host for StepHost {
 
     // A step lends no process-local resources to the host.
     async fn submit_with_resources<O: Callable<Response = ()>, R: Send + Sync + 'static>(
-        &self,
-        _: O::Request,
-        _: Arc<R>,
+        &self, _: O::Request, _: Arc<R>,
     ) -> Result<StepInstance<O>, CallError> {
         Err(CallError::LocalResources { method: O::ID })
     }
@@ -251,20 +209,13 @@ fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor,
     let Some(scope) = host.context().value::<super::ExecutionScope>()? else {
         return Ok(host.clone());
     };
-    let scope = if stage.is_empty() {
-        scope
-    } else {
-        scope.staged(stage)
-    };
+    let scope = if stage.is_empty() { scope } else { scope.staged(stage) };
 
     host.with_value(scope.routed(operation))
 }
 
 fn refusal(error: ContextError) -> CallError {
-    CallError::Refused {
-        code: STEP_REFUSAL,
-        failure: refusal_failure(error.to_string()),
-    }
+    CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(error.to_string()) }
 }
 
 /* === Tests === */

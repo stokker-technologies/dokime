@@ -39,9 +39,7 @@ pub struct ListNotes {
     pub limit: u32,
     pub after_id: String,
     // Exact runtime revision and selection, required with after_id. Restart on change.
-    #[row(
-        description = "Exact runtime revision and selection, required with after_id. Restart on change."
-    )]
+    #[row(description = "Exact runtime revision and selection, required with after_id. Restart on change.")]
     pub cursor: Option<Cursor>,
 }
 

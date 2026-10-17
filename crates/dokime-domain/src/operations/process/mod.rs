@@ -51,14 +51,10 @@ pub struct RunProcess {
     #[row(description = "Absent runs in the execution's artifact directory.")]
     pub cwd: Option<String>,
     // Absent writes each line to the execution log at info; present streams the bytes into this produced artifact.
-    #[row(
-        description = "Absent writes each line to the execution log at info; present streams the bytes into this produced artifact."
-    )]
+    #[row(description = "Absent writes each line to the execution log at info; present streams the bytes into this produced artifact.")]
     pub stdout_artifact: Option<String>,
     // Absent writes each line to the execution log at warning; present streams the bytes into this produced artifact.
-    #[row(
-        description = "Absent writes each line to the execution log at warning; present streams the bytes into this produced artifact."
-    )]
+    #[row(description = "Absent writes each line to the execution log at warning; present streams the bytes into this produced artifact.")]
     pub stderr_artifact: Option<String>,
     // Milliseconds between SIGTERM and the kill when cancelled: default 2000.
     #[row(description = "Milliseconds between SIGTERM and the kill when cancelled: default 2000.")]
@@ -97,10 +93,7 @@ impl RunProcess {
 
     #[must_use]
     pub fn env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.env.push(ProcessVariable {
-            name: name.into(),
-            value: value.into(),
-        });
+        self.env.push(ProcessVariable { name: name.into(), value: value.into() });
         self
     }
 

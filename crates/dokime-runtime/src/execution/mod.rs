@@ -52,19 +52,19 @@ mod template;
 #[cfg(feature = "native")]
 mod unwind;
 
-#[cfg(feature = "native")]
-mod workflow;
 #[cfg(feature = "host")]
 pub mod instance;
 #[cfg(feature = "host")]
 pub mod storage;
+#[cfg(feature = "native")]
+mod workflow;
 
 /* === Re-Exports === */
 #[cfg(feature = "native")]
 pub use callbacks::{CallbackTask, Callbacks};
 pub use context::{
-    Calls, Cleanup, CleanupContext, Context, CriterionContext, InitializationContext, Initialize,
-    Required, Step, StepContext, Traceability, TraceabilityContext,
+    Calls, Cleanup, CleanupContext, Context, CriterionContext, InitializationContext, Initialize, Required, Step, StepContext,
+    Traceability, TraceabilityContext,
 };
 
 #[cfg(feature = "native")]
@@ -88,23 +88,21 @@ pub use calls::{Answering, Caller, StepHost};
 pub use instances::{ExecutionIdentity, StepIdentity, StepInstance};
 pub use scope::{ExecutionScope, IdempotencyKey};
 #[cfg(feature = "native")]
-pub use serving::{
-    ExecutionHost, Run, Runnable, Signal, bind, contracts, interrupt, runner, serve,
-};
+pub use serving::{ExecutionHost, Run, Runnable, Signal, bind, contracts, interrupt, runner, serve};
 #[cfg(feature = "native")]
 pub use tick::Tick;
 
 #[cfg(feature = "native")]
 pub use template::{
-    DeclaredObserver, EvaluationFuture, InitializationFuture, SamplePublisher, SidecarTemplate,
-    StampedRow, StepFuture, TemplateDefinition, TraceabilityFuture,
+    DeclaredObserver, EvaluationFuture, InitializationFuture, SamplePublisher, SidecarTemplate, StampedRow, StepFuture, TemplateDefinition,
+    TraceabilityFuture,
 };
 
+#[cfg(feature = "host")]
+pub use instance::TestExecutionInstance;
 #[cfg(feature = "native")]
 #[cfg(feature = "native")]
 pub use workflow::{EmbeddedPublisher, SampleOutput, Workflow};
-#[cfg(feature = "host")]
-pub use instance::TestExecutionInstance;
 
 /* === Imports === */
 // Standard Library Imports
@@ -115,31 +113,20 @@ pub use instance::TestExecutionInstance;
 
 /* === Constants === */
 
-
 /* === Macros === */
-
 
 /* === Type Aliases === */
 
-
 /* === Structs === */
-
 
 /* === Enums === */
 
-
 /* === Traits === */
-
 
 /* === Implementations === */
 
-
 /* === Public Functions === */
-
 
 /* === Private Functions === */
 
-
 /* === Tests === */
-
-

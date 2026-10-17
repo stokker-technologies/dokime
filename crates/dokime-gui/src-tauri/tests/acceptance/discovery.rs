@@ -40,19 +40,14 @@ use std::{fs, path::Path};
 fn discovery_refuses_precedence() {
     const PROBE: &str = "DOKIME_DISCOVERY_TEST_EXPECTED";
     if let Some(expected) = std::env::var_os(PROBE) {
-        assert_eq!(
-            dokime_gui::native_session::backend::locate().unwrap(),
-            std::path::PathBuf::from(expected)
-        );
+        assert_eq!(dokime_gui::native_session::backend::locate().unwrap(), std::path::PathBuf::from(expected));
         return;
     }
     // Re-exec a hard link beside fixture candidates. Child-only environment
     // avoids races with native sessions and never consults a developer keyring.
     let executable = std::env::current_exe().unwrap();
     let fixture = tempfile::tempdir_in(executable.parent().unwrap()).unwrap();
-    let harness = fixture
-        .path()
-        .join(format!("probe{}", std::env::consts::EXE_SUFFIX));
+    let harness = fixture.path().join(format!("probe{}", std::env::consts::EXE_SUFFIX));
     fs::hard_link(&executable, &harness).unwrap();
     let home = fixture.path().join("home");
     let path = fixture.path().join("path");
@@ -67,27 +62,16 @@ fn discovery_refuses_precedence() {
     }
     let probe = |expected: &Path| {
         let output = std::process::Command::new(&harness)
-            .args([
-                "--exact",
-                "discovery::discovery_refuses_precedence",
-                "--nocapture",
-            ])
+            .args(["--exact", "discovery::discovery_refuses_precedence", "--nocapture"])
             .env(PROBE, expected)
             .env("DOKIME_HOME", &home)
             .env("PATH", &path)
             .output()
             .unwrap();
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            output.status.success(),
-            "{stdout}\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        assert!(output.status.success(), "{stdout}\n{}", String::from_utf8_lossy(&output.stderr));
         // A renamed story would select nothing and pass vacuously.
-        assert!(
-            stdout.contains("1 passed"),
-            "the probe ran exactly one story: {stdout}"
-        );
+        assert!(stdout.contains("1 passed"), "the probe ran exactly one story: {stdout}");
     };
     probe(&bundled);
     fs::remove_file(&bundled).unwrap();

@@ -59,31 +59,21 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
             let request = serde_json::from_slice::<AppendPlannedCases>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid append input: {error}")))?;
-            (
-                request.cycle_id,
-                crate::commands::plan::input::Planned::canonical(request.plan)?,
-            )
+            (request.cycle_id, crate::commands::plan::input::Planned::canonical(request.plan)?)
         }
         None => (args.cycle_id.unwrap_or_default(), input.plan()?),
     };
-    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&cycle_id)
-        .map_err(|error| crate::Error::Input(error.to_string()))?;
+    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&cycle_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let result = async {
-        let plan = planned
-            .resolve(&client)
-            .await?
-            .ok_or_else(|| crate::Error::Input("a selection plan is required".into()))?;
+        let plan = planned.resolve(&client).await?.ok_or_else(|| crate::Error::Input("a selection plan is required".into()))?;
         Ok::<_, crate::Error>(client.cycle(id).append_cases(plan).await?)
     }
     .await;
     client.close_and_wait().await;
     let reply = result?;
     if args.json {
-        println!(
-            "{}",
-            serde_json::json!({ "cycle_id": cycle_id, "observed_cursor": reply.observed_cursor })
-        );
+        println!("{}", serde_json::json!({ "cycle_id": cycle_id, "observed_cursor": reply.observed_cursor }));
     } else {
         println!("Appended Cases To Cycle {cycle_id}");
     }

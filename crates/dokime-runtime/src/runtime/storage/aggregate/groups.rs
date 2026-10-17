@@ -56,10 +56,7 @@ impl Groups {
     /// Fold rows into at most `limit + 1` groups in key order.
     pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
         validate(query)?;
-        let mut selected = Self {
-            entries: BTreeMap::new(),
-            omitted: false,
-        };
+        let mut selected = Self { entries: BTreeMap::new(), omitted: false };
         if query.group_by.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query));
         }
@@ -75,19 +72,14 @@ impl Groups {
             for column in &query.group_by {
                 key.push(row.field(column)?.project()?);
             }
-            let reductions = selected
-                .entries
-                .entry(Key(key))
-                .or_insert_with(|| reductions(query));
+            let reductions = selected.entries.entry(Key(key)).or_insert_with(|| reductions(query));
             for (reduction, column) in reductions.iter_mut().zip(&query.aggregates) {
                 let value = if column.column.is_empty() {
                     ScalarValue::Unsigned(1)
                 } else {
                     scalar(&row.field(&column.column)?.project()?, column.aggregate)?
                 };
-                reduction
-                    .push(ordinal as u64, &value, &mut scratch)
-                    .map_err(reduction_error)?;
+                reduction.push(ordinal as u64, &value, &mut scratch).map_err(reduction_error)?;
             }
             // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
             if query.limit != 0 && selected.entries.len() > query.limit + 1 {
@@ -104,27 +96,16 @@ impl Groups {
             limit => self.entries.len().min(limit),
         };
         let complete = !self.omitted && self.entries.len() <= count;
-        let columns = query
-            .group_by
-            .iter()
-            .cloned()
-            .chain(query.aggregates.iter().map(|column| column.alias.clone()))
-            .collect();
+        let columns = query.group_by.iter().cloned().chain(query.aggregates.iter().map(|column| column.alias.clone())).collect();
         let mut rows = Vec::with_capacity(count);
         for (key, reductions) in self.entries.into_iter().take(count) {
             let mut row = key.0;
             for reduction in reductions {
-                row.push(value(
-                    reduction.finish(&mut || Ok(())).map_err(reduction_error)?,
-                )?);
+                row.push(value(reduction.finish(&mut || Ok(())).map_err(reduction_error)?)?);
             }
             rows.push(row);
         }
-        Ok(AggregateOutcome {
-            columns,
-            rows,
-            complete,
-        })
+        Ok(AggregateOutcome { columns, rows, complete })
     }
 }
 
@@ -152,9 +133,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
         || query.aggregates.len() > MAX_COLUMNS
         || query.filters.len() > MAX_FILTERS
     {
-        return Err(invalid(
-            "aggregate request exceeds its column or filter bound",
-        ));
+        return Err(invalid("aggregate request exceeds its column or filter bound"));
     }
     for (index, name) in query.group_by.iter().enumerate() {
         column(query, name)?;
@@ -166,9 +145,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
         if column.alias.is_empty()
             || column.alias.len() > MAX_NAME_BYTES
             || query.group_by.contains(&column.alias)
-            || query.aggregates[..index]
-                .iter()
-                .any(|prior| prior.alias == column.alias)
+            || query.aggregates[..index].iter().any(|prior| prior.alias == column.alias)
         {
             return Err(invalid("aggregate alias is invalid or repeated"));
         }
@@ -211,11 +188,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
 
 /* === Private Functions === */
 fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
-    query
-        .aggregates
-        .iter()
-        .map(|column| Accumulator::new(Agg::Of(column.aggregate)))
-        .collect()
+    query.aggregates.iter().map(|column| Accumulator::new(Agg::Of(column.aggregate))).collect()
 }
 
 // The Scalar Fold Reads Scalars; A Nested Value Has No Order Or Number.
@@ -242,22 +215,15 @@ fn value(scalar: ScalarValue) -> Result<Value> {
         ScalarValue::Missing | ScalarValue::Null => Value::Null,
         ScalarValue::Bool(value) => Value::Bool(value),
         ScalarValue::Signed(value) => Value::Integer(value),
-        ScalarValue::Unsigned(value) => i64::try_from(value)
-            .map(Value::Integer)
-            .unwrap_or(Value::Unsigned(value)),
+        ScalarValue::Unsigned(value) => i64::try_from(value).map(Value::Integer).unwrap_or(Value::Unsigned(value)),
         ScalarValue::Float(value) => Value::Number(value),
         ScalarValue::Text(value) => Value::Text(value),
         ScalarValue::Datetime(value) => Value::Datetime(
-            time::OffsetDateTime::from_unix_timestamp_nanos(value)
-                .map_err(|_| invalid("aggregate datetime is out of range"))?,
+            time::OffsetDateTime::from_unix_timestamp_nanos(value).map_err(|_| invalid("aggregate datetime is out of range"))?,
         ),
         ScalarValue::Exact(value) => {
             let magnitude = value.numerator as f64 / value.denominator.get() as f64;
-            Value::Number(if value.negative {
-                -magnitude
-            } else {
-                magnitude
-            })
+            Value::Number(if value.negative { -magnitude } else { magnitude })
         }
     })
 }
@@ -277,9 +243,7 @@ fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {
         let matched = if filter.op == AggregateOperator::In {
             let mut found = false;
             for expected in &filter.values {
-                if !matches!(expected, Value::Null)
-                    && scalar_compare(&value, expected)? == Ordering::Equal
-                {
+                if !matches!(expected, Value::Null) && scalar_compare(&value, expected)? == Ordering::Equal {
                     found = true;
                     break;
                 }
@@ -311,9 +275,7 @@ fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {
 }
 fn scalar_compare(left: &Value, right: &Value) -> Result<Ordering> {
     let compatible = match (left, right) {
-        (Value::Bool(_), Value::Bool(_))
-        | (Value::Text(_), Value::Text(_))
-        | (Value::Datetime(_), Value::Datetime(_)) => true,
+        (Value::Bool(_), Value::Bool(_)) | (Value::Text(_), Value::Text(_)) | (Value::Datetime(_), Value::Datetime(_)) => true,
         _ => numeric(left) && numeric(right),
     };
     if !compatible {
@@ -330,24 +292,16 @@ fn compare(left: &Value, right: &Value) -> Ordering {
         (Unsigned(left), Integer(right)) => i128::from(*left).cmp(&i128::from(*right)),
         (Number(left), Integer(right)) => compare_float_integer(*left, i128::from(*right)),
         (Number(left), Unsigned(right)) => compare_float_integer(*left, i128::from(*right)),
-        (Integer(left), Number(right)) => {
-            compare_float_integer(*right, i128::from(*left)).reverse()
-        }
-        (Unsigned(left), Number(right)) => {
-            compare_float_integer(*right, i128::from(*left)).reverse()
-        }
-        (Number(left), Number(right)) => left
-            .partial_cmp(right)
-            .expect("finite native numbers preflighted"),
+        (Integer(left), Number(right)) => compare_float_integer(*right, i128::from(*left)).reverse(),
+        (Unsigned(left), Number(right)) => compare_float_integer(*right, i128::from(*left)).reverse(),
+        (Number(left), Number(right)) => left.partial_cmp(right).expect("finite native numbers preflighted"),
         (Bool(left), Bool(right)) => left.cmp(right),
         (Text(left), Text(right)) => left.cmp(right),
         (Datetime(left), Datetime(right)) => left.cmp(right),
         (Array(left), Array(right)) => compare_arrays(left, right),
         (Object(left), Object(right)) => {
             for ((left_key, left_value), (right_key, right_value)) in left.iter().zip(right) {
-                let order = left_key
-                    .cmp(right_key)
-                    .then_with(|| compare(left_value, right_value));
+                let order = left_key.cmp(right_key).then_with(|| compare(left_value, right_value));
                 if order != Ordering::Equal {
                     return order;
                 }
@@ -385,17 +339,10 @@ fn compare_float_integer(value: f64, integer: i128) -> Ordering {
         return Ordering::Greater;
     }
     let whole = value.trunc() as i128;
-    whole.cmp(&integer).then_with(|| {
-        value
-            .partial_cmp(&(whole as f64))
-            .expect("finite native number")
-    })
+    whole.cmp(&integer).then_with(|| value.partial_cmp(&(whole as f64)).expect("finite native number"))
 }
 fn numeric(value: &Value) -> bool {
-    matches!(
-        value,
-        Value::Integer(_) | Value::Unsigned(_) | Value::Number(_)
-    )
+    matches!(value, Value::Integer(_) | Value::Unsigned(_) | Value::Number(_))
 }
 fn column(query: &AggregateQuery, name: &str) -> Result<()> {
     if name.len() > MAX_NAME_BYTES {
@@ -407,11 +354,7 @@ fn column(query: &AggregateQuery, name: &str) -> Result<()> {
             message.push(' ');
             message.push_str(column);
         }
-        return Err(Error::validation(
-            "aggregate_query_invalid",
-            message,
-            Vec::new(),
-        ));
+        return Err(Error::validation("aggregate_query_invalid", message, Vec::new()));
     }
     Ok(())
 }

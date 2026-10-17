@@ -216,73 +216,23 @@ pub enum ParameterBinaryOp {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParameterResolverError {
     DuplicateParameter(String),
-    UnknownReference {
-        parameter: String,
-        reference: String,
-    },
+    UnknownReference { parameter: String, reference: String },
     DependencyCycle(String),
-    ExpectedScalar {
-        parameter: String,
-    },
-    ArrayItemMustBeScalar {
-        parameter: String,
-    },
-    InvalidRangeStep {
-        parameter: String,
-    },
-    InvalidLinspaceCount {
-        parameter: String,
-        count: usize,
-    },
-    IncompatibleOperandSizes {
-        parameter: String,
-        left: usize,
-        right: usize,
-    },
-    InvalidType {
-        parameter: String,
-        value: Value,
-        value_type: ValueType,
-    },
-    InvalidBounds {
-        parameter: String,
-    },
-    OutOfBounds {
-        parameter: String,
-        value: f64,
-        min: Option<f64>,
-        max: Option<f64>,
-    },
-    InvalidChoice {
-        parameter: String,
-        value: Value,
-    },
-    DivisionByZero {
-        parameter: String,
-    },
-    MissingValue {
-        parameter: String,
-    },
-    ExpectedList {
-        parameter: String,
-        value: Value,
-    },
-    InvalidListItem {
-        parameter: String,
-        index: usize,
-        value: Value,
-        element_type: ValueType,
-    },
-    TooFewItems {
-        parameter: String,
-        count: usize,
-        min_items: usize,
-    },
-    TooManyItems {
-        parameter: String,
-        count: usize,
-        max_items: usize,
-    },
+    ExpectedScalar { parameter: String },
+    ArrayItemMustBeScalar { parameter: String },
+    InvalidRangeStep { parameter: String },
+    InvalidLinspaceCount { parameter: String, count: usize },
+    IncompatibleOperandSizes { parameter: String, left: usize, right: usize },
+    InvalidType { parameter: String, value: Value, value_type: ValueType },
+    InvalidBounds { parameter: String },
+    OutOfBounds { parameter: String, value: f64, min: Option<f64>, max: Option<f64> },
+    InvalidChoice { parameter: String, value: Value },
+    DivisionByZero { parameter: String },
+    MissingValue { parameter: String },
+    ExpectedList { parameter: String, value: Value },
+    InvalidListItem { parameter: String, index: usize, value: Value, element_type: ValueType },
+    TooFewItems { parameter: String, count: usize, min_items: usize },
+    TooManyItems { parameter: String, count: usize, max_items: usize },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -338,45 +288,18 @@ impl harmos::MemorySize for ParameterGroup {
 impl harmos::MemorySize for ParameterDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                self.expansion.memory_size(),
-                std::mem::size_of_val(&self.expansion),
-            ),
-            (
-                self.parameter_id.memory_size(),
-                std::mem::size_of_val(&self.parameter_id),
-            ),
-            (
-                self.metadata.memory_size(),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                self.group_id.memory_size(),
-                std::mem::size_of_val(&self.group_id),
-            ),
+            (self.expansion.memory_size(), std::mem::size_of_val(&self.expansion)),
+            (self.parameter_id.memory_size(), std::mem::size_of_val(&self.parameter_id)),
+            (self.metadata.memory_size(), std::mem::size_of_val(&self.metadata)),
+            (self.group_id.memory_size(), std::mem::size_of_val(&self.group_id)),
             (self.unit.memory_size(), std::mem::size_of_val(&self.unit)),
-            (
-                self.expression.memory_size(),
-                std::mem::size_of_val(&self.expression),
-            ),
-            (
-                self.selection.memory_size(),
-                std::mem::size_of_val(&self.selection),
-            ),
-            (
-                self.extensions.memory_size(),
-                std::mem::size_of_val(&self.extensions),
-            ),
+            (self.expression.memory_size(), std::mem::size_of_val(&self.expression)),
+            (self.selection.memory_size(), std::mem::size_of_val(&self.selection)),
+            (self.extensions.memory_size(), std::mem::size_of_val(&self.extensions)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -389,32 +312,14 @@ impl harmos::MemorySize for ParameterExpr {
 impl harmos::MemorySize for MaterializedParameter {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.group_id),
-                std::mem::size_of_val(&self.group_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.group_id), std::mem::size_of_val(&self.group_id)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -440,23 +345,18 @@ impl ParameterSource {
 
 /* === Public Functions === */
 pub fn resolve_parameter_spaces(
-    definitions: &[ParameterDefinition],
-    dynamic_defaults: &DynamicDefaultResolver,
+    definitions: &[ParameterDefinition], dynamic_defaults: &DynamicDefaultResolver,
 ) -> crate::Result<BTreeMap<String, ResolvedParameterSpace>> {
     resolve_parameter_spaces_detail(definitions, dynamic_defaults).map_err(Into::into)
 }
 
 pub(crate) fn resolve_parameter_spaces_detail(
-    definitions: &[ParameterDefinition],
-    dynamic_defaults: &DynamicDefaultResolver,
+    definitions: &[ParameterDefinition], dynamic_defaults: &DynamicDefaultResolver,
 ) -> Result<BTreeMap<String, ResolvedParameterSpace>, ParameterResolverError> {
     let mut definitions_by_name = BTreeMap::new();
     for definition in definitions {
         let name = parameter_name(definition).to_owned();
-        if definitions_by_name
-            .insert(name.clone(), definition.clone())
-            .is_some()
-        {
+        if definitions_by_name.insert(name.clone(), definition.clone()).is_some() {
             return Err(ParameterResolverError::DuplicateParameter(name));
         }
     }
@@ -466,34 +366,19 @@ pub(crate) fn resolve_parameter_spaces_detail(
     let mut spaces = BTreeMap::new();
 
     for name in order {
-        let definition = definitions_by_name
-            .get(&name)
-            .expect("topological order only yields known definitions");
-        let result = evaluate_expr(
-            &definition.expression,
-            definition,
-            &evaluated,
-            dynamic_defaults,
-        )?;
+        let definition = definitions_by_name.get(&name).expect("topological order only yields known definitions");
+        let result = evaluate_expr(&definition.expression, definition, &evaluated, dynamic_defaults)?;
         let values = normalize_space(definition, result)?;
         validate_space(definition, &values)?;
         evaluated.insert(name.clone(), EvaluatedExpr::Space(values.clone()));
-        spaces.insert(
-            name,
-            ResolvedParameterSpace {
-                definition: definition.clone(),
-                values,
-            },
-        );
+        spaces.insert(name, ResolvedParameterSpace { definition: definition.clone(), values });
     }
 
     Ok(spaces)
 }
 
 pub fn materialized_parameter(
-    definition: &ParameterDefinition,
-    source: ParameterSource,
-    value: Value,
+    definition: &ParameterDefinition, source: ParameterSource, value: Value,
 ) -> crate::Result<MaterializedParameter> {
     let value = coerce_definition_value(definition, value)?;
     validate_parameter_value(definition, &value)?;
@@ -507,30 +392,20 @@ pub fn materialized_parameter(
     })
 }
 
-pub fn coerce_definition_value(
-    definition: &ParameterDefinition,
-    value: Value,
-) -> crate::Result<Value> {
+pub fn coerce_definition_value(definition: &ParameterDefinition, value: Value) -> crate::Result<Value> {
     let parameter = parameter_name(definition);
     match &definition.list {
         Some(list) => coerce_list_value_detail(parameter, list, value).map_err(Into::into),
-        None => coerce_parameter_value_detail(parameter, &definition.value_type, value)
-            .map_err(Into::into),
+        None => coerce_parameter_value_detail(parameter, &definition.value_type, value).map_err(Into::into),
     }
 }
 
-pub fn coerce_list_value(
-    parameter: impl AsRef<str>,
-    list: &ParameterList,
-    value: Value,
-) -> crate::Result<Value> {
+pub fn coerce_list_value(parameter: impl AsRef<str>, list: &ParameterList, value: Value) -> crate::Result<Value> {
     coerce_list_value_detail(parameter, list, value).map_err(Into::into)
 }
 
 pub(crate) fn coerce_list_value_detail(
-    parameter: impl AsRef<str>,
-    list: &ParameterList,
-    value: Value,
+    parameter: impl AsRef<str>, list: &ParameterList, value: Value,
 ) -> Result<Value, ParameterResolverError> {
     let parameter = parameter.as_ref();
 
@@ -539,24 +414,21 @@ pub(crate) fn coerce_list_value_detail(
     }
 
     let Value::Array(items) = value else {
-        return Err(ParameterResolverError::ExpectedList {
-            parameter: parameter.to_owned(),
-            value,
-        });
+        return Err(ParameterResolverError::ExpectedList { parameter: parameter.to_owned(), value });
     };
 
     let items = items
         .into_iter()
         .enumerate()
         .map(|(index, item)| {
-            coerce_parameter_value_detail(parameter, &list.element_type, item.clone()).map_err(
-                |_| ParameterResolverError::InvalidListItem {
+            coerce_parameter_value_detail(parameter, &list.element_type, item.clone()).map_err(|_| {
+                ParameterResolverError::InvalidListItem {
                     parameter: parameter.to_owned(),
                     index,
                     value: item,
                     element_type: list.element_type.clone(),
-                },
-            )
+                }
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -565,18 +437,12 @@ pub(crate) fn coerce_list_value_detail(
     Ok(Value::Array(items))
 }
 
-pub fn coerce_parameter_value(
-    parameter: impl AsRef<str>,
-    value_type: &ValueType,
-    value: Value,
-) -> crate::Result<Value> {
+pub fn coerce_parameter_value(parameter: impl AsRef<str>, value_type: &ValueType, value: Value) -> crate::Result<Value> {
     coerce_parameter_value_detail(parameter, value_type, value).map_err(Into::into)
 }
 
 pub(crate) fn coerce_parameter_value_detail(
-    parameter: impl AsRef<str>,
-    value_type: &ValueType,
-    value: Value,
+    parameter: impl AsRef<str>, value_type: &ValueType, value: Value,
 ) -> Result<Value, ParameterResolverError> {
     let parameter = parameter.as_ref();
 
@@ -599,72 +465,42 @@ pub(crate) fn coerce_parameter_value_detail(
                     }),
                 }
             }
-            value => Err(ParameterResolverError::InvalidType {
-                parameter: parameter.to_owned(),
-                value,
-                value_type: value_type.clone(),
-            }),
+            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
         },
         ValueType::Integer => match value {
             Value::Integer(_) | Value::Unsigned(_) | Value::Null => Ok(value),
             Value::Number(value)
-                if value.is_finite()
-                    && value.fract() == 0.0
-                    && value >= i64::MIN as f64
-                    && value < 9_223_372_036_854_775_808.0 =>
+                if value.is_finite() && value.fract() == 0.0 && value >= i64::MIN as f64 && value < 9_223_372_036_854_775_808.0 =>
             {
                 Ok(Value::Integer(value as i64))
             }
-            Value::Text(value) => value
-                .trim()
-                .parse::<i64>()
-                .map(Value::Integer)
-                .map_err(|_| ParameterResolverError::InvalidType {
-                    parameter: parameter.to_owned(),
-                    value: Value::Text(value),
-                    value_type: value_type.clone(),
-                }),
-            Value::Bool(value) => Ok(Value::Integer(if value { 1 } else { 0 })),
-            value => Err(ParameterResolverError::InvalidType {
+            Value::Text(value) => value.trim().parse::<i64>().map(Value::Integer).map_err(|_| ParameterResolverError::InvalidType {
                 parameter: parameter.to_owned(),
-                value,
+                value: Value::Text(value),
                 value_type: value_type.clone(),
             }),
+            Value::Bool(value) => Ok(Value::Integer(if value { 1 } else { 0 })),
+            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
         },
         ValueType::Number => match value {
             Value::Number(_) | Value::Null => Ok(value),
             Value::Integer(_) | Value::Unsigned(_) => {
-                let number = crate::model::values::numeric_value(&value)
-                    .expect("an integer has a numeric projection");
-                if crate::model::values::numeric_cmp(&value, &Value::Number(number))
-                    == Some(std::cmp::Ordering::Equal)
-                {
+                let number = crate::model::values::numeric_value(&value).expect("an integer has a numeric projection");
+                if crate::model::values::numeric_cmp(&value, &Value::Number(number)) == Some(std::cmp::Ordering::Equal) {
                     Ok(Value::Number(number))
                 } else {
-                    Err(ParameterResolverError::InvalidType {
-                        parameter: parameter.to_owned(),
-                        value,
-                        value_type: value_type.clone(),
-                    })
+                    Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() })
                 }
             }
-            Value::Text(value) => value
-                .trim()
-                .parse::<f64>()
-                .ok()
-                .filter(|value| value.is_finite())
-                .map(Value::Number)
-                .ok_or_else(|| ParameterResolverError::InvalidType {
+            Value::Text(value) => value.trim().parse::<f64>().ok().filter(|value| value.is_finite()).map(Value::Number).ok_or_else(|| {
+                ParameterResolverError::InvalidType {
                     parameter: parameter.to_owned(),
                     value: Value::Text(value),
                     value_type: value_type.clone(),
-                }),
-            Value::Bool(value) => Ok(Value::Number(if value { 1.0 } else { 0.0 })),
-            value => Err(ParameterResolverError::InvalidType {
-                parameter: parameter.to_owned(),
-                value,
-                value_type: value_type.clone(),
+                }
             }),
+            Value::Bool(value) => Ok(Value::Number(if value { 1.0 } else { 0.0 })),
+            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
         },
         ValueType::Text | ValueType::File => Ok(match value {
             Value::Text(_) | Value::Null => value,
@@ -676,19 +512,11 @@ pub(crate) fn coerce_parameter_value_detail(
         }),
         ValueType::Datetime => match value {
             Value::Datetime(_) | Value::Null => Ok(value),
-            value => Err(ParameterResolverError::InvalidType {
-                parameter: parameter.to_owned(),
-                value,
-                value_type: value_type.clone(),
-            }),
+            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
         },
         ValueType::Object => match value {
             Value::Object(_) | Value::Null => Ok(value),
-            value => Err(ParameterResolverError::InvalidType {
-                parameter: parameter.to_owned(),
-                value,
-                value_type: value_type.clone(),
-            }),
+            value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: value_type.clone() }),
         },
         ValueType::Array => match value {
             Value::Array(_) | Value::Null => Ok(value),
@@ -701,16 +529,11 @@ pub fn parameter_name(definition: &ParameterDefinition) -> &str {
     definition.metadata.identifier.as_str()
 }
 
-pub(crate) fn validate_parameter_value(
-    definition: &ParameterDefinition,
-    value: &Value,
-) -> Result<(), ParameterResolverError> {
+pub(crate) fn validate_parameter_value(definition: &ParameterDefinition, value: &Value) -> Result<(), ParameterResolverError> {
     validate_numeric_bounds(definition, value)?;
     if matches!(value, Value::Null) {
         return if definition.required {
-            Err(ParameterResolverError::MissingValue {
-                parameter: parameter_name(definition).to_owned(),
-            })
+            Err(ParameterResolverError::MissingValue { parameter: parameter_name(definition).to_owned() })
         } else {
             Ok(())
         };
@@ -733,10 +556,7 @@ pub(crate) fn validate_parameter_value(
 
     for value in values {
         if !selection.choices.iter().any(|choice| choice == value) {
-            return Err(ParameterResolverError::InvalidChoice {
-                parameter: name.clone(),
-                value: value.clone(),
-            });
+            return Err(ParameterResolverError::InvalidChoice { parameter: name.clone(), value: value.clone() });
         }
     }
 
@@ -758,28 +578,24 @@ fn parameter_expression_memory(expression: &ParameterExpr, depth: usize) -> usiz
         }
         ParameterExpr::Reference { parameter } => parameter.capacity(),
         ParameterExpr::Array { values } => {
-            let mut bytes = values
-                .capacity()
-                .saturating_mul(std::mem::size_of::<ParameterExpr>());
+            let mut bytes = values.capacity().saturating_mul(std::mem::size_of::<ParameterExpr>());
             for value in values {
                 let owned = parameter_expression_memory(value, depth + 1);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
-                bytes = bytes
-                    .saturating_add(owned.saturating_sub(std::mem::size_of::<ParameterExpr>()));
+                bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<ParameterExpr>()));
             }
             bytes
         }
-        ParameterExpr::DynamicDefault { fallback, .. } => fallback
-            .as_deref()
-            .map_or(0, |value| parameter_expression_memory(value, depth + 1)),
+        ParameterExpr::DynamicDefault { fallback, .. } => {
+            fallback.as_deref().map_or(0, |value| parameter_expression_memory(value, depth + 1))
+        }
         ParameterExpr::Unary { value, .. } => parameter_expression_memory(value, depth + 1),
-        ParameterExpr::Binary { left, right, .. } => parameter_expression_memory(left, depth + 1)
-            .saturating_add(parameter_expression_memory(right, depth + 1)),
-        ParameterExpr::Range { .. }
-        | ParameterExpr::Arange { .. }
-        | ParameterExpr::Linspace { .. } => 0,
+        ParameterExpr::Binary { left, right, .. } => {
+            parameter_expression_memory(left, depth + 1).saturating_add(parameter_expression_memory(right, depth + 1))
+        }
+        ParameterExpr::Range { .. } | ParameterExpr::Arange { .. } | ParameterExpr::Linspace { .. } => 0,
     };
     std::mem::size_of::<ParameterExpr>().saturating_add(heap)
 }
@@ -792,9 +608,7 @@ fn default_number_step() -> f64 {
     1.0
 }
 
-fn topological_order(
-    definitions: &BTreeMap<String, ParameterDefinition>,
-) -> Result<Vec<String>, ParameterResolverError> {
+fn topological_order(definitions: &BTreeMap<String, ParameterDefinition>) -> Result<Vec<String>, ParameterResolverError> {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum VisitState {
         Visiting,
@@ -802,11 +616,8 @@ fn topological_order(
     }
 
     fn visit(
-        name: &str,
-        definitions: &BTreeMap<String, ParameterDefinition>,
-        states: &mut BTreeMap<String, VisitState>,
-        order: &mut Vec<String>,
-        stack: &mut Vec<String>,
+        name: &str, definitions: &BTreeMap<String, ParameterDefinition>, states: &mut BTreeMap<String, VisitState>,
+        order: &mut Vec<String>, stack: &mut Vec<String>,
     ) -> Result<(), ParameterResolverError> {
         if states.get(name) == Some(&VisitState::Visited) {
             return Ok(());
@@ -819,15 +630,10 @@ fn topological_order(
         states.insert(name.to_owned(), VisitState::Visiting);
         stack.push(name.to_owned());
 
-        let definition = definitions
-            .get(name)
-            .expect("visited dependency must exist in definitions");
+        let definition = definitions.get(name).expect("visited dependency must exist in definitions");
         for dependency in expr_dependencies(&definition.expression) {
             if !definitions.contains_key(&dependency) {
-                return Err(ParameterResolverError::UnknownReference {
-                    parameter: name.to_owned(),
-                    reference: dependency,
-                });
+                return Err(ParameterResolverError::UnknownReference { parameter: name.to_owned(), reference: dependency });
             }
             visit(&dependency, definitions, states, order, stack)?;
         }
@@ -870,13 +676,7 @@ fn collect_expr_dependencies(expr: &ParameterExpr, dependencies: &mut BTreeSet<S
         ParameterExpr::Reference { parameter } => {
             dependencies.insert(parameter.clone());
         }
-        ParameterExpr::DynamicDefault {
-            fallback: Some(fallback),
-            ..
-        }
-        | ParameterExpr::Unary {
-            value: fallback, ..
-        } => {
+        ParameterExpr::DynamicDefault { fallback: Some(fallback), .. } | ParameterExpr::Unary { value: fallback, .. } => {
             collect_expr_dependencies(fallback, dependencies);
         }
         ParameterExpr::Binary { left, right, .. } => {
@@ -887,9 +687,7 @@ fn collect_expr_dependencies(expr: &ParameterExpr, dependencies: &mut BTreeSet<S
 }
 
 fn evaluate_expr(
-    expr: &ParameterExpr,
-    definition: &ParameterDefinition,
-    evaluated: &BTreeMap<String, EvaluatedExpr>,
+    expr: &ParameterExpr, definition: &ParameterDefinition, evaluated: &BTreeMap<String, EvaluatedExpr>,
     dynamic_defaults: &DynamicDefaultResolver,
 ) -> Result<EvaluatedExpr, ParameterResolverError> {
     let name = parameter_name(definition).to_owned();
@@ -898,14 +696,10 @@ fn evaluate_expr(
         ParameterExpr::Literal { value } => Ok(EvaluatedExpr::Scalar(value.clone())),
         ParameterExpr::Array { values } => values
             .iter()
-            .map(
-                |value| match evaluate_expr(value, definition, evaluated, dynamic_defaults)? {
-                    EvaluatedExpr::Scalar(value) => Ok(value),
-                    EvaluatedExpr::Space(_) => Err(ParameterResolverError::ArrayItemMustBeScalar {
-                        parameter: name.clone(),
-                    }),
-                },
-            )
+            .map(|value| match evaluate_expr(value, definition, evaluated, dynamic_defaults)? {
+                EvaluatedExpr::Scalar(value) => Ok(value),
+                EvaluatedExpr::Space(_) => Err(ParameterResolverError::ArrayItemMustBeScalar { parameter: name.clone() }),
+            })
             .collect::<Result<Vec<_>, _>>()
             .map(EvaluatedExpr::Space),
         ParameterExpr::Range { start, stop, step } => {
@@ -914,10 +708,7 @@ fn evaluate_expr(
             }
 
             let values = if *step > 0 {
-                (*start..=*stop)
-                    .step_by(*step as usize)
-                    .map(Value::Integer)
-                    .collect()
+                (*start..=*stop).step_by(*step as usize).map(Value::Integer).collect()
             } else {
                 let mut current = *start;
                 let mut values = Vec::new();
@@ -951,32 +742,19 @@ fn evaluate_expr(
         }
         ParameterExpr::Linspace { start, stop, count } => {
             if *count == 0 {
-                return Err(ParameterResolverError::InvalidLinspaceCount {
-                    parameter: name,
-                    count: *count,
-                });
+                return Err(ParameterResolverError::InvalidLinspaceCount { parameter: name, count: *count });
             }
             if *count == 1 {
-                return Ok(EvaluatedExpr::Space(vec![Value::Number(round_number(
-                    *start,
-                ))]));
+                return Ok(EvaluatedExpr::Space(vec![Value::Number(round_number(*start))]));
             }
 
             let step = (*stop - *start) / (*count as f64 - 1.0);
-            Ok(EvaluatedExpr::Space(
-                (0..*count)
-                    .map(|index| Value::Number(round_number(*start + step * index as f64)))
-                    .collect(),
-            ))
+            Ok(EvaluatedExpr::Space((0..*count).map(|index| Value::Number(round_number(*start + step * index as f64))).collect()))
         }
-        ParameterExpr::Reference { parameter } => {
-            evaluated.get(parameter).cloned().ok_or_else(|| {
-                ParameterResolverError::UnknownReference {
-                    parameter: name,
-                    reference: parameter.clone(),
-                }
-            })
-        }
+        ParameterExpr::Reference { parameter } => evaluated
+            .get(parameter)
+            .cloned()
+            .ok_or_else(|| ParameterResolverError::UnknownReference { parameter: name, reference: parameter.clone() }),
         ParameterExpr::DynamicDefault { key, fallback } => {
             if let Some(value) = dynamic_defaults(key.clone()) {
                 return Ok(EvaluatedExpr::Scalar(value));
@@ -998,33 +776,22 @@ fn evaluate_expr(
     }
 }
 
-fn map_unary(
-    parameter: String,
-    op: &ParameterUnaryOp,
-    value: EvaluatedExpr,
-) -> Result<EvaluatedExpr, ParameterResolverError> {
+fn map_unary(parameter: String, op: &ParameterUnaryOp, value: EvaluatedExpr) -> Result<EvaluatedExpr, ParameterResolverError> {
     match value {
-        EvaluatedExpr::Scalar(value) => {
-            Ok(EvaluatedExpr::Scalar(apply_unary(&parameter, op, value)?))
+        EvaluatedExpr::Scalar(value) => Ok(EvaluatedExpr::Scalar(apply_unary(&parameter, op, value)?)),
+        EvaluatedExpr::Space(values) => {
+            values.into_iter().map(|value| apply_unary(&parameter, op, value)).collect::<Result<Vec<_>, _>>().map(EvaluatedExpr::Space)
         }
-        EvaluatedExpr::Space(values) => values
-            .into_iter()
-            .map(|value| apply_unary(&parameter, op, value))
-            .collect::<Result<Vec<_>, _>>()
-            .map(EvaluatedExpr::Space),
     }
 }
 
 fn map_binary(
-    parameter: String,
-    op: &ParameterBinaryOp,
-    left: EvaluatedExpr,
-    right: EvaluatedExpr,
+    parameter: String, op: &ParameterBinaryOp, left: EvaluatedExpr, right: EvaluatedExpr,
 ) -> Result<EvaluatedExpr, ParameterResolverError> {
     match (left, right) {
-        (EvaluatedExpr::Scalar(left), EvaluatedExpr::Scalar(right)) => Ok(EvaluatedExpr::Scalar(
-            apply_binary(&parameter, op, left, right)?,
-        )),
+        (EvaluatedExpr::Scalar(left), EvaluatedExpr::Scalar(right)) => {
+            Ok(EvaluatedExpr::Scalar(apply_binary(&parameter, op, left, right)?))
+        }
         (EvaluatedExpr::Scalar(left), EvaluatedExpr::Space(rights)) => rights
             .into_iter()
             .map(|right| apply_binary(&parameter, op, left.clone(), right))
@@ -1045,11 +812,7 @@ fn map_binary(
                     .map(EvaluatedExpr::Space);
             }
             if lefts.len() == 1 {
-                let left = lefts.into_iter().next().ok_or_else(|| {
-                    ParameterResolverError::MissingValue {
-                        parameter: parameter.clone(),
-                    }
-                })?;
+                let left = lefts.into_iter().next().ok_or_else(|| ParameterResolverError::MissingValue { parameter: parameter.clone() })?;
                 return rights
                     .into_iter()
                     .map(|right| apply_binary(&parameter, op, left.clone(), right))
@@ -1057,11 +820,8 @@ fn map_binary(
                     .map(EvaluatedExpr::Space);
             }
             if rights.len() == 1 {
-                let right = rights.into_iter().next().ok_or_else(|| {
-                    ParameterResolverError::MissingValue {
-                        parameter: parameter.clone(),
-                    }
-                })?;
+                let right =
+                    rights.into_iter().next().ok_or_else(|| ParameterResolverError::MissingValue { parameter: parameter.clone() })?;
                 return lefts
                     .into_iter()
                     .map(|left| apply_binary(&parameter, op, left, right.clone()))
@@ -1069,20 +829,12 @@ fn map_binary(
                     .map(EvaluatedExpr::Space);
             }
 
-            Err(ParameterResolverError::IncompatibleOperandSizes {
-                parameter,
-                left: lefts.len(),
-                right: rights.len(),
-            })
+            Err(ParameterResolverError::IncompatibleOperandSizes { parameter, left: lefts.len(), right: rights.len() })
         }
     }
 }
 
-fn apply_unary(
-    parameter: &str,
-    op: &ParameterUnaryOp,
-    value: Value,
-) -> Result<Value, ParameterResolverError> {
+fn apply_unary(parameter: &str, op: &ParameterUnaryOp, value: Value) -> Result<Value, ParameterResolverError> {
     let numeric = numeric_value(parameter, value)?;
 
     match op {
@@ -1090,12 +842,7 @@ fn apply_unary(
     }
 }
 
-fn apply_binary(
-    parameter: &str,
-    op: &ParameterBinaryOp,
-    left: Value,
-    right: Value,
-) -> Result<Value, ParameterResolverError> {
+fn apply_binary(parameter: &str, op: &ParameterBinaryOp, left: Value, right: Value) -> Result<Value, ParameterResolverError> {
     let left = numeric_value(parameter, left)?;
     let right = numeric_value(parameter, right)?;
 
@@ -1105,9 +852,7 @@ fn apply_binary(
         ParameterBinaryOp::Multiply => left * right,
         ParameterBinaryOp::Divide => {
             if right == 0.0 {
-                return Err(ParameterResolverError::DivisionByZero {
-                    parameter: parameter.to_owned(),
-                });
+                return Err(ParameterResolverError::DivisionByZero { parameter: parameter.to_owned() });
             }
             left / right
         }
@@ -1120,18 +865,11 @@ fn numeric_value(parameter: &str, value: Value) -> Result<f64, ParameterResolver
     match value {
         Value::Number(value) => Ok(value),
         Value::Integer(value) => Ok(value as f64),
-        value => Err(ParameterResolverError::InvalidType {
-            parameter: parameter.to_owned(),
-            value,
-            value_type: ValueType::Number,
-        }),
+        value => Err(ParameterResolverError::InvalidType { parameter: parameter.to_owned(), value, value_type: ValueType::Number }),
     }
 }
 
-fn normalize_space(
-    definition: &ParameterDefinition,
-    result: EvaluatedExpr,
-) -> Result<Vec<Value>, ParameterResolverError> {
+fn normalize_space(definition: &ParameterDefinition, result: EvaluatedExpr) -> Result<Vec<Value>, ParameterResolverError> {
     let name = parameter_name(definition);
 
     let values = match result {
@@ -1151,41 +889,24 @@ fn normalize_space(
         .collect()
 }
 
-fn validate_list_bounds(
-    parameter: &str,
-    list: &ParameterList,
-    count: usize,
-) -> Result<(), ParameterResolverError> {
+fn validate_list_bounds(parameter: &str, list: &ParameterList, count: usize) -> Result<(), ParameterResolverError> {
     if let Some(min_items) = list.min_items
         && count < min_items
     {
-        return Err(ParameterResolverError::TooFewItems {
-            parameter: parameter.to_owned(),
-            count,
-            min_items,
-        });
+        return Err(ParameterResolverError::TooFewItems { parameter: parameter.to_owned(), count, min_items });
     }
     if let Some(max_items) = list.max_items
         && count > max_items
     {
-        return Err(ParameterResolverError::TooManyItems {
-            parameter: parameter.to_owned(),
-            count,
-            max_items,
-        });
+        return Err(ParameterResolverError::TooManyItems { parameter: parameter.to_owned(), count, max_items });
     }
 
     Ok(())
 }
 
-fn validate_space(
-    definition: &ParameterDefinition,
-    values: &[Value],
-) -> Result<(), ParameterResolverError> {
+fn validate_space(definition: &ParameterDefinition, values: &[Value]) -> Result<(), ParameterResolverError> {
     if values.is_empty() && definition.required {
-        return Err(ParameterResolverError::MissingValue {
-            parameter: parameter_name(definition).to_owned(),
-        });
+        return Err(ParameterResolverError::MissingValue { parameter: parameter_name(definition).to_owned() });
     }
 
     for value in values {
@@ -1195,18 +916,12 @@ fn validate_space(
     Ok(())
 }
 
-fn validate_numeric_bounds(
-    definition: &ParameterDefinition,
-    value: &Value,
-) -> Result<(), ParameterResolverError> {
+fn validate_numeric_bounds(definition: &ParameterDefinition, value: &Value) -> Result<(), ParameterResolverError> {
     if definition.min.is_none() && definition.max.is_none() {
         return Ok(());
     }
     let name = parameter_name(definition).to_owned();
-    let numeric_type = definition
-        .list
-        .as_ref()
-        .map_or(&definition.value_type, |list| &list.element_type);
+    let numeric_type = definition.list.as_ref().map_or(&definition.value_type, |list| &list.element_type);
     if !matches!(numeric_type, ValueType::Integer | ValueType::Number)
         || definition.min.is_some_and(|bound| !bound.is_finite())
         || definition.max.is_some_and(|bound| !bound.is_finite())
@@ -1224,16 +939,8 @@ fn validate_numeric_bounds(
             Value::Number(value) => *value,
             _ => continue,
         };
-        if !number.is_finite()
-            || definition.min.is_some_and(|min| number < min)
-            || definition.max.is_some_and(|max| number > max)
-        {
-            return Err(ParameterResolverError::OutOfBounds {
-                parameter: name,
-                value: number,
-                min: definition.min,
-                max: definition.max,
-            });
+        if !number.is_finite() || definition.min.is_some_and(|min| number < min) || definition.max.is_some_and(|max| number > max) {
+            return Err(ParameterResolverError::OutOfBounds { parameter: name, value: number, min: definition.min, max: definition.max });
         }
     }
     Ok(())

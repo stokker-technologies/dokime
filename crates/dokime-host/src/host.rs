@@ -18,8 +18,8 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{
-    FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE, HostOptions, HostStreamSample,
-    HostTelemetryConfig, HostTelemetrySourceKind, HostTelemetryStream,
+    FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE, HostOptions, HostStreamSample, HostTelemetryConfig, HostTelemetrySourceKind,
+    HostTelemetryStream,
     collectors::{
         bluetooth::BluetoothCollector,
         network::NetworkCollector,
@@ -81,25 +81,11 @@ impl Host {
             source: config.source,
             fixture: Arc::new(Mutex::new(FixtureHostTelemetrySource::new())),
             system: Arc::new(Mutex::new(SystemCollector::new())),
-            network: Arc::new(Mutex::new(NetworkCollector::new(
-                config.network_link_interval,
-            ))),
-            wifi_link: Arc::new(Mutex::new(WifiCollector::new(
-                options.clone(),
-                wifi_congestion_cache.clone(),
-            ))),
-            wifi_latency: Arc::new(Mutex::new(WifiCollector::new(
-                options.clone(),
-                wifi_congestion_cache.clone(),
-            ))),
-            wifi_occupancy: Arc::new(Mutex::new(WifiCollector::new(
-                options.clone(),
-                wifi_congestion_cache,
-            ))),
-            bluetooth: Arc::new(Mutex::new(BluetoothCollector::new(
-                options.clone(),
-                config.bluetooth_deep_scan_interval,
-            ))),
+            network: Arc::new(Mutex::new(NetworkCollector::new(config.network_link_interval))),
+            wifi_link: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache.clone()))),
+            wifi_latency: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache.clone()))),
+            wifi_occupancy: Arc::new(Mutex::new(WifiCollector::new(options.clone(), wifi_congestion_cache))),
+            bluetooth: Arc::new(Mutex::new(BluetoothCollector::new(options.clone(), config.bluetooth_deep_scan_interval))),
             options,
         }
     }
@@ -108,19 +94,12 @@ impl Host {
         Self::new(HostTelemetryConfig::default().with_source(HostTelemetrySourceKind::Fixture))
     }
 
-    pub fn collect_stream(
-        &self,
-        stream: HostTelemetryStream,
-    ) -> crate::Result<Option<TelemetryBatch>> {
+    pub fn collect_stream(&self, stream: HostTelemetryStream) -> crate::Result<Option<TelemetryBatch>> {
         self.collect_stream_with_options(stream, &self.options)
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    pub fn collect_stream_with_options(
-        &self,
-        stream: HostTelemetryStream,
-        options: &HostOptions,
-    ) -> crate::Result<Option<TelemetryBatch>> {
+    pub fn collect_stream_with_options(&self, stream: HostTelemetryStream, options: &HostOptions) -> crate::Result<Option<TelemetryBatch>> {
         let samples = self.collect_stream_samples_with_options(stream, options)?;
         if samples.is_empty() {
             return Ok(None);
@@ -132,116 +111,59 @@ impl Host {
             .into_iter()
             .map(|sample| {
                 let timestamp = sample.timestamp.clone();
-                let mut telemetry_sample = dokime_domain::model::telemetry::TelemetrySample::new(
-                    crate::new_id(),
-                    stream_id.clone(),
-                    0,
-                    sample.timestamp,
-                    source,
-                );
+                let mut telemetry_sample =
+                    dokime_domain::model::telemetry::TelemetrySample::new(crate::new_id(), stream_id.clone(), 0, sample.timestamp, source);
                 telemetry_sample.values = sample.values;
                 // A row that already carries its own "timestamp" keeps it;
                 // one that does not is stamped with the instant the host
                 // measured it, agreeing with `telemetry_sample.timestamp`.
-                telemetry_sample
-                    .values
-                    .entry("timestamp".to_owned())
-                    .or_insert_with(|| Value::from(timestamp));
+                telemetry_sample.values.entry("timestamp".to_owned()).or_insert_with(|| Value::from(timestamp));
                 telemetry_sample
             })
             .collect();
 
-        Ok(Some(TelemetryBatch::new(
-            crate::new_id(),
-            stream_id,
-            telemetry_samples,
-        )))
+        Ok(Some(TelemetryBatch::new(crate::new_id(), stream_id, telemetry_samples)))
     }
 
-    fn collect_stream_samples(
-        &self,
-        stream: HostTelemetryStream,
-    ) -> crate::Result<Vec<HostStreamSample>> {
+    fn collect_stream_samples(&self, stream: HostTelemetryStream) -> crate::Result<Vec<HostStreamSample>> {
         self.collect_stream_samples_with_options(stream, &self.options)
     }
 
     fn collect_stream_samples_with_options(
-        &self,
-        stream: HostTelemetryStream,
-        options: &HostOptions,
+        &self, stream: HostTelemetryStream, options: &HostOptions,
     ) -> crate::Result<Vec<HostStreamSample>> {
         if self.source == HostTelemetrySourceKind::Fixture {
-            return Ok(self
-                .fixture
-                .lock()
-                .expect("fixture host telemetry mutex is not poisoned")
-                .collect(stream));
+            return Ok(self.fixture.lock().expect("fixture host telemetry mutex is not poisoned").collect(stream));
         }
 
         match stream {
-            HostTelemetryStream::System => Ok(vec![
-                self.system
-                    .lock()
-                    .expect("system collector mutex is not poisoned")
-                    .collect()?,
-            ]),
-            HostTelemetryStream::Network => Ok(vec![
-                self.network
-                    .lock()
-                    .expect("network collector mutex is not poisoned")
-                    .collect()?,
-            ]),
-            HostTelemetryStream::Wifi => Ok(vec![
-                self.wifi_link
-                    .lock()
-                    .expect("wifi link collector mutex is not poisoned")
-                    .collect_link_with_options(options)?,
-            ]),
+            HostTelemetryStream::System => Ok(vec![self.system.lock().expect("system collector mutex is not poisoned").collect()?]),
+            HostTelemetryStream::Network => Ok(vec![self.network.lock().expect("network collector mutex is not poisoned").collect()?]),
+            HostTelemetryStream::Wifi => {
+                Ok(vec![self.wifi_link.lock().expect("wifi link collector mutex is not poisoned").collect_link_with_options(options)?])
+            }
             HostTelemetryStream::WifiLatency => Ok(vec![
-                self.wifi_latency
-                    .lock()
-                    .expect("wifi latency collector mutex is not poisoned")
-                    .collect_latency_with_options(options)?,
+                self.wifi_latency.lock().expect("wifi latency collector mutex is not poisoned").collect_latency_with_options(options)?,
             ]),
             HostTelemetryStream::WifiChannelOccupancy => self
                 .wifi_occupancy
                 .lock()
                 .expect("wifi occupancy collector mutex is not poisoned")
                 .collect_channel_occupancy_with_options(options),
-            HostTelemetryStream::Bluetooth => Ok(vec![
-                self.bluetooth
-                    .lock()
-                    .expect("bluetooth collector mutex is not poisoned")
-                    .collect()?,
-            ]),
+            HostTelemetryStream::Bluetooth => {
+                Ok(vec![self.bluetooth.lock().expect("bluetooth collector mutex is not poisoned").collect()?])
+            }
         }
     }
 
     pub fn snapshot(&self) -> HostSnapshot {
         HostSnapshot {
-            system: self
-                .collect_stream_samples(HostTelemetryStream::System)
-                .ok()
-                .and_then(|mut samples| samples.pop()),
-            network: self
-                .collect_stream_samples(HostTelemetryStream::Network)
-                .ok()
-                .and_then(|mut samples| samples.pop()),
-            wifi: self
-                .collect_stream_samples(HostTelemetryStream::Wifi)
-                .ok()
-                .and_then(|mut samples| samples.pop()),
-            wifi_latency: self
-                .collect_stream_samples(HostTelemetryStream::WifiLatency)
-                .ok()
-                .and_then(|mut samples| samples.pop()),
-            wifi_channel_occupancy: self
-                .collect_stream_samples(HostTelemetryStream::WifiChannelOccupancy)
-                .unwrap_or_default(),
-            bluetooth: self
-                .collect_stream_samples(HostTelemetryStream::Bluetooth)
-                .ok()
-                .and_then(|mut samples| samples.pop()),
+            system: self.collect_stream_samples(HostTelemetryStream::System).ok().and_then(|mut samples| samples.pop()),
+            network: self.collect_stream_samples(HostTelemetryStream::Network).ok().and_then(|mut samples| samples.pop()),
+            wifi: self.collect_stream_samples(HostTelemetryStream::Wifi).ok().and_then(|mut samples| samples.pop()),
+            wifi_latency: self.collect_stream_samples(HostTelemetryStream::WifiLatency).ok().and_then(|mut samples| samples.pop()),
+            wifi_channel_occupancy: self.collect_stream_samples(HostTelemetryStream::WifiChannelOccupancy).unwrap_or_default(),
+            bluetooth: self.collect_stream_samples(HostTelemetryStream::Bluetooth).ok().and_then(|mut samples| samples.pop()),
         }
     }
 

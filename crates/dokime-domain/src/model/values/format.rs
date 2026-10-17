@@ -89,14 +89,10 @@ impl harmos::MemorySize for ValueFormat {
 impl ValueFormat {
     pub(crate) fn kind(&self) -> ValueFormatKind {
         match self {
-            Self::Normal { .. }
-            | Self::Fixed { .. }
-            | Self::Scientific { .. }
-            | Self::Engineering { .. }
-            | Self::SiPrefix { .. } => ValueFormatKind::Number,
-            Self::AbsoluteTime { .. }
-            | Self::ElapsedSinceRun { .. }
-            | Self::ElapsedSinceCycle { .. } => ValueFormatKind::Time,
+            Self::Normal { .. } | Self::Fixed { .. } | Self::Scientific { .. } | Self::Engineering { .. } | Self::SiPrefix { .. } => {
+                ValueFormatKind::Number
+            }
+            Self::AbsoluteTime { .. } | Self::ElapsedSinceRun { .. } | Self::ElapsedSinceCycle { .. } => ValueFormatKind::Time,
         }
     }
 }
@@ -104,9 +100,7 @@ impl ValueFormat {
 /* === Public Functions === */
 pub fn validate_value_format(format: &ValueFormat) -> Result<(), String> {
     match format {
-        ValueFormat::Normal {
-            max_fraction_digits,
-        } => {
+        ValueFormat::Normal { max_fraction_digits } => {
             if max_fraction_digits.is_some_and(|digits| digits > 12) {
                 return Err("max_fraction_digits must be 12 or fewer".to_owned());
             }
@@ -147,10 +141,7 @@ fn validate_time_pattern(pattern: &str) -> Result<(), String> {
         };
         let token = format!("%{next}");
         if !TIME_PATTERN_TOKENS.contains(&token.as_str()) {
-            return Err(format!(
-                "unknown time pattern token `{token}`: pattern takes one of {}",
-                TIME_PATTERN_TOKENS.join(", ")
-            ));
+            return Err(format!("unknown time pattern token `{token}`: pattern takes one of {}", TIME_PATTERN_TOKENS.join(", ")));
         }
     }
 

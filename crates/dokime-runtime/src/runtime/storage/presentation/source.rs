@@ -23,14 +23,14 @@ use harmos::MemorySize;
 
 // Local Imports
 use super::{MAX_BYTES, error, owns_annotation, owns_projection};
-use crate::runtime::Result;
 use crate::RuntimeState;
+use crate::definition::TestCase;
+use crate::runtime::Result;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::execution::RecordScope;
-use crate::definition::TestCase;
 
 /* === Constants === */
 
@@ -74,13 +74,7 @@ impl CaseSelection<'_> {
 
 impl Budget {
     fn new(remaining: usize) -> Self {
-        Self {
-            remaining,
-            allocation_remaining: remaining.saturating_mul(8),
-            depth: 0,
-            quoted: false,
-            escaped: false,
-        }
+        Self { remaining, allocation_remaining: remaining.saturating_mul(8), depth: 0, quoted: false, escaped: false }
     }
     fn source(&mut self, value: &impl serde::Serialize) -> Result<()> {
         serde_json::to_writer(self, value).map_err(error)
@@ -89,10 +83,8 @@ impl Budget {
 
 impl Write for Budget {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.remaining = self
-            .remaining
-            .checked_sub(bytes.len())
-            .ok_or_else(|| io::Error::other("presentation exceeds 4 MiB source budget"))?;
+        self.remaining =
+            self.remaining.checked_sub(bytes.len()).ok_or_else(|| io::Error::other("presentation exceeds 4 MiB source budget"))?;
         // JSON punctuation is emitted in separate writes; it is not a separate
         // allocation. Keep encoded bytes and conservative allocation work as
         // independent budgets so ordinary authored documents can use the full
@@ -133,21 +125,14 @@ impl Write for Budget {
 
 /* === Public Functions === */
 pub(super) fn preflight(
-    state: &RuntimeState,
-    cycle: &CycleView,
-    execution: &TestExecution,
-    brand: Option<&crate::installed_plugins::ResolvedBrand>,
-    selection: (&RecordScope, &DocumentId),
-    cases: &CaseSelection<'_>,
-    prepared: Option<&CycleSource>,
+    state: &RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
+    selection: (&RecordScope, &DocumentId), cases: &CaseSelection<'_>, prepared: Option<&CycleSource>,
 ) -> Result<()> {
     let (scope, default_id) = selection;
     let mut budget = match prepared {
         Some(prepared) if std::ptr::eq(cycle, prepared.cycle.as_ref()) => prepared.budget.clone(),
         Some(_) => {
-            return Err(error(
-                "prepared presentation source belongs to another cycle snapshot",
-            ));
+            return Err(error("prepared presentation source belongs to another cycle snapshot"));
         }
         None => cycle_budget(cycle)?,
     };
@@ -177,18 +162,10 @@ pub(super) fn preflight(
     // This also bounds empty owners and excluded entries without inspecting their
     // payloads. Historical capture need not have a still-current selected owner.
     for set in state.annotation_sets(None, true).map_err(error)? {
-        for note in set
-            .notes()
-            .iter()
-            .filter(move |item| owns_annotation(&item.scope, scope))
-        {
+        for note in set.notes().iter().filter(move |item| owns_annotation(&item.scope, scope)) {
             budget.source(note)?;
         }
-        for health in set
-            .health()
-            .iter()
-            .filter(move |item| owns_annotation(&item.scope, scope))
-        {
+        for health in set.health().iter().filter(move |item| owns_annotation(&item.scope, scope)) {
             budget.source(health)?;
         }
     }
@@ -198,11 +175,7 @@ pub(super) fn preflight(
     for prompt in prompt_rows(state, scope) {
         budget.source(prompt)?;
     }
-    if cases
-        .retained_bytes
-        .checked_add(cases.selection_bytes)
-        .is_none_or(|bytes| bytes > MAX_BYTES)
-    {
+    if cases.retained_bytes.checked_add(cases.selection_bytes).is_none_or(|bytes| bytes > MAX_BYTES) {
         return Err(error("presentation cases exceed construction budget"));
     }
     if documents_memory(state, execution, default_id)? > MAX_BYTES {
@@ -210,86 +183,51 @@ pub(super) fn preflight(
     }
     let (_, order) = rows_memory(execution_rows(cycle, execution))?;
     if order > MAX_BYTES {
-        return Err(error(
-            "presentation execution order exceeds construction budget",
-        ));
+        return Err(error("presentation execution order exceeds construction budget"));
     }
-    let (stated, seed) =
-        crate::traceability::stated_execution_memory(execution, &cycle.updated_at)?;
-    if stated
-        .checked_add(seed)
-        .is_none_or(|bytes| bytes > MAX_BYTES)
-    {
+    let (stated, seed) = crate::traceability::stated_execution_memory(execution, &cycle.updated_at)?;
+    if stated.checked_add(seed).is_none_or(|bytes| bytes > MAX_BYTES) {
         return Err(error("authored traceability exceeds construction budget"));
     }
     if annotations_memory(state, scope)? > MAX_BYTES {
         return Err(error("presentation annotations exceed construction budget"));
     }
-    crate::installed_plugins::appearance::preflight_appearance(state, brand, budget.remaining)
-        .map_err(error)?;
+    crate::installed_plugins::appearance::preflight_appearance(state, brand, budget.remaining).map_err(error)?;
     Ok(())
 }
 
-pub(super) fn documents_memory(
-    state: &RuntimeState,
-    execution: &TestExecution,
-    default_id: &DocumentId,
-) -> Result<usize> {
-    let ids = execution
-        .documents
-        .keys()
-        .filter(|id| *id != default_id)
-        .chain(std::iter::once(default_id));
+pub(super) fn documents_memory(state: &RuntimeState, execution: &TestExecution, default_id: &DocumentId) -> Result<usize> {
+    let ids = execution.documents.keys().filter(|id| *id != default_id).chain(std::iter::once(default_id));
     let mut count = 0usize;
     let mut bytes = default_id.memory_size();
     if bytes == usize::MAX {
         return Err(error("default document selector memory overflows"));
     }
     for id in ids {
-        let Some(construction) =
-            crate::documents::construction_memory(&state.suites, execution, id)
-        else {
+        let Some(construction) = crate::documents::construction_memory(&state.suites, execution, id) else {
             continue;
         };
         let key = id.memory_size();
         if construction == usize::MAX || key == usize::MAX {
             return Err(error("document construction memory overflows"));
         }
-        count = count
-            .checked_add(1)
-            .ok_or_else(|| error("document count overflows"))?;
+        count = count.checked_add(1).ok_or_else(|| error("document count overflows"))?;
         bytes = bytes
-            .checked_add(
-                construction
-                    .saturating_sub(std::mem::size_of::<crate::document::DocumentDefinition>()),
-            )
-            .and_then(|bytes| {
-                bytes.checked_add(
-                    id.memory_size()
-                        .saturating_sub(std::mem::size_of::<DocumentId>()),
-                )
-            })
+            .checked_add(construction.saturating_sub(std::mem::size_of::<crate::document::DocumentDefinition>()))
+            .and_then(|bytes| bytes.checked_add(id.memory_size().saturating_sub(std::mem::size_of::<DocumentId>())))
             .ok_or_else(|| error("document construction memory overflows"))?;
     }
     bytes
-        .checked_add(harmos::btree_map_memory::<
-            DocumentId,
-            crate::document::DocumentDefinition,
-        >(count))
+        .checked_add(harmos::btree_map_memory::<DocumentId, crate::document::DocumentDefinition>(count))
         .ok_or_else(|| error("document map construction memory overflows"))
 }
 
-pub(super) fn select_cases<'a>(
-    cycle: &'a CycleView,
-    terminal: Option<&'a TestExecution>,
-) -> Result<CaseSelection<'a>> {
+pub(super) fn select_cases<'a>(cycle: &'a CycleView, terminal: Option<&'a TestExecution>) -> Result<CaseSelection<'a>> {
     let members = cycle.test_executions.len();
     if members > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
         return Err(error("presentation case selection exceeds scan budget"));
     }
-    let slots = members
-        .checked_add(usize::from(terminal.is_some()))
-        .ok_or_else(|| error("presentation case slots overflow"))?;
+    let slots = members.checked_add(usize::from(terminal.is_some())).ok_or_else(|| error("presentation case slots overflow"))?;
     let references = slots
         .checked_mul(std::mem::size_of::<&TestCase>())
         .and_then(|bytes| bytes.checked_add(std::mem::size_of::<CaseSelection<'_>>()))
@@ -298,17 +236,13 @@ pub(super) fn select_cases<'a>(
         .checked_add(references)
         .ok_or_else(|| error("presentation case selection memory overflows"))?;
     if selection_bytes > MAX_BYTES {
-        return Err(error(
-            "presentation case selection exceeds construction budget",
-        ));
+        return Err(error("presentation case selection exceeds construction budget"));
     }
 
     let mut rows = Vec::new();
     rows.try_reserve_exact(slots).map_err(error)?;
     if rows.capacity() > slots {
-        return Err(error(
-            "presentation case reference slots exceed original bound",
-        ));
+        return Err(error("presentation case reference slots exceed original bound"));
     }
     let mut seen = BTreeMap::new();
     let mut retained_bytes = std::mem::size_of::<Vec<TestCase>>();
@@ -319,9 +253,7 @@ pub(super) fn select_cases<'a>(
             if bytes == usize::MAX {
                 return Err(error("presentation case memory is unbounded"));
             }
-            retained_bytes = retained_bytes
-                .checked_add(bytes)
-                .ok_or_else(|| error("presentation case memory overflows"))?;
+            retained_bytes = retained_bytes.checked_add(bytes).ok_or_else(|| error("presentation case memory overflows"))?;
             entry.insert(case);
             rows.push(case);
         }
@@ -330,84 +262,51 @@ pub(super) fn select_cases<'a>(
         let case = terminal.snapshot.case();
         if let Some(member) = seen.get(&terminal.test_case_id) {
             if *member != case {
-                return Err(error(
-                    "cycle case context conflicts with execution snapshot",
-                ));
+                return Err(error("cycle case context conflicts with execution snapshot"));
             }
         } else {
             let bytes = case.memory_size();
             if bytes == usize::MAX {
                 return Err(error("presentation terminal case memory is unbounded"));
             }
-            retained_bytes = retained_bytes
-                .checked_add(bytes)
-                .ok_or_else(|| error("presentation case memory overflows"))?;
+            retained_bytes = retained_bytes.checked_add(bytes).ok_or_else(|| error("presentation case memory overflows"))?;
             rows.push(case);
         }
     }
-    if retained_bytes
-        .checked_add(selection_bytes)
-        .is_none_or(|bytes| bytes > MAX_BYTES)
-    {
+    if retained_bytes.checked_add(selection_bytes).is_none_or(|bytes| bytes > MAX_BYTES) {
         return Err(error("presentation cases exceed construction budget"));
     }
-    Ok(CaseSelection {
-        rows,
-        retained_bytes,
-        selection_bytes,
-    })
+    Ok(CaseSelection { rows, retained_bytes, selection_bytes })
 }
 
 pub(super) fn execution_rows<'a>(
-    cycle: &'a CycleView,
-    execution: &'a TestExecution,
+    cycle: &'a CycleView, execution: &'a TestExecution,
 ) -> impl Iterator<Item = &'a dokime_domain::model::identity::TestExecutionId> {
-    let present = cycle
-        .test_executions
-        .iter()
-        .any(|member| member.test_execution_id == execution.test_execution_id);
-    cycle
-        .test_executions
-        .iter()
-        .map(|member| &member.test_execution_id)
-        .chain((!present).then_some(&execution.test_execution_id))
+    let present = cycle.test_executions.iter().any(|member| member.test_execution_id == execution.test_execution_id);
+    cycle.test_executions.iter().map(|member| &member.test_execution_id).chain((!present).then_some(&execution.test_execution_id))
 }
 
 pub(super) fn annotations_memory(state: &RuntimeState, scope: &RecordScope) -> Result<usize> {
     let (_, prompts) = rows_memory(prompt_rows(state, scope))?;
     let (_, notes) = rows_memory(note_rows(state, scope))?;
     let (_, health) = rows_memory(health_rows(state, scope))?;
-    prompts
-        .checked_add(notes)
-        .and_then(|bytes| bytes.checked_add(health))
-        .ok_or_else(|| error("annotation construction memory overflows"))
+    prompts.checked_add(notes).and_then(|bytes| bytes.checked_add(health)).ok_or_else(|| error("annotation construction memory overflows"))
 }
 
-pub(super) fn prompt_rows<'a>(
-    state: &'a RuntimeState,
-    scope: &'a RecordScope,
-) -> impl Iterator<Item = &'a crate::prompts::PromptInstance> {
-    state
-        .open_prompts()
-        .filter(move |item| owns_projection(&item.scope, scope))
+pub(super) fn prompt_rows<'a>(state: &'a RuntimeState, scope: &'a RecordScope) -> impl Iterator<Item = &'a crate::prompts::PromptInstance> {
+    state.open_prompts().filter(move |item| owns_projection(&item.scope, scope))
 }
 
 pub(super) fn note_rows<'a>(
-    state: &'a RuntimeState,
-    scope: &'a RecordScope,
+    state: &'a RuntimeState, scope: &'a RecordScope,
 ) -> impl Iterator<Item = &'a dokime_domain::model::execution::notes::OperatorNote> {
-    state
-        .iter_notes()
-        .filter(move |item| owns_annotation(&item.scope, scope))
+    state.iter_notes().filter(move |item| owns_annotation(&item.scope, scope))
 }
 
 pub(super) fn health_rows<'a>(
-    state: &'a RuntimeState,
-    scope: &'a RecordScope,
+    state: &'a RuntimeState, scope: &'a RecordScope,
 ) -> impl Iterator<Item = &'a dokime_domain::model::execution::health::HealthItem> {
-    state
-        .iter_health_items()
-        .filter(move |item| owns_annotation(&item.scope, scope))
+    state.iter_health_items().filter(move |item| owns_annotation(&item.scope, scope))
 }
 
 pub(super) fn clone_rows<'a, T, I>(rows: impl Fn() -> I) -> Result<Vec<T>>
@@ -470,10 +369,7 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
     } = cycle;
     let fields = [
         (saved.memory_size(), std::mem::size_of_val(saved)),
-        (
-            test_cycle_id.memory_size(),
-            std::mem::size_of_val(test_cycle_id),
-        ),
+        (test_cycle_id.memory_size(), std::mem::size_of_val(test_cycle_id)),
         (session_id.memory_size(), std::mem::size_of_val(session_id)),
         (metadata.memory_size(), std::mem::size_of_val(metadata)),
         (created_at.memory_size(), std::mem::size_of_val(created_at)),
@@ -481,34 +377,18 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
         (updated_at.memory_size(), std::mem::size_of_val(updated_at)),
         (records.memory_size(), std::mem::size_of_val(records)),
     ];
-    fields.into_iter().fold(
-        std::mem::size_of::<CycleView>(),
-        |bytes, (owned, inline)| {
-            if owned == usize::MAX {
-                usize::MAX
-            } else {
-                bytes.saturating_add(owned.saturating_sub(inline))
-            }
-        },
-    )
+    fields.into_iter().fold(std::mem::size_of::<CycleView>(), |bytes, (owned, inline)| {
+        if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+    })
 }
 
 /* === Private Functions === */
-fn rows_memory<'a, T: MemorySize + 'a>(
-    mut rows: impl Iterator<Item = &'a T>,
-) -> Result<(usize, usize)> {
-    rows.try_fold(
-        (0usize, std::mem::size_of::<Vec<T>>()),
-        |(count, bytes), row| {
-            let count = count
-                .checked_add(1)
-                .ok_or_else(|| error("captured row count overflows"))?;
-            let bytes = bytes
-                .checked_add(row.memory_size())
-                .ok_or_else(|| error("annotation construction memory overflows"))?;
-            Ok((count, bytes))
-        },
-    )
+fn rows_memory<'a, T: MemorySize + 'a>(mut rows: impl Iterator<Item = &'a T>) -> Result<(usize, usize)> {
+    rows.try_fold((0usize, std::mem::size_of::<Vec<T>>()), |(count, bytes), row| {
+        let count = count.checked_add(1).ok_or_else(|| error("captured row count overflows"))?;
+        let bytes = bytes.checked_add(row.memory_size()).ok_or_else(|| error("annotation construction memory overflows"))?;
+        Ok((count, bytes))
+    })
 }
 
 fn cycle_budget(cycle: &CycleView) -> Result<Budget> {

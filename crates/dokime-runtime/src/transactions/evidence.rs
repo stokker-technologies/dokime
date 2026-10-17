@@ -18,17 +18,17 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::runtime::Error;
-use dokime_domain::model::execution::health::HealthItem;
-use dokime_domain::model::execution::health::HealthSeverity;
-use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::records::ValidationMode;
 use crate::records::validate_record;
+use crate::runtime::Error;
 use crate::state::RuntimeState;
-use dokime_domain::model::identity::HealthItemId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -48,11 +48,7 @@ pub struct RecordHealth {
     pub observed_at: Timestamp,
 }
 
-#[harmos::transaction(
-    id = "dokime.evidence.record_subscriptions.close",
-    version = 1,
-    irreversible
-)]
+#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
@@ -130,12 +126,7 @@ impl Transaction<RuntimeState> for CloseRecordSubscriptions {
 
 impl PublishRecord {
     pub fn host(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self {
-            request,
-            received_at: occurred_at.clone(),
-            occurred_at,
-            source: PublicationSource::Host,
-        }
+        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Host }
     }
 
     /// Bypasses admission so a story can prove that finalization settles,
@@ -143,21 +134,11 @@ impl PublishRecord {
     /// the product, whose publishers name declared types only.
     #[doc(hidden)]
     pub fn undeclared(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
-        Self {
-            request,
-            received_at: occurred_at.clone(),
-            occurred_at,
-            source: PublicationSource::Undeclared,
-        }
+        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Undeclared }
     }
 
     pub fn sidecar(request: RecordPublishRequest, owner: String, occurred_at: Timestamp) -> Self {
-        Self {
-            request,
-            received_at: occurred_at.clone(),
-            occurred_at,
-            source: PublicationSource::Sidecar { owner },
-        }
+        Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Sidecar { owner } }
     }
 }
 
@@ -168,30 +149,21 @@ impl Transaction<RuntimeState> for PublishRecord {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        prepare_record(state, self)
-            .map(|_| ())
-            .map_err(|error| error.to_string())
+        prepare_record(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
-        prepare_record(state, self)
-            .expect("checked record plan")
-            .collect(out);
+        prepare_record(state, self).expect("checked record plan").collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
-        prepare_record(state, self)
-            .expect("checked record plan")
-            .apply(state);
+        prepare_record(state, self).expect("checked record plan").apply(state);
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn prepare_record(
-    state: &RuntimeState,
-    publish: &PublishRecord,
-) -> Result<crate::transactions::records::draft::Drafts, Error> {
+fn prepare_record(state: &RuntimeState, publish: &PublishRecord) -> Result<crate::transactions::records::draft::Drafts, Error> {
     match &publish.source {
         PublicationSource::Host => {
             crate::transactions::records::admission::host(state, &publish.request.record_type)
@@ -199,21 +171,12 @@ fn prepare_record(
             prepare_record_with_source(state, publish, "runtime", false)
         }
         PublicationSource::Sidecar { owner } => {
-            crate::transactions::records::admission::sidecar(
-                state,
-                owner,
-                &publish.request.record_type,
-            )
-            .map_err(|error| validation_rejection(error, "record_type", None))?;
+            crate::transactions::records::admission::sidecar(state, owner, &publish.request.record_type)
+                .map_err(|error| validation_rejection(error, "record_type", None))?;
             prepare_record_with_source(state, publish, owner, true)
         }
         PublicationSource::Undeclared => {
-            let mut record = publish.request.clone().into_record(
-                state.next_record_id(),
-                1,
-                publish.occurred_at.clone(),
-                "runtime",
-            );
+            let mut record = publish.request.clone().into_record(state.next_record_id(), 1, publish.occurred_at.clone(), "runtime");
             record.received_at = publish.received_at.clone();
             let mut records = crate::transactions::records::draft::Drafts::new(state);
             records.push(record);
@@ -223,39 +186,21 @@ fn prepare_record(
 }
 
 fn prepare_record_with_source(
-    state: &RuntimeState,
-    publish: &PublishRecord,
-    source: &str,
-    native: bool,
+    state: &RuntimeState, publish: &PublishRecord, source: &str, native: bool,
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
-    let Some(contract) = state
-        .record_definitions
-        .get(&publish.request.record_type)
-        .cloned()
-    else {
+    let Some(contract) = state.record_definitions.get(&publish.request.record_type).cloned() else {
         let detail = validation_rejection(
-            format!(
-                "record type {} is not registered",
-                publish.request.record_type
-            ),
+            format!("record type {} is not registered", publish.request.record_type),
             "record_type",
             Some("active record contract".to_owned()),
         );
         return Err(detail);
     };
-    let mut record = publish.request.clone().into_record(
-        state.next_record_id(),
-        contract.schema_version,
-        publish.occurred_at.clone(),
-        source,
-    );
+    let mut record =
+        publish.request.clone().into_record(state.next_record_id(), contract.schema_version, publish.occurred_at.clone(), source);
     record.received_at = publish.received_at.clone();
     if let Some(scope) = &record.scope {
-        record.scope = Some(
-            state
-                .capture_scope(scope)
-                .map_err(|error| validation_rejection(error, "scope", None))?,
-        );
+        record.scope = Some(state.capture_scope(scope).map_err(|error| validation_rejection(error, "scope", None))?);
     }
     if let Err(error) = validate_record(Some(&contract), &record, ValidationMode::Strict) {
         return Err(validation_rejection(
@@ -273,19 +218,11 @@ fn prepare_record_with_source(
     Ok(records)
 }
 
-fn validation_rejection(
-    message: impl Into<String>,
-    path: impl Into<String>,
-    expected: Option<String>,
-) -> Error {
+fn validation_rejection(message: impl Into<String>, path: impl Into<String>, expected: Option<String>) -> Error {
     Error::validation(
         "validation_failed",
         message,
-        vec![ValidationIssue {
-            path: path.into(),
-            message: "producer payload failed validation".to_owned(),
-            expected,
-        }],
+        vec![ValidationIssue { path: path.into(), message: "producer payload failed validation".to_owned(), expected }],
     )
 }
 

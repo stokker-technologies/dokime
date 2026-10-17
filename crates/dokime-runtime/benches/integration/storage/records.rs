@@ -20,16 +20,13 @@ use std::time::Instant;
 
 // Third Party Imports
 use criterion::{BenchmarkId, SamplingMode, Throughput};
-use harmos::storage::{
-    ScanPage, StorageBatch, StoragePart, StorageSchema, StoredRecord, query::RecordSelection,
-};
+use harmos::storage::{ScanPage, StorageBatch, StoragePart, StorageSchema, StoredRecord, query::RecordSelection};
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use {
-    model::records::product::ProductCalibrationDetails,
-    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
     model::records::product::ProductCalibrationPhase,
 };
 
@@ -58,15 +55,10 @@ struct Records {
 impl Records {
     async fn new(count: u64) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let backend = Backend::<()>::primary(root.path().to_path_buf())
-            .await
-            .unwrap();
+        let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
         backend.open().await.unwrap();
         let history = backend.history().clone();
-        let position = |sequence| StorageCursor {
-            history: history.clone(),
-            sequence,
-        };
+        let position = |sequence| StorageCursor { history: history.clone(), sequence };
         let schema = dokime_runtime::storage::records::schema();
         backend
             .write(
@@ -88,12 +80,9 @@ impl Records {
             .unwrap();
         let records = (2..count + 2)
             .map(|sequence| {
-                let draft = ProductCalibrationDetails::new(
-                    "benchmark-charger",
-                    ProductCalibrationKind::Field,
-                    ProductCalibrationPhase::Completed,
-                )
-                .into_draft("benchmark.charger");
+                let draft =
+                    ProductCalibrationDetails::new("benchmark-charger", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                        .into_draft("benchmark.charger");
                 let mut record = model::records::evidence::Record::new(
                     dokime_runtime::RecordId::from_seed(format!("record-{sequence}")),
                     dokime_runtime::Timestamp::new("2026-10-04T00:00:00.000000000Z"),
@@ -117,49 +106,24 @@ impl Records {
                 }
             })
             .collect();
-        Self {
-            _root: root,
-            backend,
-            schema,
-            records,
-        }
+        Self { _root: root, backend, schema, records }
     }
 
     async fn write(&self, batch_size: usize) {
         for batch in self.records.chunks(batch_size) {
-            self.backend
-                .write(StorageBatch::new(&[StoragePart::Records(batch)], nz(BATCH_BYTES)).unwrap())
-                .await
-                .unwrap();
+            self.backend.write(StorageBatch::new(&[StoragePart::Records(batch)], nz(BATCH_BYTES)).unwrap()).await.unwrap();
         }
     }
 
     async fn replay(&self) -> usize {
         let saved = self.backend.cursor_saved().await.unwrap();
         let view = self.backend.open_snapshot(&saved).await.unwrap();
-        let selection = RecordSelection {
-            schema: self.schema.clone(),
-            scope: None,
-            item: None,
-            source_start: None,
-            source_end: None,
-        };
+        let selection = RecordSelection { schema: self.schema.clone(), scope: None, item: None, source_start: None, source_end: None };
         let mut after = 0;
         let mut received = 0;
         loop {
-            let page = self
-                .backend
-                .read_records(
-                    &view,
-                    &selection,
-                    ScanPage {
-                        after,
-                        rows: nz(256),
-                        bytes: nz(1024 * 1024),
-                    },
-                )
-                .await
-                .unwrap();
+            let page =
+                self.backend.read_records(&view, &selection, ScanPage { after, rows: nz(256), bytes: nz(1024 * 1024) }).await.unwrap();
             let Some(last) = page.last() else {
                 break;
             };
@@ -185,24 +149,21 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
     for batch_size in [32_usize, 2_000] {
         for count in COUNTS {
             group.throughput(Throughput::Elements(count));
-            group.bench_function(
-                BenchmarkId::new(format!("batch_{batch_size}"), count),
-                |bencher| {
-                    bencher.iter_custom(|iterations| {
-                        executor.block_on(async {
-                            let mut elapsed = Duration::ZERO;
-                            for _ in 0..iterations {
-                                let records = Records::new(count).await;
-                                let started = Instant::now();
-                                records.write(batch_size).await;
-                                elapsed += started.elapsed();
-                                records.close().await;
-                            }
-                            elapsed
-                        })
-                    });
-                },
-            );
+            group.bench_function(BenchmarkId::new(format!("batch_{batch_size}"), count), |bencher| {
+                bencher.iter_custom(|iterations| {
+                    executor.block_on(async {
+                        let mut elapsed = Duration::ZERO;
+                        for _ in 0..iterations {
+                            let records = Records::new(count).await;
+                            let started = Instant::now();
+                            records.write(batch_size).await;
+                            elapsed += started.elapsed();
+                            records.close().await;
+                        }
+                        elapsed
+                    })
+                });
+            });
         }
     }
     group.finish();

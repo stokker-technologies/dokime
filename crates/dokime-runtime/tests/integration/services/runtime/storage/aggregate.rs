@@ -45,21 +45,14 @@ use harmos::Aggregate;
 #[tokio::test]
 async fn unknown_column_exist() {
     let root = tempdir().unwrap();
-    let mut runtime =
-        Runtime::with_execution_fixtures_without_builtins(config(root.path()), std::iter::empty())
-            .await
-            .unwrap();
+    let mut runtime = Runtime::with_execution_fixtures_without_builtins(config(root.path()), std::iter::empty()).await.unwrap();
     let error = runtime
         .handle()
         .aggregate(AggregateQuery {
             source: AggregateSource::Executions,
             filters: Vec::new(),
             group_by: vec!["template_id".into()],
-            aggregates: vec![AggregateColumn {
-                aggregate: Aggregate::Count,
-                column: String::new(),
-                alias: "total".into(),
-            }],
+            aggregates: vec![AggregateColumn { aggregate: Aggregate::Count, column: String::new(), alias: "total".into() }],
             limit: 0,
         })
         .await

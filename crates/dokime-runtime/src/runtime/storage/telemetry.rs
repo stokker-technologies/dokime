@@ -26,11 +26,11 @@ use harmos::{
 
 // Local Imports
 use super::execution::ExecutionView;
-use crate::{runtime::Error, runtime::Result};
 use crate::storage::{
     Manager,
     telemetry::{self, TelemetryEntry},
 };
+use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
 // Rows Each Typed Head Reads Per Query Before The Merge Consumes Them.
@@ -110,11 +110,8 @@ impl TelemetryReader {
     }
 
     fn selected(view: &ExecutionView, stream: Option<&Identifier>, after: u64) -> Result<Self> {
-        let captured = view
-            .captured_source()
-            .ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
-        let scope = Identifier::new(view.execution().test_execution_id.as_str())
-            .map_err(crate::storage::Error::from)?;
+        let captured = view.captured_source().ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
+        let scope = Identifier::new(view.execution().test_execution_id.as_str()).map_err(crate::storage::Error::from)?;
         let mut readers = Vec::new();
         for (id, versions) in &captured.telemetry_contracts {
             if stream.is_some_and(|selected| selected != id) {
@@ -136,26 +133,14 @@ impl TelemetryReader {
                     transforms: vec![],
                     slice: RowSlice::default(),
                 };
-                readers.push(TypedRead {
-                    query,
-                    codec,
-                    head: None,
-                    offset: 0,
-                    finished: false,
-                });
+                readers.push(TypedRead { query, codec, head: None, offset: 0, finished: false });
             }
         }
-        Ok(Self {
-            storage: view.storage().clone(),
-            readers,
-        })
+        Ok(Self { storage: view.storage().clone(), readers })
     }
 
     pub async fn next(&mut self) -> Result<Option<Vec<TelemetryEntry>>> {
-        Ok(self
-            .next_positioned()
-            .await?
-            .map(|rows| rows.into_iter().map(|row| row.captured).collect()))
+        Ok(self.next_positioned().await?.map(|rows| rows.into_iter().map(|row| row.captured).collect()))
     }
 
     pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedTelemetry>>> {
@@ -172,12 +157,7 @@ impl TelemetryReader {
                 .readers
                 .iter()
                 .enumerate()
-                .filter_map(|(index, source)| {
-                    source
-                        .head
-                        .as_ref()
-                        .map(|rows| (index, rows[source.offset].position))
-                })
+                .filter_map(|(index, source)| source.head.as_ref().map(|rows| (index, rows[source.offset].position)))
                 .min_by_key(|(_, position)| *position);
             let Some((index, _)) = next else {
                 break;
@@ -185,10 +165,7 @@ impl TelemetryReader {
             let source = &mut self.readers[index];
             let rows = source.head.as_ref().expect("selected head exists");
             let row = &rows[source.offset];
-            selected.push(PositionedTelemetry {
-                position: row.position,
-                captured: row.captured.clone(),
-            });
+            selected.push(PositionedTelemetry { position: row.position, captured: row.captured.clone() });
             source.offset += 1;
             if source.offset == rows.len() {
                 source.head = None;
@@ -199,25 +176,16 @@ impl TelemetryReader {
 }
 
 impl TelemetryAdmission {
-    pub(crate) async fn commit(
-        self,
-        closure: Option<&crate::services::telemetry::Sampling>,
-    ) -> Result<CommittedTelemetry> {
+    pub(crate) async fn commit(self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
         let mut accepted = vec![false; self.rows.len()];
         let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
         for (index, row) in self.rows.iter().enumerate() {
-            let scope = row
-                .scope
-                .as_ref()
-                .ok_or_else(|| invalid("native telemetry has no execution owner"))?;
+            let scope = row.scope.as_ref().ok_or_else(|| invalid("native telemetry has no execution owner"))?;
             groups.entry(scope.as_str()).or_default().push(index);
         }
         let mut failure = None;
         'groups: for (scope, indices) in groups {
-            let writes = indices
-                .iter()
-                .map(|index| self.rows[*index].write())
-                .collect::<Vec<_>>();
+            let writes = indices.iter().map(|index| self.rows[*index].write()).collect::<Vec<_>>();
             let mut offset = 0;
             while offset < writes.len() {
                 if let Some(sampling) = closure
@@ -269,10 +237,7 @@ impl super::executions::ExecutionStorage {
             if let Some(owner) = self.acquisition(id).await {
                 let owner = owner.lock_owned().await;
                 if !owner.finish_requested {
-                    scopes.insert(
-                        owner.execution.test_execution_id.clone(),
-                        owner.execution.scope.clone(),
-                    );
+                    scopes.insert(owner.execution.test_execution_id.clone(), owner.execution.scope.clone());
                 }
             }
         }
@@ -280,12 +245,7 @@ impl super::executions::ExecutionStorage {
     }
 
     pub(crate) async fn prepare_telemetry(
-        &self,
-        samples: &[(
-            crate::telemetry::TelemetrySample,
-            crate::telemetry::TelemetryContract,
-            u64,
-        )],
+        &self, samples: &[(crate::telemetry::TelemetrySample, crate::telemetry::TelemetryContract, u64)],
     ) -> Result<TelemetryAdmission> {
         let ids = samples
             .iter()
@@ -293,20 +253,13 @@ impl super::executions::ExecutionStorage {
             .collect::<std::collections::BTreeSet<_>>();
         let mut owners = Vec::with_capacity(ids.len());
         for id in ids {
-            let owner = self
-                .acquisition(id)
-                .await
-                .ok_or_else(|| invalid("telemetry has no execution owner"))?;
+            let owner = self.acquisition(id).await.ok_or_else(|| invalid("telemetry has no execution owner"))?;
             let acquisition = owner.lock_owned().await;
             if acquisition.finish_requested {
                 return Err(invalid("telemetry execution admission is closed"));
             }
             for (sample, _, _) in samples {
-                if sample
-                    .scope
-                    .as_ref()
-                    .and_then(|scope| scope.test_execution_id.as_ref())
-                    == Some(id)
+                if sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == Some(id)
                     && sample.scope.as_ref().is_some_and(|scope| {
                         let owner = &acquisition.execution.scope;
                         scope.session_id != owner.session_id
@@ -325,51 +278,34 @@ impl super::executions::ExecutionStorage {
         let mut rows = Vec::with_capacity(samples.len());
         let mut codecs = std::collections::BTreeMap::new();
         for (sample, contract, ordinal) in samples {
-            if sample
-                .scope
-                .as_ref()
-                .and_then(|scope| scope.test_execution_id.as_ref())
-                .is_none()
-            {
+            if sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).is_none() {
                 continue;
             }
-            let entry = TelemetryEntry {
-                epoch: self.context_epoch.clone(),
-                ordinal: *ordinal,
-                sample: sample.clone(),
-            };
+            let entry = TelemetryEntry { epoch: self.context_epoch.clone(), ordinal: *ordinal, sample: sample.clone() };
             let key = (contract.stream.clone(), contract.schema_version);
             if !codecs.contains_key(&key) {
-                let graph = contract.storage_schema.as_ref().ok_or_else(|| {
-                    invalid("telemetry producer requires an explicit storage row schema")
-                })?;
+                let graph = contract
+                    .storage_schema
+                    .as_ref()
+                    .ok_or_else(|| invalid("telemetry producer requires an explicit storage row schema"))?;
                 let codec = telemetry::TypedCodec::new(
                     &contract.stream,
                     contract.schema_version,
                     graph,
                     &harmos::config::SchemaSettings::default(),
                 )?;
-                self.storage
-                    .write_schema(codec.schema(), codec.graph())
-                    .await?;
+                self.storage.write_schema(codec.schema(), codec.graph()).await?;
                 codecs.insert(key.clone(), codec);
             }
             rows.push(prepare(&entry, &codecs[&key])?);
         }
-        Ok(TelemetryAdmission {
-            storage: self.storage.clone(),
-            rows,
-            _owners: owners,
-        })
+        Ok(TelemetryAdmission { storage: self.storage.clone(), rows, _owners: owners })
     }
 }
 
 /* === Public Functions === */
 /// Producer Schemas Are Durable Before An Execution Can Start Acquiring.
-pub(crate) async fn register_schemas(
-    storage: &Manager,
-    contracts: &[crate::telemetry::TelemetryContract],
-) -> Result<()> {
+pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
     let mut last = None;
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
         let codec = telemetry::codec(contract)?;
@@ -381,19 +317,12 @@ pub(crate) async fn register_schemas(
     Ok(())
 }
 
-pub(crate) fn prepare(
-    entry: &TelemetryEntry,
-    codec: &telemetry::TypedCodec,
-) -> Result<PreparedTelemetry> {
+pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> Result<PreparedTelemetry> {
     let sample = &entry.sample;
     let scope = captured_scope(sample)?;
     let identifier = |value: &str| Identifier::new(value).map_err(crate::storage::Error::from);
-    let at = sample
-        .timestamp
-        .to_datetime()
-        .map_err(|_| invalid("typed telemetry timestamp is invalid"))?;
-    let seconds =
-        u64::try_from(at.unix_timestamp()).map_err(|_| invalid("typed telemetry predates 1970"))?;
+    let at = sample.timestamp.to_datetime().map_err(|_| invalid("typed telemetry timestamp is invalid"))?;
+    let seconds = u64::try_from(at.unix_timestamp()).map_err(|_| invalid("typed telemetry predates 1970"))?;
     Ok(PreparedTelemetry {
         schema: codec.schema().clone(),
         stream: identifier(sample.stream.as_str())?,
@@ -418,10 +347,7 @@ async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &
 }
 // One Bounded Query Per Head, Resuming After The Last Row The Head Read;
 // Holding Readers For Every Schema Can Exhaust Admission.
-async fn read_head(
-    storage: &Manager,
-    source: &mut TypedRead,
-) -> Result<Option<Vec<PositionedTelemetry>>> {
+async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<Vec<PositionedTelemetry>>> {
     source.query.slice.limit = Some(PAGE_ROWS as u64);
     let mut reader = storage.query(source.query.clone()).await?;
     let mut rows = Vec::new();
@@ -438,10 +364,7 @@ async fn read_head(
             .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
         let decoded = telemetry::decode_batch(&source.codec, &batch)?;
         for (index, captured) in decoded.into_iter().enumerate() {
-            rows.push(PositionedTelemetry {
-                position: positions.value(index),
-                captured,
-            });
+            rows.push(PositionedTelemetry { position: positions.value(index), captured });
         }
     }
     reader.completion()?;
@@ -490,11 +413,7 @@ mod admission_tests {
     #[tokio::test]
     async fn later_refusal_preserves_the_accepted_prefix_without_replay() {
         let root = tempfile::tempdir().unwrap();
-        let backend = Arc::new(
-            crate::storage::Backend::primary(root.path().to_owned())
-                .await
-                .unwrap(),
-        );
+        let backend = Arc::new(crate::storage::Backend::primary(root.path().to_owned()).await.unwrap());
         let mut settings = crate::config::storage_defaults();
         settings.request.max_pending_write_bytes = NonZeroUsize::new(128 * 1024).unwrap();
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
@@ -502,31 +421,14 @@ mod admission_tests {
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
             crate::storage::state_settings(),
         ));
-        let storage = Manager::new(
-            StorageBackends {
-                primary: backend,
-                state,
-            },
-            settings,
-        )
-        .unwrap();
-        let runtime = Runtime::<TestApp>::builder((), ())
-            .runtime_with_storage(&storage)
-            .await
-            .unwrap();
-        let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial")
-            .typed::<Reading>();
+        let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
+        let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+        let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>();
         let codec = telemetry::codec(&contract).unwrap();
-        storage
-            .write_schema(codec.schema(), codec.graph())
-            .await
-            .unwrap();
+        storage.write_schema(codec.schema(), codec.graph()).await.unwrap();
         let execution = dokime_domain::model::identity::TestExecutionId::from_seed("partial.scope");
         let mut rows = Vec::new();
-        for (index, value) in ["first".to_owned(), "x".repeat(256 * 1024)]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, value) in ["first".to_owned(), "x".repeat(256 * 1024)].into_iter().enumerate() {
             let row = Reading { value };
             let mut sample = crate::telemetry::TelemetrySample::new(
                 crate::model::identity::new_id(),
@@ -536,10 +438,8 @@ mod admission_tests {
                 "partial.fixture",
             )
             .typed(&row);
-            sample.scope = Some(dokime_domain::model::execution::RecordScope {
-                test_execution_id: Some(execution.clone()),
-                ..Default::default()
-            });
+            sample.scope =
+                Some(dokime_domain::model::execution::RecordScope { test_execution_id: Some(execution.clone()), ..Default::default() });
             let entry = TelemetryEntry {
                 epoch: dokime_domain::model::identity::SessionId::from_seed("partial.epoch"),
                 ordinal: index as u64,
@@ -548,15 +448,8 @@ mod admission_tests {
             rows.push(prepare(&entry, &codec).unwrap());
         }
         let before = storage.cursor_accepted();
-        let admission = TelemetryAdmission {
-            storage: storage.clone(),
-            rows,
-            _owners: Vec::new(),
-        };
-        let result = admission
-            .commit(Some(&crate::services::telemetry::Sampling::default()))
-            .await
-            .unwrap();
+        let admission = TelemetryAdmission { storage: storage.clone(), rows, _owners: Vec::new() };
+        let result = admission.commit(Some(&crate::services::telemetry::Sampling::default())).await.unwrap();
         assert_eq!(&*result.accepted, &[true, false]);
         assert!(result.failure.is_some());
         assert_eq!(storage.cursor_accepted().sequence, before.sequence + 1);

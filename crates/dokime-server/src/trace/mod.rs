@@ -55,9 +55,7 @@ pub fn layer<S>(journal: Arc<Journal>) -> Box<dyn Layer<S> + Send + Sync>
 where
     S: Subscriber + for<'a> LookupSpan<'a> + Send + Sync,
 {
-    Capture::new(journal)
-        .with_filter(EnvFilter::new(CAPTURE_DIRECTIVES))
-        .boxed()
+    Capture::new(journal).with_filter(EnvFilter::new(CAPTURE_DIRECTIVES)).boxed()
 }
 
 /* === Private Functions === */

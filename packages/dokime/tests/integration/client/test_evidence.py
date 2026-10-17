@@ -81,16 +81,9 @@ def test_replay_pages() -> None:
             run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="lab-order")
             await run.wait(poll_interval=0.01)
-            records = await collect(
-                run_cycle.records(
-                    record_types=["fixture.finished"], record_ids=["event-2"]
-                )
-            )
+            records = await collect(run_cycle.records(record_types=["fixture.finished"], record_ids=["event-2"]))
             assert [r.id for r in records] == ["event-2"]
-            assert (
-                await collect(run_cycle.records(record_ids=["missing"], until=run))
-                == []
-            )
+            assert await collect(run_cycle.records(record_ids=["missing"], until=run)) == []
             assert len(await collect(run_cycle.samples(page_size=1))) == 2
 
     asyncio.run(scenario())

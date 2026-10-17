@@ -183,156 +183,63 @@ pub enum PromptFieldKind {
 impl harmos::MemorySize for PromptInstance {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.prompt_id),
-                std::mem::size_of_val(&self.prompt_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.definition),
-                std::mem::size_of_val(&self.definition),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.expires_at),
-                std::mem::size_of_val(&self.expires_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.values),
-                std::mem::size_of_val(&self.values),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.created_at),
-                std::mem::size_of_val(&self.created_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.contract_id),
-                std::mem::size_of_val(&self.contract_id),
-            ),
+            (harmos::MemorySize::memory_size(&self.prompt_id), std::mem::size_of_val(&self.prompt_id)),
+            (harmos::MemorySize::memory_size(&self.definition), std::mem::size_of_val(&self.definition)),
+            (harmos::MemorySize::memory_size(&self.expires_at), std::mem::size_of_val(&self.expires_at)),
+            (harmos::MemorySize::memory_size(&self.values), std::mem::size_of_val(&self.values)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.contract_id), std::mem::size_of_val(&self.contract_id)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for PromptDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.prompt_type),
-                std::mem::size_of_val(&self.prompt_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.title),
-                std::mem::size_of_val(&self.title),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.fields),
-                std::mem::size_of_val(&self.fields),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.actions),
-                std::mem::size_of_val(&self.actions),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.rules),
-                std::mem::size_of_val(&self.rules),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.condition),
-                std::mem::size_of_val(&self.condition),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.owner),
-                std::mem::size_of_val(&self.owner),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.template_identifier),
-                std::mem::size_of_val(&self.template_identifier),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.examples),
-                std::mem::size_of_val(&self.examples),
-            ),
+            (harmos::MemorySize::memory_size(&self.prompt_type), std::mem::size_of_val(&self.prompt_type)),
+            (harmos::MemorySize::memory_size(&self.title), std::mem::size_of_val(&self.title)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.fields), std::mem::size_of_val(&self.fields)),
+            (harmos::MemorySize::memory_size(&self.actions), std::mem::size_of_val(&self.actions)),
+            (harmos::MemorySize::memory_size(&self.rules), std::mem::size_of_val(&self.rules)),
+            (harmos::MemorySize::memory_size(&self.condition), std::mem::size_of_val(&self.condition)),
+            (harmos::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
+            (harmos::MemorySize::memory_size(&self.template_identifier), std::mem::size_of_val(&self.template_identifier)),
+            (harmos::MemorySize::memory_size(&self.examples), std::mem::size_of_val(&self.examples)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for PromptField {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.default),
-                std::mem::size_of_val(&self.default),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.choices),
-                std::mem::size_of_val(&self.choices),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.validation),
-                std::mem::size_of_val(&self.validation),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+            (harmos::MemorySize::memory_size(&self.choices), std::mem::size_of_val(&self.choices)),
+            (harmos::MemorySize::memory_size(&self.validation), std::mem::size_of_val(&self.validation)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for PromptAction {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.id),
-                std::mem::size_of_val(&self.id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
+            (harmos::MemorySize::memory_size(&self.id), std::mem::size_of_val(&self.id)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -350,13 +257,7 @@ impl PromptDefinition {
 /* === Public Functions === */
 pub fn pending_stream(cycle: Option<&TestCycleId>, execution: Option<&TestExecutionId>) -> String {
     let selection = serde_json::to_vec(&(cycle, execution)).expect("prompt selection encodes");
-    format!(
-        "prompts.pending:{}",
-        Sha256::digest(selection)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    )
+    format!("prompts.pending:{}", Sha256::digest(selection).iter().map(|byte| format!("{byte:02x}")).collect::<String>())
 }
 
 /* === Private Functions === */

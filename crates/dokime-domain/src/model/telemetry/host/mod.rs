@@ -107,9 +107,7 @@ impl TryFrom<&str> for HostTelemetryStream {
             "host.network" | "network" => Ok(Self::Network),
             "host.wifi" | "wifi" => Ok(Self::Wifi),
             "host.wifi.latency" | "wifi_latency" | "latency" => Ok(Self::WifiLatency),
-            "host.wifi.channel_occupancy" | "wifi_channel_occupancy" | "channel_occupancy" => {
-                Ok(Self::WifiChannelOccupancy)
-            }
+            "host.wifi.channel_occupancy" | "wifi_channel_occupancy" | "channel_occupancy" => Ok(Self::WifiChannelOccupancy),
             "host.bluetooth" | "bluetooth" => Ok(Self::Bluetooth),
             other => Err(UnknownHostStream(other.to_owned())),
         }
@@ -118,10 +116,7 @@ impl TryFrom<&str> for HostTelemetryStream {
 
 /* === Public Functions === */
 pub fn host_stream_identifiers() -> Vec<Identifier> {
-    HOST_STREAMS
-        .iter()
-        .map(|stream| stream.identifier())
-        .collect()
+    HOST_STREAMS.iter().map(|stream| stream.identifier()).collect()
 }
 
 /* === Private Functions === */

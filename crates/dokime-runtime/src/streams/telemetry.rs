@@ -58,19 +58,13 @@ pub struct TelemetryRow {
 /* === Implementations === */
 impl harmos::streams::Track for CycleTrack {
     fn label(&self) -> String {
-        self.0.as_ref().map_or_else(
-            || UNSCOPED_TRACK_LABEL.to_owned(),
-            |cycle| format!("cycle_{cycle}"),
-        )
+        self.0.as_ref().map_or_else(|| UNSCOPED_TRACK_LABEL.to_owned(), |cycle| format!("cycle_{cycle}"))
     }
 }
 
 impl harmos::streams::Track for ExecutionTrack {
     fn label(&self) -> String {
-        self.0.as_ref().map_or_else(
-            || UNSCOPED_TRACK_LABEL.to_owned(),
-            |execution| format!("execution_{execution}"),
-        )
+        self.0.as_ref().map_or_else(|| UNSCOPED_TRACK_LABEL.to_owned(), |execution| format!("execution_{execution}"))
     }
 }
 

@@ -50,25 +50,14 @@ pub(super) struct ReadContext<'a, 'ctx> {
 
 /* === Public Functions === */
 /// Every Arrow batch one query answers through the storage operation.
-pub(super) async fn batches(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    query: Query,
-) -> Result<Vec<ArrowBatch>> {
+pub(super) async fn batches(ctx: &Context<'_>, settings: &crate::config::StorageSettings, query: Query) -> Result<Vec<ArrowBatch>> {
     let at = query.at.clone();
     let session = ctx.download::<harmos::storage::operations::Query>(
         query,
         StreamSettings {
             items: NonZeroUsize::MIN,
             // The Transport Claims Bytes With A u32 Semaphore Permit.
-            bytes: NonZeroUsize::new(
-                settings
-                    .budget
-                    .read_memory_bytes
-                    .get()
-                    .min(u32::MAX as usize),
-            )
-            .expect("nonzero read budget"),
+            bytes: NonZeroUsize::new(settings.budget.read_memory_bytes.get().min(u32::MAX as usize)).expect("nonzero read budget"),
         },
     )?;
     let (_, mut output, completion) = session.split();
@@ -84,9 +73,7 @@ pub(super) async fn batches(
                 schema = Some(value.clone());
             }
             QueryOutput::Batch(batch) => {
-                let announced = schema
-                    .as_ref()
-                    .ok_or_else(|| invalid("query emitted data before its schema"))?;
+                let announced = schema.as_ref().ok_or_else(|| invalid("query emitted data before its schema"))?;
                 batch.validate_schema(announced.as_schema())?;
                 rows += batch.as_record_batch().num_rows() as u64;
                 batches.push(batch.clone());
@@ -95,9 +82,7 @@ pub(super) async fn batches(
     }
     let completed = completion.join().await?;
     if schema.is_none() || completed.at != at || completed.rows != rows {
-        return Err(invalid(
-            "query completion differs from the consumed evidence",
-        ));
+        return Err(invalid("query completion differs from the consumed evidence"));
     }
     Ok(batches)
 }

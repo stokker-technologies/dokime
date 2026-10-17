@@ -48,19 +48,9 @@ impl ApplicationOptions {
         let brand = branding::brand();
 
         // Resolve The Application Root And Its Settings
-        let root = match self
-            .application_root
-            .or_else(|| ambient(APPLICATION_ROOT_ENV))
-        {
+        let root = match self.application_root.or_else(|| ambient(APPLICATION_ROOT_ENV)) {
             Some(root) => std::path::absolute(root)?,
-            None => {
-                ApplicationPaths::resolve(
-                    brand
-                        .as_ref()
-                        .map_or(DEFAULT_APPLICATION_ID, |brand| &brand.identity.identifier),
-                )?
-                .root
-            }
+            None => ApplicationPaths::resolve(brand.as_ref().map_or(DEFAULT_APPLICATION_ID, |brand| &brand.identity.identifier))?.root,
         };
         let settings = Settings::load(&root)?;
 
@@ -73,14 +63,8 @@ impl ApplicationOptions {
         // Once It Exists Gave Windows A Verbatim `\\?\` Root From The Second
         // Launch On, So The Same Root Changed Identity Across Restarts.
         let mut config = Config::local(data);
-        config.title = brand
-            .as_ref()
-            .map_or_else(|| "Dokime".to_owned(), |brand| brand.identity.label.clone());
-        config.plugin_lookup = self
-            .plugins_root
-            .or_else(|| ambient(PLUGIN_LOOKUP_ENV))
-            .map(std::path::absolute)
-            .transpose()?;
+        config.title = brand.as_ref().map_or_else(|| "Dokime".to_owned(), |brand| brand.identity.label.clone());
+        config.plugin_lookup = self.plugins_root.or_else(|| ambient(PLUGIN_LOOKUP_ENV)).map(std::path::absolute).transpose()?;
         config.application_root = Some(root);
         config.brand = brand;
         Ok(config)
@@ -91,9 +75,7 @@ impl ApplicationOptions {
 
 /* === Private Functions === */
 fn environment_path(name: &str) -> Option<PathBuf> {
-    env::var_os(name)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+    env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from)
 }
 
 /* === Tests === */

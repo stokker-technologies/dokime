@@ -24,14 +24,12 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 // Local Imports
 use super::{ExecutionFixtureContext, failure};
-use dokime_domain::model::records::publication::RecordPublishRequest;
-use crate::records::RecordSeverity;
 use crate::artifacts::ArtifactUploadInput;
+use crate::records::RecordSeverity;
+use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, ProviderExecutionFailure};
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
-use crate::transport::{
-    ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, ProviderExecutionFailure,
-};
 
 /* === Constants === */
 const MAX_TRANSFER_BYTES: u64 = MAX_ARTIFACT_BYTES;
@@ -126,16 +124,11 @@ trait SpillStorage {
 /* === Implementations === */
 impl ArtifactBridge {
     pub(super) fn new(spill_root: PathBuf) -> Self {
-        Self {
-            state: Arc::new(Mutex::new(Transfers::new(spill_root))),
-        }
+        Self { state: Arc::new(Mutex::new(Transfers::new(spill_root))) }
     }
 
     pub(super) async fn accept(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        scope: &RecordScope,
-        chunks: Vec<ArtifactChunk>,
+        &mut self, context: &ExecutionFixtureContext, scope: &RecordScope, chunks: Vec<ArtifactChunk>,
     ) -> Result<Vec<DiscardedArtifact>, ProviderExecutionFailure> {
         let mut state = self.state.clone().lock_owned().await;
         let context = context.clone();
@@ -164,22 +157,13 @@ impl SpillStorage for DiskSpill {
 
     fn prepare(&mut self) -> std::io::Result<()> {
         if self.spill.is_none() {
-            self.spill = Some(
-                tempfile::Builder::new()
-                    .prefix("dokime-sidecar-artifact-")
-                    .tempdir_in(&self.spill_root)?,
-            );
+            self.spill = Some(tempfile::Builder::new().prefix("dokime-sidecar-artifact-").tempdir_in(&self.spill_root)?);
         }
         Ok(())
     }
 
     fn create(&self) -> std::io::Result<Self::File> {
-        tempfile::NamedTempFile::new_in(
-            self.spill
-                .as_ref()
-                .expect("prepared spill directory")
-                .path(),
-        )
+        tempfile::NamedTempFile::new_in(self.spill.as_ref().expect("prepared spill directory").path())
     }
 
     fn truncate(file: &mut Self::File) -> std::io::Result<()> {
@@ -193,40 +177,25 @@ impl SpillStorage for DiskSpill {
 
 impl Transfers {
     fn new(spill_root: PathBuf) -> Self {
-        Self::with_storage(DiskSpill {
-            spill_root,
-            spill: None,
-        })
+        Self::with_storage(DiskSpill { spill_root, spill: None })
     }
 
     async fn accept(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        scope: &RecordScope,
-        chunks: &[ArtifactChunk],
+        &mut self, context: &ExecutionFixtureContext, scope: &RecordScope, chunks: &[ArtifactChunk],
     ) -> Result<Vec<DiscardedArtifact>, ProviderExecutionFailure> {
         let mut abandoned = Vec::new();
         for chunk in chunks {
-            let replay = self
-                .transfers
-                .get(&chunk.transfer_id)
-                .is_some_and(|transfer| chunk.sequence < transfer.next_sequence);
+            let replay = self.transfers.get(&chunk.transfer_id).is_some_and(|transfer| chunk.sequence < transfer.next_sequence);
             let captured = if self.transfers.contains_key(&chunk.transfer_id) {
                 None
             } else {
                 let created_at = crate::model::time::now_utc();
-                let scope = context
-                    .capture_publication_scope(scope.clone())
-                    .await
-                    .map_err(|error| artifact_failure(error.to_string()))?;
+                let scope = context.capture_publication_scope(scope.clone()).await.map_err(|error| artifact_failure(error.to_string()))?;
                 Some((scope, created_at))
             };
             abandoned.extend(self.ingest(std::slice::from_ref(chunk))?);
             if let Some((scope, created_at)) = captured {
-                let transfer = self
-                    .transfers
-                    .get_mut(&chunk.transfer_id)
-                    .expect("accepted transfer");
+                let transfer = self.transfers.get_mut(&chunk.transfer_id).expect("accepted transfer");
                 transfer.capture_scope = Some(scope);
                 transfer.created_at = Some(created_at);
             }
@@ -238,27 +207,14 @@ impl Transfers {
         Ok(abandoned)
     }
 
-    async fn store(
-        &mut self,
-        context: &ExecutionFixtureContext,
-        transfer_id: &str,
-    ) -> Result<(), ProviderExecutionFailure> {
-        let transfer = self
-            .transfers
-            .get_mut(transfer_id)
-            .expect("a terminal chunk belongs to a transfer this bridge accepted");
+    async fn store(&mut self, context: &ExecutionFixtureContext, transfer_id: &str) -> Result<(), ProviderExecutionFailure> {
+        let transfer = self.transfers.get_mut(transfer_id).expect("a terminal chunk belongs to a transfer this bridge accepted");
         // The digest was already computed incrementally as bytes were spilled
         // to disk, so verifying a two-gibibyte upload costs no second pass
         // over content already read once to write it. Passing it through
         // gives end-to-end verification the host did not previously have.
-        let scope = transfer
-            .capture_scope
-            .clone()
-            .ok_or_else(|| artifact_failure("artifact publication has no captured scope"))?;
-        let created_at = transfer
-            .created_at
-            .clone()
-            .ok_or_else(|| artifact_failure("artifact publication has no arrival time"))?;
+        let scope = transfer.capture_scope.clone().ok_or_else(|| artifact_failure("artifact publication has no captured scope"))?;
+        let created_at = transfer.created_at.clone().ok_or_else(|| artifact_failure("artifact publication has no arrival time"))?;
         let upload = context
             .begin_captured_artifact_upload(
                 ArtifactUploadInput {
@@ -275,52 +231,28 @@ impl Transfers {
         // Read the spilled content back one bounded chunk at a time: peak
         // host memory for this transfer is one chunk, on the way in and on
         // the way back out.
-        transfer
-            .body
-            .start_reading()
-            .map_err(|error| artifact_failure(error.to_string()))?;
+        transfer.body.start_reading().map_err(|error| artifact_failure(error.to_string()))?;
         let mut buffer = vec![0u8; MAX_ARTIFACT_CHUNK_BYTES];
         loop {
-            let read = transfer
-                .body
-                .read_next(&mut buffer)
-                .map_err(|error| artifact_failure(error.to_string()))?;
+            let read = transfer.body.read_next(&mut buffer).map_err(|error| artifact_failure(error.to_string()))?;
             if read == 0 {
                 break;
             }
-            upload
-                .send(&buffer[..read])
-                .await
-                .map_err(|error| artifact_failure(error.to_string()))?;
+            upload.send(&buffer[..read]).await.map_err(|error| artifact_failure(error.to_string()))?;
         }
-        let record = upload
-            .finish()
-            .await
-            .map_err(|error| artifact_failure(error.to_string()))?;
-        let mut created = RecordPublishRequest::new(
-            crate::records::BuiltinRecordType::ArtifactCreated.identifier(),
-            RecordSeverity::Info,
-        );
+        let record = upload.finish().await.map_err(|error| artifact_failure(error.to_string()))?;
+        let mut created = RecordPublishRequest::new(crate::records::BuiltinRecordType::ArtifactCreated.identifier(), RecordSeverity::Info);
         created.scope = Some(scope.clone());
         created.related_artifact_id = Some(record.artifact_id.clone());
         created.message = Some(format!("Stored execution artifact {}", record.filename));
         created.details = BTreeMap::from([
-            (
-                "artifact_id".to_owned(),
-                Value::from(record.artifact_id.as_str()),
-            ),
+            ("artifact_id".to_owned(), Value::from(record.artifact_id.as_str())),
             ("filename".to_owned(), Value::from(record.filename.as_str())),
-            (
-                "size_bytes".to_owned(),
-                Value::from(record.size_bytes as i64),
-            ),
+            ("size_bytes".to_owned(), Value::from(record.size_bytes as i64)),
             ("transfer_id".to_owned(), Value::from(transfer_id)),
         ]);
         context.publish_record(created).await.map_err(|error| {
-            artifact_failure(format!(
-                "stored sidecar artifact `{transfer_id}` but could not publish its creation event: {}",
-                error
-            ))
+            artifact_failure(format!("stored sidecar artifact `{transfer_id}` but could not publish its creation event: {}", error))
         })?;
         self.mark_uploaded(transfer_id);
         Ok(())
@@ -345,12 +277,9 @@ impl<S: SpillStorage> Transfers<S> {
             return Err(error.clone());
         }
         let mut discarded = Vec::new();
-        for (transfer_id, transfer) in self.transfers.iter_mut().filter(|(_, transfer)| {
-            matches!(
-                transfer.state,
-                TransferState::Open | TransferState::Complete
-            )
-        }) {
+        for (transfer_id, transfer) in
+            self.transfers.iter_mut().filter(|(_, transfer)| matches!(transfer.state, TransferState::Open | TransferState::Complete))
+        {
             discarded.push(DiscardedArtifact {
                 transfer_id: transfer_id.clone(),
                 name: transfer.name.clone(),
@@ -365,33 +294,21 @@ impl<S: SpillStorage> Transfers<S> {
         Ok(discarded)
     }
 
-    fn ingest(
-        &mut self,
-        chunks: &[ArtifactChunk],
-    ) -> Result<Vec<DiscardedArtifact>, ProviderExecutionFailure> {
+    fn ingest(&mut self, chunks: &[ArtifactChunk]) -> Result<Vec<DiscardedArtifact>, ProviderExecutionFailure> {
         let mut abandoned = Vec::new();
         for chunk in chunks {
             validate_chunk(chunk)?;
-            let replay = self
-                .transfers
-                .get(&chunk.transfer_id)
-                .is_some_and(|transfer| chunk.sequence < transfer.next_sequence);
+            let replay = self.transfers.get(&chunk.transfer_id).is_some_and(|transfer| chunk.sequence < transfer.next_sequence);
             let admitted = if replay { 0 } else { chunk.bytes.len() as u64 };
             if !replay && self.accepted_chunks >= MAX_EXECUTION_ARTIFACT_CHUNKS {
-                return Err(artifact_failure(
-                    "execution exceeded its artifact chunk limit",
-                ));
+                return Err(artifact_failure("execution exceeded its artifact chunk limit"));
             }
             if self.received_bytes.saturating_add(admitted) > MAX_EXECUTION_ARTIFACT_BYTES {
                 return Err(artifact_failure(format!(
                     "sidecar execution streamed more than its {MAX_EXECUTION_ARTIFACT_BYTES} artifact byte limit"
                 )));
             }
-            self.storage.prepare().map_err(|error| {
-                artifact_failure(format!(
-                    "could not prepare the artifact spill directory: {error}"
-                ))
-            })?;
+            self.storage.prepare().map_err(|error| artifact_failure(format!("could not prepare the artifact spill directory: {error}")))?;
             match self.transfers.get_mut(&chunk.transfer_id) {
                 Some(transfer) => {
                     let was_open = transfer.state == TransferState::Open;
@@ -428,32 +345,18 @@ impl<S: SpillStorage> Transfers<S> {
     }
 
     fn release_aborted(&mut self, transfer_id: &str) -> DiscardedArtifact {
-        let transfer = self
-            .transfers
-            .get(transfer_id)
-            .expect("an aborting chunk belongs to a transfer this bridge accepted");
+        let transfer = self.transfers.get(transfer_id).expect("an aborting chunk belongs to a transfer this bridge accepted");
         let received = transfer.received;
         self.received_bytes = self.received_bytes.saturating_sub(received);
-        DiscardedArtifact {
-            transfer_id: transfer_id.to_owned(),
-            name: transfer.name.clone(),
-            received,
-        }
+        DiscardedArtifact { transfer_id: transfer_id.to_owned(), name: transfer.name.clone(), received }
     }
 
-    fn reserve_new_transfer(
-        &mut self,
-        chunk: &ArtifactChunk,
-    ) -> Result<(), ProviderExecutionFailure> {
+    fn reserve_new_transfer(&mut self, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
         if self.transfer_count >= MAX_TRANSFERS {
-            return Err(artifact_failure(format!(
-                "sidecar execution exceeded the {MAX_TRANSFERS} artifact transfer limit"
-            )));
+            return Err(artifact_failure(format!("sidecar execution exceeded the {MAX_TRANSFERS} artifact transfer limit")));
         }
         if !chunk.last && self.incomplete_transfers >= MAX_INCOMPLETE_TRANSFERS {
-            return Err(artifact_failure(format!(
-                "sidecar execution exceeded the {MAX_INCOMPLETE_TRANSFERS} incomplete artifact limit"
-            )));
+            return Err(artifact_failure(format!("sidecar execution exceeded the {MAX_INCOMPLETE_TRANSFERS} incomplete artifact limit")));
         }
         self.transfer_count += 1;
         if !chunk.last {
@@ -537,19 +440,10 @@ impl<S: SpillStorage> Transfer<S> {
     }
 
     fn digest(&self) -> String {
-        self.digest
-            .clone()
-            .finalize()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
+        self.digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>()
     }
 
-    fn ingest(
-        &mut self,
-        storage: &S,
-        chunk: &ArtifactChunk,
-    ) -> Result<(), ProviderExecutionFailure> {
+    fn ingest(&mut self, storage: &S, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
         self.validate_identity(chunk)?;
         if chunk.sequence < self.next_sequence {
             return self.validate_replay(chunk);
@@ -599,14 +493,10 @@ impl<S: SpillStorage> Transfer<S> {
             return Ok(());
         }
         if chunk.replace {
-            self.body
-                .restart()
-                .map_err(|error| artifact_failure(error.to_string()))?;
+            self.body.restart().map_err(|error| artifact_failure(error.to_string()))?;
             self.digest = Sha256::new();
         }
-        self.body
-            .write_all(storage, &chunk.bytes)
-            .map_err(|error| artifact_failure(error.to_string()))?;
+        self.body.write_all(storage, &chunk.bytes).map_err(|error| artifact_failure(error.to_string()))?;
         self.digest.update(&chunk.bytes);
         self.received = received;
         if chunk.last {
@@ -617,23 +507,14 @@ impl<S: SpillStorage> Transfer<S> {
 
     fn validate_identity(&self, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
         if chunk.name != self.name || chunk.mime != self.mime {
-            return Err(artifact_failure(format!(
-                "artifact `{}` changed name or media type between chunks",
-                chunk.transfer_id
-            )));
+            return Err(artifact_failure(format!("artifact `{}` changed name or media type between chunks", chunk.transfer_id)));
         }
         Ok(())
     }
 
     fn validate_replay(&self, chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
-        let offset = chunk
-            .sequence
-            .checked_sub(self.fingerprint_base)
-            .ok_or_else(|| artifact_failure("artifact replay window expired"))?;
-        let expected = self
-            .chunks
-            .get(offset as usize)
-            .ok_or_else(|| artifact_failure("artifact replay referenced an unknown chunk"))?;
+        let offset = chunk.sequence.checked_sub(self.fingerprint_base).ok_or_else(|| artifact_failure("artifact replay window expired"))?;
+        let expected = self.chunks.get(offset as usize).ok_or_else(|| artifact_failure("artifact replay referenced an unknown chunk"))?;
         let actual = fingerprint(chunk);
         if expected.digest != actual.digest
             || expected.bytes != actual.bytes
@@ -658,27 +539,16 @@ fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure>
         return Err(artifact_failure("artifact transfer identity is empty"));
     }
     if chunk.transfer_id.len() > MAX_TRANSFER_ID_BYTES {
-        return Err(artifact_failure(format!(
-            "artifact transfer identity exceeds the {MAX_TRANSFER_ID_BYTES} byte limit"
-        )));
+        return Err(artifact_failure(format!("artifact transfer identity exceeds the {MAX_TRANSFER_ID_BYTES} byte limit")));
     }
     if chunk.name.trim().is_empty() {
-        return Err(artifact_failure(format!(
-            "artifact `{}` has an empty name",
-            chunk.transfer_id
-        )));
+        return Err(artifact_failure(format!("artifact `{}` has an empty name", chunk.transfer_id)));
     }
     if chunk.name.len() > MAX_ARTIFACT_NAME_BYTES {
-        return Err(artifact_failure(format!(
-            "artifact `{}` name exceeds the {MAX_ARTIFACT_NAME_BYTES} byte limit",
-            chunk.transfer_id
-        )));
+        return Err(artifact_failure(format!("artifact `{}` name exceeds the {MAX_ARTIFACT_NAME_BYTES} byte limit", chunk.transfer_id)));
     }
     if chunk.mime.trim().is_empty() {
-        return Err(artifact_failure(format!(
-            "artifact `{}` has an empty media type",
-            chunk.transfer_id
-        )));
+        return Err(artifact_failure(format!("artifact `{}` has an empty media type", chunk.transfer_id)));
     }
     if chunk.mime.len() > MAX_ARTIFACT_MIME_BYTES {
         return Err(artifact_failure(format!(
@@ -693,10 +563,7 @@ fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure>
         )));
     }
     if chunk.bytes.is_empty() && !chunk.last {
-        return Err(artifact_failure(format!(
-            "artifact `{}` has an empty non-terminal chunk",
-            chunk.transfer_id
-        )));
+        return Err(artifact_failure(format!("artifact `{}` has an empty non-terminal chunk", chunk.transfer_id)));
     }
     if chunk.aborted && !chunk.last {
         return Err(artifact_failure(format!(
@@ -705,10 +572,7 @@ fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure>
         )));
     }
     if chunk.aborted && !chunk.bytes.is_empty() {
-        return Err(artifact_failure(format!(
-            "artifact `{}` carried content on the chunk that aborts it",
-            chunk.transfer_id
-        )));
+        return Err(artifact_failure(format!("artifact `{}` carried content on the chunk that aborts it", chunk.transfer_id)));
     }
     if chunk.replace && chunk.aborted {
         return Err(artifact_failure(format!(

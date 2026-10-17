@@ -18,13 +18,13 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::state::RuntimeState;
+use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
+use crate::transactions::provider::{ensure_case_runnable, planned_attempt};
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::execution::result::TestExecution;
-use crate::state::RuntimeState;
-use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
-use crate::transactions::provider::{ensure_case_runnable, planned_attempt};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestExecutionId;
 
@@ -74,44 +74,21 @@ impl CaseProjection {
     pub fn historical_memory(cycle: &CycleView, test_case_id: &CaseId) -> usize {
         let (latest, _) = historical_attempts(cycle, test_case_id);
         std::mem::size_of::<Self>()
-            .saturating_add(
-                latest.map_or(0, |execution| execution.test_execution_id.as_str().len()),
-            )
+            .saturating_add(latest.map_or(0, |execution| execution.test_execution_id.as_str().len()))
             .saturating_add(std::mem::size_of::<String>())
             .saturating_add(HISTORICAL.len())
     }
 }
 
 /* === Public Functions === */
-pub fn case_projection(
-    state: &RuntimeState,
-    cycle: &CycleView,
-    test_case_id: &CaseId,
-) -> CaseProjection {
+pub fn case_projection(state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {
     let attempts = attempts(cycle, test_case_id);
     let latest = attempts.last().copied();
-    let mut actions = CaseActions {
-        run: true,
-        schedule_rerun: true,
-        delete: true,
-        unavailable_reasons: Vec::new(),
-    };
+    let mut actions = CaseActions { run: true, schedule_rerun: true, delete: true, unavailable_reasons: Vec::new() };
 
-    admit(
-        &mut actions.run,
-        &mut actions.unavailable_reasons,
-        ensure_case_runnable(state, cycle, test_case_id),
-    );
-    admit(
-        &mut actions.schedule_rerun,
-        &mut actions.unavailable_reasons,
-        restartable(cycle, test_case_id, "schedule a case rerun"),
-    );
-    admit(
-        &mut actions.delete,
-        &mut actions.unavailable_reasons,
-        ensure_case_deletable(cycle, test_case_id),
-    );
+    admit(&mut actions.run, &mut actions.unavailable_reasons, ensure_case_runnable(state, cycle, test_case_id));
+    admit(&mut actions.schedule_rerun, &mut actions.unavailable_reasons, restartable(cycle, test_case_id, "schedule a case rerun"));
+    admit(&mut actions.delete, &mut actions.unavailable_reasons, ensure_case_deletable(cycle, test_case_id));
 
     CaseProjection {
         status: Some(status(latest)),
@@ -150,33 +127,21 @@ pub fn historical_case_projection(cycle: &CycleView, test_case_id: &CaseId) -> C
         latest_execution_status: latest.map(|execution| execution.status.clone()),
         attempt_count,
         rerun_scheduled: false,
-        actions: CaseActions {
-            unavailable_reasons: vec![HISTORICAL.to_owned()],
-            ..Default::default()
-        },
+        actions: CaseActions { unavailable_reasons: vec![HISTORICAL.to_owned()], ..Default::default() },
     }
 }
 
 /* === Private Functions === */
-fn historical_attempts<'a>(
-    cycle: &'a CycleView,
-    test_case_id: &CaseId,
-) -> (Option<&'a TestExecution>, u32) {
+fn historical_attempts<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -> (Option<&'a TestExecution>, u32) {
     cycle
         .test_executions
         .iter()
         .filter(|execution| &execution.test_case_id == test_case_id)
-        .fold((None, 0u32), |(_, count), execution| {
-            (Some(execution), count.wrapping_add(1))
-        })
+        .fold((None, 0u32), |(_, count), execution| (Some(execution), count.wrapping_add(1)))
 }
 
 fn attempts<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -> Vec<&'a TestExecution> {
-    cycle
-        .test_executions
-        .iter()
-        .filter(|execution| &execution.test_case_id == test_case_id)
-        .collect()
+    cycle.test_executions.iter().filter(|execution| &execution.test_case_id == test_case_id).collect()
 }
 
 fn status(latest: Option<&TestExecution>) -> CaseStatus {
@@ -185,10 +150,7 @@ fn status(latest: Option<&TestExecution>) -> CaseStatus {
     };
     // A materialized attempt nobody dispatched is the case's queued work, not
     // a skip: `Skipped` is how the runtime spells "planned" on an attempt.
-    if execution.status == ExecutionStatus::Skipped
-        && execution.started_at.is_none()
-        && execution.finished_at.is_none()
-    {
+    if execution.status == ExecutionStatus::Skipped && execution.started_at.is_none() && execution.finished_at.is_none() {
         return CaseStatus::Queued;
     }
     match execution.status {
@@ -206,19 +168,13 @@ fn status(latest: Option<&TestExecution>) -> CaseStatus {
 
 fn rerun_scheduled(cycle: &CycleView, test_case_id: &CaseId, attempts: &[&TestExecution]) -> bool {
     planned_attempt(cycle, test_case_id).is_some()
-        && attempts.iter().rev().skip(1).any(|execution| {
-            execution.finished_at.is_some() || execution.status != ExecutionStatus::Skipped
-        })
+        && attempts.iter().rev().skip(1).any(|execution| execution.finished_at.is_some() || execution.status != ExecutionStatus::Skipped)
 }
 
 fn restartable(cycle: &CycleView, test_case_id: &CaseId, operation: &str) -> Result<(), String> {
     crate::transactions::cycle::ensure_cycle_mutable(cycle)?;
     ensure_case_restartable(cycle, test_case_id, operation)?;
-    if cycle
-        .test_executions
-        .iter()
-        .all(|execution| &execution.test_case_id != test_case_id)
-    {
+    if cycle.test_executions.iter().all(|execution| &execution.test_case_id != test_case_id) {
         return Err(NO_MATERIALIZED_ATTEMPT.to_owned());
     }
     Ok(())

@@ -144,8 +144,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             }
             Meta::List(list) if list.path.is_ident("requires") => {
                 let written = list.tokens.clone();
-                let named = Punctuated::<RequiredEntry, Token![,]>::parse_terminated
-                    .parse2(written.clone())?;
+                let named = Punctuated::<RequiredEntry, Token![,]>::parse_terminated.parse2(written.clone())?;
                 let mut appended = Vec::new();
                 for path in hosted(&contributed) {
                     let last = last_ident(&path);
@@ -157,8 +156,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                     written.clone().into_iter().last(),
                     Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ','
                 );
-                let separator =
-                    (!written.is_empty() && !trailing && !appended.is_empty()).then(|| quote!(,));
+                let separator = (!written.is_empty() && !trailing && !appended.is_empty()).then(|| quote!(,));
                 forwarded.push(quote!(requires(#written #separator #(#appended),*)));
             }
             _ => forwarded.push(quote!(#argument)),
@@ -279,10 +277,7 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
 }
 
 fn last_ident(path: &Path) -> String {
-    path.segments
-        .last()
-        .map(|segment| segment.ident.to_string())
-        .unwrap_or_default()
+    path.segments.last().map(|segment| segment.ident.to_string()).unwrap_or_default()
 }
 
 struct RequiredEntry {

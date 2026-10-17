@@ -17,10 +17,10 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::time::Timestamp;
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -60,8 +60,7 @@ pub struct TelemetryStreamSummary {
 /* === Implementations === */
 impl EvidenceSummaries {
     pub fn from_records<'a>(
-        records: impl IntoIterator<Item = &'a RecordEntry>,
-        telemetry: impl IntoIterator<Item = &'a TelemetrySample>,
+        records: impl IntoIterator<Item = &'a RecordEntry>, telemetry: impl IntoIterator<Item = &'a TelemetrySample>,
     ) -> Self {
         let mut summaries = Self::default();
         for record in records {
@@ -79,12 +78,7 @@ impl EvidenceSummaries {
             .records
             .iter()
             .cloned()
-            .map(|summary| {
-                (
-                    (summary.record_type.to_string(), summary.source.clone()),
-                    summary,
-                )
-            })
+            .map(|summary| ((summary.record_type.to_string(), summary.source.clone()), summary))
             .collect::<BTreeMap<_, _>>();
         let key = (record.record_type.to_string(), record.source.clone());
         let entry = summaries.entry(key).or_insert_with(|| RecordSummary {
@@ -106,23 +100,16 @@ impl EvidenceSummaries {
             .telemetry_streams
             .iter()
             .cloned()
-            .map(|summary| {
-                (
-                    (summary.stream.to_string(), summary.source.clone()),
-                    summary,
-                )
-            })
+            .map(|summary| ((summary.stream.to_string(), summary.source.clone()), summary))
             .collect::<BTreeMap<_, _>>();
         let key = (sample.stream.to_string(), sample.source.clone());
-        let entry = summaries
-            .entry(key)
-            .or_insert_with(|| TelemetryStreamSummary {
-                stream: sample.stream.clone(),
-                source: sample.source.clone(),
-                total: 0,
-                latest_sequence: 0,
-                updated_at: sample.timestamp.clone(),
-            });
+        let entry = summaries.entry(key).or_insert_with(|| TelemetryStreamSummary {
+            stream: sample.stream.clone(),
+            source: sample.source.clone(),
+            total: 0,
+            latest_sequence: 0,
+            updated_at: sample.timestamp.clone(),
+        });
 
         entry.total += 1;
         entry.latest_sequence = sample.sequence;

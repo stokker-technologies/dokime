@@ -19,10 +19,7 @@ use std::net::SocketAddr;
 use harmos::grpc::Attached;
 
 // Local Imports
-use super::{
-    Config, Error, appearance, authorization, catalog, content, execution, history, observation,
-    planning, reports,
-};
+use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
@@ -77,21 +74,13 @@ impl Service {
         super::trace::register(&runtime, config.max_message_bytes())?;
         authorization::register(&runtime, &config)?;
         let settings = config.into_listener_settings()?;
-        Ok(Self {
-            runtime,
-            settings,
-            tls,
-        })
+        Ok(Self { runtime, settings, tls })
     }
 
     /// Attach or reattach this configured service without registering it again.
     pub async fn listen(&self) -> Result<Server, Error> {
         let attachment = self.runtime.grpc().attach(self.settings.clone()).await?;
-        Ok(Server {
-            address: attachment.local_addr(),
-            tls: self.tls,
-            attachment: Some(attachment),
-        })
+        Ok(Server { address: attachment.local_addr(), tls: self.tls, attachment: Some(attachment) })
     }
 }
 
@@ -107,11 +96,7 @@ impl Server {
     pub fn local_endpoint(&self) -> String {
         let mut address = self.address;
         if address.ip().is_unspecified() {
-            address.set_ip(if address.is_ipv4() {
-                std::net::Ipv4Addr::LOCALHOST.into()
-            } else {
-                std::net::Ipv6Addr::LOCALHOST.into()
-            });
+            address.set_ip(if address.is_ipv4() { std::net::Ipv4Addr::LOCALHOST.into() } else { std::net::Ipv6Addr::LOCALHOST.into() });
         }
         format!("{}://{address}", if self.tls { "https" } else { "http" })
     }

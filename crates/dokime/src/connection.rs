@@ -36,10 +36,7 @@ use dokime_client::{
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
 pub(crate) struct Args {
-    #[arg(
-        long,
-        help = "Backend HTTP(S) Origin; Plain HTTP Is Restricted To Loopback."
-    )]
+    #[arg(long, help = "Backend HTTP(S) Origin; Plain HTTP Is Restricted To Loopback.")]
     #[arg(conflicts_with = "backend")]
     endpoint: Option<String>,
     #[arg(long, help = "Use This Saved Backend Profile.")]
@@ -48,19 +45,9 @@ pub(crate) struct Args {
     profiles_file: Option<PathBuf>,
     #[arg(long, help = "Read A Bearer Token From This Local File.")]
     token_file: Option<PathBuf>,
-    #[arg(
-        long,
-        requires = "endpoint",
-        conflicts_with = "backend",
-        help = "Read An Additional PEM CA Certificate From This Local File."
-    )]
+    #[arg(long, requires = "endpoint", conflicts_with = "backend", help = "Read An Additional PEM CA Certificate From This Local File.")]
     ca: Option<PathBuf>,
-    #[arg(
-        long,
-        requires = "endpoint",
-        conflicts_with = "backend",
-        help = "Require This Backend Identity During Connection."
-    )]
+    #[arg(long, requires = "endpoint", conflicts_with = "backend", help = "Require This Backend Identity During Connection.")]
     expected_backend: Option<String>,
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..=86400), help = "Connection And Call Deadline In Seconds.")]
     timeout_seconds: u64,
@@ -84,8 +71,7 @@ impl Args {
                 .as_deref()
                 .map(|path| {
                     let bytes = dokime_filesystem::input::read(path, 1024 * 1024)?;
-                    String::from_utf8(bytes)
-                        .map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
+                    String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
                 })
                 .transpose()?;
             return Ok(Resolved {
@@ -108,14 +94,8 @@ impl Args {
             }
         };
         let store = Store::discover(self.profiles_file.as_deref())?;
-        let selection =
-            store
-                .load()?
-                .select(self.backend.as_deref(), None, environment.as_deref())?;
-        Ok(Resolved {
-            selection,
-            store: Some(store),
-        })
+        let selection = store.load()?.select(self.backend.as_deref(), None, environment.as_deref())?;
+        Ok(Resolved { selection, store: Some(store) })
     }
 
     pub(crate) fn provided_token(&self) -> crate::Result<Option<Zeroizing<String>>> {
@@ -123,8 +103,7 @@ impl Args {
             .as_deref()
             .map(|path| {
                 let bytes = Zeroizing::new(dokime_filesystem::input::read(path, 4098)?);
-                let text = std::str::from_utf8(&bytes)
-                    .map_err(|_| crate::Error::Input("bearer token must be UTF-8 text".into()))?;
+                let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("bearer token must be UTF-8 text".into()))?;
                 Ok(Zeroizing::new(text.trim().to_owned()))
             })
             .transpose()
@@ -138,11 +117,7 @@ impl Args {
         Duration::from_secs(self.timeout_seconds)
     }
 
-    pub(crate) async fn connect_selected(
-        &self,
-        resolved: &Resolved,
-        mut token: Option<Zeroizing<String>>,
-    ) -> crate::Result<Client> {
+    pub(crate) async fn connect_selected(&self, resolved: &Resolved, mut token: Option<Zeroizing<String>>) -> crate::Result<Client> {
         let deadline = tokio::time::Instant::now() + self.timeout();
         if token.is_none() && resolved.selection.credential == Credential::Keyring {
             let endpoint = resolved.selection.target.endpoint().to_owned();
@@ -164,28 +139,22 @@ impl Args {
 
     pub(crate) async fn connect(&self) -> crate::Result<Client> {
         let resolved = self.resolve()?;
-        self.connect_selected(&resolved, self.provided_token()?)
-            .await
+        self.connect_selected(&resolved, self.provided_token()?).await
     }
 }
 
 /* === Public Functions === */
 // OS Stores Can Block. Detached Workers Keep The Invocation Deadline Bounded.
 // Dropping The Receiver Does Not Cancel An OS Operation Already In Progress.
-pub(crate) async fn credentials<T, E>(
-    budget: Duration,
-    operation: impl FnOnce() -> Result<T, E> + Send + 'static,
-) -> crate::Result<T>
+pub(crate) async fn credentials<T, E>(budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static) -> crate::Result<T>
 where
     T: Send + 'static,
     E: Into<crate::Error> + Send + 'static,
 {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
-        .name("dokime-credentials".into())
-        .spawn(move || {
-            let _ = sender.send(operation().map_err(Into::into));
-        })?;
+    std::thread::Builder::new().name("dokime-credentials".into()).spawn(move || {
+        let _ = sender.send(operation().map_err(Into::into));
+    })?;
     tokio::time::timeout(budget, receiver)
         .await
         .map_err(|_| crate::Error::CredentialTimeout)?

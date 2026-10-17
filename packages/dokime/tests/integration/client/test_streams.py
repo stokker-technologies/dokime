@@ -37,9 +37,7 @@ from .canonical import register
 # === Public Functions === #
 
 
-@pytest.mark.parametrize(
-    "failure", ["missing_response", "trailing_item", "status_after_response"]
-)
+@pytest.mark.parametrize("failure", ["missing_response", "trailing_item", "status_after_response"])
 def test_incomplete_stream_refused(failure: str) -> None:
     async def scenario():
         operation = dokime.DOKIME_EVIDENCE_WATCH_RECORDS
@@ -58,9 +56,7 @@ def test_incomplete_stream_refused(failure: str) -> None:
                 yield operation.rpc_response(item=operation.output())
             else:
                 context.set_trailing_metadata((("fixture-phase", "failed"),))
-                await context.abort(
-                    grpc.StatusCode.DATA_LOSS, "failure after final response"
-                )
+                await context.abort(grpc.StatusCode.DATA_LOSS, "failure after final response")
 
         server.add_registered_method_handlers(
             "dokime.v1.Evidence",

@@ -34,9 +34,7 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateNote {
     // Explicit process epoch from discovery. Retry identities expire at restart.
-    #[row(
-        description = "Explicit process epoch from discovery. Retry identities expire at restart."
-    )]
+    #[row(description = "Explicit process epoch from discovery. Retry identities expire at restart.")]
     pub epoch: String,
     pub mutation_id: String,
     pub owner: Option<AnnotationOwner>,

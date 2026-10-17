@@ -17,21 +17,13 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use prost::Message;
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use {
-    dokime_runtime::PromptId,
-    dokime_runtime::RecordScope,
-    dokime_runtime::TestCycleId,
-    dokime_runtime::Value,
-    dokime_runtime::ValueType,
-    dokime_runtime::domains::prompts::FormPrompt,
-    dokime_runtime::domains::prompts::Prompt,
-    dokime_runtime::domains::prompts::PromptField,
-    dokime_runtime::domains::prompts::PromptFieldKind,
-    dokime_runtime::domains::prompts::PromptRequest,
-    dokime_runtime::domains::prompts::Rule,
-    dokime_runtime::expressions::BooleanExpression,
+    dokime_runtime::PromptId, dokime_runtime::RecordScope, dokime_runtime::TestCycleId, dokime_runtime::Value, dokime_runtime::ValueType,
+    dokime_runtime::domains::prompts::FormPrompt, dokime_runtime::domains::prompts::Prompt, dokime_runtime::domains::prompts::PromptField,
+    dokime_runtime::domains::prompts::PromptFieldKind, dokime_runtime::domains::prompts::PromptRequest,
+    dokime_runtime::domains::prompts::Rule, dokime_runtime::expressions::BooleanExpression,
     dokime_runtime::runtime::command::CommandContext,
 };
 
@@ -69,10 +61,8 @@ async fn prompt_answers_identity() {
             validation: Default::default(),
         })
         .definition();
-    definition.rules = vec![Rule {
-        predicate: BooleanExpression::selector("counter").eq(i64::MAX),
-        message: "Keep the exact counter".into(),
-    }];
+    definition.rules =
+        vec![Rule { predicate: BooleanExpression::selector("counter").eq(i64::MAX), message: "Keep the exact counter".into() }];
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
     let ids = [dokime_runtime::model::identity::new_id::<PromptId>(), dokime_runtime::model::identity::new_id::<PromptId>()];
@@ -90,76 +80,48 @@ async fn prompt_answers_identity() {
     let server = Server::start(
         handle.clone(),
         Config::local()
-            .with_bearer_auth(vec![
-                grant(Role::Control),
-                BearerGrant::new("prompt-reader".into(), Role::Read, READ_TOKEN).unwrap(),
-            ])
+            .with_bearer_auth(vec![grant(Role::Control), BearerGrant::new("prompt-reader".into(), Role::Read, READ_TOKEN).unwrap()])
             .unwrap(),
     )
     .await
     .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
-        client
-            .unary::<contracts::prompts::ListDefinitions>(
-                contracts::prompts::ListDefinitions::default()
-            )
-            .await
-            .unwrap_err()
-            .code(),
+        client.unary::<contracts::prompts::ListDefinitions>(contracts::prompts::ListDefinitions::default()).await.unwrap_err().code(),
         Code::Unauthenticated
     );
     let definitions = client
-        .unary::<contracts::prompts::ListDefinitions>(authenticated(
-            contracts::prompts::ListDefinitions::default(),
-        ))
+        .unary::<contracts::prompts::ListDefinitions>(authenticated(contracts::prompts::ListDefinitions::default()))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(definitions.definitions.len(), 1);
     let definition = client
-        .unary::<contracts::prompts::GetDefinition>(authenticated(
-            contracts::prompts::GetDefinition {
-                prompt_type: "fixture.answer".into(),
-            },
-        ))
+        .unary::<contracts::prompts::GetDefinition>(authenticated(contracts::prompts::GetDefinition {
+            prompt_type: "fixture.answer".into(),
+        }))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(
-        definition.fields[0]
-            .default_value
-            .as_ref()
-            .unwrap()
-            .to_core()
-            .unwrap(),
-        Value::Integer(i64::MAX)
-    );
+    assert_eq!(definition.fields[0].default_value.as_ref().unwrap().to_core().unwrap(), Value::Integer(i64::MAX));
     assert!(matches!(
         definition.rules[0].predicate.as_ref().unwrap().nodes[0].kind,
         Some(model::prompts::wire::AnswerPredicateKind::Binary(_))
     ));
     let first = client
-        .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPending {
-                limit: 1,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::prompts::ListPending>(authenticated(contracts::prompts::ListPending { limit: 1, ..Default::default() }))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(first.prompts.len(), 1);
     let after = first.next_after_prompt_id.clone().unwrap();
     let second = client
-        .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPending {
-                limit: 1,
-                after_prompt_id: after.clone(),
-                cursor: first.cursor.clone(),
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::prompts::ListPending>(authenticated(contracts::prompts::ListPending {
+            limit: 1,
+            after_prompt_id: after.clone(),
+            cursor: first.cursor.clone(),
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -167,59 +129,36 @@ async fn prompt_answers_identity() {
     assert_ne!(first.prompts[0].prompt_id, second.prompts[0].prompt_id);
     assert!(second.next_after_prompt_id.is_none());
     let different = client
-        .unary::<contracts::prompts::ListPending>(authenticated(
-            contracts::prompts::ListPending {
-                after_prompt_id: after.clone(),
-                cursor: first.cursor.clone(),
-                cycle_id: Some(uuid::Uuid::now_v7().to_string()),
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::prompts::ListPending>(authenticated(contracts::prompts::ListPending {
+            after_prompt_id: after.clone(),
+            cursor: first.cursor.clone(),
+            cycle_id: Some(uuid::Uuid::now_v7().to_string()),
+            ..Default::default()
+        }))
         .await
         .unwrap_err();
     assert_eq!(different.code(), Code::FailedPrecondition);
     let answer = |value| contracts::prompts::Respond {
         prompt_id: ids[0].to_string(),
         action: "submit".into(),
-        values: Some(model::values::wire::Value::from(&Value::Object(
-            BTreeMap::from([("counter".into(), Value::Integer(value))]),
-        ))),
+        values: Some(model::values::wire::Value::from(&Value::Object(BTreeMap::from([("counter".into(), Value::Integer(value))])))),
         accepted: true,
         context: None,
     };
-    let bad = client
-        .unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX - 1)))
-        .await
-        .unwrap_err();
+    let bad = client.unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX - 1))).await.unwrap_err();
     assert_eq!(bad.code(), Code::InvalidArgument);
     let envelope = tonic_types::Status::decode(bad.details()).unwrap();
-    assert_eq!(
-        envelope.details[0].type_url,
-        "type.googleapis.com/dokime.v1.Rejection"
-    );
+    assert_eq!(envelope.details[0].type_url, "type.googleapis.com/dokime.v1.Rejection");
     assert!(
-        !<model::execution::wire::Rejection as harmos::Protobuf>::decode(
-            envelope.details[0].value.as_slice()
-        )
-        .unwrap()
-        .code
-        .is_empty()
+        !<model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().code.is_empty()
     );
     assert!(handle.prompt_response(&ids[0]).await.is_none());
-    let receipt = client
-        .unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX)))
-        .await
-        .unwrap()
-        .into_inner();
+    let receipt = client.unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX))).await.unwrap().into_inner();
     assert_eq!(receipt.prompt_id, ids[0].to_string());
     assert!(receipt.committed_revision > first.cursor.as_ref().unwrap().position);
     assert!(receipt.accepted_at.is_some());
     let prompt = client
-        .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPrompt {
-                prompt_id: ids[0].to_string(),
-            },
-        ))
+        .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: ids[0].to_string() }))
         .await
         .unwrap()
         .into_inner();
@@ -229,21 +168,14 @@ async fn prompt_answers_identity() {
         response.values.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("counter") == Some(&Value::Integer(i64::MAX))
     ));
-    assert!(
-        client
-            .unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX)))
-            .await
-            .is_err()
-    );
+    assert!(client.unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX))).await.is_err());
     assert_eq!(
         client
-            .unary::<contracts::prompts::ListPending>(authenticated(
-                contracts::prompts::ListPending {
-                    after_prompt_id: after,
-                    cursor: first.cursor,
-                    ..Default::default()
-                }
-            ))
+            .unary::<contracts::prompts::ListPending>(authenticated(contracts::prompts::ListPending {
+                after_prompt_id: after,
+                cursor: first.cursor,
+                ..Default::default()
+            }))
             .await
             .unwrap_err()
             .code(),
@@ -251,9 +183,7 @@ async fn prompt_answers_identity() {
     );
     assert_eq!(
         client
-            .unary::<contracts::prompts::ListPending>(authenticated(
-                contracts::prompts::ListPending::default()
-            ))
+            .unary::<contracts::prompts::ListPending>(authenticated(contracts::prompts::ListPending::default()))
             .await
             .unwrap()
             .into_inner()
@@ -262,19 +192,11 @@ async fn prompt_answers_identity() {
         1
     );
     let read = WireClient::connect(server.local_endpoint()).await.unwrap();
-    read.unary::<contracts::prompts::GetPrompt>(auth(
-        contracts::prompts::GetPrompt {
-            prompt_id: ids[0].to_string(),
-        },
-        READ_TOKEN,
-    ))
-    .await
-    .unwrap();
+    read.unary::<contracts::prompts::GetPrompt>(auth(contracts::prompts::GetPrompt { prompt_id: ids[0].to_string() }, READ_TOKEN))
+        .await
+        .unwrap();
     assert_eq!(
-        read.unary::<contracts::prompts::Respond>(auth(answer(i64::MAX), READ_TOKEN))
-            .await
-            .unwrap_err()
-            .code(),
+        read.unary::<contracts::prompts::Respond>(auth(answer(i64::MAX), READ_TOKEN)).await.unwrap_err().code(),
         Code::PermissionDenied
     );
     server.shutdown().await.unwrap();
@@ -286,22 +208,16 @@ async fn prompt_answers_identity() {
 async fn prompt_condition_commit() {
     use dokime_runtime::definition::RuntimeCondition;
     use {
-    model::records::product::ProductConnectionDetails,
-    model::records::product::ProductConnectionState,
-    dokime_runtime::records::RecordCondition,
-};
+        dokime_runtime::records::RecordCondition, model::records::product::ProductConnectionDetails,
+        model::records::product::ProductConnectionState,
+    };
     let root = tempfile::tempdir().unwrap();
-    let mut definition =
-        FormPrompt::<BTreeMap<String, bool>>::new("fixture.condition", "Connect device")
-            .definition();
+    let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.condition", "Connect device").definition();
     definition.actions[0].requires_condition = true;
     definition.condition = Some(RuntimeCondition::Record {
         condition: RecordCondition {
             record_type: Identifier::new("tool.connection.acquired").unwrap(),
-            match_fields: BTreeMap::from([(
-                "resource_id".into(),
-                Value::Text("fixture-device".into()),
-            )]),
+            match_fields: BTreeMap::from([("resource_id".into(), Value::Text("fixture-device".into()))]),
         },
     });
     let mut owner = prompt_runtime(root.path(), definition).await;
@@ -316,34 +232,17 @@ async fn prompt_condition_commit() {
         })
         .await
         .unwrap();
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let view = client
-        .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPrompt {
-                prompt_id: id.to_string(),
-            },
-        ))
+        .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: id.to_string() }))
         .await
         .unwrap()
         .into_inner();
     let definition = view.prompt.unwrap().definition.unwrap();
     assert!(definition.actions[0].requires_condition);
-    let Some(model::prompts::wire::EvidenceConditionKind::Record(condition)) = definition
-        .condition
-        .unwrap()
-        .nodes
-        .into_iter()
-        .next()
-        .unwrap()
-        .kind
+    let Some(model::prompts::wire::EvidenceConditionKind::Record(condition)) =
+        definition.condition.unwrap().nodes.into_iter().next().unwrap().kind
     else {
         panic!("record condition lost");
     };
@@ -352,38 +251,20 @@ async fn prompt_condition_commit() {
         condition.match_fields.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("resource_id") == Some(&Value::Text("fixture-device".into()))
     ));
-    let answer = contracts::prompts::Respond {
-        prompt_id: id.to_string(),
-        action: "submit".into(),
-        accepted: true,
-        ..Default::default()
-    };
-    let rejected = client
-        .unary::<contracts::prompts::Respond>(authenticated(answer.clone()))
-        .await
-        .unwrap_err();
+    let answer = contracts::prompts::Respond { prompt_id: id.to_string(), action: "submit".into(), accepted: true, ..Default::default() };
+    let rejected = client.unary::<contracts::prompts::Respond>(authenticated(answer.clone())).await.unwrap_err();
     assert_eq!(rejected.code(), Code::FailedPrecondition);
     let envelope = tonic_types::Status::decode(rejected.details()).unwrap();
     assert_eq!(
-        <model::execution::wire::Rejection as harmos::Protobuf>::decode(
-            envelope.details[0].value.as_slice()
-        )
-        .unwrap()
-        .code,
+        <model::execution::wire::Rejection as harmos::Protobuf>::decode(envelope.details[0].value.as_slice()).unwrap().code,
         "prompt_condition_not_satisfied"
     );
     assert!(handle.prompt_response(&id).await.is_none());
     handle
-        .publish_product_record(
-            ProductConnectionDetails::new("fixture-device", ProductConnectionState::Connected)
-                .into_draft("fixture"),
-        )
+        .publish_product_record(ProductConnectionDetails::new("fixture-device", ProductConnectionState::Connected).into_draft("fixture"))
         .await
         .unwrap();
-    client
-        .unary::<contracts::prompts::Respond>(authenticated(answer))
-        .await
-        .unwrap();
+    client.unary::<contracts::prompts::Respond>(authenticated(answer)).await.unwrap();
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -396,9 +277,8 @@ async fn prompt_level_watched() {
     // === Ask A Warning Prompt === //
 
     let root = tempfile::tempdir().unwrap();
-    let definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.level", "Check the bench")
-        .level(RecordSeverity::Warning)
-        .definition();
+    let definition =
+        FormPrompt::<BTreeMap<String, bool>>::new("fixture.level", "Check the bench").level(RecordSeverity::Warning).definition();
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
     let id = dokime_runtime::model::identity::new_id::<PromptId>();
@@ -411,37 +291,24 @@ async fn prompt_level_watched() {
         })
         .await
         .unwrap();
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     // === Read The Prompt And Its Request Record === //
 
     let view = client
-        .unary::<contracts::prompts::GetPrompt>(authenticated(
-            contracts::prompts::GetPrompt {
-                prompt_id: id.to_string(),
-            },
-        ))
+        .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: id.to_string() }))
         .await
         .unwrap()
         .into_inner();
     let mut follow = client
-        .download::<contracts::evidence::WatchRecords>(authenticated(
-            contracts::evidence::WatchRecords {
-                selection: Some(model::evidence::wire::CapturedRecordSelection {
-                    record_types: vec!["prompt.request.form".into()],
-                    ..Default::default()
-                }),
-                after: None,
-            },
-        ))
+        .download::<contracts::evidence::WatchRecords>(authenticated(contracts::evidence::WatchRecords {
+            selection: Some(model::evidence::wire::CapturedRecordSelection {
+                record_types: vec!["prompt.request.form".into()],
+                ..Default::default()
+            }),
+            after: None,
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -467,9 +334,7 @@ async fn settled_prompt_refused() {
     // === Ask A Cycle's Question With No Cancel Action === //
 
     let root = tempfile::tempdir().unwrap();
-    let mut definition =
-        FormPrompt::<BTreeMap<String, bool>>::new("fixture.settle", "Inspect Charging State")
-            .definition();
+    let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.settle", "Inspect Charging State").definition();
     definition.actions.retain(|action| action.id != "cancel");
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
@@ -493,51 +358,28 @@ async fn settled_prompt_refused() {
         })
         .await
         .unwrap();
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let pending = |cycle: &TestCycleId| contracts::prompts::ListPending {
-        cycle_id: Some(cycle.to_string()),
-        ..Default::default()
-    };
-    let waiting = client
-        .unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle)))
-        .await
-        .unwrap()
-        .into_inner();
+    let pending = |cycle: &TestCycleId| contracts::prompts::ListPending { cycle_id: Some(cycle.to_string()), ..Default::default() };
+    let waiting = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert_eq!(waiting.prompts.len(), 1);
 
     // === Stop The Cycle === //
 
-    handle
-        .stop_cycle(cycle.clone(), CommandContext::default())
-        .await
-        .unwrap();
+    handle.stop_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
 
     // === Nothing Waits, And A Late Answer Is A Failed Precondition === //
 
-    let settled = client
-        .unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle)))
-        .await
-        .unwrap()
-        .into_inner();
+    let settled = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert!(settled.prompts.is_empty());
     let late = client
-        .unary::<contracts::prompts::Respond>(authenticated(
-            contracts::prompts::Respond {
-                prompt_id: id.to_string(),
-                action: "submit".into(),
-                values: None,
-                accepted: true,
-                context: None,
-            },
-        ))
+        .unary::<contracts::prompts::Respond>(authenticated(contracts::prompts::Respond {
+            prompt_id: id.to_string(),
+            action: "submit".into(),
+            values: None,
+            accepted: true,
+            context: None,
+        }))
         .await
         .unwrap_err();
     assert_eq!(late.code(), Code::FailedPrecondition);
@@ -549,24 +391,18 @@ async fn settled_prompt_refused() {
     owner.shutdown().await.unwrap();
 }
 
-async fn prompt_runtime(
-    root: &std::path::Path,
-    definition: dokime_runtime::domains::prompts::PromptDefinition,
-) -> Runtime {
+async fn prompt_runtime(root: &std::path::Path, definition: dokime_runtime::domains::prompts::PromptDefinition) -> Runtime {
     let mut declarations = harmos::sidecar::Registrar::new();
     declarations
         .register(
             dokime_runtime::plugin::registration::PROMPTS_NAMESPACE,
-            dokime_runtime::plugin::registration::domain_schema(
-                dokime_runtime::plugin::registration::PROMPTS_NAMESPACE,
-            ),
+            dokime_runtime::plugin::registration::domain_schema(dokime_runtime::plugin::registration::PROMPTS_NAMESPACE),
             &[definition],
         )
         .unwrap();
-    let config =
-        crate::support::budgets::runtime_config(root, support::metadata("grpc.prompts", "Questions"))
-            .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
-            .unwrap();
+    let config = crate::support::budgets::runtime_config(root, support::metadata("grpc.prompts", "Questions"))
+        .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
+        .unwrap();
     Runtime::start(config).await.unwrap()
 }
 

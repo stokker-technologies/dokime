@@ -47,25 +47,13 @@ enum Source {
 /* === Implementations === */
 impl ExecutionFileStream {
     pub(crate) fn live(reader: Reader) -> Result<Self> {
-        let metadata = ExecutionFileContent {
-            offset: 0,
-            bytes: Vec::new(),
-            ..reader.metadata().clone()
-        };
-        Ok(Self {
-            source: Source::Live(reader),
-            metadata,
-            offset: 0,
-        })
+        let metadata = ExecutionFileContent { offset: 0, bytes: Vec::new(), ..reader.metadata().clone() };
+        Ok(Self { source: Source::Live(reader), metadata, offset: 0 })
     }
 
     pub(crate) fn saved(file: SavedOutputFile) -> Result<Self> {
         let metadata = file.metadata();
-        Ok(Self {
-            source: Source::Saved(Box::new(file)),
-            metadata,
-            offset: 0,
-        })
+        Ok(Self { source: Source::Saved(Box::new(file)), metadata, offset: 0 })
     }
 
     pub fn metadata(&self) -> &ExecutionFileContent {
@@ -73,10 +61,7 @@ impl ExecutionFileStream {
     }
 
     /// The next chunk of at most `maximum` bytes, or `None` at the end.
-    pub async fn next_chunk(
-        &mut self,
-        maximum: NonZeroUsize,
-    ) -> Result<Option<ExecutionFileContent>> {
+    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ExecutionFileContent>> {
         let content = match &mut self.source {
             Source::Live(reader) => reader.next_chunk(maximum).await?,
             Source::Saved(file) => {
@@ -106,17 +91,11 @@ impl ExecutionFileStream {
 
 /* === Private Functions === */
 fn end(content: &ExecutionFileContent) -> harmos::Result<u64> {
-    content
-        .offset
-        .checked_add(content.bytes.len() as u64)
-        .ok_or_else(|| invalid("chunk offset overflows"))
+    content.offset.checked_add(content.bytes.len() as u64).ok_or_else(|| invalid("chunk offset overflows"))
 }
 
 fn invalid(reason: &'static str) -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "execution stream",
-        reason,
-    }
+    harmos::Error::InvalidInput { field: "execution stream", reason }
 }
 
 /* === Tests === */

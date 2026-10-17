@@ -52,24 +52,15 @@ pub enum PluginProvenance {
 /* === Implementations === */
 impl PluginBundle {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self {
-            path: path.into(),
-            programs: BTreeMap::new(),
-            provenance: PluginProvenance::Configured,
-        }
+        Self { path: path.into(), programs: BTreeMap::new(), provenance: PluginProvenance::Configured }
     }
 
     pub(crate) fn all(paths: &[PathBuf]) -> Vec<Self> {
         paths.iter().map(Self::new).collect()
     }
 
-    pub fn configured(
-        mut self,
-        owner: impl Into<String>,
-        config: impl Serialize,
-    ) -> Result<Self, serde_json::Error> {
-        self.programs
-            .insert(owner.into(), serde_json::to_value(config)?);
+    pub fn configured(mut self, owner: impl Into<String>, config: impl Serialize) -> Result<Self, serde_json::Error> {
+        self.programs.insert(owner.into(), serde_json::to_value(config)?);
         Ok(self)
     }
 }

@@ -17,8 +17,8 @@
 // Third Party Imports
 use thiserror::Error as ThisError;
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Constants === */
 
@@ -173,9 +173,7 @@ impl Error {
 
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        Self::ExportStorage {
-            source: error.into(),
-        }
+        Self::ExportStorage { source: error.into() }
     }
 }
 
@@ -192,18 +190,11 @@ fn harmos_message(error: &harmos::Error) -> String {
     }
     if let harmos::Error::PluginLifecycle { source } = error {
         let failures = match source.as_ref() {
-            harmos::plugin::PluginFailure::Cleanup(failures)
-            | harmos::plugin::PluginFailure::Start {
-                cleanup: failures, ..
-            } => failures,
+            harmos::plugin::PluginFailure::Cleanup(failures) | harmos::plugin::PluginFailure::Start { cleanup: failures, .. } => failures,
             _ => return message,
         };
         for failure in failures {
-            let _ = write!(
-                message,
-                "; plugin `{}`: {}",
-                failure.artifact, failure.error
-            );
+            let _ = write!(message, "; plugin `{}`: {}", failure.artifact, failure.error);
         }
     }
     message

@@ -18,20 +18,18 @@ use std::time::Instant;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::prompts::admission::{validate_request, validate_response};
-use crate::transactions::prompts::{
-    RequestPrompt as Request, SubmitPromptResponse as SubmitResponse,
-};
+use crate::prompts::{PromptInstance, PromptRequest, PromptResponse};
+use crate::transactions::prompts::{RequestPrompt as Request, SubmitPromptResponse as SubmitResponse};
 use crate::{
-    CommandContext, CommandId, CommandReceipt, runtime::Error, RuntimeHandle, commands::accepted_receipt,
-    prompt_runtime::PromptDefinition, unavailable_rejection,
+    CommandContext, CommandId, CommandReceipt, RuntimeHandle, commands::accepted_receipt, prompt_runtime::PromptDefinition, runtime::Error,
+    unavailable_rejection,
 };
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::prompts::{PromptInstance, PromptRequest, PromptResponse};
 
 /* === Constants === */
 
@@ -73,20 +71,12 @@ impl RuntimeHandle {
         self.state_read().pending_prompt_projection()
     }
 
-    pub async fn request_prompt(
-        &self,
-        prompt: PromptRequest,
-    ) -> std::result::Result<PromptInstance, Error> {
+    pub async fn request_prompt(&self, prompt: PromptRequest) -> std::result::Result<PromptInstance, Error> {
         let prompt_id = prompt.prompt_id.clone();
-        let transaction = Request {
-            prompt,
-            command_id: crate::model::identity::new_id::<CommandId>(),
-            accepted_at: crate::model::time::now_utc(),
-        };
+        let transaction =
+            Request { prompt, command_id: crate::model::identity::new_id::<CommandId>(), accepted_at: crate::model::time::now_utc() };
         validate_request(&self.state_read(), &transaction)?;
-        self.commit(transaction)
-            .await
-            .map_err(|error| unavailable_rejection(error.to_string()))?;
+        self.commit(transaction).await.map_err(|error| unavailable_rejection(error.to_string()))?;
         // Read the durable request projection, not the pending set: a fast
         // responder can answer the prompt between
         // the commit above and this read, which removes it from the pending
@@ -98,85 +88,44 @@ impl RuntimeHandle {
             .ok_or_else(|| prompt_projection_missing("requested prompt was not projected"))
     }
 
-    async fn precheck_prompt_condition(
-        &self,
-        prompt_id: &PromptId,
-        action: &str,
-        accepted: bool,
-    ) -> std::result::Result<(), Error> {
+    async fn precheck_prompt_condition(&self, prompt_id: &PromptId, action: &str, accepted: bool) -> std::result::Result<(), Error> {
         if !accepted {
             return Ok(());
         }
-        let snapshot = self
-            .capture_state()
-            .await
-            .map_err(|error| unavailable_rejection(error.to_string()))?;
+        let snapshot = self.capture_state().await.map_err(|error| unavailable_rejection(error.to_string()))?;
         let condition = snapshot
             .state()
             .prompt_condition_to_check(prompt_id, action)
-            .map_err(|message| {
-                Error::validation("prompt_condition_unavailable", message, Vec::new())
-            })?;
+            .map_err(|message| Error::validation("prompt_condition_unavailable", message, Vec::new()))?;
         let Some(condition) = condition else {
             return Ok(());
         };
-        let records = self
-            .records_at(&snapshot)
-            .await
-            .map_err(|error| unavailable_rejection(error.to_string()))?;
-        let telemetry = self
-            .collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default())
-            .await;
-        let evaluation =
-            crate::definition::evaluate_runtime_condition(&condition, &records, &telemetry);
+        let records = self.records_at(&snapshot).await.map_err(|error| unavailable_rejection(error.to_string()))?;
+        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await;
+        let evaluation = crate::definition::evaluate_runtime_condition(&condition, &records, &telemetry);
         if evaluation.satisfied {
             return Ok(());
         }
         Err(Error::conflict(
             "prompt_condition_not_satisfied",
-            evaluation
-                .reason
-                .unwrap_or_else(|| "prompt condition is not satisfied".to_owned()),
+            evaluation.reason.unwrap_or_else(|| "prompt condition is not satisfied".to_owned()),
         ))
     }
 
     pub async fn submit_prompt_response(
-        &self,
-        prompt_id: PromptId,
-        action: String,
-        responder: String,
-        values: BTreeMap<String, Value>,
-        accepted: bool,
+        &self, prompt_id: PromptId, action: String, responder: String, values: BTreeMap<String, Value>, accepted: bool,
     ) -> std::result::Result<PromptResponse, Error> {
-        self.precheck_prompt_condition(&prompt_id, &action, accepted)
-            .await?;
-        self.commit_prompt_response(
-            prompt_id.clone(),
-            action,
-            responder,
-            values,
-            accepted,
-            CommandContext::default(),
-        )
-        .await?;
-        self.prompt_response(&prompt_id)
-            .await
-            .ok_or_else(|| prompt_projection_missing("submitted prompt response was not projected"))
+        self.precheck_prompt_condition(&prompt_id, &action, accepted).await?;
+        self.commit_prompt_response(prompt_id.clone(), action, responder, values, accepted, CommandContext::default()).await?;
+        self.prompt_response(&prompt_id).await.ok_or_else(|| prompt_projection_missing("submitted prompt response was not projected"))
     }
 
     pub async fn submit_prompt_response_command(
-        &self,
-        prompt_id: PromptId,
-        action: String,
-        responder: String,
-        values: BTreeMap<String, Value>,
-        accepted: bool,
+        &self, prompt_id: PromptId, action: String, responder: String, values: BTreeMap<String, Value>, accepted: bool,
         context: CommandContext,
     ) -> std::result::Result<CommandReceipt, Error> {
-        self.precheck_prompt_condition(&prompt_id, &action, accepted)
-            .await?;
-        self.commit_prompt_response(prompt_id, action, responder, values, accepted, context)
-            .await
+        self.precheck_prompt_condition(&prompt_id, &action, accepted).await?;
+        self.commit_prompt_response(prompt_id, action, responder, values, accepted, context).await
     }
 
     pub async fn prompt_response(&self, prompt_id: &PromptId) -> Option<PromptResponse> {
@@ -188,31 +137,20 @@ impl RuntimeHandle {
         self.state_read().closed_prompts.get(prompt_id).cloned()
     }
 
-    pub async fn wait_for_prompt_response(
-        &self,
-        prompt_id: PromptId,
-    ) -> std::result::Result<PromptResponse, Error> {
+    pub async fn wait_for_prompt_response(&self, prompt_id: PromptId) -> std::result::Result<PromptResponse, Error> {
         let mut state = self.watch_state();
-        let snapshot = state
-            .wait_until(|snapshot| {
-                snapshot.state().shutting_down
-                    || snapshot.state().prompt_response(&prompt_id).is_some()
-            })
-            .await;
+        let snapshot =
+            state.wait_until(|snapshot| snapshot.state().shutting_down || snapshot.state().prompt_response(&prompt_id).is_some()).await;
 
         snapshot
             .and_then(|snapshot| snapshot.state().prompt_response(&prompt_id))
-            .ok_or_else(|| {
-                prompt_wait_cancelled("runtime cancellation requested while waiting for prompt")
-            })
+            .ok_or_else(|| prompt_wait_cancelled("runtime cancellation requested while waiting for prompt"))
     }
 
     /// Waits for the prompt's response. A stop settles the prompt in the same
     /// transaction without answering it, so the wait ends as cancelled.
     pub async fn wait_for_prompt_response_for_cycle(
-        &self,
-        prompt_id: PromptId,
-        test_cycle_id: TestCycleId,
+        &self, prompt_id: PromptId, test_cycle_id: TestCycleId,
     ) -> std::result::Result<PromptResponse, Error> {
         let mut state = self.watch_state();
         let snapshot = state
@@ -221,29 +159,16 @@ impl RuntimeHandle {
                 state.shutting_down
                     || state.prompt_response(&prompt_id).is_some()
                     || !state.cycles.contains_key(&test_cycle_id)
-                    || state
-                        .prompt_requests
-                        .get(&prompt_id)
-                        .is_none_or(|prompt| !state.prompt_open(prompt))
+                    || state.prompt_requests.get(&prompt_id).is_none_or(|prompt| !state.prompt_open(prompt))
             })
             .await
-            .ok_or_else(|| {
-                prompt_wait_cancelled("runtime cancellation requested while waiting for prompt")
-            })?;
+            .ok_or_else(|| prompt_wait_cancelled("runtime cancellation requested while waiting for prompt"))?;
 
-        snapshot
-            .state()
-            .prompt_response(&prompt_id)
-            .ok_or_else(|| prompt_wait_cancelled("prompt closed while waiting for its response"))
+        snapshot.state().prompt_response(&prompt_id).ok_or_else(|| prompt_wait_cancelled("prompt closed while waiting for its response"))
     }
 
     async fn commit_prompt_response(
-        &self,
-        prompt_id: PromptId,
-        action: String,
-        responder: String,
-        values: BTreeMap<String, Value>,
-        accepted: bool,
+        &self, prompt_id: PromptId, action: String, responder: String, values: BTreeMap<String, Value>, accepted: bool,
         context: CommandContext,
     ) -> std::result::Result<CommandReceipt, Error> {
         let started = Instant::now();
@@ -264,15 +189,8 @@ impl RuntimeHandle {
             accepted_at: accepted_at.clone(),
         };
         let prompt_id = validate_response(&self.state_read(), &transaction)?;
-        let committed = match context
-            .idempotency_key
-            .as_deref()
-            .filter(|key| !key.is_empty())
-        {
-            Some(key) => {
-                self.commit_keyed(harmos::state::RequestKey::new(key), transaction)
-                    .await
-            }
+        let committed = match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
+            Some(key) => self.commit_keyed(harmos::state::RequestKey::new(key), transaction).await,
             None => self.commit(transaction).await,
         }
         .map_err(|error| unavailable_rejection(error.to_string()))?;
@@ -290,10 +208,7 @@ impl RuntimeHandle {
 /* === Private Functions === */
 fn ensure_accepted(receipt: &CommandReceipt) -> std::result::Result<(), Error> {
     match &receipt.rejection {
-        Some(rejection) => Err(Error::internal(
-            rejection.code.clone(),
-            rejection.message.clone(),
-        )),
+        Some(rejection) => Err(Error::internal(rejection.code.clone(), rejection.message.clone())),
         None => Ok(()),
     }
 }

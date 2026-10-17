@@ -47,13 +47,10 @@ impl dokime_runtime::StreamSpec for HomedRow {
 
 impl dokime_runtime::telemetry::TelemetryStream for HomedRow {
     fn contract() -> dokime_runtime::telemetry::TelemetryContract {
-        dokime_runtime::telemetry::TelemetryContract::declared(
-            <Self as dokime_runtime::StreamSpec>::ID,
-            "Steady Events",
-        )
-        .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
-        .typed::<Self>()
-        .strict()
+        dokime_runtime::telemetry::TelemetryContract::declared(<Self as dokime_runtime::StreamSpec>::ID, "Steady Events")
+            .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
+            .typed::<Self>()
+            .strict()
     }
 }
 
@@ -70,18 +67,11 @@ impl dokime_runtime::telemetry::TelemetryRow for HomedRow {
     }
 
     fn into_row(self) -> BTreeMap<String, dokime_runtime::Value> {
-        BTreeMap::from([(
-            "value".to_owned(),
-            dokime_runtime::Value::Number(self.value),
-        )])
+        BTreeMap::from([("value".to_owned(), dokime_runtime::Value::Number(self.value))])
     }
 
-    fn from_row(
-        values: &BTreeMap<String, dokime_runtime::Value>,
-    ) -> Result<Self, dokime_runtime::telemetry::FieldError> {
-        Ok(Self {
-            value: dokime_runtime::telemetry::field(values, "value")?,
-        })
+    fn from_row(values: &BTreeMap<String, dokime_runtime::Value>) -> Result<Self, dokime_runtime::telemetry::FieldError> {
+        Ok(Self { value: dokime_runtime::telemetry::field(values, "value")? })
     }
 }
 
@@ -97,9 +87,7 @@ fn untyped_artifact_refused() {
 
     // An artifact name is the one statement the file makes about its content,
     // and there is no typed override left to make that statement a lie.
-    let refused = artifacts
-        .write("x", b"bytes")
-        .expect_err("a name that does not say what the content is is refused");
+    let refused = artifacts.write("x", b"bytes").expect_err("a name that does not say what the content is is refused");
     // `dokime_runtime::Error` is not a name this crate resolves (it depends on
     // `dokime` only through `dokime_app`'s re-exports), so the `io::Error`
     // beneath the refusal is reached through `source()` instead of a match.
@@ -107,16 +95,9 @@ fn untyped_artifact_refused() {
         .and_then(|source| source.downcast_ref::<std::io::Error>())
         .expect("an artifact refusal keeps the io::Error as its source");
     assert_eq!(io_error.kind(), std::io::ErrorKind::InvalidInput);
-    assert!(
-        refused
-            .to_string()
-            .contains("does not say what the content is"),
-        "{refused}"
-    );
+    assert!(refused.to_string().contains("does not say what the content is"), "{refused}");
     assert!(artifacts.create("evidence/trace").is_err());
-    artifacts
-        .write("x.bin", b"bytes")
-        .expect("opaque bytes are a statement a name can make");
+    artifacts.write("x.bin", b"bytes").expect("opaque bytes are a statement a name can make");
     assert_eq!(sink.chunks().len(), 1, "a refused name sends no piece");
 }
 
@@ -132,24 +113,17 @@ async fn declared_row_home() {
     let mut transport = dokime_runtime::transport::recording::RecordingTransport::new();
     let parameters = BTreeMap::new();
     let settings = dokime_runtime::plugin::Configuration::default();
-    let environment: dokime_runtime::execution::Environment<'_, (), ()> =
-        dokime_runtime::execution::Environment::new(
-            &(),
-            &parameters,
-            &settings,
-            artifacts,
-            dokime_runtime::telemetry::Streams::new(sink.clone()),
-            dokime_runtime::records::Deliveries::new(sink.clone()),
-        );
+    let environment: dokime_runtime::execution::Environment<'_, (), ()> = dokime_runtime::execution::Environment::new(
+        &(),
+        &parameters,
+        &settings,
+        artifacts,
+        dokime_runtime::telemetry::Streams::new(sink.clone()),
+        dokime_runtime::records::Deliveries::new(sink.clone()),
+    );
     let step = environment.step(&mut transport);
 
-    step.stream::<HomedRow>()
-        .open()
-        .push(HomedRow { value: 1.5 })
-        .await;
+    step.stream::<HomedRow>().open().push(HomedRow { value: 1.5 }).await;
     assert_eq!(sink.rows(HOME_STREAM).len(), 1);
-    assert!(
-        sink.rows(OTHER_STREAM).is_empty(),
-        "a declared row type has one home and lands on that one"
-    );
+    assert!(sink.rows(OTHER_STREAM).is_empty(), "a declared row type has one home and lands on that one");
 }

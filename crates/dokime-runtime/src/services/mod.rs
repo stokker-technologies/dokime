@@ -26,8 +26,7 @@ pub(crate) mod telemetry;
 /* === Type Aliases === */
 // One lease on a resident service instance of the operation manager; the
 // last lease released stops the instance.
-pub(crate) type Lease =
-    harmos::operations::OperationInstance<harmos::operations::resident::Activation>;
+pub(crate) type Lease = harmos::operations::OperationInstance<harmos::operations::resident::Activation>;
 
 /* === Structs === */
 

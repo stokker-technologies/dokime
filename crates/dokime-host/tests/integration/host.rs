@@ -20,13 +20,13 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use crate::support::*;
+use dokime_domain::model;
+use dokime_host::{Host, HostTelemetryStream};
 use dokime_runtime::telemetry::TelemetryRow;
 use dokime_runtime::telemetry::validate_telemetry_sample;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
 use model::telemetry::{ValidationMode, host_telemetry_contract};
-use dokime_host::{Host, HostTelemetryStream};
 
 /* === Constants === */
 
@@ -80,21 +80,9 @@ fn host_stream_row() {
                 Field::Array("local_addresses"),
             ],
         ),
-        (
-            HostTelemetryStream::Wifi,
-            &["ok", "unavailable", "unsupported", "error"],
-            &[Field::Integer("sample_index")],
-        ),
-        (
-            HostTelemetryStream::WifiLatency,
-            &["ok", "error"],
-            &[Field::Integer("sample_index")],
-        ),
-        (
-            HostTelemetryStream::Bluetooth,
-            &["ok", "stale", "unsupported", "error"],
-            &[Field::Integer("sample_index")],
-        ),
+        (HostTelemetryStream::Wifi, &["ok", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),
+        (HostTelemetryStream::WifiLatency, &["ok", "error"], &[Field::Integer("sample_index")]),
+        (HostTelemetryStream::Bluetooth, &["ok", "stale", "unsupported", "error"], &[Field::Integer("sample_index")]),
     ];
 
     for (stream, probe_statuses, fields) in streams {
@@ -113,22 +101,11 @@ fn host_stream_row() {
 fn collected_battery_columns() {
     // Whatever this machine reports — every reading, or none on a host
     // without a battery — is a declared, correctly typed `host.system` column.
-    let batch = Host::default()
-        .collect_stream(HostTelemetryStream::System)
-        .unwrap()
-        .unwrap();
+    let batch = Host::default().collect_stream(HostTelemetryStream::System).unwrap().unwrap();
     let contract = host_telemetry_contract(HostTelemetryStream::System);
-    let declared = contract
-        .columns
-        .iter()
-        .map(|column| column.metadata.identifier.as_str())
-        .collect::<Vec<_>>();
+    let declared = contract.columns.iter().map(|column| column.metadata.identifier.as_str()).collect::<Vec<_>>();
     for sample in batch.samples {
-        for key in sample
-            .values
-            .keys()
-            .filter(|key| key.starts_with("battery_"))
-        {
+        for key in sample.values.keys().filter(|key| key.starts_with("battery_")) {
             assert!(declared.contains(&key.as_str()), "{key} is not declared");
         }
         validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict).unwrap();

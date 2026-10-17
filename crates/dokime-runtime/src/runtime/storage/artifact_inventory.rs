@@ -20,13 +20,13 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::executions::ExecutionStorage;
-use crate::runtime::Result;
 use crate::artifacts::ArtifactRecord;
 use crate::artifacts::ArtifactStatus;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::identity::TestExecutionId;
+use crate::runtime::Result;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 const UUID_BYTES: usize = 36;
@@ -51,8 +51,7 @@ pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
 
 /// Visits each distinct artifact once, sealed history first, then live uploads.
 pub(super) async fn inspect(
-    storage: &ExecutionStorage,
-    mut visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
+    storage: &ExecutionStorage, mut visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
 ) -> Result<usize> {
     let saved = storage.storage.cursor_saved();
     let mut seen = BTreeMap::new();
@@ -68,13 +67,7 @@ pub(super) async fn inspect(
             }
         }
     }
-    let owners = storage
-        .active
-        .lock()
-        .await
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
+    let owners = storage.active.lock().await.values().cloned().collect::<Vec<_>>();
     for owner in owners {
         let acquisition = owner.lock().await;
         for upload in acquisition.artifacts.values() {
@@ -101,25 +94,18 @@ pub(super) async fn records(storage: &ExecutionStorage) -> Result<Vec<ArtifactRe
         Ok(())
     })
     .await?;
-    records
-        .sort_unstable_by(|left, right| left.artifact_id.as_str().cmp(right.artifact_id.as_str()));
+    records.sort_unstable_by(|left, right| left.artifact_id.as_str().cmp(right.artifact_id.as_str()));
     Ok(records)
 }
 
 /* === Private Functions === */
-fn observe(
-    seen: &mut BTreeMap<ArtifactId, TestExecutionId>,
-    owner: &TestExecutionId,
-    record: &ArtifactRecord,
-) -> harmos::Result<bool> {
+fn observe(seen: &mut BTreeMap<ArtifactId, TestExecutionId>, owner: &TestExecutionId, record: &ArtifactRecord) -> harmos::Result<bool> {
     if record.status == ArtifactStatus::Staged
         || record.scope.test_execution_id.as_ref() != Some(owner)
         || record.artifact_id.as_str().len() != UUID_BYTES
         || owner.as_str().len() != UUID_BYTES
     {
-        return Err(invalid(
-            "artifact inventory attribution differs from its owner",
-        ));
+        return Err(invalid("artifact inventory attribution differs from its owner"));
     }
     if let Some(previous) = seen.get(&record.artifact_id) {
         if previous != owner {
@@ -136,11 +122,7 @@ fn invalid(reason: &'static str) -> harmos::Error {
 }
 
 fn codec_error(source: crate::storage::Error) -> harmos::Error {
-    harmos::Error::backend(
-        "inspect native artifact inventory",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
+    harmos::Error::backend("inspect native artifact inventory", harmos::BackendFailure::Corrupt, source)
 }
 
 /* === Tests === */

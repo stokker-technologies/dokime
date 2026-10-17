@@ -140,38 +140,24 @@ async def follow_file(
                     observed = FileIdentity._from_wire(payload.identity)
                     phase = _wire.enum_name(payload.phase)
                     if (
-                        (observed.execution_id, observed.relative_path)
-                        != (execution_id, relative_path)
+                        (observed.execution_id, observed.relative_path) != (execution_id, relative_path)
                         or identity is not None
                         and observed != identity
                         or payload.offset != offset
                         or payload.available_length < offset
                         or phase not in ("producing", "finished", "abandoned")
                     ):
-                        raise ProtocolError(
-                            "followed file identity, phase or prefix differs"
-                        )
+                        raise ProtocolError("followed file identity, phase or prefix differs")
                     yield FileUpdate(observed, offset, phase)
                 elif branch == "Chunk" and observed is not None:
-                    if (
-                        payload.offset != offset
-                        or not payload.data
-                        or len(payload.data) > max_bytes
-                    ):
-                        raise ProtocolError(
-                            "followed file chunks are empty, oversized or noncontiguous"
-                        )
-                    if (
-                        output.tell() != offset
-                        or os.fstat(output.fileno()).st_size != offset
-                    ):
+                    if payload.offset != offset or not payload.data or len(payload.data) > max_bytes:
+                        raise ProtocolError("followed file chunks are empty, oversized or noncontiguous")
+                    if output.tell() != offset or os.fstat(output.fileno()).st_size != offset:
                         raise ProtocolError("local file prefix changed while following")
                     try:
                         written = output.write(payload.data)
                         if written != len(payload.data):
-                            raise OSError(
-                                "local file write did not commit the complete chunk"
-                            )
+                            raise OSError("local file write did not commit the complete chunk")
                         output.flush()
                         os.fsync(output.fileno())
                     except OSError:
@@ -183,13 +169,8 @@ async def follow_file(
                     yield FileUpdate(observed, offset, "producing")
                 elif branch == "Terminal" and observed is not None:
                     phase = _wire.enum_name(payload.phase)
-                    if (
-                        phase not in ("finished", "abandoned")
-                        or payload.length != offset
-                    ):
-                        raise ProtocolError(
-                            "followed file terminal length or phase differs"
-                        )
+                    if phase not in ("finished", "abandoned") or payload.length != offset:
+                        raise ProtocolError("followed file terminal length or phase differs")
                     sha256 = None
                     if phase == "finished":
                         if not payload.HasField("sealed"):
@@ -209,31 +190,20 @@ async def follow_file(
                             or re.fullmatch(r"[0-9a-f]{64}", seal.sha256) is None
                             or seal.sha256 != digest.hexdigest()
                         ):
-                            raise ProtocolError(
-                                "original file seal or complete prefix hash differs"
-                            )
+                            raise ProtocolError("original file seal or complete prefix hash differs")
                         output.flush()
                         output.seek(0)
                         committed = hashlib.sha256()
                         while chunk := output.read(64 * 1024):
                             committed.update(chunk)
-                        if (
-                            output.tell() != offset
-                            or committed.hexdigest() != seal.sha256
-                        ):
-                            raise ProtocolError(
-                                "committed local prefix differs from the complete file seal"
-                            )
+                        if output.tell() != offset or committed.hexdigest() != seal.sha256:
+                            raise ProtocolError("committed local prefix differs from the complete file seal")
                         sha256 = seal.sha256
                     elif payload.HasField("sealed"):
-                        raise ProtocolError(
-                            "abandoned file unexpectedly carries a seal"
-                        )
+                        raise ProtocolError("abandoned file unexpectedly carries a seal")
                     terminal = FileUpdate(observed, offset, phase, sha256)
                 else:
-                    raise ProtocolError(
-                        "followed file requires one metadata frame before data"
-                    )
+                    raise ProtocolError("followed file requires one metadata frame before data")
             # The Transport Requires Its Canonical Final Response And Successful Status.
             if terminal is None:
                 raise ProtocolError("followed file ended without a terminal frame")

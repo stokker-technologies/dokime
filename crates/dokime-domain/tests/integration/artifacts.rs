@@ -45,12 +45,7 @@ use model::artifacts::name::{self, InvalidName};
 #[test]
 fn artifact_names_validate() {
     // Folders Are Implicit Path Segments
-    for accepted in [
-        "photo.jpg",
-        "upload/notes.txt",
-        "screenshots/2026-10-13_21-48-05-123.png",
-        "a/b/c/d.wav",
-    ] {
+    for accepted in ["photo.jpg", "upload/notes.txt", "screenshots/2026-10-13_21-48-05-123.png", "a/b/c/d.wav"] {
         assert_eq!(name::validate(accepted), Ok(()), "{accepted}");
     }
 
@@ -74,8 +69,5 @@ fn artifact_names_validate() {
     assert_eq!(name::validate(""), Err(InvalidName::Length));
     assert_eq!(name::validate(&long), Err(InvalidName::Length));
     assert!(name::is_relative_path(&long));
-    assert!(!name::is_relative_path(
-        &"x".repeat(name::MAX_PATH_BYTES + 1)
-    ));
+    assert!(!name::is_relative_path(&"x".repeat(name::MAX_PATH_BYTES + 1)));
 }
-

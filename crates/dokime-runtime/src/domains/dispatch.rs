@@ -26,8 +26,7 @@ use dokime_domain::model::values::Value;
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type ActionDispatcherFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, ActionDispatcherError>> + Send + 'a>>;
+pub type ActionDispatcherFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ActionDispatcherError>> + Send + 'a>>;
 
 /* === Structs === */
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -53,17 +52,12 @@ pub trait ActionDispatcher: Send + Sync + 'static {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse>;
 
     fn analyze<'a>(
-        &'a self,
-        entrypoint: &'a str,
-        _request: crate::analysis::Request,
+        &'a self, entrypoint: &'a str, _request: crate::analysis::Request,
     ) -> ActionDispatcherFuture<'a, crate::analysis::Response> {
         Box::pin(async move { Err(ActionDispatcherError::UnknownEntrypoint(entrypoint.into())) })
     }
 
-    fn query_options<'a>(
-        &'a self,
-        entrypoint: &'a str,
-    ) -> ActionDispatcherFuture<'a, Vec<OptionProviderOption>>;
+    fn query_options<'a>(&'a self, entrypoint: &'a str) -> ActionDispatcherFuture<'a, Vec<OptionProviderOption>>;
 }
 
 /* === Implementations === */
@@ -73,10 +67,7 @@ impl StatusResponse {
     }
 
     pub fn new(state: impl Into<String>) -> Self {
-        Self {
-            state: state.into(),
-            fields: BTreeMap::new(),
-        }
+        Self { state: state.into(), fields: BTreeMap::new() }
     }
 
     pub fn field(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
@@ -89,9 +80,7 @@ json_message!(StatusResponse);
 
 impl OptionsResponse {
     pub fn of(options: impl IntoIterator<Item = OptionProviderOption>) -> Self {
-        Self {
-            options: options.into_iter().collect(),
-        }
+        Self { options: options.into_iter().collect() }
     }
 
     pub fn options(&self) -> &[OptionProviderOption] {
@@ -113,10 +102,7 @@ json_message!(OptionsResponse);
 
 impl From<crate::Error> for ActionDispatcherError {
     fn from(error: crate::Error) -> Self {
-        Self::Refused {
-            code: -32000,
-            message: crate::diagnostics::redacted(&error.to_string()),
-        }
+        Self::Refused { code: -32000, message: crate::diagnostics::redacted(&error.to_string()) }
     }
 }
 

@@ -27,15 +27,13 @@ use sha2::{Digest, Sha256};
 use dokime_runtime::__harmos as harmos;
 use dokime_runtime::execution::ExecutionScope;
 use dokime_runtime::transport::{
-    DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk,
-    LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence,
-    RunExecution, SidecarExecutionOutcome, StepAdmission,
+    DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, LeaseStream, OperatorAnswer,
+    OperatorQuestion, PushEvidence, RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
 use harmos::operations::{Context, Operation};
 use harmos::plugin::{
-    PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions,
-    PluginLifecycle, PluginLifecycleAuthority, PluginLifecyclePhase, PluginManager, PluginScope,
-    PluginTransition, Router,
+    PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
+    PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
 };
 use obc_plugin::ObcPlugin;
 
@@ -45,8 +43,7 @@ const EXECUTABLE: &str = env!("CARGO_BIN_EXE_obc-plugin");
 /* === Macros === */
 
 /* === Type Aliases === */
-type NoticeHandler =
-    Box<dyn Fn(&harmos::services::Service<Fixture>, harmos::sidecar::Notice) + Send + Sync>;
+type NoticeHandler = Box<dyn Fn(&harmos::services::Service<Fixture>, harmos::sidecar::Notice) + Send + Sync>;
 type Resident = harmos::sidecar::Supervised<Fixture, harmos::sidecar::Executable, NoticeHandler>;
 type Publication = harmos::sidecar::Publish<Fixture, harmos::sidecar::Executable, NoticeHandler>;
 
@@ -65,10 +62,7 @@ struct Backend {
 #[derive(Default)]
 struct Captures {
     scopes: BTreeMap<String, dokime_runtime::RecordScope>,
-    publications: Vec<(
-        harmos::streams::ManagedPublication,
-        dokime_runtime::RecordScope,
-    )>,
+    publications: Vec<(harmos::streams::ManagedPublication, dokime_runtime::RecordScope)>,
 }
 
 struct Hosting {
@@ -132,10 +126,7 @@ impl Hosting {
             .value::<ExecutionScope>()
             .ok()
             .flatten()
-            .ok_or(harmos::Error::InvalidInput {
-                field: "execution scope",
-                reason: "the call is not part of a template run",
-            })?
+            .ok_or(harmos::Error::InvalidInput { field: "execution scope", reason: "the call is not part of a template run" })?
             .execution)
     }
 
@@ -152,13 +143,12 @@ impl Hosting {
         for (publication, scope) in published {
             use dokime_runtime::telemetry::TelemetryRow;
             use harmos::Message;
-            let row =
-                obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
+            let row = obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
-            let instant = std::time::UNIX_EPOCH
-                .checked_add(Duration::from_micros(micros))
-                .unwrap();
-            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), dokime_runtime::Identifier::new(publication.stream()).unwrap(),
+            let instant = std::time::UNIX_EPOCH.checked_add(Duration::from_micros(micros)).unwrap();
+            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                dokime_runtime::Identifier::new(publication.stream()).unwrap(),
                 publication.sequence(),
                 dokime_runtime::Timestamp::from_system_time(instant),
                 publication.owner(),
@@ -203,18 +193,12 @@ impl Operation for Evidence {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        hosting: Arc<Hosting>,
-        _: Self::Context<'ctx>,
-    ) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(hosting: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self(hosting))
     }
 
     async fn run<'ctx>(
-        &mut self,
-        context: Self::Context<'ctx>,
-        batch: &mut EvidenceBatch,
-        _: &mut (),
+        &mut self, context: Self::Context<'ctx>, batch: &mut EvidenceBatch, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<EvidenceReceipt>> {
         let token = Hosting::scope_of(&context)?;
         let batch = std::mem::take(batch);
@@ -225,31 +209,16 @@ impl Operation for Evidence {
                 let mut captures = self.0.captures.lock().unwrap();
                 let scope = captures.scopes.get_mut(&token).unwrap();
                 scope.step_id = Some(start.step_id.clone());
-                scope.origin = dokime_runtime::EvidenceOrigin::Step {
-                    attempt_id: start.attempt_id.clone(),
-                };
+                scope.origin = dokime_runtime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
             }
-            admitted.push(StepAdmission {
-                attempt_id: start.attempt_id.to_string(),
-                accepted: true,
-                message: String::new(),
-            });
+            admitted.push(StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         let settled = batch.record_subscriptions_settling;
         if settled {
             self.0.replay(&token).await?;
         }
-        self.0
-            .pages
-            .lock()
-            .unwrap()
-            .entry(token)
-            .or_default()
-            .push(batch);
-        Ok(harmos::operations::Response::new(EvidenceReceipt {
-            admitted,
-            settled,
-        }))
+        self.0.pages.lock().unwrap().entry(token).or_default().push(batch);
+        Ok(harmos::operations::Response::new(EvidenceReceipt { admitted, settled }))
     }
 }
 
@@ -269,15 +238,9 @@ impl Operation for Question {
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        _: &mut OperatorQuestion,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, _: &mut OperatorQuestion, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
-        Err(harmos::Error::InvalidInput {
-            field: "operator question",
-            reason: "the OBC checks never ask the operator",
-        })
+        Err(harmos::Error::InvalidInput { field: "operator question", reason: "the OBC checks never ask the operator" })
     }
 }
 
@@ -297,10 +260,7 @@ impl Operation for Filing {
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        _: &mut dokime_runtime::records::RecordPublication,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::records::RecordPublication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         Ok(harmos::operations::Response::new(()))
     }
@@ -318,16 +278,9 @@ impl Operation for Watching {
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        _: &mut dokime_runtime::operations::files::WatchFile,
-        _: &mut (),
-    ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>>
-    {
-        Err(harmos::Error::InvalidInput {
-            field: "file watch",
-            reason: "the test host watches no files",
-        })
+        &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::operations::files::WatchFile, _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime_runtime::operations::files::WatchFileOutcome>> {
+        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
     }
 }
 
@@ -347,15 +300,9 @@ impl Operation for Lease {
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        _: &mut LeaseAsk,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, _: &mut LeaseAsk, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
-        Ok(harmos::operations::Response::new(LeaseResolution {
-            granted: false,
-            message: "the test host leases nothing".into(),
-        }))
+        Ok(harmos::operations::Response::new(LeaseResolution { granted: false, message: "the test host leases nothing".into() }))
     }
 }
 
@@ -370,39 +317,21 @@ impl Operation for Publishing {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        hosting: Arc<Hosting>,
-        _: Self::Context<'ctx>,
-    ) -> harmos::Result<Self> {
-        Ok(Self {
-            hosting,
-            native: None,
-        })
+    async fn initialize<'ctx>(hosting: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self { hosting, native: None })
     }
 
     async fn run<'ctx>(
-        &mut self,
-        context: Self::Context<'ctx>,
-        request: &mut harmos::operations::host::Publication,
-        _: &mut (),
+        &mut self, context: Self::Context<'ctx>, request: &mut harmos::operations::host::Publication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         if self.native.is_none() {
-            let resident =
-                self.hosting
-                    .resident
-                    .get()
-                    .cloned()
-                    .ok_or(harmos::Error::InvalidInput {
-                        field: "native publication",
-                        reason: "the resident is not running",
-                    })?;
-            self.native = Some(
-                <Publication as harmos::operations::Operation>::initialize(
-                    Arc::new(resident),
-                    context.clone(),
-                )
-                .await?,
-            );
+            let resident = self
+                .hosting
+                .resident
+                .get()
+                .cloned()
+                .ok_or(harmos::Error::InvalidInput { field: "native publication", reason: "the resident is not running" })?;
+            self.native = Some(<Publication as harmos::operations::Operation>::initialize(Arc::new(resident), context.clone()).await?);
         }
         self.native
             .as_mut()
@@ -451,42 +380,17 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(EXECUTABLE)
-                .expect("OBC executable has a valid declaration");
+            let executable = harmos::sidecar::Executable::at(EXECUTABLE).expect("OBC executable has a valid declaration");
             let resident = Resident::new(executable, handler);
             let _ = self.hosting.resident.set(resident.clone());
             let _ = self.hosting.operations.set(self.operations.clone());
             for registered in [
-                self.operations.register_wire_operation::<Evidence>(
-                    "fixture.execution",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
-                self.operations.register_wire_operation::<Question>(
-                    "fixture.execution",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
-                self.operations.register_wire_operation::<Lease>(
-                    "fixture.execution",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
-                self.operations.register_wire_operation::<Filing>(
-                    "fixture.records",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
-                self.operations.register_wire_operation::<Publishing>(
-                    "fixture.publications",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
-                self.operations.register_wire_operation::<Watching>(
-                    "fixture.files",
-                    Lanes::Open,
-                    Arc::clone(&self.hosting),
-                ),
+                self.operations.register_wire_operation::<Evidence>("fixture.execution", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<Question>("fixture.execution", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<Lease>("fixture.execution", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<Filing>("fixture.records", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<Publishing>("fixture.publications", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<Watching>("fixture.files", Lanes::Open, Arc::clone(&self.hosting)),
             ] {
                 registered?;
             }
@@ -511,39 +415,20 @@ impl PluginLifecycle for Host {
     }
 
     async fn start(
-        &mut self,
-        definition: &PluginDefinition,
-        router: &Router,
-        authority: &PluginLifecycleAuthority<'_>,
+        &mut self, definition: &PluginDefinition, router: &Router, authority: &PluginLifecycleAuthority<'_>,
         backend: &mut PluginBackend<(), Backend, ()>,
     ) -> harmos::Result<()> {
-        let PluginBackend::Sidecar(backend) = backend else {
-            unreachable!()
-        };
-        let PluginArtifact::Sidecar { path, sha256, .. } = &definition.artifact else {
-            unreachable!()
-        };
+        let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
+        let PluginArtifact::Sidecar { path, sha256, .. } = &definition.artifact else { unreachable!() };
         let bytes = std::fs::read(path).unwrap();
         assert_eq!(Sha256::digest(&bytes).as_slice(), sha256);
         let executable = harmos::sidecar::Executable::at(path).unwrap();
-        let inspected: std::collections::BTreeMap<_, _> = executable
-            .declaration()
-            .operations
-            .iter()
-            .map(|operation| (&operation.id, operation))
-            .collect();
-        let approved: std::collections::BTreeMap<_, _> = definition
-            .contributions
-            .operations
-            .iter()
-            .map(|operation| (&operation.id, operation))
-            .collect();
+        let inspected: std::collections::BTreeMap<_, _> =
+            executable.declaration().operations.iter().map(|operation| (&operation.id, operation)).collect();
+        let approved: std::collections::BTreeMap<_, _> =
+            definition.contributions.operations.iter().map(|operation| (&operation.id, operation)).collect();
         assert_eq!(inspected, approved);
-        let restart = executable
-            .declaration()
-            .restart()
-            .expect("OBC declares its restart policy")
-            .bounded();
+        let restart = executable.declaration().restart().expect("OBC declares its restart policy").bounded();
         let policy = harmos::operations::OperationPolicy {
             timeout: Duration::from_secs(5),
             restart: harmos::operations::RestartPolicy::OnTransient {
@@ -564,61 +449,36 @@ impl PluginLifecycle for Host {
             .clone()
             .routed(router)
             .expected_registrations(&definition.contributions.registrations);
-        self.operations.register_service(
-            harmos::services::ServiceDefinition {
-                id: definition.id.clone(),
-                policy,
-            },
-            {
-                let resident = resident.clone();
-                move |_: Arc<()>| resident.clone()
-            },
-        )?;
+        self.operations.register_service(harmos::services::ServiceDefinition { id: definition.id.clone(), policy }, {
+            let resident = resident.clone();
+            move |_: Arc<()>| resident.clone()
+        })?;
         backend.registered = true;
         backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
         let native = Arc::new(resident.staged_operations().await.unwrap());
         let scope = native.scope().unwrap();
-        assert!(authority.matches_scope(
-            scope,
-            definition.kind(),
-            PluginLifecyclePhase::Initialize
-        ));
+        assert!(authority.matches_scope(scope, definition.kind(), PluginLifecyclePhase::Initialize));
         backend.scope = Some(scope.clone());
-        backend.registration = Some(self.operations.stage_plugin(scope, |bindings| {
-            bindings.register_native(
-                Lanes::Open,
-                Arc::clone(&native),
-                NonZeroUsize::new(128).unwrap(),
-            )
-        })?);
+        backend.registration =
+            Some(self.operations.stage_plugin(scope, |bindings| {
+                bindings.register_native(Lanes::Open, Arc::clone(&native), NonZeroUsize::new(128).unwrap())
+            })?);
         backend.sdk = Some(native.stage_sdk(&self.operations, Lanes::Open)?);
         backend
             .sdk
             .as_ref()
             .unwrap()
-            .submit_initialize(
-                authority,
-                &definition.configuration,
-                NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            )?
+            .submit_initialize(authority, &definition.configuration, NonZeroUsize::new(4 * 1024 * 1024).unwrap())?
             .await?;
         Ok(())
     }
 
     async fn stop(
-        definition: &PluginDefinition,
-        authority: &PluginLifecycleAuthority<'_>,
-        backend: &mut PluginBackend<(), Backend, ()>,
+        definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Backend, ()>,
     ) -> harmos::Result<()> {
-        let PluginBackend::Sidecar(backend) = backend else {
-            unreachable!()
-        };
+        let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         if let Some(scope) = &backend.scope {
-            assert!(authority.matches_scope(
-                scope,
-                definition.kind(),
-                PluginLifecyclePhase::Shutdown
-            ));
+            assert!(authority.matches_scope(scope, definition.kind(), PluginLifecyclePhase::Shutdown));
         }
         if let Some(sdk) = &backend.sdk {
             sdk.settle().await?;
@@ -648,14 +508,8 @@ impl Bench {
     async fn new() -> Self {
         let path = std::path::PathBuf::from(EXECUTABLE);
         let bytes = std::fs::read(&path).unwrap();
-        let declaration = harmos::sidecar::Executable::at(&path)
-            .unwrap()
-            .declaration()
-            .clone();
-        let configuration = serde_json::to_vec(&dokime_runtime::plugin::Configuration::declared::<
-            obc_plugin::BenchSettings,
-        >())
-        .unwrap();
+        let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
+        let configuration = serde_json::to_vec(&dokime_runtime::plugin::Configuration::declared::<obc_plugin::BenchSettings>()).unwrap();
         let mut registrar = harmos::plugin::Registrar::new();
         <ObcPlugin as harmos::Plugin>::register(&mut registrar).unwrap();
         let definition = PluginDefinition {
@@ -677,9 +531,7 @@ impl Bench {
                 streams: declaration.streams.clone(),
                 observers: declaration.observers.clone(),
                 observer_control: match &declaration.carrier {
-                    harmos::plugin::inventory::CarrierSection::Sidecar {
-                        observer_control, ..
-                    } => observer_control.as_deref().cloned(),
+                    harmos::plugin::inventory::CarrierSection::Sidecar { observer_control, .. } => observer_control.as_deref().cloned(),
                     harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 listeners: declaration.listeners.clone(),
@@ -712,28 +564,17 @@ impl Bench {
         plugins.initialize(&mut host).await.unwrap();
         let mut ready = host.resident.as_ref().unwrap().ready();
         ready.wait_for(|ready| *ready).await.unwrap();
-        Self {
-            runtime,
-            plugins,
-            host,
-            declaration,
-        }
+        Self { runtime, plugins, host, declaration }
     }
 
-    fn start(
-        &self,
-        token: &str,
-        parameters: &BTreeMap<&str, dokime_runtime::Value>,
-    ) -> tokio::task::JoinHandle<SidecarExecutionOutcome> {
+    fn start(&self, token: &str, parameters: &BTreeMap<&str, dokime_runtime::Value>) -> tokio::task::JoinHandle<SidecarExecutionOutcome> {
         use harmos::Message;
         let cycle = dokime_runtime::TestCycleId::from_seed("native-cycle");
         self.host.hosting.captures.lock().unwrap().scopes.insert(
             token.to_owned(),
             dokime_runtime::RecordScope {
                 test_cycle_id: Some(cycle.clone()),
-                test_execution_id: Some(
-                    dokime_runtime::TestExecutionId::from_uuid(token.to_owned()).unwrap(),
-                ),
+                test_execution_id: Some(dokime_runtime::TestExecutionId::from_uuid(token.to_owned()).unwrap()),
                 origin: dokime_runtime::EvidenceOrigin::Initialization,
                 ..Default::default()
             },
@@ -749,9 +590,7 @@ impl Bench {
             secrets_json: "{}".into(),
         };
         let mut context = harmos::operations::CallContext::default();
-        context
-            .insert_portable(ExecutionScope::execution(token))
-            .unwrap();
+        context.insert_portable(ExecutionScope::execution(token)).unwrap();
         let operations = self.runtime.operations.with_context(context);
         tokio::spawn(async move {
             let bytes = operations
@@ -774,21 +613,14 @@ impl Bench {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn dispatch(
-    operations: &harmos::operations::OperationManager,
-    method: &str,
-    request: Vec<u8>,
-) {
+async fn dispatch(operations: &harmos::operations::OperationManager, method: &str, request: Vec<u8>) {
     let response = operations.call_encoded(method, request).await;
     match response {
         Ok(_) => {}
         Err(harmos::Error::OperationFailed { source, .. })
             if matches!(
                 source.downcast_ref::<harmos::operations::NativeError>(),
-                Some(
-                    harmos::operations::NativeError::Remote { .. }
-                        | harmos::operations::NativeError::Preparation { .. }
-                )
+                Some(harmos::operations::NativeError::Remote { .. } | harmos::operations::NativeError::Preparation { .. })
             ) => {}
         Err(error) => panic!("{method} was advertised but did not dispatch: {error}"),
     }
@@ -805,42 +637,19 @@ async fn inventory_matches_dispatch() {
     let mut served = Vec::new();
 
     // Every template of every suite serves its run and its signal.
-    for template in
-        dokime_runtime::catalog::entries::<obc_plugin::suites::Suites, dokime_runtime::catalog::Suites>()
-            .into_iter()
-            .flat_map(|definition| definition().suite.test_case_templates)
-            .map(|template| template.metadata.identifier.to_string())
+    for template in dokime_runtime::catalog::entries::<obc_plugin::suites::Suites, dokime_runtime::catalog::Suites>()
+        .into_iter()
+        .flat_map(|definition| definition().suite.test_case_templates)
+        .map(|template| template.metadata.identifier.to_string())
     {
         let run = format!("{template}.run");
         let signal = format!("{template}.signal");
-        dispatch(
-            &runtime.operations,
-            &run,
-            RunExecution::default().encode_to_vec(),
-        )
-        .await;
-        dispatch(
-            &runtime.operations,
-            &signal,
-            ExecutionSignal::default().encode_to_vec(),
-        )
-        .await;
-        served.push((
-            run,
-            <dokime_runtime::execution::Run<()> as OperationDeclaration>::POLICY
-                .timeout
-                .as_millis() as u64,
-        ));
-        served.push((
-            signal,
-            <dokime_runtime::execution::Signal<()> as OperationDeclaration>::POLICY
-                .timeout
-                .as_millis() as u64,
-        ));
+        dispatch(&runtime.operations, &run, RunExecution::default().encode_to_vec()).await;
+        dispatch(&runtime.operations, &signal, ExecutionSignal::default().encode_to_vec()).await;
+        served.push((run, <dokime_runtime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
+        served.push((signal, <dokime_runtime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
-    use obc_plugin::operations::{
-        connections::ListConnections, readiness::AskReadiness, status::GetStatus,
-    };
+    use obc_plugin::operations::{connections::ListConnections, readiness::AskReadiness, status::GetStatus};
     for (operation, timeout) in [
         (
             <GetStatus as harmos::operations::Declares>::Declaration::ID,
@@ -856,47 +665,30 @@ async fn inventory_matches_dispatch() {
         ),
     ] {
         // All three bench operations have an empty native request.
-        runtime
-            .operations
-            .call_encoded(operation, Vec::new())
-            .await
-            .unwrap();
+        runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
         served.push((operation.to_owned(), timeout.as_millis() as u64));
     }
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime
-        .streams
-        .publication("obc-plugin.system", 1)
-        .unwrap();
+    let system = runtime.streams.publication("obc-plugin.system", 1).unwrap();
     // The watch holds demand and yields each published tick.
     let mut demand = system.watch();
     let mut rows = Vec::new();
     while rows.len() < 2 {
-        let item = futures_util::StreamExt::next(&mut demand)
-            .await
-            .expect("the demanded host observer publishes consecutive ticks");
+        let item = futures_util::StreamExt::next(&mut demand).await.expect("the demanded host observer publishes consecutive ticks");
         if let harmos::streams::Item::Row(row) = item {
             rows.push(row);
         }
     }
-    let decoder = harmos::schema::Validator::from_schema(
-        system.definition().schema().unwrap(),
-        &harmos::config::SchemaSettings::default(),
-    )
-    .unwrap();
+    let decoder =
+        harmos::schema::Validator::from_schema(system.definition().schema().unwrap(), &harmos::config::SchemaSettings::default()).unwrap();
     for row in rows {
         let mut used = None;
         decoder
             .visit(&row.value.payload, |path, event| {
                 if let (
-                    [
-                        harmos::schema::PathElement::Field {
-                            name: "system_memory_used_bytes",
-                            ..
-                        },
-                    ],
+                    [harmos::schema::PathElement::Field { name: "system_memory_used_bytes", .. }],
                     harmos::schema::Event::Scalar(harmos::schema::Scalar::I64(bytes)),
                 ) = (path, event)
                 {
@@ -914,34 +706,20 @@ async fn inventory_matches_dispatch() {
     served.push(("obc-plugin.connection".to_owned(), 30_000));
     // The observe control refuses an observer the sidecar does not serve.
     let observe = "obc-plugin.observers.observe";
-    dispatch(
-        &runtime.operations,
-        observe,
-        harmos::operations::observers::Control::default().encode_to_vec(),
-    )
-    .await;
-    served.push((
-        observe.to_owned(),
-        harmos::operations::observers::POLICY.timeout.as_millis() as u64,
-    ));
+    dispatch(&runtime.operations, observe, harmos::operations::observers::Control::default().encode_to_vec()).await;
+    served.push((observe.to_owned(), harmos::operations::observers::POLICY.timeout.as_millis() as u64));
     // The ripple analysis is reached too; an empty request is refused all the same.
     let ripple = <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::ID;
     dispatch(&runtime.operations, ripple, Vec::new()).await;
     served.push((
         ripple.to_owned(),
-        <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::TIMEOUT.as_millis()
-            as u64,
+        <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::TIMEOUT.as_millis() as u64,
     ));
     served.sort();
     let mut inspected = declared
         .operations
         .iter()
-        .map(|operation| {
-            (
-                operation.id.to_string(),
-                operation.policy.timeout.as_millis() as u64,
-            )
-        })
+        .map(|operation| (operation.id.to_string(), operation.policy.timeout.as_millis() as u64))
         .collect::<Vec<_>>();
     inspected.sort();
     assert_eq!(inspected, served);
@@ -959,44 +737,23 @@ async fn samples_keep_context() {
         ("tolerance", Value::from(obc_plugin::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
     ]);
-    let tokens = ["native-a", "native-b"]
-        .map(|seed| dokime_runtime::TestExecutionId::from_seed(seed).to_string());
-    let runs = tokens
-        .iter()
-        .map(|token| bench.start(token, &parameters))
-        .collect::<Vec<_>>();
+    let tokens = ["native-a", "native-b"].map(|seed| dokime_runtime::TestExecutionId::from_seed(seed).to_string());
+    let runs = tokens.iter().map(|token| bench.start(token, &parameters)).collect::<Vec<_>>();
 
     for (token, run) in tokens.iter().zip(runs) {
         let outcome = run.await.unwrap();
-        assert!(
-            outcome.passed,
-            "local criteria must retain their evidence: {outcome:?}"
-        );
-        assert!(
-            <EvidenceBatch as dokime_runtime::schema::Described>::FIELDS
-                .iter()
-                .all(|field| field.name != "samples")
-        );
-        let pages = bench
-            .host
-            .hosting
-            .pages
-            .lock()
-            .unwrap()
-            .get(token)
-            .cloned()
-            .expect("the host admitted this run's pages");
+        assert!(outcome.passed, "local criteria must retain their evidence: {outcome:?}");
+        assert!(<EvidenceBatch as dokime_runtime::schema::Described>::FIELDS.iter().all(|field| field.name != "samples"));
+        let pages = bench.host.hosting.pages.lock().unwrap().get(token).cloned().expect("the host admitted this run's pages");
         let mut admitted = std::collections::BTreeSet::new();
         let mut completed = std::collections::BTreeSet::new();
         for page in &pages {
             for encoded in &page.step_begins {
-                let start: dokime_domain::model::execution::result::StepAttemptStart =
-                    serde_json::from_str(encoded).unwrap();
+                let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
                 assert!(admitted.insert(start.attempt_id.clone()));
             }
             for encoded in &page.step_attempts {
-                let attempt: dokime_domain::model::execution::result::TestStepAttempt =
-                    serde_json::from_str(encoded).unwrap();
+                let attempt: dokime_domain::model::execution::result::TestStepAttempt = serde_json::from_str(encoded).unwrap();
                 assert!(admitted.contains(&attempt.attempt_id));
                 assert!(completed.insert(attempt.attempt_id));
             }
@@ -1021,18 +778,9 @@ async fn samples_keep_context() {
     let mut samples: BTreeMap<String, Vec<i64>> = BTreeMap::new();
     for row in stream.query(..).await.unwrap() {
         assert!(row.value.published_unix_micros.is_some());
-        let decoded =
-            obc_plugin::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
+        let decoded = obc_plugin::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
         let index = decoded.sample_index;
-        samples
-            .entry(
-                row.value
-                    .context
-                    .clone()
-                    .expect("native template rows carry context"),
-            )
-            .or_default()
-            .push(index);
+        samples.entry(row.value.context.clone().expect("native template rows carry context")).or_default().push(index);
     }
     assert_eq!(samples.len(), 2);
     for token in &tokens {

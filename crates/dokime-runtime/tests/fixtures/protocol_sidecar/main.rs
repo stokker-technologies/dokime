@@ -25,38 +25,29 @@ use std::{
 };
 // Third Party Imports
 use dokime_runtime::harmos::operations::{
-    Host, OperationDeclaration, OperationPolicy, Response, RestartPolicy, RetryPolicy,
-    ServingError, Visibility, WireOperation, WireTable,
+    Host, OperationDeclaration, OperationPolicy, Response, RestartPolicy, RetryPolicy, ServingError, Visibility, WireOperation, WireTable,
 };
 use dokime_runtime::harmos::plugin::Contribution;
 use dokime_runtime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::{
-    Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType,
-};
-use dokime_runtime::definition::{
-    ExecutionPhaseDefinition, Subscription, SuiteSet, TestCaseTemplate, TestSuite,
-};
+use dokime_runtime::definition::{ExecutionPhaseDefinition, Subscription, SuiteSet, TestCaseTemplate, TestSuite};
 use dokime_runtime::domains::TestSuiteDefinition;
-use {
-    dokime_domain::model::execution::result::StepAttemptStart,
-    dokime_domain::model::execution::termination::TerminationReason,
-    dokime_domain::model::execution::result::TestStepAttempt,
-};
 use dokime_runtime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
-use {
-    dokime_runtime::records::RecordContract,
-    dokime_runtime::records::RecordField,
-    model::records::publication::RecordPublishRequest,
-    dokime_runtime::records::RecordSeverity,
-};
 use dokime_runtime::transport::{
-    ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecution,
-    SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome,
-    SignalReply,
+    ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome,
+    SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
 };
+use dokime_runtime::{Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType};
 use dokime_runtime::{Refusal, Supervisor};
+use {
+    dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
+    dokime_domain::model::execution::termination::TerminationReason,
+};
+use {
+    dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField, dokime_runtime::records::RecordSeverity,
+    model::records::publication::RecordPublishRequest,
+};
 
 /* === Constants === */
 const POLL: Duration = Duration::from_millis(10);
@@ -94,24 +85,15 @@ macro_rules! operation {
             type Error = Refusal;
             type Context<'a> = &'a Supervisor;
 
-            async fn initialize<'ctx>(
-                resources: Arc<Resources>,
-                _: Self::Context<'ctx>,
-            ) -> Result<Self, Refusal> {
+            async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
                 Ok(Self { resources })
             }
 
             async fn run<'ctx>(
-                &mut self,
-                context: Self::Context<'ctx>,
-                request: &mut $request,
-                _: &mut (),
+                &mut self, context: Self::Context<'ctx>, request: &mut $request, _: &mut (),
             ) -> Result<Response<$response>, Refusal> {
                 let request = std::mem::take(request);
-                self.resources
-                    .$method(context, request)
-                    .await
-                    .map(Response::new)
+                self.resources.$method(context, request).await.map(Response::new)
             }
         }
     };
@@ -230,35 +212,11 @@ modes!(
     StreamLog, StreamLogRun, StreamLogSignal => "stream_log",
 );
 
-operation!(
-    Status,
-    Empty,
-    Signals,
-    "fixture-sidecar.status",
-    30,
-    Shared,
-    status
-);
+operation!(Status, Empty, Signals, "fixture-sidecar.status", 30, Shared, status);
 
-operation!(
-    Release,
-    Empty,
-    Empty,
-    "fixture-sidecar.release",
-    30,
-    Shared,
-    release
-);
+operation!(Release, Empty, Empty, "fixture-sidecar.release", 30, Shared, release);
 
-operation!(
-    PublishTelemetry,
-    telemetry::Publish,
-    Empty,
-    "fixture-sidecar.publish-telemetry",
-    30,
-    Shared,
-    publish_telemetry
-);
+operation!(PublishTelemetry, telemetry::Publish, Empty, "fixture-sidecar.publish-telemetry", 30, Shared, publish_telemetry);
 
 operation!(
     PublishRecord,
@@ -274,12 +232,8 @@ impl<M: Mode> OperationDeclaration for Run<M> {
     type Request = RunExecution;
     type Response = SidecarExecutionOutcome;
     const ID: &'static str = M::RUN;
-    const POLICY: OperationPolicy = OperationPolicy {
-        timeout: RUN_BOUND,
-        attempt_timeout: RUN_BOUND,
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    };
+    const POLICY: OperationPolicy =
+        OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
@@ -315,26 +269,14 @@ impl<M: Mode> dokime_runtime::harmos::operations::Operation for Running<M> {
     type Error = Refusal;
     type Context<'a> = &'a Supervisor;
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Refusal> {
-        Ok(Self {
-            resources,
-            mode: PhantomData,
-        })
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
+        Ok(Self { resources, mode: PhantomData })
     }
 
     async fn run<'ctx>(
-        &mut self,
-        host: Self::Context<'ctx>,
-        request: &mut RunExecution,
-        _: &mut (),
+        &mut self, host: Self::Context<'ctx>, request: &mut RunExecution, _: &mut (),
     ) -> Result<Response<SidecarExecutionOutcome>, Refusal> {
-        self.resources
-            .execute(host, M::MODE, std::mem::take(request))
-            .await
-            .map(Response::new)
+        self.resources.execute(host, M::MODE, std::mem::take(request)).await.map(Response::new)
     }
 }
 
@@ -349,21 +291,12 @@ impl<M: Mode> dokime_runtime::harmos::operations::Operation for Signalling<M> {
     type Error = Refusal;
     type Context<'a> = &'a Supervisor;
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Refusal> {
-        Ok(Self {
-            resources,
-            mode: PhantomData,
-        })
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
+        Ok(Self { resources, mode: PhantomData })
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        signal: &mut ExecutionSignal,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, signal: &mut ExecutionSignal, _: &mut (),
     ) -> Result<Response<SignalReply>, Refusal> {
         let cancel = signal.cancel;
         let reply = self.resources.signal(std::mem::take(signal))?;
@@ -390,13 +323,8 @@ impl Contribution for Domains {
             .iter()
             .find(|template| template.metadata.identifier.as_str() == "fixture.sidecar.capture")
             .unwrap();
-        suite.telemetry_contracts =
-            vec![telemetry::contract(capture.test_case_template_id.clone())];
-        registrar.register(
-            SUITES_NAMESPACE,
-            domain_schema(SUITES_NAMESPACE),
-            &SuiteSet::new([suite]),
-        )
+        suite.telemetry_contracts = vec![telemetry::contract(capture.test_case_template_id.clone())];
+        registrar.register(SUITES_NAMESPACE, domain_schema(SUITES_NAMESPACE), &SuiteSet::new([suite]))
     }
 }
 
@@ -422,9 +350,7 @@ impl dokime_runtime::Plugin for Protocol {
     type Resources = Resources;
 
     fn prepare(_: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
-        Ok(Self {
-            state: Arc::new(Resources::default()),
-        })
+        Ok(Self { state: Arc::new(Resources::default()) })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -450,17 +376,10 @@ impl dokime_runtime::Plugin for Protocol {
 
 impl Resources {
     fn lock(&self) -> std::sync::MutexGuard<'_, Active> {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    async fn execute(
-        &self,
-        host: &Supervisor,
-        mode: &str,
-        request: RunExecution,
-    ) -> Result<SidecarExecutionOutcome, Refusal> {
+    async fn execute(&self, host: &Supervisor, mode: &str, request: RunExecution) -> Result<SidecarExecutionOutcome, Refusal> {
         {
             let mut state = self.lock();
             state.mode = mode.into();
@@ -483,10 +402,7 @@ impl Resources {
         let mut push = async |mut batch: EvidenceBatch| {
             pushed += 1;
             batch.cursor = pushed;
-            host.call_as::<PushEvidence>(batch)
-                .await
-                .map(|response| response.into_owned())
-                .map_err(|error| Refusal::of(error.to_string()))
+            host.call_as::<PushEvidence>(batch).await.map(|response| response.into_owned()).map_err(|error| Refusal::of(error.to_string()))
         };
         if mode == "stream_log" {
             // A log line the host persists while the run is still producing,
@@ -501,11 +417,7 @@ impl Resources {
             while !self.lock().released {
                 tokio::time::sleep(POLL).await;
             }
-            push(EvidenceBatch {
-                diagnostics: vec![Entry::new(Level::Info, "streamed after release")],
-                ..Default::default()
-            })
-            .await?;
+            push(EvidenceBatch { diagnostics: vec![Entry::new(Level::Info, "streamed after release")], ..Default::default() }).await?;
             return Ok(SidecarExecutionOutcome {
                 passed: true,
                 message: Some("stream log released".into()),
@@ -529,22 +441,13 @@ impl Resources {
                 phase: "stream".into(),
                 artifact_chunks: vec![
                     opened.clone(),
-                    ArtifactChunk {
-                        sequence: 1,
-                        bytes: Vec::new(),
-                        last: true,
-                        aborted: true,
-                        ..opened
-                    },
+                    ArtifactChunk { sequence: 1, bytes: Vec::new(), last: true, aborted: true, ..opened },
                 ],
                 ..Default::default()
             })
             .await?;
         } else {
-            let mut record = RecordPublishRequest::new(
-                Identifier::new("fixture.sidecar.observed").unwrap(),
-                RecordSeverity::Info,
-            );
+            let mut record = RecordPublishRequest::new(Identifier::new("fixture.sidecar.observed").unwrap(), RecordSeverity::Info);
             record.details.insert("value".into(), Value::Number(42.0));
             push(EvidenceBatch {
                 phase: "stream".into(),
@@ -565,11 +468,7 @@ impl Resources {
                 vec![23; dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 7],
             );
             for chunk in std::iter::once(chunks[0].clone()).chain(chunks) {
-                push(EvidenceBatch {
-                    artifact_chunks: vec![chunk],
-                    ..Default::default()
-                })
-                .await?;
+                push(EvidenceBatch { artifact_chunks: vec![chunk], ..Default::default() }).await?;
             }
         }
         Ok(SidecarExecutionOutcome {
@@ -581,11 +480,7 @@ impl Resources {
         })
     }
 
-    async fn settle(
-        &self,
-        host: &Supervisor,
-        mode: &str,
-    ) -> Result<SidecarExecutionOutcome, Refusal> {
+    async fn settle(&self, host: &Supervisor, mode: &str) -> Result<SidecarExecutionOutcome, Refusal> {
         // The one step this template declares, begun the way a run begins it:
         // the host admits the attempt before the step's body runs.
         let start = StepAttemptStart {
@@ -637,11 +532,7 @@ impl Resources {
             cursor: 2,
             step_attempts: vec![ended],
             // A refusing run reports its step's end and then no outcome at all.
-            diagnostics: if refused {
-                Vec::new()
-            } else {
-                cancellation_log()
-            },
+            diagnostics: if refused { Vec::new() } else { cancellation_log() },
             cleanup_settled: !refused,
             ..Default::default()
         })
@@ -672,19 +563,14 @@ impl Resources {
                 return Err(Refusal::of("cancellation token does not own execution"));
             }
             state.cancelled = true;
-            state
-                .cancelled_at
-                .get_or_insert_with(std::time::Instant::now);
+            state.cancelled_at.get_or_insert_with(std::time::Instant::now);
         }
         Ok(SignalReply::default())
     }
 
     async fn status(&self, _: &Supervisor, _: Empty) -> Result<Signals, Refusal> {
         let state = self.lock();
-        Ok(Signals {
-            starts: state.starts,
-            cancelled: state.cancelled,
-        })
+        Ok(Signals { starts: state.starts, cancelled: state.cancelled })
     }
 
     async fn release(&self, _: &Supervisor, _: Empty) -> Result<Empty, Refusal> {
@@ -745,9 +631,7 @@ fn suite() -> TestSuite {
             continue_on_failure: false,
             prompt_definitions: Vec::new(),
             subscriptions: if mode == "scope_error" {
-                vec![Subscription::Stream(
-                    Identifier::new("host.system").unwrap(),
-                )]
+                vec![Subscription::Stream(Identifier::new("host.system").unwrap())]
             } else {
                 Vec::new()
             },
@@ -766,10 +650,7 @@ fn record_contract() -> RecordContract {
         template_id: None,
         owner: None,
         default_severity: RecordSeverity::Info,
-        fields: vec![RecordField::new(
-            metadata("value", "Value"),
-            ValueType::Number,
-        )],
+        fields: vec![RecordField::new(metadata("value", "Value"), ValueType::Number)],
         validation_mode: None,
         allow_extra_fields: false,
     }
@@ -784,11 +665,7 @@ fn cancellation_log() -> Vec<dokime_runtime::execution::log::Entry> {
         Entry::new(Level::Warn, "warning\ncontinued"),
         Entry::new(Level::Error, "error detail"),
         Entry::new(Level::Info, ""),
-        Entry {
-            level: 99,
-            message: "unknown detail".into(),
-            timestamp: dokime_runtime::execution::log::timestamp(),
-        },
+        Entry { level: 99, message: "unknown detail".into(), timestamp: dokime_runtime::execution::log::timestamp() },
     ]
 }
 

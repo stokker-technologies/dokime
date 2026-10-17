@@ -54,12 +54,7 @@ pub struct FileResume {
 /* === Implementations === */
 impl FileResume {
     pub fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            identity: None,
-            offset: 0,
-            sha256: hash(&Sha256::new()),
-        }
+        Self { path, identity: None, offset: 0, sha256: hash(&Sha256::new()) }
     }
 
     pub fn path(&self) -> &Path {
@@ -75,11 +70,7 @@ impl FileResume {
         &self.sha256
     }
 
-    pub fn request(
-        &self,
-        execution_id: String,
-        relative_path: String,
-    ) -> content::FollowExecutionFile {
+    pub fn request(&self, execution_id: String, relative_path: String) -> content::FollowExecutionFile {
         content::FollowExecutionFile {
             execution_id,
             relative_path,
@@ -98,14 +89,9 @@ impl Client {
     // the previously committed prefix. Abandoned output remains partial and has no
     // seal. Finished output is accepted only after its full hash and final status.
     pub async fn follow_execution_file(
-        &self,
-        request: content::FollowExecutionFile,
-        resume: &mut FileResume,
+        &self, request: content::FollowExecutionFile, resume: &mut FileResume,
     ) -> Result<content::ExecutionFileFollowTerminal, Error> {
-        self.follow_execution_file_with_commit(request, resume, |_| async {
-            Ok::<_, std::io::Error>(())
-        })
-        .await
+        self.follow_execution_file_with_commit(request, resume, |_| async { Ok::<_, std::io::Error>(()) }).await
     }
 
     // Awaits Caller Receipt Persistence After Each Durable Local Commit.
@@ -114,10 +100,7 @@ impl Client {
     // before the next frame; the caller's previous external receipt remains the
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(
-        &self,
-        request: content::FollowExecutionFile,
-        resume: &mut FileResume,
-        mut committed: F,
+        &self, request: content::FollowExecutionFile, resume: &mut FileResume, mut committed: F,
     ) -> Result<content::ExecutionFileFollowTerminal, Error>
     where
         F: FnMut(FileResume) -> Fut + Send,
@@ -127,44 +110,30 @@ impl Client {
         if request.offset != resume.offset
             || request.identity != resume.identity
             || request.max_bytes > BUFFER_BYTES as u32
-            || resume.identity.is_none()
-                && (resume.offset != 0 || resume.sha256 != hash(&Sha256::new()))
+            || resume.identity.is_none() && (resume.offset != 0 || resume.sha256 != hash(&Sha256::new()))
         {
-            return Err(Error::Invalid(
-                "follow request differs from its local committed receipt",
-            ));
+            return Err(Error::Invalid("follow request differs from its local committed receipt"));
         }
         let stream = self.content_follow_execution_file(request.clone()).await?;
         let read = async {
-            let frame = stream
-                .message()
-                .await?
-                .ok_or(Error::Invalid("follow has no metadata"))?;
-            let Some(content::ExecutionFileFollowFramePayload::Metadata(metadata)) = frame.payload
-            else {
+            let frame = stream.message().await?.ok_or(Error::Invalid("follow has no metadata"))?;
+            let Some(content::ExecutionFileFollowFramePayload::Metadata(metadata)) = frame.payload else {
                 return Err(Error::Invalid("follow must begin with metadata"));
             };
-            let identity = metadata
-                .identity
-                .as_ref()
-                .ok_or(Error::Invalid("follow metadata has no identity"))?;
+            let identity = metadata.identity.as_ref().ok_or(Error::Invalid("follow metadata has no identity"))?;
             validate_identity(identity, &request)?;
             if metadata.offset != resume.offset
                 || metadata.available_length < metadata.offset
                 || metadata.kind == content::ExecutionFileKind::Unspecified
                 || metadata.phase == content::ExecutionFilePhase::Unspecified
             {
-                return Err(Error::Invalid(
-                    "follow metadata has an invalid prefix or phase",
-                ));
+                return Err(Error::Invalid("follow metadata has an invalid prefix or phase"));
             }
             let (mut output, mut digest) = open(resume).await?;
             resume.identity = Some(identity.clone());
             let mut position = resume.offset;
             commit(&mut output, &digest, position, resume).await?;
-            committed(resume.clone())
-                .await
-                .map_err(|source| Error::Receipt(Box::new(source)))?;
+            committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
             let mut terminal = None;
             while let Some(frame) = stream.message().await? {
                 if terminal.is_some() {
@@ -172,44 +141,27 @@ impl Client {
                 }
                 match frame.payload {
                     Some(content::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
-                        let limit = if request.max_bytes == 0 {
-                            BUFFER_BYTES
-                        } else {
-                            request.max_bytes as usize
-                        };
-                        if chunk.offset != position
-                            || chunk.data.is_empty()
-                            || chunk.data.len() > limit
-                        {
-                            return Err(Error::Invalid(
-                                "follow chunks are not contiguous or exceed their bound",
-                            ));
+                        let limit = if request.max_bytes == 0 { BUFFER_BYTES } else { request.max_bytes as usize };
+                        if chunk.offset != position || chunk.data.is_empty() || chunk.data.len() > limit {
+                            return Err(Error::Invalid("follow chunks are not contiguous or exceed their bound"));
                         }
-                        let next = position
-                            .checked_add(chunk.data.len() as u64)
-                            .ok_or(Error::Invalid("follow length overflow"))?;
+                        let next = position.checked_add(chunk.data.len() as u64).ok_or(Error::Invalid("follow length overflow"))?;
                         output.write_all(&chunk.data).await?;
                         digest.update(&chunk.data);
                         position = next;
                         if position - resume.offset >= COMMIT_BYTES {
                             commit(&mut output, &digest, position, resume).await?;
-                            committed(resume.clone())
-                                .await
-                                .map_err(|source| Error::Receipt(Box::new(source)))?;
+                            committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
                         }
                     }
                     Some(content::ExecutionFileFollowFramePayload::Terminal(value)) => {
                         commit(&mut output, &digest, position, resume).await?;
-                        committed(resume.clone())
-                            .await
-                            .map_err(|source| Error::Receipt(Box::new(source)))?;
+                        committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
                         validate_terminal(&value, identity, position, &digest)?;
                         terminal = Some(value);
                     }
                     _ => {
-                        return Err(Error::Invalid(
-                            "follow frame is missing or repeats metadata",
-                        ));
+                        return Err(Error::Invalid("follow frame is missing or repeats metadata"));
                     }
                 }
             }
@@ -224,14 +176,8 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_identity(
-    identity: &content::ExecutionFileIdentity,
-    request: &content::FollowExecutionFile,
-) -> Result<(), Error> {
-    let history = identity
-        .history
-        .as_ref()
-        .ok_or(Error::Invalid("follow identity has no history"))?;
+fn validate_identity(identity: &content::ExecutionFileIdentity, request: &content::FollowExecutionFile) -> Result<(), Error> {
+    let history = identity.history.as_ref().ok_or(Error::Invalid("follow identity has no history"))?;
     if identity.execution_id != request.execution_id
         || identity.relative_path != request.relative_path
         || identity.file_id.is_empty()
@@ -240,14 +186,9 @@ fn validate_identity(
         || history.store.len() > 4096
         || history.epoch.is_empty()
         || history.epoch.len() > 4096
-        || request
-            .identity
-            .as_ref()
-            .is_some_and(|expected| expected != identity)
+        || request.identity.as_ref().is_some_and(|expected| expected != identity)
     {
-        return Err(Error::Invalid(
-            "follow returned a different original content identity",
-        ));
+        return Err(Error::Invalid("follow returned a different original content identity"));
     }
     Ok(())
 }
@@ -261,9 +202,7 @@ async fn open(resume: &FileResume) -> Result<(tokio::fs::File, Sha256), Error> {
     let mut file = options.open(&resume.path).await?;
     let metadata = file.metadata().await?;
     if !metadata.is_file() || metadata.len() < resume.offset {
-        return Err(Error::Invalid(
-            "local recording is missing its committed prefix",
-        ));
+        return Err(Error::Invalid("local recording is missing its committed prefix"));
     }
     let mut digest = Sha256::new();
     let mut remaining = resume.offset;
@@ -285,12 +224,7 @@ async fn open(resume: &FileResume) -> Result<(tokio::fs::File, Sha256), Error> {
     Ok((file, digest))
 }
 
-async fn commit(
-    output: &mut tokio::fs::File,
-    digest: &Sha256,
-    position: u64,
-    resume: &mut FileResume,
-) -> Result<(), Error> {
+async fn commit(output: &mut tokio::fs::File, digest: &Sha256, position: u64, resume: &mut FileResume) -> Result<(), Error> {
     output.flush().await?;
     output.sync_data().await?;
     resume.offset = position;
@@ -299,10 +233,7 @@ async fn commit(
 }
 
 fn validate_terminal(
-    terminal: &content::ExecutionFileFollowTerminal,
-    identity: &content::ExecutionFileIdentity,
-    position: u64,
-    digest: &Sha256,
+    terminal: &content::ExecutionFileFollowTerminal, identity: &content::ExecutionFileIdentity, position: u64, digest: &Sha256,
 ) -> Result<(), Error> {
     if terminal.length != position {
         return Err(Error::Invalid("follow terminal length differs"));
@@ -310,38 +241,23 @@ fn validate_terminal(
     match terminal.phase {
         content::ExecutionFilePhase::Abandoned if terminal.sealed.is_none() => Ok(()),
         content::ExecutionFilePhase::Finished => {
-            let seal = terminal
-                .sealed
-                .as_ref()
-                .ok_or(Error::Invalid("finished follow has no seal"))?;
-            let saved = seal
-                .position
-                .as_ref()
-                .ok_or(Error::Invalid("finished seal has no saved position"))?;
+            let seal = terminal.sealed.as_ref().ok_or(Error::Invalid("finished follow has no seal"))?;
+            let saved = seal.position.as_ref().ok_or(Error::Invalid("finished seal has no saved position"))?;
             if seal.identity.as_ref() != Some(identity)
                 || saved.history != identity.history
                 || seal.length != position
                 || seal.sha256 != hash(digest)
             {
-                return Err(Error::Invalid(
-                    "finished seal differs from the full recorded file",
-                ));
+                return Err(Error::Invalid("finished seal differs from the full recorded file"));
             }
             Ok(())
         }
-        _ => Err(Error::Invalid(
-            "follow terminal has an invalid phase or seal",
-        )),
+        _ => Err(Error::Invalid("follow terminal has an invalid phase or seal")),
     }
 }
 
 fn hash(digest: &Sha256) -> String {
-    digest
-        .clone()
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /* === Tests === */

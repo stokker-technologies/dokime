@@ -19,10 +19,10 @@ use std::{future::Future, net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tokio::sync::Notify;
 // Local Imports
-use dokime_domain::model;
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
 use dokime_client::contracts::{backend, catalog, plugins};
 use dokime_client::{Client, Error, Target};
+use dokime_domain::model;
 
 /* === Constants === */
 
@@ -45,23 +45,14 @@ use dokime_client::{Client, Error, Target};
 async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     tokio::task::yield_now().await;
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-    assert!(
-        std::pin::Pin::new(future).poll(&mut context).is_pending(),
-        "the future completed before its release"
-    );
+    assert!(std::pin::Pin::new(future).poll(&mut context).is_pending(), "the future completed before its release");
 }
 
 /* === Tests === */
 #[tokio::test]
 async fn client_close_cancels() {
     let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(
-        Target::local(&server.endpoint).unwrap(),
-        None,
-        Some("shared"),
-    )
-    .await
-    .unwrap();
+    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, Some("shared")).await.unwrap();
     assert_eq!(client.backend().backend_id, "shared");
     assert_eq!(client.backend().limits.max_request_bytes, u64::MAX);
     let retained = client.clone();
@@ -80,10 +71,7 @@ async fn client_close_cancels() {
     client.close();
     assert!(matches!(pending.await.unwrap(), Err(Error::Closed)));
     assert!(matches!(client.channel(), Err(Error::Closed)));
-    assert!(matches!(
-        client.execute(async { Ok(()) }).await,
-        Err(Error::Closed)
-    ));
+    assert!(matches!(client.execute(async { Ok(()) }).await, Err(Error::Closed)));
 
     server_health(&server.endpoint).await;
 }
@@ -94,15 +82,10 @@ async fn client_verifies_identity() {
     let epoch = service.identity_epoch.clone();
     let requests = service.requests.clone();
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-        .await
-        .unwrap();
+    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
 
     client.verify(true).await.unwrap();
-    let health = client
-        .backend_get_health(backend::GetHealth {})
-        .await
-        .unwrap();
+    let health = client.backend_get_health(backend::GetHealth {}).await.unwrap();
     assert_eq!(health.backend_id, "shared");
     let calls = requests.lock().unwrap().len();
     assert!(matches!(
@@ -113,10 +96,7 @@ async fn client_verifies_identity() {
     assert_eq!(requests.lock().unwrap().len(), calls);
 
     *epoch.lock().unwrap() = "restarted".into();
-    assert!(matches!(
-        client.verify(true).await,
-        Err(Error::IdentityChanged)
-    ));
+    assert!(matches!(client.verify(true).await, Err(Error::IdentityChanged)));
     client.verify(false).await.unwrap();
 
     client.close();
@@ -128,9 +108,7 @@ async fn client_response_limit() {
     let mut service = Service::new("shared");
     service.max_response_bytes = 1;
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-        .await
-        .unwrap();
+    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
 
     assert!(matches!(
         client.backend_get_health(backend::GetHealth {}).await,
@@ -145,14 +123,9 @@ async fn stream_close_releases() {
         service.methods.push("/dokime.v1.Backend/WatchLogs".into());
         let closed = service.stream_closed.clone();
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-            .await
-            .unwrap();
+        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let stream = client
-            .backend_watch_logs(backend::WatchLogs {
-                min_level: model::backend::wire::LogLevel::Unspecified,
-                replay_lines: 0,
-            })
+            .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
             .await
             .unwrap();
         assert!(stream.message().await.unwrap().is_some());
@@ -164,10 +137,7 @@ async fn stream_close_releases() {
             }
             "stream" => {
                 stream.close().await;
-                client
-                    .backend_get_health(backend::GetHealth {})
-                    .await
-                    .unwrap();
+                client.backend_get_health(backend::GetHealth {}).await.unwrap();
             }
             "drop" => drop(stream),
             _ => unreachable!(),
@@ -184,14 +154,9 @@ async fn stream_clones_close() {
     service.methods.push("/dokime.v1.Backend/WatchLogs".into());
     let closed = service.stream_closed.clone();
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-        .await
-        .unwrap();
+    let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
     let stream = client
-        .backend_watch_logs(backend::WatchLogs {
-            min_level: model::backend::wire::LogLevel::Unspecified,
-            replay_lines: 0,
-        })
+        .backend_watch_logs(backend::WatchLogs { min_level: model::backend::wire::LogLevel::Unspecified, replay_lines: 0 })
         .await
         .unwrap();
     let other = stream.clone();
@@ -208,10 +173,7 @@ async fn stream_clones_close() {
     assert!(matches!(second.await, Err(Error::Closed)));
     other.close().await;
     closed.notified().await;
-    client
-        .backend_get_health(backend::GetHealth {})
-        .await
-        .unwrap();
+    client.backend_get_health(backend::GetHealth {}).await.unwrap();
 }
 
 #[tokio::test]
@@ -224,14 +186,9 @@ async fn upload_stop_releases() {
             service.upload_gate = Some(gate.clone());
         }
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-            .await
-            .unwrap();
+        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let dropped = Arc::new(Notify::new());
-        let input = UploadInput {
-            first: true,
-            dropped: dropped.clone(),
-        };
+        let input = UploadInput { first: true, dropped: dropped.clone() };
         let retained = client.clone();
         let task = tokio::spawn(async move { retained.plugins_stage(input).await });
 
@@ -271,32 +228,22 @@ async fn upload_operation_closes() {
             service.upload_gate = Some(gate.clone());
         }
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None)
-            .await
-            .unwrap();
+        let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let upload = client.plugins_stage_open().unwrap();
         let oversized = model::plugins::wire::StagePluginFrame {
-            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(
-                model::plugins::wire::StagePluginHeader {
-                    size_bytes: 1,
-                    sha256: String::new(),
-                },
-            )),
+            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(model::plugins::wire::StagePluginHeader {
+                size_bytes: 1,
+                sha256: String::new(),
+            })),
         };
         assert!(matches!(upload.send(oversized).await,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
         let retained = upload.clone();
-        upload
-            .send(model::plugins::wire::StagePluginFrame::default())
-            .await
-            .unwrap();
+        upload.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
         drop(upload);
 
         if action == "finish" {
-            retained
-                .send(model::plugins::wire::StagePluginFrame::default())
-                .await
-                .unwrap();
+            retained.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
             assert_eq!(retained.finish().await.unwrap().install_id, "2");
             assert!(matches!(retained.finish().await, Err(Error::Closed)));
         } else {
@@ -324,10 +271,7 @@ async fn upload_operation_closes() {
             gate.release.add_permits(1);
         }
 
-        assert!(matches!(
-            retained.send(model::plugins::wire::StagePluginFrame::default()).await,
-            Err(Error::Closed)
-        ));
+        assert!(matches!(retained.send(model::plugins::wire::StagePluginFrame::default()).await, Err(Error::Closed)));
         retained.close().await;
         retained.close().await;
         server_health(&server.endpoint).await;

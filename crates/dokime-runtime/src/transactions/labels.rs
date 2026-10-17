@@ -81,15 +81,11 @@ impl Transaction<RuntimeState> for RenameLabel {
                 if !state.executions.contains_key(id) {
                     return Err("execution not found".to_owned());
                 }
-                if case_attempts(state, id).iter().any(|attempt| {
-                    state
-                        .executions
-                        .get(attempt)
-                        .is_some_and(|execution| execution.saved.is_some())
-                }) {
-                    return Err(
-                        "execution is sealed; its report keeps the label it froze".to_owned()
-                    );
+                if case_attempts(state, id)
+                    .iter()
+                    .any(|attempt| state.executions.get(attempt).is_some_and(|execution| execution.saved.is_some()))
+                {
+                    return Err("execution is sealed; its report keeps the label it froze".to_owned());
                 }
                 Ok(())
             }
@@ -109,11 +105,7 @@ impl Transaction<RuntimeState> for RenameLabel {
                 }
             }
             LabelSubject::Execution(id) => {
-                if let Some(case_id) = state
-                    .executions
-                    .get(id)
-                    .map(|execution| execution.test_case_id.clone())
-                {
+                if let Some(case_id) = state.executions.get(id).map(|execution| execution.test_case_id.clone()) {
                     state.suites.relabel_case(&case_id, &self.label);
                 }
                 for attempt in case_attempts(state, id) {
@@ -131,18 +123,12 @@ impl RenameLabel {
     fn plan(&self, state: &RuntimeState) -> Drafts {
         let mut records = Drafts::new(state);
         let current = match &self.subject {
-            LabelSubject::Cycle(id) => state.cycles.get(id).map(|cycle| {
-                (
-                    cycle.metadata.label.clone(),
-                    RecordScope::default().with_cycle(id.clone()),
-                )
-            }),
-            LabelSubject::Execution(id) => state.executions.get(id).map(|execution| {
-                (
-                    execution.snapshot.case().metadata.label.clone(),
-                    execution.scope.clone(),
-                )
-            }),
+            LabelSubject::Cycle(id) => {
+                state.cycles.get(id).map(|cycle| (cycle.metadata.label.clone(), RecordScope::default().with_cycle(id.clone())))
+            }
+            LabelSubject::Execution(id) => {
+                state.executions.get(id).map(|execution| (execution.snapshot.case().metadata.label.clone(), execution.scope.clone()))
+            }
         };
         if let Some((old_label, scope)) = current {
             records.draft(
@@ -177,12 +163,7 @@ pub fn case_attempts(state: &RuntimeState, id: &TestExecutionId) -> Vec<TestExec
             cycle
                 .execution_ids
                 .iter()
-                .filter(|member| {
-                    state
-                        .executions
-                        .get(*member)
-                        .is_some_and(|attempt| attempt.test_case_id == execution.test_case_id)
-                })
+                .filter(|member| state.executions.get(*member).is_some_and(|attempt| attempt.test_case_id == execution.test_case_id))
                 .cloned()
                 .collect()
         })

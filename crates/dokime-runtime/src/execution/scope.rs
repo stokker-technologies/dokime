@@ -30,9 +30,7 @@
 pub struct ExecutionScope {
     #[row(description = "The host's token for the execution attempt.")]
     pub execution: String,
-    #[row(
-        description = "The stage inside it: a step or criterion id, or empty for the run itself."
-    )]
+    #[row(description = "The stage inside it: a step or criterion id, or empty for the run itself.")]
     pub stage: String,
     #[row(description = "The operation being served, or empty where the run itself is the call.")]
     pub route: String,
@@ -52,11 +50,7 @@ impl harmos::operations::ContextValue for ExecutionScope {
 
 impl ExecutionScope {
     pub fn execution(execution: impl Into<String>) -> Self {
-        Self {
-            execution: execution.into(),
-            stage: String::new(),
-            route: String::new(),
-        }
+        Self { execution: execution.into(), stage: String::new(), route: String::new() }
     }
 
     #[must_use]
@@ -77,12 +71,8 @@ impl ExecutionScope {
     }
 
     #[cfg(feature = "native")]
-    pub fn serving<O: harmos::operations::Declares>(
-        host: &harmos::sidecar::Supervisor,
-    ) -> Option<Self> {
-        Self::current(host).map(|scope| {
-            scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID)
-        })
+    pub fn serving<O: harmos::operations::Declares>(host: &harmos::sidecar::Supervisor) -> Option<Self> {
+        Self::current(host).map(|scope| scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID))
     }
 
     pub fn key(&self) -> IdempotencyKey {

@@ -68,10 +68,7 @@ def test_capture_execution(tmp_path: Path) -> None:
             assert backend.created == backend.run_calls == 1
             state = json.loads((root / "capture.json").read_text())
             assert state["complete"]
-            assert (
-                base64.b64decode(state["checkpoints"][0]["version"], validate=True)
-                == backend.point.version
-            )
+            assert base64.b64decode(state["checkpoints"][0]["version"], validate=True) == backend.point.version
             assert (root / "report.html").read_bytes() == backend.html
             execution_root = root / "executions" / EXECUTION_ID
             captured = json.loads((execution_root / "execution.json").read_text())
@@ -79,29 +76,15 @@ def test_capture_execution(tmp_path: Path) -> None:
             assert definition["case_id"] == "captured-case"
             assert definition["template_id"] == "captured-template"
             assert definition["generation_index"] == "9007199254740993"
-            assert (
-                definition["parameters"][0]["value"]["nodes"][0]["kind"]["Number"][
-                    "field_0"
-                ]
-                == 230
-            )
+            assert definition["parameters"][0]["value"]["nodes"][0]["kind"]["Number"]["field_0"] == 230
             assert captured["snapshot"]["host_version"] == "captured-version"
-            records = [
-                json.loads(row)
-                for row in (execution_root / "records.jsonl").read_text().splitlines()
-            ]
-            samples = [
-                json.loads(row)
-                for row in (execution_root / "streams.jsonl").read_text().splitlines()
-            ]
+            records = [json.loads(row) for row in (execution_root / "records.jsonl").read_text().splitlines()]
+            samples = [json.loads(row) for row in (execution_root / "streams.jsonl").read_text().splitlines()]
             assert len(records) == 1
             assert records[0]["epoch"]
             assert records[0]["record"]["scope"]["execution_id"]
             assert len(samples) == 2
-            live_records = [
-                json.loads(row)
-                for row in (root / "records.jsonl").read_text().splitlines()
-            ]
+            live_records = [json.loads(row) for row in (root / "records.jsonl").read_text().splitlines()]
             assert len(live_records) == 2
             assert any(not item["scope"].get("execution_id") for item in live_records)
             assert len((root / "streams.jsonl").read_text().splitlines()) == 2
@@ -109,9 +92,7 @@ def test_capture_execution(tmp_path: Path) -> None:
             trace = json.loads((execution_root / "traceability.json").read_text())
             assert trace[0]["entries"][0]["value"] == "frozen-serial"
             assert trace[0]["entries"][0]["source"] == "device"
-            assert (
-                execution_root / "artifacts/artifact-1"
-            ).read_bytes() == backend.attachment
+            assert (execution_root / "artifacts/artifact-1").read_bytes() == backend.attachment
             assert not (root / "escape.txt").exists()
             assert not list(root.rglob("*.part"))
 

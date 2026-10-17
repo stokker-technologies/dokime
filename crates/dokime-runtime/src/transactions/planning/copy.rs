@@ -18,16 +18,16 @@ use std::io::{self, Write};
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::records::BuiltinRecordType;
+use crate::state::RuntimeState;
+use crate::transactions::records::draft::BuiltinDraft;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
-use crate::records::BuiltinRecordType;
-use dokime_domain::state::records::set::TestRecordSet;
-use crate::state::RuntimeState;
-use crate::transactions::records::draft::BuiltinDraft;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
+use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
 
@@ -66,18 +66,11 @@ impl Transaction<RuntimeState> for CopyCycle {
         if state.cycles.contains_key(&self.test_cycle_id) {
             return Err("target cycle already exists".into());
         }
-        let source = state
-            .cycle_view(&self.source_cycle_id)
-            .ok_or("source cycle not found")?;
+        let source = state.cycle_view(&self.source_cycle_id).ok_or("source cycle not found")?;
         if source.test_executions.is_empty() || source.test_executions.len() > 1000 {
             return Err("cycle copy requires 1 to 1000 executions".into());
         }
-        let mut budget = Budget {
-            remaining: 8 * 1024 * 1024,
-            depth: 0,
-            quoted: false,
-            escaped: false,
-        };
+        let mut budget = Budget { remaining: 8 * 1024 * 1024, depth: 0, quoted: false, escaped: false };
         budget.source(&source.metadata)?;
         for execution in &source.test_executions {
             budget.source(&execution.snapshot)?;
@@ -91,9 +84,7 @@ impl Transaction<RuntimeState> for CopyCycle {
 
     fn apply(&self, state: &mut RuntimeState) {
         let records = self.drafts(state);
-        let source = state
-            .cycle_view(&self.source_cycle_id)
-            .expect("checked source cycle");
+        let source = state.cycle_view(&self.source_cycle_id).expect("checked source cycle");
         let mut cycle = CycleView {
             saved: None,
             test_cycle_id: self.test_cycle_id.clone(),
@@ -117,18 +108,13 @@ impl Transaction<RuntimeState> for CopyCycle {
             let mut execution = crate::transactions::provider::scheduled_execution_record(
                 &cycle.test_cycle_id,
                 id,
-                original
-                    .snapshot
-                    .clone()
-                    .with_host_version(Some(env!("CARGO_PKG_VERSION").to_owned())),
+                original.snapshot.clone().with_host_version(Some(env!("CARGO_PKG_VERSION").to_owned())),
             );
             execution.status = ExecutionStatus::Skipped;
             execution.documents = execution.snapshot.documents().clone();
             cycle.test_executions.push(execution);
         }
-        state
-            .replace_cycle(cycle)
-            .expect("cycle projection has valid ownership");
+        state.replace_cycle(cycle).expect("cycle projection has valid ownership");
         records.apply(state);
         // The Copy Starts A New Working Cycle: Retire Its Sealed Predecessors
         state.retire_sealed_cycles();
@@ -191,10 +177,7 @@ impl CopyCycle {
                 message: Some("Cycle plan copied; ready for execution.".into()),
                 details: std::collections::BTreeMap::from([
                     ("lifecycle".into(), Value::from("Ready")),
-                    (
-                        "source_cycle_id".into(),
-                        Value::from(self.source_cycle_id.to_string()),
-                    ),
+                    ("source_cycle_id".into(), Value::from(self.source_cycle_id.to_string())),
                 ]),
                 scope: Some(RecordScope::default().with_cycle(self.test_cycle_id.clone())),
             },

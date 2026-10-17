@@ -22,13 +22,8 @@ use std::{
 // Local Imports
 use super::backend::{Backend, Process};
 use super::storage::StorageRoot;
-use super::{
-    BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot,
-    StorageResetReason,
-};
-use crate::connection::{
-    ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget,
-};
+use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
+use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
 
@@ -87,10 +82,7 @@ impl DesktopSession {
     pub fn with_local_backend(connection: ConnectionSession, backend: Backend) -> Self {
         Self::with_local_configuration(connection, Ok(backend))
     }
-    pub fn with_local_configuration(
-        connection: ConnectionSession,
-        backend: Result<Backend, String>,
-    ) -> Self {
+    pub fn with_local_configuration(connection: ConnectionSession, backend: Result<Backend, String>) -> Self {
         let mut owner = Self::attached(connection);
         Arc::get_mut(&mut owner.0).expect("new owner").local = Some(backend);
         owner
@@ -128,10 +120,7 @@ impl DesktopSession {
             error => error,
         };
         let log = match error {
-            Error::Startup {
-                diagnostics: Some(diagnostics),
-                ..
-            } => diagnostics.log.as_deref().map(PathBuf::from),
+            Error::Startup { diagnostics: Some(diagnostics), .. } => diagnostics.log.as_deref().map(PathBuf::from),
             _ => None,
         };
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
@@ -141,58 +130,32 @@ impl DesktopSession {
             state.startup_log = log;
         }
     }
-    pub async fn select(
-        &self,
-        selection: BackendSelection,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
         // Resolve The Shared Profile Before Replacing An Active Session.
         let selection = match selection {
             BackendSelection::Profile { name } => {
-                let store = dokime_client::profiles::Store::discover(None).map_err(|error| {
-                    Error::Startup {
-                        message: error.to_string(),
-                        diagnostics: None,
-                    }
-                })?;
-                let document = store.load().map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
-                let profile = document.get(&name).map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
-                let resolved = profile.selection().map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
+                let store = dokime_client::profiles::Store::discover(None)
+                    .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+                let document = store.load().map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+                let profile = document.get(&name).map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+                let resolved = profile.selection().map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let target = if resolved.target.is_remote() {
-                    ConnectionTarget::Remote {
-                        endpoint: profile.endpoint.clone(),
-                        ca_certificate_pem: profile.ca_certificate_pem.clone(),
-                    }
+                    ConnectionTarget::Remote { endpoint: profile.endpoint.clone(), ca_certificate_pem: profile.ca_certificate_pem.clone() }
                 } else {
-                    ConnectionTarget::Local {
-                        endpoint: profile.endpoint.clone(),
-                    }
+                    ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
                 };
                 let credentials = match resolved.credential {
                     dokime_client::profiles::Credential::None => ConnectionCredentials::None,
                     dokime_client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
                 };
                 BackendSelection::Attach {
-                    request: ConnectRequest {
-                        target,
-                        credentials,
-                        expected_backend_id: resolved.expected_backend_id,
-                    },
+                    request: ConnectRequest { target, credentials, expected_backend_id: resolved.expected_backend_id },
                 }
             }
             selection => selection,
         };
         if let BackendSelection::Attach { request } = &selection {
-            ConnectionSession::validate_target(request.target.clone())
-                .map_err(|error| Error::Connection { error })?;
+            ConnectionSession::validate_target(request.target.clone()).map_err(|error| Error::Connection { error })?;
         }
         if matches!(selection, BackendSelection::OwnedLocal) {
             self.backend()?;
@@ -201,10 +164,7 @@ impl DesktopSession {
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.select_owned(revision, selection).await })
             .await
-            .map_err(|error| Error::Startup {
-                message: error.to_string(),
-                diagnostics: None,
-            })?;
+            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
         // Startup is over, one way or another: whatever phase it last
         // reported no longer describes anything a caller should show. The
         // success path already clears it before publishing its snapshot;
@@ -217,17 +177,12 @@ impl DesktopSession {
     }
     /// Stops the owned backend, deletes the contents of its data root and
     /// starts it again on the empty root with the same settings.
-    pub async fn reset_local_storage(
-        &self,
-        confirmed: &Path,
-        root: StorageRoot,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn reset_local_storage(&self, confirmed: &Path, root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
         // Refuse Before Touching The Running Backend
         if self.status().ownership != BackendOwnership::OwnedLocal {
             return Err(Error::StorageReset {
                 reason: StorageResetReason::NotOwned,
-                message: "Only a backend this desktop started can have its storage reset."
-                    .to_owned(),
+                message: "Only a backend this desktop started can have its storage reset.".to_owned(),
             });
         }
         root.verify(confirmed)?;
@@ -238,10 +193,7 @@ impl DesktopSession {
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await })
             .await
-            .map_err(|error| Error::Startup {
-                message: error.to_string(),
-                diagnostics: None,
-            })?;
+            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
         if let Err(error) = &result {
             self.fail(revision, error);
         }
@@ -250,18 +202,13 @@ impl DesktopSession {
     /// Archives the owned backend's data root to `destination`, then resets
     /// and restarts it as `reset_local_storage` does. Offered only while no
     /// backend is connected, after the owned backend failed to start.
-    pub async fn backup_and_reset_local_storage(
-        &self,
-        root: StorageRoot,
-        destination: PathBuf,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn backup_and_reset_local_storage(&self, root: StorageRoot, destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
         // Refuse While Any Backend Is Connected
         self.backend()?;
         if self.status().ownership != BackendOwnership::None {
             return Err(Error::StorageReset {
                 reason: StorageResetReason::NotOwned,
-                message: "Local storage can be backed up and reset only after the local backend failed to start."
-                    .to_owned(),
+                message: "Local storage can be backed up and reset only after the local backend failed to start.".to_owned(),
             });
         }
         root.verify(root.path())?;
@@ -269,13 +216,9 @@ impl DesktopSession {
         // Back Up And Reset Under A New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result =
-            tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await })
-                .await
-                .map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
+        let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await })
+            .await
+            .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
         if let Err(error) = &result {
             self.fail(revision, error);
         }
@@ -288,14 +231,7 @@ impl DesktopSession {
         self.stop(true).await
     }
     fn backend(&self) -> Result<Backend, Error> {
-        self.0
-            .local
-            .clone()
-            .ok_or(Error::LocalBackendUnavailable)?
-            .map_err(|message| Error::Startup {
-                message,
-                diagnostics: None,
-            })
+        self.0.local.clone().ok_or(Error::LocalBackendUnavailable)?.map_err(|message| Error::Startup { message, diagnostics: None })
     }
     fn begin(&self, closing: bool) -> Result<u64, Error> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
@@ -308,25 +244,11 @@ impl DesktopSession {
         state.phase = None;
         state.archived = None;
         state.startup_log = None;
-        self.0
-            .connection
-            .disconnect()
-            .map_err(|error| Error::Connection { error })?;
+        self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
         Ok(state.revision)
     }
     fn current(&self, revision: u64) -> Result<(), Error> {
-        if self
-            .0
-            .state
-            .lock()
-            .expect("desktop owner poisoned")
-            .revision
-            == revision
-        {
-            Ok(())
-        } else {
-            Err(Error::Superseded)
-        }
+        if self.0.state.lock().expect("desktop owner poisoned").revision == revision { Ok(()) } else { Err(Error::Superseded) }
     }
     async fn stop(&self, closing: bool) -> Result<DesktopSessionSnapshot, Error> {
         let revision = self.begin(closing)?;
@@ -338,15 +260,9 @@ impl DesktopSession {
             Ok(owner.status())
         })
         .await
-        .map_err(|error| Error::Shutdown {
-            message: error.to_string(),
-        })?
+        .map_err(|error| Error::Shutdown { message: error.to_string() })?
     }
-    async fn select_owned(
-        &self,
-        revision: u64,
-        selection: BackendSelection,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    async fn select_owned(&self, revision: u64, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
         let mut resources = self.0.transition.lock().await;
         self.current(revision)?;
         resources.shutdown().await?;
@@ -356,20 +272,14 @@ impl DesktopSession {
     /// Starts or attaches the selected backend once the previous one is gone,
     /// and connects to it; the caller holds the transition lock throughout.
     async fn establish(
-        &self,
-        revision: u64,
-        selection: BackendSelection,
-        resources: &mut Resources,
+        &self, revision: u64, selection: BackendSelection, resources: &mut Resources,
     ) -> Result<DesktopSessionSnapshot, Error> {
         let (request, ownership) = match selection {
             BackendSelection::Profile { .. } => unreachable!("profile resolved before transition"),
             BackendSelection::Attach { request } => (request, BackendOwnership::Attached),
             BackendSelection::OwnedLocal => {
                 let backend = self.backend()?;
-                let (process, endpoint) = super::backend::start(&backend, move |phase| {
-                    self.report_phase(revision, phase)
-                })
-                .await?;
+                let (process, endpoint) = super::backend::start(&backend, move |phase| self.report_phase(revision, phase)).await?;
                 resources.local = Some(process);
                 (
                     ConnectRequest {
@@ -387,10 +297,7 @@ impl DesktopSession {
         }
         let connected = self.0.connection.connect(request).await;
         if let Err(error) = self.current(revision) {
-            self.0
-                .connection
-                .disconnect()
-                .map_err(|error| Error::Connection { error })?;
+            self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
             resources.shutdown().await?;
             return Err(error);
         }
@@ -417,10 +324,7 @@ impl DesktopSession {
                 if let Some(snapshot) = snapshot {
                     return Ok(snapshot);
                 }
-                self.0
-                    .connection
-                    .disconnect()
-                    .map_err(|error| Error::Connection { error })?;
+                self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
                 resources.shutdown().await?;
                 Err(Error::Superseded)
             }
@@ -430,12 +334,7 @@ impl DesktopSession {
             }
         }
     }
-    async fn reset_owned(
-        &self,
-        revision: u64,
-        root: StorageRoot,
-        backup: Option<PathBuf>,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    async fn reset_owned(&self, revision: u64, root: StorageRoot, backup: Option<PathBuf>) -> Result<DesktopSessionSnapshot, Error> {
         // Stop The Owned Backend
         // The transition lock stays held until the new backend is ready, so
         // no other selection starts a backend on a half-deleted root.
@@ -452,29 +351,18 @@ impl DesktopSession {
         self.report_phase(revision, "archiving");
         let owner = self.clone();
         let source = root.clone();
-        let archive = tokio::task::spawn_blocking(move || {
-            source.archive(&destination, |bytes| owner.report_archived(revision, bytes))
-        })
-        .await
-        .map_err(|error| Error::StorageReset {
-            reason: StorageResetReason::Failed,
-            message: error.to_string(),
-        })??;
+        let archive = tokio::task::spawn_blocking(move || source.archive(&destination, |bytes| owner.report_archived(revision, bytes)))
+            .await
+            .map_err(|error| Error::StorageReset { reason: StorageResetReason::Failed, message: error.to_string() })??;
         tracing::warn!(archive = %archive.display(), "local storage archived");
         self.clear_and_restart(revision, root, &mut resources)
             .await
-            .map_err(|error| Error::Archived {
-                archive: archive.display().to_string(),
-                error: Box::new(error),
-            })
+            .map_err(|error| Error::Archived { archive: archive.display().to_string(), error: Box::new(error) })
     }
     /// Deletes the contents of the data root and starts the owned backend
     /// again on it; the caller holds the transition lock.
     async fn clear_and_restart(
-        &self,
-        revision: u64,
-        root: StorageRoot,
-        resources: &mut Resources,
+        &self, revision: u64, root: StorageRoot, resources: &mut Resources,
     ) -> Result<DesktopSessionSnapshot, Error> {
         // Delete The Contents Of The Data Root
         self.current(revision)?;
@@ -483,10 +371,7 @@ impl DesktopSession {
         tracing::warn!(root = %path.display(), "resetting local storage");
         tokio::task::spawn_blocking(move || root.clear())
             .await
-            .map_err(|error| Error::StorageReset {
-                reason: StorageResetReason::Failed,
-                message: error.to_string(),
-            })?
+            .map_err(|error| Error::StorageReset { reason: StorageResetReason::Failed, message: error.to_string() })?
             .inspect_err(|error| {
                 tracing::error!(root = %path.display(), ?error, "local storage reset refused");
             })?;
@@ -495,24 +380,17 @@ impl DesktopSession {
         // Start Again On The Empty Root
         self.current(revision)?;
         self.report_phase(revision, "starting");
-        self.establish(revision, BackendSelection::OwnedLocal, resources)
-            .await
+        self.establish(revision, BackendSelection::OwnedLocal, resources).await
     }
 }
 
 impl Resources {
     async fn shutdown(&mut self) -> Result<(), Error> {
         if let Some(local) = self.local.as_mut() {
-            let status = local
-                .shutdown()
-                .await
-                .map_err(|message| Error::Shutdown { message })?;
+            let status = local.shutdown().await.map_err(|message| Error::Shutdown { message })?;
             if !status.success() {
                 return Err(Error::Shutdown {
-                    message: format!(
-                        "The {} backend did not close cleanly ({status}); reports may be incomplete.",
-                        crate::PRODUCT
-                    ),
+                    message: format!("The {} backend did not close cleanly ({status}); reports may be incomplete.", crate::PRODUCT),
                 });
             }
             self.local = None;

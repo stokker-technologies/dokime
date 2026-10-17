@@ -24,11 +24,11 @@ use harmos::storage::StorageCursor;
 
 use super::{context::Context, records::Contracts as RecordContracts, telemetry::Contracts};
 use crate::execution::context::captured::source::CapturedSource;
+use crate::storage::objects::presentation as native;
 use crate::{runtime::Error, runtime::Result};
+use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
-use crate::storage::objects::presentation as native;
 
 /* === Constants === */
 const SCHEMA_VERSION: u32 = EXECUTION_CONTEXT_SCHEMA_VERSION;
@@ -64,16 +64,11 @@ impl Source {
         if self.schema_version != SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
         }
-        if self
-            .owner_node_id
-            .bytes()
-            .any(|byte| byte.is_ascii_uppercase())
-        {
+        if self.owner_node_id.bytes().any(|byte| byte.is_ascii_uppercase()) {
             return Err(invalid("native captured report owner is not canonical"));
         }
         let value = CapturedSource {
-            owner_node_id: NodeId::from_uuid(self.owner_node_id)
-                .map_err(crate::storage::Error::from)?,
+            owner_node_id: NodeId::from_uuid(self.owner_node_id).map_err(crate::storage::Error::from)?,
             execution: self.execution.map(TryInto::try_into).transpose()?,
             execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(self.execution_id)
                 .map_err(crate::storage::Error::from)?,
@@ -98,16 +93,10 @@ impl TryFrom<&CapturedSource> for Source {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
             owner_node_id: text(value.owner_node_id.as_str())?,
-            execution: value
-                .execution
-                .as_ref()
-                .map(native::ExecutionRevision::try_from)
-                .transpose()?,
+            execution: value.execution.as_ref().map(native::ExecutionRevision::try_from).transpose()?,
             execution_id: text(value.execution_id.as_str())?,
             lifecycle_id: text(&value.lifecycle_id)?,
-            lifecycle: Some(crate::storage::objects::execution::Execution::try_from(
-                &value.lifecycle,
-            )?),
+            lifecycle: Some(crate::storage::objects::execution::Execution::try_from(&value.lifecycle)?),
             evidence_through: Some(value.evidence_through.clone()),
             telemetry_contracts: Some(Contracts::try_from(&value.telemetry_contracts)?),
             record_contracts: Some(RecordContracts::try_from(&value.record_contracts)?),

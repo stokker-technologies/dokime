@@ -29,13 +29,8 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
-static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
-    files: Vec::new(),
-    total_files: 0,
-    returned_files: 0,
-    truncated: false,
-    error: None,
-};
+static EMPTY: RuntimeExecutionFileFrame =
+    RuntimeExecutionFileFrame { files: Vec::new(), total_files: 0, returned_files: 0, truncated: false, error: None };
 
 /* === Macros === */
 
@@ -58,9 +53,7 @@ impl RuntimeExecutionFileRead {
     }
 
     pub(crate) fn from_frame(value: RuntimeExecutionFileFrame) -> Self {
-        Self {
-            value: Some(Arc::new(value)),
-        }
+        Self { value: Some(Arc::new(value)) }
     }
 }
 
@@ -86,10 +79,7 @@ impl Serialize for RuntimeExecutionFileRead {
 
 /* === Public Functions === */
 pub(crate) fn execution_file_frame(
-    execution: &TestExecutionId,
-    files: &[ExecutionFileEntry],
-    window: &RuntimeWindow,
-    resolution: &RuntimeResolution,
+    execution: &TestExecutionId, files: &[ExecutionFileEntry], window: &RuntimeWindow, resolution: &RuntimeResolution,
 ) -> RuntimeExecutionFileFrame {
     let total = windowed(files, window).count();
     let count = match resolution {
@@ -118,20 +108,11 @@ pub(crate) fn execution_file_frame(
             updated_at: file.updated_at.clone(),
         });
     }
-    RuntimeExecutionFileFrame {
-        files: records,
-        total_files: total,
-        returned_files: returned,
-        truncated: returned < total,
-        error: None,
-    }
+    RuntimeExecutionFileFrame { files: records, total_files: total, returned_files: returned, truncated: returned < total, error: None }
 }
 
 /* === Private Functions === */
-fn windowed<'a>(
-    files: &'a [ExecutionFileEntry],
-    window: &'a RuntimeWindow,
-) -> impl Iterator<Item = &'a ExecutionFileEntry> {
+fn windowed<'a>(files: &'a [ExecutionFileEntry], window: &'a RuntimeWindow) -> impl Iterator<Item = &'a ExecutionFileEntry> {
     files
         .iter()
         .enumerate()
@@ -139,22 +120,17 @@ fn windowed<'a>(
             RuntimeWindow::Full | RuntimeWindow::Since { .. } => true,
             RuntimeWindow::LastSamples { count } => *index >= files.len().saturating_sub(*count),
             RuntimeWindow::TimeRange { start, end } => {
-                start.millis_until(&file.updated_at).is_some()
-                    && file.updated_at.millis_until(end).is_some()
+                start.millis_until(&file.updated_at).is_some() && file.updated_at.millis_until(end).is_some()
             }
-            RuntimeWindow::Tail { duration } => files.last().is_some_and(|last| {
-                file.updated_at
-                    .millis_until(&last.updated_at)
-                    .is_some_and(|elapsed| elapsed.0 <= duration.0)
-            }),
+            RuntimeWindow::Tail { duration } => files
+                .last()
+                .is_some_and(|last| file.updated_at.millis_until(&last.updated_at).is_some_and(|elapsed| elapsed.0 <= duration.0)),
         })
         .map(|(_, file)| file)
 }
 
 fn selected<'a>(
-    files: &'a [ExecutionFileEntry],
-    window: &'a RuntimeWindow,
-    indices: &'a [usize],
+    files: &'a [ExecutionFileEntry], window: &'a RuntimeWindow, indices: &'a [usize],
 ) -> impl Iterator<Item = &'a ExecutionFileEntry> {
     let mut selected = indices.iter().copied().peekable();
     windowed(files, window)

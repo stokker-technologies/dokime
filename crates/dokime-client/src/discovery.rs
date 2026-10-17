@@ -42,11 +42,7 @@ const DISCOVERY_BYTES: usize = 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) async fn discover(
-    channel: Channel,
-    authorization: Option<&MetadataValue<Ascii>>,
-    expected_id: Option<&str>,
-) -> Result<Backend> {
+pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>) -> Result<Backend> {
     let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
         channel.clone(),
         authorization,
@@ -58,15 +54,10 @@ pub(super) async fn discover(
     .await?;
     let identity = transport::value(identity)?;
     let api = identity.api.as_ref().ok_or(Error::IncompatibleApi)?;
-    if !dokime_domain::model::backend::wire::compatible_api(&api.package, &api.version)
-        || api.descriptor_sha256.len() != 32
-    {
+    if !dokime_domain::model::backend::wire::compatible_api(&api.package, &api.version) || api.descriptor_sha256.len() != 32 {
         return Err(Error::IncompatibleApi);
     }
-    if identity.backend_id.is_empty()
-        || identity.epoch.is_empty()
-        || expected_id.is_some_and(|expected| expected != identity.backend_id)
-    {
+    if identity.backend_id.is_empty() || identity.epoch.is_empty() || expected_id.is_some_and(|expected| expected != identity.backend_id) {
         return Err(Error::IdentityChanged);
     }
     let health = transport::unary::<dokime_domain::model::backend::wire::BackendHealth, _>(
@@ -79,16 +70,15 @@ pub(super) async fn discover(
     )
     .await?;
     let health = transport::value(health)?;
-    let availability =
-        transport::unary::<dokime_domain::model::backend::wire::BackendAvailability, _>(
-            channel,
-            authorization,
-            backend::GetAvailability::PATH,
-            backend::GetAvailability {},
-            DISCOVERY_BYTES,
-            DISCOVERY_BYTES,
-        )
-        .await?;
+    let availability = transport::unary::<dokime_domain::model::backend::wire::BackendAvailability, _>(
+        channel,
+        authorization,
+        backend::GetAvailability::PATH,
+        backend::GetAvailability {},
+        DISCOVERY_BYTES,
+        DISCOVERY_BYTES,
+    )
+    .await?;
     let availability = transport::value(availability)?;
     if health.backend_id != identity.backend_id
         || health.epoch != identity.epoch
@@ -99,8 +89,7 @@ pub(super) async fn discover(
     }
     if !matches!(
         health.readiness,
-        dokime_domain::model::backend::wire::Readiness::Ready
-            | dokime_domain::model::backend::wire::Readiness::Degraded
+        dokime_domain::model::backend::wire::Readiness::Ready | dokime_domain::model::backend::wire::Readiness::Degraded
     ) {
         return Err(Error::BackendUnavailable);
     }
@@ -111,10 +100,7 @@ pub(super) async fn discover(
         runtime::GetIdentity::PATH,
         runtime::GetHealth::PATH,
     ];
-    if required
-        .iter()
-        .any(|required| !availability.methods.iter().any(|method| method == required))
-    {
+    if required.iter().any(|required| !availability.methods.iter().any(|method| method == required)) {
         return Err(Error::IncompatibleApi);
     }
     let limits = availability.limits.as_ref().ok_or(Error::IncompatibleApi)?;
@@ -122,11 +108,7 @@ pub(super) async fn discover(
         return Err(Error::IncompatibleApi);
     }
     let api_version = api.version.clone();
-    let descriptor_sha256 = api
-        .descriptor_sha256
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
+    let descriptor_sha256 = api.descriptor_sha256.iter().map(|byte| format!("{byte:02x}")).collect();
     Ok(Backend {
         backend_id: identity.backend_id,
         epoch: identity.epoch,

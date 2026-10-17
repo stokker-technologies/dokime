@@ -57,10 +57,7 @@ impl<A: Analysis> harmos::operations::Operation for Handler<A> {
         Ok(Self::fresh())
     }
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        request: &mut Request,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, request: &mut Request, _: &mut (),
     ) -> Result<harmos::operations::Response<Response>, Refusal> {
         self.state.evaluate::<A>(request).await.map(Into::into)
     }
@@ -84,10 +81,7 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
         Ok(Self(Handler::fresh(), std::marker::PhantomData))
     }
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        request: &mut Request,
-        _: &mut (),
+        &mut self, _: Self::Context<'ctx>, request: &mut Request, _: &mut (),
     ) -> Result<harmos::operations::Response<Response>, Refusal> {
         self.0.state.evaluate::<A>(request).await.map(Into::into)
     }
@@ -98,13 +92,7 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
 
 impl<A: Analysis> Handler<A> {
     fn fresh() -> Self {
-        Self {
-            state: State {
-                consumed: false,
-                worker: None,
-            },
-            analysis: std::marker::PhantomData,
-        }
+        Self { state: State { consumed: false, worker: None }, analysis: std::marker::PhantomData }
     }
 }
 
@@ -113,12 +101,7 @@ impl State {
         if request.parameters.len() > super::MAX_PARAMETER_BYTES {
             return Err(Refusal::of("analysis configuration exceeds its budget"));
         }
-        request
-            .samples
-            .as_ref()
-            .ok_or_else(|| Refusal::of("analysis samples are missing"))?
-            .check(A::LIMITS)
-            .map_err(Refusal::of)?;
+        request.samples.as_ref().ok_or_else(|| Refusal::of("analysis samples are missing"))?.check(A::LIMITS).map_err(Refusal::of)?;
         Ok(())
     }
 
@@ -130,15 +113,9 @@ impl State {
             Self::check::<A>(request)?;
             let request = std::mem::take(request);
             self.consumed = true;
-            self.worker = Some(tokio::task::spawn_blocking(move || {
-                Operation::<A>::evaluate(request)
-            }));
+            self.worker = Some(tokio::task::spawn_blocking(move || Operation::<A>::evaluate(request)));
         }
-        let result = self
-            .worker
-            .as_mut()
-            .expect("retained analysis worker")
-            .await;
+        let result = self.worker.as_mut().expect("retained analysis worker").await;
         self.worker.take();
         result.map_err(Refusal::of)?.map_err(Refusal::of)
     }

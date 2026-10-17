@@ -59,18 +59,13 @@ pub struct PluginEnvironmentReference {
 /* === Implementations === */
 impl From<&Identity> for PluginIdentity {
     fn from(identity: &Identity) -> Self {
-        Self {
-            name: identity.name.clone(),
-            version: identity.version.to_string(),
-            description: identity.description.clone(),
-        }
+        Self { name: identity.name.clone(), version: identity.version.to_string(), description: identity.description.clone() }
     }
 }
 
 /* === Public Functions === */
 pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
-    let bundle = Bundle::inspect(bytes, Limits::default())
-        .map_err(|error| PluginError::Invalid(error.to_string()))?;
+    let bundle = Bundle::inspect(bytes, Limits::default()).map_err(|error| PluginError::Invalid(error.to_string()))?;
     let mut owners = BTreeSet::new();
     let mut environment_references = BTreeSet::new();
     // Validate each platform's catalog independently; selected platforms are
@@ -79,37 +74,21 @@ pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
         let Some(executable) = &file.executable else {
             continue;
         };
-        let (id, version, description, operations, contracts) = match bundle.declaration(&file.path)
-        {
-            Some(declaration) if native(declaration) => (
-                &declaration.id,
-                &declaration.version,
-                &declaration.description,
-                &declaration.operations,
-                &declaration.contracts.provides,
-            ),
+        let (id, version, description, operations, contracts) = match bundle.declaration(&file.path) {
+            Some(declaration) if native(declaration) => {
+                (&declaration.id, &declaration.version, &declaration.description, &declaration.operations, &declaration.contracts.provides)
+            }
             Some(_) => return Err(guest_refused(&file.path)),
             None => {
-                return Err(PluginError::Invalid(
-                    "executable declaration missing".into(),
-                ));
+                return Err(PluginError::Invalid("executable declaration missing".into()));
             }
         };
-        let installation = decode_registrations(
-            id,
-            &version.to_string(),
-            description,
-            &executable.registrations,
-        )
-        .map_err(|error| PluginError::Invalid(error.to_string()))?;
-        super::dispatch::validate_analyses(&installation, contracts)
-            .map_err(PluginError::Invalid)?;
-        super::dispatch::Bindings::inspect(&installation, operations)
-            .map_err(PluginError::Invalid)?;
+        let installation = decode_registrations(id, &version.to_string(), description, &executable.registrations)
+            .map_err(|error| PluginError::Invalid(error.to_string()))?;
+        super::dispatch::validate_analyses(&installation, contracts).map_err(PluginError::Invalid)?;
+        super::dispatch::Bindings::inspect(&installation, operations).map_err(PluginError::Invalid)?;
         for setting in installation.settings.secrets() {
-            if let Some(crate::settings::SecretReference::Environment { variable }) =
-                &setting.default
-            {
+            if let Some(crate::settings::SecretReference::Environment { variable }) = &setting.default {
                 environment_references.insert(PluginEnvironmentReference {
                     owner: id.clone(),
                     setting: setting.id.clone(),
@@ -117,15 +96,11 @@ pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
                 });
             }
         }
-        crate::RuntimeState::new(crate::model::identity::new_id())
-            .install_plugin(installation)
-            .map_err(PluginError::Invalid)?;
+        crate::RuntimeState::new(crate::model::identity::new_id()).install_plugin(installation).map_err(PluginError::Invalid)?;
         owners.insert(id.clone());
     }
     if owners.is_empty() {
-        return Err(PluginError::Invalid(
-            "plugin has no executable owners".into(),
-        ));
+        return Err(PluginError::Invalid("plugin has no executable owners".into()));
     }
     selected_files(&bundle)?;
     let metadata = PluginMetadata {
@@ -147,15 +122,11 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos::bundle::Fil
             Some(value) if native(value) => value.id.as_str(),
             Some(_) => return Err(guest_refused(&file.path)),
             None => {
-                return Err(PluginError::Invalid(
-                    "missing executable declaration".into(),
-                ));
+                return Err(PluginError::Invalid("missing executable declaration".into()));
             }
         };
         let native = owners.entry(owner).or_default();
-        if executable.facility == harmos::bundle::Facility::Sidecar
-            && executable.target == env!("DOKIME_NATIVE_TARGET")
-        {
+        if executable.facility == harmos::bundle::Facility::Sidecar && executable.target == env!("DOKIME_NATIVE_TARGET") {
             native.push(file);
         }
     }
@@ -163,20 +134,14 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos::bundle::Fil
         .into_iter()
         .map(|(owner, native)| match native.as_slice() {
             [file] => Ok(*file),
-            [] => Err(PluginError::Invalid(format!(
-                "owner `{owner}` has no executable for this host"
-            ))),
-            _ => Err(PluginError::Invalid(format!(
-                "owner `{owner}` has ambiguous executable variants for this host"
-            ))),
+            [] => Err(PluginError::Invalid(format!("owner `{owner}` has no executable for this host"))),
+            _ => Err(PluginError::Invalid(format!("owner `{owner}` has ambiguous executable variants for this host"))),
         })
         .collect()
 }
 
 pub(crate) fn guest_refused(path: &str) -> PluginError {
-    PluginError::Invalid(format!(
-        "Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"
-    ))
+    PluginError::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
 
 /* === Private Functions === */

@@ -80,9 +80,7 @@ pub struct PlotFilter {
     pub expression: Option<DataExpression>,
     pub operator: FilterOperator,
     // Absent means the Exists operator. A present Value may explicitly be null.
-    #[row(
-        description = "Absent means the Exists operator. A present Value may explicitly be null."
-    )]
+    #[row(description = "Absent means the Exists operator. A present Value may explicitly be null.")]
     pub value: Option<Value>,
 }
 
@@ -220,9 +218,7 @@ pub struct PlotPayload {
     pub x_format: Option<ValueFormat>,
     // RFC3339, the origin `elapsed_since_run` counts from. Absent when this
     // payload was not built for one execution.
-    #[row(
-        description = "RFC3339, the origin `elapsed_since_run` counts from. Absent when this payload was not built for one execution."
-    )]
+    #[row(description = "RFC3339, the origin `elapsed_since_run` counts from. Absent when this payload was not built for one execution.")]
     pub run_started_at: Option<String>,
     // RFC3339, the origin `elapsed_since_cycle` counts from.
     #[row(description = "RFC3339, the origin `elapsed_since_cycle` counts from.")]

@@ -87,12 +87,7 @@ impl PluginStore {
     }
 
     pub fn list(&self) -> Result<Vec<PluginEntry>, PluginError> {
-        Ok(self
-            .settings
-            .read(|document| document.plugins.clone())
-            .into_iter()
-            .map(|(id, plugin)| self.entry(id, &plugin))
-            .collect())
+        Ok(self.settings.read(|document| document.plugins.clone()).into_iter().map(|(id, plugin)| self.entry(id, &plugin)).collect())
     }
 
     pub fn installed(&self) -> Result<Vec<super::PluginBundle>, PluginError> {
@@ -104,10 +99,7 @@ impl PluginStore {
             .map(|(install_id, plugin)| super::PluginBundle {
                 path: self.path(install_id),
                 programs: Default::default(),
-                provenance: super::PluginProvenance::Installed {
-                    install_id,
-                    sha256: plugin.digest,
-                },
+                provenance: super::PluginProvenance::Installed { install_id, sha256: plugin.digest },
             })
             .collect())
     }
@@ -124,13 +116,10 @@ impl PluginStore {
         temporary.as_file().sync_all()?;
         let written = read_bounded(temporary.path(), bytes.len())?;
         if digest(&written) != sha256 {
-            return Err(PluginError::Invalid(
-                "written bundle differs from the inspected bytes".into(),
-            ));
+            return Err(PluginError::Invalid("written bundle differs from the inspected bytes".into()));
         }
         executable(temporary.as_file())?;
-        dokime_filesystem::publication::install(temporary.path(), &self.path(install_id))
-            .map_err(std::io::Error::from)?;
+        dokime_filesystem::publication::install(temporary.path(), &self.path(install_id)).map_err(std::io::Error::from)?;
 
         // Authorize It
         // An unreferenced file grants nothing; the boot sweep reclaims it
@@ -140,9 +129,7 @@ impl PluginStore {
             state: PluginState::Staged,
             digest: sha256,
             staged_at,
-            expires_at: Some(Timestamp::from_system_time(
-                SystemTime::now() + STAGE_RETENTION,
-            )),
+            expires_at: Some(Timestamp::from_system_time(SystemTime::now() + STAGE_RETENTION)),
             consented_at: None,
             last_boot: None,
             programs: Default::default(),
@@ -154,12 +141,7 @@ impl PluginStore {
         Ok(entry(plugin.installation(install_id), Some(metadata), None))
     }
 
-    pub fn consent(
-        &self,
-        id: Uuid,
-        configured: &[PluginMetadata],
-        host_sources: &BTreeSet<String>,
-    ) -> Result<PluginEntry, PluginError> {
+    pub fn consent(&self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>) -> Result<PluginEntry, PluginError> {
         self.settings.edit(|document| {
             let target = document.plugins.get(&id).ok_or(PluginError::Unknown(id))?;
             if target.state == PluginState::RemovalPending {
@@ -175,9 +157,7 @@ impl PluginStore {
             }
             let mut replaced = Vec::new();
             for (other_id, other) in &document.plugins {
-                if *other_id == id
-                    || !matches!(other.state, PluginState::Installed | PluginState::Disabled)
-                {
+                if *other_id == id || !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
                     continue;
                 }
                 // Unavailable installed bytes must be repaired or removed before
@@ -189,11 +169,7 @@ impl PluginStore {
                     occupied.extend(other_metadata.owners);
                 }
             }
-            if let Some(owner) = metadata
-                .owners
-                .iter()
-                .find(|owner| occupied.contains(*owner))
-            {
+            if let Some(owner) = metadata.owners.iter().find(|owner| occupied.contains(*owner)) {
                 return Err(PluginError::Collision(owner.clone()));
             }
 
@@ -217,10 +193,7 @@ impl PluginStore {
     pub fn remove(&self, id: Uuid) -> Result<(), PluginError> {
         // Revoke first, so failed deletion cannot admit bytes.
         let staged = self.settings.edit(|document| {
-            let plugin = document
-                .plugins
-                .get_mut(&id)
-                .ok_or(PluginError::Unknown(id))?;
+            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
             plugin.state = PluginState::RemovalPending;
             Ok::<_, PluginError>(plugin.consented_at.is_none())
         })?;
@@ -232,21 +205,14 @@ impl PluginStore {
 
     pub fn set_enabled(&self, id: Uuid, enabled: bool) -> Result<(), PluginError> {
         self.settings.edit(|document| {
-            let plugin = document
-                .plugins
-                .get_mut(&id)
-                .ok_or(PluginError::Unknown(id))?;
+            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
             if !matches!(plugin.state, PluginState::Installed | PluginState::Disabled) {
                 return Err(PluginError::NotInstalled(id));
             }
             if enabled {
                 self.verified(id, plugin)?;
             }
-            plugin.state = if enabled {
-                PluginState::Installed
-            } else {
-                PluginState::Disabled
-            };
+            plugin.state = if enabled { PluginState::Installed } else { PluginState::Disabled };
             Ok(())
         })
     }
@@ -264,13 +230,8 @@ impl PluginStore {
         })?;
         self.discard(|_, plugin| plugin.state == PluginState::RemovalPending)?;
 
-        let authorized: BTreeSet<_> = self.settings.read(|document| {
-            document
-                .plugins
-                .keys()
-                .map(|id| format!("{id}.{BUNDLE_EXTENSION}"))
-                .collect()
-        });
+        let authorized: BTreeSet<_> =
+            self.settings.read(|document| document.plugins.keys().map(|id| format!("{id}.{BUNDLE_EXTENSION}")).collect());
         let entries = match fs::read_dir(&self.root) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -279,9 +240,7 @@ impl PluginStore {
         for entry in entries {
             let entry = entry?;
             let name = entry.file_name();
-            if !entry.file_type()?.is_file()
-                || name.to_str().is_some_and(|name| authorized.contains(name))
-            {
+            if !entry.file_type()?.is_file() || name.to_str().is_some_and(|name| authorized.contains(name)) {
                 continue;
             }
             if let Err(error) = fs::remove_file(entry.path()) {
@@ -293,10 +252,7 @@ impl PluginStore {
 
     pub fn record_boot(&self, id: Uuid, error: Option<String>) -> Result<(), PluginError> {
         self.settings.edit(|document| {
-            let plugin = document
-                .plugins
-                .get_mut(&id)
-                .ok_or(PluginError::Unknown(id))?;
+            let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
             let at = crate::model::time::now_utc();
             plugin.last_boot = Some(match error {
                 Some(error) => PluginLastBoot::Failed { error, at },
@@ -306,15 +262,8 @@ impl PluginStore {
         })
     }
 
-    pub(crate) fn verified(
-        &self,
-        id: Uuid,
-        plugin: &PluginSettings,
-    ) -> Result<(harmos::bundle::Bundle, PluginMetadata), PluginError> {
-        let bytes = read_bounded(
-            &self.path(id),
-            harmos::bundle::Limits::default().archive_bytes,
-        )?;
+    pub(crate) fn verified(&self, id: Uuid, plugin: &PluginSettings) -> Result<(harmos::bundle::Bundle, PluginMetadata), PluginError> {
+        let bytes = read_bounded(&self.path(id), harmos::bundle::Limits::default().archive_bytes)?;
         if digest(&bytes) != plugin.digest {
             return Err(PluginError::Changed(id));
         }
@@ -326,9 +275,7 @@ impl PluginStore {
     }
 
     fn entry_from_verification(
-        id: Uuid,
-        plugin: &PluginSettings,
-        verified: Result<(harmos::bundle::Bundle, PluginMetadata), PluginError>,
+        id: Uuid, plugin: &PluginSettings, verified: Result<(harmos::bundle::Bundle, PluginMetadata), PluginError>,
     ) -> PluginEntry {
         match verified {
             Ok((_, metadata)) => entry(plugin.installation(id), Some(metadata), None),
@@ -337,14 +284,9 @@ impl PluginStore {
     }
 
     fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<(), PluginError> {
-        let candidates: Vec<Uuid> = self.settings.read(|document| {
-            document
-                .plugins
-                .iter()
-                .filter(|(id, plugin)| selected(**id, plugin))
-                .map(|(id, _)| *id)
-                .collect()
-        });
+        let candidates: Vec<Uuid> = self
+            .settings
+            .read(|document| document.plugins.iter().filter(|(id, plugin)| selected(**id, plugin)).map(|(id, _)| *id).collect());
         if candidates.is_empty() {
             return Ok(());
         }
@@ -365,10 +307,7 @@ impl PluginStore {
             }
             for (id, error) in failures {
                 if let Some(plugin) = document.plugins.get_mut(&id) {
-                    plugin.last_boot = Some(PluginLastBoot::Failed {
-                        error,
-                        at: crate::model::time::now_utc(),
-                    });
+                    plugin.last_boot = Some(PluginLastBoot::Failed { error, at: crate::model::time::now_utc() });
                 }
             }
             Ok(())
@@ -391,18 +330,11 @@ pub(crate) fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, PluginE
 }
 
 pub(crate) fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>()
+    Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
 }
 
 /* === Private Functions === */
-fn entry(
-    installation: Installation,
-    metadata: Option<PluginMetadata>,
-    error: Option<String>,
-) -> PluginEntry {
+fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Option<String>) -> PluginEntry {
     PluginEntry {
         restart_required: installation.state == PluginState::Installed,
         installation,
@@ -413,24 +345,14 @@ fn entry(
     }
 }
 
-fn expired_stages<'a>(
-    plugins: impl IntoIterator<Item = (&'a Uuid, &'a PluginSettings)>,
-    now: &Timestamp,
-) -> BTreeSet<Uuid> {
+fn expired_stages<'a>(plugins: impl IntoIterator<Item = (&'a Uuid, &'a PluginSettings)>, now: &Timestamp) -> BTreeSet<Uuid> {
     let now = now.unix_millis().unwrap_or(0);
     plugins
         .into_iter()
         .filter(|(_, plugin)| {
             plugin.consented_at.is_none()
-                && matches!(
-                    plugin.state,
-                    PluginState::Staged | PluginState::RemovalPending
-                )
-                && plugin
-                    .expires_at
-                    .as_ref()
-                    .and_then(Timestamp::unix_millis)
-                    .is_some_and(|at| at < now)
+                && matches!(plugin.state, PluginState::Staged | PluginState::RemovalPending)
+                && plugin.expires_at.as_ref().and_then(Timestamp::unix_millis).is_some_and(|at| at < now)
         })
         .map(|(id, _)| *id)
         .collect()

@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 
 /* === Constants === */
 
@@ -39,9 +39,7 @@ use super::*;
 /* === Private Functions === */
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
     let owner = runtime(root).await;
-    let config = Config::default()
-        .with_bearer_auth(vec![grant(Role::Read)])
-        .unwrap();
+    let config = Config::default().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
@@ -110,33 +108,20 @@ async fn percentile_rank_bounded() {
         source: model::query::wire::QuerySource::Steps,
         filters: Vec::new(),
         group_by: Vec::new(),
-        aggregates: vec![model::query::wire::QueryAggregate {
-            aggregate,
-            column: "duration_ms".to_owned(),
-            alias: "statistic".to_owned(),
-        }],
+        aggregates: vec![model::query::wire::QueryAggregate { aggregate, column: "duration_ms".to_owned(), alias: "statistic".to_owned() }],
         limit: 0,
     };
 
     for rank in [101, 255] {
-        let status = client
-            .unary::<contracts::query::Aggregate>(authenticated(request(
-                harmos::Aggregate::Percentile(rank),
-            )))
-            .await
-            .unwrap_err();
+        let status =
+            client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(rank)))).await.unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::InvalidArgument, "{rank}");
         assert!(status.message().contains("rank exceeds 100"), "{rank}");
     }
 
-    let reply = client
-        .unary::<contracts::query::Aggregate>(authenticated(request(
-            harmos::Aggregate::Percentile(95),
-        )))
-        .await
-        .unwrap()
-        .into_inner();
+    let reply =
+        client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(95)))).await.unwrap().into_inner();
     assert_eq!(reply.columns, ["statistic"]);
     assert!(reply.complete);
 }
@@ -167,9 +152,8 @@ async fn unspecified_source_read() {
 async fn detailed_status_directory() {
     use prost::Message;
 
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .expect("the integration environment declares its home directory");
+    let home =
+        std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).expect("the integration environment declares its home directory");
     assert!(!home.is_empty());
     let root = tempfile::tempdir().unwrap();
     let (held, client) = client(root.path()).await;
@@ -189,24 +173,11 @@ async fn detailed_status_directory() {
         .unwrap_err();
     assert_eq!(status.code(), tonic::Code::InvalidArgument);
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    let detail = envelope
-        .details
-        .first()
-        .expect("the mapper includes a detailed error");
-    assert_eq!(
-        detail.type_url,
-        "type.googleapis.com/dokime.v1.CapturedRecordError"
-    );
-    let detail = <model::evidence::wire::CapturedRecordError as harmos::Protobuf>::decode(
-        detail.value.as_slice(),
-    )
-    .unwrap();
+    let detail = envelope.details.first().expect("the mapper includes a detailed error");
+    assert_eq!(detail.type_url, "type.googleapis.com/dokime.v1.CapturedRecordError");
+    let detail = <model::evidence::wire::CapturedRecordError as harmos::Protobuf>::decode(detail.value.as_slice()).unwrap();
     assert!(detail.message.contains("evidence"));
-    assert!(
-        !detail.message.contains(&home),
-        "a wire diagnostic is redacted: {}",
-        detail.message
-    );
+    assert!(!detail.message.contains(&home), "a wire diagnostic is redacted: {}", detail.message);
     drop(client);
     drop(held);
 }

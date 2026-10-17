@@ -19,9 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{
-    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
-};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 use dokime_runtime::harmos::plugin::{Attachment, Declared};
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 // Local Imports
@@ -170,9 +168,7 @@ impl dokime_runtime::Plugin for TelemetrySidecar {
         let settings = dokime_runtime::plugin::refusal(config.settings::<TelemetrySidecarSettings>())?;
         Ok(Self {
             lifecycle: settings.config.lifecycle,
-            resources: Arc::new(Resources {
-                record_lifecycle: settings.config.record_lifecycle,
-            }),
+            resources: Arc::new(Resources { record_lifecycle: settings.config.record_lifecycle }),
             observers: None,
         })
     }
@@ -180,21 +176,12 @@ impl dokime_runtime::Plugin for TelemetrySidecar {
     async fn initialize(&mut self, host: &Supervisor) -> Result<(), Refusal> {
         tracing::info!("telemetry fixture initialized");
         dokime_runtime::plugin::refusal(
-            host.publisher::<Self>()
-                .publish_on::<Probe>(&Reading {
-                    count: u64::MAX,
-                    value: 12.5,
-                })
-                .await
-                .map_err(Error::from),
+            host.publisher::<Self>().publish_on::<Probe>(&Reading { count: u64::MAX, value: 12.5 }).await.map_err(Error::from),
         )?;
         if let Some(path) = &self.lifecycle {
             dokime_runtime::plugin::refusal(std::fs::write(path, b"initialized"))?;
         }
-        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -205,16 +192,11 @@ impl dokime_runtime::Plugin for TelemetrySidecar {
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, Suites>(table)?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<observers::controls::Observe>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<observers::controls::Observe>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
-        self.observers
-            .as_ref()
-            .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -225,10 +207,7 @@ impl dokime_runtime::Plugin for TelemetrySidecar {
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         if let Some(path) = &self.lifecycle {
-            assert!(
-                dokime_runtime::plugin::refusal(std::env::current_exe())?.is_file(),
-                "extraction must survive cleanup"
-            );
+            assert!(dokime_runtime::plugin::refusal(std::env::current_exe())?.is_file(), "extraction must survive cleanup");
             dokime_runtime::plugin::refusal(std::fs::write(path, b"finalized"))?;
         }
         Ok(())
@@ -240,9 +219,7 @@ impl RecordChecks {}
 
 #[dokime_runtime::template(id = "validation-telemetry.records.capture", label = "Capture Startup", subscribes = Subscriptions)]
 impl CaptureStartup {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
 

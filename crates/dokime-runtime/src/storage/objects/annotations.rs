@@ -20,16 +20,16 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
 use super::templates;
-use dokime_domain::model::identity::HealthItemId;
-use dokime_domain::model::identity::NoteId;
-use dokime_domain::model::identity::RecordId;
+use crate::storage::{Error, Result, records::ScopeRow};
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::time::Timestamp;
 use dokime_domain::state::records::set::TestRecordSet;
-use crate::storage::{Error, Result, records::ScopeRow};
 
 /* === Constants === */
 
@@ -92,13 +92,9 @@ impl TryFrom<&TestRecordSet> for Set {
             return Err(Error::Invalid("annotation encoding memory overflow"));
         }
         let mut health = Vec::new();
-        health
-            .try_reserve_exact(source.health().len())
-            .map_err(|_| Error::Invalid("health encoding allocation failed"))?;
+        health.try_reserve_exact(source.health().len()).map_err(|_| Error::Invalid("health encoding allocation failed"))?;
         let mut notes = Vec::new();
-        notes
-            .try_reserve_exact(source.notes().len())
-            .map_err(|_| Error::Invalid("note encoding allocation failed"))?;
+        notes.try_reserve_exact(source.notes().len()).map_err(|_| Error::Invalid("note encoding allocation failed"))?;
         let mut subscribed_records = Vec::new();
         subscribed_records
             .try_reserve_exact(source.subscribed_records().len())
@@ -117,17 +113,9 @@ impl TryFrom<&TestRecordSet> for Set {
             notes.push(Note::try_from(value)?);
         }
         for (id, scope) in source.subscribed_records() {
-            subscribed_records.push(Captured {
-                record_id: id.as_str().to_owned(),
-                scope: ScopeRow::from(scope),
-            });
+            subscribed_records.push(Captured { record_id: id.as_str().to_owned(), scope: ScopeRow::from(scope) });
         }
-        Ok(Self {
-            health,
-            notes,
-            subscribed_records,
-            record_subscriptions_closed: source.record_subscriptions_closed(),
-        })
+        Ok(Self { health, notes, subscribed_records, record_subscriptions_closed: source.record_subscriptions_closed() })
     }
 }
 
@@ -154,25 +142,14 @@ impl Set {
     }
 
     pub fn projection_memory(&self) -> usize {
-        let map_memory =
-            harmos::btree_map_memory::<RecordId, RecordScope>(self.subscribed_records.len());
+        let map_memory = harmos::btree_map_memory::<RecordId, RecordScope>(self.subscribed_records.len());
         if map_memory == usize::MAX {
             return usize::MAX;
         }
         let mut bytes = std::mem::size_of::<TestRecordSet>()
-            .saturating_add(
-                self.health
-                    .len()
-                    .saturating_mul(std::mem::size_of::<HealthItem>()),
-            )
-            .saturating_add(
-                self.notes
-                    .len()
-                    .saturating_mul(std::mem::size_of::<OperatorNote>()),
-            )
-            .saturating_add(map_memory.saturating_sub(std::mem::size_of::<
-                std::collections::BTreeMap<RecordId, RecordScope>,
-            >()));
+            .saturating_add(self.health.len().saturating_mul(std::mem::size_of::<HealthItem>()))
+            .saturating_add(self.notes.len().saturating_mul(std::mem::size_of::<OperatorNote>()))
+            .saturating_add(map_memory.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<RecordId, RecordScope>>()));
         for health in &self.health {
             let owned = health.projection_memory();
             if owned == usize::MAX {
@@ -200,14 +177,8 @@ impl Set {
     }
 
     pub fn restore_owned(self) -> Result<TestRecordSet> {
-        if self
-            .subscribed_records
-            .windows(2)
-            .any(|pair| pair[0].record_id >= pair[1].record_id)
-        {
-            return Err(Error::Invalid(
-                "noncanonical captured record ownership order",
-            ));
+        if self.subscribed_records.windows(2).any(|pair| pair[0].record_id >= pair[1].record_id) {
+            return Err(Error::Invalid("noncanonical captured record ownership order"));
         }
         let mut records = TestRecordSet::with_capacity(self.health.len(), self.notes.len());
         for note in self.notes {
@@ -217,10 +188,7 @@ impl Set {
             records.push_health(health.try_into()?);
         }
         for captured in self.subscribed_records {
-            records.capture_record(
-                RecordId::from_uuid(captured.record_id)?,
-                captured.scope.try_into()?,
-            );
+            records.capture_record(RecordId::from_uuid(captured.record_id)?, captured.scope.try_into()?);
         }
         if self.record_subscriptions_closed {
             records.close_record_subscriptions();
@@ -251,27 +219,20 @@ impl Set {
         }
         let canonical = Self::try_from(&records)?;
         if canonical != *self {
-            return Err(Error::Invalid(
-                "noncanonical annotation or record ownership fields",
-            ));
+            return Err(Error::Invalid("noncanonical annotation or record ownership fields"));
         }
         Ok(records)
     }
 }
 
 impl serde::Serialize for Set {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let records = self.restore().map_err(serde::ser::Error::custom)?;
         records.serialize(serializer)
     }
 }
 impl<'de> serde::Deserialize<'de> for Set {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let records = <TestRecordSet as serde::Deserialize>::deserialize(deserializer)?;
         Self::try_from(&records).map_err(serde::de::Error::custom)
     }

@@ -25,27 +25,27 @@ use std::collections::BTreeMap;
 // Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
+use crate::prompts::{PromptDefinition, PromptInstance, PromptResponse};
+use crate::records::RecordContract;
+use crate::telemetry::TelemetryContract;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
-use dokime_domain::state::records::EvidenceRecords;
-use crate::records::RecordContract;
-use dokime_domain::model::records::resources::ResourceRecord;
-use dokime_domain::state::records::resources::ResourceRegistry;
-use dokime_domain::state::records::set::TestRecordSet;
 use dokime_domain::model::identity::DokimeIdentity;
 use dokime_domain::model::identity::DokimeNodeIdentity;
 use dokime_domain::model::identity::HealthItemId;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::time::Timestamp;
-use crate::prompts::{PromptDefinition, PromptInstance, PromptResponse};
-use crate::telemetry::TelemetryContract;
 use dokime_domain::model::plugins::InstalledPlugin;
 use dokime_domain::model::plugins::InstalledPluginErrorRecord;
+use dokime_domain::model::records::resources::ResourceRecord;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::state::records::EvidenceRecords;
+use dokime_domain::state::records::resources::ResourceRegistry;
+use dokime_domain::state::records::set::TestRecordSet;
 use foreign_streams::{admit_foreign_view, declares_foreign_view};
 
 /* === Constants === */
@@ -81,12 +81,9 @@ pub struct RuntimeState {
     pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     /// Pending report boundaries survive restart independently of later stop metadata.
-    pub cycle_report_finalizations:
-        BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
-    pub report_finalizations:
-        BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
-    pub run_requests:
-        BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
+    pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
+    pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
+    pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
     pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     pub records: EvidenceRecords,
     pub resources: ResourceRegistry,
@@ -110,11 +107,7 @@ pub enum RuntimeStateInstallError {
     DuplicateRecord(dokime_domain::model::identity::Identifier),
     RecordHistory(String),
     DuplicateTelemetry(dokime_domain::model::identity::Identifier),
-    ForeignTelemetryColumn {
-        stream: dokime_domain::model::identity::Identifier,
-        column: String,
-        detail: String,
-    },
+    ForeignTelemetryColumn { stream: dokime_domain::model::identity::Identifier, column: String, detail: String },
 }
 
 /* === Traits === */
@@ -135,10 +128,7 @@ impl RuntimeState {
                 if !membership.insert(id) {
                     return Err("execution has duplicate cycle membership".into());
                 }
-                let execution = self
-                    .executions
-                    .get(id)
-                    .ok_or("cycle references a missing execution owner")?;
+                let execution = self.executions.get(id).ok_or("cycle references a missing execution owner")?;
                 if &execution.test_execution_id != id {
                     return Err("execution identity differs from its canonical key".into());
                 }
@@ -148,10 +138,7 @@ impl RuntimeState {
             }
         }
         for (id, intent) in &self.cycle_report_finalizations {
-            let owner = self
-                .cycles
-                .get(id)
-                .ok_or("cycle report intent has no owner")?;
+            let owner = self.cycles.get(id).ok_or("cycle report intent has no owner")?;
             if &intent.source.test_cycle_id != id
                 || intent.source.execution_ids != owner.execution_ids
                 || intent.source.saved.is_some()
@@ -167,33 +154,23 @@ impl RuntimeState {
     }
 
     pub fn executions_for_cycle<'a>(
-        &'a self,
-        cycle: &'a dokime_domain::model::execution::result::TestCycle,
+        &'a self, cycle: &'a dokime_domain::model::execution::result::TestCycle,
     ) -> impl ExactSizeIterator<Item = &'a dokime_domain::model::execution::result::TestExecution> + Clone {
-        cycle.execution_ids.iter().map(|id| {
-            self.executions
-                .get(id)
-                .expect("cycle execution owner exists")
-        })
+        cycle.execution_ids.iter().map(|id| self.executions.get(id).expect("cycle execution owner exists"))
     }
 
     pub fn cases_for_cycle<'a>(
-        &'a self,
-        cycle: &'a dokime_domain::model::execution::result::TestCycle,
+        &'a self, cycle: &'a dokime_domain::model::execution::result::TestCycle,
     ) -> impl Iterator<Item = &'a crate::definition::TestCase> {
         let mut seen = std::collections::BTreeSet::new();
-        self.executions_for_cycle(cycle)
-            .filter_map(move |execution| {
-                let case = execution.snapshot.case();
-                seen.insert(&case.test_case_id).then_some(case)
-            })
+        self.executions_for_cycle(cycle).filter_map(move |execution| {
+            let case = execution.snapshot.case();
+            seen.insert(&case.test_case_id).then_some(case)
+        })
     }
 
     pub fn cycle_views(&self) -> impl Iterator<Item = dokime_domain::model::execution::result::CycleView> + '_ {
-        self.cycles.keys().map(|id| {
-            self.cycle_view(id)
-                .expect("canonical cycle membership is valid")
-        })
+        self.cycles.keys().map(|id| self.cycle_view(id).expect("canonical cycle membership is valid"))
     }
 
     pub fn cycle_view(&self, id: &TestCycleId) -> Option<dokime_domain::model::execution::result::CycleView> {
@@ -220,12 +197,7 @@ impl RuntimeState {
 
     // Retire Sealed Cycles From Live State; Their Saved Closure Stays In Native History
     pub fn retire_sealed_cycles(&mut self) {
-        let sealed: Vec<_> = self
-            .cycles
-            .values()
-            .filter(|cycle| cycle.saved.is_some())
-            .map(|cycle| cycle.test_cycle_id.clone())
-            .collect();
+        let sealed: Vec<_> = self.cycles.values().filter(|cycle| cycle.saved.is_some()).map(|cycle| cycle.test_cycle_id.clone()).collect();
         for id in sealed {
             let cycle = self.cycles.remove(&id).expect("selected sealed cycle");
             for execution_id in &cycle.execution_ids {
@@ -234,32 +206,22 @@ impl RuntimeState {
             self.records.record_visibility.retain(|record| {
                 !record.scope.as_ref().is_some_and(|scope| {
                     scope.test_cycle_id.as_ref() == Some(&id)
-                        || scope
-                            .test_execution_id
-                            .as_ref()
-                            .is_some_and(|execution| cycle.execution_ids.contains(execution))
+                        || scope.test_execution_id.as_ref().is_some_and(|execution| cycle.execution_ids.contains(execution))
                 })
             });
         }
     }
 
     pub fn validate_cycle_view(&self, view: &dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
-        if self
-            .cycles
-            .get(&view.test_cycle_id)
-            .is_some_and(|existing| {
-                existing.saved.is_some()
-                    && existing.saved != view.saved
-                    && (view.saved.is_some()
-                        || view.lifecycle != dokime_domain::model::execution::result::CycleStatus::Ready)
-            })
-        {
+        if self.cycles.get(&view.test_cycle_id).is_some_and(|existing| {
+            existing.saved.is_some()
+                && existing.saved != view.saved
+                && (view.saved.is_some() || view.lifecycle != dokime_domain::model::execution::result::CycleStatus::Ready)
+        }) {
             return Err("saved cycle closure cannot be changed".into());
         }
         if let Some(saved) = &view.saved {
-            saved
-                .validate_view(view)
-                .map_err(|error| error.to_string())?;
+            saved.validate_view(view).map_err(|error| error.to_string())?;
         }
         let mut ids = std::collections::BTreeSet::new();
         for execution in &view.test_executions {
@@ -269,11 +231,7 @@ impl RuntimeState {
             if !ids.insert(execution.test_execution_id.clone()) {
                 return Err("cycle contains duplicate execution membership".into());
             }
-            if self
-                .executions
-                .get(&execution.test_execution_id)
-                .is_some_and(|existing| existing.test_cycle_id != view.test_cycle_id)
-            {
+            if self.executions.get(&execution.test_execution_id).is_some_and(|existing| existing.test_cycle_id != view.test_cycle_id) {
                 return Err("execution identity is owned by another cycle".into());
             }
         }
@@ -282,11 +240,7 @@ impl RuntimeState {
 
     pub fn replace_cycle(&mut self, view: dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
         self.validate_cycle_view(&view)?;
-        let ids: std::collections::BTreeSet<_> = view
-            .test_executions
-            .iter()
-            .map(|execution| execution.test_execution_id.clone())
-            .collect();
+        let ids: std::collections::BTreeSet<_> = view.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect();
         if let Some(previous) = self.cycles.get(&view.test_cycle_id) {
             for id in &previous.execution_ids {
                 if !ids.contains(id) {
@@ -294,14 +248,9 @@ impl RuntimeState {
                 }
             }
         }
-        let execution_ids = view
-            .test_executions
-            .iter()
-            .map(|execution| execution.test_execution_id.clone())
-            .collect();
+        let execution_ids = view.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect();
         for execution in view.test_executions {
-            self.executions
-                .insert(execution.test_execution_id.clone(), execution);
+            self.executions.insert(execution.test_execution_id.clone(), execution);
         }
         self.cycles.insert(
             view.test_cycle_id.clone(),
@@ -385,36 +334,21 @@ impl RuntimeState {
     }
 
     pub(crate) fn install_plugin_with_redefinition(
-        &mut self,
-        installation: InstalledPlugin,
-        redefinition: Redefinition,
+        &mut self, installation: InstalledPlugin, redefinition: Redefinition,
     ) -> Result<(), String> {
-        installation
-            .settings
-            .validate()
-            .map_err(|error| error.to_string())?;
+        installation.settings.validate().map_err(|error| error.to_string())?;
         let mut analyses = std::collections::BTreeSet::new();
         for analysis in &installation.analyses {
             analysis.check()?;
-            if !analysis
-                .id
-                .starts_with(&format!("{}.", installation.source))
-                || !analyses.insert(&analysis.id)
-            {
-                return Err(
-                    "analysis identities must be unique and owned by their artifact".into(),
-                );
+            if !analysis.id.starts_with(&format!("{}.", installation.source)) || !analyses.insert(&analysis.id) {
+                return Err("analysis identities must be unique and owned by their artifact".into());
             }
         }
         let source = installation.source.clone();
         let mut projected = self.clone();
-        projected
-            .installed_plugins
-            .insert(source.clone(), installation.clone());
+        projected.installed_plugins.insert(source.clone(), installation.clone());
         projected.suites.set(&source, installation.suites.clone())?;
-        projected.rebuild_installed_domains_with(
-            (redefinition == Redefinition::Supersede).then_some(source.as_str()),
-        )?;
+        projected.rebuild_installed_domains_with((redefinition == Redefinition::Supersede).then_some(source.as_str()))?;
         *self = projected;
         Ok(())
     }
@@ -432,18 +366,14 @@ impl RuntimeState {
         self.rebuild_installed_domains_with(None)
     }
 
-    fn rebuild_installed_domains_with(
-        &mut self,
-        redefine_source: Option<&str>,
-    ) -> Result<(), String> {
+    fn rebuild_installed_domains_with(&mut self, redefine_source: Option<&str>) -> Result<(), String> {
         let suites = self.suites.suites().cloned().collect::<Vec<_>>();
         let installations = self.installed_plugins.values().cloned().collect::<Vec<_>>();
 
         self.prompt_definitions.clear();
         self.record_definitions.clear();
         self.telemetry_definitions.clear();
-        self.install_builtin_domains()
-            .map_err(|error| error.to_string())?;
+        self.install_builtin_domains().map_err(|error| error.to_string())?;
 
         // Every stream declaration in the desired catalog, kept with the
         // source that declared it so a refusal can name the plugin to open.
@@ -456,20 +386,11 @@ impl RuntimeState {
             for contract in suite.record_contracts {
                 self.ensure_record_definition_with(
                     contract,
-                    if redefine_source == Some(source.as_str()) {
-                        Redefinition::Supersede
-                    } else {
-                        Redefinition::Refuse
-                    },
+                    if redefine_source == Some(source.as_str()) { Redefinition::Supersede } else { Redefinition::Refuse },
                 )
                 .map_err(|error| error.to_string())?;
             }
-            streams.extend(
-                suite
-                    .telemetry_contracts
-                    .into_iter()
-                    .map(|contract| (source.clone(), contract)),
-            );
+            streams.extend(suite.telemetry_contracts.into_iter().map(|contract| (source.clone(), contract)));
         }
         for installation in installations {
             let mut declarations = BTreeMap::new();
@@ -484,10 +405,7 @@ impl RuntimeState {
                 let id = definition.prompt_type.as_str().to_owned();
                 if let Some(existing) = declarations.get(&id) {
                     if existing != &definition {
-                        return Err(format!(
-                            "conflicting definitions for prompt {id} in {}",
-                            installation.source
-                        ));
+                        return Err(format!("conflicting definitions for prompt {id} in {}", installation.source));
                     }
                     continue;
                 }
@@ -500,65 +418,39 @@ impl RuntimeState {
                         "invalid prompt {} from {}: {}",
                         definition.prompt_type,
                         installation.source,
-                        issues
-                            .into_iter()
-                            .map(|issue| issue.message)
-                            .collect::<Vec<_>>()
-                            .join("; ")
+                        issues.into_iter().map(|issue| issue.message).collect::<Vec<_>>().join("; ")
                     ));
                 }
                 let id = definition.prompt_type.as_str().to_owned();
-                if self
-                    .prompt_definitions
-                    .insert(id.clone(), definition)
-                    .is_some()
-                {
-                    return Err(format!(
-                        "prompt {id} is declared by multiple installed sources"
-                    ));
+                if self.prompt_definitions.insert(id.clone(), definition).is_some() {
+                    return Err(format!("prompt {id} is declared by multiple installed sources"));
                 }
             }
             for contract in installation.record_contracts {
                 self.ensure_record_definition_with(
                     contract,
-                    if redefine_source == Some(installation.source.as_str()) {
-                        Redefinition::Supersede
-                    } else {
-                        Redefinition::Refuse
-                    },
+                    if redefine_source == Some(installation.source.as_str()) { Redefinition::Supersede } else { Redefinition::Refuse },
                 )
                 .map_err(|error| error.to_string())?;
             }
             let source = installation.source;
-            streams.extend(
-                installation
-                    .telemetry_contracts
-                    .into_iter()
-                    .map(|contract| (source.clone(), contract)),
-            );
+            streams.extend(installation.telemetry_contracts.into_iter().map(|contract| (source.clone(), contract)));
         }
         self.admit_declared_streams(streams)
     }
 
-    fn admit_declared_streams(
-        &mut self,
-        streams: Vec<(String, TelemetryContract)>,
-    ) -> Result<(), String> {
-        let (views, owned): (Vec<_>, Vec<_>) = streams
-            .into_iter()
-            .partition(|(_, contract)| declares_foreign_view(contract));
+    fn admit_declared_streams(&mut self, streams: Vec<(String, TelemetryContract)>) -> Result<(), String> {
+        let (views, owned): (Vec<_>, Vec<_>) = streams.into_iter().partition(|(_, contract)| declares_foreign_view(contract));
 
         for (source, contract) in owned {
-            self.ensure_telemetry_definition(&source, contract)
-                .map_err(|error| error.to_string())?;
+            self.ensure_telemetry_definition(&source, contract).map_err(|error| error.to_string())?;
         }
         // Only the views name their plugin: a reader is wrong about a contract
         // it does not control, so the refusal has to say whose declaration to
         // go and fix. An owner's collision already names the stream, and the
         // stream is the plugin's own.
         for (source, contract) in views {
-            self.ensure_telemetry_definition(&source, contract)
-                .map_err(|error| format!("plugin {source}: {error}"))?;
+            self.ensure_telemetry_definition(&source, contract).map_err(|error| format!("plugin {source}: {error}"))?;
         }
         Ok(())
     }
@@ -575,11 +467,7 @@ impl RuntimeState {
                             ));
                         }
                     }
-                    for record in template
-                        .subscriptions
-                        .iter()
-                        .filter_map(crate::definition::Subscription::record)
-                    {
+                    for record in template.subscriptions.iter().filter_map(crate::definition::Subscription::record) {
                         if !self.record_definitions.contains_key(record) {
                             return Err(format!(
                                 "plugin {} template {} subscribes to record {record}, which no installed plugin publishes",
@@ -587,13 +475,8 @@ impl RuntimeState {
                             ));
                         }
                     }
-                    for stream in template
-                        .subscriptions
-                        .iter()
-                        .filter_map(crate::definition::Subscription::stream)
-                    {
-                        if self.telemetry_definitions.contains_key(stream) || is_host_stream(stream)
-                        {
+                    for stream in template.subscriptions.iter().filter_map(crate::definition::Subscription::stream) {
+                        if self.telemetry_definitions.contains_key(stream) || is_host_stream(stream) {
                             continue;
                         }
                         return Err(format!(
@@ -608,11 +491,7 @@ impl RuntimeState {
     }
 
     pub fn sync_suite_definitions(&mut self) -> Result<(), RuntimeStateInstallError> {
-        let record_contracts = self
-            .suites
-            .suites()
-            .flat_map(|snapshot| snapshot.record_contracts.clone())
-            .collect::<Vec<_>>();
+        let record_contracts = self.suites.suites().flat_map(|snapshot| snapshot.record_contracts.clone()).collect::<Vec<_>>();
         // Owners before the consumers that only read them, for the reason
         // [`Self::admit_declared_streams`] gives: the registry is keyed by
         // suite id, which orders the declarations by a name that has nothing to
@@ -620,12 +499,7 @@ impl RuntimeState {
         let (foreign_views, owned_streams): (Vec<_>, Vec<_>) = self
             .suites
             .suites()
-            .flat_map(|snapshot| {
-                snapshot
-                    .telemetry_contracts
-                    .iter()
-                    .map(|contract| (snapshot.source.clone(), contract.clone()))
-            })
+            .flat_map(|snapshot| snapshot.telemetry_contracts.iter().map(|contract| (snapshot.source.clone(), contract.clone())))
             .partition(|(_, contract)| declares_foreign_view(contract));
         for contract in record_contracts {
             self.ensure_record_definition(contract)?;
@@ -636,25 +510,16 @@ impl RuntimeState {
         Ok(())
     }
 
-    pub fn ensure_record_definition(
-        &mut self,
-        contract: RecordContract,
-    ) -> Result<(), RuntimeStateInstallError> {
+    pub fn ensure_record_definition(&mut self, contract: RecordContract) -> Result<(), RuntimeStateInstallError> {
         self.ensure_record_definition_with(contract, Redefinition::Refuse)
     }
 
-    fn ensure_record_definition_with(
-        &mut self,
-        contract: RecordContract,
-        policy: Redefinition,
-    ) -> Result<(), RuntimeStateInstallError> {
+    fn ensure_record_definition_with(&mut self, contract: RecordContract, policy: Redefinition) -> Result<(), RuntimeStateInstallError> {
         if let Some(definition) = self.record_definitions.get(&contract.record_type) {
             return if definition.record_schema() == contract.record_schema() {
                 Ok(())
             } else {
-                Err(RuntimeStateInstallError::DuplicateRecord(
-                    contract.record_type,
-                ))
+                Err(RuntimeStateInstallError::DuplicateRecord(contract.record_type))
             };
         }
         match policy {
@@ -662,8 +527,7 @@ impl RuntimeState {
             Redefinition::Supersede => self.record_history.supersede(&contract),
         }
         .map_err(RuntimeStateInstallError::RecordHistory)?;
-        self.record_definitions
-            .insert(contract.record_type.clone(), contract);
+        self.record_definitions.insert(contract.record_type.clone(), contract);
         Ok(())
     }
 
@@ -672,49 +536,30 @@ impl RuntimeState {
     /// declare it again with the same schema: each keeps its own declaration
     /// in its suite, which is what grants it publication. Another plugin only
     /// ever reads the stream through a foreign view.
-    pub fn ensure_telemetry_definition(
-        &mut self,
-        source: &str,
-        contract: TelemetryContract,
-    ) -> Result<(), RuntimeStateInstallError> {
+    pub fn ensure_telemetry_definition(&mut self, source: &str, contract: TelemetryContract) -> Result<(), RuntimeStateInstallError> {
         let Some(definition) = self.telemetry_definitions.get(&contract.stream) else {
-            self.telemetry_definitions
-                .insert(contract.stream.clone(), contract);
+            self.telemetry_definitions.insert(contract.stream.clone(), contract);
             return Ok(());
         };
         if declares_foreign_view(&contract) {
-            return if definition.normalized() == contract.normalized() {
-                Ok(())
-            } else {
-                admit_foreign_view(definition, &contract)
-            };
+            return if definition.normalized() == contract.normalized() { Ok(()) } else { admit_foreign_view(definition, &contract) };
         }
-        if definition.stream_schema() == contract.stream_schema()
-            && !self.owned_elsewhere(source, &contract.stream)
-        {
+        if definition.stream_schema() == contract.stream_schema() && !self.owned_elsewhere(source, &contract.stream) {
             return Ok(());
         }
-        Err(RuntimeStateInstallError::DuplicateTelemetry(
-            contract.stream,
-        ))
+        Err(RuntimeStateInstallError::DuplicateTelemetry(contract.stream))
     }
 
     /// Whether a plugin other than `source` declares `stream` as its own.
     fn owned_elsewhere(&self, source: &str, stream: &dokime_domain::model::identity::Identifier) -> bool {
-        let suites = self
-            .suites
-            .suites()
-            .filter(|snapshot| snapshot.source != source)
-            .flat_map(|snapshot| &snapshot.telemetry_contracts);
+        let suites = self.suites.suites().filter(|snapshot| snapshot.source != source).flat_map(|snapshot| &snapshot.telemetry_contracts);
         let plugins = self
             .installed_plugins
             .values()
             .filter(|installation| installation.source != source)
             .flat_map(|installation| &installation.telemetry_contracts);
 
-        suites
-            .chain(plugins)
-            .any(|declared| !declares_foreign_view(declared) && &declared.stream == stream)
+        suites.chain(plugins).any(|declared| !declares_foreign_view(declared) && &declared.stream == stream)
     }
 
     pub(crate) fn historical_record_contracts(
@@ -723,11 +568,7 @@ impl RuntimeState {
         self.record_history.contracts()
     }
 
-    pub fn historical_record_contract(
-        &self,
-        kind: &dokime_domain::model::identity::Identifier,
-        version: u32,
-    ) -> Option<&RecordContract> {
+    pub fn historical_record_contract(&self, kind: &dokime_domain::model::identity::Identifier, version: u32) -> Option<&RecordContract> {
         self.record_history.get(kind, version)
     }
 
@@ -754,18 +595,14 @@ impl RuntimeState {
     /// The prompts an operator can still answer: the one authority every
     /// pending view, count and response check reads.
     pub fn open_prompts(&self) -> impl Iterator<Item = &PromptInstance> {
-        self.prompt_requests
-            .values()
-            .filter(|prompt| self.prompt_open(prompt))
+        self.prompt_requests.values().filter(|prompt| self.prompt_open(prompt))
     }
 
     /// A prompt is open while it has no response and its owner still runs. An
     /// execution-scoped prompt never outlives its execution, and a
     /// cycle-scoped one never outlives its cycle.
     pub fn prompt_open(&self, prompt: &PromptInstance) -> bool {
-        if self.prompt_responses.contains_key(&prompt.prompt_id)
-            || self.closed_prompts.contains_key(&prompt.prompt_id)
-        {
+        if self.prompt_responses.contains_key(&prompt.prompt_id) || self.closed_prompts.contains_key(&prompt.prompt_id) {
             return false;
         }
         if let Some(id) = &prompt.scope.test_execution_id {
@@ -778,11 +615,7 @@ impl RuntimeState {
                     )
             });
         }
-        prompt
-            .scope
-            .test_cycle_id
-            .as_ref()
-            .is_none_or(|id| self.cycles.contains_key(id))
+        prompt.scope.test_cycle_id.as_ref().is_none_or(|id| self.cycles.contains_key(id))
     }
 
     pub fn projected_prompt_request(&self, prompt_id: &PromptId) -> Option<PromptInstance> {
@@ -794,36 +627,20 @@ impl RuntimeState {
     }
 
     pub fn prompt_condition_to_check(
-        &self,
-        prompt_id: &PromptId,
-        action: &str,
+        &self, prompt_id: &PromptId, action: &str,
     ) -> Result<Option<crate::definition::RuntimeCondition>, String> {
         // Existence/action/duplicate errors belong to the response transaction.
         // Only a pending, valid action can require this external precheck.
-        let Some(prompt) = self
-            .prompt_requests
-            .get(prompt_id)
-            .filter(|prompt| self.prompt_open(prompt))
-        else {
+        let Some(prompt) = self.prompt_requests.get(prompt_id).filter(|prompt| self.prompt_open(prompt)) else {
             return Ok(None);
         };
-        let Some(action) = prompt
-            .definition
-            .actions
-            .iter()
-            .find(|candidate| candidate.id == action.trim())
-        else {
+        let Some(action) = prompt.definition.actions.iter().find(|candidate| candidate.id == action.trim()) else {
             return Ok(None);
         };
         if !action.requires_condition {
             return Ok(None);
         }
-        prompt
-            .definition
-            .condition
-            .clone()
-            .map(Some)
-            .ok_or_else(|| "required prompt condition is missing".to_owned())
+        prompt.definition.condition.clone().map(Some).ok_or_else(|| "required prompt condition is missing".to_owned())
     }
 
     pub fn session_records(&self) -> &TestRecordSet {
@@ -856,18 +673,10 @@ impl RuntimeState {
     }
 
     pub fn record_health(
-        &mut self,
-        scope: RecordScope,
-        severity: HealthSeverity,
-        message: impl Into<String>,
-        detail: Option<String>,
-        at: Timestamp,
+        &mut self, scope: RecordScope, severity: HealthSeverity, message: impl Into<String>, detail: Option<String>, at: Timestamp,
     ) {
         let health = HealthItem {
-            health_item_id: HealthItemId::from_seed(format!(
-                "health:{at}:{}",
-                self.health_items().len()
-            )),
+            health_item_id: HealthItemId::from_seed(format!("health:{at}:{}", self.health_items().len())),
             scope: scope.clone(),
             severity,
             message: message.into(),
@@ -885,10 +694,7 @@ impl RuntimeState {
     }
 
     pub fn next_record_id(&self) -> dokime_domain::model::identity::RecordId {
-        dokime_domain::model::identity::RecordId::from_seed(format!(
-            "dokime-record:{}:{}",
-            self.record_namespace, self.record_count
-        ))
+        dokime_domain::model::identity::RecordId::from_seed(format!("dokime-record:{}:{}", self.record_namespace, self.record_count))
     }
 
     pub(crate) fn capture_scope(&self, supplied: &RecordScope) -> Result<RecordScope, String> {
@@ -898,18 +704,9 @@ impl RuntimeState {
             scope.step_id = None;
             return Ok(scope);
         };
-        let execution = self
-            .executions
-            .get(id)
-            .ok_or("capture execution is missing")?;
-        if supplied
-            .test_cycle_id
-            .as_ref()
-            .is_some_and(|id| id != &execution.test_cycle_id)
-            || supplied
-                .test_case_id
-                .as_ref()
-                .is_some_and(|id| id != &execution.test_case_id)
+        let execution = self.executions.get(id).ok_or("capture execution is missing")?;
+        if supplied.test_cycle_id.as_ref().is_some_and(|id| id != &execution.test_cycle_id)
+            || supplied.test_case_id.as_ref().is_some_and(|id| id != &execution.test_case_id)
         {
             return Err("capture scope differs from its execution owner".into());
         }
@@ -918,17 +715,9 @@ impl RuntimeState {
 
     pub fn commit_record(&mut self, record: dokime_domain::model::records::evidence::Record) {
         for execution in self.executions.values_mut() {
-            let own = record
-                .scope
-                .as_ref()
-                .and_then(|scope| scope.test_execution_id.as_ref())
-                == Some(&execution.test_execution_id);
+            let own = record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == Some(&execution.test_execution_id);
             let subscribed = execution.snapshot.template().is_some_and(|template| {
-                template
-                    .subscriptions
-                    .iter()
-                    .filter_map(crate::definition::Subscription::record)
-                    .any(|kind| kind == &record.record_type)
+                template.subscriptions.iter().filter_map(crate::definition::Subscription::record).any(|kind| kind == &record.record_type)
             });
 
             if (own || subscribed)
@@ -936,23 +725,15 @@ impl RuntimeState {
                 && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
             {
                 let scope = execution.capture_scope();
-                execution
-                    .records
-                    .capture_record(record.record_id.clone(), scope);
+                execution.records.capture_record(record.record_id.clone(), scope);
             }
         }
 
         self.records
             .record_visibility
-            .push(dokime_domain::state::records::RecordVisibility {
-                record_id: record.record_id.clone(),
-                scope: record.scope.clone(),
-            });
+            .push(dokime_domain::state::records::RecordVisibility { record_id: record.record_id.clone(), scope: record.scope.clone() });
         self.resources.record_authored_record(&record);
-        self.record_count = self
-            .record_count
-            .checked_add(1)
-            .expect("admitted record count fits");
+        self.record_count = self.record_count.checked_add(1).expect("admitted record count fits");
     }
 }
 
@@ -964,17 +745,11 @@ fn unestablished_node_id() -> NodeId {
 }
 
 fn unestablished_node_identity() -> DokimeNodeIdentity {
-    DokimeNodeIdentity::new(
-        unestablished_node_id(),
-        None,
-        Timestamp::new("1970-01-01T00:00:00Z"),
-    )
+    DokimeNodeIdentity::new(unestablished_node_id(), None, Timestamp::new("1970-01-01T00:00:00Z"))
 }
 
 fn is_host_stream(stream: &dokime_domain::model::identity::Identifier) -> bool {
-    dokime_domain::model::telemetry::HOST_STREAMS
-        .iter()
-        .any(|host| host.as_str() == stream.as_str())
+    dokime_domain::model::telemetry::HOST_STREAMS.iter().any(|host| host.as_str() == stream.as_str())
 }
 
 /* === Tests === */

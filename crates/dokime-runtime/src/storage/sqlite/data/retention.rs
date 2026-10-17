@@ -36,10 +36,7 @@ use super::{position, saved};
 /* === Implementations === */
 impl State {
     pub(crate) async fn data_release_object_history(
-        &self,
-        schema: SchemaKey,
-        item: ObjectKey,
-        through: StorageCursor,
+        &self, schema: SchemaKey, item: ObjectKey, through: StorageCursor,
     ) -> Result<(), Error> {
         self.call(move |connection| Ok((|| {
             let transaction = connection.transaction()?;
@@ -71,22 +68,14 @@ impl State {
         })())).await?
     }
     pub(crate) async fn data_prune<C: ObjectCatalog>(
-        &self,
-        through: StorageCursor,
-        after: u64,
-        oldest_pin_generation: Option<u64>,
-        maximum: NonZeroUsize,
+        &self, through: StorageCursor, after: u64, oldest_pin_generation: Option<u64>, maximum: NonZeroUsize,
     ) -> Result<(bool, bool), Error> {
         let mut policies = Vec::with_capacity(C::definition_count());
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
             let (keep, released) = match definition.retention() {
                 ObjectRetention::UntilReleased => (1, true),
-                policy => (
-                    i64::try_from(policy.versions().get())
-                        .map_err(|_| Error::Data("retention count exceeds SQLite range"))?,
-                    false,
-                ),
+                policy => (i64::try_from(policy.versions().get()).map_err(|_| Error::Data("retention count exceeds SQLite range"))?, false),
             };
             policies.push((schema.id.to_string(), keep, released));
             Ok::<(), Error>(())

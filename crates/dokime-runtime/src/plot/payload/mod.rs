@@ -15,13 +15,12 @@ mod types;
 
 /* === Re-Exports === */
 pub use analyses::{
-    BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin,
-    SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan,
+    BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
+    WifiChannelCount, WifiScan,
 };
 pub use types::{
-    DownsampleTechnique, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame,
-    PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
-    PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest,
+    DownsampleTechnique, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain,
+    PlotEvidence, PlotMarker, PlotPayload, PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest,
     PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow,
 };
 
@@ -34,19 +33,19 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 // Local Imports
 use crate::definition::MaterializedParameter;
 use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
-use dokime_domain::model::execution::result::CycleView;
+use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::plot::record_telemetry::record_telemetry_series;
 use crate::plot::record_timing::{RECORD_CONTEXT_STREAM, record_timing_series};
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_domain::model::traceability::TraceabilitySnapshot;
+use crate::telemetry::{TelemetryColumn, TelemetrySample};
 use cartesian::cartesian_frame;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::scope_visible_in;
+use dokime_domain::model::records::evidence::RecordEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::datetime_seconds;
-use dokime_domain::model::execution::scope_visible_in;
-use crate::expressions::{DataExpression, DataSource, DataTransform};
-use crate::telemetry::{TelemetryColumn, TelemetrySample};
 use harmos::Aggregate;
 use harmos::signal::{Aggregates, Series};
 
@@ -54,9 +53,7 @@ use harmos::signal::{Aggregates, Series};
 pub(crate) use crate::document::DEFAULT_PLOT_MAX_POINTS;
 /// The stream whose latest sample gives a channel occupancy plot its context.
 const WIFI_CONTEXT_STREAM: &str = "host.wifi";
-const MARKER_COLORS: [&str; 8] = [
-    "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
-];
+const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 /* === Macros === */
 
@@ -113,10 +110,7 @@ impl ZIndex {
                     .rev()
                     .find(|candidate| {
                         candidate.timestamp <= sample_time
-                            && crate::evidence_runtime::scopes_correlate(
-                                candidate.scope.as_ref(),
-                                sample.scope.as_ref(),
-                            )
+                            && crate::evidence_runtime::scopes_correlate(candidate.scope.as_ref(), sample.scope.as_ref())
                     })
                     .map(|candidate| candidate.value)
             }
@@ -126,19 +120,14 @@ impl ZIndex {
 
 /* === Public Functions === */
 pub(crate) fn build_plot_payload(
-    telemetry: &[TelemetrySample],
-    records: &[RecordEntry],
-    request: PlotPayloadRequest,
-    generated_at: &str,
+    telemetry: &[TelemetrySample], records: &[RecordEntry], request: PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext,
 ) -> PlotPayload {
     let payload = project_plot_payload(telemetry, records, &request, generated_at, format_context);
     if request.analysis.is_some() {
         let mut payload = payload;
         payload.series.clear();
-        payload.analysis = Some(PlotAnalysis::Error {
-            message: "selected analysis requires an admitted runtime operation".into(),
-        });
+        payload.analysis = Some(PlotAnalysis::Error { message: "selected analysis requires an admitted runtime operation".into() });
         return payload;
     }
     finish_plot_payload(payload, &request)
@@ -176,16 +165,10 @@ pub(crate) fn plot_streams(request: &PlotPayloadRequest) -> Vec<String> {
 }
 
 pub(crate) fn project_plot_payload(
-    telemetry: &[TelemetrySample],
-    records: &[RecordEntry],
-    request: &PlotPayloadRequest,
-    generated_at: &str,
+    telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext,
 ) -> PlotPayload {
-    let x_key = request
-        .x_key
-        .clone()
-        .unwrap_or_else(|| "timestamp".to_owned());
+    let x_key = request.x_key.clone().unwrap_or_else(|| "timestamp".to_owned());
     // An absent budget means the display-scale default, never unbounded: a
     // full-range ("All") read must not ship every retained raw sample. An
     // explicit `Some(0)` remains the deliberate no-downsampling escape hatch.
@@ -202,103 +185,34 @@ pub(crate) fn project_plot_payload(
                     && sample_matches_filters(sample, &request.filters)
             })
             .collect(),
-        if request.analysis.is_some()
-            || matches!(
-                request.plot_type,
-                Some(PlotType::Trajectory | PlotType::FrequencySeries)
-            )
-        {
+        if request.analysis.is_some() || matches!(request.plot_type, Some(PlotType::Trajectory | PlotType::FrequencySeries)) {
             "timestamp"
         } else {
             &x_key
         },
         request.window_s,
     );
-    let mut z_index = z_index(
-        telemetry,
-        &request.stream,
-        request.z_stream.as_deref(),
-        request.z_field.as_deref(),
-        request.scope.as_ref(),
-    );
+    let mut z_index = z_index(telemetry, &request.stream, request.z_stream.as_deref(), request.z_field.as_deref(), request.scope.as_ref());
     if let Some(expression) = &request.z_expression {
         z_index = match &expression.source {
-            DataSource::Telemetry { stream, field } => self::z_index(
-                telemetry,
-                &request.stream,
-                Some(stream),
-                Some(field),
-                request.scope.as_ref(),
-            ),
+            DataSource::Telemetry { stream, field } => {
+                self::z_index(telemetry, &request.stream, Some(stream), Some(field), request.scope.as_ref())
+            }
             _ => ZIndex::Expression(expression.clone()),
         };
     }
-    let series = record_timing_series(
-        telemetry,
-        records,
-        request,
-        request.unit.as_deref(),
-        max_points,
-        technique,
-    )
-    .or_else(|| {
-        record_telemetry_series(
-            telemetry,
-            records,
-            request,
-            request.unit.as_deref(),
-            max_points,
-            technique,
-        )
-    })
-    .or_else(|| {
-        aggregate_series(
-            &samples,
-            request,
-            &z_index,
-            request.unit.as_deref(),
-            max_points,
-            technique,
-        )
-    })
-    .or_else(|| {
-        row_expression_series(
-            &samples,
-            request,
-            &x_key,
-            &z_index,
-            request.unit.as_deref(),
-            max_points,
-            technique,
-        )
-    })
-    .unwrap_or_else(|| {
-        request.series_by.as_ref().map_or_else(
-            || {
-                plain_series(
-                    &samples,
-                    &request.y_keys,
-                    &x_key,
-                    &z_index,
-                    request.unit.as_deref(),
-                    max_points,
-                    technique,
-                )
-            },
-            |series_by| {
-                grouped_series(
-                    &samples,
-                    &request.y_keys,
-                    &x_key,
-                    series_by,
-                    &z_index,
-                    request.unit.as_deref(),
-                    max_points,
-                    technique,
-                )
-            },
-        )
-    });
+    let series = record_timing_series(telemetry, records, request, request.unit.as_deref(), max_points, technique)
+        .or_else(|| record_telemetry_series(telemetry, records, request, request.unit.as_deref(), max_points, technique))
+        .or_else(|| aggregate_series(&samples, request, &z_index, request.unit.as_deref(), max_points, technique))
+        .or_else(|| row_expression_series(&samples, request, &x_key, &z_index, request.unit.as_deref(), max_points, technique))
+        .unwrap_or_else(|| {
+            request.series_by.as_ref().map_or_else(
+                || plain_series(&samples, &request.y_keys, &x_key, &z_index, request.unit.as_deref(), max_points, technique),
+                |series_by| {
+                    grouped_series(&samples, &request.y_keys, &x_key, series_by, &z_index, request.unit.as_deref(), max_points, technique)
+                },
+            )
+        });
     let max_points = render_max_points;
     let context = plot_context(request, &samples, telemetry);
     // Every series in one payload reads the same declared y axis, so they
@@ -318,11 +232,7 @@ pub(crate) fn project_plot_payload(
         series,
         cartesian: None,
         analysis: None,
-        markers: plot_markers(
-            records,
-            &request.marker_record_types,
-            request.scope.as_ref(),
-        ),
+        markers: plot_markers(records, &request.marker_record_types, request.scope.as_ref()),
         max_points,
         window_s: request.window_s,
         generated_at: generated_at.to_owned(),
@@ -336,32 +246,17 @@ pub(crate) fn project_plot_payload(
 /// Whether an append frame of this request also reads its whole window: for
 /// its series summaries or its cartesian domains and point count.
 pub(crate) fn reads_window(request: &PlotPayloadRequest) -> bool {
-    request.analysis.is_none()
-        && (analyses::summarizes(request)
-            || request
-                .plot_type
-                .as_ref()
-                .is_some_and(cartesian::draws_cartesian))
+    request.analysis.is_none() && (analyses::summarizes(request) || request.plot_type.as_ref().is_some_and(cartesian::draws_cartesian))
 }
 
 /// Completes an append frame, whose series hold only the rows after its
 /// cursor, with what its whole window answers: the series summaries, and the
 /// cartesian domains and point count a snapshot of that window carries.
 pub(crate) fn complete_window(
-    payload: &mut PlotPayload,
-    telemetry: &[TelemetrySample],
-    records: &[RecordEntry],
-    request: &PlotPayloadRequest,
-    generated_at: &str,
+    payload: &mut PlotPayload, telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext,
 ) {
-    let window = build_plot_payload(
-        telemetry,
-        records,
-        request.clone(),
-        generated_at,
-        format_context,
-    );
+    let window = build_plot_payload(telemetry, records, request.clone(), generated_at, format_context);
     payload.summaries = window.summaries;
     if let (Some(frame), Some(window)) = (payload.cartesian.as_mut(), window.cartesian) {
         frame.x_domain = window.x_domain;
@@ -370,10 +265,7 @@ pub(crate) fn complete_window(
     }
 }
 
-pub(crate) fn finish_plot_payload(
-    mut payload: PlotPayload,
-    request: &PlotPayloadRequest,
-) -> PlotPayload {
+pub(crate) fn finish_plot_payload(mut payload: PlotPayload, request: &PlotPayloadRequest) -> PlotPayload {
     payload.analysis = analyses::analyze(&mut payload.series, request);
     // Summarized here, over the exact rows of the window, before the series
     // are reduced to their display budget.
@@ -396,27 +288,15 @@ pub(crate) fn finish_plot_payload(
             entry.format = None;
         }
     }
-    payload.cartesian = cartesian_frame(
-        &payload.series,
-        request.plot_type.as_ref(),
-        &request.x_scale,
-        &request.y_scale,
-    );
+    payload.cartesian = cartesian_frame(&payload.series, request.plot_type.as_ref(), &request.x_scale, &request.y_scale);
     payload
 }
 
-pub(crate) fn resolved_format(
-    plot: Option<&ValueFormat>,
-    column: Option<&TelemetryColumn>,
-) -> Option<ValueFormat> {
-    plot.cloned()
-        .or_else(|| column.and_then(|column| column.format.clone()))
+pub(crate) fn resolved_format(plot: Option<&ValueFormat>, column: Option<&TelemetryColumn>) -> Option<ValueFormat> {
+    plot.cloned().or_else(|| column.and_then(|column| column.format.clone()))
 }
 
-pub(crate) fn enrich_plot_samples_with_cycle_context(
-    mut telemetry: Vec<TelemetrySample>,
-    cycle: &CycleView,
-) -> Vec<TelemetrySample> {
+pub(crate) fn enrich_plot_samples_with_cycle_context(mut telemetry: Vec<TelemetrySample>, cycle: &CycleView) -> Vec<TelemetrySample> {
     for sample in &mut telemetry {
         let Some(scope) = sample.scope.as_ref() else {
             continue;
@@ -431,8 +311,7 @@ pub(crate) fn enrich_plot_samples_with_cycle_context(
 }
 
 pub(crate) fn enrich_plot_samples_with_traceability_context(
-    mut telemetry: Vec<TelemetrySample>,
-    traceability: &[TraceabilitySnapshot],
+    mut telemetry: Vec<TelemetrySample>, traceability: &[TraceabilitySnapshot],
 ) -> Vec<TelemetrySample> {
     for sample in &mut telemetry {
         let Some(scope) = sample.scope.as_ref() else {
@@ -456,12 +335,7 @@ pub(crate) fn normalize_histogram_value(request: &mut PlotPayloadRequest) {
         return;
     }
     request.y_expressions = request.x_expression.take().into_iter().collect();
-    request.y_keys = request
-        .x_key
-        .take()
-        .filter(|key| key != "timestamp" && request.y_expressions.is_empty())
-        .into_iter()
-        .collect();
+    request.y_keys = request.x_key.take().filter(|key| key != "timestamp" && request.y_expressions.is_empty()).into_iter().collect();
     request.y_format = request.x_format.take();
 }
 
@@ -470,22 +344,14 @@ pub(crate) fn normalize_analysis_fields(request: &mut PlotPayloadRequest) {
         return;
     }
     let field = |expression: &DataExpression| match &expression.source {
-        DataSource::Telemetry { stream, field }
-            if stream == &request.stream && expression.transforms.is_empty() =>
-        {
-            Some(field.clone())
-        }
+        DataSource::Telemetry { stream, field } if stream == &request.stream && expression.transforms.is_empty() => Some(field.clone()),
         _ => None,
     };
     let x = request.x_expression.as_ref().and_then(field);
     let y = if request.y_expressions.is_empty() || request.y_expressions.len() > 32 {
         None
     } else {
-        request
-            .y_expressions
-            .iter()
-            .map(field)
-            .collect::<Option<Vec<_>>>()
+        request.y_expressions.iter().map(field).collect::<Option<Vec<_>>>()
     };
     if let Some(x) = x {
         request.x_key = Some(x);
@@ -498,10 +364,7 @@ pub(crate) fn normalize_analysis_fields(request: &mut PlotPayloadRequest) {
 }
 
 pub fn plot_payload_request_for_descriptor(
-    descriptor: &PlotDescriptor,
-    scope: Option<RecordScope>,
-    max_points: Option<usize>,
-    window_s: Option<f64>,
+    descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
     cursor: Option<PlotPayloadCursor>,
 ) -> PlotPayloadRequest {
     let mut request = PlotPayloadRequest {
@@ -528,10 +391,7 @@ pub fn plot_payload_request_for_descriptor(
         unit: descriptor.input.unit.clone(),
         x_format: descriptor.input.x_format.clone(),
         y_format: descriptor.input.y_format.clone(),
-        max_points: max_points.or(descriptor
-            .input
-            .display_points
-            .map(|points| points as usize)),
+        max_points: max_points.or(descriptor.input.display_points.map(|points| points as usize)),
         window_s,
         scope,
         cursor,
@@ -543,38 +403,19 @@ pub fn plot_payload_request_for_descriptor(
     request
 }
 
-pub(crate) fn plot_payload_diagnostics(
-    payload: &PlotPayload,
-    delta: bool,
-) -> PlotPayloadDiagnostics {
+pub(crate) fn plot_payload_diagnostics(payload: &PlotPayload, delta: bool) -> PlotPayloadDiagnostics {
     if let Some(computed) = &payload.computed {
         return PlotPayloadDiagnostics {
-            series_count: computed
-                .series
-                .iter()
-                .map(|series| series.output.outputs.len())
-                .sum(),
+            series_count: computed.series.iter().map(|series| series.output.outputs.len()).sum(),
             point_count: computed
                 .series
                 .iter()
                 .flat_map(|series| {
-                    series.output.outputs.iter().map(|output| {
-                        series
-                            .display_indices
-                            .get(&output.key)
-                            .map_or(output.values.len(), Vec::len)
-                    })
+                    series.output.outputs.iter().map(|output| series.display_indices.get(&output.key).map_or(output.values.len(), Vec::len))
                 })
                 .sum(),
-            raw_point_count: computed
-                .series
-                .iter()
-                .map(|series| series.input_samples)
-                .sum(),
-            downsampled: computed
-                .series
-                .iter()
-                .any(|series| !series.display_indices.is_empty()),
+            raw_point_count: computed.series.iter().map(|series| series.input_samples).sum(),
+            downsampled: computed.series.iter().any(|series| !series.display_indices.is_empty()),
             delta: false,
             max_points: payload.max_points,
             window_s: payload.window_s,
@@ -582,11 +423,7 @@ pub(crate) fn plot_payload_diagnostics(
     }
     PlotPayloadDiagnostics {
         series_count: payload.series.len(),
-        point_count: payload
-            .series
-            .iter()
-            .map(|series| series.points.len())
-            .sum(),
+        point_count: payload.series.iter().map(|series| series.points.len()).sum(),
         raw_point_count: payload.series.iter().map(|series| series.raw_points).sum(),
         downsampled: payload.series.iter().any(|series| series.downsampled),
         delta,
@@ -596,25 +433,12 @@ pub(crate) fn plot_payload_diagnostics(
 }
 
 pub(crate) fn finish_plot_series(
-    key: String,
-    label: String,
-    unit: Option<String>,
-    points: Vec<PlotPoint>,
-    max_points: usize,
-    technique: DownsampleTechnique,
+    key: String, label: String, unit: Option<String>, points: Vec<PlotPoint>, max_points: usize, technique: DownsampleTechnique,
 ) -> PlotSeries {
     let raw_points = points.len();
     let (points, downsampled) = downsample_points(points, max_points, technique);
 
-    PlotSeries {
-        key,
-        label,
-        unit,
-        points,
-        raw_points,
-        downsampled,
-        format: None,
-    }
+    PlotSeries { key, label, unit, points, raw_points, downsampled, format: None }
 }
 
 pub(crate) fn plot_window_duration(window_s: f64) -> Option<time::Duration> {
@@ -624,18 +448,11 @@ pub(crate) fn plot_window_duration(window_s: f64) -> Option<time::Duration> {
     time::Duration::checked_seconds_f64(window_s)
 }
 
-pub(crate) fn plot_window_cutoff(
-    latest: OffsetDateTime,
-    window_s: Option<f64>,
-) -> Option<OffsetDateTime> {
+pub(crate) fn plot_window_cutoff(latest: OffsetDateTime, window_s: Option<f64>) -> Option<OffsetDateTime> {
     latest.checked_sub(plot_window_duration(window_s?)?)
 }
 
-pub(crate) fn retain_window<T>(
-    items: &mut Vec<T>,
-    window_s: Option<f64>,
-    time_of: impl Fn(&T) -> Option<OffsetDateTime>,
-) {
+pub(crate) fn retain_window<T>(items: &mut Vec<T>, window_s: Option<f64>, time_of: impl Fn(&T) -> Option<OffsetDateTime>) {
     let Some(window_s) = window_s else {
         return;
     };
@@ -648,81 +465,48 @@ pub(crate) fn retain_window<T>(
     items.retain(|item| time_of(item).is_none_or(|time| time >= cutoff));
 }
 
-pub(crate) fn aggregate_group_points(
-    grouped: BTreeMap<String, Vec<f64>>,
-    method: Aggregate,
-) -> Vec<PlotPoint> {
+pub(crate) fn aggregate_group_points(grouped: BTreeMap<String, Vec<f64>>, method: Aggregate) -> Vec<PlotPoint> {
     let mut sorted_groups = fold_groups(grouped.into_iter().collect(), method);
     sorted_groups.sort_by(|(left, _), (right, _)| compare_series_group(left, right));
 
-    sorted_groups
-        .into_iter()
-        .map(|(group, y)| PlotPoint {
-            x: JsonValue::String(group),
-            y,
-            z: None,
-        })
-        .collect()
+    sorted_groups.into_iter().map(|(group, y)| PlotPoint { x: JsonValue::String(group), y, z: None }).collect()
 }
 
 pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<Aggregate> {
-    expression
-        .transforms
-        .iter()
-        .find_map(|transform| match transform {
-            DataTransform::Aggregate(aggregate) => Some(*aggregate),
-            DataTransform::TimeBetween { .. } => None,
-            DataTransform::TelemetryAtOrBefore { .. } => None,
-            // Neither folds the values of one series: `detail` selects what is
-            // read off a record, and `per_case` widens which executions are
-            // read, before any aggregate over the result.
-            DataTransform::Detail { .. } => None,
-            DataTransform::PerCase => None,
-        })
+    expression.transforms.iter().find_map(|transform| match transform {
+        DataTransform::Aggregate(aggregate) => Some(*aggregate),
+        DataTransform::TimeBetween { .. } => None,
+        DataTransform::TelemetryAtOrBefore { .. } => None,
+        // Neither folds the values of one series: `detail` selects what is
+        // read off a record, and `per_case` widens which executions are
+        // read, before any aggregate over the result.
+        DataTransform::Detail { .. } => None,
+        DataTransform::PerCase => None,
+    })
 }
 
 // Each group's values answered through the Harmos `Series`, which skips
 // non-finite values the way every other aggregate path does.
-pub(crate) fn fold_groups(
-    groups: Vec<(String, Vec<f64>)>,
-    method: Aggregate,
-) -> Vec<(String, Option<f64>)> {
-    groups
-        .into_iter()
-        .map(|(label, values)| (label, Series::from(values).aggregate(method)))
-        .collect()
+pub(crate) fn fold_groups(groups: Vec<(String, Vec<f64>)>, method: Aggregate) -> Vec<(String, Option<f64>)> {
+    groups.into_iter().map(|(label, values)| (label, Series::from(values).aggregate(method))).collect()
 }
 
-pub(crate) fn expression_group_value(
-    sample: &TelemetrySample,
-    expression: &DataExpression,
-) -> Option<String> {
+pub(crate) fn expression_group_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<String> {
     match &expression.source {
-        DataSource::Telemetry { stream, field }
-            if stream_matches_alias(sample.stream.as_str(), stream) =>
-        {
+        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
             sample_value(sample, field).and_then(group_value)
         }
-        DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => {
-            sample_value(sample, field).and_then(group_value)
-        }
+        DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => sample_value(sample, field).and_then(group_value),
         DataSource::Telemetry { .. } => None,
         _ => None,
     }
 }
 
 pub(crate) fn sample_value<'a>(sample: &'a TelemetrySample, key: &str) -> Option<&'a Value> {
-    sample.values.get(key).or_else(|| {
-        key.rsplit_once('.')
-            .and_then(|(_, field)| sample.values.get(field))
-    })
+    sample.values.get(key).or_else(|| key.rsplit_once('.').and_then(|(_, field)| sample.values.get(field)))
 }
 
-pub(crate) fn downsample_points(
-    points: Vec<PlotPoint>,
-    max_points: usize,
-    technique: DownsampleTechnique,
-) -> (Vec<PlotPoint>, bool) {
+pub(crate) fn downsample_points(points: Vec<PlotPoint>, max_points: usize, technique: DownsampleTechnique) -> (Vec<PlotPoint>, bool) {
     if points.len() <= max_points || max_points == 0 {
         return (points, false);
     }
@@ -741,10 +525,7 @@ pub(crate) fn downsample_points(
     };
     match technique {
         DownsampleTechnique::Raw => stride_downsample(points, max_points),
-        DownsampleTechnique::Auto
-        | DownsampleTechnique::Unspecified
-        | DownsampleTechnique::MinMax
-        | DownsampleTechnique::Lttb => {
+        DownsampleTechnique::Auto | DownsampleTechnique::Unspecified | DownsampleTechnique::MinMax | DownsampleTechnique::Lttb => {
             // The numeric techniques need a clean `(index, y)` scalar series; fall
             // back to stride for any series they can't model (a missing `y`, a
             // degenerate axis, an LTTB threshold below three).
@@ -771,27 +552,18 @@ pub(crate) fn parse_timestamp(value: &str) -> Option<OffsetDateTime> {
 
 pub(crate) fn compare_series_group(left: &str, right: &str) -> std::cmp::Ordering {
     match (left.parse::<f64>(), right.parse::<f64>()) {
-        (Ok(left), Ok(right)) => left
-            .partial_cmp(&right)
-            .unwrap_or(std::cmp::Ordering::Equal),
+        (Ok(left), Ok(right)) => left.partial_cmp(&right).unwrap_or(std::cmp::Ordering::Equal),
         _ => left.cmp(right),
     }
 }
 
 pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
     actual == declared
-        || actual
-            .strip_suffix(declared)
-            .is_some_and(|prefix| prefix.ends_with('.'))
-        || declared
-            .strip_suffix(actual)
-            .is_some_and(|prefix| prefix.ends_with('.'))
+        || actual.strip_suffix(declared).is_some_and(|prefix| prefix.ends_with('.'))
+        || declared.strip_suffix(actual).is_some_and(|prefix| prefix.ends_with('.'))
 }
 
-pub(crate) fn sample_matches_scope(
-    sample_scope: Option<&RecordScope>,
-    filter: Option<&RecordScope>,
-) -> bool {
+pub(crate) fn sample_matches_scope(sample_scope: Option<&RecordScope>, filter: Option<&RecordScope>) -> bool {
     filter.is_none_or(|filter| scope_visible_in(sample_scope, filter))
 }
 
@@ -799,18 +571,12 @@ pub(crate) fn sample_matches_scope(
 fn dimension_context_for_scope(cycle: &CycleView, scope: &RecordScope) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     let execution = if let Some(id) = &scope.test_execution_id {
-        cycle
-            .test_executions
-            .iter()
-            .find(|execution| &execution.test_execution_id == id)
+        cycle.test_executions.iter().find(|execution| &execution.test_execution_id == id)
     } else {
-        scope.test_case_id.as_ref().and_then(|case_id| {
-            cycle
-                .test_executions
-                .iter()
-                .rev()
-                .find(|execution| &execution.test_case_id == case_id)
-        })
+        scope
+            .test_case_id
+            .as_ref()
+            .and_then(|case_id| cycle.test_executions.iter().rev().find(|execution| &execution.test_case_id == case_id))
     };
 
     if let Some(execution) = execution {
@@ -825,10 +591,7 @@ fn dimension_context_for_scope(cycle: &CycleView, scope: &RecordScope) -> BTreeM
     context
 }
 
-fn traceability_context_for_scope(
-    traceability: &[TraceabilitySnapshot],
-    scope: &RecordScope,
-) -> BTreeMap<String, Value> {
+fn traceability_context_for_scope(traceability: &[TraceabilitySnapshot], scope: &RecordScope) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
 
     for snapshot in traceability {
@@ -836,22 +599,14 @@ fn traceability_context_for_scope(
             continue;
         }
         for entry in &snapshot.entries {
-            insert_context_value(
-                &mut context,
-                entry.metadata.identifier.as_str(),
-                &entry.value,
-            );
+            insert_context_value(&mut context, entry.metadata.identifier.as_str(), &entry.value);
         }
     }
 
     context
 }
 
-fn insert_materialized_context_value(
-    context: &mut BTreeMap<String, Value>,
-    key: &str,
-    parameter: &MaterializedParameter,
-) {
+fn insert_materialized_context_value(context: &mut BTreeMap<String, Value>, key: &str, parameter: &MaterializedParameter) {
     insert_context_value(context, key, &parameter.value);
 }
 
@@ -867,17 +622,11 @@ fn insert_context_value(context: &mut BTreeMap<String, Value>, key: &str, value:
     }
 }
 
-fn apply_plot_window<'a>(
-    mut samples: Vec<&'a TelemetrySample>,
-    x_key: &str,
-    window_s: Option<f64>,
-) -> Vec<&'a TelemetrySample> {
+fn apply_plot_window<'a>(mut samples: Vec<&'a TelemetrySample>, x_key: &str, window_s: Option<f64>) -> Vec<&'a TelemetrySample> {
     samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp));
     retain_window(&mut samples, window_s, |sample| timestamp(sample));
     if x_key != "timestamp" {
-        samples.sort_by(|left, right| {
-            x_sort_value(left, x_key).total_cmp(&x_sort_value(right, x_key))
-        });
+        samples.sort_by(|left, right| x_sort_value(left, x_key).total_cmp(&x_sort_value(right, x_key)));
     }
     samples
 }
@@ -888,21 +637,9 @@ fn descriptor_stream(descriptor: &PlotDescriptor) -> String {
         .stream
         .clone()
         .or_else(|| telemetry_stream_for_expression(descriptor.input.x_expression.as_ref()))
-        .or_else(|| {
-            descriptor
-                .input
-                .y_expressions
-                .iter()
-                .find_map(|expression| telemetry_stream_for_expression(Some(expression)))
-        })
+        .or_else(|| descriptor.input.y_expressions.iter().find_map(|expression| telemetry_stream_for_expression(Some(expression))))
         .or_else(|| telemetry_stream_for_expression(descriptor.input.series_by_expression.as_ref()))
-        .or_else(|| {
-            descriptor
-                .input
-                .available_streams
-                .first()
-                .map(ToString::to_string)
-        })
+        .or_else(|| descriptor.input.available_streams.first().map(ToString::to_string))
         .unwrap_or_else(|| "default".to_owned())
 }
 
@@ -914,12 +651,7 @@ fn telemetry_stream_for_expression(expression: Option<&DataExpression>) -> Optio
 }
 
 fn plain_series(
-    samples: &[&TelemetrySample],
-    y_keys: &[String],
-    x_key: &str,
-    z_index: &ZIndex,
-    unit: Option<&str>,
-    max_points: usize,
+    samples: &[&TelemetrySample], y_keys: &[String], x_key: &str, z_index: &ZIndex, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
 ) -> Vec<PlotSeries> {
     y_keys
@@ -934,27 +666,14 @@ fn plain_series(
                 })
                 .collect::<Vec<_>>();
 
-            finish_plot_series(
-                key.clone(),
-                key.clone(),
-                unit.map(ToOwned::to_owned),
-                points,
-                max_points,
-                technique,
-            )
+            finish_plot_series(key.clone(), key.clone(), unit.map(ToOwned::to_owned), points, max_points, technique)
         })
         .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
 fn grouped_series(
-    samples: &[&TelemetrySample],
-    y_keys: &[String],
-    x_key: &str,
-    series_by: &str,
-    z_index: &ZIndex,
-    unit: Option<&str>,
-    max_points: usize,
+    samples: &[&TelemetrySample], y_keys: &[String], x_key: &str, series_by: &str, z_index: &ZIndex, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
 ) -> Vec<PlotSeries> {
     let mut groups: BTreeMap<String, Vec<&TelemetrySample>> = BTreeMap::new();
@@ -970,11 +689,7 @@ fn grouped_series(
         .iter()
         .flat_map(|key| {
             sorted_groups.iter().map(move |(group_key, group_samples)| {
-                let label = if y_keys.len() == 1 {
-                    group_key.clone()
-                } else {
-                    format!("{key} {group_key}")
-                };
+                let label = if y_keys.len() == 1 { group_key.clone() } else { format!("{key} {group_key}") };
                 let points = group_samples
                     .iter()
                     .map(|sample| PlotPoint {
@@ -983,46 +698,25 @@ fn grouped_series(
                         z: z_index.resolve(sample),
                     })
                     .collect::<Vec<_>>();
-                let series_key = if y_keys.len() == 1 {
-                    group_key.clone()
-                } else {
-                    format!("{key}:{group_key}")
-                };
+                let series_key = if y_keys.len() == 1 { group_key.clone() } else { format!("{key}:{group_key}") };
 
-                finish_plot_series(
-                    series_key,
-                    label,
-                    unit.map(ToOwned::to_owned),
-                    points,
-                    max_points,
-                    technique,
-                )
+                finish_plot_series(series_key, label, unit.map(ToOwned::to_owned), points, max_points, technique)
             })
         })
         .collect()
 }
 
 fn aggregate_series(
-    samples: &[&TelemetrySample],
-    request: &PlotPayloadRequest,
-    z_index: &ZIndex,
-    unit: Option<&str>,
-    max_points: usize,
+    samples: &[&TelemetrySample], request: &PlotPayloadRequest, z_index: &ZIndex, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
 ) -> Option<Vec<PlotSeries>> {
-    let group_expression = request
-        .x_expression
-        .as_ref()
-        .or(request.series_by_expression.as_ref())?;
+    let group_expression = request.x_expression.as_ref().or(request.series_by_expression.as_ref())?;
     let y_expressions = request
         .y_expressions
         .iter()
         .filter_map(|expression| {
             let method = aggregate_method(expression)?;
-            let label = telemetry_field_name(expression)
-                .or_else(|| expression_field_name(expression))
-                .unwrap_or("value")
-                .to_owned();
+            let label = telemetry_field_name(expression).or_else(|| expression_field_name(expression)).unwrap_or("value").to_owned();
             Some((label, expression, method))
         })
         .collect::<Vec<_>>();
@@ -1050,10 +744,8 @@ fn aggregate_series(
                 sorted_groups
                     .iter()
                     .map(|(group, group_samples)| {
-                        let values = group_samples
-                            .iter()
-                            .filter_map(|sample| expression_numeric_value(sample, expression))
-                            .collect::<Vec<_>>();
+                        let values =
+                            group_samples.iter().filter_map(|sample| expression_numeric_value(sample, expression)).collect::<Vec<_>>();
                         (group.clone(), values)
                     })
                     .collect(),
@@ -1064,41 +756,21 @@ fn aggregate_series(
                 .zip(folded)
                 .map(|((group, group_samples), (_, y))| {
                     let representative = group_samples.last().copied();
-                    PlotPoint {
-                        x: JsonValue::String(group.clone()),
-                        y,
-                        z: representative.and_then(|sample| z_index.resolve(sample)),
-                    }
+                    PlotPoint { x: JsonValue::String(group.clone()), y, z: representative.and_then(|sample| z_index.resolve(sample)) }
                 })
                 .collect::<Vec<_>>();
 
-            finish_plot_series(
-                label.clone(),
-                label,
-                unit.map(ToOwned::to_owned),
-                points,
-                max_points,
-                technique,
-            )
+            finish_plot_series(label.clone(), label, unit.map(ToOwned::to_owned), points, max_points, technique)
         })
         .collect::<Vec<_>>();
     Some(series)
 }
 
 fn row_expression_series(
-    samples: &[&TelemetrySample],
-    request: &PlotPayloadRequest,
-    x_key: &str,
-    z_index: &ZIndex,
-    unit: Option<&str>,
-    max_points: usize,
+    samples: &[&TelemetrySample], request: &PlotPayloadRequest, x_key: &str, z_index: &ZIndex, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
 ) -> Option<Vec<PlotSeries>> {
-    let y_expressions = request
-        .y_expressions
-        .iter()
-        .filter(|expression| is_row_expression(expression))
-        .collect::<Vec<_>>();
+    let y_expressions = request.y_expressions.iter().filter(|expression| is_row_expression(expression)).collect::<Vec<_>>();
     if y_expressions.is_empty() {
         return None;
     }
@@ -1106,9 +778,7 @@ fn row_expression_series(
     let series = y_expressions
         .into_iter()
         .flat_map(|expression| {
-            let label = expression_field_name(expression)
-                .unwrap_or("value")
-                .to_owned();
+            let label = expression_field_name(expression).unwrap_or("value").to_owned();
             let context = RowExpressionRenderContext {
                 samples,
                 x_expression: request.x_expression.as_ref(),
@@ -1130,17 +800,11 @@ fn row_expression_series(
 }
 
 fn is_row_expression(expression: &DataExpression) -> bool {
-    matches!(
-        expression.source,
-        DataSource::Telemetry { .. } | DataSource::Dimension { .. } | DataSource::Parameter { .. }
-    ) && expression.transforms.is_empty()
+    matches!(expression.source, DataSource::Telemetry { .. } | DataSource::Dimension { .. } | DataSource::Parameter { .. })
+        && expression.transforms.is_empty()
 }
 
-fn plain_row_expression_series(
-    expression: &DataExpression,
-    label: &str,
-    context: &RowExpressionRenderContext<'_>,
-) -> PlotSeries {
+fn plain_row_expression_series(expression: &DataExpression, label: &str, context: &RowExpressionRenderContext<'_>) -> PlotSeries {
     let points = context
         .samples
         .iter()
@@ -1164,10 +828,7 @@ fn plain_row_expression_series(
 }
 
 fn grouped_row_expression_series(
-    expression: &DataExpression,
-    series_by: &DataExpression,
-    label: &str,
-    context: &RowExpressionRenderContext<'_>,
+    expression: &DataExpression, series_by: &DataExpression, label: &str, context: &RowExpressionRenderContext<'_>,
 ) -> Vec<PlotSeries> {
     let mut grouped = BTreeMap::<String, Vec<PlotPoint>>::new();
     for sample in context.samples {
@@ -1199,27 +860,19 @@ fn grouped_row_expression_series(
         .collect()
 }
 
-fn expression_x_value(
-    sample: &TelemetrySample,
-    expression: Option<&DataExpression>,
-    x_key: &str,
-) -> JsonValue {
+fn expression_x_value(sample: &TelemetrySample, expression: Option<&DataExpression>, x_key: &str) -> JsonValue {
     let Some(expression) = expression else {
         return x_value(sample, x_key);
     };
     match &expression.source {
-        DataSource::Telemetry { stream, field }
-            if stream_matches_alias(sample.stream.as_str(), stream) =>
-        {
+        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
             if field == "timestamp" {
                 JsonValue::String(sample.timestamp.to_string())
             } else {
                 value_to_json(sample_value(sample, field))
             }
         }
-        DataSource::Dimension { name } | DataSource::Parameter { name } => {
-            value_to_json(sample_value(sample, name))
-        }
+        DataSource::Dimension { name } | DataSource::Parameter { name } => value_to_json(sample_value(sample, name)),
         _ => x_value(sample, x_key),
     }
 }
@@ -1237,9 +890,7 @@ fn plot_json_value(value: &Value) -> JsonValue {
 
 fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<f64> {
     match &expression.source {
-        DataSource::Telemetry { stream, field }
-            if stream_matches_alias(sample.stream.as_str(), stream) =>
-        {
+        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
             sample_value(sample, field).and_then(numeric_value)
         }
         DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => {
@@ -1266,22 +917,14 @@ fn telemetry_field_name(expression: &DataExpression) -> Option<&str> {
     }
 }
 
-fn plot_context(
-    request: &PlotPayloadRequest,
-    samples: &[&TelemetrySample],
-    telemetry: &[TelemetrySample],
-) -> BTreeMap<String, Value> {
+fn plot_context(request: &PlotPayloadRequest, samples: &[&TelemetrySample], telemetry: &[TelemetrySample]) -> BTreeMap<String, Value> {
     if request.plot_type.as_ref() != Some(&PlotType::WifiChannelOccupancy) {
         return BTreeMap::new();
     }
 
     let mut context = BTreeMap::new();
     let occupancy_values = samples.last().map(|sample| &sample.values);
-    let wifi_values = telemetry
-        .iter()
-        .rev()
-        .find(|sample| sample.stream.as_str() == WIFI_CONTEXT_STREAM)
-        .map(|sample| &sample.values);
+    let wifi_values = telemetry.iter().rev().find(|sample| sample.stream.as_str() == WIFI_CONTEXT_STREAM).map(|sample| &sample.values);
 
     copy_context_value(
         &mut context,
@@ -1325,63 +968,35 @@ fn traceable_context_value(value: &Value) -> bool {
 }
 
 pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[DocumentFilter]) -> bool {
-    filters
-        .iter()
-        .all(|filter| sample_matches_filter(sample, filter))
+    filters.iter().all(|filter| sample_matches_filter(sample, filter))
 }
 
 fn sample_matches_filter(sample: &TelemetrySample, filter: &DocumentFilter) -> bool {
     let actual = filter_expression_value(sample, &filter.expression);
     match filter.operator {
         FilterOperator::Exists => actual.is_some_and(traceable_context_value),
-        FilterOperator::Eq => filter
-            .value
-            .as_ref()
-            .is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),
-        FilterOperator::Ne => filter
-            .value
-            .as_ref()
-            .is_none_or(|expected| actual.is_none_or(|actual| !values_equal(actual, expected))),
-        FilterOperator::Gt => compare_filter_value(actual, filter.value.as_ref())
-            .is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Greater)),
-        FilterOperator::Gte => {
-            compare_filter_value(actual, filter.value.as_ref()).is_some_and(|ordering| {
-                matches!(
-                    ordering,
-                    std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
-                )
-            })
+        FilterOperator::Eq => filter.value.as_ref().is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),
+        FilterOperator::Ne => filter.value.as_ref().is_none_or(|expected| actual.is_none_or(|actual| !values_equal(actual, expected))),
+        FilterOperator::Gt => {
+            compare_filter_value(actual, filter.value.as_ref()).is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Greater))
         }
-        FilterOperator::Lt => compare_filter_value(actual, filter.value.as_ref())
-            .is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Less)),
-        FilterOperator::Lte => {
-            compare_filter_value(actual, filter.value.as_ref()).is_some_and(|ordering| {
-                matches!(
-                    ordering,
-                    std::cmp::Ordering::Less | std::cmp::Ordering::Equal
-                )
-            })
+        FilterOperator::Gte => compare_filter_value(actual, filter.value.as_ref())
+            .is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)),
+        FilterOperator::Lt => {
+            compare_filter_value(actual, filter.value.as_ref()).is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Less))
         }
-        FilterOperator::Contains => filter
-            .value
-            .as_ref()
-            .is_some_and(|expected| actual.is_some_and(|actual| value_contains(actual, expected))),
+        FilterOperator::Lte => compare_filter_value(actual, filter.value.as_ref())
+            .is_some_and(|ordering| matches!(ordering, std::cmp::Ordering::Less | std::cmp::Ordering::Equal)),
+        FilterOperator::Contains => {
+            filter.value.as_ref().is_some_and(|expected| actual.is_some_and(|actual| value_contains(actual, expected)))
+        }
     }
 }
 
-fn filter_expression_value<'a>(
-    sample: &'a TelemetrySample,
-    expression: &DataExpression,
-) -> Option<&'a Value> {
+fn filter_expression_value<'a>(sample: &'a TelemetrySample, expression: &DataExpression) -> Option<&'a Value> {
     match &expression.source {
-        DataSource::Telemetry { stream, field }
-            if stream_matches_alias(sample.stream.as_str(), stream) =>
-        {
-            sample_value(sample, field)
-        }
-        DataSource::Dimension { name } | DataSource::Parameter { name } => {
-            sample_value(sample, name)
-        }
+        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => sample_value(sample, field),
+        DataSource::Dimension { name } | DataSource::Parameter { name } => sample_value(sample, name),
         _ => None,
     }
 }
@@ -1393,10 +1008,7 @@ fn values_equal(actual: &Value, expected: &Value) -> bool {
     actual == expected
 }
 
-fn compare_filter_value(
-    actual: Option<&Value>,
-    expected: Option<&Value>,
-) -> Option<std::cmp::Ordering> {
+fn compare_filter_value(actual: Option<&Value>, expected: Option<&Value>) -> Option<std::cmp::Ordering> {
     let actual = actual?;
     let expected = expected?;
     match (numeric_value(actual), numeric_value(expected)) {
@@ -1410,12 +1022,8 @@ fn compare_filter_value(
 
 fn value_contains(actual: &Value, expected: &Value) -> bool {
     match actual {
-        Value::Text(actual) => {
-            group_value(expected).is_some_and(|expected| actual.contains(expected.as_str()))
-        }
-        Value::Array(values) => values
-            .iter()
-            .any(|candidate| values_equal(candidate, expected)),
+        Value::Text(actual) => group_value(expected).is_some_and(|expected| actual.contains(expected.as_str())),
+        Value::Array(values) => values.iter().any(|candidate| values_equal(candidate, expected)),
         _ => false,
     }
 }
@@ -1436,22 +1044,12 @@ fn stride_downsample(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoin
     (sampled, true)
 }
 
-fn numeric_downsample(
-    points: &[PlotPoint],
-    max_points: usize,
-    technique: DownsampleTechnique,
-) -> Option<Vec<PlotPoint>> {
-    let values = points
-        .iter()
-        .map(|point| point.y.filter(|value| value.is_finite()))
-        .collect::<Option<Vec<f64>>>()?;
+fn numeric_downsample(points: &[PlotPoint], max_points: usize, technique: DownsampleTechnique) -> Option<Vec<PlotPoint>> {
+    let values = points.iter().map(|point| point.y.filter(|value| value.is_finite())).collect::<Option<Vec<f64>>>()?;
     let mut indices = match technique {
         DownsampleTechnique::MinMax => harmos::signal::extrema(&values, (max_points / 2).max(1)),
         DownsampleTechnique::Lttb => {
-            let x = points
-                .iter()
-                .map(analyses::point_x)
-                .collect::<Option<Vec<_>>>()?;
+            let x = points.iter().map(analyses::point_x).collect::<Option<Vec<_>>>()?;
             if max_points < 3 {
                 return None;
             }
@@ -1466,38 +1064,22 @@ fn numeric_downsample(
     // bucket can repeat or invert; normalize to ascending, unique indices.
     indices.sort_unstable();
     indices.dedup();
-    Some(
-        indices
-            .into_iter()
-            .filter_map(|index| points.get(index).cloned())
-            .collect(),
-    )
+    Some(indices.into_iter().filter_map(|index| points.get(index).cloned()).collect())
 }
 
-fn plot_markers(
-    records: &[RecordEntry],
-    marker_record_types: &[String],
-    scope: Option<&RecordScope>,
-) -> Vec<PlotMarker> {
+fn plot_markers(records: &[RecordEntry], marker_record_types: &[String], scope: Option<&RecordScope>) -> Vec<PlotMarker> {
     if marker_record_types.is_empty() {
         return Vec::new();
     }
     records
         .iter()
-        .filter(|record| {
-            marker_record_types
-                .iter()
-                .any(|value| record.record_type.as_str() == value)
-        })
+        .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
         .filter(|record| sample_matches_scope(record.scope.as_ref(), scope))
         .map(|record| {
             let record_type = record.record_type.to_string();
             PlotMarker {
                 x: JsonValue::String(record.timestamp.to_string()),
-                label: record
-                    .message
-                    .clone()
-                    .unwrap_or_else(|| record_type.clone()),
+                label: record.message.clone().unwrap_or_else(|| record_type.clone()),
                 color: marker_color(&record_type),
                 record_type,
             }
@@ -1506,27 +1088,18 @@ fn plot_markers(
 }
 
 fn z_index(
-    telemetry: &[TelemetrySample],
-    primary_stream: &str,
-    z_stream: Option<&str>,
-    z_field: Option<&str>,
-    scope: Option<&RecordScope>,
+    telemetry: &[TelemetrySample], primary_stream: &str, z_stream: Option<&str>, z_field: Option<&str>, scope: Option<&RecordScope>,
 ) -> ZIndex {
     let Some(field) = z_field else {
         return ZIndex::None;
     };
     let stream = z_stream.unwrap_or(primary_stream);
     if stream_matches_alias(primary_stream, stream) {
-        return ZIndex::Primary {
-            field: field.to_owned(),
-        };
+        return ZIndex::Primary { field: field.to_owned() };
     }
     let mut samples = telemetry
         .iter()
-        .filter(|sample| {
-            stream_matches_alias(sample.stream.as_str(), stream)
-                && sample_matches_scope(sample.scope.as_ref(), scope)
-        })
+        .filter(|sample| stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample.scope.as_ref(), scope))
         .filter_map(|sample| {
             Some(ZSample {
                 scope: sample.scope.clone(),
@@ -1544,19 +1117,11 @@ fn x_value(sample: &TelemetrySample, x_key: &str) -> JsonValue {
     if x_key == "timestamp" {
         return JsonValue::String(sample.timestamp.to_string());
     }
-    sample
-        .values
-        .get(x_key)
-        .map(plot_json_value)
-        .unwrap_or(JsonValue::Null)
+    sample.values.get(x_key).map(plot_json_value).unwrap_or(JsonValue::Null)
 }
 
 fn x_sort_value(sample: &TelemetrySample, x_key: &str) -> f64 {
-    sample
-        .values
-        .get(x_key)
-        .and_then(|value| numeric_value(value).or_else(|| datetime_seconds(value)))
-        .unwrap_or(f64::NAN)
+    sample.values.get(x_key).and_then(|value| numeric_value(value).or_else(|| datetime_seconds(value))).unwrap_or(f64::NAN)
 }
 
 fn group_value(value: &Value) -> Option<String> {
@@ -1577,9 +1142,7 @@ fn timestamp(sample: &TelemetrySample) -> Option<OffsetDateTime> {
 }
 
 fn marker_color(record_type: &str) -> String {
-    let hash = record_type.bytes().fold(0usize, |acc, byte| {
-        acc.wrapping_mul(31).wrapping_add(usize::from(byte))
-    });
+    let hash = record_type.bytes().fold(0usize, |acc, byte| acc.wrapping_mul(31).wrapping_add(usize::from(byte)));
     MARKER_COLORS[hash % MARKER_COLORS.len()].to_owned()
 }
 

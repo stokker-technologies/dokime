@@ -44,24 +44,12 @@ pub struct RecordCondition {
 impl harmos::MemorySize for RecordCondition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.record_type),
-                std::mem::size_of_val(&self.record_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.match_fields),
-                std::mem::size_of_val(&self.match_fields),
-            ),
+            (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+            (harmos::MemorySize::memory_size(&self.match_fields), std::mem::size_of_val(&self.match_fields)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 

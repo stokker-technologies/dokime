@@ -36,11 +36,7 @@ use dokime_runtime::definition::parameters::bounds;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn expression(
-    expr: &ParameterExpr,
-    budget: &mut Budget,
-    depth: usize,
-) -> Result<(), Status> {
+pub(super) fn expression(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> Result<(), Status> {
     bounds::expression(expr, budget, depth).map_err(status)
 }
 
@@ -51,9 +47,7 @@ pub(super) fn status(error: dokime_runtime::ApiError) -> Status {
     use dokime_runtime::definition::parameters::limits::ParameterLimitError;
     match error {
         ParameterLimitError::Structure => Status::resource_exhausted(error.to_string()),
-        ParameterLimitError::Expansion => {
-            super::rejection("parameter_expansion_limit", error.to_string())
-        }
+        ParameterLimitError::Expansion => super::rejection("parameter_expansion_limit", error.to_string()),
         ParameterLimitError::Payload => super::payload::limit(),
         ParameterLimitError::Invalid(message) => super::rejection("invalid_selection", message),
     }

@@ -25,15 +25,16 @@ use harmos::{
 };
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
+use crate::storage::Manager;
 use crate::{
-    runtime::Error, runtime::Result,
     document::capture::CardBindingResult,
     execution::context::captured::source::CapturedSource,
+    runtime::Error,
+    runtime::Result,
     runtime::{progress::Operation, storage::execution::ExecutionView},
 };
-use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
-use crate::storage::Manager;
+use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
 const ACTIVE_PLOT_PLANS: usize = 4;
@@ -53,71 +54,45 @@ const ACTIVE_PLOT_PLANS: usize = 4;
 /* === Public Functions === */
 /// Compose A Cycle Member From Its Frozen Source And Persisted Evidence.
 pub(crate) async fn sealed_member(
-    ctx: &Context<'_>,
-    storage: &Manager,
-    settings: &crate::config::StorageSettings,
-    seal: &dokime_domain::model::execution::saved::ExecutionSeal,
-    operation: &Operation,
+    ctx: &Context<'_>, storage: &Manager, settings: &crate::config::StorageSettings,
+    seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
-    let mut source =
-        crate::execution::context::captured::read::read_file(storage, &seal.source.context).await?;
+    let mut source = crate::execution::context::captured::read::read_file(storage, &seal.source.context).await?;
     source.validate_header()?;
     if source.owner_node_id != seal.source.owner_node_id
         || source.execution_id != seal.source.execution.execution_id
         || source.evidence_through != seal.source.evidence_through
     {
-        return Err(invalid(
-            "cycle member source differs from its execution seal",
-        ));
+        return Err(invalid("cycle member source differs from its execution seal"));
     }
     if let Some(anchor) = &source.execution
         && !seal.source.execution.position.covers(&anchor.position)?
     {
-        return Err(invalid(
-            "cycle member source follows its published revision",
-        ));
+        return Err(invalid("cycle member source follows its published revision"));
     }
     source.outputs = seal.source.outputs.clone();
-    let inspection =
-        ExecutionView::captured(storage, Arc::new(source), &seal.source.owner_node_id).await?;
+    let inspection = ExecutionView::captured(storage, Arc::new(source), &seal.source.owner_node_id).await?;
     execution(ctx, settings, &inspection, true, operation).await
 }
 
 /// Materialize one execution's report input from its frozen capture and evidence.
 pub(crate) async fn execution(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    inspection: &ExecutionView,
-    final_report: bool,
-    operation: &Operation,
+    ctx: &Context<'_>, settings: &crate::config::StorageSettings, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
     operation.phase("Materializing Evidence");
-    let captured = inspection
-        .captured_source()
-        .ok_or_else(|| invalid("report has no captured execution context"))?;
+    let captured = inspection.captured_source().ok_or_else(|| invalid("report has no captured execution context"))?;
     captured.validate_header()?;
     if captured.evidence_through != *inspection.evidence_through()? {
-        return Err(invalid(
-            "report capture differs from the requested durable boundary",
-        ));
+        return Err(invalid("report capture differs from the requested durable boundary"));
     }
     let execution = inspection.execution();
     let records = context_records(inspection).await?;
-    let selection = crate::document::DocumentSelection {
-        scope: execution.scope.clone(),
-    };
-    let context =
-        crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
-    let needs_rows = captured
-        .context
-        .execution_documents
-        .values()
-        .any(|definition| crate::document::binding::telemetry_needed(definition, context));
+    let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+    let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
+    let needs_rows =
+        captured.context.execution_documents.values().any(|definition| crate::document::binding::telemetry_needed(definition, context));
     let telemetry = context_telemetry(ctx, settings, captured, execution, needs_rows).await?;
-    let preview = super::render::cycle::selection(telemetry.len())
-        .into_iter()
-        .map(|index| telemetry[index].clone())
-        .collect::<Vec<_>>();
+    let preview = super::render::cycle::selection(telemetry.len()).into_iter().map(|index| telemetry[index].clone()).collect::<Vec<_>>();
     let limit = settings.budget.read_memory_bytes.get();
     let mut documents = BTreeMap::<DocumentId, crate::document::capture::Capture>::new();
     for (id, definition) in &captured.context.execution_documents {
@@ -133,26 +108,14 @@ pub(crate) async fn execution(
         };
         let document = crate::document::bounded::capture_document_borrowed(
             input,
-            crate::document::bounded::DocumentLimits {
-                source_bytes: limit,
-                materialized_bytes: limit,
-                ..Default::default()
-            },
+            crate::document::bounded::DocumentLimits { source_bytes: limit, materialized_bytes: limit, ..Default::default() },
         )?;
         documents.insert(id.clone(), document);
     }
     operation.phase("Querying Report Plots");
     let plots = plots(ctx, settings, captured, execution, &records, &documents).await?;
     operation.phase("Assembling Report");
-    assemble(
-        final_report,
-        captured,
-        execution,
-        documents,
-        plots,
-        records,
-        preview,
-    )
+    assemble(final_report, captured, execution, documents, plots, records, preview)
 }
 
 /* === Private Functions === */
@@ -167,11 +130,8 @@ async fn context_records(inspection: &ExecutionView) -> Result<Vec<dokime_domain
 
 // Display Telemetry: Every Row When A Document Binds Them, Else A Downsampled Preview.
 async fn context_telemetry(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution,
-    needs_rows: bool,
+    ctx: &Context<'_>, settings: &crate::config::StorageSettings, captured: &CapturedSource,
+    execution: &dokime_domain::model::execution::result::TestExecution, needs_rows: bool,
 ) -> Result<Vec<crate::telemetry::TelemetrySample>> {
     let mut telemetry = Vec::new();
     for versions in captured.telemetry_contracts.values() {
@@ -199,21 +159,14 @@ async fn context_telemetry(
             );
         }
     }
-    telemetry.sort_by(|left, right| {
-        left.timestamp
-            .cmp(&right.timestamp)
-            .then(left.sequence.cmp(&right.sequence))
-    });
+    telemetry.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
     Ok(telemetry)
 }
 
 // At Most `ACTIVE_PLOT_PLANS` Plot Queries Run At Once; Results Keep Card Order.
 async fn plots(
-    ctx: &Context<'_>,
-    settings: &crate::config::StorageSettings,
-    captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution,
-    records: &[dokime_domain::model::records::evidence::RecordEntry],
+    ctx: &Context<'_>, settings: &crate::config::StorageSettings, captured: &CapturedSource,
+    execution: &dokime_domain::model::execution::result::TestExecution, records: &[dokime_domain::model::records::evidence::RecordEntry],
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
 ) -> Result<BTreeMap<String, super::value::Value>> {
     let mut pending = FuturesUnordered::new();
@@ -224,19 +177,11 @@ async fn plots(
             let CardBindingResult::Plot { descriptor } = &card.result else {
                 continue;
             };
-            let request = crate::plot::plot_payload_request_for_descriptor(
-                descriptor,
-                Some(execution.scope.clone()),
-                None,
-                None,
-                None,
-            );
+            let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None, None);
             let current = index;
             index += 1;
             pending.push(async move {
-                let payload =
-                    super::query::materialize(ctx, settings, captured, execution, records, request)
-                        .await?;
+                let payload = super::query::materialize(ctx, settings, captured, execution, records, request).await?;
                 Ok::<_, Error>((current, descriptor.plot_id.to_string(), payload))
             });
             if pending.len() == ACTIVE_PLOT_PLANS
@@ -261,13 +206,9 @@ async fn plots(
 }
 
 fn assemble(
-    final_report: bool,
-    captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution,
-    documents: BTreeMap<DocumentId, crate::document::capture::Capture>,
-    plots: BTreeMap<String, super::value::Value>,
-    records: Vec<dokime_domain::model::records::evidence::RecordEntry>,
-    preview: Vec<crate::telemetry::TelemetrySample>,
+    final_report: bool, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
+    documents: BTreeMap<DocumentId, crate::document::capture::Capture>, plots: BTreeMap<String, super::value::Value>,
+    records: Vec<dokime_domain::model::records::evidence::RecordEntry>, preview: Vec<crate::telemetry::TelemetrySample>,
 ) -> Result<CapturedExecutionReportInput> {
     let mut cycle = captured.context.cycle.cycle.clone();
     let mut captured_execution = execution.clone();

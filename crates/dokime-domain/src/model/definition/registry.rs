@@ -54,9 +54,7 @@ pub struct SuiteSnapshot {
 /* === Implementations === */
 impl SuiteSet {
     pub fn new(suites: impl IntoIterator<Item = TestSuiteDefinition>) -> Self {
-        Self {
-            suites: suites.into_iter().collect(),
-        }
+        Self { suites: suites.into_iter().collect() }
     }
 
     pub fn suite(mut self, suite: TestSuiteDefinition) -> Self {

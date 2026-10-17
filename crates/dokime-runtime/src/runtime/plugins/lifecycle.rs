@@ -23,7 +23,7 @@ use std::time::Duration;
 // Local Imports
 use super::{ActivePackage, Extraction, Program, Running, operation};
 use crate::runtime::sidecars::{PublicationIngest, flush_publications};
-use crate::{runtime::Error, InstalledSidecar, runtime::Result, RuntimeHandle};
+use crate::{InstalledSidecar, RuntimeHandle, runtime::Error, runtime::Result};
 
 /* === Constants === */
 const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -31,10 +31,8 @@ const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(in crate::runtime) type Manager =
-    harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
-type Backend =
-    harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
 
 /* === Structs === */
 pub(in crate::runtime) struct Adapter<'a> {
@@ -84,60 +82,40 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     }
 
     async fn fence(
-        &mut self,
-        transition: harmos::plugin::PluginTransition,
-        affected: &[harmos::plugin::PluginDefinition],
+        &mut self, transition: harmos::plugin::PluginTransition, affected: &[harmos::plugin::PluginDefinition],
     ) -> harmos::Result<()> {
-        self.fence_work(transition, affected)
-            .await
-            .map_err(lifecycle_error)
+        self.fence_work(transition, affected).await.map_err(lifecycle_error)
     }
 
     async fn start(
-        &mut self,
-        artifact: &harmos::plugin::PluginDefinition,
-        router: &harmos::plugin::Router,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
-        backend: &mut Backend,
+        &mut self, artifact: &harmos::plugin::PluginDefinition, router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> harmos::Result<()> {
         if authority.owner() != artifact.id
             || authority.backend_kind() != artifact.kind()
             || authority.phase() != harmos::plugin::PluginLifecyclePhase::Initialize
         {
-            return Err(lifecycle_error(operation(
-                "plugin initialization authority differs",
-            )));
+            return Err(lifecycle_error(operation("plugin initialization authority differs")));
         }
-        self.start_artifact(artifact, router, authority, backend)
-            .await
-            .map_err(lifecycle_error)
+        self.start_artifact(artifact, router, authority, backend).await.map_err(lifecycle_error)
     }
 
     async fn stop(
-        artifact: &harmos::plugin::PluginDefinition,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
-        backend: &mut Backend,
+        artifact: &harmos::plugin::PluginDefinition, authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> harmos::Result<()> {
         if authority.owner() != artifact.id
             || authority.backend_kind() != artifact.kind()
             || authority.phase() != harmos::plugin::PluginLifecyclePhase::Shutdown
         {
-            return Err(lifecycle_error(operation(
-                "plugin shutdown authority differs",
-            )));
+            return Err(lifecycle_error(operation("plugin shutdown authority differs")));
         }
         if let Backend::Sidecar(sidecar) = backend
-            && sidecar.scope.as_ref().is_some_and(|scope| {
-                !authority.matches_scope(
-                    scope,
-                    artifact.kind(),
-                    harmos::plugin::PluginLifecyclePhase::Shutdown,
-                )
-            })
+            && sidecar
+                .scope
+                .as_ref()
+                .is_some_and(|scope| !authority.matches_scope(scope, artifact.kind(), harmos::plugin::PluginLifecyclePhase::Shutdown))
         {
-            return Err(lifecycle_error(operation(
-                "plugin shutdown generation differs",
-            )));
+            return Err(lifecycle_error(operation("plugin shutdown generation differs")));
         }
         let publications = match backend {
             Backend::Guest(guest) => match *guest {},
@@ -150,29 +128,18 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
                 &sidecar.publications
             }
         };
-        flush_publications(publications)
-            .await
-            .map_err(lifecycle_error)
+        flush_publications(publications).await.map_err(lifecycle_error)
     }
 }
 
 impl Adapter<'_> {
     async fn fence_work(
-        &mut self,
-        transition: harmos::plugin::PluginTransition,
-        affected: &[harmos::plugin::PluginDefinition],
+        &mut self, transition: harmos::plugin::PluginTransition, affected: &[harmos::plugin::PluginDefinition],
     ) -> Result<()> {
-        let sources: BTreeSet<_> = affected
-            .iter()
-            .map(|artifact| artifact.id.clone())
-            .collect();
+        let sources: BTreeSet<_> = affected.iter().map(|artifact| artifact.id.clone()).collect();
         let cycles: BTreeSet<_> = {
             let _admission = self.handle.plugin_admission.lock().await;
-            self.handle
-                .unavailable_plugins
-                .write()
-                .expect("plugin availability lock poisoned")
-                .extend(sources.clone());
+            self.handle.unavailable_plugins.write().expect("plugin availability lock poisoned").extend(sources.clone());
             self.handle
                 .provider_tasks
                 .lock()
@@ -195,12 +162,10 @@ impl Adapter<'_> {
             if matches!(
                 lifecycle,
                 Some(
-                    dokime_domain::model::execution::result::CycleStatus::Running | dokime_domain::model::execution::result::CycleStatus::Paused
+                    dokime_domain::model::execution::result::CycleStatus::Running
+                        | dokime_domain::model::execution::result::CycleStatus::Paused
                 )
-            ) && let Err(error) = self
-                .handle
-                .stop_cycle(cycle.clone(), crate::CommandContext::default())
-                .await
+            ) && let Err(error) = self.handle.stop_cycle(cycle.clone(), crate::CommandContext::default()).await
             {
                 // A concurrent normal completion may win before Stop commits.
                 if matches!(
@@ -240,14 +205,9 @@ impl Adapter<'_> {
         self.handle.reconcile_listener_record_demand()?;
 
         let tasks = {
-            let mut tasks = self
-                .handle
-                .provider_tasks
-                .lock()
-                .expect("provider task lock poisoned");
-            let (owned, remaining): (Vec<_>, Vec<_>) = std::mem::take(&mut *tasks)
-                .into_iter()
-                .partition(|task| sources.contains(&task.source));
+            let mut tasks = self.handle.provider_tasks.lock().expect("provider task lock poisoned");
+            let (owned, remaining): (Vec<_>, Vec<_>) =
+                std::mem::take(&mut *tasks).into_iter().partition(|task| sources.contains(&task.source));
             *tasks = remaining;
             owned
         };
@@ -277,17 +237,14 @@ impl Adapter<'_> {
                 package.telemetry.remove(source);
                 package.running.retain(|live| &live.source != source);
             }
-            self.handle
-                .remove_action_dispatcher(&crate::Identifier::new(source).map_err(operation)?);
+            self.handle.remove_action_dispatcher(&crate::Identifier::new(source).map_err(operation)?);
         }
         Ok(())
     }
 
     fn prepare_artifact(&self, artifact: &harmos::plugin::PluginDefinition) -> Result<Backend> {
         if let Some(provider) = self.embedded.get(&artifact.id) {
-            return Ok(Backend::Embedded(
-                provider.instance(self.publications.clone()),
-            ));
+            return Ok(Backend::Embedded(provider.instance(self.publications.clone())));
         }
 
         let (name, package, program) = self
@@ -304,9 +261,7 @@ impl Adapter<'_> {
             .ok_or_else(|| operation(format!("no prepared plugin owns {}", artifact.id)))?;
 
         if program.definition.artifact != artifact.artifact {
-            return Err(operation(
-                "prepared executable differs from the admitted artifact descriptor",
-            ));
+            return Err(operation("prepared executable differs from the admitted artifact descriptor"));
         }
 
         Ok(Backend::Sidecar(Sidecar {
@@ -331,11 +286,8 @@ impl Adapter<'_> {
     }
 
     async fn start_artifact(
-        &mut self,
-        artifact: &harmos::plugin::PluginDefinition,
-        router: &harmos::plugin::Router,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
-        backend: &mut Backend,
+        &mut self, artifact: &harmos::plugin::PluginDefinition, router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> Result<()> {
         let sidecar = match backend {
             Backend::Guest(guest) => match *guest {},
@@ -348,25 +300,18 @@ impl Adapter<'_> {
         let bindings = program.bindings.clone();
         sidecar.start(self.handle, router, authority).await?;
         self.handle.capture_suite_objects(&artifact.id).await?;
-        self.packages
-            .get_mut(&sidecar.package)
-            .expect("the prepared package is retained")
-            .running
-            .push(Running {
-                source: artifact.id.clone(),
-                exposed: false,
-                bindings,
-            });
+        self.packages.get_mut(&sidecar.package).expect("the prepared package is retained").running.push(Running {
+            source: artifact.id.clone(),
+            exposed: false,
+            bindings,
+        });
         Ok(())
     }
 }
 
 impl Sidecar {
     async fn start(
-        &mut self,
-        handle: &RuntimeHandle,
-        router: &harmos::plugin::Router,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
+        &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let started = std::time::Instant::now();
         let source = self.program.executable.id().to_owned();
@@ -381,10 +326,7 @@ impl Sidecar {
     }
 
     async fn start_attempt(
-        &mut self,
-        handle: &RuntimeHandle,
-        router: &harmos::plugin::Router,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
+        &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let program = &self.program;
         let executable = &program.executable.0;
@@ -392,17 +334,19 @@ impl Sidecar {
         let logged_by = source.clone();
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
-            Box::new(
-                move |_context: &harmos::services::Service<crate::Dokime>, value| {
-                    if let harmos::sidecar::Notice::Logged { line } = &value {
-                        forward_plugin_line(&logged_by, line);
-                    }
-                },
-            ) as crate::SidecarNoticeHandler,
+            Box::new(move |_context: &harmos::services::Service<crate::Dokime>, value| {
+                if let harmos::sidecar::Notice::Logged { line } = &value {
+                    forward_plugin_line(&logged_by, line);
+                }
+            }) as crate::SidecarNoticeHandler,
         )
-        .demand_keys(program.plugin.record_contracts.iter().map(|contract| {
-            crate::runtime::sidecars::record_demand_key(contract.record_type.as_str())
-        }))
+        .demand_keys(
+            program
+                .plugin
+                .record_contracts
+                .iter()
+                .map(|contract| crate::runtime::sidecars::record_demand_key(contract.record_type.as_str())),
+        )
         .routed(router)
         .expected_registrations(&self.definition.contributions.registrations);
         self.publication_core.insert(&source, sidecar.clone())?;
@@ -410,11 +354,8 @@ impl Sidecar {
         let serving = sidecar.clone();
         let record_demands = sidecar.demands();
         let ready = sidecar.ready();
-        let policy = executable
-            .declaration()
-            .restart()
-            .ok_or_else(|| operation("sidecar declaration has no authored restart policy"))?
-            .bounded();
+        let policy =
+            executable.declaration().restart().ok_or_else(|| operation("sidecar declaration has no authored restart policy"))?.bounded();
         // A declaration without restart credit deactivates on its first fault.
         let restart = if policy.enabled() {
             harmos::operations::RestartPolicy::OnTransient {
@@ -433,10 +374,7 @@ impl Sidecar {
             .register_service(
                 harmos::services::ServiceDefinition {
                     id: source.clone(),
-                    policy: harmos::operations::OperationPolicy {
-                        restart,
-                        ..harmos::services::POLICY
-                    },
+                    policy: harmos::operations::OperationPolicy { restart, ..harmos::services::POLICY },
                 },
                 move |_: Arc<()>| sidecar.clone(),
             )
@@ -452,32 +390,24 @@ impl Sidecar {
                 })?
                 .map_err(operation)?,
         );
-        let scope = native.scope().ok_or_else(|| {
-            operation("initialized native endpoint has no admitted plugin generation")
-        })?;
-        if !authority.matches_scope(
-            scope,
-            self.definition.kind(),
-            harmos::plugin::PluginLifecyclePhase::Initialize,
-        ) {
+        let scope = native.scope().ok_or_else(|| operation("initialized native endpoint has no admitted plugin generation"))?;
+        if !authority.matches_scope(scope, self.definition.kind(), harmos::plugin::PluginLifecyclePhase::Initialize) {
             return Err(operation("native initialization generation differs"));
         }
         self.scope = Some(scope.clone());
         let capacity = NonZeroUsize::new(128).expect("native invocation capacity is positive");
-        self.operations = Some(handle.operations.stage_plugin(scope, |bindings| {
-            bindings.register_native(crate::app::Lanes::Open, Arc::clone(&native), capacity)
-        })?);
+        self.operations = Some(
+            handle
+                .operations
+                .stage_plugin(scope, |bindings| bindings.register_native(crate::app::Lanes::Open, Arc::clone(&native), capacity))?,
+        );
         self.sdk = Some(native.stage_sdk(&handle.operations, crate::app::Lanes::Open)?);
         self.initializing = Some(self.sdk.as_ref().expect("SDK staged").submit_initialize(
             authority,
             &self.definition.configuration,
             NonZeroUsize::new(4 * 1024 * 1024).expect("bounded initialization bytes"),
         )?);
-        let outcome = self
-            .initializing
-            .as_mut()
-            .expect("initialization retained")
-            .await;
+        let outcome = self.initializing.as_mut().expect("initialization retained").await;
         self.initializing.take();
         outcome?;
         self.initialized = true;
@@ -485,10 +415,7 @@ impl Sidecar {
         Ok(())
     }
 
-    async fn stop(
-        &mut self,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
-    ) -> Result<()> {
+    async fn stop(&mut self, authority: &harmos::plugin::PluginLifecycleAuthority<'_>) -> Result<()> {
         if let Some(sdk) = &self.sdk {
             sdk.settle().await?;
             if let Some(initializing) = &mut self.initializing {
@@ -546,10 +473,7 @@ impl Sidecar {
 fn lifecycle_error(error: Error) -> harmos::Error {
     match error {
         Error::Harmos(error) => error,
-        error => harmos::Error::TaskFailed {
-            domain: "dokime plugin lifecycle",
-            source: Arc::new(error),
-        },
+        error => harmos::Error::TaskFailed { domain: "dokime plugin lifecycle", source: Arc::new(error) },
     }
 }
 
@@ -578,9 +502,7 @@ fn forward_plugin_line(plugin: &str, line: &str) {
 
 fn severity(line: &str) -> Option<(&'static str, &str)> {
     let (token, rest) = line.trim_start().split_once(' ')?;
-    let level = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
-        .into_iter()
-        .find(|level| *level == token)?;
+    let level = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"].into_iter().find(|level| *level == token)?;
 
     Some((level, rest.trim_start()))
 }

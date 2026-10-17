@@ -58,41 +58,29 @@ impl NetworkArgs {
             .filter(|bytes| (1..=16 * 1024 * 1024).contains(bytes))
             .ok_or_else(|| input("message limit must be between 1 and 16 MiB"))?;
         if !self.allow_remote && !self.host.is_loopback() {
-            return Err(input(
-                "non-loopback listeners require --allow-remote, TLS and --auth-file",
-            ));
+            return Err(input("non-loopback listeners require --allow-remote, TLS and --auth-file"));
         }
         if self.allowed_origins.len() > 32 {
             return Err(input("at most 32 exact browser origins are allowed"));
         }
-        let origins = self.allowed_origins.iter().map(|value| harmos::grpc::Origin::parse(value).map_err(|_| input("browser origins require a scheme and authority without path, credentials or wildcard"))).collect::<Result<Vec<_>, _>>()?;
-        if origins
+        let origins = self
+            .allowed_origins
             .iter()
-            .enumerate()
-            .any(|(index, origin)| origins[..index].contains(origin))
-        {
+            .map(|value| {
+                harmos::grpc::Origin::parse(value)
+                    .map_err(|_| input("browser origins require a scheme and authority without path, credentials or wildcard"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
             return Err(input("each browser origin may be allowed only once"));
         }
         let grants = self.auth_file.as_deref().map(read_grants).transpose()?;
         let address = SocketAddr::new(self.host, self.port);
         let config = if self.allow_remote {
-            let certificate = dokime_filesystem::input::read(
-                self.tls_cert
-                    .as_deref()
-                    .ok_or_else(|| input("--tls-cert is required"))?,
-                1024 * 1024,
-            )?;
-            let key = dokime_filesystem::input::read(
-                self.tls_key
-                    .as_deref()
-                    .ok_or_else(|| input("--tls-key is required"))?,
-                64 * 1024,
-            )?;
-            Config::remote(
-                address,
-                TlsIdentity::from_pem(certificate, key),
-                grants.ok_or_else(|| input("--auth-file is required"))?,
-            )?
+            let certificate =
+                dokime_filesystem::input::read(self.tls_cert.as_deref().ok_or_else(|| input("--tls-cert is required"))?, 1024 * 1024)?;
+            let key = dokime_filesystem::input::read(self.tls_key.as_deref().ok_or_else(|| input("--tls-key is required"))?, 64 * 1024)?;
+            Config::remote(address, TlsIdentity::from_pem(certificate, key), grants.ok_or_else(|| input("--auth-file is required"))?)?
         } else {
             let config = Config::local().with_bind_addr(address);
             match grants {
@@ -101,11 +89,7 @@ impl NetworkArgs {
             }
         };
         let config = config.with_max_message_bytes(bytes);
-        if self.grpc_web {
-            Ok(config.with_grpc_web(origins)?)
-        } else {
-            Ok(config)
-        }
+        if self.grpc_web { Ok(config.with_grpc_web(origins)?) } else { Ok(config) }
     }
 }
 
@@ -124,22 +108,15 @@ fn read_grants(path: &Path) -> crate::host::Result<Vec<BearerGrant>> {
 }
 
 fn parse_grants(bytes: &[u8]) -> crate::host::Result<Vec<BearerGrant>> {
-    let file: Authentication = serde_json::from_slice(bytes).map_err(|error| {
-        input(format!(
-            "invalid authentication file at line {}, column {}",
-            error.line(),
-            error.column()
-        ))
-    })?;
+    let file: Authentication = serde_json::from_slice(bytes)
+        .map_err(|error| input(format!("invalid authentication file at line {}, column {}", error.line(), error.column())))?;
     if file.grants.is_empty() || file.grants.len() > 128 {
         return Err(input("authentication file requires 1 to 128 grants"));
     }
     file.grants
         .iter()
         .map(|grant| {
-            BearerGrant::new(grant.subject.clone(), grant.role, &grant.token)?
-                .with_operations(grant.operations.clone())
-                .map_err(Into::into)
+            BearerGrant::new(grant.subject.clone(), grant.role, &grant.token)?.with_operations(grant.operations.clone()).map_err(Into::into)
         })
         .collect()
 }

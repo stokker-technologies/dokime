@@ -23,14 +23,11 @@ use harmos::sidecar::Refusal;
 use tokio::sync::watch;
 // Local Imports
 use super::template::SidecarTemplate;
-use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
 use crate::prompts::PromptResponse;
 use crate::transport::buffer::{ExecutionState, Executions, Tasks, lock};
-use crate::transport::{
-    CommandExecutionReply, CommandExecutionRequest, EvidenceBatch, RunExecution,
-    StepAdmission,
-};
+use crate::transport::{CommandExecutionReply, CommandExecutionRequest, EvidenceBatch, RunExecution, StepAdmission};
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const MAX_RETAINED_EXECUTIONS: usize = 32;
@@ -67,10 +64,7 @@ pub enum SampleOutput {
 /* === Traits === */
 pub trait EmbeddedPublisher: Send + Sync {
     fn publish(
-        &self,
-        execution: &str,
-        stream: &dokime_domain::model::identity::Identifier,
-        values: BTreeMap<String, Value>,
+        &self, execution: &str, stream: &dokime_domain::model::identity::Identifier, values: BTreeMap<String, Value>,
         storage_payload: Vec<u8>,
     ) -> Result<(), String>;
 }
@@ -82,9 +76,7 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn declaring(
-        workflow: impl Into<String>,
-        source: impl Into<String>,
-        definition: crate::execution::TemplateDefinition,
+        workflow: impl Into<String>, source: impl Into<String>, definition: crate::execution::TemplateDefinition,
         watched: Vec<crate::execution::DeclaredObserver>,
     ) -> Self {
         Self {
@@ -118,12 +110,7 @@ impl<T: SidecarTemplate> Workflow<T> {
     pub fn with_records(mut self, records: &[crate::records::RecordContract]) -> Self {
         self.records = records
             .iter()
-            .filter(|record| {
-                record
-                    .template_id
-                    .as_ref()
-                    .is_none_or(|template| template == &self.declaration.test_case_template_id)
-            })
+            .filter(|record| record.template_id.as_ref().is_none_or(|template| template == &self.declaration.test_case_template_id))
             .cloned()
             .collect();
         self
@@ -135,16 +122,10 @@ impl<T: SidecarTemplate> Workflow<T> {
 
     fn accepts(&self, request: &RunExecution) -> Result<(), Refusal> {
         if request.workflow != self.workflow {
-            return Err(Refusal::of(format!(
-                "unsupported sidecar execution workflow {:?}",
-                request.workflow
-            )));
+            return Err(Refusal::of(format!("unsupported sidecar execution workflow {:?}", request.workflow)));
         }
         if request.template_identifier != self.declaration.metadata.identifier.as_str() {
-            return Err(Refusal::of(format!(
-                "unsupported sidecar execution template {:?}",
-                request.template_identifier
-            )));
+            return Err(Refusal::of(format!("unsupported sidecar execution template {:?}", request.template_identifier)));
         }
 
         Ok(())
@@ -164,48 +145,30 @@ impl<T: SidecarTemplate> Workflow<T> {
         lock(&self.executions).contains_key(token)
     }
 
-    pub fn take_local_samples(
-        &self,
-        token: &str,
-    ) -> Result<Vec<crate::telemetry::TelemetrySample>, Refusal> {
+    pub fn take_local_samples(&self, token: &str) -> Result<Vec<crate::telemetry::TelemetrySample>, Refusal> {
         lock(&self.executions)
             .get_mut(token)
             .map(|state| state.take_local_samples())
             .ok_or_else(|| Refusal::of(format!("execution token {token:?} is not active")))
     }
 
-    pub fn start_on(
-        &self,
-        request: RunExecution,
-        host: Option<SampleOutput>,
-        caller: super::Caller,
-    ) -> Result<(), Refusal> {
+    pub fn start_on(&self, request: RunExecution, host: Option<SampleOutput>, caller: super::Caller) -> Result<(), Refusal> {
         if request.execution_token.trim().is_empty() {
             return Err(Refusal::of("execution token must not be empty"));
         }
         {
             let executions = lock(&self.executions);
             if let Some(existing) = executions.get(&request.execution_token) {
-                return if existing.request == request {
-                    Ok(())
-                } else {
-                    Err(reused(&request.execution_token))
-                };
+                return if existing.request == request { Ok(()) } else { Err(reused(&request.execution_token)) };
             }
         }
         self.accepts(&request)?;
         if !matches!(request.mode.as_str(), "automatic" | "interactive") {
-            return Err(Refusal::of(
-                "execution mode must be automatic or interactive",
-            ));
+            return Err(Refusal::of("execution mode must be automatic or interactive"));
         }
         let parameters = resolved(&request.parameters_json)?;
-        let secrets = serde_json::from_str(&request.secrets_json)
-            .map_err(|_| Refusal::of("invalid execution secret bindings"))?;
-        let bindings = crate::plugin::Configuration {
-            secrets,
-            ..Default::default()
-        };
+        let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution secret bindings"))?;
+        let bindings = crate::plugin::Configuration { secrets, ..Default::default() };
         let mut runs = self.runs.lock().unwrap_or_else(PoisonError::into_inner);
         runs.retain(|run| !run.is_finished());
 
@@ -254,10 +217,7 @@ impl<T: SidecarTemplate> Workflow<T> {
         Ok(())
     }
 
-    pub fn command(
-        &self,
-        request: CommandExecutionRequest,
-    ) -> Result<CommandExecutionReply, Refusal> {
+    pub fn command(&self, request: CommandExecutionRequest) -> Result<CommandExecutionReply, Refusal> {
         let command = crate::transport::control::Command::parse(&request)?;
         let controls = lock(&self.executions)
             .get(&request.execution_token)
@@ -268,18 +228,10 @@ impl<T: SidecarTemplate> Workflow<T> {
 
     pub fn drain(&self, token: &str, cursor: u64) -> Result<EvidenceBatch, Refusal> {
         let mut executions = lock(&self.executions);
-        let state = executions.get_mut(token).ok_or_else(|| {
-            Refusal::of(format!(
-                "execution token {token:?} is not active in this plugin"
-            ))
-        })?;
+        let state =
+            executions.get_mut(token).ok_or_else(|| Refusal::of(format!("execution token {token:?} is not active in this plugin")))?;
         let reply = state.drain_after(cursor)?;
-        state.admit_local_inputs(
-            reply.cursor,
-            &self.source,
-            &self.records,
-            &crate::model::time::now_utc(),
-        )?;
+        state.admit_local_inputs(reply.cursor, &self.source, &self.records, &crate::model::time::now_utc())?;
         if state.local_inputs && reply.record_subscriptions_settling {
             state.settle_record_subscriptions();
         }
@@ -322,8 +274,8 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn answer(&self, token: &str, prompt_id: &str, response_json: &str) -> Result<(), Refusal> {
-        let response: PromptResponse = serde_json::from_str(response_json)
-            .map_err(|error| Refusal::of(format!("invalid operator answer JSON: {error}")))?;
+        let response: PromptResponse =
+            serde_json::from_str(response_json).map_err(|error| Refusal::of(format!("invalid operator answer JSON: {error}")))?;
         if let Some(state) = lock(&self.executions).get_mut(token) {
             state.answer(prompt_id, response);
         }
@@ -332,19 +284,15 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn deliver_captured(
-        &self,
-        record: &dokime_domain::model::records::evidence::Record,
-        owner: &str,
+        &self, record: &dokime_domain::model::records::evidence::Record, owner: &str,
         scopes: &[dokime_domain::model::execution::RecordScope],
     ) -> usize {
         let mut taken = 0;
         for state in lock(&self.executions).values_mut() {
-            if let Some(scope) = scopes.iter().find(|scope| {
-                scope
-                    .test_execution_id
-                    .as_ref()
-                    .is_some_and(|id| id.as_str() == state.request.test_execution_id)
-            }) && state.deliver_captured(record, owner, Some(scope))
+            if let Some(scope) = scopes
+                .iter()
+                .find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == state.request.test_execution_id))
+                && state.deliver_captured(record, owner, Some(scope))
             {
                 taken += 1;
             }
@@ -353,18 +301,13 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn deliver_samples(
-        &self,
-        scope: &dokime_domain::model::execution::RecordScope,
-        samples: &[crate::telemetry::TelemetrySample],
+        &self, scope: &dokime_domain::model::execution::RecordScope, samples: &[crate::telemetry::TelemetrySample],
         gaps: &[crate::telemetry::LeaseGap],
     ) -> Result<usize, Refusal> {
         let mut taken = 0;
         let mut deliveries = Vec::new();
         let mut executions = lock(&self.executions);
-        for state in executions
-            .values()
-            .filter(|state| state.addressed_by(Some(scope)))
-        {
+        for state in executions.values().filter(|state| state.addressed_by(Some(scope))) {
             for sample in samples {
                 state.validate_sample(sample).map_err(Refusal::of)?;
             }
@@ -378,11 +321,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                 if state.receive(sample.clone()).map_err(Refusal::of)? {
                     took = true;
                     if state.listening.receiver_count() > 0 {
-                        deliveries.push((
-                            state.listening.clone(),
-                            sample.stream.clone(),
-                            sample.values.clone(),
-                        ));
+                        deliveries.push((state.listening.clone(), sample.stream.clone(), sample.values.clone()));
                     }
                 }
             }
@@ -450,15 +389,8 @@ impl<T: SidecarTemplate> Workflow<T> {
                         if !state.local_inputs || refused.contains(token) {
                             continue;
                         }
-                        if let Err(error) = state.settle_local_inputs(
-                            &self.source,
-                            &self.records,
-                            &crate::model::time::now_utc(),
-                        ) {
-                            state.push(crate::transport::buffer::BufferedFrame::log(
-                                super::log::Level::Error,
-                                error.to_string(),
-                            ));
+                        if let Err(error) = state.settle_local_inputs(&self.source, &self.records, &crate::model::time::now_utc()) {
+                            state.push(crate::transport::buffer::BufferedFrame::log(super::log::Level::Error, error.to_string()));
                             refused.insert(token.clone());
                         }
                     }
@@ -471,10 +403,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             // A panicked run cannot join its children. Retain their handles at
             // the workflow boundary and settle them before resources finalize.
             let observers = {
-                let mut observers = self
-                    .observers
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner);
+                let mut observers = self.observers.lock().unwrap_or_else(PoisonError::into_inner);
                 std::mem::take(&mut *observers)
             };
             for observer in &observers {
@@ -484,18 +413,12 @@ impl<T: SidecarTemplate> Workflow<T> {
                 let _ = observer.await;
             }
 
-            let callbacks: Vec<_> = lock(&self.executions)
-                .iter()
-                .map(|(token, state)| (token.clone(), state.callbacks.clone()))
-                .collect();
+            let callbacks: Vec<_> = lock(&self.executions).iter().map(|(token, state)| (token.clone(), state.callbacks.clone())).collect();
             for (token, callbacks) in callbacks {
                 let failures = callbacks.settle().await;
                 if let Some(state) = lock(&self.executions).get_mut(&token) {
                     for failure in failures {
-                        state.push(crate::transport::buffer::BufferedFrame::log(
-                            super::log::Level::Error,
-                            failure.redacted().to_string(),
-                        ));
+                        state.push(crate::transport::buffer::BufferedFrame::log(super::log::Level::Error, failure.redacted().to_string()));
                     }
                 }
             }
@@ -526,31 +449,24 @@ impl<T: SidecarTemplate> Clone for Workflow<T> {
 
 /* === Private Functions === */
 fn resolved(parameters_json: &str) -> Result<BTreeMap<String, Value>, Refusal> {
-    serde_json::from_str(parameters_json)
-        .map_err(|error| Refusal::of(format!("invalid resolved parameters JSON: {error}")))
+    serde_json::from_str(parameters_json).map_err(|error| Refusal::of(format!("invalid resolved parameters JSON: {error}")))
 }
 
 fn reused(token: &str) -> Refusal {
-    Refusal::of(format!(
-        "execution token {token:?} was reused with different inputs"
-    ))
+    Refusal::of(format!("execution token {token:?} was reused with different inputs"))
 }
 
 fn retain_capacity(executions: &mut BTreeMap<String, ExecutionState>) -> Result<(), Refusal> {
     if executions.len() < MAX_RETAINED_EXECUTIONS {
         return Ok(());
     }
-    let finished = executions
-        .iter()
-        .find_map(|(token, state)| state.terminal().then(|| token.clone()));
+    let finished = executions.iter().find_map(|(token, state)| state.terminal().then(|| token.clone()));
     match finished {
         Some(token) => {
             executions.remove(&token);
             Ok(())
         }
-        None => Err(Refusal::of(format!(
-            "sidecar already has {MAX_RETAINED_EXECUTIONS} active executions"
-        ))),
+        None => Err(Refusal::of(format!("sidecar already has {MAX_RETAINED_EXECUTIONS} active executions"))),
     }
 }
 

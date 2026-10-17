@@ -28,12 +28,7 @@ from dokime.client.profiles import configuration_path, decode, load
 # === Public Exports === #
 
 # === Constants === #
-_CASES = json.loads(
-    (
-        Path(__file__).resolve().parents[5]
-        / "crates/dokime-client/tests/fixtures/profiles.json"
-    ).read_text()
-)
+_CASES = json.loads((Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/profiles.json").read_text())
 
 
 # === Types === #

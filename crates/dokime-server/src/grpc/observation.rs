@@ -76,40 +76,20 @@ impl Operation for Shell {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::GetRuntimeShell,
-        _: &mut (),
-    ) -> Result<
-        harmos::operations::Response<dokime_domain::model::observation::wire::RuntimeShellSnapshot>,
-        Status,
-    > {
+        &mut self, _: Self::Context<'a>, request: &mut wire::GetRuntimeShell, _: &mut (),
+    ) -> Result<harmos::operations::Response<dokime_domain::model::observation::wire::RuntimeShellSnapshot>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let state = snapshot.state();
         let observed = canonical::cursor(&snapshot);
-        let limit = observed
-            .page(
-                request.limit,
-                &request.after_cycle_id,
-                request.cursor.as_ref(),
-            )
-            .map_err(canonical::cursor_failure)?;
+        let limit = observed.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let start = after_cycle_position(state, &request.after_cycle_id)?;
-        let response_limit = self
-            .resources
-            .max_message_bytes
-            .min(MAX_SHELL_RESPONSE_BYTES);
+        let response_limit = self.resources.max_message_bytes.min(MAX_SHELL_RESPONSE_BYTES);
         let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<
-            dokime_domain::model::observation::wire::RuntimeShellSnapshot,
-        >())?;
+        bounds.bytes(std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeShellSnapshot>())?;
         bounds.text(state.session_id.as_str())?;
         bounds.text(&observed.epoch)?;
         bounds.text(&observed.stream)?;
@@ -119,28 +99,16 @@ impl Operation for Shell {
         let count = state.cycles.len().saturating_sub(start).min(limit);
         let mut cycle_summaries = canonical::slots(count)?;
         for cycle in entries.by_ref().take(limit) {
-            cycle_summaries.push(execution::summary(
-                state,
-                cycle,
-                observed.clone(),
-                &mut bounds,
-            )?);
+            cycle_summaries.push(execution::summary(state, cycle, observed.clone(), &mut bounds)?);
         }
         let next_after_cycle_id = if entries.next().is_some() {
-            let last = cycle_summaries
-                .last()
-                .ok_or_else(|| Status::internal("empty continued cycle page"))?;
+            let last = cycle_summaries.last().ok_or_else(|| Status::internal("empty continued cycle page"))?;
             bounds.text(&last.cycle_id)?;
             Some(last.cycle_id.clone())
         } else {
             None
         };
-        let counts = self
-            .resources
-            .runtime
-            .evidence_counts_at(&snapshot)
-            .await
-            .map_err(|error| Status::internal(error.to_string()))?;
+        let counts = self.resources.runtime.evidence_counts_at(&snapshot).await.map_err(|error| Status::internal(error.to_string()))?;
         let response = dokime_domain::model::observation::wire::RuntimeShellSnapshot {
             session_id: state.session_id.to_string(),
             revision: snapshot.revision(),
@@ -153,9 +121,7 @@ impl Operation for Shell {
             next_after_cycle_id,
         };
         if Protobuf::encoded_len(&response) > response_limit {
-            return Err(Status::resource_exhausted(
-                "runtime shell page exceeds response budget; lower limit and retry",
-            ));
+            return Err(Status::resource_exhausted("runtime shell page exceeds response budget; lower limit and retry"));
         }
         Ok((response).into())
     }
@@ -167,37 +133,27 @@ impl Operation for Runtime {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::observation::wire::RuntimeStateFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::WatchRuntime,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut wire::WatchRuntime, output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
         let mut watch = self.resources.runtime.watch_state();
         let mut snapshot = watch.latest();
-        canonical::cursor(&snapshot)
-            .validate(request.cursor.as_ref(), false)
-            .map_err(canonical::cursor_failure)?;
+        canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
         let mut operations = watch.operations();
         let mut resynchronized = true;
         loop {
             let observed = canonical::cursor(&snapshot);
-            let bytes =
-                std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeStateFrame>()
-                    .saturating_add(observed.epoch.len())
-                    .saturating_add(observed.stream.len());
+            let bytes = std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeStateFrame>()
+                .saturating_add(observed.epoch.len())
+                .saturating_add(observed.stream.len());
             // The frames are built first: they are bounded, and measured exactly.
             let frames = operation_frames(&operations)?;
-            let bytes =
-                bytes.saturating_add(frames.memory_size().saturating_sub(std::mem::size_of::<
-                    Vec<dokime_domain::model::observation::wire::OperationProgress>,
-                >()));
+            let bytes = bytes.saturating_add(
+                frames.memory_size().saturating_sub(std::mem::size_of::<Vec<dokime_domain::model::observation::wire::OperationProgress>>()),
+            );
             output
                 .send_with(bytes, || {
                     Ok(dokime_domain::model::observation::wire::RuntimeStateFrame {
@@ -229,17 +185,11 @@ impl Operation for Progress {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::observation::wire::ExecutionProgressFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::WatchExecutionProgress,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut wire::WatchExecutionProgress, output: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<()>, Status> {
         let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
@@ -252,9 +202,7 @@ impl Operation for Progress {
             if resynchronized || current != previous.as_ref() {
                 let bytes = progress_memory(current)?;
                 output
-                    .send_with(bytes, || {
-                        Ok(progress_frame(snapshot.revision(), resynchronized, current))
-                    })
+                    .send_with(bytes, || Ok(progress_frame(snapshot.revision(), resynchronized, current)))
                     .await
                     .map_err(stream_failure)?;
                 previous = current.cloned();
@@ -274,74 +222,39 @@ impl Operation for Traceability {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::GetTraceability,
-        _: &mut (),
-    ) -> Result<
-        harmos::operations::Response<dokime_domain::model::observation::wire::TraceabilityPage>,
-        Status,
-    > {
+        &mut self, _: Self::Context<'a>, request: &mut wire::GetTraceability, _: &mut (),
+    ) -> Result<harmos::operations::Response<dokime_domain::model::observation::wire::TraceabilityPage>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let observed = canonical::cursor(&snapshot);
-        let limit = observed
-            .page(
-                request.limit,
-                &request.after_traceability_id,
-                request.cursor.as_ref(),
-            )
-            .map_err(canonical::cursor_failure)?;
-        let requested_scope = request
-            .scope
-            .as_ref()
-            .map(canonical::decoded_scope)
-            .transpose()?;
+        let limit =
+            observed.page(request.limit, &request.after_traceability_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
+        let requested_scope = request.scope.as_ref().map(canonical::decoded_scope).transpose()?;
         if requested_scope
             .as_ref()
             .and_then(|scope| scope.session_id.as_ref())
             .is_some_and(|session| session != &snapshot.state().session_id)
         {
-            return Err(Status::failed_precondition(
-                "traceability scope epoch mismatch; resynchronize",
-            ));
+            return Err(Status::failed_precondition("traceability scope epoch mismatch; resynchronize"));
         }
         let after = &request.after_traceability_id;
         let (source, has_more, host_traceability_fingerprint) = self
             .resources
             .runtime
-            .traceability_snapshots_page_at(
-                &snapshot,
-                requested_scope.as_ref(),
-                after,
-                limit,
-                8_192,
-                MAX_TRACEABILITY_RESPONSE_BYTES,
-            )
+            .traceability_snapshots_page_at(&snapshot, requested_scope.as_ref(), after, limit, 8_192, MAX_TRACEABILITY_RESPONSE_BYTES)
             .await
             .map_err(|error| Status::resource_exhausted(error.to_string()))?;
         if !after.is_empty()
-            && (request.host_traceability_fingerprint.is_empty()
-                || request.host_traceability_fingerprint != host_traceability_fingerprint)
+            && (request.host_traceability_fingerprint.is_empty() || request.host_traceability_fingerprint != host_traceability_fingerprint)
         {
-            return Err(Status::aborted(
-                "host traceability changed; restart pagination from the first page",
-            ));
+            return Err(Status::aborted("host traceability changed; restart pagination from the first page"));
         }
-        let response_limit = self
-            .resources
-            .max_message_bytes
-            .min(MAX_TRACEABILITY_RESPONSE_BYTES);
+        let response_limit = self.resources.max_message_bytes.min(MAX_TRACEABILITY_RESPONSE_BYTES);
         let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<
-            dokime_domain::model::observation::wire::TraceabilityPage,
-        >())?;
+        bounds.bytes(std::mem::size_of::<dokime_domain::model::observation::wire::TraceabilityPage>())?;
         bounds.text(&observed.epoch)?;
         bounds.text(&observed.stream)?;
         bounds.text(&host_traceability_fingerprint)?;
@@ -352,9 +265,7 @@ impl Operation for Traceability {
             bounds.bytes(super::history::traceability_memory(snapshot)?)?;
         }
         let next_after_traceability_id = if has_more {
-            let last = source
-                .last()
-                .ok_or_else(|| Status::internal("empty continued traceability page"))?;
+            let last = source.last().ok_or_else(|| Status::internal("empty continued traceability page"))?;
             bounds.text(last.traceability_id.as_str())?;
             last.traceability_id.to_string()
         } else {
@@ -373,29 +284,19 @@ impl Operation for Traceability {
             host_traceability_fingerprint,
         };
         if Protobuf::encoded_len(&response) > response_limit {
-            return Err(Status::resource_exhausted(
-                "traceability page exceeds response budget; lower limit and retry",
-            ));
+            return Err(Status::resource_exhausted("traceability page exceeds response budget; lower limit and retry"));
         }
         Ok((response).into())
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(
-    runtime: &RuntimeHandle,
-    max_message_bytes: usize,
-) -> Result<(), super::Error> {
-    runtime
-        .operations()
-        .register_wire_operations::<Operations, Resources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            Arc::new(Resources {
-                runtime: runtime.clone(),
-                max_message_bytes,
-            }),
-        )?;
+pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operations::<Operations, Resources>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+    )?;
     Ok(())
 }
 
@@ -408,9 +309,7 @@ fn stream_failure(error: harmos::Error) -> Status {
     }
 }
 
-fn operation_frames(
-    operations: &OperationSnapshot,
-) -> Result<Vec<dokime_domain::model::observation::wire::OperationProgress>, Status> {
+fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime_domain::model::observation::wire::OperationProgress>, Status> {
     operations
         .operations()
         .iter()
@@ -421,16 +320,10 @@ fn operation_frames(
                 value::text(phase)?;
             }
             let (status, finished_at, failure) = match &operation.outcome {
-                OperationOutcome::Running => (
-                    dokime_domain::model::observation::wire::OperationStatus::Running,
-                    None,
-                    None,
-                ),
-                OperationOutcome::Finished { at } => (
-                    dokime_domain::model::observation::wire::OperationStatus::Finished,
-                    Some(canonical::timestamp(at)?),
-                    None,
-                ),
+                OperationOutcome::Running => (dokime_domain::model::observation::wire::OperationStatus::Running, None, None),
+                OperationOutcome::Finished { at } => {
+                    (dokime_domain::model::observation::wire::OperationStatus::Finished, Some(canonical::timestamp(at)?), None)
+                }
                 OperationOutcome::Failed { at, failure } => (
                     dokime_domain::model::observation::wire::OperationStatus::Failed,
                     Some(canonical::timestamp(at)?),
@@ -452,11 +345,8 @@ fn operation_frames(
         .collect()
 }
 
-fn progress_memory(
-    value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
-) -> Result<usize, Status> {
-    let mut bytes =
-        std::mem::size_of::<dokime_domain::model::observation::wire::ExecutionProgressFrame>();
+fn progress_memory(value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>) -> Result<usize, Status> {
+    let mut bytes = std::mem::size_of::<dokime_domain::model::observation::wire::ExecutionProgressFrame>();
     if let Some(value) = value {
         value::text(value.test_execution_id.as_str())?;
         value::text(value.step.as_str())?;
@@ -470,33 +360,26 @@ fn progress_memory(
 }
 
 fn progress_frame(
-    revision: u64,
-    resynchronized: bool,
-    value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
+    revision: u64, resynchronized: bool, value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
 ) -> dokime_domain::model::observation::wire::ExecutionProgressFrame {
     dokime_domain::model::observation::wire::ExecutionProgressFrame {
         revision,
         resynchronized,
         // Exact Allocations: Display Formatting Overallocates Past The Reserved Bytes
-        progress: value.map(
-            |value| dokime_domain::model::observation::wire::ExecutionProgress {
-                test_execution_id: value.test_execution_id.as_str().to_owned(),
-                step_id: value.step.as_str().to_owned(),
-                phase: value.progress.phase.clone(),
-                completed: value.progress.completed,
-                total: value.progress.total,
-                elapsed_ms: value.progress.elapsed_ms,
-                remaining_ms: value.progress.remaining_ms,
-            },
-        ),
+        progress: value.map(|value| dokime_domain::model::observation::wire::ExecutionProgress {
+            test_execution_id: value.test_execution_id.as_str().to_owned(),
+            step_id: value.step.as_str().to_owned(),
+            phase: value.progress.phase.clone(),
+            completed: value.progress.completed,
+            total: value.progress.total,
+            elapsed_ms: value.progress.elapsed_ms,
+            remaining_ms: value.progress.remaining_ms,
+        }),
         cleared: value.is_none(),
     }
 }
 
-fn after_cycle_position(
-    state: &dokime_runtime::runtime::RuntimeState,
-    after: &str,
-) -> Result<usize, Status> {
+fn after_cycle_position(state: &dokime_runtime::runtime::RuntimeState, after: &str) -> Result<usize, Status> {
     if after.is_empty() {
         return Ok(0);
     }
@@ -508,9 +391,7 @@ fn after_cycle_position(
         .ok_or_else(|| Status::invalid_argument("after cycle ID not found"))
 }
 
-fn evidence_counts(
-    counts: &dokime_runtime::domains::evidence::EvidenceCounts,
-) -> dokime_domain::model::observation::wire::EvidenceCounts {
+fn evidence_counts(counts: &dokime_runtime::domains::evidence::EvidenceCounts) -> dokime_domain::model::observation::wire::EvidenceCounts {
     dokime_domain::model::observation::wire::EvidenceCounts {
         records: counts.records as u64,
         telemetry: counts.telemetry as u64,

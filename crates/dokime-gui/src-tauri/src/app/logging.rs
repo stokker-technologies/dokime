@@ -15,9 +15,7 @@
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 // Third Party Imports
-use tracing_subscriber::{
-    EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
-};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 // Local Imports
 
 /* === Constants === */
@@ -43,10 +41,7 @@ pub(crate) struct LoggingGuards {
 /* === Public Functions === */
 pub(crate) fn init(identifier: &str) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
-    let stderr_layer: BoxedLayer = fmt::layer()
-        .with_writer(stderr_writer)
-        .with_filter(env_filter())
-        .boxed();
+    let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
     let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
 
     let mut file_guard = None;
@@ -71,10 +66,7 @@ pub(crate) fn init(identifier: &str) -> LoggingGuards {
         tracing::info!(path = %path.display(), "dokime desktop shell log file");
     }
 
-    LoggingGuards {
-        _stderr: stderr_guard,
-        _file: file_guard,
-    }
+    LoggingGuards { _stderr: stderr_guard, _file: file_guard }
 }
 
 /* === Private Functions === */
@@ -99,26 +91,14 @@ fn app_log_dir(identifier: &str) -> Result<PathBuf, String> {
     {
         std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share"))
-            })
+            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
             .map(|dir| dir.join(identifier).join("logs"))
             .ok_or_else(|| "neither XDG_DATA_HOME nor HOME is set".to_owned())
     }
 }
 
-fn file_fmt_layer(
-    dir: &Path,
-) -> Result<
-    (
-        BoxedLayer,
-        tracing_appender::non_blocking::WorkerGuard,
-        PathBuf,
-    ),
-    String,
-> {
-    std::fs::create_dir_all(dir)
-        .map_err(|error| format!("failed to create log directory {}: {error}", dir.display()))?;
+fn file_fmt_layer(dir: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard, PathBuf), String> {
+    std::fs::create_dir_all(dir).map_err(|error| format!("failed to create log directory {}: {error}", dir.display()))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("dokime-gui")
@@ -127,31 +107,18 @@ fn file_fmt_layer(
         .build(dir)
         .map_err(|error| format!("failed to open a log file under {}: {error}", dir.display()))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);
-    let layer = fmt::layer()
-        .with_ansi(false)
-        .with_writer(writer)
-        .with_filter(env_filter())
-        .boxed();
-    Ok((
-        layer,
-        guard,
-        dir.join(format!("dokime-gui.{}.log", today())),
-    ))
+    let layer = fmt::layer().with_ansi(false).with_writer(writer).with_filter(env_filter()).boxed();
+    Ok((layer, guard, dir.join(format!("dokime-gui.{}.log", today()))))
 }
 
 fn today() -> String {
-    static DATE_FORMAT: std::sync::LazyLock<
-        Vec<time::format_description::BorrowedFormatItem<'static>>,
-    > = std::sync::LazyLock::new(|| {
+    static DATE_FORMAT: std::sync::LazyLock<Vec<time::format_description::BorrowedFormatItem<'static>>> = std::sync::LazyLock::new(|| {
         // Version 1: the same format-description syntax version `parse`
         // (deprecated) and `RollingFileAppender` itself use internally, so
         // this renders exactly the date its daily rotation names files with.
-        time::format_description::parse_borrowed::<1>("[year]-[month]-[day]")
-            .expect("static date format is valid")
+        time::format_description::parse_borrowed::<1>("[year]-[month]-[day]").expect("static date format is valid")
     });
-    time::OffsetDateTime::now_utc()
-        .format(&DATE_FORMAT)
-        .unwrap_or_else(|_| "unknown-date".to_owned())
+    time::OffsetDateTime::now_utc().format(&DATE_FORMAT).unwrap_or_else(|_| "unknown-date".to_owned())
 }
 
 /* === Tests === */

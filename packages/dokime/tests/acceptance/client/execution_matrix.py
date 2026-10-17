@@ -40,9 +40,7 @@ from dokime.client import DokimeClient, _wire
 async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
     client = DokimeClient(endpoint)
     try:
-        run_cycle = await client.new_cycle(
-            suite=contract["suite"], template=contract["template"]
-        )
+        run_cycle = await client.new_cycle(suite=contract["suite"], template=contract["template"])
         (control,) = run_cycle.executions
         run = await control.start(request_key=scenario["name"])
         await run.status()
@@ -76,22 +74,13 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         await progress_at(0)
         # Prompt admission does not certify that independent evidence readers
         # have reached the publisher. Follow each frontier to its first item.
-        async with aclosing(
-            run_cycle.records(record_types=[contract["record"]], until=run)
-        ) as events:
+        async with aclosing(run_cycle.records(record_types=[contract["record"]], until=run)) as events:
             await anext(events)
-        async with aclosing(
-            run_cycle.samples(streams=[contract["stream"]], page_size=1, until=run)
-        ) as samples:
+        async with aclosing(run_cycle.samples(streams=[contract["stream"]], page_size=1, until=run)) as samples:
             await anext(samples)
 
         live_records = [item async for item in run_cycle.records()]
-        live_rows = [
-            item
-            async for item in run_cycle.samples(
-                streams=[contract["stream"]], page_size=1
-            )
-        ]
+        live_rows = [item async for item in run_cycle.samples(streams=[contract["stream"]], page_size=1)]
         assert [row.values["value"] for row in live_rows] == [1]
         assert not (await run.status()).terminal
         ready = next(item for item in live_records if item.type == contract["record"])
@@ -107,41 +96,24 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         else:
             await run_cycle.respond(pending[0].id, action=scenario["action"])
         if scenario["action"] == "yes":
-            while not (
-                next_prompts := [
-                    item
-                    async for item in run_cycle.pending_prompts()
-                    if item.id != pending[0].id
-                ]
-            ):
+            while not (next_prompts := [item async for item in run_cycle.pending_prompts() if item.id != pending[0].id]):
                 assert not (await run.status()).terminal
                 await asyncio.sleep(0.01)
             await progress_at(1)
             await run_cycle.respond(next_prompts[0].id, action="yes")
         status = await run.wait(poll_interval=0.02)
         records = [item async for item in run_cycle.records()]
-        rows = [
-            item
-            async for item in run_cycle.samples(
-                streams=[contract["stream"]], page_size=1
-            )
-        ]
+        rows = [item async for item in run_cycle.samples(streams=[contract["stream"]], page_size=1)]
         summary = await run_cycle.result()
         cycle_document = await run_cycle.document()
-        inventory = await client._transport.unary(
-            "Content", "ListArtifacts", _wire.request("Content", "ListArtifacts")
-        )
-        artifact = next(
-            item for item in inventory.artifacts if item.filename.endswith("matrix.txt")
-        )
+        inventory = await client._transport.unary("Content", "ListArtifacts", _wire.request("Content", "ListArtifacts"))
+        artifact = next(item for item in inventory.artifacts if item.filename.endswith("matrix.txt"))
         assert artifact.scope.execution_id == status.last_execution_id
         assert _wire.enum_name(artifact.state) == "complete"
         download = await client._transport.stream(
             "Content",
             "DownloadArtifact",
-            _wire.request(
-                "Content", "DownloadArtifact", artifact_id=artifact.artifact_id
-            ),
+            _wire.request("Content", "DownloadArtifact", artifact_id=artifact.artifact_id),
         )
         data = bytearray()
         completed = False
@@ -162,9 +134,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         assert execution
         assert len({item.id for item in records}) == len(records)
         assert len({row.id for row in rows}) == len(rows)
-        assert [item.sequence for item in records] == sorted(
-            item.sequence for item in records
-        )
+        assert [item.sequence for item in records] == sorted(item.sequence for item in records)
         for item in [*authored, *rows]:
             assert item.scope["cycle_id"] == run.cycle_id
             assert item.scope["execution_id"] == execution
@@ -199,7 +169,5 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
 # === Entry Point === #
 if __name__ == "__main__":
     contract = json.loads(Path(sys.argv[2]).read_text())
-    scenario = next(
-        item for item in contract["scenarios"] if item["name"] == sys.argv[3]
-    )
+    scenario = next(item for item in contract["scenarios"] if item["name"] == sys.argv[3])
     asyncio.run(drive(sys.argv[1], contract, scenario))

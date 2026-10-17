@@ -58,18 +58,10 @@ fn shell(script: &str) -> Command {
 
 fn alive(pid: &str) -> bool {
     #[cfg(unix)]
-    let alive = Command::new("kill")
-        .args(["-0", pid])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .unwrap()
-        .success();
+    let alive = Command::new("kill").args(["-0", pid]).stderr(std::process::Stdio::null()).status().unwrap().success();
     #[cfg(windows)]
     let alive = {
-        let listed = Command::new("tasklist")
-            .args(["/FI", &format!("PID eq {pid}"), "/NH"])
-            .output()
-            .unwrap();
+        let listed = Command::new("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH"]).output().unwrap();
         String::from_utf8_lossy(&listed.stdout).contains(pid)
     };
     alive
@@ -86,9 +78,7 @@ async fn wait_gone(pid: &str) {
 #[cfg(unix)]
 #[tokio::test]
 async fn no_deadline_completion() {
-    let output = run(shell("printf complete"), "Cargo compilation", None, 32, 32)
-        .await
-        .unwrap();
+    let output = run(shell("printf complete"), "Cargo compilation", None, 32, 32).await.unwrap();
 
     assert_eq!(output.stdout, b"complete");
 }
@@ -96,9 +86,7 @@ async fn no_deadline_completion() {
 #[cfg(unix)]
 #[tokio::test]
 async fn status_output_bounded() {
-    let output = run(shell("printf good; printf note >&2"), "fixture", None, 4, 4)
-        .await
-        .unwrap();
+    let output = run(shell("printf good; printf note >&2"), "fixture", None, 4, 4).await.unwrap();
     assert_eq!(output.stdout, b"good");
     assert_eq!(output.stderr, b"note");
 
@@ -124,21 +112,11 @@ async fn timeout_kills_child() {
     let mut command = shell("echo $$ > \"$1\"; while :; do :; done");
     command.arg("fixture").arg(&pid);
 
-    let result = run(
-        command,
-        "catalog export",
-        Some(Duration::from_millis(250)),
-        32,
-        32,
-    )
-    .await;
+    let result = run(command, "catalog export", Some(Duration::from_millis(250)), 32, 32).await;
 
     assert!(matches!(result, Err(Error::Timeout(name)) if name == "catalog export"));
     let pid = std::fs::read_to_string(pid).unwrap();
-    assert!(
-        !alive(pid.trim()),
-        "timed-out direct child is still present"
-    );
+    assert!(!alive(pid.trim()), "timed-out direct child is still present");
 }
 
 // The cargo deadline must outlast the fake cargo starting its compiler
@@ -149,9 +127,7 @@ async fn deadline_stops_descendants() {
     let directory = tempfile::tempdir().unwrap();
     let pid = directory.path().join("descendant.pid");
     let executable = std::env::current_exe().unwrap();
-    let cargo = directory
-        .path()
-        .join(if cfg!(windows) { "cargo.cmd" } else { "cargo" });
+    let cargo = directory.path().join(if cfg!(windows) { "cargo.cmd" } else { "cargo" });
     let launcher = if cfg!(windows) {
         "@echo off\r\nset \"DOKIME_PROCESS_TEST_MODE=parent\"\r\n\"%DOKIME_PROCESS_TEST_EXE%\" --exact process::process_fixture_mode --nocapture\r\n"
     } else {
@@ -172,15 +148,7 @@ async fn deadline_stops_descendants() {
         .env("DOKIME_PROCESS_TEST_EXE", &executable)
         .env("DOKIME_PROCESS_TEST_PID", &pid)
         .env("CARGO", &cargo);
-    run(
-        command,
-        "packaging deadline fixture",
-        None,
-        64 * 1024,
-        64 * 1024,
-    )
-    .await
-    .unwrap();
+    run(command, "packaging deadline fixture", None, 64 * 1024, 64 * 1024).await.unwrap();
 
     // Descendant Gone
     let pid = std::fs::read_to_string(&pid).expect("descendant started");
@@ -200,9 +168,7 @@ async fn process_fixture_mode() {
                 ..Default::default()
             })
             .await;
-            assert!(
-                matches!(result, Err(Error::Timeout(operation)) if operation == "Resolving package metadata")
-            );
+            assert!(matches!(result, Err(Error::Timeout(operation)) if operation == "Resolving package metadata"));
         }
         "parent" => {
             let mut child = Command::new(std::env::current_exe().unwrap())

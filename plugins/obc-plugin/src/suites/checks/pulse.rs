@@ -140,8 +140,7 @@ pub enum ObserverStreams {
     parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
 impl Pulse {
     async fn initialize(
-        _: &PulseParameters,
-        _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
+        _: &PulseParameters, _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
         let shared = PulseResources::default();
@@ -183,30 +182,17 @@ impl Pulse {
     async fn stream(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         // The guard releases this hold on return, error, or cancellation. No
         // template-wide samples(...) declaration is needed for this window.
-        let _system = if ctx.parameters().capture_system {
-            Some(ctx.lease::<crate::observers::system::SystemRow>().await?)
-        } else {
-            None
-        };
+        let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
         let started = ctx.resources().produced.load(Ordering::Acquire);
-        while ctx
-            .resources()
-            .produced
-            .load(Ordering::Acquire)
-            .saturating_sub(started)
-            < wanted
-        {
+        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
             tokio::time::sleep(PROGRESS_POLL).await;
         }
 
         Ok(())
     }
 
-    #[dokime_runtime::step(
-        label = "Complete",
-        description = "The last phase: say what the run produced."
-    )]
+    #[dokime_runtime::step(label = "Complete", description = "The last phase: say what the run produced.")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let produced = ctx.resources().produced.load(Ordering::Acquire);
         ctx.publish(RunCompleted { samples: produced }).await;
@@ -216,25 +202,16 @@ impl Pulse {
 
     #[dokime_runtime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
     fn completed(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        if ctx.parameters().capture_system
-            && !ctx.gaps::<crate::observers::system::SystemRow>().is_empty()
-        {
+        if ctx.parameters().capture_system && !ctx.gaps::<crate::observers::system::SystemRow>().is_empty() {
             return Ok(false);
         }
         let samples = ctx.samples::<PulseRow>();
         let tolerance = ctx.parameters().tolerance;
         for (index, sample) in samples.iter().enumerate() {
             if !sample.value.is_finite() {
-                return Err(Error::Unmeasured {
-                    index,
-                    column: "value",
-                });
+                return Err(Error::Unmeasured { index, column: "value" });
             }
-            let sample_index =
-                u64::try_from(sample.sample_index).map_err(|_| Error::Unmeasured {
-                    index,
-                    column: "sample_index",
-                })?;
+            let sample_index = u64::try_from(sample.sample_index).map_err(|_| Error::Unmeasured { index, column: "sample_index" })?;
             if (sample.value - pulse_value(sample_index)).abs() > tolerance {
                 return Ok(false);
             }
@@ -246,11 +223,7 @@ impl Pulse {
     #[dokime_runtime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
     async fn pulse(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let index = ctx.resources().produced.fetch_add(1, Ordering::AcqRel);
-        ctx.publish(PulseRow {
-            sample_index: index as i64,
-            value: pulse_value(index),
-        })
-        .await;
+        ctx.publish(PulseRow { sample_index: index as i64, value: pulse_value(index) }).await;
 
         Ok(())
     }

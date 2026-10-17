@@ -33,10 +33,10 @@ use tempfile::TempPath;
 use tokio::sync::oneshot;
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use crate::runtime::storage::captures::SealRequest;
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
+use crate::runtime::storage::captures::SealRequest;
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
@@ -85,16 +85,8 @@ enum Command {
 
 /* === Implementations === */
 impl AudioRecording {
-    pub(super) async fn start(
-        runtime: RuntimeHandle,
-        scope: RecordScope,
-        filename: String,
-        input: Option<u32>,
-    ) -> Result<Self> {
-        let execution = scope
-            .test_execution_id
-            .clone()
-            .ok_or_else(|| Error::Operation("audio recording needs an execution".into()))?;
+    pub(super) async fn start(runtime: RuntimeHandle, scope: RecordScope, filename: String, input: Option<u32>) -> Result<Self> {
+        let execution = scope.test_execution_id.clone().ok_or_else(|| Error::Operation("audio recording needs an execution".into()))?;
         let file = tempfile::Builder::new()
             .prefix("dokime-audio-")
             .suffix(".wav")
@@ -113,9 +105,7 @@ impl AudioRecording {
             .spawn(move || device::record(&path, input, counter, ready, stopped))
             .map_err(|source| Error::Operation(format!("audio recording thread: {source}")))?;
         let recorder = Recorder { stop, thread };
-        let started = opened
-            .await
-            .unwrap_or_else(|_| Err(Error::Operation("audio recording thread exited".into())));
+        let started = opened.await.unwrap_or_else(|_| Err(Error::Operation("audio recording thread exited".into())));
         if let Err(source) = started {
             recorder.close().await?;
             return Err(source);
@@ -123,34 +113,15 @@ impl AudioRecording {
 
         // Supervise Until Finished, Discarded Or Sealed By The Execution
         let (seal_request, seal) = oneshot::channel();
-        let registration = runtime
-            .execution_storage
-            .captures
-            .register(&execution, seal_request as SealRequest);
+        let registration = runtime.execution_storage.captures.register(&execution, seal_request as SealRequest);
         let (command_sender, command) = oneshot::channel();
         let (outcome_sender, outcome) = oneshot::channel();
         tokio::spawn(
-            Supervisor {
-                runtime,
-                scope,
-                filename: filename.clone(),
-                recorder,
-                file,
-                command,
-                seal,
-                outcome: outcome_sender,
-                registration,
-            }
-            .run(),
+            Supervisor { runtime, scope, filename: filename.clone(), recorder, file, command, seal, outcome: outcome_sender, registration }
+                .run(),
         );
 
-        Ok(Self {
-            filename,
-            started: Instant::now(),
-            samples,
-            command: Some(command_sender),
-            outcome: Some(outcome),
-        })
+        Ok(Self { filename, started: Instant::now(), samples, command: Some(command_sender), outcome: Some(outcome) })
     }
 
     pub fn filename(&self) -> &str {
@@ -177,13 +148,8 @@ impl AudioRecording {
     // Resolves once the recording is sealed, by `finish` or by its execution
     // closing. Cancel-safe; it yields the outcome exactly once.
     pub async fn settled(&mut self) -> Result<ArtifactRecord> {
-        let outcome = self
-            .outcome
-            .as_mut()
-            .ok_or_else(|| Error::Operation("audio recording already settled".into()))?;
-        let settled = outcome
-            .await
-            .unwrap_or_else(|_| Err(Error::Operation("audio recording supervisor exited".into())));
+        let outcome = self.outcome.as_mut().ok_or_else(|| Error::Operation("audio recording already settled".into()))?;
+        let settled = outcome.await.unwrap_or_else(|_| Err(Error::Operation("audio recording supervisor exited".into())));
         self.outcome = None;
         self.command = None;
         settled
@@ -222,22 +188,12 @@ impl Supervisor {
                 message: "audio recording discarded".into(),
             })),
             Ok(()) => {
-                self.runtime
-                    .upload_artifact_file(
-                        self.scope.clone(),
-                        &self.file,
-                        self.filename.clone(),
-                        Some("audio/wav".into()),
-                    )
-                    .await
+                self.runtime.upload_artifact_file(self.scope.clone(), &self.file, self.filename.clone(), Some("audio/wav".into())).await
             }
         };
         drop(self.file);
         if let Some(execution) = &self.scope.test_execution_id {
-            self.runtime
-                .execution_storage
-                .captures
-                .release(execution, self.registration);
+            self.runtime.execution_storage.captures.release(execution, self.registration);
         }
         if let Err(source) = &outcome
             && finish
@@ -255,9 +211,7 @@ impl Recorder {
     async fn close(self) -> Result<()> {
         let _ = self.stop.send(());
         let thread = self.thread;
-        tokio::task::spawn_blocking(move || thread.join())
-            .await?
-            .map_err(|_| Error::Operation("audio recording thread panicked".into()))?
+        tokio::task::spawn_blocking(move || thread.join()).await?.map_err(|_| Error::Operation("audio recording thread panicked".into()))?
     }
 }
 
@@ -289,11 +243,7 @@ mod device {
 
     // Owns the device stream until stopped, then finalizes the WAV header.
     pub(super) fn record(
-        path: &Path,
-        input: Option<u32>,
-        samples: Arc<AtomicU64>,
-        ready: oneshot::Sender<Result<()>>,
-        stop: mpsc::Receiver<()>,
+        path: &Path, input: Option<u32>, samples: Arc<AtomicU64>, ready: oneshot::Sender<Result<()>>, stop: mpsc::Receiver<()>,
     ) -> Result<()> {
         let writer: Writer = Arc::new(Mutex::new(None));
         let failure: Failure = Arc::new(Mutex::new(None));
@@ -311,45 +261,29 @@ mod device {
         drop(stream);
 
         // Finalize The Header Over The Written Samples
-        let finished = writer
-            .lock()
-            .map_err(|_| Error::Operation("audio writer lock poisoned".into()))?
-            .take();
+        let finished = writer.lock().map_err(|_| Error::Operation("audio writer lock poisoned".into()))?.take();
         if let Some(finished) = finished {
-            finished
-                .finalize()
-                .map_err(|source| Error::Operation(format!("audio file finalization: {source}")))?;
+            finished.finalize().map_err(|source| Error::Operation(format!("audio file finalization: {source}")))?;
         }
-        let failed = failure
-            .lock()
-            .map_err(|_| Error::Operation("audio failure lock poisoned".into()))?
-            .take();
+        let failed = failure.lock().map_err(|_| Error::Operation("audio failure lock poisoned".into()))?.take();
         match failed {
             Some(message) => Err(unavailable(format!("audio recording failed: {message}"))),
             None => Ok(()),
         }
     }
 
-    fn open(
-        path: &Path,
-        input: Option<u32>,
-        writer: &Writer,
-        failure: &Failure,
-        samples: Arc<AtomicU64>,
-    ) -> Result<cpal::Stream> {
+    fn open(path: &Path, input: Option<u32>, writer: &Writer, failure: &Failure, samples: Arc<AtomicU64>) -> Result<cpal::Stream> {
         // Select The Input Device
         let host = cpal::default_host();
         let device = match input {
             None => host.default_input_device(),
-            Some(index) => host
-                .input_devices()
-                .map_err(|source| unavailable(format!("audio inputs are unavailable: {source}")))?
-                .nth(index as usize),
+            Some(index) => {
+                host.input_devices().map_err(|source| unavailable(format!("audio inputs are unavailable: {source}")))?.nth(index as usize)
+            }
         }
         .ok_or_else(|| unavailable("no audio input device is available"))?;
-        let supported = device
-            .default_input_config()
-            .map_err(|source| unavailable(format!("audio input configuration failed: {source}")))?;
+        let supported =
+            device.default_input_config().map_err(|source| unavailable(format!("audio input configuration failed: {source}")))?;
 
         // Create The WAV File
         let spec = hound::WavSpec {
@@ -358,11 +292,8 @@ mod device {
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,
         };
-        let created = hound::WavWriter::create(path, spec)
-            .map_err(|source| Error::Operation(format!("audio file creation: {source}")))?;
-        *writer
-            .lock()
-            .map_err(|_| Error::Operation("audio writer lock poisoned".into()))? = Some(created);
+        let created = hound::WavWriter::create(path, spec).map_err(|source| Error::Operation(format!("audio file creation: {source}")))?;
+        *writer.lock().map_err(|_| Error::Operation("audio writer lock poisoned".into()))? = Some(created);
 
         // Start The Stream In Its Native Sample Format
         let config = supported.config();
@@ -378,24 +309,14 @@ mod device {
             SampleFormat::U64 => build::<u64>(parts),
             SampleFormat::F32 => build::<f32>(parts),
             SampleFormat::F64 => build::<f64>(parts),
-            other => Err(unavailable(format!(
-                "unsupported audio sample format {other}"
-            ))),
+            other => Err(unavailable(format!("unsupported audio sample format {other}"))),
         }?;
-        stream
-            .play()
-            .map_err(|source| unavailable(format!("audio stream failed to start: {source}")))?;
+        stream.play().map_err(|source| unavailable(format!("audio stream failed to start: {source}")))?;
         Ok(stream)
     }
 
     fn build<T>(
-        (device, config, writer, failure, samples): (
-            cpal::Device,
-            cpal::StreamConfig,
-            Writer,
-            Failure,
-            Arc<AtomicU64>,
-        ),
+        (device, config, writer, failure, samples): (cpal::Device, cpal::StreamConfig, Writer, Failure, Arc<AtomicU64>),
     ) -> Result<cpal::Stream>
     where
         T: SizedSample,
@@ -446,11 +367,7 @@ mod device {
     use crate::runtime::Result;
 
     pub(super) fn record(
-        _path: &Path,
-        _input: Option<u32>,
-        _samples: Arc<AtomicU64>,
-        ready: oneshot::Sender<Result<()>>,
-        _stop: mpsc::Receiver<()>,
+        _path: &Path, _input: Option<u32>, _samples: Arc<AtomicU64>, ready: oneshot::Sender<Result<()>>, _stop: mpsc::Receiver<()>,
     ) -> Result<()> {
         let _ = ready.send(Err(super::super::not_compiled()));
         Ok(())

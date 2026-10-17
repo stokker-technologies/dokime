@@ -18,12 +18,12 @@ use std::sync::{Arc, Mutex};
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
-use dokime_domain::model;
 use super::*;
-use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
-use dokime_runtime::RecordScope;
+use dokime_domain::model;
 use dokime_domain::model::execution::result::CycleView;
+use dokime_runtime::RecordScope;
+use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
+use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
@@ -56,22 +56,14 @@ struct LargeArtifact;
 /* === Implementations === */
 impl ExecutionFixture for Artifacts {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a CycleView,
-        _target: &'a ExecutionProviderTarget,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             let execution = &cycle.test_executions[0];
-            for (name, size, cancelled) in [
-                ("full.bin", 150_000, false),
-                ("empty.bin", 0, false),
-                ("partial.bin", 8_000, true),
-                ("large.bin", 2 * 1024 * 1024, false),
-            ] {
-                let bytes = (0..size)
-                    .map(|index| (index % 251) as u8)
-                    .collect::<Vec<_>>();
+            for (name, size, cancelled) in
+                [("full.bin", 150_000, false), ("empty.bin", 0, false), ("partial.bin", 8_000, true), ("large.bin", 2 * 1024 * 1024, false)]
+            {
+                let bytes = (0..size).map(|index| (index % 251) as u8).collect::<Vec<_>>();
                 let upload = context
                     .begin_artifact_upload(ArtifactUploadInput {
                         scope: RecordScope::default()
@@ -88,12 +80,7 @@ impl ExecutionFixture for Artifacts {
                 for chunk in bytes.chunks(64 * 1024) {
                     upload.send(chunk).await.unwrap();
                 }
-                let record = if cancelled {
-                    upload.abandon().await
-                } else {
-                    upload.finish().await
-                }
-                .unwrap();
+                let record = if cancelled { upload.abandon().await } else { upload.finish().await }.unwrap();
                 self.records.lock().unwrap().push((record, bytes));
             }
             self.ready.notify_one();
@@ -105,10 +92,7 @@ impl ExecutionFixture for Artifacts {
 
 impl ExecutionFixture for UploadGate {
     fn run_cycle<'a>(
-        &'a self,
-        _context: ExecutionFixtureContext,
-        cycle: &'a CycleView,
-        _target: &'a ExecutionProviderTarget,
+        &'a self, _context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             self.started.notify_one();
@@ -120,10 +104,7 @@ impl ExecutionFixture for UploadGate {
 
 impl ExecutionFixture for LargeArtifact {
     fn run_cycle<'a>(
-        &'a self,
-        context: ExecutionFixtureContext,
-        cycle: &'a CycleView,
-        _target: &'a ExecutionProviderTarget,
+        &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             let execution = &cycle.test_executions[0];
@@ -172,10 +153,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let root = tempfile::tempdir().unwrap();
     let artifacts = Arc::new(Artifacts::default());
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(
-            root.path(),
-            support::metadata("grpc.content", "Content"),
-        ),
+        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content", "Content")),
         "fixture",
         artifacts.clone(),
     )
@@ -184,19 +162,11 @@ async fn artifact_transfer(message_bytes: usize) {
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     let server = Server::start(
         owner.handle(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap()
-            .with_max_message_bytes(message_bytes),
+        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(message_bytes),
     )
     .await
     .unwrap();
-    let stream = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .initial_stream_window_size(4096)
-        .connect()
-        .await
-        .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().initial_stream_window_size(4096).connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
@@ -214,31 +184,21 @@ async fn artifact_transfer(message_bytes: usize) {
     .await
     .unwrap();
     let reply = execution
-        .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycle {
-                cycle_id: cycle_id.clone(),
-                context: None,
-                idempotency_key: None,
-            },
-        ))
+        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
         .await
         .unwrap()
         .into_inner();
-    assert!(matches!(
-        reply.outcome,
-        Some(model::execution::wire::RunReplyOutcome::Accepted(_))
-    ));
+    assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
     artifacts.ready.notified().await;
     let records = artifacts.records.lock().unwrap().clone();
     assert_eq!(records.len(), 4);
     let content = WireClient::new(stream).max_decoding_message_size(message_bytes);
     let first_page = content
-        .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifacts {
-                limit: 2,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::content::ListArtifacts>(authenticated(contracts::content::ListArtifacts { limit: 2, ..Default::default() }))
         .await
         .unwrap()
         .into_inner();
@@ -246,13 +206,11 @@ async fn artifact_transfer(message_bytes: usize) {
     let next_after = first_page.next_after_artifact_id.clone().unwrap();
     let cursor = first_page.cursor.clone().unwrap();
     let second_page = content
-        .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifacts {
-                limit: 2,
-                after_artifact_id: next_after,
-                cursor: Some(cursor.clone()),
-            },
-        ))
+        .unary::<contracts::content::ListArtifacts>(authenticated(contracts::content::ListArtifacts {
+            limit: 2,
+            after_artifact_id: next_after,
+            cursor: Some(cursor.clone()),
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -262,13 +220,11 @@ async fn artifact_transfer(message_bytes: usize) {
     invalid_cursor.metadata_sha256[0] ^= 1;
     assert_eq!(
         content
-            .unary::<contracts::content::ListArtifacts>(authenticated(
-                contracts::content::ListArtifacts {
-                    limit: 2,
-                    after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
-                    cursor: Some(invalid_cursor),
-                }
-            ))
+            .unary::<contracts::content::ListArtifacts>(authenticated(contracts::content::ListArtifacts {
+                limit: 2,
+                after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
+                cursor: Some(invalid_cursor),
+            }))
             .await
             .unwrap_err()
             .code(),
@@ -277,11 +233,7 @@ async fn artifact_transfer(message_bytes: usize) {
     let first_id = records[0].0.artifact_id.to_string();
     assert_eq!(
         content
-            .download::<contracts::content::DownloadArtifact>(
-                contracts::content::DownloadArtifact {
-                    artifact_id: first_id.clone()
-                }
-            )
+            .download::<contracts::content::DownloadArtifact>(contracts::content::DownloadArtifact { artifact_id: first_id.clone() })
             .await
             .unwrap_err()
             .code(),
@@ -289,11 +241,9 @@ async fn artifact_transfer(message_bytes: usize) {
     );
     assert_eq!(
         content
-            .download::<contracts::content::DownloadArtifact>(authenticated(
-                contracts::content::DownloadArtifact {
-                    artifact_id: "../file".into()
-                }
-            ))
+            .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
+                artifact_id: "../file".into()
+            }))
             .await
             .unwrap()
             .into_inner()
@@ -305,11 +255,9 @@ async fn artifact_transfer(message_bytes: usize) {
     );
     assert_eq!(
         content
-            .download::<contracts::content::DownloadArtifact>(authenticated(
-                contracts::content::DownloadArtifact {
-                    artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::ArtifactId>().to_string(),
-                }
-            ))
+            .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
+                artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::ArtifactId>().to_string(),
+            }))
             .await
             .unwrap()
             .into_inner()
@@ -322,28 +270,18 @@ async fn artifact_transfer(message_bytes: usize) {
 
     if message_bytes >= 1024 * 1024 {
         // Shared Native Verification And Publication
-        let native = dokime_client::Client::connect(
-            dokime_client::Target::local(server.local_endpoint()).unwrap(),
-            Some(TOKEN),
-            None,
-        )
-        .await
-        .unwrap();
-        let destination = root.path().join("verified.bin");
-        let request = contracts::content::DownloadArtifact {
-            artifact_id: first_id.clone(),
-        };
-        let verified = native
-            .download_artifact(request.clone(), destination.clone())
+        let native = dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
             .await
             .unwrap();
+        let destination = root.path().join("verified.bin");
+        let request = contracts::content::DownloadArtifact { artifact_id: first_id.clone() };
+        let verified = native.download_artifact(request.clone(), destination.clone()).await.unwrap();
         assert_eq!(verified.metadata.artifact_id, first_id);
         assert_eq!(std::fs::read(&destination).unwrap(), records[0].1);
         assert_eq!(verified.size_bytes, records[0].1.len() as u64);
         assert!(!root.path().join("verified.bin.part").exists());
         // Invoke The Live Catalog's Streaming Operation.
-        let request_json =
-            serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
+        let request_json = serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
         let dynamic = native
             .call_operation(
                 <contracts::content::DownloadArtifact as harmos::operations::OperationDeclaration>::ID,
@@ -364,19 +302,13 @@ async fn artifact_transfer(message_bytes: usize) {
                         item_count += 1;
                     }
                     dokime_client::dynamic::Event::Completion(_) => {
-                        assert!(
-                            item_count >= 3,
-                            "metadata, content and artifact completion precede operation completion"
-                        );
+                        assert!(item_count >= 3, "metadata, content and artifact completion precede operation completion");
                         completed = true;
                     }
                 }
             }
         }
-        assert!(
-            completed,
-            "dynamic stream must report completion after final OK status"
-        );
+        assert!(completed, "dynamic stream must report completion after final OK status");
         dynamic.close().await;
 
         artifacts.release.notify_one();
@@ -405,29 +337,19 @@ async fn artifact_transfer(message_bytes: usize) {
 
         let directory = root.path().join("publication-directory");
         std::fs::create_dir(&directory).unwrap();
-        assert!(matches!(
-            native.download_artifact(request.clone(), directory).await,
-            Err(dokime_client::DownloadError::Publication(_))
-        ));
+        assert!(matches!(native.download_artifact(request.clone(), directory).await, Err(dokime_client::DownloadError::Publication(_))));
         assert!(root.path().join("publication-directory.part").exists());
 
         let partial = root.path().join("verified.bin.part");
         std::fs::write(&partial, b"another owner").unwrap();
-        assert!(matches!(
-            native.download_artifact(request, destination).await,
-            Err(dokime_client::DownloadError::Io(_))
-        ));
+        assert!(matches!(native.download_artifact(request, destination).await, Err(dokime_client::DownloadError::Io(_))));
         assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
         native.close_and_wait().await;
     } else {
-        let failure = dokime_client::Client::connect(
-            dokime_client::Target::local(server.local_endpoint()).unwrap(),
-            Some(TOKEN),
-            None,
-        )
-        .await
-        .err()
-        .expect("the full availability inventory exceeds the small message budget");
+        let failure = dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
+            .await
+            .err()
+            .expect("the full availability inventory exceeds the small message budget");
         assert!(matches!(
             failure,
             dokime_client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
@@ -445,25 +367,16 @@ async fn artifact_transfer(message_bytes: usize) {
         for (record, expected) in records.iter().take(3) {
             let id = record.artifact_id.to_string();
             let mut stream = content
-                .download::<contracts::content::DownloadArtifact>(authenticated(
-                    contracts::content::DownloadArtifact { artifact_id: id },
-                ))
+                .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact { artifact_id: id }))
                 .await
                 .unwrap()
                 .into_inner();
-            let Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) =
-                stream.message().await.unwrap().unwrap().payload
+            let Some(model::content::wire::ArtifactFramePayload::Metadata(metadata)) = stream.message().await.unwrap().unwrap().payload
             else {
                 panic!("an artifact download opens with its metadata");
             };
             assert_eq!(metadata.size_bytes, expected.len() as u64);
-            assert_eq!(
-                metadata.sha256,
-                Sha256::digest(expected)
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>()
-            );
+            assert_eq!(metadata.sha256, Sha256::digest(expected).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
             assert_eq!(
                 metadata.state,
                 if record.filename == "partial.bin" {
@@ -485,13 +398,7 @@ async fn artifact_transfer(message_bytes: usize) {
                     }
                     model::content::wire::ArtifactFramePayload::Complete(done) => {
                         assert_eq!(done.size_bytes, expected.len() as u64);
-                        assert_eq!(
-                            done.sha256,
-                            Sha256::digest(&actual)
-                                .iter()
-                                .map(|byte| format!("{byte:02x}"))
-                                .collect::<String>()
-                        );
+                        assert_eq!(done.sha256, Sha256::digest(&actual).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
                         complete = true;
                     }
                     _ => panic!("duplicate metadata"),
@@ -502,18 +409,13 @@ async fn artifact_transfer(message_bytes: usize) {
         }
     }
     let mut stalled = content
-        .download::<contracts::content::DownloadArtifact>(authenticated(
-            contracts::content::DownloadArtifact {
-                artifact_id: records[3].0.artifact_id.to_string(),
-            },
-        ))
+        .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
+            artifact_id: records[3].0.artifact_id.to_string(),
+        }))
         .await
         .unwrap()
         .into_inner();
-    assert!(matches!(
-        stalled.message().await.unwrap().unwrap().payload,
-        Some(model::content::wire::ArtifactFramePayload::Metadata(_))
-    ));
+    assert!(matches!(stalled.message().await.unwrap().unwrap().payload, Some(model::content::wire::ArtifactFramePayload::Metadata(_))));
     // The server grants existing connections a five-second graceful drain,
     // then disconnects a stalled peer.
     server.shutdown().await.unwrap();
@@ -522,27 +424,16 @@ async fn artifact_transfer(message_bytes: usize) {
             match stalled.message().await {
                 Err(_) => return true,
                 Ok(None) => return false,
-                Ok(Some(frame)) => assert!(!matches!(
-                    frame.payload,
-                    Some(model::content::wire::ArtifactFramePayload::Complete(_))
-                )),
+                Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(model::content::wire::ArtifactFramePayload::Complete(_)))),
             }
         }
     }
     .await;
-    assert!(
-        interrupted,
-        "shutdown must not report a truncated transfer as successful"
-    );
+    assert!(interrupted, "shutdown must not report a truncated transfer as successful");
     drop(stalled);
     drop(content);
     drop(execution);
-    let mut reader = owner
-        .handle()
-        .open_artifact_stream(&records[0].0.artifact_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let mut reader = owner.handle().open_artifact_stream(&records[0].0.artifact_id).await.unwrap().unwrap();
     assert_eq!(reader.record().sha256, records[0].0.sha256);
     assert!(reader.read(&mut [0; 16]).await.unwrap() > 0);
     drop(reader);
@@ -554,10 +445,7 @@ async fn artifact_upload_owned() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(
-            root.path(),
-            support::metadata("grpc.content.upload", "Content"),
-        ),
+        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.upload", "Content")),
         "fixture",
         gate.clone(),
     )
@@ -576,11 +464,7 @@ async fn artifact_upload_owned() {
     )
     .await
     .unwrap();
-    let stream = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
@@ -598,24 +482,20 @@ async fn artifact_upload_owned() {
     .await
     .unwrap();
     execution
-        .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycle {
-                cycle_id: cycle_id.clone(),
-                context: None,
-                idempotency_key: None,
-            },
-        ))
+        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
     let execution_id = execution
-        .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutions {
-                cycle_id: cycle_id.clone(),
-                limit: 100,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            limit: 100,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner()
@@ -628,34 +508,25 @@ async fn artifact_upload_owned() {
         execution_id: Some(execution_id.clone()),
     };
     let bytes = b"native artifact upload".to_vec();
-    let digest = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     // Upload frames stay small; listings are paged to the larger server budget.
-    let content = WireClient::new(stream)
-        .max_decoding_message_size(1024 * 1024)
-        .max_encoding_message_size(4096);
+    let content = WireClient::new(stream).max_decoding_message_size(1024 * 1024).max_encoding_message_size(4096);
     let uploaded = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope()),
-                        filename: "native.bin".into(),
-                        content_type: Some("application/octet-stream".into()),
-                        size_bytes: bytes.len() as u64,
-                        sha256: Some(digest.clone()),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope()),
+                    filename: "native.bin".into(),
+                    content_type: Some("application/octet-stream".into()),
+                    size_bytes: bytes.len() as u64,
+                    sha256: Some(digest.clone()),
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: bytes.clone(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: bytes.clone(),
+                })),
             },
         ])))
         .await
@@ -669,50 +540,36 @@ async fn artifact_upload_owned() {
     let upload_named = |filename: &str| {
         tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope()),
-                        filename: filename.into(),
-                        content_type: Some("text/plain".into()),
-                        size_bytes: 5,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope()),
+                    filename: filename.into(),
+                    content_type: Some("text/plain".into()),
+                    size_bytes: 5,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: b"notes".to_vec(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: b"notes".to_vec(),
+                })),
             },
         ])
     };
     let foldered = content
-        .upload::<contracts::content::UploadArtifact>(authenticated(upload_named(
-            "upload/operator-notes.txt",
-        )))
+        .upload::<contracts::content::UploadArtifact>(authenticated(upload_named("upload/operator-notes.txt")))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(foldered.filename, "upload/operator-notes.txt");
     assert_eq!(foldered.state, model::content::wire::ArtifactState::Complete);
     for escaping in ["../escape.txt", "/absolute.txt", "upload//empty.txt"] {
-        let refused = content
-            .upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping)))
-            .await
-            .unwrap_err();
+        let refused = content.upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping))).await.unwrap_err();
         assert_eq!(refused.code(), Code::InvalidArgument, "{escaping}");
     }
 
-    let native = dokime_client::Client::connect(
-        dokime_client::Target::local(server.local_endpoint()).unwrap(),
-        Some(TOKEN),
-        None,
-    )
-    .await
-    .unwrap();
+    let native =
+        dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     let source = root.path().join("native-upload.bin");
     std::fs::write(&source, &bytes).unwrap();
     let uploaded = native
@@ -736,23 +593,19 @@ async fn artifact_upload_owned() {
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope()),
-                        filename: "bad-offset.bin".into(),
-                        content_type: None,
-                        size_bytes: 3,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope()),
+                    filename: "bad-offset.bin".into(),
+                    content_type: None,
+                    size_bytes: 3,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 1,
-                        data: b"bad".to_vec(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 1,
+                    data: b"bad".to_vec(),
+                })),
             },
         ])))
         .await
@@ -774,23 +627,19 @@ async fn artifact_upload_owned() {
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope()),
-                        filename: "bad-size.bin".into(),
-                        content_type: None,
-                        size_bytes: 4,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope()),
+                    filename: "bad-size.bin".into(),
+                    content_type: None,
+                    size_bytes: 4,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: b"bad".to_vec(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: b"bad".to_vec(),
+                })),
             },
         ])))
         .await
@@ -812,23 +661,19 @@ async fn artifact_upload_owned() {
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope()),
-                        filename: "bad-digest.bin".into(),
-                        content_type: None,
-                        size_bytes: 3,
-                        sha256: Some("0".repeat(64)),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope()),
+                    filename: "bad-digest.bin".into(),
+                    content_type: None,
+                    size_bytes: 3,
+                    sha256: Some("0".repeat(64)),
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: b"bad".to_vec(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: b"bad".to_vec(),
+                })),
             },
         ])))
         .await
@@ -848,30 +693,19 @@ async fn artifact_upload_owned() {
     );
 
     let listed = content
-        .unary::<contracts::content::ListArtifacts>(authenticated(
-            contracts::content::ListArtifacts::default(),
-        ))
+        .unary::<contracts::content::ListArtifacts>(authenticated(contracts::content::ListArtifacts::default()))
         .await
         .unwrap()
         .into_inner()
         .artifacts;
     for (filename, state) in [
         ("native.bin", model::content::wire::ArtifactState::Complete),
-        (
-            "bad-offset.bin",
-            model::content::wire::ArtifactState::Cancelled,
-        ),
+        ("bad-offset.bin", model::content::wire::ArtifactState::Cancelled),
         ("bad-size.bin", model::content::wire::ArtifactState::Rejected),
-        (
-            "bad-digest.bin",
-            model::content::wire::ArtifactState::Rejected,
-        ),
+        ("bad-digest.bin", model::content::wire::ArtifactState::Rejected),
     ] {
         assert_eq!(
-            listed
-                .iter()
-                .find(|artifact| artifact.filename == filename)
-                .map(|artifact| artifact.state),
+            listed.iter().find(|artifact| artifact.filename == filename).map(|artifact| artifact.state),
             Some(state),
             "list must preserve {filename} state",
         );
@@ -880,11 +714,7 @@ async fn artifact_upload_owned() {
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
-            .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycle {
-                    cycle_id: cycle_id.clone(),
-                },
-            ))
+            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
             .await
             .unwrap()
             .into_inner();
@@ -898,43 +728,23 @@ async fn artifact_upload_owned() {
     owner.shutdown().await.unwrap();
 }
 
-async fn completion_harness() -> (
-    tempfile::TempDir,
-    Runtime,
-    Server,
-    WireClient,
-    WireClient,
-    Arc<UploadGate>,
-    String,
-    model::content::wire::ArtifactScope,
-) {
+async fn completion_harness()
+-> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(
-            root.path(),
-            support::metadata("grpc.content.completion", "Content"),
-        ),
+        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content")),
         "fixture",
         gate.clone(),
     )
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap()
-            .with_max_message_bytes(4096),
-    )
-    .await
-    .unwrap();
-    let stream = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let server =
+        Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(4096))
+            .await
+            .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
@@ -952,79 +762,48 @@ async fn completion_harness() -> (
     .await
     .unwrap();
     execution
-        .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycle {
-                cycle_id: cycle_id.clone(),
-                context: None,
-                idempotency_key: None,
-            },
-        ))
+        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
         .await
         .unwrap();
     gate.started.notified().await;
     let execution_id = execution
-        .unary::<contracts::execution::ListExecutions>(authenticated(
-            contracts::execution::ListExecutions {
-                cycle_id: cycle_id.clone(),
-                limit: 100,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
+            cycle_id: cycle_id.clone(),
+            limit: 100,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner()
         .executions
         .remove(0)
         .execution_id;
-    let scope = model::content::wire::ArtifactScope {
-        cycle_id: Some(cycle_id.clone()),
-        case_id: None,
-        execution_id: Some(execution_id),
-    };
-    let content = WireClient::new(stream)
-        .max_decoding_message_size(4096)
-        .max_encoding_message_size(4096);
-    (
-        root, owner, server, execution, content, gate, cycle_id, scope,
-    )
+    let scope = model::content::wire::ArtifactScope { cycle_id: Some(cycle_id.clone()), case_id: None, execution_id: Some(execution_id) };
+    let content = WireClient::new(stream).max_decoding_message_size(4096).max_encoding_message_size(4096);
+    (root, owner, server, execution, content, gate, cycle_id, scope)
 }
 
 /// Wait on the live state the settled-evidence refusal reads, not on a sibling source.
 async fn wait_for_watched_lifecycle(
-    owner: &Runtime,
-    cycle: &dokime_runtime::TestCycleId,
-    lifecycle: dokime_domain::model::execution::result::CycleStatus,
+    owner: &Runtime, cycle: &dokime_runtime::TestCycleId, lifecycle: dokime_domain::model::execution::result::CycleStatus,
 ) {
     owner
         .handle()
         .watch_state()
-        .wait_until(|snapshot| {
-            snapshot
-                .state()
-                .cycles
-                .get(cycle)
-                .map(|cycle| cycle.lifecycle)
-                == Some(lifecycle)
-        })
+        .wait_until(|snapshot| snapshot.state().cycles.get(cycle).map(|cycle| cycle.lifecycle) == Some(lifecycle))
         .await
         .expect("the runtime state watch stays open");
 }
 
-async fn finish_completion_harness(
-    execution: WireClient,
-    cycle_id: String,
-    gate: Arc<UploadGate>,
-    mut owner: Runtime,
-    server: Server,
-) {
+async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate: Arc<UploadGate>, mut owner: Runtime, server: Server) {
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
-            .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycle {
-                    cycle_id: cycle_id.clone(),
-                },
-            ))
+            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
             .await
             .unwrap()
             .into_inner();
@@ -1040,41 +819,31 @@ async fn finish_completion_harness(
 
 #[tokio::test]
 async fn artifact_upload_digest() {
-    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
-        completion_harness().await;
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) = completion_harness().await;
     let bytes = b"trailing completion digest upload".to_vec();
-    let digest = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let uploaded = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope.clone()),
-                        filename: "trailing.bin".into(),
-                        content_type: Some("application/octet-stream".into()),
-                        size_bytes: bytes.len() as u64,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope.clone()),
+                    filename: "trailing.bin".into(),
+                    content_type: Some("application/octet-stream".into()),
+                    size_bytes: bytes.len() as u64,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: bytes.clone(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: bytes.clone(),
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
-                    model::content::wire::ArtifactCompletion {
-                        size_bytes: bytes.len() as u64,
-                        sha256: digest.clone(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(model::content::wire::ArtifactCompletion {
+                    size_bytes: bytes.len() as u64,
+                    sha256: digest.clone(),
+                })),
             },
         ])))
         .await
@@ -1088,41 +857,31 @@ async fn artifact_upload_digest() {
 
 #[tokio::test]
 async fn artifact_upload_match() {
-    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
-        completion_harness().await;
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) = completion_harness().await;
     let bytes = b"mismatched trailing digest upload".to_vec();
-    let wrong_digest = Sha256::digest(b"not the uploaded bytes")
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let wrong_digest = Sha256::digest(b"not the uploaded bytes").iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope.clone()),
-                        filename: "mismatched.bin".into(),
-                        content_type: None,
-                        size_bytes: bytes.len() as u64,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope.clone()),
+                    filename: "mismatched.bin".into(),
+                    content_type: None,
+                    size_bytes: bytes.len() as u64,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: bytes.clone(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: bytes.clone(),
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
-                    model::content::wire::ArtifactCompletion {
-                        size_bytes: bytes.len() as u64,
-                        sha256: wrong_digest,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(model::content::wire::ArtifactCompletion {
+                    size_bytes: bytes.len() as u64,
+                    sha256: wrong_digest,
+                })),
             },
         ])))
         .await
@@ -1145,49 +904,37 @@ async fn artifact_upload_match() {
 
 #[tokio::test]
 async fn artifact_upload_completion() {
-    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
-        completion_harness().await;
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) = completion_harness().await;
     let bytes = b"frame after completion".to_vec();
-    let digest = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let error = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(
-                    model::content::wire::UploadArtifactHeader {
-                        scope: Some(scope.clone()),
-                        filename: "trailing-extra.bin".into(),
-                        content_type: None,
-                        size_bytes: bytes.len() as u64,
-                        sha256: None,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Header(model::content::wire::UploadArtifactHeader {
+                    scope: Some(scope.clone()),
+                    filename: "trailing-extra.bin".into(),
+                    content_type: None,
+                    size_bytes: bytes.len() as u64,
+                    sha256: None,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: 0,
-                        data: bytes.clone(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: 0,
+                    data: bytes.clone(),
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(
-                    model::content::wire::ArtifactCompletion {
-                        size_bytes: bytes.len() as u64,
-                        sha256: digest,
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Complete(model::content::wire::ArtifactCompletion {
+                    size_bytes: bytes.len() as u64,
+                    sha256: digest,
+                })),
             },
             model::content::wire::UploadArtifactFrame {
-                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(
-                    model::content::wire::ArtifactChunk {
-                        offset: bytes.len() as u64,
-                        data: b"x".to_vec(),
-                    },
-                )),
+                payload: Some(model::content::wire::UploadArtifactFramePayload::Chunk(model::content::wire::ArtifactChunk {
+                    offset: bytes.len() as u64,
+                    data: b"x".to_vec(),
+                })),
             },
         ])))
         .await
@@ -1198,13 +945,9 @@ async fn artifact_upload_completion() {
 
 #[tokio::test]
 async fn open_report_states() {
-    let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) =
-        completion_harness().await;
+    let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) = completion_harness().await;
     let cycle = dokime_runtime::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
-    let execution_id = scope
-        .execution_id
-        .clone()
-        .expect("captured execution scope");
+    let execution_id = scope.execution_id.clone().expect("captured execution scope");
     wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Running).await;
 
     // Running: Both Reports Are Rendered From The Current Evidence
@@ -1215,69 +958,46 @@ async fn open_report_states() {
     let (metadata, html) = execution_report(&execution, &execution_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Current);
     assert_eq!(metadata.test_cycle_id, cycle_id);
-    assert_eq!(
-        metadata.test_execution_id.as_deref(),
-        Some(execution_id.as_str())
-    );
+    assert_eq!(metadata.test_execution_id.as_deref(), Some(execution_id.as_str()));
     assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
 
     // Terminal: Both Reports Are The Sealed Bytes, Unchanged Across Reads
     gate.release.notify_one();
-    wait_for_watched_lifecycle(
-        &owner,
-        &cycle,
-        dokime_domain::model::execution::result::CycleStatus::Completed,
-    )
-    .await;
+    wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Completed).await;
     let (metadata, first) = cycle_report(&execution, &cycle_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     let (_, second) = cycle_report(&execution, &cycle_id).await;
-    assert_eq!(
-        first, second,
-        "a sealed cycle report must read back unchanged"
-    );
+    assert_eq!(first, second, "a sealed cycle report must read back unchanged");
     let (metadata, _) = execution_report(&execution, &execution_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
-async fn cycle_report(
-    client: &WireClient,
-    cycle_id: &str,
-) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
+async fn cycle_report(client: &WireClient, cycle_id: &str) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let stream = client
-        .download::<contracts::reports::DownloadCycleReport>(authenticated(
-            contracts::reports::DownloadCycleReport {
-                cycle_id: cycle_id.to_owned(),
-                identifier: String::new(),
-            },
-        ))
+        .download::<contracts::reports::DownloadCycleReport>(authenticated(contracts::reports::DownloadCycleReport {
+            cycle_id: cycle_id.to_owned(),
+            identifier: String::new(),
+        }))
         .await
         .unwrap()
         .into_inner();
     report_frames(stream).await
 }
 
-async fn execution_report(
-    client: &WireClient,
-    execution_id: &str,
-) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
+async fn execution_report(client: &WireClient, execution_id: &str) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let stream = client
-        .download::<contracts::reports::DownloadExecutionReport>(authenticated(
-            contracts::reports::DownloadExecutionReport {
-                execution_id: execution_id.to_owned(),
-            },
-        ))
+        .download::<contracts::reports::DownloadExecutionReport>(authenticated(contracts::reports::DownloadExecutionReport {
+            execution_id: execution_id.to_owned(),
+        }))
         .await
         .unwrap()
         .into_inner();
     report_frames(stream).await
 }
 
-async fn report_frames(
-    mut stream: WireStream<model::reports::wire::ReportHtmlFrame>,
-) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
+async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFrame>) -> (model::reports::wire::ReportMetadata, Vec<u8>) {
     let mut metadata = None;
     let mut html = Vec::new();
     let mut complete = false;
@@ -1303,34 +1023,15 @@ async fn report_frames(
 #[tokio::test]
 async fn large_artifact_buffering() {
     if std::env::var_os("RUST_LOG").is_some() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .with_test_writer()
-            .try_init();
+        let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).with_test_writer().try_init();
     }
     // Stream 300 MiB through the existing native file contract.
     let root = tempfile::tempdir().unwrap();
-    let config = crate::support::budgets::runtime_config(
-        root.path(),
-        support::metadata("grpc.content.bundle", "Content"),
-    );
-    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact))
-        .await
-        .unwrap();
+    let config = crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.bundle", "Content"));
+    let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).await.unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
-    let stream = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
         &execution,
@@ -1348,22 +1049,16 @@ async fn large_artifact_buffering() {
     .await
     .unwrap();
     execution
-        .unary::<contracts::execution::RunCycle>(authenticated(
-            contracts::execution::RunCycle {
-                cycle_id: cycle_id.clone(),
-                context: None,
-                idempotency_key: None,
-            },
-        ))
+        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
         .await
         .unwrap();
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
-            .unary::<contracts::execution::GetCycle>(authenticated(
-                contracts::execution::GetCycle {
-                    cycle_id: cycle_id.clone(),
-                },
-            ))
+            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
             .await
             .unwrap()
             .into_inner();
@@ -1373,16 +1068,11 @@ async fn large_artifact_buffering() {
     .await;
     let content = WireClient::new(stream);
     let artifacts = owner.handle().artifacts().await.unwrap();
-    let artifact = artifacts
-        .iter()
-        .find(|artifact| artifact.filename == "large.bin")
-        .unwrap();
+    let artifact = artifacts.iter().find(|artifact| artifact.filename == "large.bin").unwrap();
     let mut download = content
-        .download::<contracts::content::DownloadArtifact>(authenticated(
-            contracts::content::DownloadArtifact {
-                artifact_id: artifact.artifact_id.to_string(),
-            },
-        ))
+        .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
+            artifact_id: artifact.artifact_id.to_string(),
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -1394,11 +1084,7 @@ async fn large_artifact_buffering() {
     let mut downloaded = 0_u64;
     let mut digest = Sha256::new();
     let completion = loop {
-        let frame = download
-            .message()
-            .await
-            .unwrap()
-            .expect("artifact completion");
+        let frame = download.message().await.unwrap().expect("artifact completion");
         match frame.payload.unwrap() {
             model::content::wire::ArtifactFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, downloaded);
@@ -1413,14 +1099,7 @@ async fn large_artifact_buffering() {
         }
     };
     assert_eq!(completion.size_bytes, downloaded);
-    assert_eq!(
-        completion.sha256,
-        digest
-            .finalize()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    );
+    assert_eq!(completion.sha256, digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     assert_eq!(metadata.size_bytes, downloaded);
     assert_eq!(metadata.sha256, completion.sha256);
     assert!(download.message().await.unwrap().is_none());

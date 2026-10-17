@@ -86,8 +86,7 @@ class SubmissionUncertain(DokimeError):
 
     def __init__(self, cycle_id: str, request_key: str) -> None:
         super().__init__(
-            f"Run admission was not confirmed for cycle {cycle_id}. "
-            "Resolve it with Cycle.run using this cycle_id and request_key."
+            f"Run admission was not confirmed for cycle {cycle_id}. Resolve it with Cycle.run using this cycle_id and request_key."
         )
         self.cycle_id = cycle_id
         self.request_key = request_key

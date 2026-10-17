@@ -70,17 +70,8 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         None => arguments.identifier(arguments::type_name(&suite)?)?,
     };
     let label = arguments.required("label", "an operator reads the suite by its label")?;
-    let metadata = arguments::metadata(
-        &identifier,
-        label,
-        arguments.value("description"),
-        &block.attrs,
-    );
-    let tags = arguments
-        .value("tags")
-        .map(arguments::elements)
-        .transpose()?
-        .unwrap_or_default();
+    let metadata = arguments::metadata(&identifier, label, arguments.value("description"), &block.attrs);
+    let tags = arguments.value("tags").map(arguments::elements).transpose()?.unwrap_or_default();
     let tags = quote!(::std::vec![#(::std::string::ToString::to_string(#tags)),*]);
 
     let templates = crate::catalog::argument(&arguments, "templates")?;
@@ -103,8 +94,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             definition.record_contracts.extend((entry.records)());
         }
     };
-    let telemetry = declared(&block, "telemetry")
-        .map(|_| quote!(definition.telemetry_contracts = <Self>::telemetry();));
+    let telemetry = declared(&block, "telemetry").map(|_| quote!(definition.telemetry_contracts = <Self>::telemetry();));
     let stream_contracts = quote! {
         for entry in <#templates as #sdk::catalog::Catalog<#sdk::catalog::Templates>>::ENTRIES {
             definition.telemetry_contracts.extend((entry.streams)());
@@ -204,10 +194,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 // the accepted arguments so an author knows the field went away on purpose.
 fn refuse_product(attribute: &TokenStream) -> Result<(), Error> {
     let entries = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute.clone())?;
-    match entries
-        .iter()
-        .find(|entry| entry.path().is_ident("product"))
-    {
+    match entries.iter().find(|entry| entry.path().is_ident("product")) {
         Some(entry) => Err(Error::new(
             entry.path().span(),
             "`product` was removed from suites: name the device under test in the suite's \

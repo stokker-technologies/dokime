@@ -20,12 +20,12 @@
 // Local Imports
 use super::metadata;
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::identity::UploadId;
-use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use crate::storage::{Error, Result, records::ScopeRow};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::UploadId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -95,12 +95,8 @@ impl Content {
                     return Ok(usize::MAX);
                 }
                 Ok(std::mem::size_of::<ExecutionOutputContent>()
-                    .saturating_add(
-                        record.saturating_sub(std::mem::size_of::<Box<ArtifactRecord>>()),
-                    )
-                    .saturating_add(
-                        metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-                    ))
+                    .saturating_add(record.saturating_sub(std::mem::size_of::<Box<ArtifactRecord>>()))
+                    .saturating_add(metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>())))
             }
             _ => Err(Error::Invalid("invalid saved output content descriptor")),
         }
@@ -112,16 +108,10 @@ impl TryFrom<&ExecutionOutputContent> for Content {
 
     fn try_from(value: &ExecutionOutputContent) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid(
-                "saved output content encoding memory overflow",
-            ));
+            return Err(Error::Invalid("saved output content encoding memory overflow"));
         }
         match value {
-            ExecutionOutputContent::File => Ok(Self {
-                kind: "file".into(),
-                record: None,
-                metadata: None,
-            }),
+            ExecutionOutputContent::File => Ok(Self { kind: "file".into(), record: None, metadata: None }),
             ExecutionOutputContent::Artifact { record, metadata } => Ok(Self {
                 kind: "artifact".into(),
                 record: Some(Record::try_from(record.as_ref())?),
@@ -136,16 +126,13 @@ impl TryFrom<Content> for ExecutionOutputContent {
 
     fn try_from(value: Content) -> Result<Self> {
         if value.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "saved output content projection memory overflow",
-            ));
+            return Err(Error::Invalid("saved output content projection memory overflow"));
         }
         match (value.kind.as_str(), value.record, value.metadata) {
             ("file", None, None) => Ok(Self::File),
-            ("artifact", Some(record), Some(metadata)) => Ok(Self::Artifact {
-                record: Box::new(record.try_into()?),
-                metadata: metadata.try_into()?,
-            }),
+            ("artifact", Some(record), Some(metadata)) => {
+                Ok(Self::Artifact { record: Box::new(record.try_into()?), metadata: metadata.try_into()? })
+            }
             _ => Err(Error::Invalid("invalid saved output content descriptor")),
         }
     }
@@ -168,17 +155,11 @@ impl Record {
             status(&value.status).len(),
             value.created_at.as_str().len(),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        let scope = self
-            .scope
-            .as_ref()
-            .ok_or(Error::Invalid("saved artifact scope is missing"))?
-            .projection_memory();
+        let scope = self.scope.as_ref().ok_or(Error::Invalid("saved artifact scope is missing"))?.projection_memory();
         if scope == usize::MAX {
             return Ok(usize::MAX);
         }
@@ -191,9 +172,7 @@ impl Record {
             self.sha256.as_ref().map_or(0, String::capacity),
             self.created_at.capacity(),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<ArtifactRecord>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<ArtifactRecord>(), usize::saturating_add))
     }
 }
 
@@ -225,10 +204,7 @@ impl TryFrom<Record> for ArtifactRecord {
         if value.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("saved artifact projection memory overflow"));
         }
-        if [&value.artifact_id, &value.upload_id]
-            .into_iter()
-            .any(|id| id.bytes().any(|byte| byte.is_ascii_uppercase()))
-        {
+        if [&value.artifact_id, &value.upload_id].into_iter().any(|id| id.bytes().any(|byte| byte.is_ascii_uppercase())) {
             return Err(Error::Invalid("noncanonical saved artifact identity"));
         }
         let created_at = Timestamp::new(value.created_at);
@@ -243,10 +219,7 @@ impl TryFrom<Record> for ArtifactRecord {
         Ok(Self {
             artifact_id: ArtifactId::from_uuid(value.artifact_id)?,
             upload_id: UploadId::from_uuid(value.upload_id)?,
-            scope: value
-                .scope
-                .ok_or(Error::Invalid("saved artifact scope is missing"))?
-                .try_into()?,
+            scope: value.scope.ok_or(Error::Invalid("saved artifact scope is missing"))?.try_into()?,
             filename: value.filename,
             content_type: value.content_type,
             size_bytes: value.size_bytes,

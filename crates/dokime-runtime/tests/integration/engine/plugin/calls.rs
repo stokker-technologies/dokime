@@ -35,16 +35,14 @@ const TEMPLATE: &str = "calls.checks.probe";
 
 const SLOW: Duration = Duration::from_millis(300);
 
-const LATE: dokime_runtime::harmos::operations::OperationPolicy =
-    dokime_runtime::harmos::operations::OperationPolicy {
-        timeout: Duration::from_millis(20),
-        attempt_timeout: Duration::from_millis(20),
-        retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
-        restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
-    };
+const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
+    timeout: Duration::from_millis(20),
+    attempt_timeout: Duration::from_millis(20),
+    retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
+    restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
+};
 
-static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> =
-    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 static WIRE_CANCELLATIONS: AtomicU64 = AtomicU64::new(0);
 
@@ -162,9 +160,7 @@ impl GetReading {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetReadingResponse, Refusal> {
-        Ok(GetReadingResponse {
-            reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1,
-        })
+        Ok(GetReadingResponse { reads: self.0.reads.fetch_add(1, Ordering::SeqCst) + 1 })
     }
 }
 
@@ -189,11 +185,7 @@ impl GetStatus {
         Self
     }
 
-    async fn run(
-        &mut self,
-        _: &Supervisor,
-        _: &(),
-    ) -> Result<dokime_runtime::domains::StatusResponse, Refusal> {
+    async fn run(&mut self, _: &Supervisor, _: &()) -> Result<dokime_runtime::domains::StatusResponse, Refusal> {
         Ok(dokime_runtime::domains::StatusResponse::ready())
     }
 }
@@ -204,11 +196,7 @@ impl Echo {
         Self
     }
 
-    async fn run(
-        &mut self,
-        _: &Supervisor,
-        request: &SharedReading,
-    ) -> Result<SharedReading, Refusal> {
+    async fn run(&mut self, _: &Supervisor, request: &SharedReading) -> Result<SharedReading, Refusal> {
         Ok(request.clone())
     }
 }
@@ -219,14 +207,8 @@ impl Double {
         Self
     }
 
-    async fn run(
-        &mut self,
-        _: &Supervisor,
-        request: &SharedReading,
-    ) -> Result<SharedReading, Refusal> {
-        Ok(SharedReading {
-            value: request.value * 2,
-        })
+    async fn run(&mut self, _: &Supervisor, request: &SharedReading) -> Result<SharedReading, Refusal> {
+        Ok(SharedReading { value: request.value * 2 })
     }
 }
 
@@ -243,8 +225,7 @@ impl Hidden {
 }
 
 impl dokime_runtime::harmos::operations::lifecycle::Policy for Bench {
-    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy =
-        super::native::POLICY;
+    const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
@@ -267,21 +248,14 @@ impl dokime_runtime::Plugin for Bench {
         Ok(Self {
             shared: Arc::new(Shared {
                 reads: AtomicU64::new(0),
-                observer_ticks: OBSERVER_PROBES
-                    .lock()
-                    .unwrap()
-                    .get(&settings.observer.observer_probe)
-                    .cloned(),
+                observer_ticks: OBSERVER_PROBES.lock().unwrap().get(&settings.observer.observer_probe).cloned(),
             }),
             observers: None,
         })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<BenchObservers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<BenchObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -292,16 +266,11 @@ impl dokime_runtime::Plugin for Bench {
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<Implemented, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, BenchSuites>(table)?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<BenchObserveControl>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<BenchObserveControl>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| {
-            Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>
-        })
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -314,28 +283,19 @@ impl dokime_runtime::Plugin for Bench {
     }
 }
 
-#[dokime_runtime::observer(
-    interval_ms = 5,
-    description = "A plugin observer reaches its own plugin's operations the way a step does."
-)]
+#[dokime_runtime::observer(interval_ms = 5, description = "A plugin observer reaches its own plugin's operations the way a step does.")]
 impl Watch {
     async fn initialize(shared: &Shared) -> Result<Self, dokime_runtime::harmos::sidecar::CallError> {
         Ok(Self(shared.observer_ticks.clone()))
     }
 
-    async fn observe(
-        &mut self,
-        ctx: &ObserverContext<'_, Shared>,
-    ) -> Result<(), dokime_runtime::harmos::sidecar::CallError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Shared>) -> Result<(), dokime_runtime::harmos::sidecar::CallError> {
         let reading = ctx.call_as::<GetReadingDeclaration>(()).await?;
         assert!(reading.reads >= 1, "the operation answered the observer");
         if ctx.tick().ordinal() <= 2
             && let Some(ticks) = &self.0
         {
-            ticks
-                .lock()
-                .unwrap()
-                .push((ctx.tick().ordinal(), ctx.activation_id()));
+            ticks.lock().unwrap().push((ctx.tick().ordinal(), ctx.activation_id()));
             CHANGED.notify_waiters();
         }
 
@@ -348,35 +308,19 @@ impl Checks {}
 
 #[dokime_runtime::template(id = TEMPLATE, label = "Probe", requires = ProbeRequired)]
 impl Probe {
-    async fn initialize(
-        _: &(),
-        _ctx: &mut InitializationContext<'_>,
-    ) -> Result<Self, dokime_runtime::Error> {
+    async fn initialize(_: &(), _ctx: &mut InitializationContext<'_>) -> Result<Self, dokime_runtime::Error> {
         Ok(Self)
     }
 
-    #[dokime_runtime::step(
-        label = "Call the operation",
-        description = "The step asks the operation rather than the method beside it."
-    )]
+    #[dokime_runtime::step(label = "Call the operation", description = "The step asks the operation rather than the method beside it.")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let reading = ctx.call::<GetReading>(()).await?;
         dokime_runtime::info!(ctx, "the operation answered {} reads", reading.reads);
         let echoed = ctx.call::<Echo>(SharedReading { value: 7 }).await?;
-        assert_eq!(
-            echoed.value, 7,
-            "the request reaches the operation it names"
-        );
-        let hosted = ctx
-            .host()
-            .call_as::<EchoDeclaration>(SharedReading { value: 9 })
-            .await
-            .expect("the host surface routes the same call");
-        assert_eq!(
-            hosted.into_owned().value,
-            9,
-            "the host surface reaches the operation it names"
-        );
+        assert_eq!(echoed.value, 7, "the request reaches the operation it names");
+        let hosted =
+            ctx.host().call_as::<EchoDeclaration>(SharedReading { value: 9 }).await.expect("the host surface routes the same call");
+        assert_eq!(hosted.into_owned().value, 9, "the host surface reaches the operation it names");
 
         Ok(())
     }
@@ -427,11 +371,7 @@ async fn until(done: impl Fn() -> bool) {
 }
 
 fn configured(settings: BTreeMap<String, dokime_runtime::Value>) -> Vec<u8> {
-    serde_json::to_vec(&Configuration {
-        settings,
-        ..Configuration::default()
-    })
-    .unwrap()
+    serde_json::to_vec(&Configuration { settings, ..Configuration::default() }).unwrap()
 }
 
 /* === Tests === */
@@ -441,19 +381,14 @@ async fn step_criterion_operation() {
     let reads = Arc::new(AtomicU64::new(0));
     let counted = Arc::clone(&reads);
     let report = Harness::template(TEMPLATE)
-        .answering::<GetReading, _>(move |()| GetReadingResponse {
-            reads: counted.fetch_add(1, Ordering::SeqCst) + 1,
-        })
+        .answering::<GetReading, _>(move |()| GetReadingResponse { reads: counted.fetch_add(1, Ordering::SeqCst) + 1 })
         .answering::<Echo, _>(|request: SharedReading| request)
         .run::<BenchSuites>()
         .await
         .expect("the probe runs");
 
     assert!(report.passed(), "{}", report.diagnostics());
-    assert!(
-        reads.load(Ordering::SeqCst) >= 2,
-        "the step and the criterion each reached the operation"
-    );
+    assert!(reads.load(Ordering::SeqCst) >= 2, "the step and the criterion each reached the operation");
 }
 
 #[tokio::test]
@@ -465,29 +400,19 @@ async fn unanswered_operation_name() {
         .expect("the probe reaches an outcome");
 
     assert!(!report.passed());
-    assert!(
-        report.diagnostics().contains("call-fixture.get_reading"),
-        "{}",
-        report.diagnostics()
-    );
+    assert!(report.diagnostics().contains("call-fixture.get_reading"), "{}", report.diagnostics());
 }
 
 #[tokio::test]
 async fn plugin_observer_operation() {
     let ticks = Arc::new(Mutex::new(Vec::new()));
     let token = "observer-call-ticks";
-    OBSERVER_PROBES
-        .lock()
-        .unwrap()
-        .insert(token.to_owned(), Arc::clone(&ticks));
+    OBSERVER_PROBES.lock().unwrap().insert(token.to_owned(), Arc::clone(&ticks));
     for activation in 0..2 {
         let native = super::native::Native::initialize(
             super::native::attach::<Bench>(),
             <Bench as Declared>::VERSION,
-            configured(BTreeMap::from([(
-                "observer_probe".to_owned(),
-                dokime_runtime::Value::Text(token.to_owned()),
-            )])),
+            configured(BTreeMap::from([("observer_probe".to_owned(), dokime_runtime::Value::Text(token.to_owned()))])),
             |_, _| {},
             vec![],
         )
@@ -504,15 +429,9 @@ async fn plugin_observer_operation() {
     assert_eq!(ticks.len(), 4);
     for activation in ticks.as_chunks::<2>().0 {
         assert_eq!((activation[0].0, activation[1].0), (1, 2));
-        assert_eq!(
-            activation[0].1, activation[1].1,
-            "ticks retain the same original activation"
-        );
+        assert_eq!(activation[0].1, activation[1].1, "ticks retain the same original activation");
     }
-    assert_ne!(
-        ticks[0].1, ticks[2].1,
-        "restarted observers have distinct activations"
-    );
+    assert_ne!(ticks[0].1, ticks[2].1, "restarted observers have distinct activations");
 }
 
 // The late operation outlives its policy deadline on the paused clock.
@@ -528,49 +447,20 @@ async fn catalog_operations_policy() {
     .await;
     let operations = &native.runtime.operations;
 
-    assert!(
-        super::native::call_wire::<GetReadingDeclaration>(operations, ())
-            .await
-            .unwrap()
-            .reads
-            >= 1
-    );
+    assert!(super::native::call_wire::<GetReadingDeclaration>(operations, ()).await.unwrap().reads >= 1);
     assert_eq!(
-        super::native::call_wire::<GetStatusDeclaration>(operations, ())
-            .await
-            .unwrap(),
+        super::native::call_wire::<GetStatusDeclaration>(operations, ()).await.unwrap(),
         dokime_runtime::domains::StatusResponse::ready()
     );
-    assert_eq!(
-        super::native::call_wire::<EchoDeclaration>(operations, SharedReading { value: 7 })
-            .await
-            .unwrap()
-            .value,
-        7
-    );
-    assert_eq!(
-        super::native::call_wire::<DoubleDeclaration>(operations, SharedReading { value: 7 })
-            .await
-            .unwrap()
-            .value,
-        14
-    );
+    assert_eq!(super::native::call_wire::<EchoDeclaration>(operations, SharedReading { value: 7 }).await.unwrap().value, 7);
+    assert_eq!(super::native::call_wire::<DoubleDeclaration>(operations, SharedReading { value: 7 }).await.unwrap().value, 14);
 
     let hidden = super::native::call_wire::<HiddenDeclaration>(operations, ()).await;
-    assert!(
-        matches!(hidden, Err(harmos::Error::NotRegistered { .. })),
-        "{hidden:?}"
-    );
+    assert!(matches!(hidden, Err(harmos::Error::NotRegistered { .. })), "{hidden:?}");
 
     let before = WIRE_CANCELLATIONS.load(Ordering::SeqCst);
     let late = super::native::call_wire::<GetLateReadingDeclaration>(operations, ()).await;
-    assert!(
-        matches!(
-            late,
-            Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut))
-        ),
-        "{late:?}"
-    );
+    assert!(matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut))), "{late:?}");
     // The deadline cancels the operation it timed out.
     until(|| WIRE_CANCELLATIONS.load(Ordering::SeqCst) != before).await;
 

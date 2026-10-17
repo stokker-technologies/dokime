@@ -17,17 +17,14 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
+use model::documents::wire::DocumentFrameFrame as Frame;
 use {
-    dokime_runtime::Value,
-    dokime_runtime::document::DocumentCard,
-    dokime_runtime::document::DocumentCardBody,
-    dokime_runtime::document::DocumentDefinition,
-    dokime_runtime::document::DocumentSection,
+    dokime_runtime::Value, dokime_runtime::document::DocumentCard, dokime_runtime::document::DocumentCardBody,
+    dokime_runtime::document::DocumentDefinition, dokime_runtime::document::DocumentSection,
     dokime_runtime::runtime::command::CommandContext,
 };
-use model::documents::wire::DocumentFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -60,12 +57,7 @@ async fn current_document_rows() {
         filters: Vec::new(),
         body: DocumentCardBody::Table {
             rows: (0..300)
-                .map(|index| {
-                    std::collections::BTreeMap::from([
-                        ("ordinal".into(), Value::Integer(index)),
-                        ("absent".into(), Value::Null),
-                    ])
-                })
+                .map(|index| std::collections::BTreeMap::from([("ordinal".into(), Value::Integer(index)), ("absent".into(), Value::Null)]))
                 .collect(),
         },
     });
@@ -79,28 +71,18 @@ async fn current_document_rows() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Read)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle.to_string(),
-        execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0]
-            .to_string(),
+        execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
     };
     assert_eq!(
         client
-            .download::<contracts::documents::CaptureCurrentDocument>(
-                contracts::documents::CaptureCurrentDocument {
-                    scope: Some(selected.clone()),
-                    document_id: "default".into(),
-                }
-            )
+            .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+                scope: Some(selected.clone()),
+                document_id: "default".into(),
+            })
             .await
             .unwrap_err()
             .code(),
@@ -109,15 +91,10 @@ async fn current_document_rows() {
     // A scope without an execution names the cycle's own document: its first
     // frame is a header scoped to the cycle alone.
     let cycle_header = client
-        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(model::documents::wire::DocumentScope {
-                    cycle_id: cycle.to_string(),
-                    execution_id: String::new(),
-                }),
-                document_id: "default".into(),
-            },
-        ))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            scope: Some(model::documents::wire::DocumentScope { cycle_id: cycle.to_string(), execution_id: String::new() }),
+            document_id: "default".into(),
+        }))
         .await
         .unwrap()
         .into_inner()
@@ -133,12 +110,10 @@ async fn current_document_rows() {
     assert_eq!(cycle_scope.execution_id, None);
     let epoch = handle.process_epoch().to_string();
     let mut stream = client
-        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(selected.clone()),
-                document_id: "default".into(),
-            },
-        ))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            scope: Some(selected.clone()),
+            document_id: "default".into(),
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -151,10 +126,7 @@ async fn current_document_rows() {
         match frame.frame.unwrap() {
             Frame::Header(presentation) => {
                 assert_eq!(frames, 1);
-                assert_eq!(
-                    presentation.scope.unwrap().cycle_id,
-                    Some(cycle.to_string())
-                );
+                assert_eq!(presentation.scope.unwrap().cycle_id, Some(cycle.to_string()));
                 let frontiers = presentation.frontiers.unwrap();
                 assert_eq!(frontiers.process_epoch, epoch);
                 assert!(frontiers.telemetry.is_none());
@@ -181,12 +153,10 @@ async fn current_document_rows() {
     assert_eq!(rows, (0..300).collect::<Vec<_>>());
     assert_eq!(complete.unwrap().frame_count, frames);
     let unknown = client
-        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(selected),
-                document_id: "missing".into(),
-            },
-        ))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            scope: Some(selected),
+            document_id: "missing".into(),
+        }))
         .await
         .unwrap()
         .into_inner()
@@ -196,10 +166,7 @@ async fn current_document_rows() {
     assert_eq!(unknown.code(), Code::NotFound);
     server.shutdown().await.unwrap();
     assert!(!handle.is_shutting_down());
-    assert_eq!(
-        handle.watch_state().latest().state().cycles[&cycle].test_cycle_id,
-        cycle
-    );
+    assert_eq!(handle.watch_state().latest().state().cycles[&cycle].test_cycle_id, cycle);
     drop(handle);
     owner.shutdown().await.unwrap();
 }
@@ -207,20 +174,14 @@ async fn current_document_rows() {
 #[tokio::test]
 async fn summary_complete_telemetry() {
     use {
-    dokime_runtime::Timestamp,
-    dokime_runtime::document::TelemetrySummaryDefinition,
-    dokime_runtime::document::TelemetrySummaryGroupDefinition,
-    dokime_runtime::document::TelemetrySummaryTileDefinition,
-    dokime_runtime::telemetry::TelemetryBatch,
-    dokime_runtime::telemetry::TelemetrySample,
-};
+        dokime_runtime::Timestamp, dokime_runtime::document::TelemetrySummaryDefinition,
+        dokime_runtime::document::TelemetrySummaryGroupDefinition, dokime_runtime::document::TelemetrySummaryTileDefinition,
+        dokime_runtime::telemetry::TelemetryBatch, dokime_runtime::telemetry::TelemetrySample,
+    };
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::default());
     let mut owner = Runtime::with_execution_fixture(
-        crate::support::budgets::runtime_config(
-            root.path(),
-            support::metadata("grpc.summary", "Summary"),
-        ),
+        crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.summary", "Summary")),
         "fixture",
         gate.clone(),
     )
@@ -229,10 +190,7 @@ async fn summary_complete_telemetry() {
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     let mut group = TelemetrySummaryGroupDefinition::new("summary", "Progress");
-    group.tile(TelemetrySummaryTileDefinition::new(
-        "Latest",
-        dokime_runtime::expressions::telemetry("fixture.progress", "progress"),
-    ));
+    group.tile(TelemetrySummaryTileDefinition::new("Latest", dokime_runtime::expressions::telemetry("fixture.progress", "progress")));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
 
@@ -248,70 +206,45 @@ async fn summary_complete_telemetry() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    handle
-        .run_cycle_cases(cycle.clone(), CommandContext::default())
-        .await;
+    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
     gate.started.notified().await;
-    let scope = handle
-        .watch_state()
-        .latest()
-        .state()
-        .cycle_view(&cycle)
-        .unwrap()
-        .test_executions[0]
-        .scope
-        .clone();
+    let scope = handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions[0].scope.clone();
     assert!(scope.test_execution_id.is_some());
     let stream = Identifier::new("fixture.progress").unwrap();
     let mut samples: Vec<_> = (0..300)
         .map(|index| {
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                stream.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
                 "fixture",
             );
-            sample
-                .values
-                .insert("progress".into(), Value::Number(index as f64));
+            sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow {
-                progress: index as f64,
-            }))
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    let mut unrelated = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
+    let mut unrelated = TelemetrySample::new(
+        dokime_runtime::model::identity::new_id(),
+        stream.clone(),
         300,
         Timestamp::new("2026-09-13T00:00:00Z"),
         "fixture",
     );
-    unrelated
-        .values
-        .insert("progress".into(), Value::Number(999.0));
-    samples.push(
-        unrelated.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow {
-            progress: 999.0,
-        })),
-    );
-    handle
-        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples))
-        .await
-        .unwrap();
-    let server = Server::start(handle.clone(), Config::local())
-        .await
-        .unwrap();
+    unrelated.values.insert("progress".into(), Value::Number(999.0));
+    samples.push(unrelated.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)).await.unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
-        .download::<contracts::documents::CaptureCurrentDocument>(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(model::documents::wire::DocumentScope {
-                    cycle_id: cycle.to_string(),
-                    execution_id: handle.watch_state().latest().state().cycles[&cycle]
-                        .execution_ids[0]
-                        .to_string(),
-                }),
-                document_id: "default".into(),
-            },
-        )
+        .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            scope: Some(model::documents::wire::DocumentScope {
+                cycle_id: cycle.to_string(),
+                execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
+            }),
+            document_id: "default".into(),
+        })
         .await
         .unwrap()
         .into_inner();
@@ -321,10 +254,7 @@ async fn summary_complete_telemetry() {
         match frame.frame.unwrap() {
             Frame::Header(presentation) => {
                 let cut = presentation.frontiers.unwrap().telemetry.unwrap();
-                assert!(matches!(
-                    cut.source,
-                    Some(model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true))
-                ));
+                assert!(matches!(cut.source, Some(model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true))));
                 assert_eq!(cut.series_ordinal, None);
             }
             Frame::SummaryTile(value) => tile = value.value,
@@ -342,12 +272,12 @@ async fn summary_complete_telemetry() {
 
 #[tokio::test]
 async fn duration_x_axis() {
-    use dokime_runtime::domains::TestSuiteDefinition;
-    use dokime_runtime::{Identifier, MeasurementUnit, Metadata, ValueType};
     use dokime_runtime::definition::SuiteSet;
     use dokime_runtime::document::Plot;
+    use dokime_runtime::domains::TestSuiteDefinition;
     use dokime_runtime::expressions::telemetry;
     use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+    use dokime_runtime::{Identifier, MeasurementUnit, Metadata, ValueType};
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
@@ -365,13 +295,7 @@ async fn duration_x_axis() {
 
     let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples");
     contract.columns = vec![
-        TelemetryColumn::declared(
-            "elapsed_s",
-            "Elapsed",
-            ValueType::Number,
-            TelemetryRole::Value,
-        )
-        .with_unit(MeasurementUnit::custom(
+        TelemetryColumn::declared("elapsed_s", "Elapsed", ValueType::Number, TelemetryRole::Value).with_unit(MeasurementUnit::custom(
             Identifier::new("unit.s").unwrap(),
             "s",
             "s",
@@ -390,32 +314,23 @@ async fn duration_x_axis() {
         record_contracts: Vec::new(),
         telemetry_contracts: vec![contract],
     };
-    handle
-        .set_suites("provider:fixture", SuiteSet::new([registration]))
-        .await
-        .unwrap();
+    handle.set_suites("provider:fixture", SuiteSet::new([registration])).await.unwrap();
     let cycle = support::cycle_with_cases(
         &handle,
         support::metadata("axis.fixture", "Axis"),
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(handle.clone(), Config::local())
-        .await
-        .unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
-        .download::<contracts::documents::CaptureCurrentDocument>(
-            contracts::documents::CaptureCurrentDocument {
-                scope: Some(model::documents::wire::DocumentScope {
-                    cycle_id: cycle.to_string(),
-                    execution_id: handle.watch_state().latest().state().cycles[&cycle]
-                        .execution_ids[0]
-                        .to_string(),
-                }),
-                document_id: "default".into(),
-            },
-        )
+        .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            scope: Some(model::documents::wire::DocumentScope {
+                cycle_id: cycle.to_string(),
+                execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
+            }),
+            document_id: "default".into(),
+        })
         .await
         .unwrap()
         .into_inner();
@@ -429,11 +344,7 @@ async fn duration_x_axis() {
     }
 
     assert_eq!(presentations.len(), 1, "one plot card crosses the wire");
-    assert_eq!(
-        presentations[0].x_axis,
-        model::documents::wire::PlotAxisKind::Elapsed,
-        "the declared duration unit reached the wire"
-    );
+    assert_eq!(presentations[0].x_axis, model::documents::wire::PlotAxisKind::Elapsed, "the declared duration unit reached the wire");
     assert_eq!(presentations[0].x_axis_unit.as_deref(), Some("s"));
 
     server.shutdown().await.unwrap();

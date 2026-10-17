@@ -24,13 +24,13 @@ use std::marker::PhantomData;
 use serde::de::DeserializeOwned;
 // Local Imports
 use super::*;
+use crate::records::RecordSeverity;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-use crate::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -83,11 +83,7 @@ pub trait Prompt: Send {
             values: definition
                 .fields
                 .into_iter()
-                .filter_map(|field| {
-                    field
-                        .default
-                        .map(|value| (field.metadata.identifier.to_string(), value))
-                })
+                .filter_map(|field| field.default.map(|value| (field.metadata.identifier.to_string(), value)))
                 .collect(),
             scope: RecordScope::default(),
         }
@@ -102,10 +98,7 @@ pub trait PromptNumber: private::Number + DeserializeOwned + Into<Value> + Copy 
 /* === Implementations === */
 impl<T> FormPrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
-        Self {
-            definition: definition(id, label.into(), PromptArchetype::FormPrompt),
-            response: PhantomData,
-        }
+        Self { definition: definition(id, label.into(), PromptArchetype::FormPrompt), response: PhantomData }
     }
 
     pub fn field(mut self, field: PromptField) -> Self {
@@ -113,15 +106,8 @@ impl<T> FormPrompt<T> {
         self
     }
 
-    pub fn rule(
-        mut self,
-        predicate: crate::expressions::BooleanExpression,
-        message: impl Into<String>,
-    ) -> Self {
-        self.definition.rules.push(Rule {
-            predicate,
-            message: message.into(),
-        });
+    pub fn rule(mut self, predicate: crate::expressions::BooleanExpression, message: impl Into<String>) -> Self {
+        self.definition.rules.push(Rule { predicate, message: message.into() });
         self
     }
 
@@ -168,9 +154,7 @@ impl<T: DeserializeOwned> Prompt for FormPrompt<T> {
 
     fn decode(&self, response: PromptResponse) -> Result<T, crate::Error> {
         validate_response(&self.definition, &response)?;
-        let value = dokime_domain::model::values::Value::Object(response.values)
-            .to_plain_json()
-            .map_err(refused)?;
+        let value = dokime_domain::model::values::Value::Object(response.values).to_plain_json().map_err(refused)?;
         let answer = serde_json::from_value(value).map_err(refused)?;
         Ok(answer)
     }
@@ -179,14 +163,7 @@ impl<T: DeserializeOwned> Prompt for FormPrompt<T> {
 impl TextPrompt {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
         let label = label.into();
-        Self {
-            form: FormPrompt::new(id, label.clone()).field(field(
-                id,
-                label,
-                PromptFieldKind::Text,
-                ValueType::Text,
-            )),
-        }
+        Self { form: FormPrompt::new(id, label.clone()).field(field(id, label, PromptFieldKind::Text, ValueType::Text)) }
     }
     pub fn length(mut self, minimum: usize, maximum: usize) -> Self {
         self.form.definition.fields[0].validation.min_length = Some(minimum);
@@ -202,12 +179,7 @@ impl TextPrompt {
         self
     }
     pub fn field(self) -> PromptField {
-        self.form
-            .definition
-            .fields
-            .into_iter()
-            .next()
-            .expect("a text prompt owns one field")
+        self.form.definition.fields.into_iter().next().expect("a text prompt owns one field")
     }
 }
 
@@ -245,14 +217,7 @@ impl PromptNumber for f64 {
 impl<T: PromptNumber> NumberPrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
         let label = label.into();
-        Self {
-            form: FormPrompt::new(id, label.clone()).field(field(
-                id,
-                label,
-                T::field_kind(),
-                T::value_type(),
-            )),
-        }
+        Self { form: FormPrompt::new(id, label.clone()).field(field(id, label, T::field_kind(), T::value_type())) }
     }
     pub fn bounds(mut self, minimum: T, maximum: T) -> Self {
         self.form.definition.fields[0].validation.minimum = Some(minimum.into());
@@ -264,12 +229,7 @@ impl<T: PromptNumber> NumberPrompt<T> {
         self
     }
     pub fn field(self) -> PromptField {
-        self.form
-            .definition
-            .fields
-            .into_iter()
-            .next()
-            .expect("a numeric prompt owns one field")
+        self.form.definition.fields.into_iter().next().expect("a numeric prompt owns one field")
     }
 }
 
@@ -305,12 +265,7 @@ impl ConfirmationPrompt {
         self
     }
     pub fn field(self) -> PromptField {
-        field(
-            self.definition.prompt_type.as_str(),
-            self.definition.title,
-            PromptFieldKind::Boolean,
-            ValueType::Boolean,
-        )
+        field(self.definition.prompt_type.as_str(), self.definition.title, PromptFieldKind::Boolean, ValueType::Boolean)
     }
 }
 
@@ -332,17 +287,9 @@ impl Prompt for ConfirmationPrompt {
 impl<T> ChoicePrompt<T> {
     pub fn new(id: &str, label: impl Into<String>) -> Self {
         let label = label.into();
-        let mut form = FormPrompt::new(id, label.clone()).field(field(
-            id,
-            label,
-            PromptFieldKind::Choice,
-            ValueType::Text,
-        ));
+        let mut form = FormPrompt::new(id, label.clone()).field(field(id, label, PromptFieldKind::Choice, ValueType::Text));
         form.definition.archetype = PromptArchetype::ChoicePrompt;
-        Self {
-            form,
-            choices: BTreeMap::new(),
-        }
+        Self { form, choices: BTreeMap::new() }
     }
     pub fn choice(mut self, key: impl Into<String>, value: T) -> Self {
         let key = key.into();
@@ -374,10 +321,7 @@ impl<T> MultipleChoicePrompt<T> {
         item.multiple = true;
         let mut form = FormPrompt::new(id, label).field(item);
         form.definition.archetype = PromptArchetype::ChoicePrompt;
-        Self {
-            form,
-            choices: BTreeMap::new(),
-        }
+        Self { form, choices: BTreeMap::new() }
     }
     pub fn choice(mut self, key: impl Into<String>, value: T) -> Self {
         let key = key.into();
@@ -401,16 +345,9 @@ impl<T: Clone + Send> Prompt for MultipleChoicePrompt<T> {
         let values = self.form.decode(response)?;
         let keys = values
             .get(self.form.definition.prompt_type.as_str())
-            .ok_or_else(|| {
-                crate::Error::PromptRefused("selection response is missing".to_owned())
-            })?;
+            .ok_or_else(|| crate::Error::PromptRefused("selection response is missing".to_owned()))?;
         keys.iter()
-            .map(|key| {
-                self.choices
-                    .get(key)
-                    .cloned()
-                    .ok_or_else(|| crate::Error::PromptRefused("unknown choice".to_owned()))
-            })
+            .map(|key| self.choices.get(key).cloned().ok_or_else(|| crate::Error::PromptRefused("unknown choice".to_owned())))
             .collect()
     }
 }
@@ -437,18 +374,9 @@ pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) ->
     }
 }
 
-pub(super) fn field(
-    id: &str,
-    label: String,
-    kind: PromptFieldKind,
-    value_type: ValueType,
-) -> PromptField {
+pub(super) fn field(id: &str, label: String, kind: PromptFieldKind, value_type: ValueType) -> PromptField {
     PromptField {
-        metadata: Metadata::new(
-            Identifier::new(id).expect("a prompt field identifier is valid"),
-            label,
-            None,
-        ),
+        metadata: Metadata::new(Identifier::new(id).expect("a prompt field identifier is valid"), label, None),
         value_type,
         kind,
         multiple: false,
@@ -460,40 +388,22 @@ pub(super) fn field(
 }
 
 pub(super) fn action(id: &str, label: &str, emphasis: PromptActionEmphasis) -> PromptAction {
-    PromptAction {
-        id: id.to_owned(),
-        label: label.to_owned(),
-        emphasis,
-        requires_condition: false,
-    }
+    PromptAction { id: id.to_owned(), label: label.to_owned(), emphasis, requires_condition: false }
 }
 
-pub(super) fn validate_response(
-    definition: &PromptDefinition,
-    response: &PromptResponse,
-) -> Result<(), crate::Error> {
+pub(super) fn validate_response(definition: &PromptDefinition, response: &PromptResponse) -> Result<(), crate::Error> {
     if !response.accepted || response.action == "cancel" {
         return Err(crate::Error::PromptCancelled);
     }
-    if !definition
-        .actions
-        .iter()
-        .any(|action| action.id == response.action)
-    {
-        return Err(crate::Error::PromptRefused(
-            "response action is not declared".to_owned(),
-        ));
+    if !definition.actions.iter().any(|action| action.id == response.action) {
+        return Err(crate::Error::PromptRefused("response action is not declared".to_owned()));
     }
     let issues = validate_answers(definition, &response.values);
     if issues.is_empty() {
         Ok(())
     } else {
         Err(crate::Error::PromptRefused(
-            issues
-                .into_iter()
-                .map(|issue| format!("{}: {}", issue.path, issue.message))
-                .collect::<Vec<_>>()
-                .join("; "),
+            issues.into_iter().map(|issue| format!("{}: {}", issue.path, issue.message)).collect::<Vec<_>>().join("; "),
         ))
     }
 }

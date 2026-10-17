@@ -22,10 +22,7 @@
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::files::{FileMatcher, InvalidRule};
-use {
-    model::files::wire::FileRule,
-    model::files::wire::FileRuleAction,
-};
+use {model::files::wire::FileRule, model::files::wire::FileRuleAction};
 
 /* === Constants === */
 
@@ -45,17 +42,11 @@ use {
 
 /* === Private Functions === */
 fn include(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.into(),
-        action: FileRuleAction::Include,
-    }
+    FileRule { glob: glob.into(), action: FileRuleAction::Include }
 }
 
 fn exclude(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.into(),
-        action: FileRuleAction::Exclude,
-    }
+    FileRule { glob: glob.into(), action: FileRuleAction::Exclude }
 }
 
 fn matcher(rules: &[FileRule]) -> FileMatcher {
@@ -65,11 +56,7 @@ fn matcher(rules: &[FileRule]) -> FileMatcher {
 /* === Tests === */
 #[test]
 fn last_rule_decides() {
-    let rules = matcher(&[
-        include("**/*.log"),
-        exclude("**/debug/**"),
-        include("**/debug/bms.log"),
-    ]);
+    let rules = matcher(&[include("**/*.log"), exclude("**/debug/**"), include("**/debug/bms.log")]);
 
     // Included, Excluded, Then Re-Included By A Later Rule
     assert!(rules.matches("charger.log"));
@@ -108,30 +95,13 @@ fn unreincluded_exclusion_wins() {
 #[test]
 fn malformed_rules_refused() {
     assert_eq!(FileMatcher::compile(&[]).unwrap_err(), InvalidRule::Count);
+    assert_eq!(FileMatcher::compile(&[exclude("**/*.log")]).unwrap_err(), InvalidRule::Count);
     assert_eq!(
-        FileMatcher::compile(&[exclude("**/*.log")]).unwrap_err(),
-        InvalidRule::Count
-    );
-    assert_eq!(
-        FileMatcher::compile(&[
-            include("**"),
-            FileRule {
-                glob: "*.log".into(),
-                action: FileRuleAction::Unspecified,
-            },
-        ])
-        .unwrap_err(),
+        FileMatcher::compile(&[include("**"), FileRule { glob: "*.log".into(), action: FileRuleAction::Unspecified },]).unwrap_err(),
         InvalidRule::Action { index: 1 }
     );
     for shape in ["", "/var/log/*.log", "logs\\*.log"] {
-        assert_eq!(
-            FileMatcher::compile(&[include(shape)]).unwrap_err(),
-            InvalidRule::Shape { index: 0 },
-            "{shape:?}"
-        );
+        assert_eq!(FileMatcher::compile(&[include(shape)]).unwrap_err(), InvalidRule::Shape { index: 0 }, "{shape:?}");
     }
-    assert!(matches!(
-        FileMatcher::compile(&[include("logs/[a-.log")]).unwrap_err(),
-        InvalidRule::Glob { index: 0, .. }
-    ));
+    assert!(matches!(FileMatcher::compile(&[include("logs/[a-.log")]).unwrap_err(), InvalidRule::Glob { index: 0, .. }));
 }

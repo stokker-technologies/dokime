@@ -54,9 +54,7 @@ impl SecretStore for KeyringStore {
     }
 
     fn write(&self, endpoint: &str, token: &str) -> Result<(), Error> {
-        entry(endpoint)?
-            .set_password(token)
-            .map_err(|_| Error::Unavailable)
+        entry(endpoint)?.set_password(token).map_err(|_| Error::Unavailable)
     }
 
     fn remove(&self, endpoint: &str) -> Result<(), Error> {
@@ -71,10 +69,7 @@ impl SecretStore for KeyringStore {
 
 /* === Private Functions === */
 fn entry(endpoint: &str) -> Result<Entry, Error> {
-    let account = Sha256::digest(endpoint.as_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let account = Sha256::digest(endpoint.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     Entry::new("com.stokker.dokime.backend", &account).map_err(|_| Error::Unavailable)
 }
 

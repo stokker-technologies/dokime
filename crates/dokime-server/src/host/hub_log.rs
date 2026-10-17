@@ -49,22 +49,13 @@ struct RotatingFile {
 /* === Implementations === */
 impl RotatingFile {
     fn open(directory: &Path, filename: &str) -> Result<Self> {
-        std::fs::create_dir_all(directory).map_err(|error| {
-            Error::Setup(format!(
-                "failed to create log directory {}: {error}",
-                directory.display()
-            ))
-        })?;
+        std::fs::create_dir_all(directory)
+            .map_err(|error| Error::Setup(format!("failed to create log directory {}: {error}", directory.display())))?;
         let path = directory.join(filename);
         let previous = directory.join(format!("{filename}{ROTATED_SUFFIX}"));
         let file = append(&path)?;
         let written = file.metadata().map(|metadata| metadata.len()).unwrap_or(0);
-        Ok(Self {
-            path,
-            previous,
-            file,
-            written,
-        })
+        Ok(Self { path, previous, file, written })
     }
 
     fn rotate(&mut self) {
@@ -102,25 +93,15 @@ impl Write for RotatingFile {
 /* === Public Functions === */
 pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
     let path = hub_log_path(root);
-    let directory = path
-        .parent()
-        .ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?
-        .to_path_buf();
+    let directory = path.parent().ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?.to_path_buf();
     let filename = path
         .file_name()
-        .ok_or_else(|| {
-            Error::Setup(format!(
-                "the hub log path {} has no file name",
-                path.display()
-            ))
-        })?
+        .ok_or_else(|| Error::Setup(format!("the hub log path {} has no file name", path.display())))?
         .to_string_lossy()
         .into_owned();
 
-    let (writer, guard) = NonBlockingBuilder::default()
-        .buffered_lines_limit(BUFFERED_RECORDS)
-        .lossy(true)
-        .finish(RotatingFile::open(&directory, &filename)?);
+    let (writer, guard) =
+        NonBlockingBuilder::default().buffered_lines_limit(BUFFERED_RECORDS).lossy(true).finish(RotatingFile::open(&directory, &filename)?);
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let layer = fmt::layer()
         .json()
@@ -153,12 +134,7 @@ fn append(path: &Path) -> Result<File> {
         .create(true)
         .append(true)
         .open(path)
-        .map_err(|error| {
-            Error::Setup(format!(
-                "failed to open the hub log {}: {error}",
-                path.display()
-            ))
-        })
+        .map_err(|error| Error::Setup(format!("failed to open the hub log {}: {error}", path.display())))
 }
 
 /* === Tests === */

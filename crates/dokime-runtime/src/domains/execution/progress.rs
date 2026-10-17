@@ -69,10 +69,7 @@ impl ProgressRegistry {
     pub fn new() -> Self {
         let initial = ProgressSnapshot::default();
         let (sender, _) = tokio::sync::watch::channel(initial.clone());
-        Self {
-            state: Mutex::new(initial),
-            sender,
-        }
+        Self { state: Mutex::new(initial), sender }
     }
 
     pub fn update(&self, value: LiveExecutionProgress) {
@@ -89,9 +86,7 @@ impl ProgressRegistry {
     }
 
     pub fn watch(&self) -> ProgressWatch {
-        ProgressWatch {
-            receiver: self.sender.subscribe(),
-        }
+        ProgressWatch { receiver: self.sender.subscribe() }
     }
 
     fn change(&self, change: impl FnOnce(&mut BTreeMap<TestExecutionId, LiveExecutionProgress>)) {

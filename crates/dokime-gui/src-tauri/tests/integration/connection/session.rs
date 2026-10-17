@@ -19,12 +19,10 @@ use std::{net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tonic::Status;
 // Local Imports
-use dokime_domain::model;
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
 use dokime_client::contracts::{backend, runtime};
-use dokime_gui::connection::{
-    ConnectionCredentials, ConnectionError, ConnectionPhase, ConnectionSession, ConnectionTarget,
-};
+use dokime_domain::model;
+use dokime_gui::connection::{ConnectionCredentials, ConnectionError, ConnectionPhase, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
 
@@ -62,44 +60,22 @@ async fn switching_cancels_work() {
     let second = Listener::start(Service::new("second"), false, Ipv4Addr::LOCALHOST).await;
     let connected = session.connect(second.local()).await.unwrap();
     assert_eq!(connected.backend.as_ref().unwrap().backend_id, "second");
-    assert_eq!(
-        pending.await.unwrap().unwrap_err(),
-        ConnectionError::Superseded
-    );
+    assert_eq!(pending.await.unwrap().unwrap_err(), ConnectionError::Superseded);
     gate.release.add_permits(1);
     assert_eq!(session.status().generation, connected.generation);
-    assert!(matches!(
-        session.lease("1"),
-        Err(ConnectionError::Superseded)
-    ));
+    assert!(matches!(session.lease("1"), Err(ConnectionError::Superseded)));
     let json = serde_json::to_value(&connected).unwrap();
-    assert_eq!(
-        json["backend"]["limits"]["maxContentBytes"],
-        u64::MAX.to_string()
-    );
-    assert_eq!(
-        json["backend"]["limits"]["maxRequestBytes"],
-        u64::MAX.to_string()
-    );
+    assert_eq!(json["backend"]["limits"]["maxContentBytes"], u64::MAX.to_string());
+    assert_eq!(json["backend"]["limits"]["maxRequestBytes"], u64::MAX.to_string());
     let lease = session.lease(&connected.generation).unwrap();
     let pending_read = tokio::spawn({
         let lease = lease.clone();
-        async move {
-            lease
-                .execute(std::future::pending::<Result<(), Status>>())
-                .await
-        }
+        async move { lease.execute(std::future::pending::<Result<(), Status>>()).await }
     });
     let disconnected = session.disconnect().unwrap();
     assert_eq!(disconnected.phase, ConnectionPhase::Disconnected);
-    assert_eq!(
-        pending_read.await.unwrap(),
-        Err(ConnectionError::Superseded)
-    );
-    assert_eq!(
-        lease.execute(async { Ok(()) }).await,
-        Err(ConnectionError::Superseded)
-    );
+    assert_eq!(pending_read.await.unwrap(), Err(ConnectionError::Superseded));
+    assert_eq!(lease.execute(async { Ok(()) }).await, Err(ConnectionError::Superseded));
     // The session never owns the server: it remains callable after disconnect.
     server_health(&second.endpoint).await;
 }
@@ -121,14 +97,7 @@ async fn identity_is_consistent() {
         }
         let session = ConnectionSession::default();
         let error = session.connect(request).await.unwrap_err();
-        assert_eq!(
-            error,
-            if fault == "api" {
-                ConnectionError::IncompatibleApi
-            } else {
-                ConnectionError::IdentityChanged
-            }
-        );
+        assert_eq!(error, if fault == "api" { ConnectionError::IncompatibleApi } else { ConnectionError::IdentityChanged });
         assert_eq!(session.status().phase, ConnectionPhase::Failed);
         assert!(session.status().backend.is_none());
     }
@@ -139,14 +108,8 @@ async fn compatible_api_descriptor() {
     let mut service = Service::new("backend");
     service.descriptor = vec![7; 32];
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
-    let connected = ConnectionSession::default()
-        .connect(server.local())
-        .await
-        .unwrap();
-    assert_eq!(
-        connected.backend.unwrap().descriptor_sha256,
-        "07".repeat(32)
-    );
+    let connected = ConnectionSession::default().connect(server.local()).await.unwrap();
+    assert_eq!(connected.backend.unwrap().descriptor_sha256, "07".repeat(32));
 }
 
 #[tokio::test]
@@ -154,13 +117,7 @@ async fn api_negotiation_availability() {
     let mut wrong_package = Service::new("backend");
     wrong_package.api_package = "other.v1".into();
     let server = Listener::start(wrong_package, false, Ipv4Addr::LOCALHOST).await;
-    assert_eq!(
-        ConnectionSession::default()
-            .connect(server.local())
-            .await
-            .unwrap_err(),
-        ConnectionError::IncompatibleApi
-    );
+    assert_eq!(ConnectionSession::default().connect(server.local()).await.unwrap_err(), ConnectionError::IncompatibleApi);
 
     for missing in [
         "/dokime.v1.Backend/GetIdentity",
@@ -173,10 +130,7 @@ async fn api_negotiation_availability() {
         service.methods.retain(|method| method != missing);
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         assert_eq!(
-            ConnectionSession::default()
-                .connect(server.local())
-                .await
-                .unwrap_err(),
+            ConnectionSession::default().connect(server.local()).await.unwrap_err(),
             ConnectionError::IncompatibleApi,
             "missing required method {missing}"
         );
@@ -193,37 +147,19 @@ async fn credentials_endpoint_bound() {
     let first = Listener::start(service.clone(), false, Ipv4Addr::LOCALHOST).await;
     let second = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let mut request = first.local();
-    request.credentials = ConnectionCredentials::Bearer {
-        token: "private-token".into(),
-        remember: true,
-    };
+    request.credentials = ConnectionCredentials::Bearer { token: "private-token".into(), remember: true };
     let connected = session.connect(request).await.unwrap();
-    assert!(
-        !serde_json::to_string(&connected)
-            .unwrap()
-            .contains("private-token")
-    );
+    assert!(!serde_json::to_string(&connected).unwrap().contains("private-token"));
     let mut request = first.local();
-    request.target = ConnectionTarget::Local {
-        endpoint: first.endpoint.trim_end_matches('/').into(),
-    };
+    request.target = ConnectionTarget::Local { endpoint: first.endpoint.trim_end_matches('/').into() };
     request.credentials = ConnectionCredentials::Saved;
     session.connect(request).await.unwrap();
     let mut request = second.local();
     request.credentials = ConnectionCredentials::Saved;
-    assert_eq!(
-        session.connect(request).await.unwrap_err(),
-        ConnectionError::CredentialsUnavailable
-    );
+    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::CredentialsUnavailable);
     let mut request = first.local();
-    request.credentials = ConnectionCredentials::Bearer {
-        token: "wrong".into(),
-        remember: true,
-    };
-    assert_eq!(
-        session.connect(request).await.unwrap_err(),
-        ConnectionError::Unauthenticated
-    );
+    request.credentials = ConnectionCredentials::Bearer { token: "wrong".into(), remember: true };
+    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::Unauthenticated);
     assert_eq!(entries.lock().unwrap().len(), 1);
     assert_eq!(entries.lock().unwrap()[&first.endpoint], "private-token");
 }
@@ -234,49 +170,20 @@ async fn remote_requires_auth() {
     service.token = Some("private-token".into());
     let server = Listener::start(service.clone(), true, Ipv4Addr::LOCALHOST).await;
     let session = ConnectionSession::default();
-    assert_eq!(
-        session
-            .connect(server.remote(false, Some("private-token")))
-            .await
-            .unwrap_err(),
-        ConnectionError::Transport
-    );
-    assert_eq!(
-        session
-            .connect(server.remote(true, None))
-            .await
-            .unwrap_err(),
-        ConnectionError::AuthenticationRequired
-    );
-    assert_eq!(
-        session
-            .connect(server.remote(true, Some("wrong")))
-            .await
-            .unwrap_err(),
-        ConnectionError::Unauthenticated
-    );
-    let connected = session
-        .connect(server.remote(true, Some("private-token")))
-        .await
-        .unwrap();
+    assert_eq!(session.connect(server.remote(false, Some("private-token"))).await.unwrap_err(), ConnectionError::Transport);
+    assert_eq!(session.connect(server.remote(true, None)).await.unwrap_err(), ConnectionError::AuthenticationRequired);
+    assert_eq!(session.connect(server.remote(true, Some("wrong"))).await.unwrap_err(), ConnectionError::Unauthenticated);
+    let connected = session.connect(server.remote(true, Some("private-token"))).await.unwrap();
     assert!(connected.remote);
     let wrong_name = Listener::start(service, true, Ipv4Addr::new(127, 0, 0, 2)).await;
-    assert_eq!(
-        session
-            .connect(wrong_name.remote(true, Some("private-token")))
-            .await
-            .unwrap_err(),
-        ConnectionError::Transport
-    );
+    assert_eq!(session.connect(wrong_name.remote(true, Some("private-token"))).await.unwrap_err(), ConnectionError::Transport);
     assert!(session.status().backend.is_none());
 }
 
 #[tokio::test]
 async fn negotiation_matches_fixture() {
-    let scenarios: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-        "../../../../../../packages/dokime/tests/integration/client/fixtures/negotiation.json"
-    ))
-    .unwrap();
+    let scenarios: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../../../packages/dokime/tests/integration/client/fixtures/negotiation.json")).unwrap();
 
     for case in scenarios {
         let mut service = Service::new("backend");
@@ -292,10 +199,7 @@ async fn negotiation_matches_fixture() {
         service.max_request_bytes = case["max_request_bytes"].as_u64().unwrap_or(u64::MAX);
         service.max_response_bytes = case["max_response_bytes"].as_u64().unwrap_or(u64::MAX);
         service.health_epoch = case["health_epoch"].as_str().unwrap_or("epoch").into();
-        service.availability_epoch = case["availability_epoch"]
-            .as_str()
-            .unwrap_or("epoch")
-            .into();
+        service.availability_epoch = case["availability_epoch"].as_str().unwrap_or("epoch").into();
 
         service.api_package = case["package"].as_str().unwrap_or("dokime.v1").into();
         service.descriptor = vec![case["descriptor"].as_u64().unwrap_or(0) as u8; 32];

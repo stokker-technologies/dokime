@@ -18,15 +18,12 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::authoring::{action, definition, field, validate_response};
-use super::{
-    PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind,
-    PromptResponse,
-};
+use super::{PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind, PromptResponse};
+use crate::values::FieldValue;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-use crate::values::FieldValue;
 
 /* === Constants === */
 
@@ -46,10 +43,7 @@ pub trait DeclaredPrompt: Sized + Send + 'static {
 
     fn definition() -> PromptDefinition;
 
-    fn decode(
-        definition: &PromptDefinition,
-        response: PromptResponse,
-    ) -> Result<Self::Answer, crate::Error>;
+    fn decode(definition: &PromptDefinition, response: PromptResponse) -> Result<Self::Answer, crate::Error>;
 }
 
 pub trait PromptFieldValue: FieldValue {
@@ -114,12 +108,7 @@ pub fn declared_confirmation(id: &str, label: impl Into<String>) -> PromptDefini
     declared
 }
 
-pub fn declared_field<T: PromptFieldValue>(
-    id: &str,
-    label: impl Into<String>,
-    required: bool,
-    multiple: bool,
-) -> PromptField {
+pub fn declared_field<T: PromptFieldValue>(id: &str, label: impl Into<String>, required: bool, multiple: bool) -> PromptField {
     let mut declared = field(id, label.into(), T::KIND, T::VALUE_TYPE);
     declared.required = required;
     declared.multiple = multiple;
@@ -132,32 +121,21 @@ pub fn declared_default<T: FieldValue>(value: impl Into<T>) -> Value {
     value.into().into_value()
 }
 
-pub fn answered<T: FieldValue>(
-    values: &BTreeMap<String, Value>,
-    name: &str,
-) -> Result<T, crate::Error> {
+pub fn answered<T: FieldValue>(values: &BTreeMap<String, Value>, name: &str) -> Result<T, crate::Error> {
     T::from_value(values.get(name)).map_err(|error| {
         crate::Error::PromptRefused(format!(
             "field `{name}` is not the {} it was declared as: {}",
             describe(error.declared),
-            error
-                .found
-                .unwrap_or_else(|| "nothing was answered".to_owned())
+            error.found.unwrap_or_else(|| "nothing was answered".to_owned())
         ))
     })
 }
 
-pub fn form_answer(
-    definition: &PromptDefinition,
-    response: &PromptResponse,
-) -> Result<(), crate::Error> {
+pub fn form_answer(definition: &PromptDefinition, response: &PromptResponse) -> Result<(), crate::Error> {
     validate_response(definition, response)
 }
 
-pub fn confirmation_answer(
-    definition: &PromptDefinition,
-    response: &PromptResponse,
-) -> Result<bool, crate::Error> {
+pub fn confirmation_answer(definition: &PromptDefinition, response: &PromptResponse) -> Result<bool, crate::Error> {
     validate_response(definition, response)?;
     match response.action.as_str() {
         "yes" => Ok(true),
@@ -166,16 +144,8 @@ pub fn confirmation_answer(
     }
 }
 
-pub fn declared_metadata(
-    id: &str,
-    label: impl Into<String>,
-    description: Option<String>,
-) -> Metadata {
-    Metadata::new(
-        Identifier::new(id).expect("a prompt field identifier is valid"),
-        label.into(),
-        description,
-    )
+pub fn declared_metadata(id: &str, label: impl Into<String>, description: Option<String>) -> Metadata {
+    Metadata::new(Identifier::new(id).expect("a prompt field identifier is valid"), label.into(), description)
 }
 
 /* === Private Functions === */

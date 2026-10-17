@@ -39,14 +39,11 @@ use super::*;
 #[tokio::test]
 async fn native_history_index() {
     let root = tempdir().unwrap();
-    let (mut owner, handle) =
-        booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let (mut owner, handle) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
     let cycle_id = start_cycle(&handle, suite, false).await;
-    handle
-        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
-        .await;
+    handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
     let execution_id = cycle.test_executions[0].test_execution_id.clone();
     let checkpoint = crate::service_support::native::checkpoint(&handle, &execution_id).await;
@@ -81,23 +78,16 @@ async fn live_telemetry_state() {
     const SECOND: u64 = 20;
 
     let root = tempdir().unwrap();
-    let (mut runtime, handle) =
-        booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let (mut runtime, handle) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
 
     // No execution owns these samples; they are process-local live telemetry.
     register_python_suite(&handle, fixture_suite(&["passed"])).await;
 
-    let before = handle
-        .publish_telemetry_batch(unscoped_tracking_batch(FIRST))
-        .await
-        .unwrap();
+    let before = handle.publish_telemetry_batch(unscoped_tracking_batch(FIRST)).await.unwrap();
     assert_eq!(before.stream_cursors.len(), 1);
     assert_eq!(before.stream_cursors.values().copied().next(), Some(FIRST));
 
-    let selection = TelemetrySelection {
-        streams: vec![Identifier::new("tracking").unwrap()],
-        ..TelemetrySelection::default()
-    };
+    let selection = TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap()], ..TelemetrySelection::default() };
 
     // Graceful shutdown seals the durable streams; reboot on the same root.
     drop(handle);
@@ -105,42 +95,21 @@ async fn live_telemetry_state() {
 
     let (mut rebooted, handle) = booted(root.path()).await;
 
-    assert!(
-        handle
-            .selected_telemetry(selection.clone())
-            .await
-            .is_empty()
-    );
+    assert!(handle.selected_telemetry(selection.clone()).await.is_empty());
     register_python_suite(&handle, fixture_suite(&["passed"])).await;
-    let after = handle
-        .publish_telemetry_batch(unscoped_tracking_batch(SECOND))
-        .await
-        .unwrap();
+    let after = handle.publish_telemetry_batch(unscoped_tracking_batch(SECOND)).await.unwrap();
     assert_eq!(after.stream_cursors.len(), 1);
-    assert_eq!(
-        after.stream_cursors.values().copied().next(),
-        Some(SECOND),
-        "the second process starts a fresh stream cursor",
-    );
+    assert_eq!(after.stream_cursors.values().copied().next(), Some(SECOND), "the second process starts a fresh stream cursor",);
 
     // The full run of sequences the two sessions claimed is strictly increasing
     // with no collision.
-    let mut claimed: Vec<u64> = handle
-        .selected_telemetry(selection)
-        .await
-        .iter()
-        .map(|sample| sample.sequence)
-        .collect();
+    let mut claimed: Vec<u64> = handle.selected_telemetry(selection).await.iter().map(|sample| sample.sequence).collect();
     claimed.sort_unstable();
     assert!(
         claimed.windows(2).all(|pair| pair[1] > pair[0]),
         "sequences claimed across the reboot are strictly increasing, no collision: {claimed:?}",
     );
-    assert_eq!(
-        claimed,
-        (1..=SECOND).collect::<Vec<_>>(),
-        "only the current process appears in live telemetry",
-    );
+    assert_eq!(claimed, (1..=SECOND).collect::<Vec<_>>(), "only the current process appears in live telemetry",);
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }
@@ -151,14 +120,15 @@ fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
     let stream = Identifier::new("tracking").unwrap();
     let samples = (0..count)
         .map(|index| {
-            let mut sample =
-                TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, dokime_runtime::model::time::now_utc(), "python.fixture");
-            sample
-                .values
-                .insert("elapsed_s".to_owned(), Value::Number(index as f64));
-            sample
-                .values
-                .insert("target_locked".to_owned(), Value::Bool(true));
+            let mut sample = TelemetrySample::new(
+                dokime_runtime::model::identity::new_id(),
+                stream.clone(),
+                0,
+                dokime_runtime::model::time::now_utc(),
+                "python.fixture",
+            );
+            sample.values.insert("elapsed_s".to_owned(), Value::Number(index as f64));
+            sample.values.insert("target_locked".to_owned(), Value::Bool(true));
             crate::service_support::contracts::typed_minimal_tracking_sample(sample)
         })
         .collect();

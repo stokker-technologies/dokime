@@ -83,9 +83,7 @@ def test_handles_progress() -> None:
 def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
-            )
+            capture = await Capture.prepare(client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE)
             assert backend.created == 1 and backend.run_calls == 0
             backend.fail_admission = True
             with pytest.raises(ExecutionSubmissionUncertain):
@@ -97,9 +95,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
             request = await recovered.start()
             assert backend.key == saved_key
             assert backend.created == 1
-            result, updates = await asyncio.gather(
-                recovered.collect(request), collect(recovered.updates())
-            )
+            result, updates = await asyncio.gather(recovered.collect(request), collect(recovered.updates()))
             assert result.request.id == request.id
             assert result.result.status == "passed"
             assert updates[-1].stage == "complete"
@@ -117,9 +113,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
 def test_failed_retried(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
-            )
+            capture = await Capture.prepare(client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE)
             request = await capture.start()
             backend.bad_report = "hash"
             updates = asyncio.create_task(collect(capture.updates()))
@@ -128,9 +122,7 @@ def test_failed_retried(tmp_path: Path) -> None:
             assert (await updates)[-1].stage == "failed"
             with pytest.raises(RuntimeError, match="not completed"):
                 _ = capture.result
-            assert not json.loads((capture.output / "capture.json").read_text())[
-                "complete"
-            ]
+            assert not json.loads((capture.output / "capture.json").read_text())["complete"]
             backend.bad_report = ""
             await capture.collect(request)
             assert backend.created == backend.run_calls == 1
@@ -143,9 +135,7 @@ def test_cancel_keeps_execution(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             _hold_acquisition(backend)
-            capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
-            )
+            capture = await Capture.prepare(client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE)
             request = await capture.start()
             updates = asyncio.create_task(collect(capture.updates()))
             collection = asyncio.create_task(capture.collect(request))
@@ -159,9 +149,7 @@ def test_cancel_keeps_execution(tmp_path: Path) -> None:
             assert not (await request.status()).terminal
             assert (await updates)[-1].stage == "failed"
             assert not (capture.output / ".collect.lock").exists()
-            assert not json.loads((capture.output / "capture.json").read_text())[
-                "complete"
-            ]
+            assert not json.loads((capture.output / "capture.json").read_text())["complete"]
             # Stop The Execution And Drain Its Saved Evidence.
             cycle = await client.cycle(request.cycle_id)
             (execution,) = cycle.executions
@@ -179,9 +167,7 @@ def test_capture_exclusive(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             _hold_acquisition(backend)
-            capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
-            )
+            capture = await Capture.prepare(client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE)
             request = await capture.start()
             other = await Capture.open(client, output=capture.output)
             other_request = await other.start()
@@ -213,13 +199,9 @@ def test_capture_output_refused(tmp_path: Path) -> None:
             existing = tmp_path / "existing"
             existing.mkdir()
             with pytest.raises(FileExistsError):
-                await Capture.prepare(
-                    client, output=existing, suite=SUITE_ID, template=TEMPLATE
-                )
+                await Capture.prepare(client, output=existing, suite=SUITE_ID, template=TEMPLATE)
             assert backend.created == 0
-            (existing / "capture.json").write_text(
-                json.dumps({"format_version": 1, "stage": "creating_cycle"})
-            )
+            (existing / "capture.json").write_text(json.dumps({"format_version": 1, "stage": "creating_cycle"}))
             with pytest.raises(ValueError, match="not confirmed"):
                 await Capture.open(client, output=existing)
             assert backend.created == backend.run_calls == 0

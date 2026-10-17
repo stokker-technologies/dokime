@@ -20,10 +20,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow, http};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 // Local Imports
 use super::content;
-use super::desktop::{
-    ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory,
-    set_private_file,
-};
+use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
@@ -52,9 +49,7 @@ enum RangeOutcome {
 pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.register_asynchronous_uri_scheme_protocol(
         MEDIA_SCHEME,
-        move |context: tauri::UriSchemeContext<'_, tauri::Wry>,
-              request: http::Request<Vec<u8>>,
-              responder: tauri::UriSchemeResponder| {
+        move |context: tauri::UriSchemeContext<'_, tauri::Wry>, request: http::Request<Vec<u8>>, responder: tauri::UriSchemeResponder| {
             let app = context.app_handle().clone();
             tauri::async_runtime::spawn(async move {
                 let response = match try_respond(&app, &request).await {
@@ -68,18 +63,11 @@ pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wr
 }
 
 pub async fn desktop_media_prepare(
-    window: WebviewWindow,
-    state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-    source: ArtifactSource,
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, source: ArtifactSource,
 ) -> Result<String, String> {
     ensure_main_window(&window)?;
     ensure_generation_token(&generation)?;
-    let lease = state
-        .inner()
-        .lease(&generation)
-        .map_err(|error| format!("Native media preview lost its owning connection: {error:?}"))?;
+    let lease = state.inner().lease(&generation).map_err(|error| format!("Native media preview lost its owning connection: {error:?}"))?;
     let key = cache_key(&source)?;
     let media_root = media_root(&app)?;
     let cache_dir = media_root.join(&generation);
@@ -89,24 +77,16 @@ pub async fn desktop_media_prepare(
         .map_err(|error| error.to_string())??;
     let destination = cache_dir.join(&key);
     if !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
-        let verified = content::fetch_verified(&lease, &source, &destination)
-            .await
-            .map_err(|error| error.to_string())?;
+        let verified = content::fetch_verified(&lease, &source, &destination).await.map_err(|error| error.to_string())?;
         write_content_type(&destination, verified.content_type.as_deref()).await?;
         let private_path = destination.clone();
-        tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path))
-            .await
-            .map_err(|error| error.to_string())??;
+        tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path)).await.map_err(|error| error.to_string())??;
     }
     evict_lru(&cache_dir, MAX_MEDIA_CACHE_BYTES).await?;
     Ok(format!("{generation}/{key}"))
 }
 
-pub async fn desktop_media_release(
-    _state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-) -> Result<(), String> {
+pub async fn desktop_media_release(_state: State<'_, ConnectionSession>, app: AppHandle, generation: String) -> Result<(), String> {
     ensure_generation_token(&generation)?;
     release_generation(&media_root(&app)?, &generation).await
 }
@@ -119,25 +99,14 @@ pub(crate) async fn release_all(app: &AppHandle) {
 
 /* === Private Functions === */
 fn media_root(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_cache_dir()
-        .map_err(|error| error.to_string())?
-        .join("media"))
+    Ok(app.path().app_cache_dir().map_err(|error| error.to_string())?.join("media"))
 }
 
 async fn release_generation(media_root: &Path, generation: &str) -> Result<(), String> {
-    release_with(media_root, generation, |path| {
-        tokio::fs::remove_dir_all(path)
-    })
-    .await
+    release_with(media_root, generation, |path| tokio::fs::remove_dir_all(path)).await
 }
 
-async fn release_with<F>(
-    media_root: &Path,
-    generation: &str,
-    remove: impl FnOnce(PathBuf) -> F,
-) -> Result<(), String>
+async fn release_with<F>(media_root: &Path, generation: &str, remove: impl FnOnce(PathBuf) -> F) -> Result<(), String>
 where
     F: std::future::Future<Output = std::io::Result<()>>,
 {
@@ -155,17 +124,10 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
                 .map_err(|_| "invalid artifact id".to_string())?;
             Ok(format!("art-{id}"))
         }
-        ArtifactSource::ExecutionFile {
-            execution_id,
-            relative_path,
-        } => {
-            let id =
-                dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
-                    .map_err(|_| "invalid execution id".to_string())?;
-            let digest = Sha256::digest(relative_path.as_bytes())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+        ArtifactSource::ExecutionFile { execution_id, relative_path } => {
+            let id = dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
+                .map_err(|_| "invalid execution id".to_string())?;
+            let digest = Sha256::digest(relative_path.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             Ok(format!("exec-{id}-{digest}"))
         }
     }
@@ -173,16 +135,13 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
 
 fn parse_cache_key(key: &str) -> Result<String, String> {
     if let Some(id) = key.strip_prefix("art-") {
-        let id = dokime_domain::model::identity::ArtifactId::from_uuid(id.to_string())
-            .map_err(|_| "invalid artifact id".to_string())?;
+        let id = dokime_domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
         return Ok(format!("art-{id}"));
     }
     if let Some(rest) = key.strip_prefix("exec-") {
-        let (id, digest) = rest
-            .rsplit_once('-')
-            .ok_or_else(|| "invalid media key".to_string())?;
-        let id = dokime_domain::model::identity::TestExecutionId::from_uuid(id.to_string())
-            .map_err(|_| "invalid execution id".to_string())?;
+        let (id, digest) = rest.rsplit_once('-').ok_or_else(|| "invalid media key".to_string())?;
+        let id =
+            dokime_domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
         if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("invalid media key digest".into());
         }
@@ -203,13 +162,8 @@ fn parse_request_path(path: &str) -> Option<(&str, &str)> {
 }
 
 async fn write_content_type(destination: &Path, content_type: Option<&str>) -> Result<(), String> {
-    let value = content_type
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("application/octet-stream");
-    tokio::fs::write(destination.with_extension("type"), value)
-        .await
-        .map_err(|error| error.to_string())
+    let value = content_type.map(str::trim).filter(|value| !value.is_empty()).unwrap_or("application/octet-stream");
+    tokio::fs::write(destination.with_extension("type"), value).await.map_err(|error| error.to_string())
 }
 
 async fn evict_lru(cache_dir: &Path, max_bytes: u64) -> Result<(), String> {
@@ -217,16 +171,9 @@ async fn evict_lru(cache_dir: &Path, max_bytes: u64) -> Result<(), String> {
         return Ok(());
     };
     let mut entries = Vec::new();
-    while let Some(entry) = reader
-        .next_entry()
-        .await
-        .map_err(|error| error.to_string())?
-    {
+    while let Some(entry) = reader.next_entry().await.map_err(|error| error.to_string())? {
         let path = entry.path();
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "type")
-        {
+        if path.extension().is_some_and(|extension| extension == "type") {
             continue;
         }
         let metadata = entry.metadata().await.map_err(|error| error.to_string())?;
@@ -240,11 +187,8 @@ async fn evict_lru(cache_dir: &Path, max_bytes: u64) -> Result<(), String> {
     Ok(())
 }
 
-async fn evict<T: Ord, F>(
-    mut entries: Vec<(PathBuf, T, u64)>,
-    max_bytes: u64,
-    mut remove: impl FnMut(PathBuf) -> F,
-) where
+async fn evict<T: Ord, F>(mut entries: Vec<(PathBuf, T, u64)>, max_bytes: u64, mut remove: impl FnMut(PathBuf) -> F)
+where
     F: std::future::Future<Output = std::io::Result<()>>,
 {
     let mut total = entries.iter().map(|(_, _, size)| size).sum::<u64>();
@@ -268,12 +212,7 @@ fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
         return if len <= MEDIA_RANGE_BYTES {
             RangeOutcome::Full
         } else {
-            RangeOutcome::Partial {
-                start: 0,
-                end: MEDIA_RANGE_BYTES
-                    .saturating_sub(1)
-                    .min(len.saturating_sub(1)),
-            }
+            RangeOutcome::Partial { start: 0, end: MEDIA_RANGE_BYTES.saturating_sub(1).min(len.saturating_sub(1)) }
         };
     };
     let Some(spec) = value.strip_prefix("bytes=") else {
@@ -297,10 +236,7 @@ fn resolve_range(range_header: Option<&str>, len: u64) -> RangeOutcome {
         }
     };
     let max_end = start.saturating_add(MEDIA_RANGE_BYTES - 1);
-    RangeOutcome::Partial {
-        start,
-        end: requested_end.min(len - 1).min(max_end),
-    }
+    RangeOutcome::Partial { start, end: requested_end.min(len - 1).min(max_end) }
 }
 
 async fn read_range(path: &Path, start: u64, end: u64) -> std::io::Result<Vec<u8>> {
@@ -312,38 +248,24 @@ async fn read_range(path: &Path, start: u64, end: u64) -> std::io::Result<Vec<u8
 }
 
 fn status_only(status: http::StatusCode) -> http::Response<Vec<u8>> {
-    http::Response::builder()
-        .status(status)
-        .body(Vec::new())
-        .unwrap_or_else(|_| {
-            let mut response = http::Response::new(Vec::new());
-            *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
-            response
-        })
+    http::Response::builder().status(status).body(Vec::new()).unwrap_or_else(|_| {
+        let mut response = http::Response::new(Vec::new());
+        *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
+        response
+    })
 }
 
-async fn try_respond(
-    app: &AppHandle,
-    request: &http::Request<Vec<u8>>,
-) -> Result<http::Response<Vec<u8>>, http::StatusCode> {
-    let (generation, raw_key) =
-        parse_request_path(request.uri().path()).ok_or(http::StatusCode::BAD_REQUEST)?;
+async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>, http::StatusCode> {
+    let (generation, raw_key) = parse_request_path(request.uri().path()).ok_or(http::StatusCode::BAD_REQUEST)?;
     if generation.is_empty() || !generation.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(http::StatusCode::BAD_REQUEST);
     }
     let key = parse_cache_key(raw_key).map_err(|_| http::StatusCode::BAD_REQUEST)?;
     // A stale generation (disconnected, superseded) cannot read a previous
     // connection's cache, even one still on disk pending eviction.
-    app.state::<ConnectionSession>()
-        .lease(generation)
-        .map_err(|_| http::StatusCode::NOT_FOUND)?;
-    let path = media_root(app)
-        .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?
-        .join(generation)
-        .join(&key);
-    let metadata = tokio::fs::metadata(&path)
-        .await
-        .map_err(|_| http::StatusCode::NOT_FOUND)?;
+    app.state::<ConnectionSession>().lease(generation).map_err(|_| http::StatusCode::NOT_FOUND)?;
+    let path = media_root(app).map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?.join(generation).join(&key);
+    let metadata = tokio::fs::metadata(&path).await.map_err(|_| http::StatusCode::NOT_FOUND)?;
     let len = metadata.len();
     let content_type = tokio::fs::read_to_string(path.with_extension("type"))
         .await
@@ -351,10 +273,7 @@ async fn try_respond(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "application/octet-stream".into());
-    let range_header = request
-        .headers()
-        .get(http::header::RANGE)
-        .and_then(|value| value.to_str().ok());
+    let range_header = request.headers().get(http::header::RANGE).and_then(|value| value.to_str().ok());
     match resolve_range(range_header, len) {
         RangeOutcome::Unsatisfiable => http::Response::builder()
             .status(http::StatusCode::RANGE_NOT_SATISFIABLE)
@@ -362,9 +281,7 @@ async fn try_respond(
             .body(Vec::new())
             .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR),
         RangeOutcome::Full => {
-            let bytes = read_range(&path, 0, len.saturating_sub(1))
-                .await
-                .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?;
+            let bytes = read_range(&path, 0, len.saturating_sub(1)).await.map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?;
             http::Response::builder()
                 .status(http::StatusCode::OK)
                 .header(http::header::CONTENT_TYPE, content_type)
@@ -374,17 +291,12 @@ async fn try_respond(
                 .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)
         }
         RangeOutcome::Partial { start, end } => {
-            let bytes = read_range(&path, start, end)
-                .await
-                .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?;
+            let bytes = read_range(&path, start, end).await.map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)?;
             http::Response::builder()
                 .status(http::StatusCode::PARTIAL_CONTENT)
                 .header(http::header::CONTENT_TYPE, content_type)
                 .header(http::header::ACCEPT_RANGES, "bytes")
-                .header(
-                    http::header::CONTENT_RANGE,
-                    format!("bytes {start}-{end}/{len}"),
-                )
+                .header(http::header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"))
                 .header(http::header::CONTENT_LENGTH, bytes.len())
                 .body(bytes)
                 .map_err(|_| http::StatusCode::INTERNAL_SERVER_ERROR)

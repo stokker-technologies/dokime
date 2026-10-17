@@ -19,8 +19,8 @@
 // Local Imports
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::artifacts::ArtifactUploadInput;
-use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
 use dokime_runtime::definition::{TestCaseTemplate, TestSuite};
+use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
 
 /* === Constants === */
 
@@ -45,9 +45,7 @@ impl Default for Provider {
 
 impl dokime_runtime::ExecutionFixture for Provider {
     fn run_cycle<'a>(
-        &'a self,
-        context: dokime_runtime::ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        &'a self, context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_runtime::execution::CycleView,
         _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
     ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
@@ -71,9 +69,7 @@ impl dokime_runtime::ExecutionFixture for Provider {
             }
             let artifact_id = upload.finish().await.unwrap().artifact_id.to_string();
             self.0.send_replace(Some(artifact_id));
-            use dokime_runtime::transport::{
-                ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome,
-            };
+            use dokime_runtime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
             Ok(ProviderCycleOutcome {
                 status: "passed".into(),
                 dependency_imports: vec![],
@@ -105,13 +101,7 @@ impl dokime_runtime::ExecutionFixture for Provider {
 
 /* === Public Functions === */
 pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
-    let metadata = || {
-        Metadata::new(
-            Identifier::new("rpc.artifact").unwrap(),
-            "Artifact fixture",
-            None,
-        )
-    };
+    let metadata = || Metadata::new(Identifier::new("rpc.artifact").unwrap(), "Artifact fixture", None);
     let template = TestCaseTemplate {
         test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(),
@@ -127,12 +117,7 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         subscriptions: vec![],
         attributes: Default::default(),
     };
-    let suite = TestSuite {
-        metadata: metadata(),
-        tags: vec![],
-        parameter_groups: vec![],
-        test_case_templates: vec![template],
-    };
+    let suite = TestSuite { metadata: metadata(), tags: vec![], parameter_groups: vec![], test_case_templates: vec![template] };
     runtime
         .set_suites(
             "provider:fixture",
@@ -149,33 +134,16 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         .unwrap();
     let cycle_id = registered_cycle(runtime, "rpc.artifact", metadata()).await;
     let receipt = runtime.run_cycle_cases(cycle_id, Default::default()).await;
-    assert_eq!(
-        receipt.status,
-        dokime_runtime::runtime::command::CommandStatus::Accepted
-    );
+    assert_eq!(receipt.status, dokime_runtime::runtime::command::CommandStatus::Accepted);
     // The Provider Publishes The Artifact Once Its Upload Finished
     let mut published = provider.0.subscribe();
-    published
-        .wait_for(Option::is_some)
-        .await
-        .expect("the provider outlives its cycle")
-        .clone()
-        .unwrap()
+    published.wait_for(Option::is_some).await.expect("the provider outlives its cycle").clone().unwrap()
 }
 
 /// Creates an empty cycle and appends every case of the registered suite.
-pub async fn registered_cycle(
-    runtime: &RuntimeHandle,
-    suite_id: &str,
-    metadata: Metadata,
-) -> dokime_runtime::TestCycleId {
-    let suite = runtime
-        .test_suites()
-        .await
-        .into_iter()
-        .find(|entry| entry.suite_id == suite_id)
-        .expect("fixture suite is registered")
-        .suite;
+pub async fn registered_cycle(runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata) -> dokime_runtime::TestCycleId {
+    let suite =
+        runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == suite_id).expect("fixture suite is registered").suite;
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
         max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
@@ -186,14 +154,9 @@ pub async fn registered_cycle(
         .test_case_templates
         .iter()
         .flat_map(|template| {
-            dokime_runtime::definition::materialize_template_cases(
-                suite_id,
-                template,
-                Default::default(),
-                options.clone(),
-            )
-            .unwrap()
-            .test_cases
+            dokime_runtime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone())
+                .unwrap()
+                .test_cases
         })
         .map(|mut case| {
             case.suite = Some(suite.metadata.clone());
@@ -201,19 +164,10 @@ pub async fn registered_cycle(
         })
         .collect();
     let cycle_id = runtime
-        .create_cycle(
-            dokime_runtime::transactions::CycleDefinition {
-                metadata,
-                continue_on_failure: false,
-            },
-            Default::default(),
-        )
+        .create_cycle(dokime_runtime::transactions::CycleDefinition { metadata, continue_on_failure: false }, Default::default())
         .await
         .unwrap();
-    runtime
-        .append_cycle_cases(cycle_id.clone(), cases, Default::default())
-        .await
-        .unwrap();
+    runtime.append_cycle_cases(cycle_id.clone(), cases, Default::default()).await.unwrap();
     cycle_id
 }
 

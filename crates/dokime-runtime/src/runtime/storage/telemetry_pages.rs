@@ -43,22 +43,13 @@ use crate::{
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn read(
-    view: &ExecutionView,
-    stream: &Identifier,
-    query: ExecutionTelemetryQuery,
-) -> Result<ExecutionTelemetryPage> {
+pub(crate) async fn read(view: &ExecutionView, stream: &Identifier, query: ExecutionTelemetryQuery) -> Result<ExecutionTelemetryPage> {
     let limit = page_limit(query.limit, "telemetry")?;
     let after = Cursor::requested(query.after.as_deref())?;
     let view = view.snapshot().await?;
     let mut reader = TelemetryReader::open_page(&view, stream, after)?;
     let checkpoint = view.checkpoint()?;
-    let cursor = Cursor::open(
-        &checkpoint,
-        "telemetry",
-        stream.as_str(),
-        query.after.as_deref(),
-    )?;
+    let cursor = Cursor::open(&checkpoint, "telemetry", stream.as_str(), query.after.as_deref())?;
     let mut state = None;
     while let Some(rows) = reader.next_positioned().await? {
         let next = update(state.take(), rows, after, limit)?;
@@ -68,11 +59,7 @@ pub(crate) async fn read(
             break;
         }
     }
-    let next = state
-        .as_ref()
-        .filter(|state| state.more)
-        .map(|state| cursor.encode(state.last))
-        .transpose()?;
+    let next = state.as_ref().filter(|state| state.more).map(|state| cursor.encode(state.last)).transpose()?;
     Ok(ExecutionTelemetryPage {
         table: stream.as_str().to_owned(),
         checkpoint,

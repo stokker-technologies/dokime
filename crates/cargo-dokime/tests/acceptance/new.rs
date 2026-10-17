@@ -52,11 +52,7 @@ fn generate(root: &Path, args: &[&str]) -> Output {
 }
 
 fn succeeded(output: Output) -> String {
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     String::from_utf8(output.stderr).unwrap()
 }
 
@@ -68,33 +64,18 @@ fn standalone_scaffold_offline() {
     let manifest = fs::read_to_string(root.path().join("my-plugin/Cargo.toml")).unwrap();
     let document = manifest.parse::<toml_edit::DocumentMut>().unwrap();
     let sdk = &document["dependencies"]["dokime"];
-    assert_eq!(
-        sdk["git"].as_str(),
-        Some("https://github.com/stokker-technologies/dokime")
-    );
+    assert_eq!(sdk["git"].as_str(), Some("https://github.com/stokker-technologies/dokime"));
     assert_eq!(sdk["branch"].as_str(), Some("dev"));
     assert!(sdk.get("rev").is_none());
     assert!(!manifest.contains("workspace"));
     assert!(!manifest.contains("harmos"));
-    assert!(
-        root.path()
-            .join("my-plugin/src/suites/soak/hold.rs")
-            .is_file()
-    );
+    assert!(root.path().join("my-plugin/src/suites/soak/hold.rs").is_file());
     assert!(root.path().join("my-plugin/tests/soak.rs").is_file());
     assert!(!root.path().join("my-plugin/target").exists());
-    assert!(
-        fs::read_to_string(root.path().join("my-plugin/src/main.rs"))
-            .unwrap()
-            .contains("my_plugin::Plugin")
-    );
+    assert!(fs::read_to_string(root.path().join("my-plugin/src/main.rs")).unwrap().contains("my_plugin::Plugin"));
     // Declared ids come from the owner namespace rather than the crate name, so
     // a package whose name carries an underscore still declares addressable ids.
-    assert!(
-        fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs"))
-            .unwrap()
-            .contains("id = \"my-plugin.soak.hold\"")
-    );
+    assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my-plugin.soak.hold\""));
 }
 
 #[test]
@@ -128,50 +109,24 @@ fn excluded_scaffold_independent() {
     fs::write(root.path().join("Cargo.toml"), original).unwrap();
     let output = succeeded(generate(root.path(), &["plugins/private-demo"]));
     assert!(!output.contains(" -p "));
-    assert_eq!(
-        fs::read_to_string(root.path().join("Cargo.toml")).unwrap(),
-        original
-    );
-    assert!(
-        fs::read_to_string(root.path().join("plugins/private-demo/Cargo.toml"))
-            .unwrap()
-            .contains("[workspace]")
-    );
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.toml")).unwrap(), original);
+    assert!(fs::read_to_string(root.path().join("plugins/private-demo/Cargo.toml")).unwrap().contains("[workspace]"));
 }
 
 #[test]
 fn invalid_scaffold_refused() {
     let root = tempfile::tempdir().unwrap();
-    for name in [
-        "self",
-        "gen",
-        "con",
-        "lpt1",
-        "has space",
-        "9plugin",
-        "Bad",
-        "test",
-    ] {
-        assert!(
-            !generate(root.path(), &["plugin", "--name", name])
-                .status
-                .success()
-        );
+    for name in ["self", "gen", "con", "lpt1", "has space", "9plugin", "Bad", "test"] {
+        assert!(!generate(root.path(), &["plugin", "--name", name]).status.success());
         assert!(!root.path().join("plugin").exists());
     }
     fs::create_dir(root.path().join("existing")).unwrap();
     fs::write(root.path().join("existing/keep"), "original").unwrap();
     assert!(!generate(root.path(), &["existing"]).status.success());
-    assert_eq!(
-        fs::read_to_string(root.path().join("existing/keep")).unwrap(),
-        "original"
-    );
+    assert_eq!(fs::read_to_string(root.path().join("existing/keep")).unwrap(), "original");
     let malformed = "[workspace]\nmembers = 42\n";
     fs::write(root.path().join("Cargo.toml"), malformed).unwrap();
     assert!(!generate(root.path(), &["plugin"]).status.success());
     assert!(!root.path().join("plugin").exists());
-    assert_eq!(
-        fs::read_to_string(root.path().join("Cargo.toml")).unwrap(),
-        malformed
-    );
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.toml")).unwrap(), malformed);
 }

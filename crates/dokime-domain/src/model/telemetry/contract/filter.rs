@@ -51,9 +51,7 @@ impl TelemetryFilter {
         if !self.streams.is_empty() && !self.streams.contains(&sample.stream) {
             return false;
         }
-        if !self.schema_versions.is_empty()
-            && !self.schema_versions.contains(&sample.schema_version)
-        {
+        if !self.schema_versions.is_empty() && !self.schema_versions.contains(&sample.schema_version) {
             return false;
         }
         if !self.sources.is_empty() && !self.sources.contains(&sample.source) {
@@ -74,12 +72,7 @@ impl TelemetryFilter {
         {
             return false;
         }
-        if !self.signals.is_empty()
-            && !self
-                .signals
-                .iter()
-                .all(|signal| sample.values.contains_key(signal))
-        {
+        if !self.signals.is_empty() && !self.signals.iter().all(|signal| sample.values.contains_key(signal)) {
             return false;
         }
 

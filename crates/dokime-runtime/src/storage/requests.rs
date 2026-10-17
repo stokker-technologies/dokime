@@ -24,6 +24,13 @@ use harmos::{
 
 // Local Imports
 use super::{Error, Result};
+use dokime_domain::model::execution::request::AttemptClaim;
+use dokime_domain::model::execution::request::RunPhase;
+use dokime_domain::model::execution::request::RunReceipt;
+use dokime_domain::model::execution::request::RunSummary;
+use dokime_domain::model::execution::request::StepCommand;
+use dokime_domain::model::execution::request::StepCommandPhase;
+use dokime_domain::model::execution::request::StepCommandReceipt;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
@@ -32,13 +39,6 @@ use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::execution::request::AttemptClaim;
-use dokime_domain::model::execution::request::RunPhase;
-use dokime_domain::model::execution::request::RunReceipt;
-use dokime_domain::model::execution::request::RunSummary;
-use dokime_domain::model::execution::request::StepCommand;
-use dokime_domain::model::execution::request::StepCommandPhase;
-use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Constants === */
 
@@ -134,10 +134,7 @@ impl Request {
 
     pub fn encoding_memory(receipt: &RunReceipt) -> Result<usize> {
         let summary = &receipt.summary;
-        for time in std::iter::once(&summary.accepted_at)
-            .chain(summary.provider_started_at.iter())
-            .chain(summary.finished_at.iter())
-        {
+        for time in std::iter::once(&summary.accepted_at).chain(summary.provider_started_at.iter()).chain(summary.finished_at.iter()) {
             time.to_datetime()?;
         }
         let fields = [
@@ -147,25 +144,15 @@ impl Request {
             run_phase_text(&summary.phase).len(),
             summary.mode.as_str().len(),
             summary.accepted_at.as_str().len(),
-            summary
-                .provider_started_at
-                .as_ref()
-                .map_or(0, |time| time.as_str().len()),
-            summary
-                .finished_at
-                .as_ref()
-                .map_or(0, |time| time.as_str().len()),
+            summary.provider_started_at.as_ref().map_or(0, |time| time.as_str().len()),
+            summary.finished_at.as_ref().map_or(0, |time| time.as_str().len()),
             receipt.fingerprint.len(),
             receipt.submitted_by.as_deref().map_or(0, str::len),
             receipt.interruption.as_deref().map_or(0, str::len),
         ];
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
         if let Some(claim) = &receipt.last_claim {
-            bytes = bytes
-                .saturating_add(claim.case_id.as_str().len())
-                .saturating_add(claim.execution_id.as_str().len());
+            bytes = bytes.saturating_add(claim.case_id.as_str().len()).saturating_add(claim.execution_id.as_str().len());
         }
         Ok(bytes)
     }
@@ -174,34 +161,16 @@ impl Request {
         if !self.commands.is_empty() {
             return Err(Error::Invalid("parent object embeds command history"));
         }
-        let strings = [
-            &self.request_id,
-            &self.node_id,
-            &self.cycle_id,
-            &self.accepted_at,
-            &self.fingerprint,
-        ];
-        let mut bytes = strings
-            .into_iter()
-            .fold(std::mem::size_of::<RunReceipt>(), |bytes, value| {
-                bytes.saturating_add(value.capacity())
-            });
-        for value in [
-            &self.provider_started_at,
-            &self.finished_at,
-            &self.submitted_by,
-            &self.interruption,
-        ] {
+        let strings = [&self.request_id, &self.node_id, &self.cycle_id, &self.accepted_at, &self.fingerprint];
+        let mut bytes = strings.into_iter().fold(std::mem::size_of::<RunReceipt>(), |bytes, value| bytes.saturating_add(value.capacity()));
+        for value in [&self.provider_started_at, &self.finished_at, &self.submitted_by, &self.interruption] {
             bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
         }
         if let Some(claim) = &self.last_claim {
-            bytes = bytes
-                .saturating_add(claim.case_id.capacity())
-                .saturating_add(claim.execution_id.capacity());
+            bytes = bytes.saturating_add(claim.case_id.capacity()).saturating_add(claim.execution_id.capacity());
         }
-        let commands = harmos::btree_map_memory::<CommandId, StepCommandReceipt>(0).saturating_sub(
-            std::mem::size_of::<std::collections::BTreeMap<CommandId, StepCommandReceipt>>(),
-        );
+        let commands = harmos::btree_map_memory::<CommandId, StepCommandReceipt>(0)
+            .saturating_sub(std::mem::size_of::<std::collections::BTreeMap<CommandId, StepCommandReceipt>>());
         Ok(bytes.saturating_add(commands))
     }
 
@@ -248,8 +217,7 @@ impl Command {
             .and_then(|length| length.checked_add(receipt.command_id.as_str().len()))
             .ok_or(Error::Invalid("command key size overflows"))?;
         let mut item = String::new();
-        item.try_reserve_exact(length)
-            .map_err(|_| Error::Invalid("command key allocation failed"))?;
+        item.try_reserve_exact(length).map_err(|_| Error::Invalid("command key allocation failed"))?;
         item.push_str(request_id.as_str());
         item.push('/');
         item.push_str(receipt.command_id.as_str());
@@ -264,11 +232,7 @@ impl Command {
         receipt.updated_at.to_datetime()?;
         let fields = [
             request_id.as_str().len(),
-            request_id
-                .as_str()
-                .len()
-                .saturating_add(1)
-                .saturating_add(receipt.command_id.as_str().len()),
+            request_id.as_str().len().saturating_add(1).saturating_add(receipt.command_id.as_str().len()),
             receipt.command_id.as_str().len(),
             receipt.execution_id.as_str().len(),
             command_action_text(&receipt.action).len(),
@@ -277,31 +241,18 @@ impl Command {
                 _ => 0,
             },
             command_phase_text(&receipt.phase).len(),
-            receipt
-                .attempt_id
-                .as_ref()
-                .map_or(0, |id| id.as_str().len()),
+            receipt.attempt_id.as_ref().map_or(0, |id| id.as_str().len()),
             receipt.accepted_at.as_str().len(),
             receipt.updated_at.as_str().len(),
             receipt.detail.as_deref().map_or(0, str::len),
         ];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add))
+        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
     }
 
     pub fn projection_memory(&self) -> usize {
-        let strings = [
-            &self.command_id,
-            &self.execution_id,
-            &self.accepted_at,
-            &self.updated_at,
-        ];
-        let mut bytes = strings
-            .into_iter()
-            .fold(std::mem::size_of::<StepCommandReceipt>(), |bytes, value| {
-                bytes.saturating_add(value.capacity())
-            });
+        let strings = [&self.command_id, &self.execution_id, &self.accepted_at, &self.updated_at];
+        let mut bytes =
+            strings.into_iter().fold(std::mem::size_of::<StepCommandReceipt>(), |bytes, value| bytes.saturating_add(value.capacity()));
         for value in [&self.step_id, &self.attempt_id, &self.detail] {
             bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
         }
@@ -345,10 +296,7 @@ impl Command {
                 _ => None,
             },
             phase: command_phase_text(&value.phase).into(),
-            attempt_id: value
-                .attempt_id
-                .as_ref()
-                .map(|value| value.as_str().to_owned()),
+            attempt_id: value.attempt_id.as_ref().map(|value| value.as_str().to_owned()),
             accepted_at: value.accepted_at.as_str().into(),
             updated_at: value.updated_at.as_str().into(),
             detail: value.detail.as_deref().map(str::to_owned),
@@ -362,9 +310,7 @@ impl TryFrom<Command> for StepCommandReceipt {
         let action = match (row.action.as_str(), row.step_id) {
             ("next", None) => StepCommand::Next,
             ("finish", None) => StepCommand::Finish,
-            ("run_step", Some(id)) => StepCommand::RunStep {
-                step_id: StepId::from_uuid(id)?,
-            },
+            ("run_step", Some(id)) => StepCommand::RunStep { step_id: StepId::from_uuid(id)? },
             _ => return Err(Error::Invalid("invalid stored command action")),
         };
         let phase = match row.phase.as_str() {
@@ -409,14 +355,8 @@ impl From<&RunReceipt> for Request {
             unstarted: summary.unstarted,
             failed: summary.failed,
             accepted_at: summary.accepted_at.as_str().to_owned(),
-            provider_started_at: summary
-                .provider_started_at
-                .as_ref()
-                .map(|value| value.as_str().to_owned()),
-            finished_at: summary
-                .finished_at
-                .as_ref()
-                .map(|value| value.as_str().to_owned()),
+            provider_started_at: summary.provider_started_at.as_ref().map(|value| value.as_str().to_owned()),
+            finished_at: summary.finished_at.as_ref().map(|value| value.as_str().to_owned()),
             fingerprint: receipt.fingerprint.as_str().to_owned(),
             submitted_by: receipt.submitted_by.as_deref().map(str::to_owned),
             claimed: receipt.claimed,
@@ -446,9 +386,7 @@ impl TryFrom<Request> for RunReceipt {
             _ => return Err(Error::Invalid("unknown stored request phase")),
         };
         if row.terminal != phase.terminal() {
-            return Err(Error::Invalid(
-                "stored terminal marker disagrees with phase",
-            ));
+            return Err(Error::Invalid("stored terminal marker disagrees with phase"));
         }
 
         Ok(Self {
@@ -494,10 +432,7 @@ impl TryFrom<Request> for RunReceipt {
                 let mut commands = std::collections::BTreeMap::new();
                 for row in row.commands {
                     let command = StepCommandReceipt::try_from(row)?;
-                    if commands
-                        .insert(command.command_id.clone(), command)
-                        .is_some()
-                    {
+                    if commands.insert(command.command_id.clone(), command).is_some() {
                         return Err(Error::Invalid("duplicate stored command identity"));
                     }
                 }
@@ -556,23 +491,9 @@ pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RunReceipt> {
 /* === Private Functions === */
 fn reject_embedded_commands(bytes: &[u8]) -> Result<()> {
     // The Generated Schema Owns Field Order; Inspect Only The Parent Prefix.
-    let prefix = [
-        "request_id",
-        "node_id",
-        "cycle_id",
-        "phase",
-        "mode",
-        "commands",
-    ];
-    if !Request::FIELDS
-        .iter()
-        .map(|field| field.name.as_ref())
-        .take(prefix.len())
-        .eq(prefix)
-    {
-        return Err(Error::Invalid(
-            "request command prefix differs from its schema",
-        ));
+    let prefix = ["request_id", "node_id", "cycle_id", "phase", "mode", "commands"];
+    if !Request::FIELDS.iter().map(|field| field.name.as_ref()).take(prefix.len()).eq(prefix) {
+        return Err(Error::Invalid("request command prefix differs from its schema"));
     }
     let mut input = harmos::message::postcard::Reader::new(bytes);
     for _ in 0..5 {

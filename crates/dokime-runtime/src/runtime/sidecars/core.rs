@@ -27,11 +27,7 @@ use crate::{InstalledSidecar, RuntimeHandle};
 /* === Macros === */
 
 /* === Type Aliases === */
-type NativePublication = harmos::sidecar::Publish<
-    crate::Dokime,
-    harmos::sidecar::Executable,
-    crate::SidecarNoticeHandler,
->;
+type NativePublication = harmos::sidecar::Publish<crate::Dokime, harmos::sidecar::Executable, crate::SidecarNoticeHandler>;
 
 /* === Structs === */
 #[derive(Default)]
@@ -61,34 +57,21 @@ struct Invocation {
 impl Publications {
     pub(crate) fn register(operations: &OperationManager) -> harmos::Result<Arc<Self>> {
         let owner = Arc::new(Self::default());
-        operations.register_wire_operation::<Invocation>(
-            "dokime.native-publications",
-            crate::app::Lanes::Open,
-            owner.clone(),
-        )?;
+        operations.register_wire_operation::<Invocation>("dokime.native-publications", crate::app::Lanes::Open, owner.clone())?;
         Ok(owner)
     }
 
     pub(crate) fn insert(&self, owner: &str, resident: InstalledSidecar) -> harmos::Result<()> {
-        let mut residents = self
-            .residents
-            .write()
-            .expect("publication registry is healthy");
+        let mut residents = self.residents.write().expect("publication registry is healthy");
         if residents.contains_key(owner) {
-            return Err(harmos::Error::InvalidInput {
-                field: "native publication owner",
-                reason: "previous resident has not retired",
-            });
+            return Err(harmos::Error::InvalidInput { field: "native publication owner", reason: "previous resident has not retired" });
         }
         residents.insert(owner.to_owned(), resident);
         Ok(())
     }
 
     pub(crate) fn remove(&self, owner: &str) {
-        self.residents
-            .write()
-            .expect("publication registry is healthy")
-            .remove(owner);
+        self.residents.write().expect("publication registry is healthy").remove(owner);
     }
 }
 
@@ -103,26 +86,16 @@ impl Operation for Invocation {
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
 
-    async fn initialize<'ctx>(
-        owner: Arc<Publications>,
-        _: Self::Context<'ctx>,
-    ) -> harmos::Result<Self> {
-        Ok(Self {
-            owner,
-            native: None,
-        })
+    async fn initialize<'ctx>(owner: Arc<Publications>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self { owner, native: None })
     }
 
     async fn run<'ctx>(
-        &mut self,
-        context: Self::Context<'ctx>,
-        request: &mut host::Publication,
-        _: &mut (),
+        &mut self, context: Self::Context<'ctx>, request: &mut host::Publication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
-        let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
-            field: "native publication",
-            reason: "original plugin caller is required",
-        })?;
+        let scope = context
+            .caller_scope()
+            .ok_or(harmos::Error::InvalidInput { field: "native publication", reason: "original plugin caller is required" })?;
         if self.native.is_none() {
             let resident = self
                 .owner
@@ -131,19 +104,11 @@ impl Operation for Invocation {
                 .expect("publication registry is healthy")
                 .get(scope.owner())
                 .cloned()
-                .ok_or_else(|| harmos::Error::NotRegistered {
-                    domain: "native publication owner",
-                    name: scope.owner().to_owned(),
-                })?;
-            self.native =
-                Some(NativePublication::initialize(Arc::new(resident), context.clone()).await?);
+                .ok_or_else(|| harmos::Error::NotRegistered { domain: "native publication owner", name: scope.owner().to_owned() })?;
+            self.native = Some(NativePublication::initialize(Arc::new(resident), context.clone()).await?);
         }
         // The Original Connection Validates Authority And Retains Receipts.
-        self.native
-            .as_mut()
-            .expect("native invocation initialized")
-            .run(context, request, &mut ())
-            .await
+        self.native.as_mut().expect("native invocation initialized").run(context, request, &mut ()).await
     }
 
     async fn stop(&mut self) -> harmos::Result<()> {
@@ -164,11 +129,7 @@ impl Operation for Invocation {
 impl RecordIngress {
     pub(crate) fn register(operations: &OperationManager) -> harmos::Result<Arc<Self>> {
         let ingress = Arc::new(Self::default());
-        operations.register_wire_operation::<Filing>(
-            "dokime.records",
-            crate::app::Lanes::Open,
-            ingress.clone(),
-        )?;
+        operations.register_wire_operation::<Filing>("dokime.records", crate::app::Lanes::Open, ingress.clone())?;
         Ok(ingress)
     }
 
@@ -177,20 +138,11 @@ impl RecordIngress {
     }
 
     pub(crate) fn detach(&self) {
-        self.runtime
-            .write()
-            .expect("record ingress is healthy")
-            .take();
+        self.runtime.write().expect("record ingress is healthy").take();
     }
 
     fn runtime(&self) -> harmos::Result<RuntimeHandle> {
-        self.runtime
-            .read()
-            .expect("record ingress is healthy")
-            .clone()
-            .ok_or(harmos::Error::Closing {
-                domain: "record ingress",
-            })
+        self.runtime.read().expect("record ingress is healthy").clone().ok_or(harmos::Error::Closing { domain: "record ingress" })
     }
 }
 
@@ -205,50 +157,37 @@ impl Operation for Filing {
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
 
-    async fn initialize<'ctx>(
-        ingress: Arc<RecordIngress>,
-        _: Self::Context<'ctx>,
-    ) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(ingress: Arc<RecordIngress>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self { ingress })
     }
 
     async fn run<'ctx>(
-        &mut self,
-        context: Self::Context<'ctx>,
-        publication: &mut crate::records::RecordPublication,
-        _: &mut (),
+        &mut self, context: Self::Context<'ctx>, publication: &mut crate::records::RecordPublication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
-        let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
-            field: "record publication",
-            reason: "the original plugin caller is required",
-        })?;
+        let scope = context
+            .caller_scope()
+            .ok_or(harmos::Error::InvalidInput { field: "record publication", reason: "the original plugin caller is required" })?;
         let owner = scope.owner().to_owned();
         let runtime = self.ingress.runtime()?;
-        let Some((request, produced_at)) =
-            super::record_publication(&owner, std::mem::take(publication))
-        else {
+        let Some((request, produced_at)) = super::record_publication(&owner, std::mem::take(publication)) else {
             return Err(harmos::Error::InvalidInput {
                 field: "record publication",
                 reason: "the publication is not a record publish request",
             });
         };
         let record_type = request.record_type.clone();
-        runtime
-            .publish_sidecar_record_at(request, &owner, produced_at)
-            .await
-            .map(|_| ().into())
-            .map_err(|rejection| {
-                tracing::warn!(
-                    owner,
-                    record_type = record_type.as_str(),
-                    detail = ?rejection,
-                    "refusing a record publication"
-                );
-                harmos::Error::InvalidInput {
-                    field: "record publication",
-                    reason: "the record was refused against the plugin's declared contracts",
-                }
-            })
+        runtime.publish_sidecar_record_at(request, &owner, produced_at).await.map(|_| ().into()).map_err(|rejection| {
+            tracing::warn!(
+                owner,
+                record_type = record_type.as_str(),
+                detail = ?rejection,
+                "refusing a record publication"
+            );
+            harmos::Error::InvalidInput {
+                field: "record publication",
+                reason: "the record was refused against the plugin's declared contracts",
+            }
+        })
     }
 }
 

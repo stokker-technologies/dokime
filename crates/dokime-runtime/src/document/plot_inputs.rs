@@ -17,11 +17,11 @@ use std::collections::BTreeSet;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
 use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput, PlotType};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 
@@ -41,32 +41,19 @@ use crate::telemetry::TelemetrySample;
 /* === Functions === */
 
 pub fn plot_input_for_definition(
-    plot: &PlotDefinition,
-    telemetry: &[TelemetrySample],
-    marker_count: usize,
-    selection: &DocumentSelection,
+    plot: &PlotDefinition, telemetry: &[TelemetrySample], marker_count: usize, selection: &DocumentSelection,
 ) -> PlotInput {
-    let matching_streams = telemetry
-        .iter()
-        .filter(|sample| sample_has_plot_fields(sample, plot))
-        .map(|sample| &sample.stream)
-        .collect::<BTreeSet<_>>();
-    let available_streams: Vec<Identifier> =
-        if matching_streams.is_empty() && plot_uses_telemetry(plot) {
-            telemetry
-                .iter()
-                .map(|sample| &sample.stream)
-                .collect::<BTreeSet<_>>()
-        } else {
-            matching_streams
-        }
-        .into_iter()
-        .cloned()
-        .collect();
-    let stream = plot
-        .stream
-        .as_ref()
-        .map(|stream| resolved_plot_stream(stream, &available_streams));
+    let matching_streams =
+        telemetry.iter().filter(|sample| sample_has_plot_fields(sample, plot)).map(|sample| &sample.stream).collect::<BTreeSet<_>>();
+    let available_streams: Vec<Identifier> = if matching_streams.is_empty() && plot_uses_telemetry(plot) {
+        telemetry.iter().map(|sample| &sample.stream).collect::<BTreeSet<_>>()
+    } else {
+        matching_streams
+    }
+    .into_iter()
+    .cloned()
+    .collect();
+    let stream = plot.stream.as_ref().map(|stream| resolved_plot_stream(stream, &available_streams));
 
     PlotInput {
         plot_id: plot.metadata.identifier.clone(),
@@ -106,28 +93,16 @@ pub fn plot_input_for_definition(
 }
 
 pub fn plot_descriptor_for_definition(input: PlotInput, metadata: Metadata) -> PlotDescriptor {
-    PlotDescriptor {
-        plot_id: input.plot_id.clone(),
-        metadata,
-        plot_type: input.plot_type.clone(),
-        input,
-    }
+    PlotDescriptor { plot_id: input.plot_id.clone(), metadata, plot_type: input.plot_type.clone(), input }
 }
 
 pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
-    actual == declared
-        || actual
-            .strip_suffix(declared)
-            .is_some_and(|prefix| prefix.ends_with('.'))
+    actual == declared || actual.strip_suffix(declared).is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 /* === Private Functions === */
 fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
-    if plot
-        .stream
-        .as_ref()
-        .is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream))
-    {
+    if plot.stream.as_ref().is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream)) {
         return false;
     }
 
@@ -140,16 +115,11 @@ fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bo
 
 fn field_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     // A histogram's one value is its x; the count on y is the host's.
-    let has_y_field = plot.plot_type == PlotType::Histogram
-        || plot.y.iter().any(|field| sample.values.contains_key(field));
-    let has_x_field = plot
-        .x
-        .as_ref()
-        .is_none_or(|field| field == "timestamp" || sample.values.contains_key(field));
+    let has_y_field = plot.plot_type == PlotType::Histogram || plot.y.iter().any(|field| sample.values.contains_key(field));
+    let has_x_field = plot.x.as_ref().is_none_or(|field| field == "timestamp" || sample.values.contains_key(field));
     let has_z_field = plot.z_field.as_ref().is_none_or(|field| {
         let z_stream = plot.z_stream.as_ref().or(plot.stream.as_ref());
-        z_stream.is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream))
-            || sample.values.contains_key(field)
+        z_stream.is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream)) || sample.values.contains_key(field)
     });
 
     has_y_field && has_x_field && has_z_field
@@ -157,39 +127,19 @@ fn field_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition)
 
 fn expression_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     let has_y_field = plot.plot_type == PlotType::Histogram
-        || plot
-            .y_expressions
-            .iter()
-            .any(|expression| telemetry_expression_matches(sample, expression));
-    let has_x_field = plot
-        .x_expression
-        .as_ref()
-        .is_none_or(|expression| telemetry_expression_matches(sample, expression));
-    let has_z_field = plot
-        .z_expression
-        .as_ref()
-        .is_none_or(|expression| telemetry_expression_matches(sample, expression));
+        || plot.y_expressions.iter().any(|expression| telemetry_expression_matches(sample, expression));
+    let has_x_field = plot.x_expression.as_ref().is_none_or(|expression| telemetry_expression_matches(sample, expression));
+    let has_z_field = plot.z_expression.as_ref().is_none_or(|expression| telemetry_expression_matches(sample, expression));
 
     has_y_field && has_x_field && has_z_field
 }
 
 fn has_telemetry_expression(plot: &PlotDefinition) -> bool {
-    plot.x_expression
-        .as_ref()
-        .is_some_and(is_telemetry_expression)
+    plot.x_expression.as_ref().is_some_and(is_telemetry_expression)
         || plot.y_expressions.iter().any(is_telemetry_expression)
-        || plot
-            .z_expression
-            .as_ref()
-            .is_some_and(is_telemetry_expression)
-        || plot
-            .series_by_expression
-            .as_ref()
-            .is_some_and(is_telemetry_expression)
-        || plot
-            .filters
-            .iter()
-            .any(|filter| is_telemetry_expression(&filter.expression))
+        || plot.z_expression.as_ref().is_some_and(is_telemetry_expression)
+        || plot.series_by_expression.as_ref().is_some_and(is_telemetry_expression)
+        || plot.filters.iter().any(|filter| is_telemetry_expression(&filter.expression))
 }
 
 fn plot_uses_telemetry(plot: &PlotDefinition) -> bool {
@@ -204,28 +154,21 @@ fn plot_uses_telemetry(plot: &PlotDefinition) -> bool {
 
 fn is_telemetry_expression(expression: &DataExpression) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. })
-        || expression
-            .transforms
-            .iter()
-            .any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
+        || expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
 }
 
 fn telemetry_expression_matches(sample: &TelemetrySample, expression: &DataExpression) -> bool {
     match &expression.source {
         DataSource::Telemetry { stream, field } => {
-            stream_matches_alias(sample.stream.as_str(), stream)
-                && (field == "timestamp" || sample.values.contains_key(field))
+            stream_matches_alias(sample.stream.as_str(), stream) && (field == "timestamp" || sample.values.contains_key(field))
         }
         DataSource::Record { .. } => expression.transforms.iter().any(|transform| {
             let DataTransform::TelemetryAtOrBefore { stream, field } = transform else {
                 return false;
             };
-            stream_matches_alias(sample.stream.as_str(), stream)
-                && sample.values.contains_key(field)
+            stream_matches_alias(sample.stream.as_str(), stream) && sample.values.contains_key(field)
         }),
-        DataSource::Parameter { .. }
-        | DataSource::Dimension { .. }
-        | DataSource::Artifact { .. } => true,
+        DataSource::Parameter { .. } | DataSource::Dimension { .. } | DataSource::Artifact { .. } => true,
     }
 }
 

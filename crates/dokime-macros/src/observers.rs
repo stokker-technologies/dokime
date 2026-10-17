@@ -64,10 +64,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     for argument in Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)? {
         if argument.path().is_ident("foreign") {
             if !matches!(argument, Meta::Path(_)) || foreign {
-                return Err(Error::new_spanned(
-                    argument,
-                    "write `foreign` once to declare read-only access",
-                ));
+                return Err(Error::new_spanned(argument, "write `foreign` once to declare read-only access"));
             }
             foreign = true;
         } else {
@@ -81,33 +78,20 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     let columns = crate::row::column_count(&declared)?;
 
     if foreign && columns == 0 {
-        return Err(Error::new(
-            name.span(),
-            "a foreign stream declares the columns this plugin reads; add named fields",
-        ));
+        return Err(Error::new(name.span(), "a foreign stream declares the columns this plugin reads; add named fields"));
     }
     if named && columns > 0 {
-        return Err(Error::new(
-            name.span(),
-            "a named stream with `row = Shape` must be a unit struct; put fields on Shape",
-        ));
+        return Err(Error::new(name.span(), "a named stream with `row = Shape` must be a unit struct; put fields on Shape"));
     }
     if !named && columns == 0 {
-        return Err(Error::new(
-            name.span(),
-            "a stream requires named row fields or `row = Shape` on a unit struct",
-        ));
+        return Err(Error::new(name.span(), "a stream requires named row fields or `row = Shape` on a unit struct"));
     }
     let (row, row_half) = if columns == 0 {
         (quote!(<#name #types as #sdk::StreamSpec>::Row), quote!())
     } else {
         (quote!(Self), crate::row::implementation(&declared)?)
     };
-    let closing = if foreign {
-        quote!(.foreign())
-    } else {
-        quote!(.strict())
-    };
+    let closing = if foreign { quote!(.foreign()) } else { quote!(.strict()) };
     let published = !foreign;
     let mut stripped = crate::row::stripped(&declared);
     if columns > 0 {
@@ -115,16 +99,9 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             .attrs
             .iter()
             .filter(|attribute| attribute.path().is_ident("derive"))
-            .map(|attribute| {
-                attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
-            })
+            .map(|attribute| attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated))
             .collect::<Result<Vec<_>, _>>()?;
-        let has = |name: &str| {
-            derives
-                .iter()
-                .flatten()
-                .any(|path| path.segments.last().is_some_and(|part| part.ident == name))
-        };
+        let has = |name: &str| derives.iter().flatten().any(|path| path.segments.last().is_some_and(|part| part.ident == name));
         let mut added = Vec::new();
         if !has("Clone") {
             added.push(quote!(Clone));
@@ -136,26 +113,16 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             added.push(quote!(#sdk::__harmos::__private::serde::Deserialize));
         }
         if !added.is_empty() {
-            stripped
-                .attrs
-                .push(syn::parse_quote!(#[derive(#(#added),*)]));
+            stripped.attrs.push(syn::parse_quote!(#[derive(#(#added),*)]));
         }
         if !has("Serialize") && !has("Deserialize") {
-            let serde_path = syn::LitStr::new(
-                &format!("{}::__harmos::__private::serde", quote!(#sdk)).replace(' ', ""),
-                proc_macro2::Span::call_site(),
-            );
-            stripped
-                .attrs
-                .push(syn::parse_quote!(#[serde(crate = #serde_path)]));
+            let serde_path =
+                syn::LitStr::new(&format!("{}::__harmos::__private::serde", quote!(#sdk)).replace(' ', ""), proc_macro2::Span::call_site());
+            stripped.attrs.push(syn::parse_quote!(#[serde(crate = #serde_path)]));
         }
     }
     // Named Dokime Streams Always Carry A Typed Storage Payload.
-    let shape = if columns > 0 {
-        crate::facade::harmos_attribute("message", quote!(), quote!(#stripped))
-    } else {
-        quote!(#stripped)
-    };
+    let shape = if columns > 0 { crate::facade::harmos_attribute("message", quote!(), quote!(#stripped)) } else { quote!(#stripped) };
     let shared = crate::facade::harmos_attribute("stream", quote!(#forwarded), shape);
     let owned = (!foreign).then(|| {
         quote! {
@@ -163,24 +130,26 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             impl #generics #sdk::telemetry::OwnedStream for #name #types #predicates {}
         }
     });
-    let publishable = (!foreign && columns > 0).then(|| quote! {
-        #[automatically_derived]
-        impl #generics #sdk::Publishable for #name #types #predicates {
-            type Payload = Self;
+    let publishable = (!foreign && columns > 0).then(|| {
+        quote! {
+            #[automatically_derived]
+            impl #generics #sdk::Publishable for #name #types #predicates {
+                type Payload = Self;
 
-            fn publication(self) -> Self {
-                self
+                fn publication(self) -> Self {
+                    self
+                }
             }
-        }
 
-        #[automatically_derived]
-        impl #generics ::core::convert::From<#name #types> for #sdk::publication::Publication #predicates {
-            fn from(row: #name #types) -> Self {
-                let payload = #sdk::Message::encode_to_vec(&row);
-                Self::Row {
-                    payload,
-                    stream: <#name #types as #sdk::telemetry::TelemetryStream>::stream_id(),
-                    values: <#name #types as #sdk::telemetry::TelemetryRow>::into_row(row),
+            #[automatically_derived]
+            impl #generics ::core::convert::From<#name #types> for #sdk::publication::Publication #predicates {
+                fn from(row: #name #types) -> Self {
+                    let payload = #sdk::Message::encode_to_vec(&row);
+                    Self::Row {
+                        payload,
+                        stream: <#name #types as #sdk::telemetry::TelemetryStream>::stream_id(),
+                        values: <#name #types as #sdk::telemetry::TelemetryRow>::into_row(row),
+                    }
                 }
             }
         }

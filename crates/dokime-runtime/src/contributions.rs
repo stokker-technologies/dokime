@@ -22,8 +22,8 @@ use harmos::plugin::{Registrar, RegistrationError};
 // Local Imports
 use crate::catalog::{self, Catalog};
 use crate::plugin::registration::{
-    ANALYSES_NAMESPACE, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, RECORDS_NAMESPACE,
-    SETTINGS_NAMESPACE, SUITES_NAMESPACE, SettingsRegistration, TELEMETRY_NAMESPACE, domain_schema,
+    ANALYSES_NAMESPACE, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, RECORDS_NAMESPACE, SETTINGS_NAMESPACE, SUITES_NAMESPACE,
+    SettingsRegistration, TELEMETRY_NAMESPACE, domain_schema,
 };
 use crate::plugin::settings::PluginSettings;
 
@@ -60,18 +60,11 @@ where
     const SECTION: Section = section!(SUITES_NAMESPACE, r#"{"schema":2}"#);
 
     fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
-        let definitions = catalog::entries::<S, catalog::Suites>()
-            .into_iter()
-            .map(|definition| definition())
-            .collect::<Vec<_>>();
+        let definitions = catalog::entries::<S, catalog::Suites>().into_iter().map(|definition| definition()).collect::<Vec<_>>();
         if definitions.is_empty() {
             return Ok(());
         }
-        register(
-            registrar,
-            SUITES_NAMESPACE,
-            &crate::definition::SuiteSet::new(definitions),
-        )
+        register(registrar, SUITES_NAMESPACE, &crate::definition::SuiteSet::new(definitions))
     }
 }
 
@@ -84,20 +77,11 @@ where
     const SECTION: Section = section!(RECORDS_NAMESPACE, r#"{"schema":1}"#);
 
     fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
-        let records = catalog::entries::<R, catalog::Records>()
-            .into_iter()
-            .map(|contract| contract())
-            .collect::<Vec<_>>();
+        let records = catalog::entries::<R, catalog::Records>().into_iter().map(|contract| contract()).collect::<Vec<_>>();
         let mut seen = std::collections::BTreeSet::new();
         for record in &records {
             if !seen.insert(record.record_type.clone()) {
-                return Err(invalid(
-                    RECORDS_NAMESPACE,
-                    format!(
-                        "record `{}` is registered more than once",
-                        record.record_type
-                    ),
-                ));
+                return Err(invalid(RECORDS_NAMESPACE, format!("record `{}` is registered more than once", record.record_type)));
             }
         }
         if !records.is_empty() {
@@ -126,10 +110,7 @@ where
     const SECTION: Section = section!(TELEMETRY_NAMESPACE, r#"{"schema":1}"#);
 
     fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
-        let streams = catalog::entries::<S, catalog::StreamContracts>()
-            .into_iter()
-            .map(|contract| contract())
-            .collect::<Vec<_>>();
+        let streams = catalog::entries::<S, catalog::StreamContracts>().into_iter().map(|contract| contract()).collect::<Vec<_>>();
         if !streams.is_empty() {
             register(registrar, TELEMETRY_NAMESPACE, &streams)?;
         }
@@ -155,15 +136,10 @@ where
     fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
         let settings = SettingsRegistration {
             catalog: S::catalog(),
-            status_entrypoint: S::status_operation().map(|name| crate::domains::PluginEntrypoint {
-                name: name.to_owned(),
-            }),
+            status_entrypoint: S::status_operation().map(|name| crate::domains::PluginEntrypoint { name: name.to_owned() }),
             discoveries: S::discoveries(),
         };
-        settings
-            .catalog
-            .validate()
-            .map_err(|error| invalid(SETTINGS_NAMESPACE, error))?;
+        settings.catalog.validate().map_err(|error| invalid(SETTINGS_NAMESPACE, error))?;
         if !settings.catalog.contributions.is_empty() || settings.status_entrypoint.is_some() {
             register(registrar, SETTINGS_NAMESPACE, &settings)?;
         }
@@ -178,19 +154,12 @@ where
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn register<T: serde::Serialize>(
-    registrar: &mut Registrar,
-    namespace: &str,
-    value: &T,
-) -> Result<(), RegistrationError> {
+fn register<T: serde::Serialize>(registrar: &mut Registrar, namespace: &str, value: &T) -> Result<(), RegistrationError> {
     registrar.register(namespace, domain_schema(namespace), value)
 }
 
 fn invalid(namespace: &str, error: impl std::fmt::Display) -> RegistrationError {
-    RegistrationError::Encode {
-        namespace: namespace.into(),
-        source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()),
-    }
+    RegistrationError::Encode { namespace: namespace.into(), source: <serde_json::Error as serde::ser::Error>::custom(error.to_string()) }
 }
 
 /* === Tests === */

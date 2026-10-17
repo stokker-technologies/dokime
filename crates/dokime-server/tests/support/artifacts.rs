@@ -48,11 +48,7 @@ pub fn obc_plugin_bundle() -> PathBuf {
 /* === Private Functions === */
 fn artifact(relative: &str) -> PathBuf {
     let path = build_root().join(relative);
-    assert!(
-        path.is_file(),
-        "missing built artifact {}; run `mise run build`",
-        path.display()
-    );
+    assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }
 

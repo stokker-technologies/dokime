@@ -115,9 +115,7 @@ pub struct EvidenceCounts {
 pub struct TraceabilityPage {
     // The request scope is echoed so a consumer cannot accidentally apply a
     // response to another selected execution.
-    #[row(
-        description = "The request scope is echoed so a consumer cannot accidentally apply a response to another selected execution."
-    )]
+    #[row(description = "The request scope is echoed so a consumer cannot accidentally apply a response to another selected execution.")]
     pub scope: Option<EvidenceScope>,
     pub snapshots: Vec<TraceabilitySnapshot>,
     pub cursor: Option<Cursor>,

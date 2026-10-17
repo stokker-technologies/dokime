@@ -55,20 +55,13 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         .into_iter()
         .filter(|entry| {
             entry.contract.operation().id.as_str() == args.operation
-                && args
-                    .owner
-                    .as_deref()
-                    .is_none_or(|owner| entry.owner.as_str() == owner)
+                && args.owner.as_deref().is_none_or(|owner| entry.owner.as_str() == owner)
         })
         .collect();
     if providers.is_empty() {
         return Err(dokime_client::operations::Error::Unknown(args.operation).into());
     }
-    let output = if args.json {
-        serde_json::to_string(&providers)?
-    } else {
-        serde_json::to_string_pretty(&providers)?
-    };
+    let output = if args.json { serde_json::to_string(&providers)? } else { serde_json::to_string_pretty(&providers)? };
     println!("{output}");
     Ok(())
 }

@@ -56,22 +56,15 @@ impl Operation for Capture {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::documents::wire::DocumentFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::CaptureCurrentDocument,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut contract::CaptureCurrentDocument, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = owner(request.scope.take())?;
         value::text(&request.document_id)?;
-        let id = DocumentId::from_identifier(&request.document_id)
-            .map_err(|_| Status::invalid_argument("invalid document ID"))?;
+        let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
         // A scope without an execution names the cycle's own document.
         let runtime = &self.resources.runtime;
         let prepared = match &execution {
@@ -111,44 +104,24 @@ impl Operation for UpdatePlotSettings {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut contract::UpdatePlotSettings,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut contract::UpdatePlotSettings, _: &mut (),
     ) -> Result<Response<()>, Status> {
         let (cycle, execution) = scope(request.scope.take())?;
         value::text(&request.document_id)?;
         value::text(&request.plot_id)?;
-        let document = DocumentId::from_identifier(&request.document_id)
-            .map_err(|_| Status::invalid_argument("invalid document ID"))?;
-        let plot = Identifier::new(&request.plot_id)
-            .map_err(|_| Status::invalid_argument("invalid plot ID"))?;
-        if request
-            .display_points
-            .is_some_and(|points| points > 100_000)
-        {
-            return Err(Status::invalid_argument(
-                "display_points must not exceed 100000",
-            ));
+        let document = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
+        let plot = Identifier::new(&request.plot_id).map_err(|_| Status::invalid_argument("invalid plot ID"))?;
+        if request.display_points.is_some_and(|points| points > 100_000) {
+            return Err(Status::invalid_argument("display_points must not exceed 100000"));
         }
         self.resources
             .runtime
-            .update_plot_settings(
-                &cycle,
-                &execution,
-                &document,
-                &plot,
-                request.display_points,
-                request.downsample,
-            )
+            .update_plot_settings(&cycle, &execution, &document, &plot, request.display_points, request.downsample)
             .await
             .map_err(super::execution::status)?;
         Ok(().into())
@@ -157,50 +130,29 @@ impl Operation for UpdatePlotSettings {
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-    });
-    runtime.operations().register_wire_operation::<Capture>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        resources.clone(),
-    )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdatePlotSettings>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources,
-        )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    runtime.operations().register_wire_operation::<Capture>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdatePlotSettings>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
 /* === Private Functions === */
 /// The capture scope: a cycle, and the execution whose document it names, or
 /// none for the cycle's own document.
-fn owner(
-    scope: Option<dokime_domain::model::documents::wire::DocumentScope>,
-) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
+fn owner(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
-    let cycle = TestCycleId::from_uuid(scope.cycle_id)
-        .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+    let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
     if scope.execution_id.is_empty() {
         return Ok((cycle, None));
     }
-    let execution = TestExecutionId::from_uuid(scope.execution_id)
-        .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, Some(execution)))
 }
 
-fn scope(
-    scope: Option<dokime_domain::model::documents::wire::DocumentScope>,
-) -> Result<(TestCycleId, TestExecutionId), Status> {
+fn scope(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
-    let cycle = TestCycleId::from_uuid(scope.cycle_id)
-        .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
-    let execution = TestExecutionId::from_uuid(scope.execution_id)
-        .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+    let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
 }
 fn failure(error: harmos::Error) -> Status {

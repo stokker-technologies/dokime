@@ -22,13 +22,12 @@ use harmos::MemorySize;
 // Local Imports
 use super::{DEFAULT_DOCUMENT_ID, built_in_card, selected_execution_template};
 use crate::document::{
-    DocumentCard, DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentNode,
-    DocumentSection, DocumentSectionNode,
+    DocumentCard, DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentNode, DocumentSection, DocumentSectionNode,
 };
-use dokime_domain::model::execution::result::TestExecution;
 use crate::execution_runtime::registry::SuiteRegistry;
-use dokime_domain::model::identity::DocumentId;
 use crate::telemetry::{TelemetryColumn, TelemetryContract};
+use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
 /// The result built-ins lead the default document: steps and criteria, then
@@ -38,29 +37,14 @@ pub(super) const RESULT_SECTIONS: [Section; 2] = [
         id: "execution.result",
         label: "Execution",
         cards: &[
-            Card {
-                id: "result.steps",
-                label: "Steps",
-                order: 10,
-                body: DocumentCardBody::Steps,
-            },
-            Card {
-                id: "result.criteria",
-                label: "Criteria",
-                order: 20,
-                body: DocumentCardBody::Criteria,
-            },
+            Card { id: "result.steps", label: "Steps", order: 10, body: DocumentCardBody::Steps },
+            Card { id: "result.criteria", label: "Criteria", order: 20, body: DocumentCardBody::Criteria },
         ],
     },
     Section {
         id: "execution.traceability.notes",
         label: "Operator Notes",
-        cards: &[Card {
-            id: "traceability.notes",
-            label: "Operator Notes",
-            order: 10,
-            body: DocumentCardBody::Notes,
-        }],
+        cards: &[Card { id: "traceability.notes", label: "Operator Notes", order: 10, body: DocumentCardBody::Notes }],
     },
 ];
 /// The evidence built-ins close the default document, after authored sections.
@@ -68,57 +52,28 @@ pub(super) const EVIDENCE_SECTIONS: [Section; 4] = [
     Section {
         id: "execution.events",
         label: "Records",
-        cards: &[Card {
-            id: "events.timeline",
-            label: "Records",
-            order: 10,
-            body: DocumentCardBody::Records,
-        }],
+        cards: &[Card { id: "events.timeline", label: "Records", order: 10, body: DocumentCardBody::Records }],
     },
     Section {
         id: "execution.traceability.artifacts",
         label: "Artifacts",
-        cards: &[Card {
-            id: "traceability.artifacts",
-            label: "Artifacts",
-            order: 10,
-            body: DocumentCardBody::Artifacts,
-        }],
+        cards: &[Card { id: "traceability.artifacts", label: "Artifacts", order: 10, body: DocumentCardBody::Artifacts }],
     },
     Section {
         id: "execution.traceability.media",
         label: "Media",
-        cards: &[Card {
-            id: "traceability.media",
-            label: "Media",
-            order: 10,
-            body: DocumentCardBody::Media,
-        }],
+        cards: &[Card { id: "traceability.media", label: "Media", order: 10, body: DocumentCardBody::Media }],
     },
     Section {
         id: "execution.traceability.sections",
         label: "Traceability",
-        cards: &[Card {
-            id: "traceability.sections",
-            label: "Traceability",
-            order: 10,
-            body: DocumentCardBody::Traceability,
-        }],
+        cards: &[Card { id: "traceability.sections", label: "Traceability", order: 10, body: DocumentCardBody::Traceability }],
     },
 ];
 pub(super) const CYCLE_SECTIONS: [Section; 3] = [
-    Section {
-        id: "cycle.events",
-        ..EVIDENCE_SECTIONS[0]
-    },
-    Section {
-        id: "cycle.artifacts",
-        ..EVIDENCE_SECTIONS[1]
-    },
-    Section {
-        id: "cycle.media",
-        ..EVIDENCE_SECTIONS[2]
-    },
+    Section { id: "cycle.events", ..EVIDENCE_SECTIONS[0] },
+    Section { id: "cycle.artifacts", ..EVIDENCE_SECTIONS[1] },
+    Section { id: "cycle.media", ..EVIDENCE_SECTIONS[2] },
 ];
 
 /* === Macros === */
@@ -146,15 +101,8 @@ struct Card {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn construction_memory(
-    suites: &SuiteRegistry,
-    execution: &TestExecution,
-    document_id: &DocumentId,
-) -> Option<usize> {
-    let authored = execution
-        .documents
-        .values()
-        .find(|definition| &definition.document_id == document_id);
+pub(crate) fn construction_memory(suites: &SuiteRegistry, execution: &TestExecution, document_id: &DocumentId) -> Option<usize> {
+    let authored = execution.documents.values().find(|definition| &definition.document_id == document_id);
     let is_default = document_id.as_str() == DEFAULT_DOCUMENT_ID;
     if authored.is_none() && !is_default {
         return None;
@@ -176,14 +124,10 @@ pub(crate) fn construction_memory(
         let sections = RESULT_SECTIONS.iter().chain(EVIDENCE_SECTIONS.iter());
         let section_count = sections.clone().count();
         let cards = sections.clone().map(|section| section.cards.len()).sum();
-        bytes = bytes.saturating_add(growth_memory::<DocumentCardDefinition>(
-            authored.map_or(0, |definition| definition.cards.len()),
-            cards,
-        ));
-        bytes = bytes.saturating_add(growth_memory::<DocumentNode>(
-            authored.map_or(0, |definition| definition.layout.nodes.len()),
-            section_count,
-        ));
+        bytes =
+            bytes.saturating_add(growth_memory::<DocumentCardDefinition>(authored.map_or(0, |definition| definition.cards.len()), cards));
+        bytes = bytes
+            .saturating_add(growth_memory::<DocumentNode>(authored.map_or(0, |definition| definition.layout.nodes.len()), section_count));
         // Both built-in section collections can be admitted together safely.
         bytes = bytes.saturating_add(section_count.saturating_mul(size_of::<DocumentSection>()));
         for section in sections {
@@ -196,12 +140,7 @@ pub(crate) fn construction_memory(
             .cards
             .iter()
             .map(|card| &card.body)
-            .chain(
-                definition
-                    .sections
-                    .iter()
-                    .flat_map(|section| section.cards.iter().map(|card| &card.body)),
-            )
+            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)))
             .filter(|body| matches!(body, DocumentCardBody::Plot { plot } if plot.x_axis.is_none()))
             .count()
     });
@@ -210,19 +149,11 @@ pub(crate) fn construction_memory(
     }
     let mut contracts = 0usize;
     let mut largest_unit = 0usize;
-    for contract in suites
-        .suites()
-        .flat_map(|suite| suite.telemetry_contracts.iter())
-    {
+    for contract in suites.suites().flat_map(|suite| suite.telemetry_contracts.iter()) {
         contracts = contracts.saturating_add(1);
         bytes = bytes.saturating_add(contract.memory_size());
-        if !contract
-            .columns
-            .iter()
-            .any(|column| column.metadata.identifier.as_str() == "timestamp")
-        {
-            bytes =
-                bytes.saturating_add(growth_memory::<TelemetryColumn>(contract.columns.len(), 1));
+        if !contract.columns.iter().any(|column| column.metadata.identifier.as_str() == "timestamp") {
+            bytes = bytes.saturating_add(growth_memory::<TelemetryColumn>(contract.columns.len(), 1));
             bytes = bytes
                 .saturating_add(size_of::<TelemetryColumn>())
                 .saturating_add("timestamp".len())
@@ -233,8 +164,7 @@ pub(crate) fn construction_memory(
             bytes = bytes.saturating_add("timestamp".len());
         }
         for column in &contract.columns {
-            largest_unit =
-                largest_unit.max(column.unit.as_ref().map_or(0, |unit| unit.symbol.len()));
+            largest_unit = largest_unit.max(column.unit.as_ref().map_or(0, |unit| unit.symbol.len()));
         }
     }
     // The normalized vector coexists with its values and the completed document.
@@ -251,12 +181,7 @@ pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
             section.id(descriptor.id);
             section.cards = Vec::with_capacity(descriptor.cards.len());
             for card in descriptor.cards {
-                section.card(built_in_card(
-                    card.id,
-                    card.label,
-                    card.order,
-                    card.body.clone(),
-                ));
+                section.card(built_in_card(card.id, card.label, card.order, card.body.clone()));
             }
             section
         })
@@ -273,18 +198,8 @@ fn section_memory(section: &Section) -> usize {
         .saturating_add(section.id.len()) // upsert_section Temporary Identifier
         .saturating_add(section.label.len())
         .saturating_add(metadata_attributes_memory().saturating_mul(2));
-    bytes = bytes.saturating_add(
-        section
-            .cards
-            .len()
-            .saturating_mul(size_of::<DocumentCard>()),
-    );
-    bytes = bytes.saturating_add(
-        section
-            .cards
-            .len()
-            .saturating_mul(size_of::<DocumentNode>()),
-    );
+    bytes = bytes.saturating_add(section.cards.len().saturating_mul(size_of::<DocumentCard>()));
+    bytes = bytes.saturating_add(section.cards.len().saturating_mul(size_of::<DocumentNode>()));
     for card in section.cards {
         bytes = bytes
             .saturating_add(size_of::<DocumentCardDefinition>())
@@ -298,8 +213,7 @@ fn section_memory(section: &Section) -> usize {
 }
 
 fn metadata_attributes_memory() -> usize {
-    harmos::btree_map_memory::<String, harmos::Value>(0)
-        .saturating_sub(size_of::<std::collections::BTreeMap<String, harmos::Value>>())
+    harmos::btree_map_memory::<String, harmos::Value>(0).saturating_sub(size_of::<std::collections::BTreeMap<String, harmos::Value>>())
 }
 
 fn growth_memory<T>(length: usize, added: usize) -> usize {

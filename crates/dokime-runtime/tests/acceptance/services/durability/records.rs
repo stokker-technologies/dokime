@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use crate::service_support::prelude::*;
+use dokime_domain::model;
 use dokime_runtime::domains::evidence::RecordSelection;
 
 /* === Constants === */
@@ -42,25 +42,17 @@ use dokime_runtime::domains::evidence::RecordSelection;
 
 async fn publish_position_record(runtime: &RuntimeHandle, message: String) {
     use {
-    model::records::product::ProductCalibrationDetails,
-    model::records::product::ProductCalibrationKind,
-    model::records::product::ProductCalibrationPhase,
-};
-    let mut draft = ProductCalibrationDetails::new(
-        "bench",
-        ProductCalibrationKind::Field,
-        ProductCalibrationPhase::Completed,
-    )
-    .into_draft("fixture.record_positions");
+        model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
+        model::records::product::ProductCalibrationPhase,
+    };
+    let mut draft = ProductCalibrationDetails::new("bench", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+        .into_draft("fixture.record_positions");
     draft.message = Some(message);
     runtime.publish_product_record(draft).await.unwrap();
 }
 
 fn position_selection() -> RecordSelection {
-    RecordSelection {
-        record_types: vec![Identifier::new("calibration.field.completed").unwrap()],
-        ..Default::default()
-    }
+    RecordSelection { record_types: vec![Identifier::new("calibration.field.completed").unwrap()], ..Default::default() }
 }
 
 /* === Tests === */
@@ -78,65 +70,37 @@ async fn managed_records_kill() {
     );
     child.ready().await;
     child.kill();
-    let old: Vec<model::records::evidence::RecordEntry> =
-        serde_json::from_slice(&std::fs::read(marker).unwrap()).unwrap();
+    let old: Vec<model::records::evidence::RecordEntry> = serde_json::from_slice(&std::fs::read(marker).unwrap()).unwrap();
     let (mut owner, runtime) = started(config(root.path())).await;
     for index in 0..32 {
         publish_position_record(&runtime, format!("New Process {index}")).await;
     }
-    let current = runtime
-        .selected_records(position_selection())
-        .await
-        .unwrap();
-    assert_eq!(
-        current.len(),
-        old.len() + 32,
-        "physical paging must not skip a new visible record"
-    );
-    let new: Vec<_> = current
-        .iter()
-        .filter(|record| old.iter().all(|prior| prior.record_id != record.record_id))
-        .collect();
+    let current = runtime.selected_records(position_selection()).await.unwrap();
+    assert_eq!(current.len(), old.len() + 32, "physical paging must not skip a new visible record");
+    let new: Vec<_> = current.iter().filter(|record| old.iter().all(|prior| prior.record_id != record.record_id)).collect();
     assert_eq!(new.len(), 32);
-    assert!(old.iter().all(|prior| {
-        current
-            .iter()
-            .any(|record| record.record_id == prior.record_id)
-    }));
+    assert!(old.iter().all(|prior| { current.iter().any(|record| record.record_id == prior.record_id) }));
     assert!(
-        new.iter()
-            .all(|record| old.iter().all(|prior| prior.sequence != record.sequence)),
+        new.iter().all(|record| old.iter().all(|prior| prior.sequence != record.sequence)),
         "managed recovery preserves saved logical positions"
     );
     drop(runtime);
     owner.shutdown().await.unwrap();
 
     let (mut owner, runtime) = started(config(root.path())).await;
-    assert_eq!(
-        runtime
-            .selected_records(position_selection())
-            .await
-            .unwrap(),
-        current
-    );
+    assert_eq!(runtime.selected_records(position_selection()).await.unwrap(), current);
     drop(runtime);
     owner.shutdown().await.unwrap();
 
     use harmos::storage::StorageBackend;
-    let backend = dokime_runtime::storage::Backend::primary(config(root.path()).storage_root)
-        .await
-        .unwrap();
+    let backend = dokime_runtime::storage::Backend::primary(config(root.path()).storage_root).await.unwrap();
     let saved = backend.cursor_saved().await.unwrap();
     let mut count = 0;
     let mut identities = std::collections::BTreeSet::new();
     let mut positions = std::collections::BTreeSet::new();
-    for row in
-        crate::service_support::backend::records(&backend, &saved, dokime_runtime::storage::records::schema()).await
-    {
+    for row in crate::service_support::backend::records(&backend, &saved, dokime_runtime::storage::records::schema()).await {
         let record = dokime_runtime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
-        if record.source != "runtime"
-            || record.record_type.as_str() != "calibration.field.completed"
-        {
+        if record.source != "runtime" || record.record_type.as_str() != "calibration.field.completed" {
             continue;
         }
         assert_eq!(row.item.as_str(), record.record_id.as_str());
@@ -144,16 +108,9 @@ async fn managed_records_kill() {
         identities.insert(record.record_id.clone());
         positions.insert(record.sequence);
     }
-    assert_eq!(
-        count, 64,
-        "both process histories remain in primary storage"
-    );
+    assert_eq!(count, 64, "both process histories remain in primary storage");
     assert_eq!(identities.len(), 64);
-    assert_eq!(
-        positions.len(),
-        64,
-        "managed journal positions survive the kill"
-    );
+    assert_eq!(positions.len(), 64, "managed journal positions survive the kill");
     backend.close().await.unwrap();
 }
 
@@ -168,22 +125,14 @@ async fn record_position_writer(root: PathBuf) {
         if index == 16 {
             // One record-free transaction makes both logical-position parities
             // available without relying on the number of boot transactions.
-            runtime
-                .update_cycle_policy(cycle.clone(), true, CommandContext::default())
-                .await
-                .unwrap();
+            runtime.update_cycle_policy(cycle.clone(), true, CommandContext::default()).await.unwrap();
         }
         publish_position_record(&runtime, format!("Old Process {index}")).await;
     }
-    let old = runtime
-        .selected_records(position_selection())
-        .await
-        .unwrap();
+    let old = runtime.selected_records(position_selection()).await.unwrap();
     assert_eq!(old.len(), 32);
     runtime.storage().flush().await.unwrap();
-    runtime
-        .run_cycle_cases(cycle, CommandContext::default())
-        .await;
+    runtime.run_cycle_cases(cycle, CommandContext::default()).await;
     executor.wait_until_entered().await;
     // The Shared Manager Saves Facts And Logical Recovery Before The Kill.
     let temporary = root.join("saved-records.tmp");

@@ -21,21 +21,16 @@ use std::sync::Arc;
 use tempfile::tempdir;
 
 // Local Imports
-use super::smoke::{
-    Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke,
-};
+use super::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
-use dokime_runtime::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
-use dokime_runtime::definition::TestCase;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use {
-    dokime_domain::model::execution::request::RunPhase,
-    dokime_domain::model::execution::request::RunReceipt,
-};
 use dokime_domain::model::execution::result::CriterionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_runtime::definition::TestCase;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 use dokime_runtime::runtime::progress::{LiveOperation, OperationOutcome};
 use dokime_runtime::runtime::query::RuntimeChange;
+use dokime_runtime::{CommandId, Identifier, Metadata, TestCycleId, TestExecutionId};
+use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
 /* === Constants === */
 /// Rows each case pushes onto its own stream: many storage pages per case.
@@ -82,11 +77,7 @@ const POOLED_MEMBERS: usize = 9;
 
 /* === Private Functions === */
 /// A runtime serving the in-process smoke check with `behaviour`.
-async fn smoke_runtime(
-    root: &Path,
-    behaviour: Behaviour,
-    constrained: bool,
-) -> (Runtime, RuntimeHandle, Arc<Behaviour>) {
+async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> (Runtime, RuntimeHandle, Arc<Behaviour>) {
     let smoke = Smoke::new(behaviour);
     let behaviour = smoke.behaviour();
     let mut config = config(root).register(Arc::new(smoke));
@@ -98,31 +89,17 @@ async fn smoke_runtime(
 }
 
 async fn smoke_case(handle: &RuntimeHandle) -> TestCase {
-    let suite = handle
-        .test_suites()
-        .await
-        .into_iter()
-        .find(|suite| suite.source == SOURCE)
-        .expect("the smoke suite is registered")
-        .suite;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).expect("the smoke suite is registered").suite;
     materialize_cases(SUITE, &suite).remove(0)
 }
 
 async fn start_smoke(handle: &RuntimeHandle, label: &str, members: usize) -> TestCycleId {
     let case = smoke_case(handle).await;
-    start_cases(
-        handle,
-        Metadata::new(Identifier::new(label).unwrap(), label, None),
-        vec![case; members],
-        false,
-    )
-    .await
+    start_cases(handle, Metadata::new(Identifier::new(label).unwrap(), label, None), vec![case; members], false).await
 }
 
 async fn run(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> CommandId {
-    let receipt = handle
-        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
-        .await;
+    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     receipt.command_id
 }
@@ -136,16 +113,10 @@ async fn settled(handle: &RuntimeHandle, run: &CommandId) -> Arc<RunReceipt> {
 async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str, rows: u32) {
     let selection = TelemetrySelection {
         streams: vec![Identifier::new(stream).unwrap()],
-        scope: ScopeSelection {
-            test_cycle_id: Some(cycle_id.clone()),
-            ..ScopeSelection::default()
-        },
+        scope: ScopeSelection { test_cycle_id: Some(cycle_id.clone()), ..ScopeSelection::default() },
         ..TelemetrySelection::default()
     };
-    until_telemetry(handle, || async {
-        (handle.selected_telemetry(selection.clone()).await.len() >= rows as usize).then_some(())
-    })
-    .await;
+    until_telemetry(handle, || async { (handle.selected_telemetry(selection.clone()).await.len() >= rows as usize).then_some(()) }).await;
 }
 
 /// Runs One Case To Completion And Checks Its Criterion Saw Every Row Once.
@@ -153,28 +124,12 @@ async fn run_case(handle: &RuntimeHandle, label: &str) -> TestExecutionId {
     let cycle_id = start_smoke(handle, label, 1).await;
     let command = run(handle, &cycle_id).await;
     let receipt = settled(handle, &command).await;
-    assert_eq!(
-        receipt.summary.phase,
-        RunPhase::Completed,
-        "{label}: {:?}",
-        receipt.interruption
-    );
-    let execution = cycle_snapshot(handle, &cycle_id)
-        .await
-        .test_executions
-        .remove(0);
+    assert_eq!(receipt.summary.phase, RunPhase::Completed, "{label}: {:?}", receipt.interruption);
+    let execution = cycle_snapshot(handle, &cycle_id).await.test_executions.remove(0);
     assert_eq!(execution.status, ExecutionStatus::Passed, "{label}");
-    let criteria = execution
-        .steps
-        .iter()
-        .flat_map(|step| step.criteria.iter())
-        .collect::<Vec<_>>();
+    let criteria = execution.steps.iter().flat_map(|step| step.criteria.iter()).collect::<Vec<_>>();
     assert_eq!(criteria.len(), 1, "{label}");
-    assert_eq!(
-        criteria[0].status,
-        CriterionStatus::Passed,
-        "{label}: the run was handed back every pulse row exactly once"
-    );
+    assert_eq!(criteria[0].status, CriterionStatus::Passed, "{label}: the run was handed back every pulse row exactly once");
     execution.test_execution_id
 }
 
@@ -215,10 +170,7 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
         ("rms", ((rows - 1.0) * (2.0 * rows - 1.0) / 6.0).sqrt()),
     ] {
         let actual = summary[statistic].as_f64().unwrap();
-        assert!(
-            (actual - expected).abs() <= 1e-9 * expected.abs().max(1.0),
-            "render {attempt} {statistic}: {actual} != {expected}"
-        );
+        assert!((actual - expected).abs() <= 1e-9 * expected.abs().max(1.0), "render {attempt} {statistic}: {actual} != {expected}");
     }
     let window = &summary["window"];
     assert!(window["from"].as_f64().unwrap() <= window["to"].as_f64().unwrap());
@@ -254,19 +206,13 @@ async fn large_case_seals() {
     let html = crate::service_support::native::report(&handle, &execution_id).await;
     let payload = crate::service_support::reports::parse(&html);
     let series = &payload["case_runs"][0]["plots"][PULSE_PLOT]["series"][0];
-    let points = series["points"]
-        .as_array()
-        .expect("the sealed plot carries its points");
+    let points = series["points"].as_array().expect("the sealed plot carries its points");
     assert!(
         !points.is_empty() && points.len() as u32 <= PULSE_DISPLAY_POINTS,
         "the sealed plot shows {} points against its declared {PULSE_DISPLAY_POINTS}",
         points.len()
     );
-    assert_eq!(
-        series["raw_points"],
-        serde_json::json!(LARGE_PULSE_ROWS),
-        "the plot was reduced from every captured row, none truncated"
-    );
+    assert_eq!(series["raw_points"], serde_json::json!(LARGE_PULSE_ROWS), "the plot was reduced from every captured row, none truncated");
     assert_eq!(series["downsampled"], serde_json::json!(true));
     drop(handle);
     runtime.shutdown().await.unwrap();
@@ -307,8 +253,7 @@ async fn running_report_follows() {
     let (mut runtime, handle, behaviour) = smoke_runtime(root.path(), behaviour, false).await;
     let cycle_id = start_smoke(&handle, "pulse.live", 1).await;
     let command = run(&handle, &cycle_id).await;
-    let execution =
-        handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let execution = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
     rows_saved(&handle, &cycle_id, PULSE_STREAM, LARGE_PULSE_ROWS).await;
     let payload = report_payload(&handle, &execution).await;
     assert_eq!(
@@ -333,18 +278,13 @@ async fn running_report_follows() {
         assert_live_plot(&payload, PULSE_PLOT, attempt);
         let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
         assert!(
-            steps
-                .iter()
-                .any(|row| row["record_type"] == "step" && row["status"] == "running"),
+            steps.iter().any(|row| row["record_type"] == "step" && row["status"] == "running"),
             "render {attempt} carries the running step: {steps:?}"
         );
     }
 
     behaviour.release();
-    assert_eq!(
-        settled(&handle, &command).await.summary.phase,
-        RunPhase::Completed
-    );
+    assert_eq!(settled(&handle, &command).await.summary.phase, RunPhase::Completed);
     let html = crate::service_support::native::report(&handle, &execution).await;
     assert_live_plot(&crate::service_support::reports::parse(&html), PULSE_PLOT, 4);
     drop(handle);
@@ -363,12 +303,8 @@ async fn report_shows_progress() {
     rows_saved(&handle, &cycle_id, PULSE_STREAM, LARGE_PULSE_ROWS).await;
 
     let mut watch = handle.watch_state();
-    let earlier: std::collections::BTreeSet<String> = watch
-        .operations()
-        .operations()
-        .iter()
-        .map(|operation| operation.operation_id.clone())
-        .collect();
+    let earlier: std::collections::BTreeSet<String> =
+        watch.operations().operations().iter().map(|operation| operation.operation_id.clone()).collect();
     let observer = tokio::spawn(async move {
         let mut seen = Vec::<LiveOperation>::new();
         loop {
@@ -377,10 +313,11 @@ async fn report_shows_progress() {
                 Some(RuntimeChange::State(_)) => watch.operations(),
                 None => break seen,
             };
-            let Some(operation) = snapshot.operations().iter().find(|operation| {
-                operation.label == "Materializing Cycle Report"
-                    && !earlier.contains(&operation.operation_id)
-            }) else {
+            let Some(operation) = snapshot
+                .operations()
+                .iter()
+                .find(|operation| operation.label == "Materializing Cycle Report" && !earlier.contains(&operation.operation_id))
+            else {
                 continue;
             };
             if seen.last() != Some(operation) {
@@ -395,43 +332,21 @@ async fn report_shows_progress() {
     assert!(!opened.html.is_empty());
     let seen = observer.await.unwrap();
 
-    let identities: std::collections::BTreeSet<_> = seen
-        .iter()
-        .map(|operation| &operation.operation_id)
-        .collect();
-    assert_eq!(
-        identities.len(),
-        1,
-        "one operation opened the report: {seen:?}"
-    );
+    let identities: std::collections::BTreeSet<_> = seen.iter().map(|operation| &operation.operation_id).collect();
+    assert_eq!(identities.len(), 1, "one operation opened the report: {seen:?}");
     assert_eq!(
         seen.first().map(|operation| &operation.outcome),
         Some(&OperationOutcome::Running),
         "the watch shows the operation start: {seen:?}"
     );
     let finished = seen.last().expect("the watch shows the operation");
-    assert_eq!(
-        finished.phases.last(),
-        Some(&finished.phase),
-        "the history ends at the current phase: {finished:?}"
-    );
-    assert!(
-        finished.phases.len() >= 2,
-        "the operation changed phase: {:?}",
-        finished.phases
-    );
+    assert_eq!(finished.phases.last(), Some(&finished.phase), "the history ends at the current phase: {finished:?}");
+    assert!(finished.phases.len() >= 2, "the operation changed phase: {:?}", finished.phases);
     for phase in ["Capturing Evidence", "Materializing Evidence", "Rendering"] {
-        assert!(
-            finished.phases.iter().any(|passed| passed == phase),
-            "the history keeps {phase}: {:?}",
-            finished.phases
-        );
+        assert!(finished.phases.iter().any(|passed| passed == phase), "the history keeps {phase}: {:?}", finished.phases);
     }
     assert!(
-        matches!(
-            seen.last().map(|operation| &operation.outcome),
-            Some(OperationOutcome::Finished { .. })
-        ),
+        matches!(seen.last().map(|operation| &operation.outcome), Some(OperationOutcome::Finished { .. })),
         "the watch shows the operation finish: {seen:?}"
     );
 
@@ -442,17 +357,10 @@ async fn report_shows_progress() {
     tokio::time::resume();
     let retired = loop {
         let latest = operations.operations();
-        if latest
-            .operations()
-            .iter()
-            .all(|operation| !identities.contains(&operation.operation_id))
-        {
+        if latest.operations().iter().all(|operation| !identities.contains(&operation.operation_id)) {
             break true;
         }
-        operations
-            .next_change()
-            .await
-            .expect("the runtime state watch closes only with the runtime");
+        operations.next_change().await.expect("the runtime state watch closes only with the runtime");
     };
     assert!(retired, "a finished operation retires after its retention");
 
@@ -470,39 +378,23 @@ async fn oversized_report_unsealed() {
     let (mut runtime, handle, behaviour) = smoke_runtime(root.path(), behaviour, true).await;
     let cycle_id = start_smoke(&handle, "spectrum.oversized", 1).await;
     run(&handle, &cycle_id).await;
-    let execution =
-        handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let execution = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
 
     // The Report Fails Once The Whole Capture Outgrows The Budget; The Budget
     // Also Refuses Record Subscriptions, So Re-Check On Each State Change.
     let failure = settle(&handle, || async {
         handle.storage().flush().await.ok()?;
-        handle
-            .open_execution_report(&execution)
-            .await
-            .err()
-            .map(|error| error.to_string())
+        handle.open_execution_report(&execution).await.err().map(|error| error.to_string())
     })
     .await;
-    assert!(
-        failure.contains(EXHAUSTED) || failure.contains("exhaust"),
-        "{failure}"
-    );
+    assert!(failure.contains(EXHAUSTED) || failure.contains("exhaust"), "{failure}");
     behaviour.release();
     let cycle = cycle_snapshot(&handle, &cycle_id).await;
     assert!(cycle.saved.is_none());
-    assert!(
-        cycle
-            .test_executions
-            .iter()
-            .all(|execution| execution.saved.is_none())
-    );
+    assert!(cycle.test_executions.iter().all(|execution| execution.saved.is_none()));
     assert!(handle.open_execution_report(&execution).await.is_err());
     drop(handle);
-    assert!(
-        runtime.shutdown().await.is_err(),
-        "shutdown reports unfinished materialization"
-    );
+    assert!(runtime.shutdown().await.is_err(), "shutdown reports unfinished materialization");
 }
 
 // a refused pool never publishes a degraded cycle report. Members are
@@ -516,16 +408,9 @@ async fn pool_refusal_settles() {
     let cycle_id = start_smoke(&handle, "spectrum.refused", POOLED_MEMBERS).await;
     let command = run(&handle, &cycle_id).await;
     let receipt = settled(&handle, &command).await;
-    assert_ne!(
-        receipt.summary.phase,
-        RunPhase::Completed,
-        "permanent refusal cannot complete a report"
-    );
+    assert_ne!(receipt.summary.phase, RunPhase::Completed, "permanent refusal cannot complete a report");
     let cause = format!("{:?}", receipt.interruption);
-    assert!(
-        cause.contains(EXHAUSTED) || cause.contains("exhaust"),
-        "the run names the refused pool: {cause}"
-    );
+    assert!(cause.contains(EXHAUSTED) || cause.contains("exhaust"), "the run names the refused pool: {cause}");
     let cycle = cycle_snapshot(&handle, &cycle_id).await;
     assert!(cycle.saved.is_none(), "refused report remains unsealed");
     assert!(handle.open_cycle_report(&cycle_id).await.is_err());

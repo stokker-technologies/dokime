@@ -111,21 +111,15 @@ class Capture:
             _wire.encode(item)
         root = Path(output)
         root.mkdir(parents=True, exist_ok=False)
-        capture = cls(
-            client, CaptureFiles(root, {"format_version": 1, "complete": False})
-        )
+        capture = cls(client, CaptureFiles(root, {"format_version": 1, "complete": False}))
         try:
             capture._stage("connecting", "Connecting...")
             backend = await client.connect()
             capture._files.state["backend_id"] = backend.id
             capture._stage("creating_cycle", "Creating Cycle...")
-            cycle = await client.new_cycle(
-                suite=suite, template=template, parameters=supplied, label=label
-            )
+            cycle = await client.new_cycle(suite=suite, template=template, parameters=supplied, label=label)
             cycle_id = cycle.id
-            capture._files.state.update(
-                cycle_id=cycle_id, request_key=str(uuid.uuid4())
-            )
+            capture._files.state.update(cycle_id=cycle_id, request_key=str(uuid.uuid4()))
             capture._stage("prepared", "Ready To Start...")
             return capture
         except BaseException:
@@ -141,12 +135,8 @@ class Capture:
             raise ValueError("unsupported capture format")
         for key in ("backend_id", "cycle_id", "request_key"):
             if not isinstance(state.get(key), str) or not state[key]:
-                raise ValueError(
-                    "cycle creation was not confirmed; inspect the backend before starting again"
-                )
-        if "request_id" in state and (
-            not isinstance(state["request_id"], str) or not state["request_id"]
-        ):
+                raise ValueError("cycle creation was not confirmed; inspect the backend before starting again")
+        if "request_id" in state and (not isinstance(state["request_id"], str) or not state["request_id"]):
             raise ValueError("invalid saved request identity")
         backend = await client.connect()
         if state["backend_id"] != backend.id:
@@ -215,9 +205,7 @@ class Capture:
                 return
             await changed.wait()
 
-    async def collect(
-        self, request: RunRequest, *, report: str = "cycle.summary"
-    ) -> CaptureResult:
+    async def collect(self, request: RunRequest, *, report: str = "cycle.summary") -> CaptureResult:
         """Collect through request completion and final drain, then export history.
 
         Local cancellation closes files and leaves an incomplete capture; it does
@@ -243,9 +231,7 @@ class Capture:
         self._finished = False
         self._result = None
         files = self._files
-        cycle = await Cycle._bind(
-            request._transport, request.cycle_id, request._backend
-        )
+        cycle = await Cycle._bind(request._transport, request.cycle_id, request._backend)
         files.state["complete"] = False
         try:
             self._stage("capturing", "Capturing Data...")
@@ -265,9 +251,7 @@ class Capture:
             report_path.with_name("report.html.part").unlink(missing_ok=True)
             download = await cycle.download_report(report_path, identifier=report)
             result = await cycle.result()
-            files.state.update(
-                report=asdict(download), result=asdict(result), complete=True
-            )
+            files.state.update(report=asdict(download), result=asdict(result), complete=True)
             self._stage("complete", "Capture Complete")
             self._result = CaptureResult(self.output, receipt, result)
             self._finish("complete", "Capture Complete")
@@ -296,9 +280,7 @@ class Capture:
             if pending != waiting:
                 self._emit(
                     "waiting" if pending else "capturing",
-                    "Waiting For Operator Input — Answer In Dokime..."
-                    if pending
-                    else "Capturing Data...",
+                    "Waiting For Operator Input — Answer In Dokime..." if pending else "Capturing Data...",
                 )
                 waiting = pending
             await asyncio.sleep(0.5)
@@ -309,12 +291,8 @@ class Capture:
             point = await handle.checkpoint()
             if point is None:
                 raise ProtocolError("execution has no saved seal")
-            executions.append(
-                ExecutionEvidence(cycle._transport, point, cycle._backend)
-            )
-        self._files.state["checkpoints"] = [
-            asdict(item.checkpoint) for item in executions
-        ]
+            executions.append(ExecutionEvidence(cycle._transport, point, cycle._backend))
+        self._files.state["checkpoints"] = [asdict(item.checkpoint) for item in executions]
         self._files.save()
         write_json(self.output / "cycle.json", await cycle.document())
         for execution in executions:

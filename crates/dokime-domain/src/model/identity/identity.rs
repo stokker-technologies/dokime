@@ -78,30 +78,19 @@ impl DokimeIdentity {
 
 impl DokimeNodeIdentity {
     pub fn new(node_id: NodeId, hostname_label: Option<String>, timestamp: Timestamp) -> Self {
-        Self {
-            node_id,
-            hostname_label,
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
-        }
+        Self { node_id, hostname_label, created_at: timestamp.clone(), updated_at: timestamp }
     }
 }
 
 impl DokimeActorIdentity {
     pub fn local(actor_id: ActorId, display_name: impl Into<String>) -> Self {
-        Self {
-            actor_id,
-            display_name: display_name.into(),
-        }
+        Self { actor_id, display_name: display_name.into() }
     }
 }
 
 impl ExternalIdentityMapping {
     pub fn microsoft_entra(
-        actor_id: ActorId,
-        tenant: impl Into<String>,
-        provider_subject: impl Into<String>,
-        display_name: Option<String>,
+        actor_id: ActorId, tenant: impl Into<String>, provider_subject: impl Into<String>, display_name: Option<String>,
     ) -> Self {
         Self {
             actor_id,
@@ -112,11 +101,7 @@ impl ExternalIdentityMapping {
         }
     }
 
-    pub fn atlassian(
-        actor_id: ActorId,
-        provider_subject: impl Into<String>,
-        display_name: Option<String>,
-    ) -> Self {
+    pub fn atlassian(actor_id: ActorId, provider_subject: impl Into<String>, display_name: Option<String>) -> Self {
         Self {
             actor_id,
             provider: ExternalIdentityProvider::Atlassian,

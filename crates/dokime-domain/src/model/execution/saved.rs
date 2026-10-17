@@ -117,10 +117,7 @@ pub struct CycleSeal {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutionOutputContent {
     File,
-    Artifact {
-        record: Box<ArtifactRecord>,
-        metadata: Metadata,
-    },
+    Artifact { record: Box<ArtifactRecord>, metadata: Metadata },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,52 +131,21 @@ pub enum SavedStreamState {
 
 /* === Implementations === */
 owned_memory!(ExecutionRevision, execution_id, position, version);
-owned_memory!(
-    ExecutionSource,
-    owner_node_id,
-    evidence_through,
-    execution,
-    context,
-    outputs,
-);
-owned_memory!(
-    ExecutionOutput,
-    relative_path,
-    created_at,
-    file,
-    stream_state,
-    content
-);
+owned_memory!(ExecutionSource, owner_node_id, evidence_through, execution, context, outputs,);
+owned_memory!(ExecutionOutput, relative_path, created_at, file, stream_state, content);
 owned_memory!(ExecutionSeal, source, report, dependencies_saved, sealed_at);
 owned_memory!(VerifiedReplicaFile, source, local);
-owned_memory!(
-    CycleSeal,
-    owner_node_id,
-    evidence_through,
-    executions,
-    report,
-    dependencies_saved,
-    sealed_at,
-);
+owned_memory!(CycleSeal, owner_node_id, evidence_through, executions, report, dependencies_saved, sealed_at,);
 
 impl harmos::MemorySize for ExecutionOutputContent {
     fn memory_size(&self) -> usize {
         let Self::Artifact { record, metadata } = self else {
             return std::mem::size_of::<Self>();
         };
-        let fields = [
-            (record.memory_size(), std::mem::size_of_val(record)),
-            (metadata.memory_size(), std::mem::size_of::<Metadata>()),
-        ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(record.memory_size(), std::mem::size_of_val(record)), (metadata.memory_size(), std::mem::size_of::<Metadata>())];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -192,42 +158,24 @@ impl harmos::MemorySize for SavedStreamState {
 impl ExecutionSource {
     pub fn validate(&self, id: &TestExecutionId) -> Result<()> {
         if &self.execution.execution_id != id || self.execution.position.sequence == 0 {
-            return Err(SavedEvidenceError::Invalid(
-                "source execution identity differs",
-            ));
+            return Err(SavedEvidenceError::Invalid("source execution identity differs"));
         }
-        self.execution
-            .version
-            .check_position(&self.execution.position)?;
-        self.evidence_through
-            .history
-            .check(&self.execution.position.history)?;
+        self.execution.version.check_position(&self.execution.position)?;
+        self.evidence_through.history.check(&self.execution.position.history)?;
         check_file(&self.context, id)?;
-        self.evidence_through
-            .history
-            .check(&self.context.position.history)?;
+        self.evidence_through.history.check(&self.context.position.history)?;
         if self.context.position.sequence <= self.evidence_through.sequence
             || self.context.position.sequence <= self.execution.position.sequence
         {
-            return Err(SavedEvidenceError::Invalid(
-                "execution context must follow fixed evidence",
-            ));
+            return Err(SavedEvidenceError::Invalid("execution context must follow fixed evidence"));
         }
         if self.context.metadata.media_type != EXECUTION_CONTEXT_MEDIA_TYPE {
-            return Err(SavedEvidenceError::Invalid(
-                "context must use the native execution context media type",
-            ));
+            return Err(SavedEvidenceError::Invalid("context must use the native execution context media type"));
         }
         // Settled Outputs Precede The Frozen Context, Not Necessarily The Evidence Cut.
         validate_outputs(id, &self.context.position, &self.outputs)?;
-        if self
-            .outputs
-            .iter()
-            .any(|output| output.file.metadata.id == self.context.metadata.id)
-        {
-            return Err(SavedEvidenceError::Invalid(
-                "context reuses an output file identity",
-            ));
+        if self.outputs.iter().any(|output| output.file.metadata.id == self.context.metadata.id) {
+            return Err(SavedEvidenceError::Invalid("context reuses an output file identity"));
         }
         Ok(())
     }
@@ -235,10 +183,8 @@ impl ExecutionSource {
 
 impl ExecutionSeal {
     pub fn validate(&self, execution: &TestExecution) -> Result<()> {
-        if matches!(
-            execution.status,
-            ExecutionStatus::Pending | ExecutionStatus::Running
-        ) || execution.finished_at.is_none()
+        if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+            || execution.finished_at.is_none()
             || execution.active_step_attempt.is_some()
         {
             return Err(SavedEvidenceError::Invalid("execution has not settled"));
@@ -246,28 +192,17 @@ impl ExecutionSeal {
         self.source.validate(&execution.test_execution_id)?;
         check_file(&self.report, &execution.test_execution_id)?;
         if self.report.metadata.media_type != "text/html" || self.report.length == 0 {
-            return Err(SavedEvidenceError::Invalid(
-                "final report must be nonempty HTML",
-            ));
+            return Err(SavedEvidenceError::Invalid("final report must be nonempty HTML"));
         }
-        if self
-            .files()
-            .filter(|file| file.metadata.id == self.report.metadata.id)
-            .count()
-            != 1
-        {
-            return Err(SavedEvidenceError::Invalid(
-                "report reuses a source file identity",
-            ));
+        if self.files().filter(|file| file.metadata.id == self.report.metadata.id).count() != 1 {
+            return Err(SavedEvidenceError::Invalid("report reuses a source file identity"));
         }
         require_saved(&self.dependencies_saved, &self.source.evidence_through)?;
         require_saved(&self.dependencies_saved, &self.source.execution.position)?;
         require_saved(&self.dependencies_saved, &self.source.context.position)?;
         require_saved(&self.dependencies_saved, &self.report.position)?;
         if self.report.position.sequence <= self.source.context.position.sequence {
-            return Err(SavedEvidenceError::Invalid(
-                "report must follow frozen execution context",
-            ));
+            return Err(SavedEvidenceError::Invalid("report must follow frozen execution context"));
         }
         Ok(())
     }
@@ -279,12 +214,8 @@ impl ExecutionSeal {
     }
 
     pub fn check_replica_dependencies(
-        &self,
-        execution: &TestExecution,
-        source_received: &StorageCursor,
-        local_data_admitted: &StorageCursor,
-        local_saved: &StorageCursor,
-        verified: &[VerifiedReplicaFile],
+        &self, execution: &TestExecution, source_received: &StorageCursor, local_data_admitted: &StorageCursor,
+        local_saved: &StorageCursor, verified: &[VerifiedReplicaFile],
     ) -> Result<()> {
         self.validate(execution)?;
         require_saved(source_received, &self.dependencies_saved)?;
@@ -294,9 +225,7 @@ impl ExecutionSeal {
         }
         for required in self.files() {
             let mut matches = verified.iter().filter(|file| &file.source == required);
-            let received = matches.next().ok_or(SavedEvidenceError::Invalid(
-                "replica is missing an exact source file",
-            ))?;
+            let received = matches.next().ok_or(SavedEvidenceError::Invalid("replica is missing an exact source file"))?;
             if matches.next().is_some()
                 || received.local.metadata.id != required.metadata.id
                 || received.local.metadata.scope != required.metadata.scope
@@ -304,9 +233,7 @@ impl ExecutionSeal {
                 || received.local.length != required.length
                 || received.local.sha256 != required.sha256
             {
-                return Err(SavedEvidenceError::Invalid(
-                    "replica file identity or verified integrity differs",
-                ));
+                return Err(SavedEvidenceError::Invalid("replica file identity or verified integrity differs"));
             }
             check_file(&received.local, &execution.test_execution_id)?;
             require_saved(local_saved, &received.local.position)?;
@@ -317,107 +244,54 @@ impl ExecutionSeal {
 
 impl CycleSeal {
     pub fn validate(&self, cycle: &TestCycle) -> Result<()> {
-        self.validate_membership(
-            &cycle.test_cycle_id,
-            cycle.lifecycle,
-            cycle.execution_ids.iter(),
-        )
+        self.validate_membership(&cycle.test_cycle_id, cycle.lifecycle, cycle.execution_ids.iter())
     }
 
     pub fn validate_view(&self, cycle: &CycleView) -> Result<()> {
-        if cycle
-            .test_executions
-            .iter()
-            .any(|execution| execution.test_cycle_id != cycle.test_cycle_id)
-        {
-            return Err(SavedEvidenceError::Invalid(
-                "execution belongs to another cycle",
-            ));
+        if cycle.test_executions.iter().any(|execution| execution.test_cycle_id != cycle.test_cycle_id) {
+            return Err(SavedEvidenceError::Invalid("execution belongs to another cycle"));
         }
         self.validate_membership(
             &cycle.test_cycle_id,
             cycle.lifecycle,
-            cycle
-                .test_executions
-                .iter()
-                .map(|execution| &execution.test_execution_id),
+            cycle.test_executions.iter().map(|execution| &execution.test_execution_id),
         )
     }
 
     pub fn validate_membership<'a>(
-        &self,
-        cycle_id: &TestCycleId,
-        lifecycle: CycleStatus,
-        ids: impl ExactSizeIterator<Item = &'a TestExecutionId>,
+        &self, cycle_id: &TestCycleId, lifecycle: CycleStatus, ids: impl ExactSizeIterator<Item = &'a TestExecutionId>,
     ) -> Result<()> {
         validate_cycle_members(lifecycle, ids, &self.evidence_through, &self.executions)?;
-        if self
-            .report
-            .metadata
-            .scope
-            .as_ref()
-            .map(|scope| scope.as_str())
-            != Some(cycle_id.as_str())
+        if self.report.metadata.scope.as_ref().map(|scope| scope.as_str()) != Some(cycle_id.as_str())
             || self.report.metadata.media_type != "text/html"
             || self.report.length == 0
-            || self
-                .report
-                .metadata
-                .expected_length
-                .is_some_and(|length| length != self.report.length)
-            || self
-                .report
-                .metadata
-                .expected_sha256
-                .is_some_and(|hash| hash != self.report.sha256)
+            || self.report.metadata.expected_length.is_some_and(|length| length != self.report.length)
+            || self.report.metadata.expected_sha256.is_some_and(|hash| hash != self.report.sha256)
         {
-            return Err(SavedEvidenceError::Invalid(
-                "cycle final report identity or integrity differs",
-            ));
+            return Err(SavedEvidenceError::Invalid("cycle final report identity or integrity differs"));
         }
         require_saved(&self.dependencies_saved, &self.evidence_through)?;
         require_saved(&self.dependencies_saved, &self.report.position)?;
         if self.report.position.sequence <= self.evidence_through.sequence {
-            return Err(SavedEvidenceError::Invalid(
-                "cycle report must follow member evidence",
-            ));
+            return Err(SavedEvidenceError::Invalid("cycle report must follow member evidence"));
         }
         Ok(())
     }
 }
 
 /* === Public Functions === */
-pub fn validate_cycle_revisions(
-    cycle: &TestCycle,
-    evidence_through: &StorageCursor,
-    revisions: &[ExecutionRevision],
-) -> Result<()> {
-    validate_cycle_members(
-        cycle.lifecycle,
-        cycle.execution_ids.iter(),
-        evidence_through,
-        revisions,
-    )
+pub fn validate_cycle_revisions(cycle: &TestCycle, evidence_through: &StorageCursor, revisions: &[ExecutionRevision]) -> Result<()> {
+    validate_cycle_members(cycle.lifecycle, cycle.execution_ids.iter(), evidence_through, revisions)
 }
 
 pub fn output_validation_memory(outputs: &[ExecutionOutput]) -> usize {
-    let artifacts = outputs
-        .iter()
-        .filter(|output| matches!(&output.content, ExecutionOutputContent::Artifact { .. }))
-        .count();
+    let artifacts = outputs.iter().filter(|output| matches!(&output.content, ExecutionOutputContent::Artifact { .. })).count();
     harmos::btree_map_memory::<&String, ()>(outputs.len())
         .saturating_add(harmos::btree_map_memory::<&str, ()>(outputs.len()))
-        .saturating_add(harmos::btree_map_memory::<
-            &crate::model::identity::ArtifactId,
-            (),
-        >(artifacts))
+        .saturating_add(harmos::btree_map_memory::<&crate::model::identity::ArtifactId, ()>(artifacts))
 }
 
-pub fn validate_outputs(
-    id: &TestExecutionId,
-    through: &StorageCursor,
-    outputs: &[ExecutionOutput],
-) -> Result<()> {
+pub fn validate_outputs(id: &TestExecutionId, through: &StorageCursor, outputs: &[ExecutionOutput]) -> Result<()> {
     let mut paths = BTreeSet::new();
     let mut files = BTreeSet::new();
     let mut artifacts = BTreeSet::new();
@@ -437,31 +311,19 @@ pub fn validate_outputs(
                 || record.status == ArtifactStatus::Staged
                 || !artifact_digest_matches(record.sha256.as_deref(), &output.file.sha256)
             {
-                return Err(SavedEvidenceError::Invalid(
-                    "saved artifact differs from its original owner or finished bytes",
-                ));
+                return Err(SavedEvidenceError::Invalid("saved artifact differs from its original owner or finished bytes"));
             }
             let expected = match record.status {
                 ArtifactStatus::Complete => SavedStreamState::Finalized,
-                ArtifactStatus::Cancelled | ArtifactStatus::Rejected => {
-                    SavedStreamState::Interrupted
-                }
+                ArtifactStatus::Cancelled | ArtifactStatus::Rejected => SavedStreamState::Interrupted,
                 ArtifactStatus::Staged => {
-                    return Err(SavedEvidenceError::Invalid(
-                        "saved artifact has not settled",
-                    ));
+                    return Err(SavedEvidenceError::Invalid("saved artifact has not settled"));
                 }
             };
             if output.stream_state != Some(expected)
-                || output.file.metadata.media_type
-                    != record
-                        .content_type
-                        .as_deref()
-                        .unwrap_or("application/octet-stream")
+                || output.file.metadata.media_type != record.content_type.as_deref().unwrap_or("application/octet-stream")
             {
-                return Err(SavedEvidenceError::Invalid(
-                    "saved artifact attribution differs from its output descriptor",
-                ));
+                return Err(SavedEvidenceError::Invalid("saved artifact attribution differs from its output descriptor"));
             }
         }
         check_file(&output.file, id)?;
@@ -473,9 +335,7 @@ pub fn validate_outputs(
 pub fn validate_output_path(path: &str) -> Result<()> {
     validate_relative_output_path(path)?;
     if path == "reports/final.html" {
-        return Err(SavedEvidenceError::Invalid(
-            "reports/final.html is reserved for the final report",
-        ));
+        return Err(SavedEvidenceError::Invalid("reports/final.html is reserved for the final report"));
     }
     Ok(())
 }
@@ -489,25 +349,17 @@ pub fn validate_relative_output_path(relative_path: &str) -> Result<()> {
 
 /* === Private Functions === */
 fn validate_cycle_members<'a>(
-    lifecycle: CycleStatus,
-    ids: impl ExactSizeIterator<Item = &'a TestExecutionId>,
-    evidence_through: &StorageCursor,
+    lifecycle: CycleStatus, ids: impl ExactSizeIterator<Item = &'a TestExecutionId>, evidence_through: &StorageCursor,
     revisions: &[ExecutionRevision],
 ) -> Result<()> {
-    if !matches!(
-        lifecycle,
-        CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped
-    ) || revisions.len() != ids.len()
+    if !matches!(lifecycle, CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped)
+        || revisions.len() != ids.len()
     {
-        return Err(SavedEvidenceError::Invalid(
-            "cycle has not settled over exact membership",
-        ));
+        return Err(SavedEvidenceError::Invalid("cycle has not settled over exact membership"));
     }
     for (revision, id) in revisions.iter().zip(ids) {
         if &revision.execution_id != id || revision.position.sequence == 0 {
-            return Err(SavedEvidenceError::Invalid(
-                "cycle member order or identity differs",
-            ));
+            return Err(SavedEvidenceError::Invalid("cycle member order or identity differs"));
         }
         revision.version.check_position(&revision.position)?;
         require_saved(evidence_through, &revision.position)?;
@@ -525,16 +377,12 @@ fn artifact_digest_matches(text: Option<&str>, digest: &[u8; 32]) -> bool {
         .0
         .iter()
         .zip(digest)
-        .all(|(pair, byte)| {
-            pair[0] == HEX[(byte >> 4) as usize] && pair[1] == HEX[(byte & 15) as usize]
-        })
+        .all(|(pair, byte)| pair[0] == HEX[(byte >> 4) as usize] && pair[1] == HEX[(byte & 15) as usize])
 }
 
 fn require_saved(saved: &StorageCursor, dependency: &StorageCursor) -> Result<()> {
     if !saved.covers(dependency)? {
-        return Err(SavedEvidenceError::Invalid(
-            "dependency exceeds saved boundary",
-        ));
+        return Err(SavedEvidenceError::Invalid("dependency exceeds saved boundary"));
     }
     Ok(())
 }
@@ -542,18 +390,10 @@ fn require_saved(saved: &StorageCursor, dependency: &StorageCursor) -> Result<()
 fn check_file(file: &FileReference, id: &TestExecutionId) -> Result<()> {
     if file.position.sequence == 0
         || file.metadata.scope.as_ref().map(|scope| scope.as_str()) != Some(id.as_str())
-        || file
-            .metadata
-            .expected_length
-            .is_some_and(|length| length != file.length)
-        || file
-            .metadata
-            .expected_sha256
-            .is_some_and(|hash| hash != file.sha256)
+        || file.metadata.expected_length.is_some_and(|length| length != file.length)
+        || file.metadata.expected_sha256.is_some_and(|hash| hash != file.sha256)
     {
-        return Err(SavedEvidenceError::Invalid(
-            "file identity or integrity differs",
-        ));
+        return Err(SavedEvidenceError::Invalid("file identity or integrity differs"));
     }
     Ok(())
 }

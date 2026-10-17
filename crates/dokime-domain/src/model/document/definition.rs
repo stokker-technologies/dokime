@@ -654,9 +654,7 @@ pub trait DocumentTagged {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.metadata_mut()
-            .tags
-            .extend(tags.into_iter().map(Into::into));
+        self.metadata_mut().tags.extend(tags.into_iter().map(Into::into));
     }
 }
 
@@ -664,256 +662,100 @@ pub trait DocumentTagged {
 impl harmos::MemorySize for PlotDescriptor {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.plot_id),
-                std::mem::size_of_val(&self.plot_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.input),
-                std::mem::size_of_val(&self.input),
-            ),
+            (harmos::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.input), std::mem::size_of_val(&self.input)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for PlotInput {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.analysis),
-                std::mem::size_of_val(&self.analysis),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.plot_id),
-                std::mem::size_of_val(&self.plot_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_field),
-                std::mem::size_of_val(&self.x_field),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.series_fields),
-                std::mem::size_of_val(&self.series_fields),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_stream),
-                std::mem::size_of_val(&self.z_stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_field),
-                std::mem::size_of_val(&self.z_field),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.stream),
-                std::mem::size_of_val(&self.stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.series_by),
-                std::mem::size_of_val(&self.series_by),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_expression),
-                std::mem::size_of_val(&self.x_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.y_expressions),
-                std::mem::size_of_val(&self.y_expressions),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_expression),
-                std::mem::size_of_val(&self.z_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.series_by_expression),
-                std::mem::size_of_val(&self.series_by_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.histogram),
-                std::mem::size_of_val(&self.histogram),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.marker_record_types),
-                std::mem::size_of_val(&self.marker_record_types),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.reference_lines),
-                std::mem::size_of_val(&self.reference_lines),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.reference_bands),
-                std::mem::size_of_val(&self.reference_bands),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_format),
-                std::mem::size_of_val(&self.x_format),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.y_format),
-                std::mem::size_of_val(&self.y_format),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_axis),
-                std::mem::size_of_val(&self.x_axis),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.available_streams),
-                std::mem::size_of_val(&self.available_streams),
-            ),
+            (harmos::MemorySize::memory_size(&self.analysis), std::mem::size_of_val(&self.analysis)),
+            (harmos::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.x_field), std::mem::size_of_val(&self.x_field)),
+            (harmos::MemorySize::memory_size(&self.series_fields), std::mem::size_of_val(&self.series_fields)),
+            (harmos::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
+            (harmos::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
+            (harmos::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
+            (harmos::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
+            (harmos::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
+            (harmos::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
+            (harmos::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
+            (harmos::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
+            (harmos::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
+            (harmos::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
+            (harmos::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
+            (harmos::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
+            (harmos::MemorySize::memory_size(&self.available_streams), std::mem::size_of_val(&self.available_streams)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.document_id),
-                std::mem::size_of_val(&self.document_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cards),
-                std::mem::size_of_val(&self.cards),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.layout),
-                std::mem::size_of_val(&self.layout),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.sections),
-                std::mem::size_of_val(&self.sections),
-            ),
+            (harmos::MemorySize::memory_size(&self.document_id), std::mem::size_of_val(&self.document_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
+            (harmos::MemorySize::memory_size(&self.layout), std::mem::size_of_val(&self.layout)),
+            (harmos::MemorySize::memory_size(&self.sections), std::mem::size_of_val(&self.sections)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentCardDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.body),
-                std::mem::size_of_val(&self.body),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentCard {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.body),
-                std::mem::size_of_val(&self.body),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentSection {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.cards),
-                std::mem::size_of_val(&self.cards),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.repeat),
-                std::mem::size_of_val(&self.repeat),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
+            (harmos::MemorySize::memory_size(&self.repeat), std::mem::size_of_val(&self.repeat)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -953,174 +795,66 @@ impl harmos::MemorySize for DocumentCardBody {
 impl harmos::MemorySize for PlotDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.stream),
-                std::mem::size_of_val(&self.stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x),
-                std::mem::size_of_val(&self.x),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.y),
-                std::mem::size_of_val(&self.y),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_stream),
-                std::mem::size_of_val(&self.z_stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_field),
-                std::mem::size_of_val(&self.z_field),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.series_by),
-                std::mem::size_of_val(&self.series_by),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_expression),
-                std::mem::size_of_val(&self.x_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.y_expressions),
-                std::mem::size_of_val(&self.y_expressions),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.z_expression),
-                std::mem::size_of_val(&self.z_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.series_by_expression),
-                std::mem::size_of_val(&self.series_by_expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.histogram),
-                std::mem::size_of_val(&self.histogram),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.marker_record_types),
-                std::mem::size_of_val(&self.marker_record_types),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.reference_lines),
-                std::mem::size_of_val(&self.reference_lines),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.reference_bands),
-                std::mem::size_of_val(&self.reference_bands),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_format),
-                std::mem::size_of_val(&self.x_format),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.y_format),
-                std::mem::size_of_val(&self.y_format),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.x_axis),
-                std::mem::size_of_val(&self.x_axis),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.x), std::mem::size_of_val(&self.x)),
+            (harmos::MemorySize::memory_size(&self.y), std::mem::size_of_val(&self.y)),
+            (harmos::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
+            (harmos::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
+            (harmos::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
+            (harmos::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
+            (harmos::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
+            (harmos::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
+            (harmos::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
+            (harmos::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
+            (harmos::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
+            (harmos::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
+            (harmos::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
+            (harmos::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
+            (harmos::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for HistogramOptions {
     fn memory_size(&self) -> usize {
-        let fields = [(
-            harmos::MemorySize::memory_size(&self.unit),
-            std::mem::size_of_val(&self.unit),
-        )];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit))];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ReferenceLine {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.color),
-                std::mem::size_of_val(&self.color),
-            ),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for ReferenceBand {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.center),
-                std::mem::size_of_val(&self.center),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.tolerance),
-                std::mem::size_of_val(&self.tolerance),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label),
-                std::mem::size_of_val(&self.label),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.color),
-                std::mem::size_of_val(&self.color),
-            ),
+            (harmos::MemorySize::memory_size(&self.center), std::mem::size_of_val(&self.center)),
+            (harmos::MemorySize::memory_size(&self.tolerance), std::mem::size_of_val(&self.tolerance)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -1148,97 +882,46 @@ impl harmos::MemorySize for PlotAxisKind {
 
 impl harmos::MemorySize for TelemetrySummaryDefinition {
     fn memory_size(&self) -> usize {
-        let fields = [(
-            harmos::MemorySize::memory_size(&self.groups),
-            std::mem::size_of_val(&self.groups),
-        )];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(harmos::MemorySize::memory_size(&self.groups), std::mem::size_of_val(&self.groups))];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TelemetrySummaryGroupDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.tiles),
-                std::mem::size_of_val(&self.tiles),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.tiles), std::mem::size_of_val(&self.tiles)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TelemetrySummaryTileDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.metadata),
-                std::mem::size_of_val(&self.metadata),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.unit),
-                std::mem::size_of_val(&self.unit),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.conditions),
-                std::mem::size_of_val(&self.conditions),
-            ),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.conditions), std::mem::size_of_val(&self.conditions)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for TelemetrySummaryCondition {
     fn memory_size(&self) -> usize {
-        let fields = [(
-            harmos::MemorySize::memory_size(&self.value),
-            std::mem::size_of_val(&self.value),
-        )];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value))];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -1248,8 +931,7 @@ impl harmos::MemorySize for DocumentLayout {
         if nodes == usize::MAX {
             return usize::MAX;
         }
-        std::mem::size_of::<Self>()
-            .saturating_add(nodes.saturating_sub(std::mem::size_of_val(&self.nodes)))
+        std::mem::size_of::<Self>().saturating_add(nodes.saturating_sub(std::mem::size_of_val(&self.nodes)))
     }
 }
 
@@ -1268,78 +950,36 @@ impl harmos::MemorySize for DocumentSectionNode {
 impl harmos::MemorySize for DocumentFilter {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.expression),
-                std::mem::size_of_val(&self.expression),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
+            (harmos::MemorySize::memory_size(&self.expression), std::mem::size_of_val(&self.expression)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentSectionRepeat {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.value),
-                std::mem::size_of_val(&self.value),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.label_template),
-                std::mem::size_of_val(&self.label_template),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.id_template),
-                std::mem::size_of_val(&self.id_template),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.order_by),
-                std::mem::size_of_val(&self.order_by),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.filters),
-                std::mem::size_of_val(&self.filters),
-            ),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.label_template), std::mem::size_of_val(&self.label_template)),
+            (harmos::MemorySize::memory_size(&self.id_template), std::mem::size_of_val(&self.id_template)),
+            (harmos::MemorySize::memory_size(&self.order_by), std::mem::size_of_val(&self.order_by)),
+            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl harmos::MemorySize for DocumentCardPlacement {
     fn memory_size(&self) -> usize {
-        let fields = [(
-            harmos::MemorySize::memory_size(&self.card_id),
-            std::mem::size_of_val(&self.card_id),
-        )];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        let fields = [(harmos::MemorySize::memory_size(&self.card_id), std::mem::size_of_val(&self.card_id))];
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -1357,32 +997,19 @@ impl Default for DocumentCardLayout {
 
 impl Default for ResponsiveSpan {
     fn default() -> Self {
-        Self {
-            base: default_base_span(),
-            sm: None,
-            md: None,
-            lg: None,
-            xl: None,
-        }
+        Self { base: default_base_span(), sm: None, md: None, lg: None, xl: None }
     }
 }
 
 impl Default for SigmaIntervalOptions {
     fn default() -> Self {
-        Self {
-            bin_width: default_interval_bin_width(),
-            sigma: default_interval_sigma(),
-            clip_to_observed: true,
-        }
+        Self { bin_width: default_interval_bin_width(), sigma: default_interval_sigma(), clip_to_observed: true }
     }
 }
 
 impl Default for HistogramOptions {
     fn default() -> Self {
-        Self {
-            bins: default_histogram_bins(),
-            unit: None,
-        }
+        Self { bins: default_histogram_bins(), unit: None }
     }
 }
 
@@ -1390,8 +1017,7 @@ impl DocumentDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
         let identifier = identifier.as_ref();
         Self {
-            document_id: DocumentId::from_identifier(identifier)
-                .unwrap_or_else(|_| DocumentId::from_seed(identifier)),
+            document_id: DocumentId::from_identifier(identifier).unwrap_or_else(|_| DocumentId::from_seed(identifier)),
             metadata: metadata(identifier, label.into(), None),
             cards: Vec::new(),
             layout: DocumentLayout::default(),
@@ -1410,22 +1036,11 @@ impl DocumentDefinition {
         self.insert_section_node(section, existing_index);
     }
 
-    pub fn upsert_card(
-        &mut self,
-        section_id: &Identifier,
-        section_label: impl Into<String>,
-        card: DocumentCard,
-    ) {
+    pub fn upsert_card(&mut self, section_id: &Identifier, section_label: impl Into<String>, card: DocumentCard) {
         self.upsert_card_definition(DocumentCardDefinition::from(card.clone()));
-        let placement = DocumentNode::Card(DocumentCardPlacement {
-            card_id: card.metadata.identifier.clone(),
-            layout: card.layout.clone(),
-        });
-        let section = self
-            .layout
-            .nodes
-            .iter_mut()
-            .find_map(|node| section_node_mut(node, section_id));
+        let placement =
+            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
+        let section = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id));
 
         match section {
             Some(section) => upsert_card_placement(&mut section.children, placement),
@@ -1487,11 +1102,7 @@ impl DocumentDefinition {
     }
 
     fn upsert_card_definition(&mut self, card: DocumentCardDefinition) {
-        if let Some(existing) = self
-            .cards
-            .iter_mut()
-            .find(|existing| existing.metadata.identifier == card.metadata.identifier)
-        {
+        if let Some(existing) = self.cards.iter_mut().find(|existing| existing.metadata.identifier == card.metadata.identifier) {
             *existing = card;
         } else {
             self.cards.push(card);
@@ -1531,17 +1142,10 @@ impl DocumentDefinition {
     }
 
     pub(crate) fn append_card(&mut self, section_id: &Identifier, card: DocumentCard) {
-        let placement = DocumentNode::Card(DocumentCardPlacement {
-            card_id: card.metadata.identifier.clone(),
-            layout: card.layout.clone(),
-        });
+        let placement =
+            DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier.clone(), layout: card.layout.clone() });
         self.upsert_card_definition(DocumentCardDefinition::from(card));
-        if let Some(section) = self
-            .layout
-            .nodes
-            .iter_mut()
-            .find_map(|node| section_node_mut(node, section_id))
-        {
+        if let Some(section) = self.layout.nodes.iter_mut().find_map(|node| section_node_mut(node, section_id)) {
             section.children.push(placement);
         }
     }
@@ -1555,11 +1159,7 @@ impl DocumentLayout {
 
 impl From<DocumentCard> for DocumentCardDefinition {
     fn from(card: DocumentCard) -> Self {
-        Self {
-            metadata: card.metadata,
-            filters: card.filters,
-            body: card.body,
-        }
+        Self { metadata: card.metadata, filters: card.filters, body: card.body }
     }
 }
 
@@ -1572,12 +1172,7 @@ impl From<DocumentSection> for DocumentSectionNode {
             children: section
                 .cards
                 .into_iter()
-                .map(|card| {
-                    DocumentNode::Card(DocumentCardPlacement {
-                        card_id: card.metadata.identifier,
-                        layout: card.layout,
-                    })
-                })
+                .map(|card| DocumentNode::Card(DocumentCardPlacement { card_id: card.metadata.identifier, layout: card.layout }))
                 .collect(),
         }
     }
@@ -1588,16 +1183,11 @@ impl DocumentSection {
         let label = label.into();
         let identifier = identifier_from_label(&label);
 
-        Self {
-            metadata: Metadata::new(identifier, label, None),
-            cards: Vec::new(),
-            repeat: None,
-        }
+        Self { metadata: Metadata::new(identifier, label, None), cards: Vec::new(), repeat: None }
     }
 
     pub fn id(&mut self, identifier: impl AsRef<str>) {
-        self.metadata.identifier = Identifier::new(identifier.as_ref())
-            .unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
     pub fn card(&mut self, card: DocumentCard) {
@@ -1609,21 +1199,12 @@ impl DocumentSection {
     }
 
     pub fn note(&mut self, text: impl Into<String>) {
-        let identifier = format!(
-            "{}.note.{}",
-            self.metadata.identifier.as_str(),
-            self.cards.len()
-        );
+        let identifier = format!("{}.note.{}", self.metadata.identifier.as_str(), self.cards.len());
         self.card(DocumentCard::text(identifier, "Note", text));
     }
 
-    pub fn each(
-        &mut self,
-        value: impl Into<DataExpression>,
-        label_template: impl Into<String>,
-    ) -> &mut DocumentSectionRepeat {
-        self.repeat
-            .insert(DocumentSectionRepeat::new(value, label_template))
+    pub fn each(&mut self, value: impl Into<DataExpression>, label_template: impl Into<String>) -> &mut DocumentSectionRepeat {
+        self.repeat.insert(DocumentSectionRepeat::new(value, label_template))
     }
 
     pub fn compact(&mut self) {
@@ -1640,12 +1221,7 @@ impl DocumentCard {
             .first()
             .map(|group| group.metadata.clone())
             .unwrap_or_else(|| metadata("telemetry.summary", "Telemetry Summary".to_owned(), None));
-        Self {
-            metadata,
-            layout: DocumentCardLayout::default(),
-            filters: Vec::new(),
-            body: DocumentCardBody::TelemetrySummary { summary },
-        }
+        Self { metadata, layout: DocumentCardLayout::default(), filters: Vec::new(), body: DocumentCardBody::TelemetrySummary { summary } }
     }
 
     pub fn plot(mut plot: PlotDefinition) -> Self {
@@ -1655,24 +1231,16 @@ impl DocumentCard {
             metadata: plot.metadata.clone(),
             layout: DocumentCardLayout::default(),
             filters: Vec::new(),
-            body: DocumentCardBody::Plot {
-                plot: Box::new(plot),
-            },
+            body: DocumentCardBody::Plot { plot: Box::new(plot) },
         }
     }
 
-    pub fn text(
-        identifier: impl AsRef<str>,
-        label: impl Into<String>,
-        markdown: impl Into<String>,
-    ) -> Self {
+    pub fn text(identifier: impl AsRef<str>, label: impl Into<String>, markdown: impl Into<String>) -> Self {
         Self {
             metadata: metadata(identifier.as_ref(), label.into(), None),
             layout: DocumentCardLayout::default(),
             filters: Vec::new(),
-            body: DocumentCardBody::Text {
-                markdown: markdown.into(),
-            },
+            body: DocumentCardBody::Text { markdown: markdown.into() },
         }
     }
 
@@ -1703,13 +1271,7 @@ impl DocumentCardBody {
 
 impl DocumentSectionRepeat {
     fn new(value: impl Into<DataExpression>, label_template: impl Into<String>) -> Self {
-        Self {
-            value: value.into(),
-            label_template: label_template.into(),
-            id_template: None,
-            order_by: None,
-            filters: Vec::new(),
-        }
+        Self { value: value.into(), label_template: label_template.into(), id_template: None, order_by: None, filters: Vec::new() }
     }
 
     pub fn id(&mut self, template: impl Into<String>) -> &mut Self {
@@ -1759,25 +1321,13 @@ impl DataExpression {
     }
 
     pub fn exists(self) -> DocumentFilter {
-        DocumentFilter {
-            expression: self,
-            operator: FilterOperator::Exists,
-            value: None,
-        }
+        DocumentFilter { expression: self, operator: FilterOperator::Exists, value: None }
     }
 }
 
 impl DocumentFilter {
-    fn compared(
-        expression: DataExpression,
-        operator: FilterOperator,
-        value: impl Into<Value>,
-    ) -> Self {
-        Self {
-            expression,
-            operator,
-            value: Some(value.into()),
-        }
+    fn compared(expression: DataExpression, operator: FilterOperator, value: impl Into<Value>) -> Self {
+        Self { expression, operator, value: Some(value.into()) }
     }
 }
 
@@ -1799,10 +1349,7 @@ impl Default for TelemetrySummaryDefinition {
 
 impl TelemetrySummaryGroupDefinition {
     pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
-        Self {
-            metadata: metadata(identifier.as_ref(), label.into(), None),
-            tiles: Vec::new(),
-        }
+        Self { metadata: metadata(identifier.as_ref(), label.into(), None), tiles: Vec::new() }
     }
 
     pub fn tile(&mut self, tile: TelemetrySummaryTileDefinition) {
@@ -1826,8 +1373,7 @@ impl TelemetrySummaryTileDefinition {
     }
 
     pub fn id(&mut self, identifier: impl AsRef<str>) {
-        self.metadata.identifier = Identifier::new(identifier.as_ref())
-            .unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
     pub fn unit(&mut self, unit: impl Into<String>) {
@@ -1846,17 +1392,8 @@ impl TelemetrySummaryTileDefinition {
         self.filters.push(filter);
     }
 
-    pub fn condition(
-        &mut self,
-        operator: FilterOperator,
-        value: impl Into<Value>,
-        state: TelemetrySummaryState,
-    ) {
-        self.conditions.push(TelemetrySummaryCondition {
-            operator,
-            value: value.into(),
-            state,
-        });
+    pub fn condition(&mut self, operator: FilterOperator, value: impl Into<Value>, state: TelemetrySummaryState) {
+        self.conditions.push(TelemetrySummaryCondition { operator, value: value.into(), state });
     }
 }
 
@@ -1866,11 +1403,7 @@ impl PlotAxisKind {
     }
 
     pub fn for_column(column: &TelemetryColumn) -> Option<Self> {
-        if let Some(symbol) = column
-            .unit
-            .as_ref()
-            .map(|unit| unit.symbol.as_str())
-            .filter(|symbol| DURATION_UNIT_SYMBOLS.contains(symbol))
+        if let Some(symbol) = column.unit.as_ref().map(|unit| unit.symbol.as_str()).filter(|symbol| DURATION_UNIT_SYMBOLS.contains(symbol))
         {
             return Some(Self::elapsed(symbol));
         }
@@ -1955,8 +1488,7 @@ impl PlotDefinition {
 
     pub fn id(&mut self, identifier: impl AsRef<str>) {
         self.automatic_id = false;
-        self.metadata.identifier = Identifier::new(identifier.as_ref())
-            .unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
     pub fn unit(&mut self, unit: impl Into<String>) {
@@ -1999,12 +1531,7 @@ impl PlotDefinition {
         let Some(column) = contracts
             .iter()
             .filter(|contract| stream.is_none_or(|stream| contract.stream.as_str() == stream))
-            .find_map(|contract| {
-                contract
-                    .columns
-                    .iter()
-                    .find(|column| column.metadata.identifier.as_str() == field)
-            })
+            .find_map(|contract| contract.columns.iter().find(|column| column.metadata.identifier.as_str() == field))
         else {
             return;
         };
@@ -2051,8 +1578,7 @@ impl PlotDefinition {
     }
 
     pub fn marker_record(&mut self, record: impl Into<RecordMarker>) {
-        self.marker_record_types
-            .push(record.into().into_record_type());
+        self.marker_record_types.push(record.into().into_record_type());
     }
 
     pub fn marker_records<I, R>(&mut self, records: I)
@@ -2060,19 +1586,10 @@ impl PlotDefinition {
         I: IntoIterator<Item = R>,
         R: Into<RecordMarker>,
     {
-        self.marker_record_types.extend(
-            records
-                .into_iter()
-                .map(|record| record.into().into_record_type()),
-        );
+        self.marker_record_types.extend(records.into_iter().map(|record| record.into().into_record_type()));
     }
 
-    pub fn reference_line(
-        &mut self,
-        label: impl Into<String>,
-        quantity: impl Into<DataExpression>,
-        line: Line,
-    ) {
+    pub fn reference_line(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, line: Line) {
         let axis = self.axis_of(quantity.into());
         self.reference_lines.push(ReferenceLine {
             axis,
@@ -2084,12 +1601,7 @@ impl PlotDefinition {
         });
     }
 
-    pub fn reference_band(
-        &mut self,
-        label: impl Into<String>,
-        quantity: impl Into<DataExpression>,
-        band: Band,
-    ) {
+    pub fn reference_band(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, band: Band) {
         let axis = self.axis_of(quantity.into());
         self.reference_bands.push(ReferenceBand {
             axis,
@@ -2103,11 +1615,7 @@ impl PlotDefinition {
     }
 
     fn axis_of(&self, quantity: DataExpression) -> ReferenceAxis {
-        match self
-            .x_expression
-            .as_ref()
-            .is_some_and(|x| x.source == quantity.source && x.transforms == quantity.transforms)
-        {
+        match self.x_expression.as_ref().is_some_and(|x| x.source == quantity.source && x.transforms == quantity.transforms) {
             true => ReferenceAxis::X,
             false => ReferenceAxis::Y,
         }
@@ -2166,38 +1674,21 @@ impl Plot {
 
 impl Band {
     pub fn between(min: f64, max: f64) -> Self {
-        Self {
-            min: Some(min),
-            max: Some(max),
-            center: None,
-            tolerance: None,
-        }
+        Self { min: Some(min), max: Some(max), center: None, tolerance: None }
     }
 
     pub fn parameters(center: impl Into<String>, tolerance: impl Into<String>) -> Self {
-        Self::around(
-            crate::model::expressions::parameter(center),
-            crate::model::expressions::parameter(tolerance),
-        )
+        Self::around(crate::model::expressions::parameter(center), crate::model::expressions::parameter(tolerance))
     }
 
     pub fn around(center: impl Into<DataExpression>, tolerance: impl Into<DataExpression>) -> Self {
-        Self {
-            min: None,
-            max: None,
-            center: Some(center.into()),
-            tolerance: Some(tolerance.into()),
-        }
+        Self { min: None, max: None, center: Some(center.into()), tolerance: Some(tolerance.into()) }
     }
 }
 
 impl Line {
     pub fn at(value: f64) -> Self {
-        Self {
-            value: Some(value),
-            source: None,
-            scale: default_reference_source_scale(),
-        }
+        Self { value: Some(value), source: None, scale: default_reference_source_scale() }
     }
 
     pub fn parameter(name: impl Into<String>) -> Self {
@@ -2205,11 +1696,7 @@ impl Line {
     }
 
     pub fn expression(source: impl Into<DataExpression>) -> Self {
-        Self {
-            value: None,
-            source: Some(source.into()),
-            scale: default_reference_source_scale(),
-        }
+        Self { value: None, source: Some(source.into()), scale: default_reference_source_scale() }
     }
 }
 
@@ -2238,10 +1725,7 @@ impl DocumentTagged for PlotDefinition {
 }
 
 /* === Public Functions === */
-pub fn resolve_document_plot_axes(
-    document: &mut DocumentDefinition,
-    contracts: &[TelemetryContract],
-) {
+pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: &[TelemetryContract]) {
     for card in &mut document.cards {
         resolve_card_body_plot_axis(&mut card.body, contracts);
     }
@@ -2259,46 +1743,29 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
 
     if matches!(
         plot.plot_type,
-        PlotType::GroupedBar
-            | PlotType::StackedBar
-            | PlotType::Pie
-            | PlotType::Donut
-            | PlotType::Pareto
-            | PlotType::AggregateTable
+        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable
     ) {
-        return Err(format!(
-            "unsupported document plot type {}",
-            plot_type_label(&plot.plot_type)
-        ));
+        return Err(format!("unsupported document plot type {}", plot_type_label(&plot.plot_type)));
     }
 
     if plot.plot_type == PlotType::TimeSeries
-        && (plot.x_expression.is_some()
-            || plot.x.as_deref().is_some_and(|field| field != "timestamp"))
+        && (plot.x_expression.is_some() || plot.x.as_deref().is_some_and(|field| field != "timestamp"))
     {
-        return Err(
-            "`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
+        return Err("`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
              `Plot::xy_line` to choose both axes"
-                .to_owned(),
-        );
+            .to_owned());
     }
 
-    if plot
-        .z_expression
-        .as_ref()
-        .is_some_and(|expression| !expression.transforms.is_empty())
-    {
+    if plot.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
         return Err("z expressions must select a row value without transforms".to_owned());
     }
 
     if let Some(x_format) = &plot.x_format {
         validate_value_format(x_format)?;
         if plot.plot_type == PlotType::TimeSeries && x_format.kind() == ValueFormatKind::Number {
-            return Err(
-                "`x_format` on a time_series plot takes a time format: format::clock(…), \
+            return Err("`x_format` on a time_series plot takes a time format: format::clock(…), \
                  format::elapsed_seconds(), format::elapsed_ms()"
-                    .to_owned(),
-            );
+                .to_owned());
         }
         if plot_has_number_x_axis(&plot.plot_type) && x_format.kind() == ValueFormatKind::Time {
             return Err(format!(
@@ -2311,11 +1778,9 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
 
     if let Some(y_format) = &plot.y_format {
         if plot.plot_type == PlotType::Histogram {
-            return Err(
-                "`y_format` on a histogram plot has nothing to format: its y axis is the count \
+            return Err("`y_format` on a histogram plot has nothing to format: its y axis is the count \
                  the host computes; format the binned value with `x_format`"
-                    .to_owned(),
-            );
+                .to_owned());
         }
         validate_value_format(y_format)?;
         if y_format.kind() == ValueFormatKind::Time {
@@ -2329,45 +1794,29 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
                 return Err("bar plots must declare an x field or x expression".to_owned());
             }
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err(
-                    "bar plots must declare at least one y field or y expression".to_owned(),
-                );
+                return Err("bar plots must declare at least one y field or y expression".to_owned());
             }
         }
-        PlotType::GroupedBar
-        | PlotType::StackedBar
-        | PlotType::Pareto
-        | PlotType::XyScatter
-        | PlotType::XyLine
-        | PlotType::XyInterval => validate_xy_axes(plot)?,
+        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::XyScatter | PlotType::XyLine | PlotType::XyInterval => {
+            validate_xy_axes(plot)?
+        }
         PlotType::Trajectory => validate_xy_axes(plot)?,
         PlotType::Heatmap | PlotType::XyValueHeatmap => {
             validate_xy_axes(plot)?;
-            if plot.z_field.as_ref().is_none_or(|field| field.is_empty())
-                && plot.z_expression.is_none()
-            {
-                return Err(format!(
-                    "{} plots must declare a z field or z expression",
-                    plot_type_label(&plot.plot_type)
-                ));
+            if plot.z_field.as_ref().is_none_or(|field| field.is_empty()) && plot.z_expression.is_none() {
+                return Err(format!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type)));
             }
         }
         PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot)?,
         PlotType::Histogram => validate_histogram_axes(plot)?,
         PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
-                return Err(format!(
-                    "{} plots must declare exactly one y field or y expression",
-                    plot_type_label(&plot.plot_type)
-                ));
+                return Err(format!("{} plots must declare exactly one y field or y expression", plot_type_label(&plot.plot_type)));
             }
         }
         PlotType::TimeSeries | PlotType::FrequencySeries => {
             if plot.y.is_empty() && plot.y_expressions.is_empty() {
-                return Err(format!(
-                    "{} plots must declare at least one y field or y expression",
-                    plot_type_label(&plot.plot_type)
-                ));
+                return Err(format!("{} plots must declare at least one y field or y expression", plot_type_label(&plot.plot_type)));
             }
         }
         PlotType::AggregateTable => {}
@@ -2381,30 +1830,18 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
     if !plot.interval.sigma.is_finite() || plot.interval.sigma <= 0.0 {
         return Err("interval sigma must be greater than zero".to_owned());
     }
-    if plot
-        .fft
-        .sample_rate_hz
-        .is_some_and(|value| !value.is_finite() || value <= 0.0)
-    {
+    if plot.fft.sample_rate_hz.is_some_and(|value| !value.is_finite() || value <= 0.0) {
         return Err("FFT sample_rate_hz must be greater than zero".to_owned());
     }
-    if plot
-        .fft
-        .min_frequency_hz
-        .is_some_and(|value| !value.is_finite() || value < 0.0)
-        || plot
-            .fft
-            .max_frequency_hz
-            .is_some_and(|value| !value.is_finite() || value < 0.0)
+    if plot.fft.min_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
+        || plot.fft.max_frequency_hz.is_some_and(|value| !value.is_finite() || value < 0.0)
     {
         return Err("FFT frequency bounds must be greater than or equal to zero".to_owned());
     }
     if let (Some(min), Some(max)) = (plot.fft.min_frequency_hz, plot.fft.max_frequency_hz)
         && min > max
     {
-        return Err(
-            "FFT min_frequency_hz must be less than or equal to max_frequency_hz".to_owned(),
-        );
+        return Err("FFT min_frequency_hz must be less than or equal to max_frequency_hz".to_owned());
     }
     for band in &plot.reference_bands {
         if let (Some(min), Some(max)) = (band.min, band.max)
@@ -2445,11 +1882,7 @@ fn document_nodes_memory(nodes: &Vec<DocumentNode>, depth: usize) -> usize {
     if depth > 64 {
         return usize::MAX;
     }
-    let mut bytes = std::mem::size_of_val(nodes).saturating_add(
-        nodes
-            .capacity()
-            .saturating_mul(std::mem::size_of::<DocumentNode>()),
-    );
+    let mut bytes = std::mem::size_of_val(nodes).saturating_add(nodes.capacity().saturating_mul(std::mem::size_of::<DocumentNode>()));
     for node in nodes {
         let owned = document_node_memory(node, depth);
         if owned == usize::MAX {
@@ -2483,33 +1916,14 @@ fn document_section_memory(section: &DocumentSectionNode, depth: usize) -> usize
         return usize::MAX;
     }
     let fields = [
-        (
-            section.node_id.memory_size(),
-            std::mem::size_of_val(&section.node_id),
-        ),
-        (
-            section.metadata.memory_size(),
-            std::mem::size_of_val(&section.metadata),
-        ),
-        (
-            section.repeat.memory_size(),
-            std::mem::size_of_val(&section.repeat),
-        ),
-        (
-            document_nodes_memory(&section.children, depth + 1),
-            std::mem::size_of_val(&section.children),
-        ),
+        (section.node_id.memory_size(), std::mem::size_of_val(&section.node_id)),
+        (section.metadata.memory_size(), std::mem::size_of_val(&section.metadata)),
+        (section.repeat.memory_size(), std::mem::size_of_val(&section.repeat)),
+        (document_nodes_memory(&section.children, depth + 1), std::mem::size_of_val(&section.children)),
     ];
-    fields.into_iter().fold(
-        std::mem::size_of::<DocumentSectionNode>(),
-        |bytes, (owned, inline)| {
-            if owned == usize::MAX {
-                usize::MAX
-            } else {
-                bytes.saturating_add(owned.saturating_sub(inline))
-            }
-        },
-    )
+    fields.into_iter().fold(std::mem::size_of::<DocumentSectionNode>(), |bytes, (owned, inline)| {
+        if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+    })
 }
 
 fn resolve_card_body_plot_axis(body: &mut DocumentCardBody, contracts: &[TelemetryContract]) {
@@ -2537,36 +1951,20 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
 }
 
 fn metadata(identifier_value: &str, label: String, description: Option<String>) -> Metadata {
-    Metadata::new(
-        Identifier::new(identifier_value)
-            .unwrap_or_else(|_| identifier_from_label(identifier_value)),
-        label,
-        description,
-    )
+    Metadata::new(Identifier::new(identifier_value).unwrap_or_else(|_| identifier_from_label(identifier_value)), label, description)
 }
 
-fn merge_authored_sections_into_layout(
-    cards: &mut Vec<DocumentCardDefinition>,
-    layout: &mut DocumentLayout,
-    sections: &[DocumentSection],
-) {
+fn merge_authored_sections_into_layout(cards: &mut Vec<DocumentCardDefinition>, layout: &mut DocumentLayout, sections: &[DocumentSection]) {
     for section in sections {
         for card in &section.cards {
             upsert_card_definition(cards, DocumentCardDefinition::from(card.clone()));
         }
-        layout
-            .nodes
-            .push(DocumentNode::Section(Box::new(DocumentSectionNode::from(
-                section.clone(),
-            ))));
+        layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode::from(section.clone()))));
     }
 }
 
 fn upsert_card_definition(cards: &mut Vec<DocumentCardDefinition>, card: DocumentCardDefinition) {
-    if let Some(existing) = cards
-        .iter_mut()
-        .find(|existing| existing.metadata.identifier == card.metadata.identifier)
-    {
+    if let Some(existing) = cards.iter_mut().find(|existing| existing.metadata.identifier == card.metadata.identifier) {
         *existing = card;
     } else {
         cards.push(card);
@@ -2574,9 +1972,7 @@ fn upsert_card_definition(cards: &mut Vec<DocumentCardDefinition>, card: Documen
 }
 
 fn first_section_node_index(layout: &DocumentLayout, section_id: &Identifier) -> Option<usize> {
-    layout.nodes.iter().position(
-        |node| matches!(node, DocumentNode::Section(section) if &section.node_id == section_id),
-    )
+    layout.nodes.iter().position(|node| matches!(node, DocumentNode::Section(section) if &section.node_id == section_id))
 }
 
 fn remove_section_node_from_layout(layout: &mut DocumentLayout, section_id: &Identifier) -> bool {
@@ -2585,9 +1981,7 @@ fn remove_section_node_from_layout(layout: &mut DocumentLayout, section_id: &Ide
 
 fn remove_section_node(nodes: &mut Vec<DocumentNode>, section_id: &Identifier) -> bool {
     let before = nodes.len();
-    nodes.retain(
-        |node| !matches!(node, DocumentNode::Section(section) if &section.node_id == section_id),
-    );
+    nodes.retain(|node| !matches!(node, DocumentNode::Section(section) if &section.node_id == section_id));
     let mut removed = before != nodes.len();
     for node in nodes {
         if let DocumentNode::Section(section) = node {
@@ -2597,19 +1991,13 @@ fn remove_section_node(nodes: &mut Vec<DocumentNode>, section_id: &Identifier) -
     removed
 }
 
-fn section_node_mut<'a>(
-    node: &'a mut DocumentNode,
-    section_id: &Identifier,
-) -> Option<&'a mut DocumentSectionNode> {
+fn section_node_mut<'a>(node: &'a mut DocumentNode, section_id: &Identifier) -> Option<&'a mut DocumentSectionNode> {
     match node {
         DocumentNode::Section(section) => {
             if &section.node_id == section_id {
                 return Some(section);
             }
-            section
-                .children
-                .iter_mut()
-                .find_map(|node| section_node_mut(node, section_id))
+            section.children.iter_mut().find_map(|node| section_node_mut(node, section_id))
         }
         DocumentNode::Card(_) => None,
     }
@@ -2634,9 +2022,7 @@ fn merge_layout_children(target: &mut Vec<DocumentNode>, source: Vec<DocumentNod
         match &child {
             DocumentNode::Section(section) => {
                 if let Some(existing) = target.iter_mut().find_map(|node| match node {
-                    DocumentNode::Section(existing) if existing.node_id == section.node_id => {
-                        Some(existing)
-                    }
+                    DocumentNode::Section(existing) if existing.node_id == section.node_id => Some(existing),
                     _ => None,
                 }) {
                     *existing = section.clone();
@@ -2646,9 +2032,7 @@ fn merge_layout_children(target: &mut Vec<DocumentNode>, source: Vec<DocumentNod
             }
             DocumentNode::Card(card) => {
                 if let Some(existing) = target.iter_mut().find_map(|node| match node {
-                    DocumentNode::Card(existing) if existing.card_id == card.card_id => {
-                        Some(existing)
-                    }
+                    DocumentNode::Card(existing) if existing.card_id == card.card_id => Some(existing),
                     _ => None,
                 }) {
                     *existing = card.clone();
@@ -2683,11 +2067,7 @@ fn identifier_from_label(value: &str) -> Identifier {
         }
     }
     let normalized = normalized.trim_matches('.');
-    let identifier = if normalized.is_empty() {
-        "document.item"
-    } else {
-        normalized
-    };
+    let identifier = if normalized.is_empty() { "document.item" } else { normalized };
 
     Identifier::new(identifier).expect("normalized document identifier is valid")
 }
@@ -2742,39 +2122,25 @@ fn validate_xy_axes(plot: &PlotDefinition) -> Result<(), String> {
 /// A histogram bins one value on its x axis; the count on y is the host's.
 fn validate_histogram_axes(plot: &PlotDefinition) -> Result<(), String> {
     if !plot.y.is_empty() || !plot.y_expressions.is_empty() {
-        return Err(
-            "histogram plots take their value on the x axis and the host counts it on y; \
+        return Err("histogram plots take their value on the x axis and the host counts it on y; \
              replace `.y(…)` with `.x(…)`"
-                .to_owned(),
-        );
+            .to_owned());
     }
     let x_field = plot.x.as_deref().filter(|field| *field != "timestamp");
     if usize::from(x_field.is_some()) + usize::from(plot.x_expression.is_some()) != 1 {
-        return Err(
-            "histogram plots must declare exactly one x field or x expression: the value they bin"
-                .to_owned(),
-        );
+        return Err("histogram plots must declare exactly one x field or x expression: the value they bin".to_owned());
     }
 
     Ok(())
 }
 
 fn validate_wifi_channel_occupancy(plot: &PlotDefinition) -> Result<(), String> {
-    if plot.x_expression.is_some()
-        || !plot.y_expressions.is_empty()
-        || plot.z_expression.is_some()
-        || plot.series_by_expression.is_some()
-    {
-        return Err(
-            "wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions"
-                .to_owned(),
-        );
+    if plot.x_expression.is_some() || !plot.y_expressions.is_empty() || plot.z_expression.is_some() || plot.series_by_expression.is_some() {
+        return Err("wifi_channel_occupancy uses fixed host columns; remove axis and grouping expressions".to_owned());
     }
 
     if plot.stream.as_deref() != Some("host.wifi.channel_occupancy") {
-        return Err(
-            "wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy".to_owned(),
-        );
+        return Err("wifi_channel_occupancy plots must use stream host.wifi.channel_occupancy".to_owned());
     }
     if plot.x.as_deref() != Some("timestamp") {
         return Err("wifi_channel_occupancy plots must use timestamp as x field".to_owned());
@@ -2807,17 +2173,11 @@ mod tests {
     #[test]
     fn each_repeats_by_value_with_no_order_filter_or_identifier_template() {
         let mut section = DocumentSection::new("Channels");
-        let repeat = section.each(
-            crate::model::expressions::telemetry("wifi", "channel"),
-            "Channel {value}",
-        );
+        let repeat = section.each(crate::model::expressions::telemetry("wifi", "channel"), "Channel {value}");
         assert_eq!(repeat.label_template, "Channel {value}");
 
         let repeat = section.repeat.as_ref().expect("each sets the repeat");
-        assert_eq!(
-            repeat.value,
-            crate::model::expressions::telemetry("wifi", "channel")
-        );
+        assert_eq!(repeat.value, crate::model::expressions::telemetry("wifi", "channel"));
         assert_eq!(repeat.order_by, None);
         assert_eq!(repeat.id_template, None);
         assert!(repeat.filters.is_empty());
@@ -2829,11 +2189,7 @@ mod tests {
         let strength = crate::model::expressions::telemetry("wifi", "strength");
 
         let mut section = DocumentSection::new("Channels");
-        section
-            .each(channel.clone(), "Channel {value}")
-            .order_by(strength.clone())
-            .only(channel.clone().ne(13))
-            .id("wifi.channel.{value}");
+        section.each(channel.clone(), "Channel {value}").order_by(strength.clone()).only(channel.clone().ne(13)).id("wifi.channel.{value}");
 
         let repeat = section.repeat.expect("each sets the repeat");
         assert_eq!(repeat.order_by, Some(strength));

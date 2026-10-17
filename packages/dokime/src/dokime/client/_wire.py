@@ -76,24 +76,11 @@ def encode(item: Value) -> dict:
         elif isinstance(item, datetime):
             kind = {"Datetime": {"field_0": timestamp_fields(item)}}
         elif isinstance(item, list):
-            kind = {
-                "Array": {
-                    "field_0": {"items": [add(child, depth + 1) for child in item]}
-                }
-            }
+            kind = {"Array": {"field_0": {"items": [add(child, depth + 1) for child in item]}}}
         elif isinstance(item, dict):
             if not all(isinstance(key, str) for key in item):
                 raise TypeError("object keys must be strings")
-            kind = {
-                "Object": {
-                    "field_0": {
-                        "fields": [
-                            {"key": key, "value": add(item[key], depth + 1)}
-                            for key in sorted(item)
-                        ]
-                    }
-                }
-            }
+            kind = {"Object": {"field_0": {"fields": [{"key": key, "value": add(item[key], depth + 1)} for key in sorted(item)]}}}
         else:
             raise TypeError(f"unsupported parameter value: {type(item).__name__}")
         nodes[index] = {"kind": kind}
@@ -110,9 +97,7 @@ def decode(item: Message) -> Value:
 
     def rebuild(index: int, parent: int, depth: int) -> Value:
         if depth > 64 or not parent < index < len(item.nodes) or index in visited:
-            raise ProtocolError(
-                "value graph is cyclic, shared, out of range, or too deep"
-            )
+            raise ProtocolError("value graph is cyclic, shared, out of range, or too deep")
         visited.add(index)
         node = item.nodes[index]
         if not node.HasField("kind"):
@@ -167,9 +152,7 @@ def datetime_value(item: Message) -> DatetimeValue:
     if not 0 <= item.nanos < 1_000_000_000:
         raise ProtocolError("timestamp nanoseconds are out of range")
     try:
-        date = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(
-            seconds=item.seconds, microseconds=item.nanos // 1000
-        )
+        date = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(seconds=item.seconds, microseconds=item.nanos // 1000)
     except (OverflowError, ValueError) as error:
         raise ProtocolError("timestamp is out of range") from error
     text = date.strftime("%Y-%m-%dT%H:%M:%S") + f".{item.nanos:09d}+00:00"
@@ -187,9 +170,7 @@ def enum_name(item: Message) -> str:
 
 def scope(item: Message) -> dict[str, Any]:
     return {
-        descriptor.name: MessageToDict(value, preserving_proto_field_name=True)
-        if isinstance(value, Message)
-        else value
+        descriptor.name: MessageToDict(value, preserving_proto_field_name=True) if isinstance(value, Message) else value
         for descriptor, value in item.ListFields()
     }
 
@@ -260,18 +241,10 @@ def record(item: Message) -> Record:
         message=item.message if item.HasField("message") else None,
         details=fields(item.details) if item.HasField("details") else {},
         scope=scope(item.scope),
-        error=MessageToDict(item.error, preserving_proto_field_name=True)
-        if item.HasField("error")
-        else None,
-        related_sample_id=item.related_sample_id
-        if item.HasField("related_sample_id")
-        else None,
-        related_stream_id=item.related_stream_id
-        if item.HasField("related_stream_id")
-        else None,
-        related_artifact_id=item.related_artifact_id
-        if item.HasField("related_artifact_id")
-        else None,
+        error=MessageToDict(item.error, preserving_proto_field_name=True) if item.HasField("error") else None,
+        related_sample_id=item.related_sample_id if item.HasField("related_sample_id") else None,
+        related_stream_id=item.related_stream_id if item.HasField("related_stream_id") else None,
+        related_artifact_id=item.related_artifact_id if item.HasField("related_artifact_id") else None,
     )
 
 

@@ -51,10 +51,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     } else {
         for operation in operations {
             let definition = operation.contract.operation();
-            println!(
-                "{}\t{}\t{}",
-                definition.id, operation.owner, definition.description
-            );
+            println!("{}\t{}\t{}", definition.id, operation.owner, definition.description);
         }
     }
     Ok(())

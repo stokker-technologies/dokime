@@ -42,10 +42,7 @@ pub struct Column<R: ?Sized> {
 /* === Implementations === */
 impl<R: ?Sized> Column<R> {
     pub const fn new(field: &'static str) -> Self {
-        Self {
-            field,
-            row: PhantomData,
-        }
+        Self { field, row: PhantomData }
     }
 
     pub const fn field(&self) -> &'static str {
@@ -67,10 +64,7 @@ impl<R: ?Sized> Copy for Column<R> {}
 
 impl<R: ?Sized> std::fmt::Debug for Column<R> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Column")
-            .field("field", &self.field)
-            .finish()
+        formatter.debug_struct("Column").field("field", &self.field).finish()
     }
 }
 

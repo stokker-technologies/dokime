@@ -12,15 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::domains::evidence::RecordSelection;
+use dokime_runtime::{Identifier, Metadata};
+use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 use model::execution::OperatorNoteRequest;
 use {
-    model::records::product::ProductCalibrationDetails,
-    model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
     model::records::product::ProductCalibrationPhase,
 };
-use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 
 // Standard Library Imports
 
@@ -52,11 +51,7 @@ use dokime_domain::model;
 fn runtime_config(root: &std::path::Path) -> RuntimeConfig {
     crate::service_support::budgets::runtime_config(
         root,
-        Metadata::new(
-            Identifier::new("fixture.records").unwrap(),
-            "Record Query Fixture",
-            None,
-        ),
+        Metadata::new(Identifier::new("fixture.records").unwrap(), "Record Query Fixture", None),
     )
 }
 
@@ -67,12 +62,8 @@ async fn runtime(root: &std::path::Path) -> Runtime {
 async fn publish(handle: &RuntimeHandle) {
     handle
         .publish_product_record(
-            ProductCalibrationDetails::new(
-                "fixture-device",
-                ProductCalibrationKind::Field,
-                ProductCalibrationPhase::Completed,
-            )
-            .into_draft("fixture.product"),
+            ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                .into_draft("fixture.product"),
         )
         .await
         .unwrap();
@@ -83,9 +74,7 @@ async fn poison_capture(handle: &RuntimeHandle) {
     // a physical persistence failure must instead close admission and readers.
     let primary = handle.storage_root().join("local.sqlite");
     let connection = rusqlite::Connection::open(primary).unwrap();
-    connection
-        .execute_batch("DROP TABLE storage_data_entries")
-        .unwrap();
+    connection.execute_batch("DROP TABLE storage_data_entries").unwrap();
     publish(handle).await;
     // Admission is buffered. Force the damaged primary through its save barrier
     // before asserting that the manager's failure reaches every reader.
@@ -105,39 +94,18 @@ async fn oversized_record_changes() {
     let reader = handle.captured_records();
     let count = handle.watch_state().latest().state().record_count;
     let before = reader.next(0, reader.frontier()).await.unwrap().unwrap();
-    let mut draft = ProductCalibrationDetails::new(
-        "fixture-device",
-        ProductCalibrationKind::Field,
-        ProductCalibrationPhase::Completed,
-    )
-    .into_draft("fixture.product");
+    let mut draft = ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+        .into_draft("fixture.product");
     draft.message = Some("x".repeat(1024 * 1024));
     assert!(handle.publish_product_record(draft).await.is_err());
     // The public API records a separate health warning for rejected producers.
     // That diagnostic may advance the journal; the refused product fact may not
     // change evidence visibility or the product record count.
     assert_eq!(handle.watch_state().latest().state().record_count, count);
-    assert_eq!(
-        reader.next(0, reader.frontier()).await.unwrap().as_deref(),
-        Some(&*before)
-    );
-    assert_eq!(
-        handle
-            .selected_records(RecordSelection::default())
-            .await
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(reader.next(0, reader.frontier()).await.unwrap().as_deref(), Some(&*before));
+    assert_eq!(handle.selected_records(RecordSelection::default()).await.unwrap().len(), 1);
     publish(&handle).await;
-    assert_eq!(
-        handle
-            .selected_records(RecordSelection::default())
-            .await
-            .unwrap()
-            .len(),
-        2
-    );
+    assert_eq!(handle.selected_records(RecordSelection::default()).await.unwrap().len(), 2);
     drop(reader);
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -151,10 +119,7 @@ async fn published_record_reads() {
     publish(&handle).await;
     let reader = handle.captured_records();
     let record = reader.next(0, reader.frontier()).await.unwrap().unwrap();
-    assert_eq!(
-        record.record.record_type.as_str(),
-        "calibration.field.completed"
-    );
+    assert_eq!(record.record.record_type.as_str(), "calibration.field.completed");
     drop(record);
     drop(reader);
     owner.shutdown().await.unwrap();
@@ -168,12 +133,7 @@ async fn live_reader_cursor() {
     let mut subscription = handle.subscribe_records();
     publish(&handle).await;
     let captured = handle.captured_records();
-    let expected = captured
-        .next(0, captured.frontier())
-        .await
-        .unwrap()
-        .unwrap()
-        .sequence;
+    let expected = captured.next(0, captured.frontier()).await.unwrap().unwrap().sequence;
     drop(captured);
     let record = subscription.next().await.unwrap().unwrap();
     drop(subscription);
@@ -184,30 +144,15 @@ async fn live_reader_cursor() {
 
 #[tokio::test]
 async fn filtered_record_view() {
+    use dokime_runtime::runtime::query::{RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow};
     use dokime_runtime::{RecordScope, SessionId};
-    use dokime_runtime::runtime::query::{
-        RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
-    };
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let selected = RecordScope {
-        session_id: Some(SessionId::from_seed("record-view.selected")),
-        ..RecordScope::default()
-    };
-    for scope in [
-        selected.clone(),
-        RecordScope {
-            session_id: Some(SessionId::from_seed("record-view.other")),
-            ..RecordScope::default()
-        },
-    ] {
-        let mut draft = ProductCalibrationDetails::new(
-            "fixture.tool",
-            ProductCalibrationKind::Field,
-            ProductCalibrationPhase::Completed,
-        )
-        .into_draft("fixture.product");
+    let selected = RecordScope { session_id: Some(SessionId::from_seed("record-view.selected")), ..RecordScope::default() };
+    for scope in [selected.clone(), RecordScope { session_id: Some(SessionId::from_seed("record-view.other")), ..RecordScope::default() }] {
+        let mut draft = ProductCalibrationDetails::new("fixture.tool", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+            .into_draft("fixture.product");
         draft.scope = Some(scope);
         handle.publish_product_record(draft).await.unwrap();
     }
@@ -233,18 +178,12 @@ async fn filtered_record_view() {
     assert_eq!(stable.records.len(), 1);
     assert_eq!(stable.records[0].record_id, first_id);
 
-    let mut draft = ProductCalibrationDetails::new(
-        "fixture.tool",
-        ProductCalibrationKind::Field,
-        ProductCalibrationPhase::Completed,
-    )
-    .into_draft("fixture.product");
+    let mut draft = ProductCalibrationDetails::new("fixture.tool", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+        .into_draft("fixture.product");
     draft.scope = Some(selected.clone());
     handle.publish_product_record(draft).await.unwrap();
     let mut delta = query.clone();
-    delta.window = RuntimeWindow::Since {
-        cursor: first_cursor,
-    };
+    delta.window = RuntimeWindow::Since { cursor: first_cursor };
     let delta = handle.query_runtime_view(delta).await.unwrap();
     let RuntimeViewPayload::Records { frame: delta } = delta.payload else {
         panic!("expected next explicit record cut");
@@ -273,24 +212,10 @@ async fn fixed_replay_append() {
     let first = reader.next(0, through).await.unwrap().unwrap();
     publish(&handle).await;
     assert_eq!(&*reader.next(0, through).await.unwrap().unwrap(), &*first);
-    assert!(
-        reader
-            .next(first.sequence, through)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(reader.next(first.sequence, through).await.unwrap().is_none());
     let frontier = reader.wait_after(through).await.unwrap().unwrap();
     assert!(frontier > through);
-    assert!(
-        reader
-            .next(through, frontier)
-            .await
-            .unwrap()
-            .unwrap()
-            .sequence
-            > through
-    );
+    assert!(reader.next(through, frontier).await.unwrap().unwrap().sequence > through);
     drop(handle);
     owner.shutdown().await.unwrap();
 }
@@ -309,24 +234,14 @@ async fn fixed_record_pressure() {
 
     // Exceed the 16 MiB admission queue while this reader is still in saved history.
     for _ in 0..300 {
-        let mut draft = ProductCalibrationDetails::new(
-            "fixture-device",
-            ProductCalibrationKind::Field,
-            ProductCalibrationPhase::Completed,
-        )
-        .into_draft("fixture.product");
+        let mut draft = ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+            .into_draft("fixture.product");
         draft.message = Some("x".repeat(64 * 1024));
         handle.publish_product_record(draft).await.unwrap();
     }
     let second = reader.next(first.sequence, through).await.unwrap().unwrap();
     assert!(second.sequence > first.sequence && second.sequence <= through);
-    assert!(
-        reader
-            .next(second.sequence, through)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(reader.next(second.sequence, through).await.unwrap().is_none());
     drop(second);
     drop(first);
     drop(reader);
@@ -365,20 +280,10 @@ async fn independent_readers_pages() {
     }
     assert_eq!(count, 260);
     assert_eq!(&*old.next(0, through).await.unwrap().unwrap(), &*first);
-    assert_eq!(
-        &*old.next(through, current).await.unwrap().unwrap(),
-        &*appended
-    );
-    assert_eq!(
-        &*old.next(through, current).await.unwrap().unwrap(),
-        &*appended
-    );
+    assert_eq!(&*old.next(through, current).await.unwrap().unwrap(), &*appended);
+    assert_eq!(&*old.next(through, current).await.unwrap().unwrap(), &*appended);
 
-    let second = fresh
-        .next(appended.sequence, current)
-        .await
-        .unwrap()
-        .unwrap();
+    let second = fresh.next(appended.sequence, current).await.unwrap().unwrap();
     let third = fresh.next(second.sequence, current).await.unwrap().unwrap();
     assert!(fresh.next(third.sequence, current).await.unwrap().is_none());
     assert_eq!(&*fresh.next(0, current).await.unwrap().unwrap(), &*first);
@@ -404,30 +309,14 @@ async fn slow_dropped_create() {
     // Nothing Follows The Frontier Yet, So The Wait Is Still Pending When First Polled.
     let pending = {
         let mut waiting = std::pin::pin!(slow.wait_after(frontier));
-        std::future::poll_fn(|context| {
-            std::task::Poll::Ready(
-                std::future::Future::poll(waiting.as_mut(), context).is_pending(),
-            )
-        })
-        .await
+        std::future::poll_fn(|context| std::task::Poll::Ready(std::future::Future::poll(waiting.as_mut(), context).is_pending())).await
     };
     assert!(pending);
     publish(&handle).await;
     drop(slow);
     let reader = handle.captured_records();
-    assert!(
-        reader
-            .next(frontier, reader.frontier())
-            .await
-            .unwrap()
-            .unwrap()
-            .sequence
-            > frontier
-    );
-    let selected = handle
-        .selected_records(RecordSelection::default())
-        .await
-        .unwrap();
+    assert!(reader.next(frontier, reader.frontier()).await.unwrap().unwrap().sequence > frontier);
+    let selected = handle.selected_records(RecordSelection::default()).await.unwrap();
     assert_eq!(selected.len(), 2001);
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -452,40 +341,20 @@ async fn captured_records_failure() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let note = |message: &str| OperatorNoteRequest {
-        scope: None,
-        author: None,
-        message: message.into(),
-    };
+    let note = |message: &str| OperatorNoteRequest { scope: None, author: None, message: message.into() };
     handle.add_operator_note(note("first")).await.unwrap();
     let captured = handle.captured_records();
     let through = captured.frontier();
     let first = captured.next(0, through).await.unwrap().unwrap();
     handle.add_operator_note(note("later")).await.unwrap();
     assert_eq!(&*captured.next(0, through).await.unwrap().unwrap(), &*first);
-    assert!(
-        captured
-            .next(first.sequence, through)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(captured.next(first.sequence, through).await.unwrap().is_none());
     assert!(first.sequence <= through);
-    assert_eq!(
-        handle
-            .selected_records(RecordSelection::default())
-            .await
-            .unwrap()
-            .len(),
-        2
-    );
+    assert_eq!(handle.selected_records(RecordSelection::default()).await.unwrap().len(), 2);
     // Transaction-only groups evict the Harmos in-memory tail without adding
     // product facts; retained payloads must come from shared primary capture.
     for _ in 0..1030 {
-        handle
-            .set_suites("query.fixture", dokime_runtime::definition::SuiteSet::default())
-            .await
-            .unwrap();
+        handle.set_suites("query.fixture", dokime_runtime::definition::SuiteSet::default()).await.unwrap();
     }
     let current = handle.captured_records().frontier();
     assert_eq!(&*captured.next(0, current).await.unwrap().unwrap(), &*first);
@@ -493,12 +362,7 @@ async fn captured_records_failure() {
     assert_eq!(&*captured.next(0, through).await.unwrap().unwrap(), &*first);
     poison_capture(&handle).await;
     assert!(captured.next(0, through).await.is_err());
-    assert!(
-        handle
-            .selected_records(RecordSelection::default())
-            .await
-            .is_err()
-    );
+    assert!(handle.selected_records(RecordSelection::default()).await.is_err());
     assert!(handle.evidence_snapshot().await.is_err());
     drop(handle);
     assert!(owner.shutdown().await.is_err());
@@ -527,33 +391,22 @@ async fn capture_failure_provider() {
     }
     impl ExecutionFixture for BlockingProvider {
         fn run_cycle<'a>(
-            &'a self,
-            context: ExecutionFixtureContext,
-            _cycle: &'a dokime_domain::model::execution::result::CycleView,
+            &'a self, context: ExecutionFixtureContext, _cycle: &'a dokime_domain::model::execution::result::CycleView,
             _target: &'a ExecutionProviderTarget,
         ) -> ExecutionFixtureFuture<'a> {
             Box::pin(async move {
                 let _running = Running(&self.cancelled);
                 self.entered.notify_one();
-            context.cancelled().await;
-                Err(dokime_runtime::transport::ProviderExecutionFailure::new(
-                    "cancel",
-                    "fixture cancelled",
-                ))
+                context.cancelled().await;
+                Err(dokime_runtime::transport::ProviderExecutionFailure::new("cancel", "fixture cancelled"))
             })
         }
     }
     let root = tempfile::tempdir().unwrap();
-    let metadata = Metadata::new(
-        Identifier::new("fixture.shutdown").unwrap(),
-        "Shutdown",
-        None,
-    );
+    let metadata = Metadata::new(Identifier::new("fixture.shutdown").unwrap(), "Shutdown", None);
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata.clone());
     let provider = Arc::new(BlockingProvider::default());
-    let mut owner = Runtime::with_execution_fixture(config, "testdb", provider.clone())
-        .await
-        .unwrap();
+    let mut owner = Runtime::with_execution_fixture(config, "testdb", provider.clone()).await.unwrap();
     let handle = owner.handle();
     let suite: dokime_runtime::definition::TestSuite = serde_json::from_value(serde_json::json!({
         "metadata": metadata,
@@ -585,12 +438,7 @@ async fn capture_failure_provider() {
         false,
     )
     .await;
-    handle
-        .run_cycle_cases(
-            cycle,
-            dokime_runtime::runtime::command::CommandContext::default(),
-        )
-        .await;
+    handle.run_cycle_cases(cycle, dokime_runtime::runtime::command::CommandContext::default()).await;
     provider.entered.notified().await;
 
     let reader = handle.captured_records();
@@ -614,11 +462,7 @@ async fn primary_capture_boots() {
     for _ in 0..2 {
         let config = crate::service_support::budgets::runtime_config(
             root.path(),
-            Metadata::new(
-                Identifier::new("fixture.records").unwrap(),
-                "Record Query Fixture",
-                None,
-            ),
+            Metadata::new(Identifier::new("fixture.records").unwrap(), "Record Query Fixture", None),
         );
         primary = Some(config.storage_root.clone());
         let mut owner = Runtime::start(config).await.unwrap();
@@ -628,48 +472,24 @@ async fn primary_capture_boots() {
         let record = reader.next(0, reader.frontier()).await.unwrap().unwrap();
         expected.push(record.record_id.to_string());
         assert_eq!(
-            handle
-                .selected_records(RecordSelection::default())
-                .await
-                .unwrap()
-                .len(),
+            handle.selected_records(RecordSelection::default()).await.unwrap().len(),
             expected.len(),
             "managed recovery retains record visibility across process sessions",
         );
-        assert!(
-            reader
-                .next(record.sequence, reader.frontier())
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(reader.next(record.sequence, reader.frontier()).await.unwrap().is_none());
         drop(reader);
         drop(handle);
         owner.shutdown().await.unwrap();
     }
-    let backend = Arc::new(
-        dokime_runtime::storage::Backend::primary(primary.unwrap())
-            .await
-            .unwrap(),
-    );
+    let backend = Arc::new(dokime_runtime::storage::Backend::primary(primary.unwrap()).await.unwrap());
     let saved = backend.cursor_saved().await.unwrap();
     let mut actual = Vec::new();
     let mut epochs = Vec::new();
-    for row in crate::service_support::backend::records(
-        backend.as_ref(),
-        &saved,
-        dokime_runtime::storage::records::schema(),
-    )
-    .await
-    {
+    for row in crate::service_support::backend::records(backend.as_ref(), &saved, dokime_runtime::storage::records::schema()).await {
         let record = dokime_runtime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
         assert_eq!(row.item.as_str(), record.record_id.as_str());
         actual.push(record.record_id.to_string());
-        epochs.push(
-            row.scope
-                .expect("captured record retains boot scope")
-                .to_string(),
-        );
+        epochs.push(row.scope.expect("captured record retains boot scope").to_string());
     }
     assert_eq!(actual, expected);
     assert_ne!(epochs[0], epochs[1]);
@@ -703,13 +523,10 @@ async fn completed_record_capacity() {
 
 #[tokio::test]
 async fn native_entry_independent() {
-    use dokime_runtime::{TestCycleId, Timestamp};
-    use {
-        dokime_domain::model::execution::result::CycleStatus,
-        dokime_domain::model::execution::result::TestCycle,
-    };
     use dokime_runtime::storage::objects::cycle::{self, Cycle};
+    use dokime_runtime::{TestCycleId, Timestamp};
     use harmos::storage::ObjectVersion;
+    use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::TestCycle};
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
@@ -736,19 +553,8 @@ async fn native_entry_independent() {
     let native = Cycle::try_from(&cycle).unwrap();
     assert!(harmos::Message::encoded_len(&native) < 1024 * 1024);
     let receipt = handle.storage().write_object(&native).await.unwrap();
-    handle
-        .storage()
-        .flush_until(&receipt.position)
-        .await
-        .unwrap();
-    let restored = cycle::read(
-        handle.storage(),
-        &cycle.test_cycle_id,
-        ObjectVersion::Latest,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    handle.storage().flush_until(&receipt.position).await.unwrap();
+    let restored = cycle::read(handle.storage(), &cycle.test_cycle_id, ObjectVersion::Latest).await.unwrap().unwrap();
     assert_eq!(restored.value, cycle);
     drop(restored);
     drop(handle);

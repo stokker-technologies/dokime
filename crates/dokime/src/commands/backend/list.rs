@@ -49,11 +49,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         println!("{}", serde_json::to_string(&document)?);
     } else {
         for profile in &document.profiles {
-            let selected = if document.default.as_deref() == Some(&profile.name) {
-                "*"
-            } else {
-                " "
-            };
+            let selected = if document.default.as_deref() == Some(&profile.name) { "*" } else { " " };
             println!("{selected} {}\t{}", profile.name, profile.endpoint);
         }
     }

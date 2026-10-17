@@ -48,14 +48,10 @@ use dokime_domain::model::values::wire;
 
 /* === Public Functions === */
 pub(in crate::grpc) fn decode(
-    value: dokime_domain::model::values::wire::Value,
-    budget: &mut Budget,
-    depth: usize,
+    value: dokime_domain::model::values::wire::Value, budget: &mut Budget, depth: usize,
 ) -> Result<Value, Status> {
     preflight(&value, budget, depth)?;
-    value
-        .to_core()
-        .map_err(|error| Status::invalid_argument(error.to_string()))
+    value.to_core().map_err(|error| Status::invalid_argument(error.to_string()))
 }
 
 pub(in crate::grpc) fn decode_metadata(value: &common::Metadata) -> Result<Metadata, Status> {
@@ -72,35 +68,27 @@ pub(in crate::grpc) fn decode_metadata(value: &common::Metadata) -> Result<Metad
     let mut budget = Budget::new();
     for attribute in &value.attributes {
         text(&attribute.key)?;
-        let item = attribute
-            .value
-            .as_ref()
-            .ok_or_else(|| Status::invalid_argument("metadata attribute value is required"))?;
+        let item = attribute.value.as_ref().ok_or_else(|| Status::invalid_argument("metadata attribute value is required"))?;
         preflight(item, &mut budget, 0)?;
     }
     Metadata::try_from(value).map_err(|error| Status::invalid_argument(error.to_string()))
 }
 
 pub(in crate::grpc) fn encode(
-    value: &Value,
-    budget: &mut Budget,
-    depth: usize,
+    value: &Value, budget: &mut Budget, depth: usize,
 ) -> Result<dokime_domain::model::values::wire::Value, Status> {
     native(value, budget, depth)?;
     Ok(dokime_domain::model::values::wire::Value::from(value))
 }
 
 pub(in crate::grpc) fn object(
-    fields: &BTreeMap<String, Value>,
-    budget: &mut Budget,
+    fields: &BTreeMap<String, Value>, budget: &mut Budget,
 ) -> Result<dokime_domain::model::values::wire::Value, Status> {
     object_at(fields, budget, 0)
 }
 
 pub(in crate::grpc) fn object_at(
-    fields: &BTreeMap<String, Value>,
-    budget: &mut Budget,
-    depth: usize,
+    fields: &BTreeMap<String, Value>, budget: &mut Budget, depth: usize,
 ) -> Result<dokime_domain::model::values::wire::Value, Status> {
     collection(fields.len())?;
     for (key, value) in fields {
@@ -129,56 +117,31 @@ pub(in crate::grpc) fn metadata(value: &Metadata) -> Result<common::Metadata, St
     Ok(common::Metadata::from(value))
 }
 
-pub(in crate::grpc) fn cursor(
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
-) -> Cursor {
-    Cursor {
-        epoch: snapshot.state().process_epoch().to_string(),
-        stream: "runtime.state".into(),
-        position: snapshot.revision(),
-    }
+pub(in crate::grpc) fn cursor(snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot) -> Cursor {
+    Cursor { epoch: snapshot.state().process_epoch().to_string(), stream: "runtime.state".into(), position: snapshot.revision() }
 }
 
-pub(in crate::grpc) fn timestamp(
-    value: &dokime_domain::model::time::Timestamp,
-) -> Result<common::Timestamp, Status> {
-    let at = value
-        .to_datetime()
-        .map_err(|_| Status::internal("invalid native timestamp"))?;
-    Ok(common::Timestamp {
-        seconds: at.unix_timestamp(),
-        nanos: at.nanosecond() as i32,
-    })
+pub(in crate::grpc) fn timestamp(value: &dokime_domain::model::time::Timestamp) -> Result<common::Timestamp, Status> {
+    let at = value.to_datetime().map_err(|_| Status::internal("invalid native timestamp"))?;
+    Ok(common::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
 }
 
-pub(in crate::grpc) fn decoded_timestamp(
-    value: common::Timestamp,
-) -> Result<dokime_domain::model::time::Timestamp, Status> {
-    let at = value
-        .to_datetime()
-        .map_err(|_| Status::invalid_argument("invalid timestamp"))?;
+pub(in crate::grpc) fn decoded_timestamp(value: common::Timestamp) -> Result<dokime_domain::model::time::Timestamp, Status> {
+    let at = value.to_datetime().map_err(|_| Status::invalid_argument("invalid timestamp"))?;
     Ok(dokime_domain::model::time::Timestamp::from_datetime(at))
 }
 
-pub(in crate::grpc) fn scope(
-    value: &dokime_domain::model::execution::RecordScope,
-) -> Result<common::EvidenceScope, Status> {
+pub(in crate::grpc) fn scope(value: &dokime_domain::model::execution::RecordScope) -> Result<common::EvidenceScope, Status> {
     scope_memory(value)?;
     let ids = scope_ids(value);
     let origin = match &value.origin {
-        dokime_domain::model::execution::EvidenceOrigin::Default => {
-            common::EvidenceOriginKind::Default(true)
-        }
-        dokime_domain::model::execution::EvidenceOrigin::Initialization => {
-            common::EvidenceOriginKind::Initialization(true)
-        }
+        dokime_domain::model::execution::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
+        dokime_domain::model::execution::EvidenceOrigin::Initialization => common::EvidenceOriginKind::Initialization(true),
         dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } => {
             text(attempt_id.as_str())?;
             common::EvidenceOriginKind::StepAttemptId(attempt_id.to_string())
         }
-        dokime_domain::model::execution::EvidenceOrigin::Cleanup => {
-            common::EvidenceOriginKind::Cleanup(true)
-        }
+        dokime_domain::model::execution::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
     };
     Ok(common::EvidenceScope {
         session_id: ids[0].map(str::to_owned),
@@ -193,9 +156,7 @@ pub(in crate::grpc) fn scope(
     })
 }
 
-pub(in crate::grpc) fn scope_memory(
-    value: &dokime_domain::model::execution::RecordScope,
-) -> Result<usize, Status> {
+pub(in crate::grpc) fn scope_memory(value: &dokime_domain::model::execution::RecordScope) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<common::EvidenceScope>();
     for id in scope_ids(value).into_iter().flatten() {
         text(id)?;
@@ -208,9 +169,7 @@ pub(in crate::grpc) fn scope_memory(
     bounded(bytes)
 }
 
-pub(in crate::grpc) fn decoded_scope(
-    scope: &common::EvidenceScope,
-) -> Result<dokime_domain::model::execution::RecordScope, Status> {
+pub(in crate::grpc) fn decoded_scope(scope: &common::EvidenceScope) -> Result<dokime_domain::model::execution::RecordScope, Status> {
     use dokime_domain::model::execution::EvidenceOrigin;
     use dokime_domain::model::execution::RecordScope;
     use dokime_domain::model::identity::CaseId;
@@ -222,61 +181,37 @@ pub(in crate::grpc) fn decoded_scope(
     use dokime_domain::model::identity::TemplateId;
     use dokime_domain::model::identity::TestCycleId;
     use dokime_domain::model::identity::TestExecutionId;
-    let origin = match scope
-        .origin
-        .as_ref()
-        .and_then(|origin| origin.kind.as_ref())
-    {
+    let origin = match scope.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
         None | Some(common::EvidenceOriginKind::Default(true)) => EvidenceOrigin::Default,
         Some(common::EvidenceOriginKind::Initialization(true)) => EvidenceOrigin::Initialization,
         Some(common::EvidenceOriginKind::Cleanup(true)) => EvidenceOrigin::Cleanup,
         Some(common::EvidenceOriginKind::StepAttemptId(id)) => {
             text(id)?;
-            EvidenceOrigin::Step {
-                attempt_id: StepAttemptId::from_uuid(id)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-            }
+            EvidenceOrigin::Step { attempt_id: StepAttemptId::from_uuid(id).map_err(|error| Status::invalid_argument(error.to_string()))? }
         }
         _ => return Err(Status::invalid_argument("invalid evidence origin")),
     };
     if origin != EvidenceOrigin::Default && scope.execution_id.is_none() {
-        return Err(Status::invalid_argument(
-            "evidence origin requires an execution owner",
-        ));
+        return Err(Status::invalid_argument("evidence origin requires an execution owner"));
     }
     let test_case_id = scope
         .case_id
         .as_deref()
         .map(|id| {
             text(id)?;
-            CaseId::from_wire(id)
-                .map_err(|error| Status::invalid_argument(format!("invalid case_id: {error}")))
+            CaseId::from_wire(id).map_err(|error| Status::invalid_argument(format!("invalid case_id: {error}")))
         })
         .transpose()?;
     Ok(RecordScope {
         origin,
-        session_id: scope_id(scope.session_id.as_deref(), "session_id", |id| {
-            SessionId::from_uuid(id)
-        })?,
-        test_cycle_id: scope_id(scope.cycle_id.as_deref(), "cycle_id", |id| {
-            TestCycleId::from_uuid(id)
-        })?,
+        session_id: scope_id(scope.session_id.as_deref(), "session_id", |id| SessionId::from_uuid(id))?,
+        test_cycle_id: scope_id(scope.cycle_id.as_deref(), "cycle_id", |id| TestCycleId::from_uuid(id))?,
         test_case_id,
-        test_execution_id: scope_id(scope.execution_id.as_deref(), "execution_id", |id| {
-            TestExecutionId::from_uuid(id)
-        })?,
-        step_id: scope_id(scope.step_id.as_deref(), "step_id", |id| {
-            StepId::from_uuid(id)
-        })?,
-        criterion_id: scope_id(scope.criterion_id.as_deref(), "criterion_id", |id| {
-            CriterionId::from_uuid(id)
-        })?,
-        template_id: scope_id(scope.template_id.as_deref(), "template_id", |id| {
-            TemplateId::from_uuid(id)
-        })?,
-        suite_id: scope_id(scope.suite_id.as_deref(), "suite_id", |id| {
-            SuiteId::from_uuid(id)
-        })?,
+        test_execution_id: scope_id(scope.execution_id.as_deref(), "execution_id", |id| TestExecutionId::from_uuid(id))?,
+        step_id: scope_id(scope.step_id.as_deref(), "step_id", |id| StepId::from_uuid(id))?,
+        criterion_id: scope_id(scope.criterion_id.as_deref(), "criterion_id", |id| CriterionId::from_uuid(id))?,
+        template_id: scope_id(scope.template_id.as_deref(), "template_id", |id| TemplateId::from_uuid(id))?,
+        suite_id: scope_id(scope.suite_id.as_deref(), "suite_id", |id| SuiteId::from_uuid(id))?,
     })
 }
 
@@ -321,59 +256,36 @@ pub(in crate::grpc) fn execution_plugin(
             Implementation::Generation(generation.clone())
         }
     };
-    Ok(ExecutionPluginIdentity {
-        source: value.source.clone(),
-        version: value.version.clone(),
-        implementation: Some(implementation),
-    })
+    Ok(ExecutionPluginIdentity { source: value.source.clone(), version: value.version.clone(), implementation: Some(implementation) })
 }
 
-pub(in crate::grpc) fn memory(
-    value: &Value,
-    budget: &mut Budget,
-    depth: usize,
-) -> Result<usize, Status> {
+pub(in crate::grpc) fn memory(value: &Value, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
     native(value, budget, depth)?;
     let (nodes, heap) = heap(value);
     // Conservative Vec Growth: Include Four Slots Per Node, Including The Initial Allocation.
     bounded(
         std::mem::size_of::<dokime_domain::model::values::wire::Value>()
-            .saturating_add(nodes.saturating_mul(4).saturating_mul(std::mem::size_of::<
-                dokime_domain::model::values::wire::ValueNode,
-            >()))
+            .saturating_add(nodes.saturating_mul(4).saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueNode>()))
             .saturating_add(heap),
     )
 }
 
-pub(in crate::grpc) fn object_memory(
-    fields: &BTreeMap<String, Value>,
-    budget: &mut Budget,
-) -> Result<usize, Status> {
+pub(in crate::grpc) fn object_memory(fields: &BTreeMap<String, Value>, budget: &mut Budget) -> Result<usize, Status> {
     object_memory_at(fields, budget, 0)
 }
 
-pub(in crate::grpc) fn object_memory_at(
-    fields: &BTreeMap<String, Value>,
-    budget: &mut Budget,
-    depth: usize,
-) -> Result<usize, Status> {
+pub(in crate::grpc) fn object_memory_at(fields: &BTreeMap<String, Value>, budget: &mut Budget, depth: usize) -> Result<usize, Status> {
     collection(fields.len())?;
     let mut bytes = std::mem::size_of::<dokime_domain::model::values::wire::Value>()
         .saturating_add(4 * std::mem::size_of::<dokime_domain::model::values::wire::ValueNode>())
         .saturating_add(
-            fields
-                .len()
-                .saturating_mul(4)
-                .saturating_mul(std::mem::size_of::<
-                    dokime_domain::model::values::wire::ValueField,
-                >()),
+            fields.len().saturating_mul(4).saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueField>()),
         );
     for (key, value) in fields {
         text(key)?;
-        bytes = bytes.saturating_add(key.len()).saturating_add(
-            memory(value, budget, depth)?
-                - std::mem::size_of::<dokime_domain::model::values::wire::Value>(),
-        );
+        bytes = bytes
+            .saturating_add(key.len())
+            .saturating_add(memory(value, budget, depth)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>());
     }
     bounded(bytes)
 }
@@ -390,19 +302,8 @@ pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status
         .saturating_add(value.identifier.as_str().len())
         .saturating_add(value.label.len())
         .saturating_add(value.description.as_ref().map_or(0, String::len))
-        .saturating_add(
-            value
-                .tags
-                .len()
-                .saturating_mul(std::mem::size_of::<String>()),
-        )
-        .saturating_add(
-            value
-                .attributes
-                .len()
-                .saturating_mul(4)
-                .saturating_mul(std::mem::size_of::<common::MetadataAttribute>()),
-        );
+        .saturating_add(value.tags.len().saturating_mul(std::mem::size_of::<String>()))
+        .saturating_add(value.attributes.len().saturating_mul(4).saturating_mul(std::mem::size_of::<common::MetadataAttribute>()));
     for tag in &value.tags {
         text(tag)?;
         bytes = bytes.saturating_add(tag.len());
@@ -410,10 +311,9 @@ pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status
     let mut budget = Budget::new();
     for (key, value) in &value.attributes {
         text(key)?;
-        bytes = bytes.saturating_add(key.len()).saturating_add(
-            memory(value, &mut budget, 0)?
-                - std::mem::size_of::<dokime_domain::model::values::wire::Value>(),
-        );
+        bytes = bytes
+            .saturating_add(key.len())
+            .saturating_add(memory(value, &mut budget, 0)? - std::mem::size_of::<dokime_domain::model::values::wire::Value>());
     }
     bounded(bytes)
 }
@@ -421,15 +321,11 @@ pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status
 pub(in crate::grpc) fn slots<T>(length: usize) -> Result<Vec<T>, Status> {
     collection(length)?;
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| Status::resource_exhausted("canonical projection allocation refused"))?;
+    values.try_reserve_exact(length).map_err(|_| Status::resource_exhausted("canonical projection allocation refused"))?;
     Ok(values)
 }
 
-pub(in crate::grpc) fn value_type(
-    value: &dokime_domain::model::values::ValueType,
-) -> schema::ValueType {
+pub(in crate::grpc) fn value_type(value: &dokime_domain::model::values::ValueType) -> schema::ValueType {
     use dokime_domain::model::values::ValueType;
     match value {
         ValueType::Boolean => schema::ValueType::Boolean,
@@ -443,55 +339,31 @@ pub(in crate::grpc) fn value_type(
     }
 }
 
-pub(in crate::grpc) fn value_format(
-    value: &dokime_domain::model::values::ValueFormat,
-) -> schema::ValueFormat {
+pub(in crate::grpc) fn value_format(value: &dokime_domain::model::values::ValueFormat) -> schema::ValueFormat {
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
-            ValueFormat::Normal {
-                max_fraction_digits,
-            } => Kind::Normal(schema::NormalFormat {
-                max_fraction_digits: max_fraction_digits.map(u32::from),
-            }),
-            ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat {
-                decimals: u32::from(*decimals),
-            }),
+            ValueFormat::Normal { max_fraction_digits } => {
+                Kind::Normal(schema::NormalFormat { max_fraction_digits: max_fraction_digits.map(u32::from) })
+            }
+            ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat { decimals: u32::from(*decimals) }),
             ValueFormat::Scientific { significant_digits } => {
-                Kind::Scientific(schema::ScientificFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::Scientific(schema::ScientificFormat { significant_digits: u32::from(*significant_digits) })
             }
             ValueFormat::Engineering { significant_digits } => {
-                Kind::Engineering(schema::EngineeringFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::Engineering(schema::EngineeringFormat { significant_digits: u32::from(*significant_digits) })
             }
             ValueFormat::SiPrefix { significant_digits } => {
-                Kind::SiPrefix(schema::SiPrefixFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::SiPrefix(schema::SiPrefixFormat { significant_digits: u32::from(*significant_digits) })
             }
-            ValueFormat::AbsoluteTime { pattern } => {
-                Kind::AbsoluteTime(schema::AbsoluteTimeFormat {
-                    pattern: pattern.clone(),
-                })
-            }
-            ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat {
-                unit: elapsed_unit(unit),
-            }),
-            ValueFormat::ElapsedSinceCycle { unit } => {
-                Kind::ElapsedSinceCycle(schema::ElapsedFormat {
-                    unit: elapsed_unit(unit),
-                })
-            }
+            ValueFormat::AbsoluteTime { pattern } => Kind::AbsoluteTime(schema::AbsoluteTimeFormat { pattern: pattern.clone() }),
+            ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
+            ValueFormat::ElapsedSinceCycle { unit } => Kind::ElapsedSinceCycle(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
         }),
     }
 }
 
-pub(in crate::grpc) fn cursor_failure(
-    error: dokime_domain::model::execution::wire_cursor::Error,
-) -> Status {
+pub(in crate::grpc) fn cursor_failure(error: dokime_domain::model::execution::wire_cursor::Error) -> Status {
     use dokime_domain::model::execution::wire_cursor::Error;
     let code = match error {
         Error::Selection => tonic::Code::FailedPrecondition,
@@ -507,42 +379,22 @@ pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
-            ValueFormat::Normal {
-                max_fraction_digits,
-            } => Kind::Normal(schema::NormalFormat {
-                max_fraction_digits: max_fraction_digits.map(u32::from),
-            }),
-            ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat {
-                decimals: u32::from(*decimals),
-            }),
+            ValueFormat::Normal { max_fraction_digits } => {
+                Kind::Normal(schema::NormalFormat { max_fraction_digits: max_fraction_digits.map(u32::from) })
+            }
+            ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat { decimals: u32::from(*decimals) }),
             ValueFormat::Scientific { significant_digits } => {
-                Kind::Scientific(schema::ScientificFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::Scientific(schema::ScientificFormat { significant_digits: u32::from(*significant_digits) })
             }
             ValueFormat::Engineering { significant_digits } => {
-                Kind::Engineering(schema::EngineeringFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::Engineering(schema::EngineeringFormat { significant_digits: u32::from(*significant_digits) })
             }
             ValueFormat::SiPrefix { significant_digits } => {
-                Kind::SiPrefix(schema::SiPrefixFormat {
-                    significant_digits: u32::from(*significant_digits),
-                })
+                Kind::SiPrefix(schema::SiPrefixFormat { significant_digits: u32::from(*significant_digits) })
             }
-            ValueFormat::AbsoluteTime { pattern } => {
-                Kind::AbsoluteTime(schema::AbsoluteTimeFormat {
-                    pattern: pattern.clone(),
-                })
-            }
-            ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat {
-                unit: elapsed_unit(unit),
-            }),
-            ValueFormat::ElapsedSinceCycle { unit } => {
-                Kind::ElapsedSinceCycle(schema::ElapsedFormat {
-                    unit: elapsed_unit(unit),
-                })
-            }
+            ValueFormat::AbsoluteTime { pattern } => Kind::AbsoluteTime(schema::AbsoluteTimeFormat { pattern: pattern.clone() }),
+            ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
+            ValueFormat::ElapsedSinceCycle { unit } => Kind::ElapsedSinceCycle(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
         }),
     }
 }
@@ -557,23 +409,16 @@ fn elapsed_unit(value: &ElapsedUnit) -> schema::ElapsedUnit {
 
 /* === Private Functions === */
 fn scope_id<T>(
-    value: Option<&str>,
-    label: &str,
-    build: impl FnOnce(&str) -> Result<T, dokime_runtime::ApiError>,
+    value: Option<&str>, label: &str, build: impl FnOnce(&str) -> Result<T, dokime_runtime::ApiError>,
 ) -> Result<Option<T>, Status> {
     let Some(value) = value else {
         return Ok(None);
     };
     text(value)?;
-    if uuid::Uuid::parse_str(value)
-        .map(|value| value.is_nil())
-        .unwrap_or(true)
-    {
+    if uuid::Uuid::parse_str(value).map(|value| value.is_nil()).unwrap_or(true) {
         return Err(Status::invalid_argument(format!("invalid {label}")));
     }
-    build(value)
-        .map(Some)
-        .map_err(|error| Status::invalid_argument(format!("invalid {label}: {error}")))
+    build(value).map(Some).map_err(|error| Status::invalid_argument(format!("invalid {label}: {error}")))
 }
 
 fn scope_ids(value: &dokime_domain::model::execution::RecordScope) -> [Option<&str>; 8] {
@@ -589,23 +434,15 @@ fn scope_ids(value: &dokime_domain::model::execution::RecordScope) -> [Option<&s
     ]
 }
 
-fn preflight(
-    value: &dokime_domain::model::values::wire::Value,
-    budget: &mut Budget,
-    depth: usize,
-) -> Result<(), Status> {
+fn preflight(value: &dokime_domain::model::values::wire::Value, budget: &mut Budget, depth: usize) -> Result<(), Status> {
     if value.nodes.len() > budget.0 {
-        return Err(Status::resource_exhausted(
-            "value/expression budget exceeded",
-        ));
+        return Err(Status::resource_exhausted("value/expression budget exceeded"));
     }
     // Preflight Allocation/Depth/Text Before The Canonical Graph Rebuilder Allocates Values.
     let mut depths = vec![depth; value.nodes.len()];
     for (index, node) in value.nodes.iter().enumerate() {
         if depths[index] > 32 {
-            return Err(Status::resource_exhausted(
-                "value/expression budget exceeded",
-            ));
+            return Err(Status::resource_exhausted("value/expression budget exceeded"));
         }
         let mut child = |member: u32| -> Result<(), Status> {
             let member = member as usize;
@@ -638,13 +475,7 @@ fn preflight(
 }
 
 fn bounded(bytes: usize) -> Result<usize, Status> {
-    if bytes == usize::MAX {
-        Err(Status::resource_exhausted(
-            "canonical projection memory overflows",
-        ))
-    } else {
-        Ok(bytes)
-    }
+    if bytes == usize::MAX { Err(Status::resource_exhausted("canonical projection memory overflows")) } else { Ok(bytes) }
 }
 
 fn heap(value: &Value) -> (usize, usize) {
@@ -662,12 +493,8 @@ fn heap(value: &Value) -> (usize, usize) {
         }
         Value::Object(values) => {
             let mut nodes = 1usize;
-            let mut bytes = values
-                .len()
-                .saturating_mul(4)
-                .saturating_mul(std::mem::size_of::<
-                    dokime_domain::model::values::wire::ValueField,
-                >());
+            let mut bytes =
+                values.len().saturating_mul(4).saturating_mul(std::mem::size_of::<dokime_domain::model::values::wire::ValueField>());
             for (key, value) in values {
                 let (count, heap) = heap(value);
                 nodes = nodes.saturating_add(count);

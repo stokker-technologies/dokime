@@ -147,54 +147,31 @@ impl ExpressionContext {
 
 impl Expression {
     pub fn literal(value: impl Into<Value>) -> Self {
-        Self {
-            kind: ExpressionKind::Literal {
-                value: value.into(),
-            },
-        }
+        Self { kind: ExpressionKind::Literal { value: value.into() } }
     }
 
     pub fn selector(path: impl Into<String>) -> Self {
-        Self {
-            kind: ExpressionKind::Selector { path: path.into() },
-        }
+        Self { kind: ExpressionKind::Selector { path: path.into() } }
     }
 
     pub fn unary(op: ExpressionUnaryOp, value: Expression) -> Self {
-        Self {
-            kind: ExpressionKind::Unary {
-                op,
-                value: Box::new(value),
-            },
-        }
+        Self { kind: ExpressionKind::Unary { op, value: Box::new(value) } }
     }
 
     pub fn binary(op: ExpressionBinaryOp, left: Expression, right: Expression) -> Self {
-        Self {
-            kind: ExpressionKind::Binary {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            },
-        }
+        Self { kind: ExpressionKind::Binary { op, left: Box::new(left), right: Box::new(right) } }
     }
 
     pub fn call(function: impl Into<String>, args: Vec<Expression>) -> Self {
-        Self {
-            kind: ExpressionKind::Call {
-                function: function.into(),
-                args,
-            },
-        }
+        Self { kind: ExpressionKind::Call { function: function.into(), args } }
     }
 
     pub fn evaluate(&self, context: &ExpressionContext) -> crate::Result<Value> {
         match &self.kind {
             ExpressionKind::Literal { value } => Ok(value.clone()),
-            ExpressionKind::Selector { path } => context
-                .get(path)
-                .cloned()
-                .ok_or_else(|| ExpressionError::UnknownSelector(path.clone()).into()),
+            ExpressionKind::Selector { path } => {
+                context.get(path).cloned().ok_or_else(|| ExpressionError::UnknownSelector(path.clone()).into())
+            }
             ExpressionKind::Unary { op, value } => match op {
                 ExpressionUnaryOp::Not => Ok(Value::Bool(!bool_value(&value.evaluate(context)?)?)),
             },
@@ -203,9 +180,7 @@ impl Expression {
                 let right = right.evaluate(context)?;
                 binary_value(*op, &left, &right).map_err(Into::into)
             }
-            ExpressionKind::Call { function, .. } => {
-                Err(ExpressionError::UnsupportedCall(function.clone()).into())
-            }
+            ExpressionKind::Call { function, .. } => Err(ExpressionError::UnsupportedCall(function.clone()).into()),
         }
     }
 
@@ -220,25 +195,15 @@ impl BooleanExpression {
     }
 
     pub fn selector(path: impl Into<String>) -> BooleanExpressionBuilder {
-        BooleanExpressionBuilder {
-            left: Expression::selector(path),
-        }
+        BooleanExpressionBuilder { left: Expression::selector(path) }
     }
 
     pub fn and(left: BooleanExpression, right: BooleanExpression) -> Self {
-        Self::new(Expression::binary(
-            ExpressionBinaryOp::And,
-            left.expression,
-            right.expression,
-        ))
+        Self::new(Expression::binary(ExpressionBinaryOp::And, left.expression, right.expression))
     }
 
     pub fn or(left: BooleanExpression, right: BooleanExpression) -> Self {
-        Self::new(Expression::binary(
-            ExpressionBinaryOp::Or,
-            left.expression,
-            right.expression,
-        ))
+        Self::new(Expression::binary(ExpressionBinaryOp::Or, left.expression, right.expression))
     }
 
     pub fn evaluate(&self, context: &ExpressionContext) -> crate::Result<bool> {
@@ -264,11 +229,7 @@ impl BooleanExpressionBuilder {
     }
 
     fn compare(self, op: ExpressionBinaryOp, value: impl Into<Value>) -> BooleanExpression {
-        BooleanExpression::new(Expression::binary(
-            op,
-            self.left,
-            Expression::literal(value),
-        ))
+        BooleanExpression::new(Expression::binary(op, self.left, Expression::literal(value)))
     }
 }
 
@@ -293,17 +254,13 @@ fn expression_memory(expression: &Expression, depth: usize) -> usize {
             expression_memory(left, depth + 1).saturating_add(expression_memory(right, depth + 1))
         }
         ExpressionKind::Call { function, args } => {
-            let mut bytes = function.capacity().saturating_add(
-                args.capacity()
-                    .saturating_mul(std::mem::size_of::<Expression>()),
-            );
+            let mut bytes = function.capacity().saturating_add(args.capacity().saturating_mul(std::mem::size_of::<Expression>()));
             for arg in args {
                 let owned = expression_memory(arg, depth + 1);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
-                bytes =
-                    bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<Expression>()));
+                bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<Expression>()));
             }
             bytes
         }
@@ -311,11 +268,7 @@ fn expression_memory(expression: &Expression, depth: usize) -> usize {
     std::mem::size_of::<Expression>().saturating_add(heap)
 }
 
-fn binary_value(
-    op: ExpressionBinaryOp,
-    left: &Value,
-    right: &Value,
-) -> Result<Value, ExpressionError> {
+fn binary_value(op: ExpressionBinaryOp, left: &Value, right: &Value) -> Result<Value, ExpressionError> {
     Ok(Value::Bool(match op {
         ExpressionBinaryOp::And => bool_value(left)? && bool_value(right)?,
         ExpressionBinaryOp::Or => bool_value(left)? || bool_value(right)?,

@@ -54,9 +54,7 @@ impl Transaction<RuntimeState> for InstallPlugin {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .install_plugin(self.installation.clone())
-            .expect("Harmos checked the artifact installation before applying it");
+        state.install_plugin(self.installation.clone()).expect("Harmos checked the artifact installation before applying it");
     }
 }
 
@@ -69,9 +67,7 @@ impl Transaction<RuntimeState> for RemovePlugin {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .remove_plugin(&self.source)
-            .expect("Harmos checked the artifact removal before applying it");
+        state.remove_plugin(&self.source).expect("Harmos checked the artifact removal before applying it");
         state.plugin_owners.remove(&self.source);
     }
 }
@@ -80,11 +76,7 @@ impl Transaction<RuntimeState> for RemovePlugin {
 
 /* === Private Functions === */
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
-    if state.shutting_down {
-        Err("runtime is shutting down".to_owned())
-    } else {
-        Ok(())
-    }
+    if state.shutting_down { Err("runtime is shutting down".to_owned()) } else { Ok(()) }
 }
 
 /* === Tests === */

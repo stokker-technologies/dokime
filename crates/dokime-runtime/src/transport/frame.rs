@@ -19,22 +19,19 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use super::buffer::{
-    BufferedFrame, Executions, LeaseOutcome, MAX_BUFFERED_ARTIFACT_BYTES, PROMPT_POLL_INTERVAL,
-    PromptOutcome, lock,
-};
+use super::buffer::{BufferedFrame, Executions, LeaseOutcome, MAX_BUFFERED_ARTIFACT_BYTES, PROMPT_POLL_INTERVAL, PromptOutcome, lock};
 use crate::artifacts::ArtifactSink;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::values::Value;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
 use crate::prompts::{PromptRequest, PromptResponse};
-use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::telemetry::{LeaseGap, LeaseRequest, SampleSink, TelemetrySample};
 use crate::transport::ArtifactChunk;
 use crate::transport::{ExecutionTransport, Journal, TransportFuture};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::records::publication::RecordPublishRequest;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 const ARTIFACT_BACKPRESSURE_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -108,11 +105,7 @@ pub(crate) struct FrameProgressSink {
 /* === Implementations === */
 impl FrameTransport {
     pub(crate) fn new(executions: Executions, token: String) -> Self {
-        Self {
-            executions,
-            token,
-            prompts: 0,
-        }
+        Self { executions, token, prompts: 0 }
     }
 
     fn push(&self, frame: BufferedFrame) {
@@ -134,10 +127,7 @@ impl ArtifactSink for FrameArtifactSink {
         // Cloned out rather than borrowed: the wait below needs to hold this
         // across a call that temporarily releases the map's lock, and a
         // borrow into the map could not survive that.
-        let Some(condvar) = executions
-            .get(&self.token)
-            .map(|state| state.artifact_condvar())
-        else {
+        let Some(condvar) = executions.get(&self.token).map(|state| state.artifact_condvar()) else {
             // The execution was retired before this piece arrived. Nothing is
             // left to buffer it into or to wait for.
             return;
@@ -145,12 +135,9 @@ impl ArtifactSink for FrameArtifactSink {
         // A step writes from a runtime worker, and the pump that drains the
         // backlog may be queued behind it on that same worker; parking there
         // hands the worker's queue to the rest of the runtime first.
-        let at_gate = executions
-            .get(&self.token)
-            .is_some_and(|state| state.artifact_backlog() >= MAX_BUFFERED_ARTIFACT_BYTES);
-        let multi_threaded = tokio::runtime::Handle::try_current().is_ok_and(|runtime| {
-            runtime.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
-        });
+        let at_gate = executions.get(&self.token).is_some_and(|state| state.artifact_backlog() >= MAX_BUFFERED_ARTIFACT_BYTES);
+        let multi_threaded = tokio::runtime::Handle::try_current()
+            .is_ok_and(|runtime| runtime.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
         let Some(mut executions) = (if at_gate && multi_threaded {
             tokio::task::block_in_place(|| park_at_gate(executions, &self.token, &condvar))
         } else {
@@ -166,10 +153,7 @@ impl ArtifactSink for FrameArtifactSink {
 
 impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
     pub(crate) fn new(
-        executions: Executions,
-        token: String,
-        source: String,
-        host: Option<crate::execution::SampleOutput>,
+        executions: Executions, token: String, source: String, host: Option<crate::execution::SampleOutput>,
         publisher: Option<crate::execution::SamplePublisher>,
     ) -> Self {
         Self {
@@ -183,22 +167,10 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
         }
     }
 
-    fn host_output(
-        &self,
-    ) -> Option<
-        Result<
-            (
-                &harmos::sidecar::Supervisor,
-                crate::execution::SamplePublisher,
-            ),
-            String,
-        >,
-    > {
+    fn host_output(&self) -> Option<Result<(&harmos::sidecar::Supervisor, crate::execution::SamplePublisher), String>> {
         match self.host.as_ref()? {
             crate::execution::SampleOutput::Host(host) => Some(
-                self.publisher
-                    .map(|publish| (host, publish))
-                    .ok_or_else(|| "native workflow has no owning plugin publisher".to_owned()),
+                self.publisher.map(|publish| (host, publish)).ok_or_else(|| "native workflow has no owning plugin publisher".to_owned()),
             ),
             crate::execution::SampleOutput::Embedded(_) => None,
         }
@@ -208,34 +180,20 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
 impl Pending {
     // Stamp the row with its production instant, never earlier than the
     // stream's previous row, and report how many rows the stream now holds.
-    fn push(
-        &mut self,
-        stream: &Identifier,
-        values: BTreeMap<String, Value>,
-        storage_payload: Option<Vec<u8>>,
-    ) -> usize {
+    fn push(&mut self, stream: &Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>) -> usize {
         let buffered = self.streams.entry(stream.clone()).or_default();
         let stamp = unix_micros().max(buffered.latest);
         buffered.latest = stamp;
-        buffered.rows.push(crate::execution::StampedRow {
-            values,
-            storage_payload,
-            published_unix_micros: stamp,
-        });
+        buffered.rows.push(crate::execution::StampedRow { values, storage_payload, published_unix_micros: stamp });
         buffered.rows.len()
     }
 
     fn take(&mut self, stream: &Identifier) -> Vec<crate::execution::StampedRow> {
-        self.streams
-            .get_mut(stream)
-            .map(|buffered| std::mem::take(&mut buffered.rows))
-            .unwrap_or_default()
+        self.streams.get_mut(stream).map(|buffered| std::mem::take(&mut buffered.rows)).unwrap_or_default()
     }
 
     fn is_empty(&self) -> bool {
-        self.streams
-            .values()
-            .all(|buffered| buffered.rows.is_empty())
+        self.streams.values().all(|buffered| buffered.rows.is_empty())
     }
 }
 
@@ -255,30 +213,20 @@ impl ProgressSink for FrameProgressSink {
 
 impl crate::records::RecordSource for FrameRecordSource {
     fn next_record(&self, cursor: &mut usize) -> Option<dokime_domain::model::records::evidence::Record> {
-        lock(&self.executions)
-            .get(&self.token)
-            .and_then(|state| state.next_record(cursor))
+        lock(&self.executions).get(&self.token).and_then(|state| state.next_record(cursor))
     }
 
     fn delivered(&self, index: usize) -> Option<dokime_domain::model::records::evidence::Record> {
-        lock(&self.executions)
-            .get(&self.token)
-            .and_then(|state| state.delivered(index))
+        lock(&self.executions).get(&self.token).and_then(|state| state.delivered(index))
     }
 }
 
 impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T> {
     fn publish<'a>(
-        &'a self,
-        stream: &'a Identifier,
-        values: BTreeMap<String, Value>,
-        storage_payload: Option<Vec<u8>>,
+        &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move {
-            if lock(&self.executions)
-                .get(&self.token)
-                .is_none_or(|state| !state.samples_open())
-            {
+            if lock(&self.executions).get(&self.token).is_none_or(|state| !state.samples_open()) {
                 return Err("execution sample inputs are closed".into());
             }
             if let Some(output) = self.host_output() {
@@ -300,9 +248,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             }
 
             let mut executions = lock(&self.executions);
-            let state = executions
-                .get_mut(&self.token)
-                .ok_or("execution evidence is closed")?;
+            let state = executions.get_mut(&self.token).ok_or("execution evidence is closed")?;
             let mut sample = TelemetrySample::new(
                 crate::model::identity::new_id(),
                 stream.clone(),
@@ -318,10 +264,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
     }
 
     fn produced(&self, stream: &str) -> u64 {
-        lock(&self.executions)
-            .get(&self.token)
-            .map(|state| state.produced(stream))
-            .unwrap_or_default()
+        lock(&self.executions).get(&self.token).map(|state| state.produced(stream)).unwrap_or_default()
     }
 
     fn flush(&self) -> TransportFuture<'_, Result<(), (Identifier, String)>> {
@@ -346,9 +289,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
     }
 
     fn buffering(&self) -> bool {
-        self.pending
-            .try_lock()
-            .map_or(true, |pending| !pending.is_empty())
+        self.pending.try_lock().map_or(true, |pending| !pending.is_empty())
     }
 }
 
@@ -358,16 +299,10 @@ impl ExecutionTransport for FrameTransport {
     }
 
     fn progress(&self) -> Arc<dyn ProgressSink> {
-        Arc::new(FrameProgressSink {
-            executions: Arc::clone(&self.executions),
-            token: self.token.clone(),
-        })
+        Arc::new(FrameProgressSink { executions: Arc::clone(&self.executions), token: self.token.clone() })
     }
 
-    fn prompt<'a>(
-        &'a mut self,
-        request: PromptRequest,
-    ) -> TransportFuture<'a, crate::Result<PromptResponse>> {
+    fn prompt<'a>(&'a mut self, request: PromptRequest) -> TransportFuture<'a, crate::Result<PromptResponse>> {
         let ordinal = self.prompts;
         self.prompts = self.prompts.saturating_add(1);
         let prompt_id = PromptId::from_seed(format!("{}:prompt:{ordinal}", self.token));
@@ -381,11 +316,8 @@ impl ExecutionTransport for FrameTransport {
             // question that has just been asked is pending by definition.
             request.prompt_id = prompt_id.clone();
             request.scope = RecordScope::default();
-            let encoded = serde_json::to_string(&request).map_err(|error| {
-                crate::Error::PromptRefused(format!(
-                    "the operator question could not be encoded: {error}"
-                ))
-            })?;
+            let encoded = serde_json::to_string(&request)
+                .map_err(|error| crate::Error::PromptRefused(format!("the operator question could not be encoded: {error}")))?;
 
             {
                 let mut executions = lock(&executions);
@@ -405,12 +337,8 @@ impl ExecutionTransport for FrameTransport {
                     match executions.get(&token) {
                         None => Some(Err(crate::Error::PromptCancelled)),
                         Some(state) => match state.settled(&prompt_id) {
-                            Some(PromptOutcome::Answered(response)) => {
-                                Some(Ok((**response).clone()))
-                            }
-                            Some(PromptOutcome::Cancelled) => {
-                                Some(Err(crate::Error::PromptCancelled))
-                            }
+                            Some(PromptOutcome::Answered(response)) => Some(Ok((**response).clone())),
+                            Some(PromptOutcome::Cancelled) => Some(Err(crate::Error::PromptCancelled)),
                             None => None,
                         },
                     }
@@ -422,10 +350,7 @@ impl ExecutionTransport for FrameTransport {
         })
     }
 
-    fn lease<'a>(
-        &'a mut self,
-        request: LeaseRequest,
-    ) -> TransportFuture<'a, crate::Result<LeaseHold>> {
+    fn lease<'a>(&'a mut self, request: LeaseRequest) -> TransportFuture<'a, crate::Result<LeaseHold>> {
         let executions = Arc::clone(&self.executions);
         let token = self.token.clone();
 
@@ -454,12 +379,8 @@ impl ExecutionTransport for FrameTransport {
                         None => Some(Err(crate::Error::LeaseCancelled)),
                         Some(state) => match state.lease_settled(&lease_token) {
                             Some(LeaseOutcome::Granted) => Some(Ok(())),
-                            Some(LeaseOutcome::Refused(reason)) => {
-                                Some(Err(crate::Error::LeaseRefused(reason.clone())))
-                            }
-                            Some(LeaseOutcome::Cancelled) => {
-                                Some(Err(crate::Error::LeaseCancelled))
-                            }
+                            Some(LeaseOutcome::Refused(reason)) => Some(Err(crate::Error::LeaseRefused(reason.clone()))),
+                            Some(LeaseOutcome::Cancelled) => Some(Err(crate::Error::LeaseCancelled)),
                             Some(LeaseOutcome::Pending) | None => None,
                         },
                     }
@@ -468,10 +389,8 @@ impl ExecutionTransport for FrameTransport {
                     Some(Ok(())) => {
                         return Ok(LeaseHold {
                             lease_token,
-                            release: Arc::new(FrameLeaseRelease {
-                                executions: Arc::clone(&executions),
-                                token: token.clone(),
-                            }) as Arc<dyn LeaseRelease>,
+                            release: Arc::new(FrameLeaseRelease { executions: Arc::clone(&executions), token: token.clone() })
+                                as Arc<dyn LeaseRelease>,
                         });
                     }
                     Some(Err(error)) => return Err(error),
@@ -482,16 +401,11 @@ impl ExecutionTransport for FrameTransport {
     }
 
     fn gaps(&self) -> Vec<LeaseGap> {
-        lock(&self.executions)
-            .get(&self.token)
-            .map(|state| state.all_gaps())
-            .unwrap_or_default()
+        lock(&self.executions).get(&self.token).map(|state| state.all_gaps()).unwrap_or_default()
     }
 
     fn emit(&mut self, mut record: RecordPublishRequest) {
-        record
-            .timestamp
-            .get_or_insert_with(crate::model::time::now_utc);
+        record.timestamp.get_or_insert_with(crate::model::time::now_utc);
         if let Some(state) = lock(&self.executions).get_mut(&self.token) {
             state.publish_record(record);
         }
@@ -502,10 +416,7 @@ impl ExecutionTransport for FrameTransport {
     }
 
     fn journal(&self) -> Arc<dyn Journal> {
-        Arc::new(FrameJournal {
-            executions: Arc::clone(&self.executions),
-            token: self.token.clone(),
-        })
+        Arc::new(FrameJournal { executions: Arc::clone(&self.executions), token: self.token.clone() })
     }
 
     fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>) {
@@ -514,10 +425,7 @@ impl ExecutionTransport for FrameTransport {
                 Ok(encoded) => self.push(BufferedFrame::traceability(encoded)),
                 Err(error) => self.push(BufferedFrame::log(
                     crate::execution::log::Level::Error,
-                    format!(
-                        "traceability section `{}` could not be encoded: {error}",
-                        section.identifier
-                    ),
+                    format!("traceability section `{}` could not be encoded: {error}", section.identifier),
                 )),
             }
         }
@@ -526,44 +434,35 @@ impl ExecutionTransport for FrameTransport {
     fn finish_step(&mut self, attempt: dokime_domain::model::execution::result::TestStepAttempt) {
         match serde_json::to_string(&attempt) {
             Ok(encoded) => self.push(BufferedFrame::step_attempt(encoded)),
-            Err(error) => self.push(BufferedFrame::log(
-                crate::execution::log::Level::Error,
-                format!("step attempt could not be encoded: {error}"),
-            )),
+            Err(error) => {
+                self.push(BufferedFrame::log(crate::execution::log::Level::Error, format!("step attempt could not be encoded: {error}")))
+            }
         }
     }
 
     fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase) {
-        self.push(BufferedFrame::capture_phase(
-            serde_json::to_string(&phase).expect("capture phase serializes"),
-        ));
+        self.push(BufferedFrame::capture_phase(serde_json::to_string(&phase).expect("capture phase serializes")));
     }
 
     fn begin_step<'a>(
-        &'a mut self,
-        step: Identifier,
-        start: dokime_domain::model::execution::result::StepAttemptStart,
+        &'a mut self, step: Identifier, start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> TransportFuture<'a, Result<(), crate::diagnostics::Diagnostic>> {
         let executions = Arc::clone(&self.executions);
         let token = self.token.clone();
         Box::pin(async move {
-            let encoded = serde_json::to_string(&start)
-                .map_err(|error| crate::diagnostics::Diagnostic::of(error.to_string()))?;
+            let encoded = serde_json::to_string(&start).map_err(|error| crate::diagnostics::Diagnostic::of(error.to_string()))?;
             {
                 let mut live = lock(&executions);
-                let state = live.get_mut(&token).ok_or_else(|| {
-                    crate::diagnostics::Diagnostic::of("execution ended before step admission")
-                })?;
+                let state =
+                    live.get_mut(&token).ok_or_else(|| crate::diagnostics::Diagnostic::of("execution ended before step admission"))?;
                 state.request_step(step.as_str(), &start, encoded);
             }
             loop {
                 let answer = {
                     let live = lock(&executions);
-                    let state = live.get(&token).ok_or_else(|| {
-                        crate::diagnostics::Diagnostic::of(
-                            "execution ended before step acknowledgement",
-                        )
-                    })?;
+                    let state = live
+                        .get(&token)
+                        .ok_or_else(|| crate::diagnostics::Diagnostic::of("execution ended before step acknowledgement"))?;
                     state.step_answer()
                 };
                 if let Some(answer) = answer {
@@ -593,9 +492,7 @@ impl Journal for FrameJournal {
     }
 
     fn record(&self, mut record: RecordPublishRequest) {
-        record
-            .timestamp
-            .get_or_insert_with(crate::model::time::now_utc);
+        record.timestamp.get_or_insert_with(crate::model::time::now_utc);
         if let Some(state) = lock(&self.executions).get_mut(&self.token) {
             state.publish_record(record);
         }
@@ -618,26 +515,19 @@ impl LeaseRelease for FrameLeaseRelease {
 fn unix_micros() -> i64 {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => i64::try_from(elapsed.as_micros()).unwrap_or(i64::MAX),
-        Err(error) => {
-            i64::try_from(error.duration().as_micros()).map_or(i64::MIN, |micros| -micros)
-        }
+        Err(error) => i64::try_from(error.duration().as_micros()).map_or(i64::MIN, |micros| -micros),
     }
 }
 
 fn park_at_gate<'a>(
-    mut executions: MutexGuard<'a, BTreeMap<String, crate::transport::buffer::ExecutionState>>,
-    token: &str,
-    condvar: &std::sync::Condvar,
+    mut executions: MutexGuard<'a, BTreeMap<String, crate::transport::buffer::ExecutionState>>, token: &str, condvar: &std::sync::Condvar,
 ) -> Option<MutexGuard<'a, BTreeMap<String, crate::transport::buffer::ExecutionState>>> {
     loop {
         let state = executions.get(token)?;
         if state.cancelled() || state.artifact_backlog() < MAX_BUFFERED_ARTIFACT_BYTES {
             return Some(executions);
         }
-        executions = condvar
-            .wait_timeout(executions, ARTIFACT_BACKPRESSURE_POLL_INTERVAL)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
+        executions = condvar.wait_timeout(executions, ARTIFACT_BACKPRESSURE_POLL_INTERVAL).unwrap_or_else(PoisonError::into_inner).0;
     }
 }
 

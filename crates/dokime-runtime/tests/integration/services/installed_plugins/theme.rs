@@ -43,17 +43,9 @@ const PALETTE: &str = "--background: #123456; --foreground: #123456; --card: #12
 /* === Private Functions === */
 fn load_typography(dir: &std::path::Path, css: &str) -> Result<String, Error> {
     fs::create_dir_all(dir.join("theme")).unwrap();
-    fs::write(
-        dir.join("theme/typography.css"),
-        format!("{}\n{css}", TYPOGRAPHY),
-    )
-    .unwrap();
+    fs::write(dir.join("theme/typography.css"), format!("{}\n{css}", TYPOGRAPHY)).unwrap();
     fs::write(dir.join("theme/base.css"), "").unwrap();
-    fs::write(
-        dir.join("theme/light.css"),
-        format!(":root {{ {PALETTE} }}"),
-    )
-    .unwrap();
+    fs::write(dir.join("theme/light.css"), format!(":root {{ {PALETTE} }}")).unwrap();
     fs::write(dir.join("theme/dark.css"), format!(".dark {{ {PALETTE} }}")).unwrap();
 
     theme::load(dir).map(|theme| theme.typography_css)
@@ -67,11 +59,7 @@ fn local_woff2_uris() {
     fs::create_dir(dir.path().join("fonts")).unwrap();
     fs::write(dir.path().join("fonts/workshop.woff2"), b"woff2-fixture").unwrap();
 
-    let css = load_typography(
-        dir.path(),
-        "@font-face { src: url(\"fonts/workshop.woff2\") format(\"woff2\"); }",
-    )
-    .unwrap();
+    let css = load_typography(dir.path(), "@font-face { src: url(\"fonts/workshop.woff2\") format(\"woff2\"); }").unwrap();
 
     assert!(css.contains("url(\"data:font/woff2;base64,d29mZjItZml4dHVyZQ==\")"));
     assert!(!css.contains("fonts/workshop.woff2"));
@@ -117,11 +105,7 @@ fn symlink_font_refused() {
     let outside = tempdir().unwrap();
     fs::write(outside.path().join("font.woff2"), b"outside").unwrap();
     fs::create_dir(brand.path().join("fonts")).unwrap();
-    symlink(
-        outside.path().join("font.woff2"),
-        brand.path().join("fonts/escaped.woff2"),
-    )
-    .unwrap();
+    symlink(outside.path().join("font.woff2"), brand.path().join("fonts/escaped.woff2")).unwrap();
 
     let error = load_typography(brand.path(), "a { src: url(fonts/escaped.woff2); }").unwrap_err();
     assert!(matches!(error, Error::UnsafeUrl { .. }));

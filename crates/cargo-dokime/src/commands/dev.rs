@@ -44,26 +44,13 @@ type Snapshot = BTreeMap<PathBuf, (SystemTime, u64)>;
 pub struct Args {
     #[command(flatten)]
     build: build::Args,
-    #[arg(
-        long,
-        default_value = "dokime",
-        help = "The Dokime CLI that launches the installed server and GUI."
-    )]
+    #[arg(long, default_value = "dokime", help = "The Dokime CLI that launches the installed server and GUI.")]
     dokime: PathBuf,
-    #[arg(
-        long,
-        help = "Explicit GUI executable, forwarded to `dokime gui`. The default is the installed one."
-    )]
+    #[arg(long, help = "Explicit GUI executable, forwarded to `dokime gui`. The default is the installed one.")]
     gui: Option<PathBuf>,
-    #[arg(
-        long,
-        help = "Keep the terminal-only development session without launching a GUI."
-    )]
+    #[arg(long, help = "Keep the terminal-only development session without launching a GUI.")]
     headless: bool,
-    #[arg(
-        long,
-        help = "Keep development runtime data here. Overrides the temporary DOKIME_DEV_ROOT location."
-    )]
+    #[arg(long, help = "Keep development runtime data here. Overrides the temporary DOKIME_DEV_ROOT location.")]
     state_dir: Option<PathBuf>,
     #[arg(
         long,
@@ -77,31 +64,15 @@ pub struct Args {
     cwd: Option<PathBuf>,
     #[arg(long, default_value_t = 8765)]
     port: u16,
-    #[arg(
-        long,
-        help = "Re-run the most recently executed case from this plugin after each successful reload."
-    )]
+    #[arg(long, help = "Re-run the most recently executed case from this plugin after each successful reload.")]
     rerun: bool,
-    #[arg(
-        long,
-        help = "Additional source directory or file to watch; repeat for multiple paths."
-    )]
+    #[arg(long, help = "Additional source directory or file to watch; repeat for multiple paths.")]
     watch: Vec<PathBuf>,
-    #[arg(
-        long,
-        help = "Include host runtime diagnostics alongside plugin output."
-    )]
+    #[arg(long, help = "Include host runtime diagnostics alongside plugin output.")]
     verbose: bool,
-    #[arg(
-        long,
-        help = "Paths to exclude from source watching; repeat as needed."
-    )]
+    #[arg(long, help = "Paths to exclude from source watching; repeat as needed.")]
     ignore: Vec<PathBuf>,
-    #[arg(
-        long,
-        hide = true,
-        help = "Stop when the stdin control pipe closes (used by supervised development)."
-    )]
+    #[arg(long, hide = true, help = "Stop when the stdin control pipe closes (used by supervised development).")]
     shutdown_stdin: bool,
 }
 
@@ -184,55 +155,28 @@ impl ShutdownOwner for Host {
 pub async fn run(mut args: Args) -> Result<(), Error> {
     let terminal = Terminal::new(ColorMode::Auto);
     if args.build.output.is_some() {
-        return Err(Error::Invalid(
-            "dev owns its isolated bundle output; use build --output for distribution files".into(),
-        ));
+        return Err(Error::Invalid("dev owns its isolated bundle output; use build --output for distribution files".into()));
     }
     let identity = inspect(&args.dokime).await?;
     terminal.header("Dokime", env!("CARGO_PKG_VERSION"), "dev");
-    terminal.field(
-        "Host",
-        format!("{} · through {}", identity.version, args.dokime.display()),
-    );
+    terminal.field("Host", format!("{} · through {}", identity.version, args.dokime.display()));
     let cwd = resolve_cwd(args.cwd.as_deref())?;
     args.env_file = resolve_env_file(args.env_file.as_deref())?;
     terminal.field("Working directory", cwd.display());
     print_environment_source(&terminal, args.env_file.as_deref(), &cwd);
     let root = if args.state_dir.is_none() {
-        development_root(
-            args.env_file.as_deref(),
-            &cwd,
-            std::env::var_os("DOKIME_DEV_ROOT"),
-        )?
+        development_root(args.env_file.as_deref(), &cwd, std::env::var_os("DOKIME_DEV_ROOT"))?
     } else {
         None
     };
     let (state, _temporary) = development_state(args.state_dir.as_deref(), root.as_deref())?;
     terminal.field("Development data", state.display());
-    let manifest = args
-        .build
-        .manifest_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("Cargo.toml"))
-        .canonicalize()?;
+    let manifest = args.build.manifest_path.clone().unwrap_or_else(|| PathBuf::from("Cargo.toml")).canonicalize()?;
     args.build.manifest_path = Some(manifest.clone());
     let root = manifest.parent().expect("manifest parent");
     args.build.output = Some(state.join("development.dokime"));
-    let mut excluded = vec![
-        state.clone(),
-        std::path::absolute(
-            args.build
-                .target_dir
-                .clone()
-                .unwrap_or_else(|| root.join("target")),
-        )?,
-    ];
-    excluded.extend(
-        args.ignore
-            .iter()
-            .map(std::path::absolute)
-            .collect::<Result<Vec<_>, _>>()?,
-    );
+    let mut excluded = vec![state.clone(), std::path::absolute(args.build.target_dir.clone().unwrap_or_else(|| root.join("target")))?];
+    excluded.extend(args.ignore.iter().map(std::path::absolute).collect::<Result<Vec<_>, _>>()?);
     // A broken first build still has a source root to watch and recover from.
     let mut roots = vec![root.to_owned()];
     for path in &args.watch {
@@ -280,8 +224,12 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                 }
             }
             let changed = snapshot(&roots, &excluded)?;
-            if !first && !retry && changed == observed { continue; }
-            if !first && !retry { terminal.status("Source changed · rebuilding…"); }
+            if !first && !retry && changed == observed {
+                continue;
+            }
+            if !first && !retry {
+                terminal.status("Source changed · rebuilding…");
+            }
             first = false;
             observed = changed;
             let iteration_started = Instant::now();
@@ -298,7 +246,8 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                 }
                 let bundle = metadata.build().await?;
                 Ok::<_, Error>(bundle)
-            }.await;
+            }
+            .await;
             match built {
                 Ok(bundle) => {
                     use sha2::Digest;
@@ -319,7 +268,8 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                             Err(Error::Cancelled) => break,
                             Err(error) => {
                                 terminal.error(error.to_string());
-                                terminal.hint("No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop");
+                                terminal
+                                    .hint("No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop");
                                 continue;
                             }
                         }
@@ -329,8 +279,12 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                     match reload(running.as_mut().expect("host started"), &bundle, args.rerun).await {
                         Ok(()) => {
                             last_bundle = Some(digest);
-                            terminal.success(format!("Plugin ready · {:.1}s total, {:.1}s reload", iteration_started.elapsed().as_secs_f64(), started.elapsed().as_secs_f64()));
-                        },
+                            terminal.success(format!(
+                                "Plugin ready · {:.1}s total, {:.1}s reload",
+                                iteration_started.elapsed().as_secs_f64(),
+                                started.elapsed().as_secs_f64()
+                            ));
+                        }
                         Err(Error::Cancelled) => break,
                         Err(error) => terminal.error(format!("Plugin reload failed: {error}")),
                     }
@@ -339,12 +293,17 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                 Err(Error::Cancelled) => break,
                 Err(error) => {
                     terminal.error(format!("Build failed: {error}"));
-                    terminal.hint(if running.is_some() { "Previous plugin build is still running. Watching for changes · r + Enter to retry · q + Enter to stop" } else { "No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop" });
+                    terminal.hint(if running.is_some() {
+                        "Previous plugin build is still running. Watching for changes · r + Enter to retry · q + Enter to stop"
+                    } else {
+                        "No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop"
+                    });
                 }
             }
         }
         Ok(())
-    }.await;
+    }
+    .await;
     if let Some(mut host) = running {
         stop(&mut host, &terminal).await?;
     }
@@ -368,11 +327,7 @@ async fn wait_for_exit(running: &mut Option<Host>) -> Result<ProcessExit, Error>
     }
 }
 
-fn read_controls(
-    mut input: impl std::io::BufRead,
-    sender: tokio::sync::mpsc::Sender<Control>,
-    shutdown_stdin: bool,
-) {
+fn read_controls(mut input: impl std::io::BufRead, sender: tokio::sync::mpsc::Sender<Control>, shutdown_stdin: bool) {
     let mut line = String::new();
     loop {
         line.clear();
@@ -425,49 +380,28 @@ fn arguments(args: &Args, state: &Path, bundle: &Path) -> Vec<String> {
     arguments
 }
 
-async fn readiness_line(
-    events: &mut (impl tokio::io::AsyncBufRead + Unpin),
-) -> Result<ReadinessLine, Error> {
+async fn readiness_line(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> Result<ReadinessLine, Error> {
     let mut bytes = Vec::new();
-    events
-        .take(16 * 1024 + 1)
-        .read_until(b'\n', &mut bytes)
-        .await?;
+    events.take(16 * 1024 + 1).read_until(b'\n', &mut bytes).await?;
     if bytes.len() > 16 * 1024 || !bytes.ends_with(b"\n") {
-        return Err(Error::Invalid(
-            "Dokime did not report readiness; review the host diagnostics above".into(),
-        ));
+        return Err(Error::Invalid("Dokime did not report readiness; review the host diagnostics above".into()));
     }
     let value: serde_json::Value = serde_json::from_slice(&bytes)?;
     if value["event"] == "phase" {
         return Ok(ReadinessLine::Phase);
     }
-    if value["event"] != "ready"
-        || value["protocol"] != dokime_domain::READINESS_PROTOCOL
-        || value["transport"] != "grpc"
-    {
-        return Err(Error::Invalid(
-            "Dokime returned an unsupported development readiness message".into(),
-        ));
+    if value["event"] != "ready" || value["protocol"] != dokime_domain::READINESS_PROTOCOL || value["transport"] != "grpc" {
+        return Err(Error::Invalid("Dokime returned an unsupported development readiness message".into()));
     }
-    let url = value["endpoint"]
-        .as_str()
-        .ok_or_else(|| Error::Invalid("Dokime readiness omitted its gRPC endpoint".into()))?;
-    let url = url::Url::parse(url)
-        .map_err(|error| Error::Invalid(format!("invalid host URL: {error}")))?;
-    if url.scheme() != "http"
-        || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
-    {
-        return Err(Error::Invalid(
-            "development host returned a non-local URL".into(),
-        ));
+    let url = value["endpoint"].as_str().ok_or_else(|| Error::Invalid("Dokime readiness omitted its gRPC endpoint".into()))?;
+    let url = url::Url::parse(url).map_err(|error| Error::Invalid(format!("invalid host URL: {error}")))?;
+    if url.scheme() != "http" || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) {
+        return Err(Error::Invalid("development host returned a non-local URL".into()));
     }
     Ok(ReadinessLine::Ready(url.to_string()))
 }
 
-async fn read_readiness(
-    events: &mut (impl tokio::io::AsyncBufRead + Unpin),
-) -> Result<String, Error> {
+async fn read_readiness(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> Result<String, Error> {
     loop {
         match readiness_line(events).await? {
             ReadinessLine::Phase => continue,
@@ -476,12 +410,7 @@ async fn read_readiness(
     }
 }
 
-async fn launch(
-    args: &Args,
-    state: &Path,
-    cwd: &Path,
-    bundle: &Path,
-) -> Result<(Host, String), Error> {
+async fn launch(args: &Args, state: &Path, cwd: &Path, bundle: &Path) -> Result<(Host, String), Error> {
     let mut command = dokime(&args.dokime, "serve");
     command
         .arg("--")
@@ -499,12 +428,7 @@ async fn launch(
     let mut child = command.spawn()?;
     let stdout = child.stdout.take().expect("piped control output");
     let control = child.stdin.take();
-    let mut host = Host {
-        process: child,
-        control,
-        events: BufReader::new(stdout),
-        gui: None,
-    };
+    let mut host = Host { process: child, control, events: BufReader::new(stdout), gui: None };
     // Keep the pipe open through cancellation drain: startup may still publish
     // readiness after Ctrl+C, before it observes the closed stdin control pipe.
     let result = tokio::select! {
@@ -540,25 +464,14 @@ async fn launch_gui(args: &Args, endpoint: &str) -> Result<Gui, Error> {
     if let Some(gui) = &args.gui {
         command.arg("--gui").arg(gui);
     }
-    command
-        .arg("--")
-        .arg("--shutdown-stdin")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+    command.arg("--").arg("--shutdown-stdin").stdin(Stdio::piped()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
     let mut process = command.spawn()?;
-    Ok(Gui {
-        control: process.stdin.take(),
-        process,
-    })
+    Ok(Gui { control: process.stdin.take(), process })
 }
 
 async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error> {
     let request = serde_json::json!({"command":"reload", "path":bundle, "rerun":rerun});
-    let control = host
-        .control
-        .as_mut()
-        .ok_or_else(|| Error::Invalid("host control is closed".into()))?;
+    let control = host.control.as_mut().ok_or_else(|| Error::Invalid("host control is closed".into()))?;
     control.write_all(format!("{request}\n").as_bytes()).await?;
     control.flush().await?;
     let mut bytes = Vec::new();
@@ -567,9 +480,7 @@ async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error
         result = async { (&mut host.events).take(64 * 1024 + 1).read_until(b'\n', &mut bytes).await } => { result?; }
     }
     if bytes.len() > 64 * 1024 || !bytes.ends_with(b"\n") {
-        return Err(Error::Invalid(
-            "host did not acknowledge plugin reload".into(),
-        ));
+        return Err(Error::Invalid("host did not acknowledge plugin reload".into()));
     }
     let reply: serde_json::Value = serde_json::from_slice(&bytes)?;
     match reply["event"].as_str() {
@@ -583,12 +494,7 @@ async fn reload(host: &mut Host, bundle: &Path, rerun: bool) -> Result<(), Error
             }
             Ok(())
         }
-        Some("reload_failed") => Err(Error::Invalid(
-            reply["message"]
-                .as_str()
-                .unwrap_or("plugin activation failed")
-                .to_owned(),
-        )),
+        Some("reload_failed") => Err(Error::Invalid(reply["message"].as_str().unwrap_or("plugin activation failed").to_owned())),
         _ => Err(Error::Invalid("unsupported reload response".into())),
     }
 }
@@ -598,9 +504,7 @@ async fn stop(host: &mut Host, terminal: &Terminal) -> Result<(), Error> {
 }
 
 async fn stop_with(
-    owner: &mut impl ShutdownOwner,
-    terminal: &Terminal,
-    interrupted: impl std::future::Future<Output = std::io::Result<()>>,
+    owner: &mut impl ShutdownOwner, terminal: &Terminal, interrupted: impl std::future::Future<Output = std::io::Result<()>>,
 ) -> Result<(), Error> {
     terminal.status("Stopping Dokime. Press Ctrl-C again to terminate the development session.");
     let reason = tokio::select! {
@@ -662,10 +566,7 @@ fn snapshot(roots: &[PathBuf], excluded: &[PathBuf]) -> Result<Snapshot, Error> 
         if metadata.is_dir() {
             for entry in std::fs::read_dir(path)? {
                 let entry = entry?;
-                if matches!(
-                    entry.file_name().to_str(),
-                    Some("target" | ".git" | ".jj" | "node_modules" | ".venv" | "dist")
-                ) {
+                if matches!(entry.file_name().to_str(), Some("target" | ".git" | ".jj" | "node_modules" | ".venv" | "dist")) {
                     continue;
                 }
                 visit(&entry.path(), excluded, result)?;
@@ -683,27 +584,15 @@ fn snapshot(roots: &[PathBuf], excluded: &[PathBuf]) -> Result<Snapshot, Error> 
 }
 
 async fn watch_roots(
-    build: &build::Args,
-    watch: &[PathBuf],
-    manifest: &Path,
-    identity: &Identity,
-    terminal: &Terminal,
+    build: &build::Args, watch: &[PathBuf], manifest: &Path, identity: &Identity, terminal: &Terminal,
 ) -> Result<(Vec<PathBuf>, PathBuf, dokime_packaging::build::Project), Error> {
     let mut options = build.clone();
     options.manifest_path = Some(manifest.to_owned());
     let project = dokime_packaging::build::Project::resolve(options).await?;
     terminal.field("Plugin", project.package_name());
-    let sdk_version = semver::Version::parse(project.sdk_version())
-        .map_err(|error| Error::Invalid(error.to_string()))?;
+    let sdk_version = semver::Version::parse(project.sdk_version()).map_err(|error| Error::Invalid(error.to_string()))?;
     compatible(identity, &sdk_version)?;
-    terminal.field(
-        "SDK",
-        format!(
-            "{} · {}",
-            project.sdk_version(),
-            project.sdk_source().unwrap_or("local path")
-        ),
-    );
+    terminal.field("SDK", format!("{} · {}", project.sdk_version(), project.sdk_source().unwrap_or("local path")));
     terminal.success("Compatibility checked");
     let mut roots = project.watch_paths().to_vec();
     for path in watch {
@@ -718,10 +607,7 @@ fn resolve_cwd(explicit: Option<&Path>) -> Result<PathBuf, Error> {
     match explicit {
         Some(path) => {
             if !path.is_dir() {
-                return Err(Error::Invalid(format!(
-                    "--cwd {} does not exist or is not a directory",
-                    path.display()
-                )));
+                return Err(Error::Invalid(format!("--cwd {} does not exist or is not a directory", path.display())));
             }
             Ok(path.canonicalize()?)
         }
@@ -731,10 +617,7 @@ fn resolve_cwd(explicit: Option<&Path>) -> Result<PathBuf, Error> {
 
 fn resolve_env_file(explicit: Option<&Path>) -> Result<Option<PathBuf>, Error> {
     match explicit {
-        Some(path) if !path.is_file() => Err(Error::Invalid(format!(
-            "--env-file {} does not exist",
-            path.display()
-        ))),
+        Some(path) if !path.is_file() => Err(Error::Invalid(format!("--env-file {} does not exist", path.display()))),
         Some(path) => Ok(Some(std::path::absolute(path)?)),
         None => Ok(None),
     }
@@ -753,17 +636,11 @@ fn locate_dotenv(directory: &Path) -> Option<PathBuf> {
     }
 }
 
-fn development_root(
-    env_file: Option<&Path>,
-    cwd: &Path,
-    exported: Option<std::ffi::OsString>,
-) -> Result<Option<PathBuf>, Error> {
+fn development_root(env_file: Option<&Path>, cwd: &Path, exported: Option<std::ffi::OsString>) -> Result<Option<PathBuf>, Error> {
     let root = match exported {
         Some(value) => Some(value),
         None => match env_file.map(Path::to_owned).or_else(|| locate_dotenv(cwd)) {
-            Some(path) => environment_file_keys(&path)?
-                .remove("DOKIME_DEV_ROOT")
-                .map(Into::into),
+            Some(path) => environment_file_keys(&path)?.remove("DOKIME_DEV_ROOT").map(Into::into),
             None => None,
         },
     };
@@ -776,10 +653,7 @@ fn development_root(
     .transpose()
 }
 
-fn development_state(
-    persistent: Option<&Path>,
-    root: Option<&Path>,
-) -> Result<(PathBuf, Option<tempfile::TempDir>), Error> {
+fn development_state(persistent: Option<&Path>, root: Option<&Path>) -> Result<(PathBuf, Option<tempfile::TempDir>), Error> {
     if let Some(path) = persistent {
         std::fs::create_dir_all(path)?;
         return Ok((path.canonicalize()?, None));
@@ -788,9 +662,7 @@ fn development_state(
     let temporary = match root {
         Some(root) => {
             std::fs::create_dir_all(root)?;
-            tempfile::Builder::new()
-                .prefix("dokime-dev-")
-                .tempdir_in(root)?
+            tempfile::Builder::new().prefix("dokime-dev-").tempdir_in(root)?
         }
         None => tempfile::tempdir()?,
     };
@@ -801,11 +673,9 @@ fn print_environment_source(terminal: &Terminal, env_file: Option<&Path>, cwd: &
     match env_file {
         Some(path) => terminal.success(format!("Environment · loaded from {}", path.display())),
         None => match locate_dotenv(cwd) {
-            Some(path) => terminal.success(format!(
-                "Environment · loaded from {} (found searching up from {})",
-                path.display(),
-                cwd.display()
-            )),
+            Some(path) => {
+                terminal.success(format!("Environment · loaded from {} (found searching up from {})", path.display(), cwd.display()))
+            }
             None => terminal.success(format!(
                 "Environment · no .env found searching up from {}; only already-exported variables reach the host",
                 cwd.display()
@@ -815,27 +685,15 @@ fn print_environment_source(terminal: &Terminal, env_file: Option<&Path>, cwd: &
 }
 
 fn environment_file_keys(path: &Path) -> Result<BTreeMap<String, String>, Error> {
-    let file = std::fs::File::open(path).map_err(|error| {
-        Error::Invalid(format!(
-            "cannot read environment file {}: {error}",
-            path.display()
-        ))
-    })?;
+    let file =
+        std::fs::File::open(path).map_err(|error| Error::Invalid(format!("cannot read environment file {}: {error}", path.display())))?;
     read_environment_keys(path, file)
 }
 
-fn read_environment_keys(
-    path: &Path,
-    reader: impl std::io::Read,
-) -> Result<BTreeMap<String, String>, Error> {
+fn read_environment_keys(path: &Path, reader: impl std::io::Read) -> Result<BTreeMap<String, String>, Error> {
     let mut values = BTreeMap::new();
     for pair in dotenv::from_read_iter(reader) {
-        let (key, value) = pair.map_err(|error| {
-            Error::Invalid(format!(
-                "cannot read environment file {}: {error}",
-                path.display()
-            ))
-        })?;
+        let (key, value) = pair.map_err(|error| Error::Invalid(format!("cannot read environment file {}: {error}", path.display())))?;
         values.entry(key).or_insert(value);
     }
     Ok(values)
@@ -858,25 +716,16 @@ fn dokime(cli: &Path, subcommand: &str) -> Command {
 async fn inspect(cli: &Path) -> Result<Identity, Error> {
     let mut command = std::process::Command::new(cli);
     command.args(["serve", "--", "version", "--json"]);
-    let output = dokime_packaging::process::run(
-        command,
-        "Dokime version probe",
-        Some(Duration::from_secs(10)),
-        16 * 1024,
-        64 * 1024,
-    )
-    .await
-    .map_err(|error| {
-        Error::Invalid(format!(
-            "cannot inspect the Dokime server through {}: {error}. Install Dokime or pass --dokime PATH",
-            cli.display()
-        ))
-    })?;
-    let identity: Identity = serde_json::from_slice(&output.stdout).map_err(|error| {
-        Error::Invalid(format!(
-            "the Dokime server returned invalid version information: {error}; update Dokime"
-        ))
-    })?;
+    let output = dokime_packaging::process::run(command, "Dokime version probe", Some(Duration::from_secs(10)), 16 * 1024, 64 * 1024)
+        .await
+        .map_err(|error| {
+            Error::Invalid(format!(
+                "cannot inspect the Dokime server through {}: {error}. Install Dokime or pass --dokime PATH",
+                cli.display()
+            ))
+        })?;
+    let identity: Identity = serde_json::from_slice(&output.stdout)
+        .map_err(|error| Error::Invalid(format!("the Dokime server returned invalid version information: {error}; update Dokime")))?;
     if identity.dev_protocol != dokime_domain::DEV_PROTOCOL {
         return Err(Error::Invalid(format!(
             "the Dokime server uses development protocol {}; this cargo-dokime requires {}. Update Dokime and the Cargo extension together",
@@ -884,10 +733,7 @@ async fn inspect(cli: &Path) -> Result<Identity, Error> {
             dokime_domain::DEV_PROTOCOL
         )));
     }
-    compatible(
-        &identity,
-        &Version::parse(env!("CARGO_PKG_VERSION")).expect("Cargo version"),
-    )?;
+    compatible(&identity, &Version::parse(env!("CARGO_PKG_VERSION")).expect("Cargo version"))?;
     Ok(identity)
 }
 

@@ -150,13 +150,7 @@ def _profile(value: object) -> Profile:
     ):
         raise ValueError("invalid expected backend identity")
     ca = value.get("ca_certificate_pem")
-    if ca is not None and (
-        not isinstance(ca, str)
-        or not ca
-        or len(ca.encode("utf-8")) > _MAX_BYTES
-        or "\0" in ca
-        or not remote
-    ):
+    if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > _MAX_BYTES or "\0" in ca or not remote):
         raise ValueError("invalid CA certificate association")
     credential = value["credential"]
     if credential not in ("none", "keyring"):
@@ -188,9 +182,7 @@ def _name(value: object) -> str:
 def _environment_path(name: str) -> Path:
     value = os.environ.get(name)
     if not value:
-        raise ValueError(
-            "standard configuration root is unavailable; provide an explicit profile file"
-        )
+        raise ValueError("standard configuration root is unavailable; provide an explicit profile file")
     return Path(value)
 
 

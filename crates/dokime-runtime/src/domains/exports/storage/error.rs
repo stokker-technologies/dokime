@@ -37,11 +37,7 @@ pub enum StorageError {
     },
 
     #[error("storage I/O failed while {operation} {path:?}: {source}")]
-    IoContext {
-        operation: &'static str,
-        path: PathBuf,
-        source: std::io::Error,
-    },
+    IoContext { operation: &'static str, path: PathBuf, source: std::io::Error },
 
     #[error("storage JSON failed: {source}")]
     Json {
@@ -80,12 +76,7 @@ pub enum StorageError {
     InvalidLayout { message: String },
 
     #[error("telemetry schema fingerprint mismatch for {stream} v{schema_version}")]
-    SchemaFingerprintMismatch {
-        stream: String,
-        schema_version: u32,
-        expected: String,
-        actual: String,
-    },
+    SchemaFingerprintMismatch { stream: String, schema_version: u32, expected: String, actual: String },
 
     #[error("telemetry batch for {stream} v{schema_version} has no samples")]
     EmptyTelemetryBatch { stream: String, schema_version: u32 },

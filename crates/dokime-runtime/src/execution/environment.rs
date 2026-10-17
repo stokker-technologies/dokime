@@ -19,18 +19,16 @@ use std::sync::Arc;
 // Third-Party Imports
 use serde::de::DeserializeOwned;
 // Local Imports
-use super::context::{
-    Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext,
-};
+use super::context::{Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext};
 use super::document::DocumentIndex;
-use dokime_domain::model::execution::termination::TerminationReason;
 use super::evidence::ExecutionEvidence;
 use super::{CleanupContext, Context, InitializationContext, StepContext};
 use crate::artifacts::Artifacts;
-use dokime_domain::model::values::Value;
 use crate::records::Deliveries;
 use crate::telemetry::Streams;
 use crate::transport::ExecutionTransport;
+use dokime_domain::model::execution::termination::TerminationReason;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -68,12 +66,8 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
 /* === Implementations === */
 impl<'a, C, O, I> Environment<'a, C, O, I> {
     pub fn new(
-        parameters: &'a I,
-        raw: &'a BTreeMap<String, Value>,
-        bindings: &'a crate::plugin::Configuration,
-        artifacts: Artifacts,
-        streams: Streams,
-        deliveries: Deliveries,
+        parameters: &'a I, raw: &'a BTreeMap<String, Value>, bindings: &'a crate::plugin::Configuration, artifacts: Artifacts,
+        streams: Streams, deliveries: Deliveries,
     ) -> Self {
         Self {
             parameters,
@@ -173,56 +167,33 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         self.own = None;
     }
 
-    pub fn initialize<'c>(
-        &'c self,
-        transport: &'c mut dyn ExecutionTransport,
-    ) -> InitializationContext<'c, C, O, I> {
+    pub fn initialize<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> InitializationContext<'c, C, O, I> {
         Context::new(self, transport, Initialize).calling_stage("initialize")
     }
 
-    pub fn traceability<'c>(
-        &'c self,
-        transport: &'c mut dyn ExecutionTransport,
-    ) -> TraceabilityContext<'c, C, O, I> {
+    pub fn traceability<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> TraceabilityContext<'c, C, O, I> {
         Context::new(self, transport, Traceability).calling_stage("traceability")
     }
 
-    pub fn step<'c>(
-        &'c self,
-        transport: &'c mut dyn ExecutionTransport,
-    ) -> StepContext<'c, C, O, I> {
+    pub fn step<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> StepContext<'c, C, O, I> {
         Context::new(self, transport, Step)
     }
 
     #[cfg(feature = "native")]
     pub(super) fn observing<'c>(
-        &'c self,
-        transport: &'c mut dyn ExecutionTransport,
-        tick: super::tick::Tick,
-        publisher: Arc<super::observing::ExecutionPublisher>,
+        &'c self, transport: &'c mut dyn ExecutionTransport, tick: super::tick::Tick, publisher: Arc<super::observing::ExecutionPublisher>,
     ) -> super::ObserverContext<'c, C, O, I> {
-        Context::new(
-            self,
-            transport,
-            super::context::Observing { tick, publisher },
-        )
+        Context::new(self, transport, super::context::Observing { tick, publisher })
     }
 
-    pub fn cleanup<'c>(
-        &'c self,
-        transport: &'c mut dyn ExecutionTransport,
-        reason: TerminationReason,
-    ) -> CleanupContext<'c, C, O, I> {
+    pub fn cleanup<'c>(&'c self, transport: &'c mut dyn ExecutionTransport, reason: TerminationReason) -> CleanupContext<'c, C, O, I> {
         Context::new(self, transport, Cleanup { reason }).calling_stage("cleanup")
     }
 
     pub fn criterion(&'a self, evidence: &'a ExecutionEvidence) -> CriterionContext<'a, C, I> {
         let context = CriterionContext::new(self.parameters, self.raw, evidence);
         #[cfg(feature = "native")]
-        let context = context
-            .calling(self.caller.clone())
-            .bound(self.binding.clone())
-            .with_callbacks(self.callbacks.clone());
+        let context = context.calling(self.caller.clone()).bound(self.binding.clone()).with_callbacks(self.callbacks.clone());
 
         context
     }
@@ -233,9 +204,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
     }
 
     pub fn resources(&self) -> &O {
-        self.own.as_deref().expect(
-            "the engine opens the attempt's resources before traceability and the first step",
-        )
+        self.own.as_deref().expect("the engine opens the attempt's resources before traceability and the first step")
     }
 
     pub fn artifacts(&self) -> &Artifacts {
@@ -268,18 +237,10 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
 }
 
 /* === Public Functions === */
-pub(super) fn parameter<C: DeserializeOwned>(
-    values: &BTreeMap<String, Value>,
-    id: &str,
-) -> crate::Result<C> {
-    let failure = |reason: &str| crate::Error::Parameter {
-        name: id.to_owned(),
-        reason: reason.to_owned(),
-    };
+pub(super) fn parameter<C: DeserializeOwned>(values: &BTreeMap<String, Value>, id: &str) -> crate::Result<C> {
+    let failure = |reason: &str| crate::Error::Parameter { name: id.to_owned(), reason: reason.to_owned() };
     let value = values.get(id).ok_or_else(|| failure("unknown parameter"))?;
-    let json = value
-        .to_plain_json()
-        .map_err(|_| failure("parameter cannot be represented as JSON"))?;
+    let json = value.to_plain_json().map_err(|_| failure("parameter cannot be represented as JSON"))?;
     serde_json::from_value(json).map_err(|_| failure("parameter has the wrong type"))
 }
 

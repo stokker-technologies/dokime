@@ -31,11 +31,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::transaction(
-    id = "dokime.execution.outputs.execution.finalize",
-    version = 1,
-    irreversible
-)]
+#[harmos::transaction(id = "dokime.execution.outputs.execution.finalize", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinalizeExecutionOutputs {
     pub test_execution_id: TestExecutionId,
@@ -62,25 +58,16 @@ impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn finalize_execution_outputs(
-    state: &mut RuntimeState,
-    test_execution_id: &TestExecutionId,
-    outputs: Vec<AggregateOutput>,
-) {
+fn finalize_execution_outputs(state: &mut RuntimeState, test_execution_id: &TestExecutionId, outputs: Vec<AggregateOutput>) {
     if let Some(execution) = state.executions.get_mut(test_execution_id) {
         replace_aggregate_parameters(&mut execution.output_parameters, outputs);
     }
 }
 
-fn replace_aggregate_parameters(
-    parameters: &mut BTreeMap<String, MaterializedParameter>,
-    outputs: Vec<AggregateOutput>,
-) {
+fn replace_aggregate_parameters(parameters: &mut BTreeMap<String, MaterializedParameter>, outputs: Vec<AggregateOutput>) {
     let group_id = aggregate_group_id();
-    parameters.retain(|key, parameter| {
-        !(key.starts_with("telemetry.")
-            && (parameter.source.is_derived() || parameter.group_id == group_id))
-    });
+    parameters
+        .retain(|key, parameter| !(key.starts_with("telemetry.") && (parameter.source.is_derived() || parameter.group_id == group_id)));
     for output in outputs {
         parameters.insert(
             output.key,

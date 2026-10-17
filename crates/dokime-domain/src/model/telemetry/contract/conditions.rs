@@ -57,28 +57,13 @@ pub enum TelemetryConditionOperator {
 impl harmos::MemorySize for TelemetryCondition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.stream),
-                std::mem::size_of_val(&self.stream),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.field),
-                std::mem::size_of_val(&self.field),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.target),
-                std::mem::size_of_val(&self.target),
-            ),
+            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos::MemorySize::memory_size(&self.field), std::mem::size_of_val(&self.field)),
+            (harmos::MemorySize::memory_size(&self.target), std::mem::size_of_val(&self.target)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 

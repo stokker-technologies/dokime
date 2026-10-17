@@ -30,6 +30,8 @@ use harmos::storage::{
 
 // Local Imports
 use super::{context_records::ContextRecord, execution::ExecutionView};
+use crate::storage::records;
+use crate::storage::records::RecordRow;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::SessionId;
@@ -37,8 +39,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::state::records::set::TestRecordSet;
-use crate::storage::records::self;
-use crate::storage::records::RecordRow;
 
 /* === Constants === */
 // The Transform Catalog Accepts At Most This Many Terms In One `In` Condition.
@@ -79,28 +79,16 @@ impl RecordReader {
             .storage()
             .read_records::<RecordRow>(RecordRead {
                 at: through.clone(),
-                selection: RecordSelection {
-                    schema: records::schema(),
-                    scope: None,
-                    item: None,
-                    source_start: None,
-                    source_end: None,
-                },
+                selection: RecordSelection { schema: records::schema(), scope: None, item: None, source_start: None, source_end: None },
                 after,
                 filters: vec![execution_filter(view, context)?],
             })
             .await?;
-        Ok(Self {
-            rows,
-            view: view.clone(),
-        })
+        Ok(Self { rows, view: view.clone() })
     }
 
     pub async fn next(&mut self) -> Result<Option<Vec<ContextRecord>>> {
-        Ok(self
-            .next_positioned()
-            .await?
-            .map(|rows| rows.into_iter().map(|row| row.captured).collect()))
+        Ok(self.next_positioned().await?.map(|rows| rows.into_iter().map(|row| row.captured).collect()))
     }
 
     pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedRecord>>> {
@@ -119,10 +107,7 @@ impl RecordReader {
                 &execution.test_case_id,
                 &execution.test_execution_id,
             )?;
-            selected.push(PositionedRecord {
-                position,
-                captured: decoded,
-            });
+            selected.push(PositionedRecord { position, captured: decoded });
         }
         Ok(Some(selected))
     }
@@ -132,11 +117,7 @@ impl RecordReader {
 
 /* === Private Functions === */
 fn term(path: &str, condition: Condition) -> Term {
-    Term {
-        field: FieldPath::from(path),
-        condition,
-        negate: false,
-    }
+    Term { field: FieldPath::from(path), condition, negate: false }
 }
 
 fn absent(path: &str) -> Term {
@@ -147,39 +128,17 @@ fn execution_filter(view: &ExecutionView, context: bool) -> Result<Filter> {
     let execution = view.execution();
     let subscriptions = execution.records.subscribed_records();
     let owner = |name: &str| format!("payload.scope.{name}");
-    let equal = |path: String, value: &str| {
-        term(
-            &path,
-            Condition::Compare {
-                op: Compare::Eq,
-                value: ScalarValue::Text(value.to_owned()),
-            },
-        )
-    };
-    let mut clauses = vec![Clause {
-        terms: vec![equal(
-            owner("test_execution_id"),
-            execution.test_execution_id.as_str(),
-        )],
-    }];
+    let equal = |path: String, value: &str| term(&path, Condition::Compare { op: Compare::Eq, value: ScalarValue::Text(value.to_owned()) });
+    let mut clauses = vec![Clause { terms: vec![equal(owner("test_execution_id"), execution.test_execution_id.as_str())] }];
     if context {
         clauses.push(Clause {
-            terms: vec![
-                absent(&owner("test_execution_id")),
-                equal(owner("test_cycle_id"), execution.test_cycle_id.as_str()),
-            ],
+            terms: vec![absent(&owner("test_execution_id")), equal(owner("test_cycle_id"), execution.test_cycle_id.as_str())],
         });
         clauses.push(Clause {
-            terms: [
-                "test_execution_id",
-                "test_cycle_id",
-                "test_case_id",
-                "step_id",
-                "criterion_id",
-            ]
-            .into_iter()
-            .map(|name| absent(&owner(name)))
-            .collect(),
+            terms: ["test_execution_id", "test_cycle_id", "test_case_id", "step_id", "criterion_id"]
+                .into_iter()
+                .map(|name| absent(&owner(name)))
+                .collect(),
         });
     }
     let ids = subscriptions.keys().collect::<Vec<_>>();
@@ -187,12 +146,7 @@ fn execution_filter(view: &ExecutionView, context: bool) -> Result<Filter> {
         clauses.push(Clause {
             terms: vec![term(
                 "_storage.item",
-                Condition::In {
-                    values: chunk
-                        .iter()
-                        .map(|id| ScalarValue::Text(id.as_str().to_owned()))
-                        .collect(),
-                },
+                Condition::In { values: chunk.iter().map(|id| ScalarValue::Text(id.as_str().to_owned())).collect() },
             )],
         });
     }
@@ -200,17 +154,9 @@ fn execution_filter(view: &ExecutionView, context: bool) -> Result<Filter> {
 }
 
 fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {
-    let epoch = row
-        .scope
-        .as_ref()
-        .ok_or_else(|| invalid("captured record has no process epoch"))?;
-    if epoch.as_str().bytes().any(|byte| byte.is_ascii_uppercase())
-        || row.source.is_some()
-        || row.source_time.is_some()
-    {
-        return Err(invalid(
-            "captured record envelope differs from its declared schema",
-        ));
+    let epoch = row.scope.as_ref().ok_or_else(|| invalid("captured record has no process epoch"))?;
+    if epoch.as_str().bytes().any(|byte| byte.is_ascii_uppercase()) || row.source.is_some() || row.source_time.is_some() {
+        return Err(invalid("captured record envelope differs from its declared schema"));
     }
     let epoch = SessionId::from_uuid(epoch.as_str()).map_err(crate::storage::Error::from)?;
     let record = row.payload.entry()?;
@@ -221,20 +167,14 @@ fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {
 }
 
 fn apply_execution_scope(
-    record: &mut RecordEntry,
-    captures: &TestRecordSet,
-    cycle: &TestCycleId,
-    case: &CaseId,
-    execution: &TestExecutionId,
+    record: &mut RecordEntry, captures: &TestRecordSet, cycle: &TestCycleId, case: &CaseId, execution: &TestExecutionId,
 ) -> Result<()> {
     if let Some(scope) = captures.subscribed_records().get(&record.record_id) {
         if scope.test_execution_id.as_ref() != Some(execution)
             || scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
             || scope.test_case_id.as_ref().is_some_and(|id| id != case)
         {
-            return Err(invalid(
-                "frozen record subscription belongs to another execution",
-            ));
+            return Err(invalid("frozen record subscription belongs to another execution"));
         }
         record.scope = Some(scope.clone());
     }
@@ -244,9 +184,7 @@ fn apply_execution_scope(
     if scope.test_execution_id.as_ref() != Some(execution) {
         return Ok(());
     }
-    if scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
-        || scope.test_case_id.as_ref().is_some_and(|id| id != case)
-    {
+    if scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle) || scope.test_case_id.as_ref().is_some_and(|id| id != case) {
         return Err(invalid("captured record belongs to another cycle or case"));
     }
     Ok(())

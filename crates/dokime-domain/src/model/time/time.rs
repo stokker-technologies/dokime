@@ -83,9 +83,7 @@ impl Timestamp {
     pub fn millis_until(&self, other: &Self) -> Option<DurationMillis> {
         let start = self.parsed()?;
         let end = other.parsed()?;
-        u64::try_from((end - start) / 1_000_000)
-            .ok()
-            .map(DurationMillis)
+        u64::try_from((end - start) / 1_000_000).ok().map(DurationMillis)
     }
 
     pub fn unix_millis(&self) -> Option<u64> {
@@ -128,11 +126,7 @@ impl fmt::Display for Timestamp {
 
 impl From<Timestamp> for crate::model::values::Value {
     fn from(timestamp: Timestamp) -> Self {
-        Self::Datetime(
-            timestamp
-                .to_datetime()
-                .expect("a timestamp carried as a value must be valid RFC3339"),
-        )
+        Self::Datetime(timestamp.to_datetime().expect("a timestamp carried as a value must be valid RFC3339"))
     }
 }
 
@@ -146,15 +140,12 @@ pub fn datetime_text(value: time::OffsetDateTime) -> String {
 
 /* === Private Functions === */
 fn parse_rfc3339(value: &str) -> Option<i128> {
-    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
-        .ok()
-        .map(|value| value.unix_timestamp_nanos())
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok().map(|value| value.unix_timestamp_nanos())
 }
 
 fn format_rfc3339(unix_nanos: i128) -> String {
     datetime_text(
-        time::OffsetDateTime::from_unix_timestamp_nanos(unix_nanos)
-            .expect("a system timestamp is within the supported time range"),
+        time::OffsetDateTime::from_unix_timestamp_nanos(unix_nanos).expect("a system timestamp is within the supported time range"),
     )
 }
 

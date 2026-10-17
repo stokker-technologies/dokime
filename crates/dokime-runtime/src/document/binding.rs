@@ -23,14 +23,11 @@ use harmos::Aggregate;
 use super::context::{Context, Entry};
 use super::frame::Plan;
 use super::input::{Artifacts, RecordView, Records};
-use super::{
-    DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentFailure, DocumentNode,
-    Result,
-};
+use super::{DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentFailure, DocumentNode, Result};
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use dokime_domain::model::values::Value;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -51,18 +48,9 @@ pub(super) struct Evidence<'a> {
 /* === Enums === */
 #[derive(Clone, Copy)]
 pub(super) enum Row<'a> {
-    Artifact {
-        artifact: &'a ArtifactRecord,
-        context: Option<Entry<'a>>,
-    },
-    Record {
-        record: RecordView<'a>,
-        context: Option<Entry<'a>>,
-    },
-    Sample {
-        sample: &'a TelemetrySample,
-        context: Option<Entry<'a>>,
-    },
+    Artifact { artifact: &'a ArtifactRecord, context: Option<Entry<'a>> },
+    Record { record: RecordView<'a>, context: Option<Entry<'a>> },
+    Sample { sample: &'a TelemetrySample, context: Option<Entry<'a>> },
     Context(Entry<'a>),
 }
 
@@ -71,37 +59,22 @@ pub(super) enum Row<'a> {
 /* === Implementations === */
 impl<'a> Evidence<'a> {
     pub(super) fn upper_rows(self) -> usize {
-        self.telemetry
-            .len()
-            .saturating_add(self.context.len())
-            .saturating_add(self.records.len())
-            .saturating_add(self.artifacts.len())
+        self.telemetry.len().saturating_add(self.context.len()).saturating_add(self.records.len()).saturating_add(self.artifacts.len())
     }
 
     pub(super) fn selected(self, sample: &TelemetrySample) -> bool {
-        self.selection
-            .is_none_or(|selection| selection.matches_scope(sample.scope.as_ref()))
+        self.selection.is_none_or(|selection| selection.matches_scope(sample.scope.as_ref()))
     }
 
     pub(super) fn sample(self, sample: &'a TelemetrySample) -> Row<'a> {
-        Row::Sample {
-            sample,
-            context: self.context.for_scope(sample.scope.as_ref()),
-        }
+        Row::Sample { sample, context: self.context.for_scope(sample.scope.as_ref()) }
     }
 
-    pub(super) fn rows(
-        self,
-        expression: &DataExpression,
-    ) -> impl DoubleEndedIterator<Item = Row<'a>> {
+    pub(super) fn rows(self, expression: &DataExpression) -> impl DoubleEndedIterator<Item = Row<'a>> {
         self.rows_for_case(expression, None)
     }
 
-    pub(super) fn rows_for_case(
-        self,
-        expression: &DataExpression,
-        case: Option<Entry<'a>>,
-    ) -> impl DoubleEndedIterator<Item = Row<'a>> {
+    pub(super) fn rows_for_case(self, expression: &DataExpression, case: Option<Entry<'a>>) -> impl DoubleEndedIterator<Item = Row<'a>> {
         let contextual = matches!(expression.source, DataSource::Parameter { .. })
             || (matches!(expression.source, DataSource::Dimension { .. })
                 && self
@@ -109,23 +82,14 @@ impl<'a> Evidence<'a> {
                     .entries()
                     .filter(|entry| case.is_none_or(|case| case.covers(Some(entry.scope))))
                     .any(|entry| entry.value(&expression.source).is_some()));
-        let uses_facts = matches!(
-            expression.source,
-            DataSource::Record { .. } | DataSource::Artifact { .. }
-        );
+        let uses_facts = matches!(expression.source, DataSource::Record { .. } | DataSource::Artifact { .. });
         let samples = self
             .telemetry
             .iter()
             .filter(move |sample| {
-                !contextual
-                    && !uses_facts
-                    && self.selected(sample)
-                    && case.is_none_or(|case| case.covers(sample.scope.as_ref()))
+                !contextual && !uses_facts && self.selected(sample) && case.is_none_or(|case| case.covers(sample.scope.as_ref()))
             })
-            .map(move |sample| Row::Sample {
-                sample,
-                context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())),
-            });
+            .map(move |sample| Row::Sample { sample, context: case.or_else(|| self.context.for_scope(sample.scope.as_ref())) });
         let records = self
             .records
             .iter()
@@ -134,21 +98,14 @@ impl<'a> Evidence<'a> {
                     return false;
                 };
                 record.entry.record_type.as_str() == record_type
-                    && self
-                        .selection
-                        .is_none_or(|selection| selection.matches_scope(record.scope))
+                    && self.selection.is_none_or(|selection| selection.matches_scope(record.scope))
                     && case.is_none_or(|case| case.covers(record.scope))
             })
-            .map(move |record| Row::Record {
-                record,
-                context: case.or_else(|| self.context.for_scope(record.scope)),
-            });
+            .map(move |record| Row::Record { record, context: case.or_else(|| self.context.for_scope(record.scope)) });
         let contexts = self
             .context
             .entries()
-            .filter(move |context| {
-                contextual && case.is_none_or(|case| case.covers(Some(context.scope)))
-            })
+            .filter(move |context| contextual && case.is_none_or(|case| case.covers(Some(context.scope))))
             .map(Row::Context);
         let artifacts = self
             .artifacts
@@ -158,37 +115,23 @@ impl<'a> Evidence<'a> {
                     return false;
                 };
                 record.filename == *artifact
-                    && self
-                        .selection
-                        .is_none_or(|selection| selection.matches_scope(Some(&record.scope)))
+                    && self.selection.is_none_or(|selection| selection.matches_scope(Some(&record.scope)))
                     && case.is_none_or(|case| case.covers(Some(&record.scope)))
             })
-            .map(move |artifact| Row::Artifact {
-                artifact,
-                context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))),
-            });
+            .map(move |artifact| Row::Artifact { artifact, context: case.or_else(|| self.context.for_scope(Some(&artifact.scope))) });
         samples.chain(records).chain(contexts).chain(artifacts)
     }
 }
 
 impl<'a> From<&'a [TelemetrySample]> for Evidence<'a> {
     fn from(telemetry: &'a [TelemetrySample]) -> Self {
-        Self {
-            records: Records::default(),
-            artifacts: Artifacts::default(),
-            telemetry,
-            context: Context::default(),
-            selection: None,
-        }
+        Self { records: Records::default(), artifacts: Artifacts::default(), telemetry, context: Context::default(), selection: None }
     }
 }
 
 impl<'a> From<&'a TelemetrySample> for Row<'a> {
     fn from(sample: &'a TelemetrySample) -> Self {
-        Self::Sample {
-            sample,
-            context: None,
-        }
+        Self::Sample { sample, context: None }
     }
 }
 
@@ -225,29 +168,21 @@ pub(super) fn row_text<'a>(row: Row<'a>, expression: &DataExpression) -> Option<
 }
 
 pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context<'_>) -> bool {
-    bindings_need(definition, |expression| {
-        expression_needs_telemetry(expression, context)
-    })
+    bindings_need(definition, |expression| expression_needs_telemetry(expression, context))
 }
 
 pub(crate) fn records_needed(definition: &DocumentDefinition) -> bool {
-    bindings_need(definition, |expression| {
-        matches!(expression.source, DataSource::Record { .. })
-    })
+    bindings_need(definition, |expression| matches!(expression.source, DataSource::Record { .. }))
 }
 
 pub(crate) fn artifacts_needed(definition: &DocumentDefinition) -> bool {
-    bindings_need(definition, |expression| {
-        matches!(expression.source, DataSource::Artifact { .. })
-    })
+    bindings_need(definition, |expression| matches!(expression.source, DataSource::Artifact { .. }))
 }
 
 pub(crate) fn context_needed(definition: &DocumentDefinition) -> bool {
     bindings_need(definition, |expression| {
-        matches!(
-            expression.source,
-            DataSource::Parameter { .. } | DataSource::Dimension { .. }
-        ) || expression.transforms.contains(&DataTransform::PerCase)
+        matches!(expression.source, DataSource::Parameter { .. } | DataSource::Dimension { .. })
+            || expression.transforms.contains(&DataTransform::PerCase)
     })
 }
 
@@ -295,10 +230,7 @@ pub(super) fn validate_filter(expression: &DataExpression) -> Result<()> {
     validate_expression(expression, false)
 }
 
-pub(super) fn validate_predicates<'a>(
-    expression: &DataExpression,
-    filters: impl Iterator<Item = &'a super::DocumentFilter>,
-) -> Result<()> {
+pub(super) fn validate_predicates<'a>(expression: &DataExpression, filters: impl Iterator<Item = &'a super::DocumentFilter>) -> Result<()> {
     for filter in filters {
         validate_pair(expression, &filter.expression)?;
     }
@@ -306,87 +238,53 @@ pub(super) fn validate_predicates<'a>(
 }
 
 pub(super) fn scratch_memory(definition: &DocumentDefinition, rows: usize) -> usize {
-    summary_expressions(definition)
-        .map(|expression| plan(expression, rows).map_or(usize::MAX, |plan| plan.memory(rows)))
-        .max()
-        .unwrap_or(0)
+    summary_expressions(definition).map(|expression| plan(expression, rows).map_or(usize::MAX, |plan| plan.memory(rows))).max().unwrap_or(0)
 }
 
-pub(super) fn evaluation_work(
-    definition: &DocumentDefinition,
-    rows: usize,
-    instances: usize,
-) -> usize {
+pub(super) fn evaluation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
     summary_expressions(definition)
-        .fold(0usize, |total, expression| {
-            total.saturating_add(plan(expression, rows).map_or(usize::MAX, |plan| plan.work(rows)))
-        })
+        .fold(0usize, |total, expression| total.saturating_add(plan(expression, rows).map_or(usize::MAX, |plan| plan.work(rows))))
         .saturating_mul(instances.max(1))
 }
 
-pub(super) fn correlation_work(
-    definition: &DocumentDefinition,
-    rows: usize,
-    instances: usize,
-) -> usize {
+pub(super) fn correlation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
     fn correlated(expression: &DataExpression, rows: usize) -> usize {
-        let lookup = expression.transforms.iter().any(|transform| {
-            matches!(
-                transform,
-                DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }
-            )
-        });
+        let lookup = expression
+            .transforms
+            .iter()
+            .any(|transform| matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }));
         let per_case = expression.transforms.contains(&DataTransform::PerCase);
         if !lookup && !per_case {
             return 0;
         }
-        rows.saturating_mul(rows)
-            .saturating_mul(usize::from(lookup) + usize::from(per_case))
+        rows.saturating_mul(rows).saturating_mul(usize::from(lookup) + usize::from(per_case))
     }
     let mut expressions = 0usize;
     for (filters, body) in definition
         .cards
         .iter()
         .map(|card| (&card.filters, &card.body))
-        .chain(
-            definition
-                .sections
-                .iter()
-                .flat_map(|section| section.cards.iter().map(|card| (&card.filters, &card.body))),
-        )
+        .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| (&card.filters, &card.body))))
     {
         if let DocumentCardBody::TelemetrySummary { summary } = body {
-            expressions = filters.iter().fold(expressions, |count, filter| {
-                count.saturating_add(correlated(&filter.expression, rows))
-            });
+            expressions = filters.iter().fold(expressions, |count, filter| count.saturating_add(correlated(&filter.expression, rows)));
             for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
                 expressions = expressions.saturating_add(correlated(&tile.value, rows));
-                expressions = tile.filters.iter().fold(expressions, |count, filter| {
-                    count.saturating_add(correlated(&filter.expression, rows))
-                });
+                expressions =
+                    tile.filters.iter().fold(expressions, |count, filter| count.saturating_add(correlated(&filter.expression, rows)));
             }
         }
     }
     fn repeat_count(repeat: &super::DocumentSectionRepeat, rows: usize) -> usize {
         repeat.filters.iter().fold(
-            correlated(&repeat.value, rows).saturating_add(
-                repeat
-                    .order_by
-                    .as_ref()
-                    .map_or(0, |order| correlated(order, rows)),
-            ),
+            correlated(&repeat.value, rows).saturating_add(repeat.order_by.as_ref().map_or(0, |order| correlated(order, rows))),
             |count, filter| count.saturating_add(correlated(&filter.expression, rows)),
         )
     }
     fn node_count(nodes: &[DocumentNode], rows: usize) -> usize {
         nodes.iter().fold(0usize, |count, node| match node {
             DocumentNode::Section(section) => count
-                .saturating_add(
-                    section
-                        .repeat
-                        .as_ref()
-                        .map_or(0, |repeat| repeat_count(repeat, rows)),
-                )
+                .saturating_add(section.repeat.as_ref().map_or(0, |repeat| repeat_count(repeat, rows)))
                 .saturating_add(node_count(&section.children, rows)),
             _ => count,
         })
@@ -394,23 +292,12 @@ pub(super) fn correlation_work(
     expressions = definition
         .sections
         .iter()
-        .fold(expressions, |count, section| {
-            count.saturating_add(
-                section
-                    .repeat
-                    .as_ref()
-                    .map_or(0, |repeat| repeat_count(repeat, rows)),
-            )
-        })
+        .fold(expressions, |count, section| count.saturating_add(section.repeat.as_ref().map_or(0, |repeat| repeat_count(repeat, rows))))
         .saturating_add(node_count(&definition.layout.nodes, rows));
     expressions.saturating_mul(instances.max(1))
 }
 
-pub(super) fn row<'a>(
-    input: Row<'a>,
-    expression: &DataExpression,
-    evidence: Evidence<'a>,
-) -> Option<Cow<'a, Value>> {
+pub(super) fn row<'a>(input: Row<'a>, expression: &DataExpression, evidence: Evidence<'a>) -> Option<Cow<'a, Value>> {
     let (sample, record, artifact, context) = match input {
         Row::Sample { sample, context } => (Some(sample), None, None, context),
         Row::Record { record, context } => (None, Some(record), None, context),
@@ -428,9 +315,7 @@ pub(super) fn row<'a>(
         }
         match transforms.next()? {
             DataTransform::Detail { name } => Cow::Borrowed(record.entry.details.get(name)?),
-            DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. } => {
-                correlate(record, expression, evidence)?
-            }
+            DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. } => correlate(record, expression, evidence)?,
             _ => return None,
         }
     } else if let DataSource::Artifact { artifact: filename } = &expression.source {
@@ -445,11 +330,7 @@ pub(super) fn row<'a>(
     } else {
         let sample = sample?;
         let field = match &expression.source {
-            DataSource::Telemetry { stream, field }
-                if super::plot_inputs::stream_matches_alias(sample.stream.as_str(), stream) =>
-            {
-                field
-            }
+            DataSource::Telemetry { stream, field } if super::plot_inputs::stream_matches_alias(sample.stream.as_str(), stream) => field,
             DataSource::Dimension { name } => name,
             _ => return None,
         };
@@ -474,41 +355,24 @@ pub(super) fn row<'a>(
     Some(value)
 }
 
-pub(super) fn evaluate(
-    expression: &DataExpression,
-    evidence: Evidence<'_>,
-    selected: impl Fn(Row<'_>) -> bool,
-) -> Result<Option<Value>> {
+pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, selected: impl Fn(Row<'_>) -> bool) -> Result<Option<Value>> {
     validate_expression(expression, true)?;
     let per_case = expression.transforms.contains(&DataTransform::PerCase);
     if per_case && !evidence.context.available() {
-        return Err(failure(
-            "per-case bindings require the original execution context",
-        ));
+        return Err(failure("per-case bindings require the original execution context"));
     }
-    let cases = if per_case {
-        evidence.context.cases().collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
+    let cases = if per_case { evidence.context.cases().collect::<Vec<_>>() } else { Vec::new() };
     let plan = Plan::compile(expression, per_case.then_some(cases.len()))?;
     plan.evaluate(expression, evidence, &cases, selected)
 }
 
 /* === Private Functions === */
 fn plan(expression: &DataExpression, rows: usize) -> Result<Plan> {
-    let cases = expression
-        .transforms
-        .contains(&DataTransform::PerCase)
-        .then_some(rows.clamp(1, 4096));
+    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.clamp(1, 4096));
     Plan::compile(expression, cases)
 }
 
-fn correlate<'a>(
-    record: RecordView<'a>,
-    expression: &DataExpression,
-    evidence: Evidence<'a>,
-) -> Option<Cow<'a, Value>> {
+fn correlate<'a>(record: RecordView<'a>, expression: &DataExpression, evidence: Evidence<'a>) -> Option<Cow<'a, Value>> {
     let selector = DataExpression {
         label: None,
         source: expression.source.clone(),
@@ -518,20 +382,12 @@ fn correlate<'a>(
     plan.correlate(record, &selector, evidence).ok().flatten()
 }
 
-fn bindings_need(
-    definition: &DocumentDefinition,
-    needs: impl Fn(&DataExpression) -> bool + Copy,
-) -> bool {
+fn bindings_need(definition: &DocumentDefinition, needs: impl Fn(&DataExpression) -> bool + Copy) -> bool {
     let summaries = definition
         .cards
         .iter()
         .map(|card| (&card.filters, &card.body))
-        .chain(
-            definition
-                .sections
-                .iter()
-                .flat_map(|section| section.cards.iter().map(|card| (&card.filters, &card.body))),
-        )
+        .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| (&card.filters, &card.body))))
         .any(|(filters, body)| {
             let DocumentCardBody::TelemetrySummary { summary } = body else {
                 return false;
@@ -541,76 +397,42 @@ fn bindings_need(
                     .groups
                     .iter()
                     .flat_map(|group| &group.tiles)
-                    .any(|tile| {
-                        needs(&tile.value)
-                            || tile.filters.iter().any(|filter| needs(&filter.expression))
-                    })
+                    .any(|tile| needs(&tile.value) || tile.filters.iter().any(|filter| needs(&filter.expression)))
         });
     summaries
-        || definition
-            .sections
-            .iter()
-            .filter_map(|section| section.repeat.as_ref())
-            .any(|repeat| repeat_needs(repeat, needs))
+        || definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))
         || nodes_need(&definition.layout.nodes, needs)
 }
 
 fn validate_pair(expression: &DataExpression, other: &DataExpression) -> Result<()> {
     let compatible = match (&expression.source, &other.source) {
-        (
-            DataSource::Record {
-                record_type: selected,
-            },
-            DataSource::Record { record_type },
-        ) => selected == record_type,
-        (DataSource::Artifact { artifact: selected }, DataSource::Artifact { artifact }) => {
-            selected == artifact
-        }
+        (DataSource::Record { record_type: selected }, DataSource::Record { record_type }) => selected == record_type,
+        (DataSource::Artifact { artifact: selected }, DataSource::Artifact { artifact }) => selected == artifact,
         (_, DataSource::Record { .. })
         | (_, DataSource::Artifact { .. })
-        | (DataSource::Record { .. } | DataSource::Artifact { .. }, DataSource::Telemetry { .. }) => {
-            false
-        }
+        | (DataSource::Record { .. } | DataSource::Artifact { .. }, DataSource::Telemetry { .. }) => false,
         _ => true,
     };
     if !compatible {
-        return Err(failure(
-            "cross-source fact selectors require a bounded correlation adapter",
-        ));
+        return Err(failure("cross-source fact selectors require a bounded correlation adapter"));
     }
     Ok(())
 }
 
 fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. })
-        || expression
-            .transforms
-            .iter()
-            .any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
-        || (matches!(expression.source, DataSource::Dimension { .. })
-            && !context.supplies(&expression.source))
+        || expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
+        || (matches!(expression.source, DataSource::Dimension { .. }) && !context.supplies(&expression.source))
 }
 
-fn repeat_needs(
-    repeat: &super::DocumentSectionRepeat,
-    needs: impl Fn(&DataExpression) -> bool + Copy,
-) -> bool {
-    needs(&repeat.value)
-        || repeat.order_by.as_ref().is_some_and(needs)
-        || repeat
-            .filters
-            .iter()
-            .any(|filter| needs(&filter.expression))
+fn repeat_needs(repeat: &super::DocumentSectionRepeat, needs: impl Fn(&DataExpression) -> bool + Copy) -> bool {
+    needs(&repeat.value) || repeat.order_by.as_ref().is_some_and(needs) || repeat.filters.iter().any(|filter| needs(&filter.expression))
 }
 
 fn nodes_need(nodes: &[DocumentNode], needs: impl Fn(&DataExpression) -> bool + Copy) -> bool {
     nodes.iter().any(|node| match node {
         DocumentNode::Section(section) => {
-            section
-                .repeat
-                .as_ref()
-                .is_some_and(|repeat| repeat_needs(repeat, needs))
-                || nodes_need(&section.children, needs)
+            section.repeat.as_ref().is_some_and(|repeat| repeat_needs(repeat, needs)) || nodes_need(&section.children, needs)
         }
         _ => false,
     })
@@ -621,12 +443,7 @@ fn summary_expressions(definition: &DocumentDefinition) -> impl Iterator<Item = 
         .cards
         .iter()
         .map(|card| &card.body)
-        .chain(
-            definition
-                .sections
-                .iter()
-                .flat_map(|section| section.cards.iter().map(|card| &card.body)),
-        )
+        .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)))
         .filter_map(|body| match body {
             DocumentCardBody::TelemetrySummary { summary } => Some(summary),
             _ => None,
@@ -636,104 +453,58 @@ fn summary_expressions(definition: &DocumentDefinition) -> impl Iterator<Item = 
 }
 
 fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
-    if let Some(index) = expression
-        .transforms
-        .iter()
-        .position(|transform| matches!(transform, DataTransform::PerCase))
-    {
+    if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase)) {
         let suffix = &expression.transforms[index + 1..];
-        if !aggregate
-            || suffix.len() != 1
-            || suffix
-                .first()
-                .is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_)))
-        {
-            return Err(failure(
-                "per-case scalar summaries require one final outer fold",
-            ));
+        if !aggregate || suffix.len() != 1 || suffix.first().is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_))) {
+            return Err(failure("per-case scalar summaries require one final outer fold"));
         }
         return validate_selector(&expression.source, &expression.transforms[..index], true);
     }
     validate_selector(&expression.source, &expression.transforms, aggregate)
 }
 
-fn validate_selector(
-    source: &DataSource,
-    transforms: &[DataTransform],
-    aggregate: bool,
-) -> Result<()> {
+fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregate: bool) -> Result<()> {
     if matches!(source, DataSource::Artifact { .. }) {
         if aggregate && transforms == [DataTransform::Aggregate(Aggregate::Count)] {
             return Ok(());
         }
         let Some(DataTransform::Detail { name }) = transforms.first() else {
-            return Err(failure(
-                "artifact scalar bindings require a metadata selector or an occurrence count",
-            ));
+            return Err(failure("artifact scalar bindings require a metadata selector or an occurrence count"));
         };
         if !matches!(
             name.as_str(),
-            "artifact_id"
-                | "upload_id"
-                | "filename"
-                | "content_type"
-                | "size_bytes"
-                | "sha256"
-                | "status"
-                | "created_at"
-        ) || transforms[1..]
-            .iter()
-            .any(|transform| matches!(transform, DataTransform::Detail { .. }))
+            "artifact_id" | "upload_id" | "filename" | "content_type" | "size_bytes" | "sha256" | "status" | "created_at"
+        ) || transforms[1..].iter().any(|transform| matches!(transform, DataTransform::Detail { .. }))
         {
-            return Err(failure(
-                "artifact bindings require a declared scalar metadata field",
-            ));
+            return Err(failure("artifact bindings require a declared scalar metadata field"));
         }
     }
     if matches!(source, DataSource::Record { .. })
         && !matches!(
             transforms.first(),
-            Some(
-                DataTransform::Detail { .. }
-                    | DataTransform::TimeBetween { .. }
-                    | DataTransform::TelemetryAtOrBefore { .. }
-            )
+            Some(DataTransform::Detail { .. } | DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. })
         )
         && !(aggregate && transforms == [DataTransform::Aggregate(Aggregate::Count)])
     {
-        return Err(failure(
-            "record scalar bindings require a selector or an occurrence count",
-        ));
+        return Err(failure("record scalar bindings require a selector or an occurrence count"));
     }
     for (index, transform) in transforms.iter().enumerate() {
         if matches!(transform, DataTransform::Detail { .. }) {
-            if transforms
-                .iter()
-                .take(index)
-                .any(|transform| matches!(transform, DataTransform::TimeBetween { .. }))
-            {
+            if transforms.iter().take(index).any(|transform| matches!(transform, DataTransform::TimeBetween { .. })) {
                 return Err(failure("elapsed record seconds do not have detail fields"));
             }
             continue;
         }
         if index == 0
             && matches!(source, DataSource::Record { .. })
-            && matches!(
-                transform,
-                DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }
-            )
+            && matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. })
         {
             continue;
         }
-        if aggregate
-            && index + 1 == transforms.len()
-            && matches!(transform, DataTransform::Aggregate(_))
-        {
+        if aggregate && index + 1 == transforms.len() && matches!(transform, DataTransform::Aggregate(_)) {
             continue;
         }
-        return Err(failure(
-            "row selectors permit detail transforms; summaries permit one final scalar fold",
-        ));
+        return Err(failure("row selectors permit detail transforms; summaries permit one final scalar fold"));
     }
     Ok(())
 }
@@ -746,11 +517,8 @@ fn artifact_field(artifact: &ArtifactRecord, name: &str) -> Option<Value> {
     Some(match name {
         "size_bytes" => Value::Unsigned(artifact.size_bytes),
         "created_at" => Value::Datetime(artifact.created_at.to_datetime().ok()?),
-        "content_type" | "sha256" => artifact_text_field(artifact, name)
-            .map_or(Value::Null, |value| Value::Text(value.into())),
-        "artifact_id" | "upload_id" | "filename" | "status" => {
-            Value::Text(artifact_text_field(artifact, name)?.into())
-        }
+        "content_type" | "sha256" => artifact_text_field(artifact, name).map_or(Value::Null, |value| Value::Text(value.into())),
+        "artifact_id" | "upload_id" | "filename" | "status" => Value::Text(artifact_text_field(artifact, name)?.into()),
         _ => return None,
     })
 }

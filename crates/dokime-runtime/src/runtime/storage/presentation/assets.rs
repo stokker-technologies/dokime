@@ -19,7 +19,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 
 // Local Imports
 use super::error;
-use crate::{runtime::Error, runtime::Result, installed_plugins::RuntimeInstalledPluginAsset};
+use crate::{installed_plugins::RuntimeInstalledPluginAsset, runtime::Error, runtime::Result};
 
 /* === Constants === */
 const MAX_BYTES: usize = 1024 * 1024;
@@ -38,9 +38,7 @@ const MAX_BYTES: usize = 1024 * 1024;
 
 /* === Public Functions === */
 /// Reads an appearance logo into a data URL, refusing a file that changes meanwhile.
-pub(in crate::runtime::storage) async fn capture_logo(
-    asset: &RuntimeInstalledPluginAsset,
-) -> Result<String> {
+pub(in crate::runtime::storage) async fn capture_logo(asset: &RuntimeInstalledPluginAsset) -> Result<String> {
     validate_mime(&asset.mime_type)?;
     let path = asset.path.clone();
     let mime_type = asset.mime_type.clone();
@@ -60,13 +58,7 @@ pub(in crate::runtime::storage) async fn capture_logo(
 pub(super) fn validate_mime(mime: &str) -> Result<()> {
     if matches!(
         mime,
-        "image/png"
-            | "image/jpeg"
-            | "image/gif"
-            | "image/webp"
-            | "image/svg+xml"
-            | "image/x-icon"
-            | "image/vnd.microsoft.icon"
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml" | "image/x-icon" | "image/vnd.microsoft.icon"
     ) {
         Ok(())
     } else {
@@ -76,9 +68,7 @@ pub(super) fn validate_mime(mime: &str) -> Result<()> {
 
 pub(super) fn validate_file(metadata: &std::fs::Metadata) -> Result<()> {
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_BYTES as u64 {
-        Err(error(
-            "appearance logo must be a regular file containing 1 byte to 1 MiB",
-        ))
+        Err(error("appearance logo must be a regular file containing 1 byte to 1 MiB"))
     } else {
         Ok(())
     }

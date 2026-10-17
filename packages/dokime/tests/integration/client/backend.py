@@ -212,11 +212,7 @@ class BackendFixture:
             ),
             backend_id=self.backend_id,
             epoch=self.availability_epoch or self.epoch,
-            methods=[
-                f"/dokime.v1.{service}/{method}"
-                for service, methods in self.methods.items()
-                for method in methods
-            ],
+            methods=[f"/dokime.v1.{service}/{method}" for service, methods in self.methods.items() for method in methods],
         )
 
     async def ListSuites(self, request: Any, context: Any) -> Any:
@@ -332,9 +328,7 @@ class BackendFixture:
         assert request.cycle_id == CYCLE_ID == request.plan.cycle_id
         assert len(request.plan.selections) == 1
         assert not request.plan.case_ids
-        self.overrides = {
-            entry.key: entry.value for entry in request.plan.selections[0].parameters
-        }
+        self.overrides = {entry.key: entry.value for entry in request.plan.selections[0].parameters}
         return _message(
             "Execution",
             "AppendPlannedCases",
@@ -392,9 +386,7 @@ class BackendFixture:
             )
         if self.fail_admission:
             self.fail_admission = False
-            await context.abort(
-                grpc.StatusCode.UNAVAILABLE, "response lost after admission"
-            )
+            await context.abort(grpc.StatusCode.UNAVAILABLE, "response lost after admission")
         return _message(
             "Execution",
             "RunCycle",
@@ -456,9 +448,7 @@ class BackendFixture:
         self.receipt_reads += 1
         if self.fail_receipt_read:
             self.fail_receipt_read = False
-            await context.abort(
-                grpc.StatusCode.UNAVAILABLE, "fixture receipt read failed"
-            )
+            await context.abort(grpc.StatusCode.UNAVAILABLE, "fixture receipt read failed")
         assert request.request_id == REQUEST_ID
         return _message(
             "Execution",
@@ -575,9 +565,7 @@ class BackendFixture:
         assert request.execution_identifier == EXECUTION_ID
         if not self.sealed.is_set():
             self.checkpoint_missed.set()
-            await context.abort(
-                grpc.StatusCode.NOT_FOUND, "execution has no saved seal"
-            )
+            await context.abort(grpc.StatusCode.NOT_FOUND, "execution has no saved seal")
         return self.point
 
     async def GetCheckpointDocument(self, request: Any, context: Any) -> Any:
@@ -643,9 +631,7 @@ class BackendFixture:
                 if self.seal_automatically:
                     self.sealed.set()
         elif self.terminal.is_set():
-            await context.abort(
-                grpc.StatusCode.FAILED_PRECONDITION, "execution is finished"
-            )
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, "execution is finished")
         return _message(
             "Execution",
             "AppendPlannedCases",
@@ -732,9 +718,7 @@ class BackendFixture:
                     cycle_id=CYCLE_ID,
                     execution_id=EXECUTION_ID,
                 ),
-                values=_value_object(
-                    fields={"voltage": _value(number_value=230.0 + n)}
-                ),
+                values=_value_object(fields={"voltage": _value(number_value=230.0 + n)}),
             )
         )
         self.changed.set()
@@ -754,14 +738,8 @@ class BackendFixture:
             r
             for r in self.records[after:scanned]
             if (not selection.record_types or r.record_type in selection.record_types)
-            and (
-                not selection.scope.HasField("execution_id")
-                or r.scope.execution_id == selection.scope.execution_id
-            )
-            and (
-                not selection.scope.HasField("cycle_id")
-                or r.scope.cycle_id == selection.scope.cycle_id
-            )
+            and (not selection.scope.HasField("execution_id") or r.scope.execution_id == selection.scope.execution_id)
+            and (not selection.scope.HasField("cycle_id") or r.scope.cycle_id == selection.scope.cycle_id)
         ]
         return _message(
             "Evidence",
@@ -795,9 +773,7 @@ class BackendFixture:
         return self.page(
             request.selection,
             request.after.position,
-            request.through.position
-            if request.HasField("through")
-            else len(self.records),
+            request.through.position if request.HasField("through") else len(self.records),
         )
 
     async def WatchRecords(self, request: Any, context: Any) -> Any:
@@ -816,15 +792,9 @@ class BackendFixture:
 
     async def ListSamples(self, request: Any, context: Any) -> Any:
         assert not request.latest
-        self.sent_cursors.append(
-            {entry.key: entry.value for entry in request.after_stream_cursors}
-        )
+        self.sent_cursors.append({entry.key: entry.value for entry in request.after_stream_cursors})
         position = next(
-            (
-                entry.value
-                for entry in request.after_stream_cursors
-                if entry.key == "voltage"
-            ),
+            (entry.value for entry in request.after_stream_cursors if entry.key == "voltage"),
             0,
         )
         limit = min(request.limit, self.sample_page_size)

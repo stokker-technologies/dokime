@@ -58,56 +58,34 @@ const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Implementations === */
 impl State {
-    pub(super) async fn production_create(
-        &self,
-        root: PathBuf,
-        metadata: FileMetadata,
-    ) -> Result<StagedFile, Error> {
-        self.call(move |connection| Ok(files::create_file(connection, &root, metadata, true)))
-            .await?
+    pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
+        self.call(move |connection| Ok(files::create_file(connection, &root, metadata, true))).await?
     }
 
-    pub(super) async fn production_fence(
-        &self,
-        file: StagedFile,
-        expected: u64,
-        next: u64,
-    ) -> Result<(), Error> {
+    pub(super) async fn production_fence(&self, file: StagedFile, expected: u64, next: u64) -> Result<(), Error> {
         if expected == 0 || expected.checked_add(1) != Some(next) {
             return Err(Error::Data("invalid producer generation transition"));
         }
         self.call(move |connection| {
             Ok((|| {
-                let (generation, phase, _) =
-                    checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
-                if phase != FilePhase::Producing
-                    || !matches!(generation, value if value == expected || value == next)
-                {
+                let (generation, phase, _) = checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
+                if phase != FilePhase::Producing || !matches!(generation, value if value == expected || value == next) {
                     return Err(Error::Conflict("producer generation is fenced or terminal"));
                 }
-                connection.execute(
-                    "UPDATE storage_productions SET generation=?1 WHERE id=?2",
-                    params![position(next), file.id.as_str()],
-                )?;
+                connection
+                    .execute("UPDATE storage_productions SET generation=?1 WHERE id=?2", params![position(next), file.id.as_str()])?;
                 Ok(())
             })())
         })
         .await?
     }
 
-    pub(super) async fn production_save(
-        &self,
-        root: PathBuf,
-        requested: FileCheckpoint,
-    ) -> Result<(), Error> {
+    pub(super) async fn production_save(&self, root: PathBuf, requested: FileCheckpoint) -> Result<(), Error> {
         requested.sha256()?;
         let encoded = entry::encode(&requested, METADATA_BYTES)?;
         self.call(move |connection| {
             Ok((|| {
-                let file = StagedFile {
-                    history: requested.session.history.clone(),
-                    id: requested.session.id.clone(),
-                };
+                let file = StagedFile { history: requested.session.history.clone(), id: requested.session.id.clone() };
                 // A Snapshot Captured While Producing Can Persist After A Longer
                 // Save, Completion, Abandonment Or Deletion. Durable State Already
                 // Covers That Prefix, So The Late Checkpoint Is A No-Op.
@@ -115,11 +93,8 @@ impl State {
                 if deleted(connection, file.id.as_str())? {
                     return Ok(());
                 }
-                let (generation, phase, prior) = stored_checkpoint(connection, &file)?
-                    .ok_or(Error::Data("unknown production"))?;
-                if requested.metadata != prior.metadata
-                    || requested.session.generation != generation
-                {
+                let (generation, phase, prior) = stored_checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
+                if requested.metadata != prior.metadata || requested.session.generation != generation {
                     return Err(Error::Conflict("checkpoint identity differs or is fenced"));
                 }
                 match phase {
@@ -145,45 +120,30 @@ impl State {
                 verify_prefix(&mut physical, &requested, Some(&prior))?;
                 physical.sync_all()?;
                 files::confirm_durability(&path)?;
-                connection.execute(
-                    "UPDATE storage_productions SET checkpoint=?1 WHERE id=?2",
-                    params![encoded, file.id.as_str()],
-                )?;
+                connection.execute("UPDATE storage_productions SET checkpoint=?1 WHERE id=?2", params![encoded, file.id.as_str()])?;
                 Ok(())
             })())
         })
         .await?
     }
 
-    pub(super) async fn production_recover(
-        &self,
-        root: PathBuf,
-        limits: ReadLimits,
-    ) -> Result<Vec<FileCheckpoint>, Error> {
+    pub(super) async fn production_recover(&self, root: PathBuf, limits: ReadLimits) -> Result<Vec<FileCheckpoint>, Error> {
         self.call(move |connection| {
             Ok((|| {
-                let count: i64 = connection.query_row(
-                    "SELECT count(*) FROM storage_productions WHERE phase=0",
-                    [],
-                    |row| row.get(0),
-                )?;
+                let count: i64 = connection.query_row("SELECT count(*) FROM storage_productions WHERE phase=0", [], |row| row.get(0))?;
                 if count < 0 || count as u64 > limits.rows.get() as u64 {
                     return Err(Error::Data("production recovery exceeds count bound"));
                 }
-                let mut statement = connection
-                    .prepare("SELECT id FROM storage_productions WHERE phase=0 ORDER BY id")?;
+                let mut statement = connection.prepare("SELECT id FROM storage_productions WHERE phase=0 ORDER BY id")?;
                 let mut rows = statement.query([])?;
                 let mut checkpoints = Vec::with_capacity(count as usize);
                 let mut bytes = 0usize;
                 while let Some(row) = rows.next()? {
-                    let id = harmos::Identifier::new(row.get::<_, String>(0)?)
-                        .map_err(|_| Error::Corrupt("invalid production identifier"))?;
-                    let file = StagedFile {
-                        id,
-                        history: saved(connection)?.history,
-                    };
-                    let (generation, _, mut value) = checkpoint(connection, &file)?
-                        .ok_or(Error::Corrupt("missing production checkpoint"))?;
+                    let id =
+                        harmos::Identifier::new(row.get::<_, String>(0)?).map_err(|_| Error::Corrupt("invalid production identifier"))?;
+                    let file = StagedFile { id, history: saved(connection)?.history };
+                    let (generation, _, mut value) =
+                        checkpoint(connection, &file)?.ok_or(Error::Corrupt("missing production checkpoint"))?;
                     bytes = bytes
                         .checked_add(value.memory_size())
                         .filter(|bytes| *bytes <= limits.bytes.get())
@@ -194,14 +154,8 @@ impl State {
                 for value in &checkpoints {
                     let path = files::staging_path(connection, &root, &value.session.id)?;
                     if !files::regular(&path)? && value.length == 0 {
-                        dokime_filesystem::publication::create_dir_all(
-                            path.parent().expect("staging parent"),
-                        )?;
-                        OpenOptions::new()
-                            .write(true)
-                            .create_new(true)
-                            .open(&path)?
-                            .sync_all()?;
+                        dokime_filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
+                        OpenOptions::new().write(true).create_new(true).open(&path)?.sync_all()?;
                         files::confirm_durability(&path)?;
                     }
                     let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
@@ -215,21 +169,12 @@ impl State {
         .await?
     }
 
-    pub(super) async fn production_progress(
-        &self,
-        root: PathBuf,
-        file: StagedFile,
-    ) -> Result<FileProgress, Error> {
-        self.call(move |connection| Ok(progress(connection, &root, &file)))
-            .await?
+    pub(super) async fn production_progress(&self, root: PathBuf, file: StagedFile) -> Result<FileProgress, Error> {
+        self.call(move |connection| Ok(progress(connection, &root, &file))).await?
     }
 
     pub(super) async fn production_read(
-        &self,
-        root: PathBuf,
-        file: StagedFile,
-        offset: u64,
-        maximum: NonZeroUsize,
+        &self, root: PathBuf, file: StagedFile, offset: u64, maximum: NonZeroUsize,
     ) -> Result<Vec<u8>, Error> {
         let maximum = maximum.get().min(CHUNK_BYTES);
         self.call(move |connection| {
@@ -238,9 +183,7 @@ impl State {
                 if offset >= progress.length {
                     return Err(Error::Data("production read is outside its prefix"));
                 }
-                let path = match files::metadata_for(connection, &file.id)?
-                    .and_then(|(_, finished)| finished)
-                {
+                let path = match files::metadata_for(connection, &file.id)?.and_then(|(_, finished)| finished) {
                     Some(reference) => files::final_path(&root, &reference)?,
                     None => files::staging_path(connection, &root, &file.id)?,
                 };
@@ -255,11 +198,7 @@ impl State {
         .await?
     }
 
-    pub(super) async fn production_abandon(
-        &self,
-        root: PathBuf,
-        file: StagedFile,
-    ) -> Result<(), Error> {
+    pub(super) async fn production_abandon(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
         self.call(move |connection| {
             Ok((|| {
                 let current = progress(connection, &root, &file)?;
@@ -268,21 +207,14 @@ impl State {
                 }
                 let path = files::staging_path(connection, &root, &file.id)?;
                 files::confirm_durability(&path)?;
-                connection.execute(
-                    "UPDATE storage_productions SET phase=2 WHERE id=?1",
-                    [file.id.as_str()],
-                )?;
+                connection.execute("UPDATE storage_productions SET phase=2 WHERE id=?1", [file.id.as_str()])?;
                 Ok(())
             })())
         })
         .await?
     }
 
-    pub(super) async fn production_delete(
-        &self,
-        root: PathBuf,
-        file: StagedFile,
-    ) -> Result<(), Error> {
+    pub(super) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
         self.call(move |connection| Ok((|| {
             saved(connection)?.history.check(&file.history)?;
             let active: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions p JOIN storage_file_stages s ON p.id=s.id WHERE p.id=?1 AND p.phase=0 AND s.finished IS NULL)",[file.id.as_str()],|row|row.get(0))?;
@@ -334,11 +266,8 @@ pub(super) fn check_available(connection: &Connection, id: &str) -> Result<(), E
 
 pub(super) fn check_writable(connection: &Connection, id: &str) -> Result<(), Error> {
     check_available(connection, id)?;
-    let abandoned: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM storage_productions WHERE id=?1 AND phase=2)",
-        [id],
-        |row| row.get(0),
-    )?;
+    let abandoned: bool =
+        connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions WHERE id=?1 AND phase=2)", [id], |row| row.get(0))?;
     if abandoned {
         return Err(Error::Conflict("file identity has been abandoned"));
     }
@@ -346,38 +275,23 @@ pub(super) fn check_writable(connection: &Connection, id: &str) -> Result<(), Er
 }
 
 /* === Private Functions === */
-pub(super) fn checkpoint(
-    connection: &Connection,
-    file: &StagedFile,
-) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
+pub(super) fn checkpoint(connection: &Connection, file: &StagedFile) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
     check_available(connection, file.id.as_str())?;
     stored_checkpoint(connection, file)
 }
 
 fn deleted(connection: &Connection, id: &str) -> Result<bool, Error> {
-    Ok(connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)",
-        [id],
-        |row| row.get(0),
-    )?)
+    Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)", [id], |row| row.get(0))?)
 }
 
-pub(super) fn stored_checkpoint(
-    connection: &Connection,
-    file: &StagedFile,
-) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
+pub(super) fn stored_checkpoint(connection: &Connection, file: &StagedFile) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
     saved(connection)?.history.check(&file.history)?;
-    let mut statement = connection
-        .prepare("SELECT generation,phase,checkpoint FROM storage_productions WHERE id=?1")?;
+    let mut statement = connection.prepare("SELECT generation,phase,checkpoint FROM storage_productions WHERE id=?1")?;
     let mut rows = statement.query([file.id.as_str()])?;
     let Some(row) = rows.next()? else {
         return Ok(None);
     };
-    let generation = sequence(
-        row.get_ref(0)?
-            .as_str()
-            .map_err(|_| Error::Corrupt("invalid producer generation"))?,
-    )?;
+    let generation = sequence(row.get_ref(0)?.as_str().map_err(|_| Error::Corrupt("invalid producer generation"))?)?;
     let phase: u8 = row.get(1)?;
     let body = super::blob(row, 2)?;
     if body.len() > METADATA_BYTES {
@@ -398,18 +312,11 @@ pub(super) fn stored_checkpoint(
     Ok(Some((generation, phase, value)))
 }
 
-fn progress(
-    connection: &Connection,
-    root: &Path,
-    file: &StagedFile,
-) -> Result<FileProgress, Error> {
+fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<FileProgress, Error> {
     saved(connection)?.history.check(&file.history)?;
     check_available(connection, file.id.as_str())?;
     if let Some((_, Some(reference))) = files::metadata_for(connection, &file.id)? {
-        return Ok(FileProgress {
-            length: reference.length,
-            phase: FilePhase::Finished,
-        });
+        return Ok(FileProgress { length: reference.length, phase: FilePhase::Finished });
     }
     let (_, phase, _) = checkpoint(connection, file)?.ok_or(Error::Data("unknown production"))?;
     let path = files::staging_path(connection, root, &file.id)?;
@@ -418,11 +325,7 @@ fn progress(
     Ok(FileProgress { length, phase })
 }
 
-fn verify_prefix(
-    file: &mut std::fs::File,
-    checkpoint: &FileCheckpoint,
-    previous: Option<&FileCheckpoint>,
-) -> Result<(), Error> {
+fn verify_prefix(file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous: Option<&FileCheckpoint>) -> Result<(), Error> {
     if file.metadata()?.len() < checkpoint.length {
         return Err(Error::Corrupt("saved production prefix is missing"));
     }
@@ -433,8 +336,7 @@ fn verify_prefix(
         Some(value) => {
             let encoded = <&SerializedState<Sha256>>::try_from(value.hash_state.as_slice())
                 .map_err(|_| Error::Corrupt("saved checkpoint state width differs"))?;
-            Sha256::deserialize(encoded)
-                .map_err(|_| Error::Corrupt("saved checkpoint hash state differs"))?
+            Sha256::deserialize(encoded).map_err(|_| Error::Corrupt("saved checkpoint hash state differs"))?
         }
         None => Sha256::new(),
     };

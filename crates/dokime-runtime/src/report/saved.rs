@@ -24,27 +24,29 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::{CycleReportInput, html::HtmlReport};
+use crate::records::RecordContract;
+use crate::storage::Manager;
+use crate::telemetry::contract::TelemetryContract;
 use crate::{
-    runtime::Error, runtime::Result, RuntimeHandle,
+    RuntimeHandle,
     execution::context::{
         native::source::{MEDIA_TYPE, Source as NativeSource},
         source::CapturedSource,
     },
+    runtime::Error,
+    runtime::Result,
     runtime::storage::execution::ExecutionView,
 };
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::execution::saved::ExecutionSource;
 use dokime_domain::model::execution::saved::validate_outputs;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::TestExecution;
-use crate::records::RecordContract;
-use crate::storage::Manager;
-use crate::telemetry::contract::TelemetryContract;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -96,20 +98,12 @@ struct ReportFileData {
 /* === Implementations === */
 impl RuntimeHandle {
     // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
-    pub async fn render_saved_execution_report(
-        &self,
-        execution: &dokime_domain::model::identity::TestExecutionId,
-    ) -> Result<Vec<u8>> {
-        let inspection = ExecutionView::open(
-            self.storage(),
-            execution,
-            harmos::storage::ObjectVersion::Latest,
-        )
-        .await?
-        .ok_or_else(|| Error::InvalidReportInputs("execution is not saved".into()))?;
-        let seal = inspection.execution().saved.as_ref().ok_or_else(|| {
-            Error::InvalidReportInputs("execution has no published report".into())
-        })?;
+    pub async fn render_saved_execution_report(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<Vec<u8>> {
+        let inspection = ExecutionView::open(self.storage(), execution, harmos::storage::ObjectVersion::Latest)
+            .await?
+            .ok_or_else(|| Error::InvalidReportInputs("execution is not saved".into()))?;
+        let seal =
+            inspection.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution has no published report".into()))?;
         Ok(crate::storage::read_file_bytes(self.storage(), &seal.report).await?)
     }
 }
@@ -118,90 +112,55 @@ impl CapturedExecutionReportInput {
     pub fn validate(&self) -> Result<()> {
         if let Some(anchor) = &self.execution {
             anchor.version.check_position(&anchor.position)?;
-            self.evidence_through
-                .history
-                .check(&anchor.position.history)?;
+            self.evidence_through.history.check(&anchor.position.history)?;
             if anchor.execution_id != self.execution_id {
-                return Err(Error::InvalidReportInputs(
-                    "report primary anchor identity differs".into(),
-                ));
+                return Err(Error::InvalidReportInputs("report primary anchor identity differs".into()));
             }
         }
-        uuid::Uuid::parse_str(&self.lifecycle_id)
-            .map_err(|_| Error::InvalidReportInputs("invalid report lifecycle identity".into()))?;
+        uuid::Uuid::parse_str(&self.lifecycle_id).map_err(|_| Error::InvalidReportInputs("invalid report lifecycle identity".into()))?;
         if self.input.cycle.test_executions.len() != 1 {
-            return Err(Error::InvalidReportInputs(
-                "report requires one exact saved execution".into(),
-            ));
+            return Err(Error::InvalidReportInputs("report requires one exact saved execution".into()));
         }
         let execution = self.execution()?;
-        if self.context.session_id != self.input.session_id
-            || self.context.cycle.cycle.test_cycle_id != self.input.cycle.test_cycle_id
-        {
-            return Err(Error::InvalidReportInputs(
-                "captured report and inspection context identity differs".into(),
-            ));
+        if self.context.session_id != self.input.session_id || self.context.cycle.cycle.test_cycle_id != self.input.cycle.test_cycle_id {
+            return Err(Error::InvalidReportInputs("captured report and inspection context identity differs".into()));
         }
         self.context.validate(execution)?;
         if execution.saved.is_some() || execution.test_cycle_id != self.input.cycle.test_cycle_id {
-            return Err(Error::InvalidReportInputs(
-                "report input is sealed or belongs to a different cycle".into(),
-            ));
+            return Err(Error::InvalidReportInputs("report input is sealed or belongs to a different cycle".into()));
         }
         if self.final_report
-            && (matches!(
-                execution.status,
-                ExecutionStatus::Pending | ExecutionStatus::Running
-            ) || execution.finished_at.is_none()
+            && (matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                || execution.finished_at.is_none()
                 || execution.active_step_attempt.is_some())
         {
-            return Err(Error::InvalidReportInputs(
-                "final report input has not settled".into(),
-            ));
+            return Err(Error::InvalidReportInputs("final report input has not settled".into()));
         }
         for (kind, versions) in &self.record_contracts {
             if versions.is_empty() {
-                return Err(Error::InvalidReportInputs(
-                    "captured record type has no declaration".into(),
-                ));
+                return Err(Error::InvalidReportInputs("captured record type has no declaration".into()));
             }
             for (version, contract) in versions {
-                if kind != &contract.record_type
-                    || *version == 0
-                    || *version != contract.schema_version
-                {
-                    return Err(Error::InvalidReportInputs(
-                        "captured record declaration identity differs".into(),
-                    ));
+                if kind != &contract.record_type || *version == 0 || *version != contract.schema_version {
+                    return Err(Error::InvalidReportInputs("captured record declaration identity differs".into()));
                 }
             }
         }
         for record in &self.input.records {
-            self.record_contracts
-                .get(&record.record_type)
-                .and_then(|versions| versions.get(&record.schema_version))
-                .ok_or_else(|| {
-                    Error::InvalidReportInputs(format!(
-                        "captured record declaration is missing for {} version {}",
-                        record.record_type, record.schema_version
-                    ))
-                })?;
+            self.record_contracts.get(&record.record_type).and_then(|versions| versions.get(&record.schema_version)).ok_or_else(|| {
+                Error::InvalidReportInputs(format!(
+                    "captured record declaration is missing for {} version {}",
+                    record.record_type, record.schema_version
+                ))
+            })?;
         }
         for (stream, versions) in &self.telemetry_contracts {
             if versions.is_empty() {
-                return Err(Error::InvalidReportInputs(
-                    "captured telemetry stream has no producer declaration".into(),
-                ));
+                return Err(Error::InvalidReportInputs("captured telemetry stream has no producer declaration".into()));
             }
             for (version, contract) in versions {
-                if stream != &contract.stream
-                    || *version == 0
-                    || *version != contract.schema_version
-                    || contract.foreign
-                {
-                    return Err(Error::InvalidReportInputs(
-                        "captured telemetry declaration is not its producer contract".into(),
-                    ));
+                if stream != &contract.stream || *version == 0 || *version != contract.schema_version || contract.foreign {
+                    return Err(Error::InvalidReportInputs("captured telemetry declaration is not its producer contract".into()));
                 }
             }
         }
@@ -209,18 +168,14 @@ impl CapturedExecutionReportInput {
             self.telemetry_contracts
                 .get(&sample.stream)
                 .and_then(|versions| versions.get(&sample.schema_version))
-                .ok_or_else(|| {
-                    Error::InvalidReportInputs("captured telemetry declaration is missing".into())
-                })?;
+                .ok_or_else(|| Error::InvalidReportInputs("captured telemetry declaration is missing".into()))?;
         }
         Ok(())
     }
 
     pub(crate) fn validate_final(&self) -> Result<()> {
         if !self.final_report {
-            return Err(Error::InvalidReportInputs(
-                "execution seal requires a final report capture".into(),
-            ));
+            return Err(Error::InvalidReportInputs("execution seal requires a final report capture".into()));
         }
         self.validate()
     }
@@ -260,50 +215,28 @@ impl PreparedExecutionReport {
         &self.outputs
     }
 
-    pub(super) fn prepare_html(
-        html: HtmlReport,
-        outputs: Vec<ExecutionOutput>,
-        saved: &StorageCursor,
-    ) -> Result<Self> {
+    pub(super) fn prepare_html(html: HtmlReport, outputs: Vec<ExecutionOutput>, saved: &StorageCursor) -> Result<Self> {
         let captured = html.captured_input()?.clone();
         captured.validate()?;
-        validate_outputs(&captured.execution_id, saved, &outputs)
-            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        validate_outputs(&captured.execution_id, saved, &outputs).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         let (context, report) = ReportFile::capture(&html)?;
-        if outputs.iter().any(|output| {
-            output.file.metadata.id == context.data.metadata.id
-                || output.file.metadata.id == report.data.metadata.id
-        }) {
-            return Err(Error::InvalidReportInputs(
-                "report production reuses an output file identity".into(),
-            ));
+        if outputs
+            .iter()
+            .any(|output| output.file.metadata.id == context.data.metadata.id || output.file.metadata.id == report.data.metadata.id)
+        {
+            return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }
-        Ok(Self {
-            captured,
-            outputs,
-            context,
-            report,
-            sealed_at: None,
-        })
+        Ok(Self { captured, outputs, context, report, sealed_at: None })
     }
 
     pub(crate) async fn publish_current(
-        &mut self,
-        manager: &Manager,
-        operations: &impl Host<Error = harmos::Error>,
-        revision: &ExecutionRevision,
+        &mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>, revision: &ExecutionRevision,
     ) -> Result<crate::runtime::operations::reports::MaterializedReport> {
         self.captured.validate()?;
-        tokio::try_join!(
-            self.context.write(manager, operations),
-            self.report.write(manager, operations)
-        )?;
+        tokio::try_join!(self.context.write(manager, operations), self.report.write(manager, operations))?;
         let context = self.context.finish(manager, operations).await?;
         let report = self.report.finish(manager, operations).await?;
-        let last = [&context.position, &report.position]
-            .into_iter()
-            .max_by_key(|cursor| cursor.sequence)
-            .unwrap();
+        let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         let mut publication = crate::storage::reports::Prepared::new(
             manager,
@@ -325,43 +258,25 @@ impl PreparedExecutionReport {
     }
 
     pub async fn save_dependencies(
-        &mut self,
-        manager: &Manager,
-        operations: &impl Host<Error = harmos::Error>,
-        sealed_at: &Timestamp,
-        revision: &ExecutionRevision,
+        &mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>, sealed_at: &Timestamp, revision: &ExecutionRevision,
     ) -> Result<ExecutionSeal> {
         self.captured.validate_final()?;
-        if self
-            .sealed_at
-            .as_ref()
-            .is_some_and(|original| original != sealed_at)
-        {
-            return Err(Error::InvalidReportInputs(
-                "report retry changes seal time".into(),
-            ));
+        if self.sealed_at.as_ref().is_some_and(|original| original != sealed_at) {
+            return Err(Error::InvalidReportInputs("report retry changes seal time".into()));
         }
         if self.sealed_at.is_none() {
             self.sealed_at = Some(sealed_at.clone());
         }
         manager.flush_until(&self.captured.evidence_through).await?;
         // Stage Frozen Context And HTML Before Publication.
-        tokio::try_join!(
-            self.context.write(manager, operations),
-            self.report.write(manager, operations),
-        )?;
+        tokio::try_join!(self.context.write(manager, operations), self.report.write(manager, operations),)?;
         let context = self.context.finish(manager, operations).await?;
         let report = self.report.finish(manager, operations).await?;
-        let last = [&context.position, &report.position]
-            .into_iter()
-            .max_by_key(|cursor| cursor.sequence)
-            .unwrap();
+        let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         for file in [&context, &report] {
             if !dependencies_saved.covers(&file.position)? {
-                return Err(Error::InvalidReportInputs(
-                    "report dependency is not durable".into(),
-                ));
+                return Err(Error::InvalidReportInputs("report dependency is not durable".into()));
             }
         }
         let outputs = self.outputs.clone();
@@ -377,21 +292,14 @@ impl PreparedExecutionReport {
             dependencies_saved,
             sealed_at: self.sealed_at.clone().expect("retained seal time"),
         };
-        seal.validate(self.captured.execution()?)
-            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        seal.validate(self.captured.execution()?).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         Ok(seal)
     }
 }
 
 impl ReportFile {
     fn new(data: ReportFileData) -> Self {
-        Self {
-            data: Arc::new(data),
-            window: None,
-            producer: None,
-            written: 0,
-            finished: None,
-        }
+        Self { data: Arc::new(data), window: None, producer: None, written: 0, finished: None }
     }
 
     pub(super) fn render(html: &HtmlReport, mut metadata: FileMetadata) -> Result<Self> {
@@ -406,8 +314,7 @@ impl ReportFile {
         let bytes = NativeSource::try_from(captured)?.encode_to_vec();
         let metadata = file_metadata(
             report_file_id(stem, ".context")?,
-            Identifier::new(captured.execution_id.as_str())
-                .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
+            Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
             MEDIA_TYPE,
             &bytes,
         )?;
@@ -422,35 +329,23 @@ impl ReportFile {
         let bytes = html.bytes(length)?;
         let metadata = file_metadata(
             report_file_id(&stem, ".report")?,
-            Identifier::new(captured.execution_id.as_str())
-                .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
+            Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
             "text/html",
             &bytes,
         )?;
         Ok((context, Self::new(ReportFileData { metadata, bytes })))
     }
 
-    pub(super) async fn finish(
-        &mut self,
-        manager: &Manager,
-        operations: &impl Host<Error = harmos::Error>,
-    ) -> Result<FileReference> {
+    pub(super) async fn finish(&mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>) -> Result<FileReference> {
         if let Some(reference) = &self.finished {
             return Ok(reference.clone());
         }
         self.write(manager, operations).await?;
         let reference = operations
-            .call_as::<harmos::storage::operations::FinishFile>(
-                harmos::storage::operations::FileMutation {
-                    mutation: self.mutation("finish")?,
-                    session: self
-                        .producer
-                        .as_ref()
-                        .expect("created report file")
-                        .session
-                        .clone(),
-                },
-            )
+            .call_as::<harmos::storage::operations::FinishFile>(harmos::storage::operations::FileMutation {
+                mutation: self.mutation("finish")?,
+                session: self.producer.as_ref().expect("created report file").session.clone(),
+            })
             .await?
             .into_owned();
         self.finished = Some(reference.clone());
@@ -459,24 +354,14 @@ impl ReportFile {
 
     fn mutation(&self, action: &str) -> Result<MutationId> {
         Ok(MutationId {
-            window: self
-                .window
-                .as_ref()
-                .expect("retained mutation window")
-                .clone(),
+            window: self.window.as_ref().expect("retained mutation window").clone(),
             key: Identifier::new(format!("{}.{}", self.data.metadata.id, action))
                 .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
         })
     }
 
-    async fn write(
-        &mut self,
-        manager: &Manager,
-        operations: &impl Host<Error = harmos::Error>,
-    ) -> Result<()> {
-        use harmos::storage::operations::{
-            AppendFile, AppendFileRequest, CreateFile, CreateFileRequest,
-        };
+    async fn write(&mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>) -> Result<()> {
+        use harmos::storage::operations::{AppendFile, AppendFileRequest, CreateFile, CreateFileRequest};
 
         if self.finished.is_some() {
             return Ok(());
@@ -489,37 +374,24 @@ impl ReportFile {
         if self.producer.is_none() {
             self.producer = Some(
                 operations
-                    .call_as::<CreateFile>(CreateFileRequest {
-                        mutation: self.mutation("create")?,
-                        metadata: self.data.metadata.clone(),
-                    })
+                    .call_as::<CreateFile>(CreateFileRequest { mutation: self.mutation("create")?, metadata: self.data.metadata.clone() })
                     .await?
                     .into_owned(),
             );
         }
         while self.written < self.data.bytes.len() {
-            let end = self
-                .written
-                .saturating_add(batch_bytes)
-                .min(self.data.bytes.len());
+            let end = self.written.saturating_add(batch_bytes).min(self.data.bytes.len());
             let producer = operations
                 .call_as::<AppendFile>(AppendFileRequest {
                     mutation: self.mutation(&format!("append.{}", self.written))?,
-                    session: self
-                        .producer
-                        .as_ref()
-                        .expect("created report file")
-                        .session
-                        .clone(),
+                    session: self.producer.as_ref().expect("created report file").session.clone(),
                     offset: self.written as u64,
                     bytes: self.data.bytes[self.written..end].to_vec(),
                 })
                 .await?
                 .into_owned();
             if producer.length != end as u64 {
-                return Err(Error::InvalidReportInputs(
-                    "report append returned a different offset".into(),
-                ));
+                return Err(Error::InvalidReportInputs("report append returned a different offset".into()));
             }
             self.producer = Some(producer);
             self.written = end;
@@ -532,26 +404,13 @@ impl ReportFile {
 
 /* === Private Functions === */
 fn report_file_id(execution: &str, suffix: &str) -> Result<Identifier> {
-    Identifier::new(format!("{execution}{suffix}"))
-        .map_err(|error| Error::InvalidReportInputs(error.to_string()))
+    Identifier::new(format!("{execution}{suffix}")).map_err(|error| Error::InvalidReportInputs(error.to_string()))
 }
 
-fn file_metadata(
-    id: Identifier,
-    scope: Identifier,
-    media_type: &str,
-    bytes: &[u8],
-) -> Result<FileMetadata> {
-    let length = u64::try_from(bytes.len())
-        .map_err(|_| Error::Operation("report file length overflow".into()))?;
+fn file_metadata(id: Identifier, scope: Identifier, media_type: &str, bytes: &[u8]) -> Result<FileMetadata> {
+    let length = u64::try_from(bytes.len()).map_err(|_| Error::Operation("report file length overflow".into()))?;
     let sha256 = Sha256::digest(bytes).into();
-    Ok(FileMetadata {
-        id,
-        scope: Some(scope),
-        media_type: media_type.into(),
-        expected_length: Some(length),
-        expected_sha256: Some(sha256),
-    })
+    Ok(FileMetadata { id, scope: Some(scope), media_type: media_type.into(), expected_length: Some(length), expected_sha256: Some(sha256) })
 }
 
 /* === Tests === */

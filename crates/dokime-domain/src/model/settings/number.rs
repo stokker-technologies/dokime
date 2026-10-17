@@ -69,9 +69,7 @@ impl Number {
         if let Some(step) = self.step {
             let units = (number - self.min.unwrap_or(0.0)) / step;
             if !units.is_finite() || (units - units.round()).abs() > 1e-9 {
-                return Err(
-                    SettingsError::invalid(&self.id, "number does not align with step").into(),
-                );
+                return Err(SettingsError::invalid(&self.id, "number does not align with step").into());
             }
         }
         Ok(())

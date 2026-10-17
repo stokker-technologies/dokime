@@ -68,9 +68,7 @@ impl Loop {
         self.registered.notify_one();
 
         cancelling.wait_for(|cancelled| *cancelled).await.unwrap();
-        Err(Diagnostic::of(
-            "foreign callback cancelled; finalizer remains owned",
-        ))
+        Err(Diagnostic::of("foreign callback cancelled; finalizer remains owned"))
     }
 }
 
@@ -90,11 +88,7 @@ impl CallbackTask for Loop {
             self.events.lock().unwrap().push("joined");
             self.settled.store(true, Ordering::Release);
 
-            if self.stage == "failure" {
-                Err(Diagnostic::of("foreign finalizer failed"))
-            } else {
-                Ok(())
-            }
+            if self.stage == "failure" { Err(Diagnostic::of("foreign finalizer failed")) } else { Ok(()) }
         })
     }
 }
@@ -113,16 +107,10 @@ impl SidecarTemplate for Foreign {
     type Parameters = ();
 
     fn definition() -> TemplateDefinition {
-        TemplateDefinition {
-            template: Probe::declaration(),
-            records: Vec::new(),
-            streams: Vec::new(),
-        }
+        TemplateDefinition { template: Probe::declaration(), records: Vec::new(), streams: Vec::new() }
     }
 
-    fn initialize<'a>(
-        ctx: &'a mut InitializationContext<'_, Self, Self::Own>,
-    ) -> InitializationFuture<'a, (Self, Self::Own)> {
+    fn initialize<'a>(ctx: &'a mut InitializationContext<'_, Self, Self::Own>) -> InitializationFuture<'a, (Self, Self::Own)> {
         Box::pin(async move {
             if driven().stage == "initialization" {
                 driven().callback(ctx.environment().callbacks()).await?;
@@ -131,11 +119,7 @@ impl SidecarTemplate for Foreign {
         })
     }
 
-    fn run_step<'a>(
-        &'a mut self,
-        _: &'a str,
-        ctx: &'a mut StepContext<'_, Self, Self::Own>,
-    ) -> StepFuture<'a> {
+    fn run_step<'a>(&'a mut self, _: &'a str, ctx: &'a mut StepContext<'_, Self, Self::Own>) -> StepFuture<'a> {
         Box::pin(async move {
             if driven().stage == "step" {
                 driven().callback(ctx.environment().callbacks()).await?;
@@ -145,10 +129,7 @@ impl SidecarTemplate for Foreign {
         })
     }
 
-    fn cleanup<'a>(
-        &'a mut self,
-        ctx: &'a mut CleanupContext<'_, Self, Self::Own>,
-    ) -> StepFuture<'a> {
+    fn cleanup<'a>(&'a mut self, ctx: &'a mut CleanupContext<'_, Self, Self::Own>) -> StepFuture<'a> {
         Box::pin(async move {
             driven().events.lock().unwrap().push("cleanup");
             if driven().stage == "cleanup" {
@@ -160,8 +141,7 @@ impl SidecarTemplate for Foreign {
     }
 
     fn evaluate<'a>(
-        _: &'a str,
-        ctx: &'a CriterionContext<'_, Self, Self::Parameters>,
+        _: &'a str, ctx: &'a CriterionContext<'_, Self, Self::Parameters>,
     ) -> dokime_runtime::execution::EvaluationFuture<'a, bool> {
         Box::pin(async move {
             let driving = driven();
@@ -178,11 +158,7 @@ impl SidecarTemplate for Foreign {
 
 /* === Private Functions === */
 fn driven() -> Arc<Loop> {
-    DRIVEN
-        .lock()
-        .unwrap()
-        .clone()
-        .expect("a case names the loop it drives before it starts the workflow")
+    DRIVEN.lock().unwrap().clone().expect("a case names the loop it drives before it starts the workflow")
 }
 
 #[tokio::test(start_paused = true)]
@@ -196,9 +172,7 @@ async fn shutdown_joins_owners() {
         let foreign = Arc::new(Loop::new(stage));
         *DRIVEN.lock().unwrap() = Some(Arc::clone(&foreign));
         let workflow = Workflow::<Foreign>::new(WORKFLOW, SOURCE);
-        workflow
-            .start(start_request(stage, serde_json::json!({})))
-            .unwrap();
+        workflow.start(start_request(stage, serde_json::json!({}))).unwrap();
         let mut cursor = 0;
         // Drains between waits admit the steps that register the callback.
         loop {
@@ -215,10 +189,7 @@ async fn shutdown_joins_owners() {
         // foreign finalizer to finish. Neither shutdown nor resource release
         // may overtake that finalizer.
         tokio::time::advance(Duration::from_secs(3)).await;
-        assert!(
-            !shutdown.is_finished(),
-            "{stage}: shutdown abandoned its callback"
-        );
+        assert!(!shutdown.is_finished(), "{stage}: shutdown abandoned its callback");
         // A cursor past everything buffered reads settlement without taking
         // the retained outcome.
         let pending = workflow.drain(stage, u64::MAX).unwrap();
@@ -254,16 +225,10 @@ async fn shutdown_joins_owners() {
             if let Some(outcome) = reply.outcome {
                 break outcome;
             }
-            assert!(
-                reply.cursor > cursor,
-                "{stage}: shutdown lost the terminal outcome"
-            );
+            assert!(reply.cursor > cursor, "{stage}: shutdown lost the terminal outcome");
             cursor = reply.cursor;
         };
-        assert!(
-            !terminal.passed,
-            "{stage}: cancellation or timeout must not pass"
-        );
+        assert!(!terminal.passed, "{stage}: cancellation or timeout must not pass");
     }
 }
 

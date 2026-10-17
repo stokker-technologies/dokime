@@ -17,13 +17,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
+use dokime_domain::model;
 use {
-    dokime_runtime::Identifier,
-    dokime_runtime::Timestamp,
-    dokime_runtime::Value,
-    dokime_runtime::telemetry::TelemetryBatch,
+    dokime_runtime::Identifier, dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::telemetry::TelemetryBatch,
     dokime_runtime::telemetry::TelemetrySample,
 };
 
@@ -52,15 +49,12 @@ async fn plot_points_admission() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"]))
-        .await;
+    support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     for start in (0..ROWS).step_by(BATCH as usize) {
         publish(&handle, &id, start, BATCH).await;
     }
-    let server = Server::start(handle.clone(), Config::local())
-        .await
-        .unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let served = first_frame(&client, 10_000).await;
@@ -71,30 +65,19 @@ async fn plot_points_admission() {
         served.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
     let points = served_points(&served);
-    assert!(
-        (1..=10_000).contains(&points),
-        "the window keeps its budget: {points}"
-    );
+    assert!((1..=10_000).contains(&points), "the window keeps its budget: {points}");
 
     let mut watch = open_watch(&client, 100_000).await;
     let refused = watch.message().await.unwrap().unwrap();
     assert_eq!(refused.kind, model::plots::wire::PlotStreamKind::Error);
     let message = refused.envelope.as_ref().unwrap().warnings[0].clone();
-    assert!(
-        !message.contains("plot admission failed"),
-        "the refusal is precise: {message}"
-    );
+    assert!(!message.contains("plot admission failed"), "the refusal is precise: {message}");
     let maximum = maximum_points(&message);
-    assert!(
-        (10_000..100_000).contains(&maximum),
-        "the refusal names a maximum between the window and the cap: {message}"
-    );
+    assert!((10_000..100_000).contains(&maximum), "the refusal names a maximum between the window and the cap: {message}");
     // The bound is measured on the plot's payload, so the unary query names
     // the same maximum over the same rows.
     let unary = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots {
-            requests: vec![request(100_000)],
-        })
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100_000)] })
         .await
         .unwrap_err();
     assert_eq!(unary.code(), Code::InvalidArgument, "{unary:?}");
@@ -104,9 +87,7 @@ async fn plot_points_admission() {
     publish(&handle, &id, ROWS, 1).await;
     // TODO(source-hook): end a refused plot watch with a terminal frame so silence is observable without a wall-clock window.
     assert!(
-        tokio::time::timeout(std::time::Duration::from_secs(2), watch.message())
-            .await
-            .is_err(),
+        tokio::time::timeout(std::time::Duration::from_secs(2), watch.message()).await.is_err(),
         "a refused plot is not served appends"
     );
     drop(watch);
@@ -120,9 +101,7 @@ async fn plot_points_admission() {
     );
 
     let beyond = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots {
-            requests: vec![request(100_001)],
-        })
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100_001)] })
         .await
         .unwrap_err();
     assert_eq!(beyond.code(), Code::InvalidArgument, "{beyond:?}");
@@ -170,17 +149,8 @@ async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire
     stream.message().await.unwrap().unwrap()
 }
 
-async fn open_watch(
-    client: &WireClient,
-    max_points: u64,
-) -> WireStream<model::plots::wire::PlotStreamFrame> {
-    client
-        .download::<contracts::plots::Watch>(contracts::plots::Watch {
-            requests: vec![request(max_points)],
-        })
-        .await
-        .unwrap()
-        .into_inner()
+async fn open_watch(client: &WireClient, max_points: u64) -> WireStream<model::plots::wire::PlotStreamFrame> {
+    client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![request(max_points)] }).await.unwrap().into_inner()
 }
 
 fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
@@ -188,13 +158,7 @@ fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
         .envelope
         .as_ref()
         .and_then(|envelope| envelope.payload.as_ref())
-        .map(|payload| {
-            payload
-                .series
-                .iter()
-                .map(|series| series.points.len())
-                .sum()
-        })
+        .map(|payload| payload.series.iter().map(|series| series.points.len()).sum())
         .unwrap_or_default()
 }
 
@@ -210,18 +174,11 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
                 index % 1_000
             ));
             let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
-            sample
-                .values
-                .insert("progress".into(), Value::Number(index as f64));
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow {
-                progress: index as f64,
-            }))
+            sample.values.insert("progress".into(), Value::Number(index as f64));
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    handle
-        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples))
-        .await
-        .unwrap();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 }
 
 /// The number the refusal names after "at most".

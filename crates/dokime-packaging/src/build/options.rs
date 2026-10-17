@@ -43,17 +43,9 @@ pub struct Options {
     pub manifest_path: Option<std::path::PathBuf>,
     #[arg(short, long)]
     pub package: Option<String>,
-    #[arg(
-        long = "bin",
-        value_name = "BIN",
-        help = "Native binaries to include; empty selects the package's default binary."
-    )]
+    #[arg(long = "bin", value_name = "BIN", help = "Native binaries to include; empty selects the package's default binary.")]
     pub binaries: Vec<String>,
-    #[arg(
-        short = 'F',
-        long,
-        help = "Features to activate; repeat or use comma/space-separated names."
-    )]
+    #[arg(short = 'F', long, help = "Features to activate; repeat or use comma/space-separated names.")]
     pub features: Vec<String>,
     #[arg(long, help = "Activate all available features.")]
     pub all_features: bool,
@@ -106,10 +98,7 @@ impl Options {
 
 /* === Private Functions === */
 fn deadline(value: &str) -> Result<std::time::Duration, String> {
-    value
-        .parse::<std::num::NonZeroU64>()
-        .map(|seconds| std::time::Duration::from_secs(seconds.get()))
-        .map_err(|error| error.to_string())
+    value.parse::<std::num::NonZeroU64>().map(|seconds| std::time::Duration::from_secs(seconds.get())).map_err(|error| error.to_string())
 }
 
 /* === Tests === */

@@ -21,17 +21,8 @@ use serde_json::Value;
 /* === Constants === */
 pub(crate) const REDACTED: &str = "<redacted>";
 
-const SECRET_FRAGMENTS: &[&str] = &[
-    "secret",
-    "password",
-    "passphrase",
-    "token",
-    "apikey",
-    "privatekey",
-    "accesskey",
-    "authorization",
-    "cookie",
-];
+const SECRET_FRAGMENTS: &[&str] =
+    &["secret", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"];
 
 /* === Macros === */
 
@@ -47,14 +38,8 @@ const SECRET_FRAGMENTS: &[&str] = &[
 
 /* === Public Functions === */
 pub(crate) fn is_secret_name(name: &str) -> bool {
-    let folded: String = name
-        .chars()
-        .filter(|character| character.is_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect();
-    SECRET_FRAGMENTS
-        .iter()
-        .any(|fragment| folded.contains(fragment))
+    let folded: String = name.chars().filter(|character| character.is_alphanumeric()).flat_map(char::to_lowercase).collect();
+    SECRET_FRAGMENTS.iter().any(|fragment| folded.contains(fragment))
 }
 
 pub(super) fn scrub(value: &mut Value) {
@@ -79,9 +64,7 @@ pub(crate) fn text(value: &str) -> String {
 
 /* === Private Functions === */
 fn is_redacted_evidence(value: &Value) -> bool {
-    value.as_object().is_some_and(|fields| {
-        fields.contains_key("credential_id") && fields.contains_key("configured")
-    })
+    value.as_object().is_some_and(|fields| fields.contains_key("credential_id") && fields.contains_key("configured"))
 }
 
 /* === Tests === */

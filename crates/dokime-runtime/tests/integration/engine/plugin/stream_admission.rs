@@ -28,19 +28,14 @@ macro_rules! refused_template {
 
         #[dokime_runtime::template(id = $id, label = "Undeclared Stream")]
         impl $template {
-            async fn initialize(
-                _ctx: &mut InitializationContext<'_>,
-            ) -> dokime_runtime::Result<(Self, ())> {
+            async fn initialize(_ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, ())> {
                 Ok((Self, ()))
             }
 
             #[dokime_runtime::step(label = "Publish A Row")]
             async fn publish(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
                 if $handle {
-                    ctx.stream::<Reading>()
-                        .open()
-                        .push(Reading { value: 42.0 })
-                        .await;
+                    ctx.stream::<Reading>().open().push(Reading { value: 42.0 }).await;
                 } else {
                     ctx.publish(Reading { value: 42.0 }).await;
                 }
@@ -98,14 +93,8 @@ impl Declared {
     #[dokime_runtime::step(label = "Publish Declared Rows")]
     async fn publish(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.publish(Reading { value: 1.0 }).await;
-        ctx.stream::<Reading>()
-            .open()
-            .push(Reading { value: 2.0 })
-            .await;
-        ctx.stream::<Reading>()
-            .into::<Secondary>()
-            .push(Reading { value: 3.0 })
-            .await;
+        ctx.stream::<Reading>().open().push(Reading { value: 2.0 }).await;
+        ctx.stream::<Reading>().into::<Secondary>().push(Reading { value: 3.0 }).await;
         Ok(())
     }
 }
@@ -136,14 +125,7 @@ async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>(
         let frame = engine.next(&token, cursor).await.unwrap();
         for encoded in &frame.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            engine.admit(
-                &token,
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: true,
-                    message: String::new(),
-                },
-            );
+            engine.admit(&token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         cursor = frame.cursor;
         let complete = frame.outcome.is_some();
@@ -162,25 +144,12 @@ async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>(
 
 async fn assert_refused<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>() {
     let (replies, samples) = run::<T>().await;
-    assert!(
-        samples.is_empty(),
-        "no invalid sample enters local evidence"
-    );
-    let outcome = replies
-        .iter()
-        .find_map(|reply| reply.outcome.as_ref())
-        .unwrap();
+    assert!(samples.is_empty(), "no invalid sample enters local evidence");
+    let outcome = replies.iter().find_map(|reply| reply.outcome.as_ref()).unwrap();
     assert!(!outcome.passed);
-    let diagnostics = replies
-        .iter()
-        .flat_map(|reply| &reply.diagnostics)
-        .map(|entry| entry.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        diagnostics.contains(T::declaration().metadata.identifier.as_str()),
-        "{diagnostics}"
-    );
+    let diagnostics =
+        replies.iter().flat_map(|reply| &reply.diagnostics).map(|entry| entry.message.as_str()).collect::<Vec<_>>().join("\n");
+    assert!(diagnostics.contains(T::declaration().metadata.identifier.as_str()), "{diagnostics}");
     assert!(diagnostics.contains("Reading"), "{diagnostics}");
     assert!(diagnostics.contains("`streams` catalog"), "{diagnostics}");
     assert!(diagnostics.contains("admission.reading"), "{diagnostics}");
@@ -203,23 +172,10 @@ async fn declared_stream_publications() {
     let (replies, samples) = run::<Declared>().await;
     assert_eq!(samples.len(), 3);
     assert_eq!(
-        samples
-            .iter()
-            .map(|sample| sample.stream.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "admission.reading",
-            "admission.reading",
-            "admission.secondary"
-        ]
+        samples.iter().map(|sample| sample.stream.as_str()).collect::<Vec<_>>(),
+        ["admission.reading", "admission.reading", "admission.secondary"]
     );
-    assert!(
-        replies
-            .iter()
-            .find_map(|reply| reply.outcome.as_ref())
-            .unwrap()
-            .passed
-    );
+    assert!(replies.iter().find_map(|reply| reply.outcome.as_ref()).unwrap().passed);
 }
 
 /* === Tests === */

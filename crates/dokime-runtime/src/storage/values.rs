@@ -12,17 +12,12 @@ pub(crate) mod map {
     use super::*;
     use serde::{Deserialize, Serialize};
 
-    pub fn serialize<S: serde::Serializer>(
-        cells: &[Cell],
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
+    pub fn serialize<S: serde::Serializer>(cells: &[Cell], serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let value = decode(cells).map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Vec<Cell>, D::Error> {
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Vec<Cell>, D::Error> {
         let value = BTreeMap::<String, Value>::deserialize(deserializer)?;
         encode(&value).map_err(serde::de::Error::custom)
     }
@@ -78,23 +73,16 @@ struct Encoding {
 /* === Public Functions === */
 pub(crate) fn encoding_memory(details: &BTreeMap<String, Value>) -> Result<usize> {
     let plan = encoding(details)?;
-    Ok(std::mem::size_of::<Vec<Cell>>()
-        .saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>()))
-        .saturating_add(plan.strings))
+    Ok(std::mem::size_of::<Vec<Cell>>().saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>())).saturating_add(plan.strings))
 }
 
 pub(crate) fn encode(details: &BTreeMap<String, Value>) -> Result<Vec<Cell>> {
     let plan = encoding(details)?;
     let mut cells = Vec::new();
-    cells
-        .try_reserve_exact(plan.cells)
-        .map_err(|_| error("stored cell allocation failed"))?;
+    cells.try_reserve_exact(plan.cells).map_err(|_| error("stored cell allocation failed"))?;
     cells.push(Cell {
         kind: "object".into(),
-        children: details
-            .len()
-            .try_into()
-            .map_err(|_| error("stored value child count exceeds limit"))?,
+        children: details.len().try_into().map_err(|_| error("stored value child count exceeds limit"))?,
         ..Default::default()
     });
     for (name, value) in details {
@@ -105,22 +93,14 @@ pub(crate) fn encode(details: &BTreeMap<String, Value>) -> Result<Vec<Cell>> {
 
 pub(crate) fn value_encoding_memory(value: &Value) -> Result<usize> {
     let plan = value_encoding(value)?;
-    Ok(std::mem::size_of::<Vec<Cell>>()
-        .saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>()))
-        .saturating_add(plan.strings))
+    Ok(std::mem::size_of::<Vec<Cell>>().saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>())).saturating_add(plan.strings))
 }
 
 pub(crate) fn encode_value(value: &Value) -> Result<Vec<Cell>> {
     let plan = value_encoding(value)?;
     let mut cells = Vec::new();
-    cells
-        .try_reserve_exact(plan.cells)
-        .map_err(|_| error("stored scalar allocation failed"))?;
-    cells.push(Cell {
-        kind: "object".into(),
-        children: 1,
-        ..Default::default()
-    });
+    cells.try_reserve_exact(plan.cells).map_err(|_| error("stored scalar allocation failed"))?;
+    cells.push(Cell { kind: "object".into(), children: 1, ..Default::default() });
     append(value, Some("value".into()), 1, &mut cells)?;
     Ok(cells)
 }
@@ -129,10 +109,7 @@ pub(crate) fn datetime_memory(value: time::OffsetDateTime) -> Result<usize> {
     struct Count(usize);
     impl std::io::Write for Count {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0 = self
-                .0
-                .checked_add(bytes.len())
-                .ok_or_else(|| std::io::Error::other("datetime output size overflow"))?;
+            self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("datetime output size overflow"))?;
             Ok(bytes.len())
         }
         fn flush(&mut self) -> std::io::Result<()> {
@@ -140,21 +117,15 @@ pub(crate) fn datetime_memory(value: time::OffsetDateTime) -> Result<usize> {
         }
     }
     let mut count = Count(0);
-    value
-        .to_offset(time::UtcOffset::UTC)
-        .format_into(&mut count, &time::format_description::well_known::Rfc3339)?;
+    value.to_offset(time::UtcOffset::UTC).format_into(&mut count, &time::format_description::well_known::Rfc3339)?;
     Ok(count.0)
 }
 
 pub(crate) fn encode_datetime(value: time::OffsetDateTime) -> Result<String> {
     let length = datetime_memory(value)?;
     let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(length)
-        .map_err(|_| error("stored datetime allocation failed"))?;
-    value
-        .to_offset(time::UtcOffset::UTC)
-        .format_into(&mut bytes, &time::format_description::well_known::Rfc3339)?;
+    bytes.try_reserve_exact(length).map_err(|_| error("stored datetime allocation failed"))?;
+    value.to_offset(time::UtcOffset::UTC).format_into(&mut bytes, &time::format_description::well_known::Rfc3339)?;
     String::from_utf8(bytes).map_err(|_| error("stored datetime formatter produced non-UTF8 text"))
 }
 
@@ -184,15 +155,10 @@ pub(crate) fn owned_memory(cells: &[Cell]) -> Result<usize> {
     if bytes == usize::MAX {
         return Ok(usize::MAX);
     }
-    Ok(bytes
-        .saturating_sub(std::mem::size_of::<Value>())
-        .saturating_add(std::mem::size_of::<BTreeMap<String, Value>>()))
+    Ok(bytes.saturating_sub(std::mem::size_of::<Value>()).saturating_add(std::mem::size_of::<BTreeMap<String, Value>>()))
 }
 
-pub(crate) fn decode_owned(
-    cells: Vec<Cell>,
-    allowance: NonZeroUsize,
-) -> Result<BTreeMap<String, Value>> {
+pub(crate) fn decode_owned(cells: Vec<Cell>, allowance: NonZeroUsize) -> Result<BTreeMap<String, Value>> {
     let bound = owned_memory(&cells)?;
     if bound == usize::MAX || bound > allowance.get() {
         return Err(error("stored value projection exceeds memory allowance"));
@@ -206,10 +172,7 @@ pub(crate) fn decode_owned(
 
 /* === Private Functions === */
 fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
-    let mut plan = Encoding {
-        cells: 1,
-        strings: "object".len(),
-    };
+    let mut plan = Encoding { cells: 1, strings: "object".len() };
     u32::try_from(details.len()).map_err(|_| error("stored value child count exceeds limit"))?;
     for (name, value) in details {
         measure_encoding(value, Some(name), 1, &mut plan)?;
@@ -218,20 +181,12 @@ fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
 }
 
 fn value_encoding(value: &Value) -> Result<Encoding> {
-    let mut plan = Encoding {
-        cells: 1,
-        strings: "object".len(),
-    };
+    let mut plan = Encoding { cells: 1, strings: "object".len() };
     measure_encoding(value, Some("value"), 1, &mut plan)?;
     Ok(plan)
 }
 
-fn measure_encoding(
-    value: &Value,
-    name: Option<&str>,
-    depth: usize,
-    plan: &mut Encoding,
-) -> Result<()> {
+fn measure_encoding(value: &Value, name: Option<&str>, depth: usize, plan: &mut Encoding) -> Result<()> {
     if depth > MAX_DEPTH || plan.cells == MAX_CELLS {
         return Err(error("stored values exceed nesting or cell limit"));
     }
@@ -246,21 +201,15 @@ fn measure_encoding(
         Value::Text(text) => ("text", text.len()),
         Value::Datetime(value) => ("datetime", datetime_memory(*value)?),
         Value::Array(values) => {
-            u32::try_from(values.len())
-                .map_err(|_| error("stored value child count exceeds limit"))?;
+            u32::try_from(values.len()).map_err(|_| error("stored value child count exceeds limit"))?;
             ("array", 0)
         }
         Value::Object(values) => {
-            u32::try_from(values.len())
-                .map_err(|_| error("stored value child count exceeds limit"))?;
+            u32::try_from(values.len()).map_err(|_| error("stored value child count exceeds limit"))?;
             ("object", 0)
         }
     };
-    plan.strings = plan
-        .strings
-        .saturating_add(kind.len())
-        .saturating_add(name.map_or(0, str::len))
-        .saturating_add(text);
+    plan.strings = plan.strings.saturating_add(kind.len()).saturating_add(name.map_or(0, str::len)).saturating_add(text);
     match value {
         Value::Array(values) => {
             for value in values {
@@ -281,9 +230,7 @@ fn measure(cells: &[Cell], at: &mut usize, depth: usize, named: bool) -> Result<
     if depth > MAX_DEPTH {
         return Err(error("stored values exceed nesting limit"));
     }
-    let cell = cells
-        .get(*at)
-        .ok_or_else(|| error("stored value child is missing"))?;
+    let cell = cells.get(*at).ok_or_else(|| error("stored value child is missing"))?;
     *at += 1;
     if cell.name.is_some() != named {
         return Err(error("stored value name is noncanonical"));
@@ -298,13 +245,9 @@ fn measure(cells: &[Cell], at: &mut usize, depth: usize, named: bool) -> Result<
         "bool" => scalar_count == 1 && cell.boolean.is_some() && cell.children == 0,
         "integer" => scalar_count == 1 && cell.integer.is_some() && cell.children == 0,
         "unsigned" => scalar_count == 1 && cell.unsigned.is_some() && cell.children == 0,
-        "number" => {
-            scalar_count == 1 && cell.number.is_some_and(f64::is_finite) && cell.children == 0
-        }
+        "number" => scalar_count == 1 && cell.number.is_some_and(f64::is_finite) && cell.children == 0,
         "text" | "datetime" => scalar_count == 1 && cell.text.is_some() && cell.children == 0,
-        "array" | "object" => {
-            scalar_count == 0 && cell.children as usize <= cells.len().saturating_sub(*at)
-        }
+        "array" | "object" => scalar_count == 0 && cell.children as usize <= cells.len().saturating_sub(*at),
         _ => false,
     };
     if !valid {
@@ -328,10 +271,7 @@ fn measure(cells: &[Cell], at: &mut usize, depth: usize, named: bool) -> Result<
             let mut previous: Option<&str> = None;
             for _ in 0..cell.children {
                 if object {
-                    let name = cells
-                        .get(*at)
-                        .and_then(|child| child.name.as_ref())
-                        .ok_or_else(|| error("object child name is missing"))?;
+                    let name = cells.get(*at).and_then(|child| child.name.as_ref()).ok_or_else(|| error("object child name is missing"))?;
                     if previous.is_some_and(|previous| previous >= name.as_str()) {
                         return Err(error("stored object names must be strictly ordered"));
                     }
@@ -339,11 +279,7 @@ fn measure(cells: &[Cell], at: &mut usize, depth: usize, named: bool) -> Result<
                     bytes = bytes.saturating_add(name.capacity());
                 }
                 let child = measure(cells, at, depth + 1, object)?;
-                bytes = if child == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(child.saturating_sub(inline))
-                };
+                bytes = if child == usize::MAX { usize::MAX } else { bytes.saturating_add(child.saturating_sub(inline)) };
             }
             bytes
         }
@@ -353,9 +289,7 @@ fn measure(cells: &[Cell], at: &mut usize, depth: usize, named: bool) -> Result<
 }
 
 fn consume(cells: &mut std::vec::IntoIter<Cell>) -> Result<Value> {
-    let cell = cells
-        .next()
-        .ok_or_else(|| error("stored value child is missing"))?;
+    let cell = cells.next().ok_or_else(|| error("stored value child is missing"))?;
     Ok(match cell.kind.as_str() {
         "null" => Value::Null,
         "bool" => Value::Bool(cell.boolean.expect("validated bool")),
@@ -363,14 +297,10 @@ fn consume(cells: &mut std::vec::IntoIter<Cell>) -> Result<Value> {
         "unsigned" => Value::Unsigned(cell.unsigned.expect("validated unsigned")),
         "number" => Value::Number(cell.number.expect("validated number")),
         "text" => Value::Text(cell.text.expect("validated text")),
-        "datetime" => Value::Datetime(parse_datetime(
-            cell.text.as_deref().expect("validated datetime"),
-        )?),
+        "datetime" => Value::Datetime(parse_datetime(cell.text.as_deref().expect("validated datetime"))?),
         "array" => {
             let mut values = Vec::new();
-            values
-                .try_reserve_exact(cell.children as usize)
-                .map_err(|_| error("stored array allocation failed"))?;
+            values.try_reserve_exact(cell.children as usize).map_err(|_| error("stored array allocation failed"))?;
             for _ in 0..cell.children {
                 values.push(consume(cells)?);
             }
@@ -410,12 +340,8 @@ fn parse_datetime(text: &str) -> Result<time::OffsetDateTime> {
     }
     let format = time::format_description::well_known::Rfc3339;
     let datetime = time::OffsetDateTime::parse(text, &format)?.to_offset(time::UtcOffset::UTC);
-    let mut compare = Compare {
-        remaining: text.as_bytes(),
-    };
-    datetime
-        .format_into(&mut compare, &format)
-        .map_err(|_| error("stored datetime is noncanonical"))?;
+    let mut compare = Compare { remaining: text.as_bytes() };
+    datetime.format_into(&mut compare, &format).map_err(|_| error("stored datetime is noncanonical"))?;
     if !compare.remaining.is_empty() {
         return Err(error("stored datetime is noncanonical"));
     }
@@ -430,10 +356,7 @@ fn append(value: &Value, name: Option<String>, depth: usize, cells: &mut Vec<Cel
     if depth > MAX_DEPTH || cells.len() == MAX_CELLS {
         return Err(error("stored values exceed nesting or cell limit"));
     }
-    let mut cell = Cell {
-        name,
-        ..Default::default()
-    };
+    let mut cell = Cell { name, ..Default::default() };
     cell.kind = match value {
         Value::Null => "null",
         Value::Bool(value) => {
@@ -462,17 +385,11 @@ fn append(value: &Value, name: Option<String>, depth: usize, cells: &mut Vec<Cel
             "datetime"
         }
         Value::Array(values) => {
-            cell.children = values
-                .len()
-                .try_into()
-                .map_err(|_| error("stored value child count exceeds limit"))?;
+            cell.children = values.len().try_into().map_err(|_| error("stored value child count exceeds limit"))?;
             "array"
         }
         Value::Object(values) => {
-            cell.children = values
-                .len()
-                .try_into()
-                .map_err(|_| error("stored value child count exceeds limit"))?;
+            cell.children = values.len().try_into().map_err(|_| error("stored value child count exceeds limit"))?;
             "object"
         }
     }
@@ -499,9 +416,7 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
     if depth > MAX_DEPTH {
         return Err(error("stored values exceed nesting limit"));
     }
-    let cell = cells
-        .get(*at)
-        .ok_or_else(|| error("stored value child is missing"))?;
+    let cell = cells.get(*at).ok_or_else(|| error("stored value child is missing"))?;
     *at += 1;
     let missing = || error("stored value scalar is missing");
     Ok(match cell.kind.as_str() {
@@ -528,10 +443,7 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
             } else {
                 let mut values = BTreeMap::new();
                 for _ in 0..cell.children {
-                    let name = cells
-                        .get(*at)
-                        .and_then(|cell| cell.name.clone())
-                        .ok_or_else(|| error("object child name is missing"))?;
+                    let name = cells.get(*at).and_then(|cell| cell.name.clone()).ok_or_else(|| error("object child name is missing"))?;
                     if values.insert(name, read(cells, at, depth + 1)?).is_some() {
                         return Err(error("duplicate stored value name"));
                     }

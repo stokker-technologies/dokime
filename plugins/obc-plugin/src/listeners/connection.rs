@@ -44,11 +44,7 @@ impl Observed {
         Self { resources }
     }
 
-    async fn hear(
-        &mut self,
-        _: &Supervisor,
-        acquired: ToolConnectionAcquired,
-    ) -> Result<(), Error> {
+    async fn hear(&mut self, _: &Supervisor, acquired: ToolConnectionAcquired) -> Result<(), Error> {
         self.resources.observed(acquired.resource_id);
         Ok(())
     }

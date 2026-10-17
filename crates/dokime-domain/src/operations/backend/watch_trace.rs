@@ -36,9 +36,7 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchTrace {
     // Required when resuming a nonzero sequence; obtained from the prior batch.
-    #[row(
-        description = "Required when resuming a nonzero sequence; obtained from the prior batch."
-    )]
+    #[row(description = "Required when resuming a nonzero sequence; obtained from the prior batch.")]
     pub epoch: Option<String>,
     // Absent means Instance: every captured event of this backend process.
     #[row(description = "Absent means Instance: every captured event of this backend process.")]
@@ -57,9 +55,7 @@ pub struct WatchTrace {
     pub max_events: u32,
     // Encoded bytes per batch. Zero uses 256 KiB; values are clamped between
     // 32 KiB and the backend's message budget.
-    #[row(
-        description = "Encoded bytes per batch. Zero uses 256 KiB; values are clamped between 32 KiB and the backend's message budget."
-    )]
+    #[row(description = "Encoded bytes per batch. Zero uses 256 KiB; values are clamped between 32 KiB and the backend's message budget.")]
     pub max_bytes: u32,
     // False ends the stream once the events retained at admission are
     // delivered; true keeps following until the caller cancels.

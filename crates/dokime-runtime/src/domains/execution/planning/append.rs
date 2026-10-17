@@ -18,7 +18,7 @@ pub(crate) use crate::transactions::AppendCycle as Append;
 
 // Local Imports
 use crate::definition::TestCase;
-use crate::{CommandContext, runtime::Error, RuntimeHandle};
+use crate::{CommandContext, RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
@@ -37,30 +37,20 @@ use dokime_domain::model::identity::TestCycleId;
 impl RuntimeHandle {
     /// Appends materialized cases to an existing mutable cycle. Each case's
     /// authored definition is read from the registry at its suite revision.
-    pub async fn append_cycle_cases(
-        &self,
-        test_cycle_id: TestCycleId,
-        cases: Vec<TestCase>,
-        context: CommandContext,
-    ) -> Result<(), Error> {
+    pub async fn append_cycle_cases(&self, test_cycle_id: TestCycleId, cases: Vec<TestCase>, context: CommandContext) -> Result<(), Error> {
         let sources = {
             let state = self.state_read();
-            cases
-                .iter()
-                .filter_map(|case| state.suites.suite_for_case(case))
-                .map(|entry| entry.source.clone())
-                .collect::<Vec<_>>()
+            cases.iter().filter_map(|case| state.suites.suite_for_case(case)).map(|entry| entry.source.clone()).collect::<Vec<_>>()
         };
-        let admission_identifier = context
-            .idempotency_key
-            .as_deref()
-            .filter(|key| !key.is_empty())
-            .map_or_else(dokime_domain::model::identity::CommandId::new, |key| {
+        let admission_identifier = context.idempotency_key.as_deref().filter(|key| !key.is_empty()).map_or_else(
+            dokime_domain::model::identity::CommandId::new,
+            |key| {
                 dokime_domain::model::identity::CommandId::from_seed(format!(
                     "cycle-append:{}:{test_cycle_id}:{key}",
                     self.state_read().identity.node.node_id
                 ))
-            });
+            },
+        );
         let transaction = Append {
             admission_identifier,
             settings: super::settings(self, sources)?,
@@ -68,11 +58,8 @@ impl RuntimeHandle {
             cases,
             occurred_at: crate::model::time::now_utc(),
         };
-        self.commit_with_key(context.idempotency_key, transaction)
-            .await?;
-        self.execution_storage
-            .save_cycle(test_cycle_id.clone())
-            .await?;
+        self.commit_with_key(context.idempotency_key, transaction).await?;
+        self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
         self.reconcile_sampling().await;
         Ok(())
     }

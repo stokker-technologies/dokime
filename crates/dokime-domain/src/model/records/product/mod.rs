@@ -203,50 +203,26 @@ impl ProductConnectionDetails {
 
     pub fn record_type(&self) -> Identifier {
         match self.connection_state {
-            ProductConnectionState::Connected => {
-                BuiltinRecordType::ToolConnectionAcquired.identifier()
-            }
-            ProductConnectionState::Disconnected => {
-                BuiltinRecordType::ToolConnectionLost.identifier()
-            }
+            ProductConnectionState::Connected => BuiltinRecordType::ToolConnectionAcquired.identifier(),
+            ProductConnectionState::Disconnected => BuiltinRecordType::ToolConnectionLost.identifier(),
         }
     }
 
     pub fn into_draft(self, source: impl Into<String>) -> ProductRecordDraft {
-        ProductRecordDraft::new(
-            self.record_type(),
-            source,
-            Some("Product connection state changed.".to_owned()),
-            self.into_details(),
-        )
+        ProductRecordDraft::new(self.record_type(), source, Some("Product connection state changed.".to_owned()), self.into_details())
     }
 
     pub fn into_details(self) -> BTreeMap<String, Value> {
         let mut details = BTreeMap::from([
             ("resource_id".to_owned(), Value::from(self.resource_id)),
             ("resource_kind".to_owned(), Value::from(self.resource_kind)),
-            (
-                "connection_state".to_owned(),
-                Value::from(self.connection_state),
-            ),
+            ("connection_state".to_owned(), Value::from(self.connection_state)),
         ]);
-        insert_enum(
-            &mut details,
-            "previous_connection_state",
-            self.previous_connection_state,
-        );
+        insert_enum(&mut details, "previous_connection_state", self.previous_connection_state);
         insert_enum(&mut details, "readiness_state", self.readiness_state);
         insert_enum(&mut details, "target_lock_state", self.target_lock_state);
-        insert_text(
-            &mut details,
-            "connection_transport",
-            self.connection_transport,
-        );
-        insert_text(
-            &mut details,
-            "connection_endpoint",
-            self.connection_endpoint,
-        );
+        insert_text(&mut details, "connection_transport", self.connection_transport);
+        insert_text(&mut details, "connection_endpoint", self.connection_endpoint);
         insert_text(&mut details, "status_source", self.status_source);
         insert_text(&mut details, "status_message", self.status_message);
         insert_text(&mut details, "device_timestamp", self.device_timestamp);
@@ -256,11 +232,7 @@ impl ProductConnectionDetails {
 
 impl ProductConnectionState {
     pub fn from_connected(connected: bool) -> Self {
-        if connected {
-            Self::Connected
-        } else {
-            Self::Disconnected
-        }
+        if connected { Self::Connected } else { Self::Disconnected }
     }
 }
 
@@ -281,29 +253,19 @@ impl ProductTargetLockDetails {
     pub fn record_type(&self) -> Identifier {
         match self.target_lock_state {
             ProductTargetLockState::Lost => BuiltinRecordType::TargetLost.identifier(),
-            ProductTargetLockState::Locked | ProductTargetLockState::Unknown => {
-                BuiltinRecordType::TargetAcquired.identifier()
-            }
+            ProductTargetLockState::Locked | ProductTargetLockState::Unknown => BuiltinRecordType::TargetAcquired.identifier(),
         }
     }
 
     pub fn into_draft(self, source: impl Into<String>) -> ProductRecordDraft {
-        ProductRecordDraft::new(
-            self.record_type(),
-            source,
-            Some("Product target lock state changed.".to_owned()),
-            self.into_details(),
-        )
+        ProductRecordDraft::new(self.record_type(), source, Some("Product target lock state changed.".to_owned()), self.into_details())
     }
 
     pub fn into_details(self) -> BTreeMap<String, Value> {
         let mut details = BTreeMap::from([
             ("resource_id".to_owned(), Value::from(self.resource_id)),
             ("resource_kind".to_owned(), Value::from(self.resource_kind)),
-            (
-                "target_lock_state".to_owned(),
-                Value::from(self.target_lock_state),
-            ),
+            ("target_lock_state".to_owned(), Value::from(self.target_lock_state)),
         ]);
         insert_enum(&mut details, "connection_state", self.connection_state);
         insert_enum(&mut details, "readiness_state", self.readiness_state);
@@ -326,9 +288,7 @@ impl ProductTargetLockState {
 
 impl ProductCalibrationDetails {
     pub fn new(
-        resource_id: impl Into<String>,
-        calibration_kind: ProductCalibrationKind,
-        calibration_phase: ProductCalibrationPhase,
+        resource_id: impl Into<String>, calibration_kind: ProductCalibrationKind, calibration_phase: ProductCalibrationPhase,
     ) -> Self {
         Self {
             resource_id: resource_id.into(),
@@ -348,34 +308,19 @@ impl ProductCalibrationDetails {
     }
 
     pub fn record_type(&self) -> Identifier {
-        identifier(format!(
-            "calibration.{}.{}",
-            self.calibration_kind.as_str(),
-            self.calibration_phase.as_str()
-        ))
+        identifier(format!("calibration.{}.{}", self.calibration_kind.as_str(), self.calibration_phase.as_str()))
     }
 
     pub fn into_draft(self, source: impl Into<String>) -> ProductRecordDraft {
-        ProductRecordDraft::new(
-            self.record_type(),
-            source,
-            Some("Product calibration state changed.".to_owned()),
-            self.into_details(),
-        )
+        ProductRecordDraft::new(self.record_type(), source, Some("Product calibration state changed.".to_owned()), self.into_details())
     }
 
     pub fn into_details(self) -> BTreeMap<String, Value> {
         let mut details = BTreeMap::from([
             ("resource_id".to_owned(), Value::from(self.resource_id)),
             ("resource_kind".to_owned(), Value::from(self.resource_kind)),
-            (
-                "calibration_kind".to_owned(),
-                Value::from(self.calibration_kind),
-            ),
-            (
-                "calibration_phase".to_owned(),
-                Value::from(self.calibration_phase),
-            ),
+            ("calibration_kind".to_owned(), Value::from(self.calibration_kind)),
+            ("calibration_phase".to_owned(), Value::from(self.calibration_phase)),
         ]);
         insert_text(&mut details, "calibration_state", self.calibration_state);
         insert_text(&mut details, "calibration_source", self.calibration_source);
@@ -387,49 +332,22 @@ impl ProductCalibrationDetails {
         insert_text(&mut details, "status_source", self.status_source);
         insert_text(&mut details, "status_message", self.status_message);
         insert_text(&mut details, "device_timestamp", self.device_timestamp);
-        insert_text(
-            &mut details,
-            "raw_calibration_kind",
-            self.raw_calibration_kind,
-        );
+        insert_text(&mut details, "raw_calibration_kind", self.raw_calibration_kind);
         details
     }
 }
 
 impl ProductRecordDraft {
-    pub fn new(
-        record_type: Identifier,
-        source: impl Into<String>,
-        message: Option<String>,
-        details: BTreeMap<String, Value>,
-    ) -> Self {
-        Self {
-            record_type,
-            source: source.into(),
-            severity: RecordSeverity::Info,
-            message,
-            details,
-            scope: None,
-        }
+    pub fn new(record_type: Identifier, source: impl Into<String>, message: Option<String>, details: BTreeMap<String, Value>) -> Self {
+        Self { record_type, source: source.into(), severity: RecordSeverity::Info, message, details, scope: None }
     }
 
     pub fn with_scope(mut self, scope: RecordScope) -> Self {
         self.scope = Some(scope);
         self
     }
-    pub fn into_record(
-        self,
-        record_id: crate::model::identity::RecordId,
-        timestamp: Timestamp,
-    ) -> Record {
-        let mut record = Record::new(
-            record_id,
-            timestamp,
-            self.record_type,
-            PRODUCT_RECORD_SCHEMA_VERSION,
-            self.source,
-            self.severity,
-        );
+    pub fn into_record(self, record_id: crate::model::identity::RecordId, timestamp: Timestamp) -> Record {
+        let mut record = Record::new(record_id, timestamp, self.record_type, PRODUCT_RECORD_SCHEMA_VERSION, self.source, self.severity);
         record.message = self.message;
         record.details = self.details;
         record.scope = self.scope;
@@ -449,9 +367,7 @@ fn normalize_state_value(value: &str) -> String {
 fn normalize_product_alias(value: &str) -> String {
     match value {
         "fieldcalibration" | "field_calibration" | "field_cal" => "field".to_owned(),
-        "tiltmeasure" | "tilt_measure" | "tilt_calibration" | "tiltcalibration" => {
-            "tilt".to_owned()
-        }
+        "tiltmeasure" | "tilt_measure" | "tilt_calibration" | "tiltcalibration" => "tilt".to_owned(),
         "done" | "complete" | "success" | "succeeded" => "completed".to_owned(),
         "start" | "begin" | "began" => "started".to_owned(),
         "active" | "running" | "in_progress" | "progress" => "activity".to_owned(),

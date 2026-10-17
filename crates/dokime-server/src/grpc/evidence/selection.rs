@@ -43,15 +43,11 @@ pub(super) struct Selection {
 
 /* === Implementations === */
 impl Selection {
-    pub(super) fn new(
-        value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>,
-    ) -> Result<Self, Status> {
+    pub(super) fn new(value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
             if items.len() > MAX_ALTERNATIVES {
-                return Err(Status::invalid_argument(
-                    "selection exceeds 64 alternatives",
-                ));
+                return Err(Status::invalid_argument("selection exceeds 64 alternatives"));
             }
             for item in items.iter() {
                 super::super::value::text(item)?;
@@ -60,23 +56,14 @@ impl Selection {
             items.dedup();
         }
         for kind in &value.record_types {
-            dokime_domain::model::identity::Identifier::new(kind)
-                .map_err(|_| Status::invalid_argument("invalid record type"))?;
+            dokime_domain::model::identity::Identifier::new(kind).map_err(|_| Status::invalid_argument("invalid record type"))?;
         }
         if value.severities.len() > MAX_SEVERITIES
             || value.severities.iter().any(|severity| {
-                !matches!(
-                    *severity,
-                    common::Severity::Debug
-                        | common::Severity::Info
-                        | common::Severity::Warn
-                        | common::Severity::Error
-                )
+                !matches!(*severity, common::Severity::Debug | common::Severity::Info | common::Severity::Warn | common::Severity::Error)
             })
         {
-            return Err(Status::invalid_argument(
-                "expected Debug, Info, Warn or Error severity",
-            ));
+            return Err(Status::invalid_argument("expected Debug, Info, Warn or Error severity"));
         }
         value.severities.sort_by_key(|severity| match severity {
             common::Severity::Debug => 2,
@@ -100,8 +87,7 @@ impl Selection {
             .into_iter()
             .flatten()
             {
-                let parsed = uuid::Uuid::parse_str(id)
-                    .map_err(|_| Status::invalid_argument("invalid scope UUID"))?;
+                let parsed = uuid::Uuid::parse_str(id).map_err(|_| Status::invalid_argument("invalid scope UUID"))?;
                 if parsed.is_nil() {
                     return Err(Status::invalid_argument("scope UUID must not be nil"));
                 }
@@ -113,26 +99,16 @@ impl Selection {
         }
         let stream = format!(
             "evidence.records:{}",
-            Sha256::digest(value.encode_to_vec())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>()
+            Sha256::digest(value.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         Ok(Self { value, stream })
     }
 
     pub(super) fn matches(&self, record: &RecordEntry) -> bool {
         let value = &self.value;
-        if !value.record_types.is_empty()
-            && !value
-                .record_types
-                .iter()
-                .any(|v| v == record.record_type.as_str())
+        if !value.record_types.is_empty() && !value.record_types.iter().any(|v| v == record.record_type.as_str())
             || !value.sources.is_empty() && !value.sources.contains(&record.source)
-            || !value.severities.is_empty()
-                && !value
-                    .severities
-                    .contains(&super::canonical::severity(record.severity))
+            || !value.severities.is_empty() && !value.severities.contains(&super::canonical::severity(record.severity))
         {
             return false;
         }

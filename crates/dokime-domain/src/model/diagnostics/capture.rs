@@ -77,36 +77,15 @@ struct Redaction {
 impl harmos::MemorySize for Diagnostic {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.chain),
-                std::mem::size_of_val(&self.chain),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.location),
-                std::mem::size_of_val(&self.location),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.span_trace),
-                std::mem::size_of_val(&self.span_trace),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.backtrace),
-                std::mem::size_of_val(&self.backtrace),
-            ),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.chain), std::mem::size_of_val(&self.chain)),
+            (harmos::MemorySize::memory_size(&self.location), std::mem::size_of_val(&self.location)),
+            (harmos::MemorySize::memory_size(&self.span_trace), std::mem::size_of_val(&self.span_trace)),
+            (harmos::MemorySize::memory_size(&self.backtrace), std::mem::size_of_val(&self.backtrace)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
@@ -132,13 +111,7 @@ impl Diagnostic {
             source = cause.source();
         }
 
-        Self {
-            message: error.to_string(),
-            chain,
-            location: located(location),
-            span_trace: spans(),
-            backtrace: backtrace(),
-        }
+        Self { message: error.to_string(), chain, location: located(location), span_trace: spans(), backtrace: backtrace() }
     }
 
     #[cfg(feature = "diagnostics")]
@@ -155,8 +128,7 @@ impl Diagnostic {
 
     #[must_use]
     pub fn context(mut self, message: impl Into<String>) -> Self {
-        self.chain
-            .insert(0, std::mem::replace(&mut self.message, message.into()));
+        self.chain.insert(0, std::mem::replace(&mut self.message, message.into()));
         self
     }
 
@@ -181,17 +153,9 @@ impl Diagnostic {
     fn redact(&self, redaction: &Redaction) -> Self {
         Self {
             message: redaction.apply(&self.message),
-            chain: self
-                .chain
-                .iter()
-                .map(|cause| redaction.apply(cause))
-                .collect(),
+            chain: self.chain.iter().map(|cause| redaction.apply(cause)).collect(),
             location: redaction.apply(&self.location),
-            span_trace: self
-                .span_trace
-                .iter()
-                .map(|span| redaction.apply(span))
-                .collect(),
+            span_trace: self.span_trace.iter().map(|span| redaction.apply(span)).collect(),
             backtrace: redaction.apply(&self.backtrace),
         }
     }
@@ -200,27 +164,14 @@ impl Diagnostic {
 #[cfg(feature = "diagnostics")]
 impl Redaction {
     fn environment() -> Self {
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .ok()
-            .filter(|home| !home.is_empty());
+        let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).ok().filter(|home| !home.is_empty());
         let user = std::env::var("USER")
             .or_else(|_| std::env::var("USERNAME"))
             .ok()
             .filter(|user| !user.is_empty())
-            .or_else(|| {
-                home.as_deref()
-                    .and_then(|home| home.rsplit(['/', '\\']).next())
-                    .map(str::to_owned)
-            });
+            .or_else(|| home.as_deref().and_then(|home| home.rsplit(['/', '\\']).next()).map(str::to_owned));
 
-        Self {
-            root: std::env::current_dir()
-                .ok()
-                .map(|root| root.display().to_string()),
-            home,
-            user,
-        }
+        Self { root: std::env::current_dir().ok().map(|root| root.display().to_string()), home, user }
     }
 
     fn apply(&self, text: &str) -> String {
@@ -293,11 +244,8 @@ fn located(location: &Location<'_>) -> String {
 #[cfg(feature = "diagnostics")]
 fn backtrace() -> String {
     let captured = Backtrace::force_capture().to_string();
-    let frames = frames(&captured)
-        .skip_while(|frame| {
-            frame.contains(CAPTURE) || frame.contains("dokime_runtime::diagnostics")
-        })
-        .collect::<Vec<_>>();
+    let frames =
+        frames(&captured).skip_while(|frame| frame.contains(CAPTURE) || frame.contains("dokime_runtime::diagnostics")).collect::<Vec<_>>();
     if frames.is_empty() {
         return captured;
     }
@@ -315,10 +263,7 @@ fn collapsed(frames: &[&str]) -> Vec<String> {
     let mut index = 0;
     let mut position = 0;
     while position < frames.len() {
-        let run = frames[position..]
-            .iter()
-            .take_while(|frame| !has_symbol(frame))
-            .count();
+        let run = frames[position..].iter().take_while(|frame| !has_symbol(frame)).count();
         if run >= 2 {
             rendered.push(format!("… {run} frames without symbols"));
             position += run;
@@ -365,8 +310,7 @@ fn frames(backtrace: &str) -> impl Iterator<Item = &str> {
         .collect::<Vec<_>>();
     starts.push(backtrace.len());
 
-    (0..starts.len().saturating_sub(1))
-        .map(move |frame| backtrace[starts[frame]..starts[frame + 1]].trim_end_matches('\n'))
+    (0..starts.len().saturating_sub(1)).map(move |frame| backtrace[starts[frame]..starts[frame + 1]].trim_end_matches('\n'))
 }
 
 #[cfg(feature = "diagnostics")]
@@ -412,11 +356,7 @@ fn spans() -> Vec<String> {
     let mut spans = Vec::new();
     SpanTrace::capture().with_spans(|metadata, fields| {
         let fields = plain(fields);
-        spans.push(if fields.is_empty() {
-            metadata.name().to_owned()
-        } else {
-            format!("{}  {fields}", metadata.name())
-        });
+        spans.push(if fields.is_empty() { metadata.name().to_owned() } else { format!("{}  {fields}", metadata.name()) });
 
         true
     });

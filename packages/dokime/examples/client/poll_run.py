@@ -79,9 +79,7 @@ async def main() -> None:
     client = DokimeClient(ENDPOINT, token=token, ca_certificate=CA_CERTIFICATE)
 
     try:
-        cycle = await client.new_cycle(
-            suite=SUITE, template=TEMPLATE, parameters=PARAMETERS
-        )
+        cycle = await client.new_cycle(suite=SUITE, template=TEMPLATE, parameters=PARAMETERS)
         (handle,) = cycle.executions
         await handle.start(request_key="poll-example")
         summary = await poll(handle, POLL_INTERVAL)
@@ -94,9 +92,7 @@ async def main() -> None:
 
 
 # Keep one iterator alive to retain cursors.
-async def count_samples(
-    handle: TestExecutionHandle, counts: Counter[str], interval: float
-) -> None:
+async def count_samples(handle: TestExecutionHandle, counts: Counter[str], interval: float) -> None:
     async for sample in handle.samples(follow=True, poll_interval=interval):
         counts[sample.stream] += 1
 

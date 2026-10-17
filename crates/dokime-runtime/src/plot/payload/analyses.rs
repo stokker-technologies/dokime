@@ -21,9 +21,7 @@ use harmos::signal::{Series, Summary};
 use serde::Serialize;
 
 // Local Imports
-use super::{
-    PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp,
-};
+use super::{PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp};
 use crate::document::PlotType;
 #[cfg(feature = "fft")]
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
@@ -154,18 +152,9 @@ pub enum PlotAnalysis {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn analyze(
-    series: &mut [PlotSeries],
-    request: &PlotPayloadRequest,
-) -> Option<PlotAnalysis> {
-    if request
-        .z_expression
-        .as_ref()
-        .is_some_and(|expression| !expression.transforms.is_empty())
-    {
-        return Some(PlotAnalysis::Error {
-            message: "Z expressions must select a scalar field without transforms".into(),
-        });
+pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
+    if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
+        return Some(PlotAnalysis::Error { message: "Z expressions must select a scalar field without transforms".into() });
     }
     match request.plot_type.as_ref()? {
         PlotType::FrequencySeries => {
@@ -178,40 +167,21 @@ pub(super) fn analyze(
         }
         PlotType::Histogram => {
             if request.y_keys.is_empty() && request.y_expressions.is_empty() {
-                return Some(PlotAnalysis::Error {
-                    message: "histogram plots bin one x field or x expression; none was declared"
-                        .into(),
-                });
+                return Some(PlotAnalysis::Error { message: "histogram plots bin one x field or x expression; none was declared".into() });
             }
             if let Some(unit) = &request.histogram.unit {
                 for entry in series.iter_mut() {
                     entry.unit = Some(unit.clone());
                 }
             }
-            Some(PlotAnalysis::Histogram {
-                series: series
-                    .iter()
-                    .map(|entry| histogram(entry, request.histogram.bins))
-                    .collect(),
-            })
+            Some(PlotAnalysis::Histogram { series: series.iter().map(|entry| histogram(entry, request.histogram.bins)).collect() })
         }
         PlotType::BoxSummary => {
-            let boxes: Vec<BoxSummary> = series
-                .iter()
-                .flat_map(|entry| grouped_boxes(entry, request))
-                .collect();
+            let boxes: Vec<BoxSummary> = series.iter().flat_map(|entry| grouped_boxes(entry, request)).collect();
             let total = boxes.iter().map(|summary| summary.count).sum();
-            Some(PlotAnalysis::BoxSummary {
-                series: boxes,
-                total,
-            })
+            Some(PlotAnalysis::BoxSummary { series: boxes, total })
         }
-        PlotType::XyInterval => Some(PlotAnalysis::SigmaInterval {
-            series: series
-                .iter()
-                .map(|entry| interval(entry, request))
-                .collect(),
-        }),
+        PlotType::XyInterval => Some(PlotAnalysis::SigmaInterval { series: series.iter().map(|entry| interval(entry, request)).collect() }),
         PlotType::WifiChannelOccupancy => Some(wifi_occupancy(series)),
         _ => None,
     }
@@ -220,25 +190,13 @@ pub(super) fn analyze(
 /// One summary per series of a time series or scatter plot, over the rows
 /// inside the requested summary window, or every row when none is requested.
 /// Other plot types carry none.
-pub(super) fn summarize(
-    series: &[PlotSeries],
-    request: &PlotPayloadRequest,
-) -> Vec<PlotSeriesSummary> {
+pub(super) fn summarize(series: &[PlotSeries], request: &PlotPayloadRequest) -> Vec<PlotSeriesSummary> {
     if !summarizes(request) {
         return Vec::new();
     }
-    let inside = |x: f64| {
-        request
-            .summary_window
-            .is_none_or(|window| window.from <= x && x <= window.to)
-    };
+    let inside = |x: f64| request.summary_window.is_none_or(|window| window.from <= x && x <= window.to);
     let shown = |entry: &PlotSeries| {
-        entry
-            .points
-            .iter()
-            .filter_map(|point| Some((point_x(point)?, point.y?)))
-            .filter(|(x, _)| inside(*x))
-            .collect::<Vec<_>>()
+        entry.points.iter().filter_map(|point| Some((point_x(point)?, point.y?))).filter(|(x, _)| inside(*x)).collect::<Vec<_>>()
     };
     let rows = series.iter().map(shown).collect::<Vec<_>>();
     let window = request.summary_window.or_else(|| {
@@ -270,43 +228,24 @@ pub(super) fn summarize(
 }
 
 pub(super) fn summarizes(request: &PlotPayloadRequest) -> bool {
-    request.analysis.is_none()
-        && matches!(
-            request.plot_type,
-            Some(PlotType::TimeSeries | PlotType::XyScatter)
-        )
+    request.analysis.is_none() && matches!(request.plot_type, Some(PlotType::TimeSeries | PlotType::XyScatter))
 }
 
 pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoint>, bool) {
     if max_points == 0 || points.len() <= max_points {
         return (points, false);
     }
-    let magnitudes = points
-        .iter()
-        .map(|point| {
-            point
-                .y
-                .filter(|value| value.is_finite())
-                .unwrap_or(f64::NEG_INFINITY)
-        })
-        .collect::<Vec<_>>();
+    let magnitudes = points.iter().map(|point| point.y.filter(|value| value.is_finite()).unwrap_or(f64::NEG_INFINITY)).collect::<Vec<_>>();
     let mut selected = harmos::signal::extrema(&magnitudes, (max_points / 2).max(1));
     selected.sort_unstable();
     selected.dedup();
-    let reduced = selected
-        .into_iter()
-        .filter_map(|index| points.get(index).cloned())
-        .collect();
+    let reduced = selected.into_iter().filter_map(|index| points.get(index).cloned()).collect();
     (reduced, true)
 }
 
 /* === Private Functions === */
 fn values(entry: &PlotSeries) -> Vec<f64> {
-    entry
-        .points
-        .iter()
-        .filter_map(|point| point.y.filter(|value| value.is_finite()))
-        .collect()
+    entry.points.iter().filter_map(|point| point.y.filter(|value| value.is_finite())).collect()
 }
 
 fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
@@ -314,27 +253,14 @@ fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
     let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
     let max = values.iter().copied().reduce(f64::max).unwrap_or(0.0);
     let bins = bins.max(1);
-    let width = if min == max {
-        1.0
-    } else {
-        (max - min) / bins as f64
-    };
+    let width = if min == max { 1.0 } else { (max - min) / bins as f64 };
     let mut result = (0..bins)
-        .map(|i| HistogramBin {
-            lower: min + i as f64 * width,
-            upper: min + (i + 1) as f64 * width,
-            count: 0,
-        })
+        .map(|i| HistogramBin { lower: min + i as f64 * width, upper: min + (i + 1) as f64 * width, count: 0 })
         .collect::<Vec<_>>();
     for value in &values {
         result[(((value - min) / width).floor() as usize).min(bins - 1)].count += 1;
     }
-    HistogramSeries {
-        key: entry.key.clone(),
-        bins: result,
-        count: values.len(),
-        statistics: histogram_statistics(values),
-    }
+    HistogramSeries { key: entry.key.clone(), bins: result, count: values.len(), statistics: histogram_statistics(values) }
 }
 
 fn histogram_statistics(values: Vec<f64>) -> Option<HistogramStatistics> {
@@ -350,21 +276,12 @@ fn histogram_statistics(values: Vec<f64>) -> Option<HistogramStatistics> {
 }
 
 fn grouped_boxes(entry: &PlotSeries, request: &PlotPayloadRequest) -> Vec<BoxSummary> {
-    if request.x_expression.is_none()
-        && request
-            .x_key
-            .as_deref()
-            .is_none_or(|key| key == "timestamp")
-    {
+    if request.x_expression.is_none() && request.x_key.as_deref().is_none_or(|key| key == "timestamp") {
         return box_summary(entry).into_iter().collect();
     }
     let mut groups = BTreeMap::<String, Vec<PlotPoint>>::new();
     for point in &entry.points {
-        let label = point
-            .x
-            .as_str()
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| point.x.to_string());
+        let label = point.x.as_str().map(ToOwned::to_owned).unwrap_or_else(|| point.x.to_string());
         groups.entry(label).or_default().push(point.clone());
     }
     groups
@@ -389,15 +306,8 @@ fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
     let q3 = series.percentile(75.0)?;
     let values = series.values();
     let iqr = q3 - q1;
-    let lower = values
-        .iter()
-        .copied()
-        .find(|value| *value >= q1 - 1.5 * iqr)?;
-    let upper = values
-        .iter()
-        .rev()
-        .copied()
-        .find(|value| *value <= q3 + 1.5 * iqr)?;
+    let lower = values.iter().copied().find(|value| *value >= q1 - 1.5 * iqr)?;
+    let upper = values.iter().rev().copied().find(|value| *value <= q3 + 1.5 * iqr)?;
     Some(BoxSummary {
         key: entry.key.clone(),
         label: entry.label.clone(),
@@ -409,11 +319,7 @@ fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
         median,
         lower_whisker: lower,
         upper_whisker: upper,
-        outliers: values
-            .iter()
-            .copied()
-            .filter(|value| *value < lower || *value > upper)
-            .collect(),
+        outliers: values.iter().copied().filter(|value| *value < lower || *value > upper).collect(),
     })
 }
 
@@ -422,11 +328,10 @@ pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
         .x
         .as_f64()
         .or_else(|| {
-            point.x.as_str().and_then(|text| {
-                parse_timestamp(text)
-                    .map(|value| value.unix_timestamp_nanos() as f64 / 1e9)
-                    .or_else(|| text.parse().ok())
-            })
+            point
+                .x
+                .as_str()
+                .and_then(|text| parse_timestamp(text).map(|value| value.unix_timestamp_nanos() as f64 / 1e9).or_else(|| text.parse().ok()))
         })
         .filter(|value| value.is_finite())
 }
@@ -434,18 +339,10 @@ pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
 fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
     let options = &request.interval;
     let mut groups = BTreeMap::<i64, Vec<f64>>::new();
-    if options.bin_width.is_finite()
-        && options.bin_width > 0.0
-        && options.sigma.is_finite()
-        && options.sigma > 0.0
-    {
+    if options.bin_width.is_finite() && options.bin_width > 0.0 && options.sigma.is_finite() && options.sigma > 0.0 {
         for point in &entry.points {
-            if let (Some(x), Some(y)) = (point_x(point), point.y.filter(|value| value.is_finite()))
-            {
-                groups
-                    .entry((x / options.bin_width).floor() as i64)
-                    .or_default()
-                    .push(y);
+            if let (Some(x), Some(y)) = (point_x(point), point.y.filter(|value| value.is_finite())) {
+                groups.entry((x / options.bin_width).floor() as i64).or_default().push(y);
             }
         }
     }
@@ -462,20 +359,10 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
                 lower = lower.max(summary.min().unwrap_or(mean));
                 upper = upper.min(summary.max().unwrap_or(mean));
             }
-            SigmaBin {
-                x: (index as f64 + 0.5) * options.bin_width,
-                count,
-                mean,
-                lower,
-                upper,
-            }
+            SigmaBin { x: (index as f64 + 0.5) * options.bin_width, count, mean, lower, upper }
         })
         .collect();
-    SigmaSeries {
-        key: entry.key.clone(),
-        raw_points: bins.iter().map(|bin| bin.count).sum(),
-        bins,
-    }
+    SigmaSeries { key: entry.key.clone(), raw_points: bins.iter().map(|bin| bin.count).sum(), bins }
 }
 
 fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
@@ -491,17 +378,9 @@ fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
             let Some(second) = point_x(point).map(|x| x.floor() as i64) else {
                 continue;
             };
-            let count = point
-                .y
-                .filter(|value| value.is_finite())
-                .map_or(0, |value| value.round().max(0.0) as usize);
-            let time = point
-                .x
-                .as_str()
-                .map_or_else(|| point.x.to_string(), ToOwned::to_owned);
-            let (_, counts) = scans
-                .entry(second)
-                .or_insert_with(|| (time, BTreeMap::new()));
+            let count = point.y.filter(|value| value.is_finite()).map_or(0, |value| value.round().max(0.0) as usize);
+            let time = point.x.as_str().map_or_else(|| point.x.to_string(), ToOwned::to_owned);
+            let (_, counts) = scans.entry(second).or_insert_with(|| (time, BTreeMap::new()));
             let slot = counts.entry(channel).or_default();
             *slot = (*slot).max(count);
         }
@@ -519,14 +398,8 @@ fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
     let bands = WIFI_BANDS
         .iter()
         .filter_map(|band| {
-            let occupied_channels = occupied
-                .iter()
-                .filter(|channel| wifi_band(**channel) == Some(*band))
-                .count();
-            (occupied_channels > 0).then(|| WifiBandWindow {
-                band: (*band).to_owned(),
-                occupied_channels,
-            })
+            let occupied_channels = occupied.iter().filter(|channel| wifi_band(**channel) == Some(*band)).count();
+            (occupied_channels > 0).then(|| WifiBandWindow { band: (*band).to_owned(), occupied_channels })
         })
         .collect();
     let scans = scans
@@ -546,54 +419,29 @@ fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
                         if in_band.is_empty() {
                             return None;
                         }
-                        let (occupied_channels, total_networks, peak_count) =
-                            occupancy(in_band.into_iter());
-                        Some(WifiBandScan {
-                            band: (*band).to_owned(),
-                            occupied_channels,
-                            total_networks,
-                            peak_count,
-                        })
+                        let (occupied_channels, total_networks, peak_count) = occupancy(in_band.into_iter());
+                        Some(WifiBandScan { band: (*band).to_owned(), occupied_channels, total_networks, peak_count })
                     })
                     .collect(),
-                channels: counts
-                    .into_iter()
-                    .map(|(channel, count)| WifiChannelCount { channel, count })
-                    .collect(),
+                channels: counts.into_iter().map(|(channel, count)| WifiChannelCount { channel, count }).collect(),
                 occupied_channels,
                 total_networks,
                 peak_count,
             }
         })
         .collect();
-    PlotAnalysis::WifiOccupancy {
-        channels,
-        occupied_channels: occupied,
-        bands,
-        scans,
-    }
+    PlotAnalysis::WifiOccupancy { channels, occupied_channels: occupied, bands, scans }
 }
 
 /// Occupied channels, total networks and the busiest channel's count.
 fn occupancy<'a>(counts: impl Iterator<Item = &'a usize>) -> (usize, usize, usize) {
-    counts.fold((0, 0, 0), |(occupied, total, peak), count| {
-        (
-            occupied + usize::from(*count > 0),
-            total + count,
-            peak.max(*count),
-        )
-    })
+    counts.fold((0, 0, 0), |(occupied, total, peak), count| (occupied + usize::from(*count > 0), total + count, peak.max(*count)))
 }
 
 /// A series names its channel by its label, or by the last `:` part of its key.
 fn series_channel(entry: &PlotSeries) -> Option<i64> {
-    let channel = |text: &str| {
-        text.trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|value| value.is_finite() && value.fract() == 0.0)
-            .map(|value| value as i64)
-    };
+    let channel =
+        |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
     channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
 }
 
@@ -610,10 +458,7 @@ fn wifi_band(channel: i64) -> Option<&'static str> {
 #[cfg(feature = "fft")]
 pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Result<(), String> {
     let options = &request.fft;
-    let scale = if matches!(
-        options.level_unit,
-        FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm
-    ) {
+    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
         match entry.unit.as_deref() {
             Some("V" | "volt" | "volts") => 1.0,
             Some("mV") => 0.001,
@@ -625,10 +470,7 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
     } else {
         1.0
     };
-    let samples = values(entry)
-        .into_iter()
-        .map(|value| value * scale)
-        .collect::<Vec<_>>();
+    let samples = values(entry).into_iter().map(|value| value * scale).collect::<Vec<_>>();
     let n = samples.len();
     let rate = options.sample_rate_hz.or_else(|| {
         let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
@@ -648,35 +490,23 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
         }
         let step = (times[n - 1] - times[0]) / (n - 1) as f64;
         // A Fourier spectrum needs uniform sampling. Missing/irregular rows must not silently compress time.
-        if step <= 0.0
-            || times
-                .windows(2)
-                .any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9)
-        {
+        if step <= 0.0 || times.windows(2).any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9) {
             return None;
         }
         Some(1.0 / step)
     });
-    let Some(rate) =
-        rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len())
-    else {
+    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len()) else {
         entry.points.clear();
         return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps".into());
     };
     let size = n.next_power_of_two();
-    let mean = if matches!(options.detrend, FftDetrend::Mean) {
-        samples.iter().sum::<f64>() / n as f64
-    } else {
-        0.0
-    };
+    let mean = if matches!(options.detrend, FftDetrend::Mean) { samples.iter().sum::<f64>() / n as f64 } else { 0.0 };
     let mut windowed = vec![0.0; size];
     let mut gain = 0.0;
     for (index, sample) in samples.into_iter().enumerate() {
         let weight = match options.window {
             FftWindow::Rectangular => 1.0,
-            FftWindow::Hann => {
-                0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos())
-            }
+            FftWindow::Hann => 0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos()),
         };
         gain += weight;
         windowed[index] = (sample - mean) * weight;
@@ -698,11 +528,7 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
                 return None;
             }
             let amplitude = real.hypot(imaginary) * size as f64 / gain;
-            let rms = if index == 0 || index == size / 2 {
-                amplitude
-            } else {
-                amplitude / std::f64::consts::SQRT_2
-            };
+            let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
             let level = match options.level_unit {
                 FrequencyLevelUnit::Linear => amplitude,
                 FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
@@ -710,11 +536,7 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
                 // Voltage amplitude into the conventional 50-ohm reference load.
                 FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
             };
-            Some(PlotPoint {
-                x: frequency.into(),
-                y: Some(level),
-                z: None,
-            })
+            Some(PlotPoint { x: frequency.into(), y: Some(level), z: None })
         })
         .collect();
     entry.unit = match options.level_unit {

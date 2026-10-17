@@ -41,10 +41,7 @@ pub struct Renderer;
 /* === Implementations === */
 impl Renderer {
     pub fn execution(
-        &self,
-        captured: Arc<CapturedExecutionReportInput>,
-        outputs: Vec<ExecutionOutput>,
-        saved: &harmos::storage::StorageCursor,
+        &self, captured: Arc<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>, saved: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<PreparedExecutionReport> {
         let source = Arc::new(captured.source(&outputs));
         let html = HtmlReport::from_capture(captured, source)?;

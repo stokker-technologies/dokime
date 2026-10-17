@@ -44,17 +44,8 @@ const PAGE_ITEMS: u32 = 50;
 pub fn benchmark(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let server = Server::start(None);
-    let client = runtime
-        .block_on(Client::connect(
-            Target::local(server.endpoint()).unwrap(),
-            None,
-            None,
-        ))
-        .unwrap();
-    let request = GetRuntimeShell {
-        limit: PAGE_ITEMS,
-        ..Default::default()
-    };
+    let client = runtime.block_on(Client::connect(Target::local(server.endpoint()).unwrap(), None, None)).unwrap();
+    let request = GetRuntimeShell { limit: PAGE_ITEMS, ..Default::default() };
 
     let mut group = criterion.benchmark_group("grpc_serves_shell");
     for concurrency in [1_usize, 64] {
@@ -63,10 +54,7 @@ pub fn benchmark(criterion: &mut Criterion) {
             bencher.iter(|| {
                 black_box(
                     runtime
-                        .block_on(try_join_all(
-                            (0..concurrency)
-                                .map(|_| client.observation_get_runtime_shell(request.clone())),
-                        ))
+                        .block_on(try_join_all((0..concurrency).map(|_| client.observation_get_runtime_shell(request.clone()))))
                         .unwrap(),
                 )
             });

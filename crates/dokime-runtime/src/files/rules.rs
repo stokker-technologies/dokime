@@ -60,11 +60,7 @@ pub enum InvalidRule {
 /* === Implementations === */
 impl FileMatcher {
     pub fn compile(rules: &[FileRule]) -> Result<Self, InvalidRule> {
-        if rules.len() > MAX_RULES
-            || !rules
-                .iter()
-                .any(|rule| rule.action == FileRuleAction::Include)
-        {
+        if rules.len() > MAX_RULES || !rules.iter().any(|rule| rule.action == FileRuleAction::Include) {
             return Err(InvalidRule::Count);
         }
         let mut compiled = Vec::with_capacity(rules.len());
@@ -74,21 +70,14 @@ impl FileMatcher {
                 FileRuleAction::Exclude => false,
                 FileRuleAction::Unspecified => return Err(InvalidRule::Action { index }),
             };
-            if rule.glob.is_empty()
-                || rule.glob.len() > MAX_GLOB_BYTES
-                || rule.glob.starts_with('/')
-                || rule.glob.contains('\\')
-            {
+            if rule.glob.is_empty() || rule.glob.len() > MAX_GLOB_BYTES || rule.glob.starts_with('/') || rule.glob.contains('\\') {
                 return Err(InvalidRule::Shape { index });
             }
             let glob = GlobBuilder::new(&rule.glob)
                 .literal_separator(true)
                 .backslash_escape(false)
                 .build()
-                .map_err(|source| InvalidRule::Glob {
-                    index,
-                    reason: source.kind().to_string(),
-                })?;
+                .map_err(|source| InvalidRule::Glob { index, reason: source.kind().to_string() })?;
             compiled.push((glob.compile_matcher(), include));
         }
         Ok(Self { rules: compiled })
@@ -96,11 +85,7 @@ impl FileMatcher {
 
     // Whether a forward-slash path relative to the source root is tracked.
     pub fn matches(&self, relative: &str) -> bool {
-        self.rules
-            .iter()
-            .rev()
-            .find(|(glob, _)| glob.is_match(relative))
-            .is_some_and(|(_, include)| *include)
+        self.rules.iter().rev().find(|(glob, _)| glob.is_match(relative)).is_some_and(|(_, include)| *include)
     }
 }
 

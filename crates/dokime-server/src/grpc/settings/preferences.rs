@@ -61,24 +61,13 @@ impl Operation for ReadStoragePolicy {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut wire::ReadStoragePolicy,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut wire::ReadStoragePolicy, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
-        let view = self
-            .resources
-            .runtime
-            .storage_policy()
-            .await
-            .map_err(super::super::execution::status)?;
+        let view = self.resources.runtime.storage_policy().await.map_err(super::super::execution::status)?;
         self.resources.policy(view)
     }
 }
@@ -88,22 +77,13 @@ impl Operation for UpdateStoragePolicy {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdateStoragePolicy,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdateStoragePolicy, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
-        let policy = request
-            .policy
-            .as_ref()
-            .ok_or_else(|| Status::invalid_argument("policy is required"))?;
+        let policy = request.policy.as_ref().ok_or_else(|| Status::invalid_argument("policy is required"))?;
         let view = self
             .resources
             .runtime
@@ -125,20 +105,13 @@ impl Operation for ReadApplicationSettings {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut wire::ReadApplicationSettings,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, _: &mut wire::ReadApplicationSettings, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
-        self.resources
-            .application(self.resources.runtime.application_settings())
+        self.resources.application(self.resources.runtime.application_settings())
     }
 }
 impl Operation for UpdateAppearance {
@@ -147,48 +120,33 @@ impl Operation for UpdateAppearance {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdateAppearance,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdateAppearance, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
-        let appearance = request
-            .appearance
-            .as_ref()
-            .ok_or_else(|| Status::invalid_argument("appearance is required"))?;
+        let appearance = request.appearance.as_ref().ok_or_else(|| Status::invalid_argument("appearance is required"))?;
         if let Some(family) = &appearance.theme_family {
             super::super::value::text(family)?;
         }
-        let appearance = dokime_runtime::config::Appearance {
-            theme_mode: match appearance.theme_mode {
-                dokime_domain::model::settings::wire::ThemeMode::Unspecified
-                | dokime_domain::model::settings::wire::ThemeMode::System => ThemeMode::System,
-                dokime_domain::model::settings::wire::ThemeMode::Light => ThemeMode::Light,
-                dokime_domain::model::settings::wire::ThemeMode::Dark => ThemeMode::Dark,
-            },
-            density: match appearance.density {
-                dokime_domain::model::settings::wire::Density::Unspecified
-                | dokime_domain::model::settings::wire::Density::Comfortable => {
-                    Density::Comfortable
-                }
-                dokime_domain::model::settings::wire::Density::Compact => Density::Compact,
-                dokime_domain::model::settings::wire::Density::Touch => Density::Touch,
-            },
-            theme_family: appearance.theme_family.clone(),
-        };
-        let view = self
-            .resources
-            .runtime
-            .update_appearance(appearance)
-            .await
-            .map_err(super::super::execution::status)?;
+        let appearance =
+            dokime_runtime::config::Appearance {
+                theme_mode: match appearance.theme_mode {
+                    dokime_domain::model::settings::wire::ThemeMode::Unspecified
+                    | dokime_domain::model::settings::wire::ThemeMode::System => ThemeMode::System,
+                    dokime_domain::model::settings::wire::ThemeMode::Light => ThemeMode::Light,
+                    dokime_domain::model::settings::wire::ThemeMode::Dark => ThemeMode::Dark,
+                },
+                density: match appearance.density {
+                    dokime_domain::model::settings::wire::Density::Unspecified
+                    | dokime_domain::model::settings::wire::Density::Comfortable => Density::Comfortable,
+                    dokime_domain::model::settings::wire::Density::Compact => Density::Compact,
+                    dokime_domain::model::settings::wire::Density::Touch => Density::Touch,
+                },
+                theme_family: appearance.theme_family.clone(),
+            };
+        let view = self.resources.runtime.update_appearance(appearance).await.map_err(super::super::execution::status)?;
         self.resources.application(view)
     }
 }
@@ -198,28 +156,17 @@ impl Operation for UpdateDataRoot {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdateDataRoot,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdateDataRoot, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
         if let Some(path) = &request.data_root {
             super::super::value::text(path)?;
         }
         let root = request.data_root.as_ref().map(std::path::PathBuf::from);
-        let view = self
-            .resources
-            .runtime
-            .update_data_root(root)
-            .await
-            .map_err(super::super::execution::status)?;
+        let view = self.resources.runtime.update_data_root(root).await.map_err(super::super::execution::status)?;
         self.resources.application(view)
     }
 }
@@ -229,22 +176,13 @@ impl Operation for UpdateReportDefaults {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::UpdateReportDefaults,
-        _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::UpdateReportDefaults, _: &mut (),
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
-        let report = request
-            .report
-            .as_ref()
-            .ok_or_else(|| Status::invalid_argument("report defaults are required"))?;
+        let report = request.report.as_ref().ok_or_else(|| Status::invalid_argument("report defaults are required"))?;
         let view = self
             .resources
             .runtime
@@ -259,33 +197,26 @@ impl Operation for UpdateReportDefaults {
 }
 impl Resources {
     pub(super) fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
-        &self,
-        build: impl FnOnce() -> T,
+        &self, build: impl FnOnce() -> T,
     ) -> Result<Response<T>, Status> {
         self.produce_result(|| Ok(build()))
     }
     pub(super) fn produce_result<T: MemorySize + Protobuf + Send + Sync + 'static>(
-        &self,
-        build: impl FnOnce() -> Result<T, Status>,
+        &self, build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
         let output = build()?;
         if output.encoded_len() > self.maximum {
-            return Err(Status::resource_exhausted(
-                "settings response exceeds configured message budget",
-            ));
+            return Err(Status::resource_exhausted("settings response exceeds configured message budget"));
         }
         Ok(output.into())
     }
     fn policy(
-        &self,
-        view: dokime_runtime::config::StoragePolicyView,
+        &self, view: dokime_runtime::config::StoragePolicyView,
     ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
         self.produce(|| {
-            let encode = |p: dokime_runtime::config::StoragePolicy| {
-                dokime_domain::model::settings::wire::StoragePolicy {
-                    compaction_interval_ms: p.compaction_interval_ms,
-                    local_retention_ms: p.local_retention_ms,
-                }
+            let encode = |p: dokime_runtime::config::StoragePolicy| dokime_domain::model::settings::wire::StoragePolicy {
+                compaction_interval_ms: p.compaction_interval_ms,
+                local_retention_ms: p.local_retention_ms,
             };
             dokime_domain::model::settings::wire::StoragePolicyView {
                 revision: view.revision,
@@ -296,17 +227,10 @@ impl Resources {
         })
     }
     fn application(
-        &self,
-        view: dokime_runtime::config::ApplicationSettingsView,
+        &self, view: dokime_runtime::config::ApplicationSettingsView,
     ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
-        let mut required =
-            std::mem::size_of::<dokime_domain::model::settings::wire::ApplicationSettings>()
-                .saturating_add(
-                    view.appearance
-                        .theme_family
-                        .as_ref()
-                        .map_or(0, String::capacity),
-                );
+        let mut required = std::mem::size_of::<dokime_domain::model::settings::wire::ApplicationSettings>()
+            .saturating_add(view.appearance.theme_family.as_ref().map_or(0, String::capacity));
         for path in [
             Some(&view.application_root),
             view.configured_data_root.as_ref(),
@@ -327,16 +251,12 @@ impl Resources {
             dokime_domain::model::settings::wire::ApplicationSettings {
                 appearance: Some(dokime_domain::model::settings::wire::AppearancePreference {
                     theme_mode: match view.appearance.theme_mode {
-                        ThemeMode::System => {
-                            dokime_domain::model::settings::wire::ThemeMode::System
-                        }
+                        ThemeMode::System => dokime_domain::model::settings::wire::ThemeMode::System,
                         ThemeMode::Light => dokime_domain::model::settings::wire::ThemeMode::Light,
                         ThemeMode::Dark => dokime_domain::model::settings::wire::ThemeMode::Dark,
                     },
                     density: match view.appearance.density {
-                        Density::Comfortable => {
-                            dokime_domain::model::settings::wire::Density::Comfortable
-                        }
+                        Density::Comfortable => dokime_domain::model::settings::wire::Density::Comfortable,
                         Density::Compact => dokime_domain::model::settings::wire::Density::Compact,
                         Density::Touch => dokime_domain::model::settings::wire::Density::Touch,
                     },
@@ -357,52 +277,17 @@ impl Resources {
 }
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let resources = Arc::new(Resources {
-        runtime: runtime.clone(),
-        maximum,
-    });
-    runtime
-        .operations()
-        .register_wire_operation::<ReadStoragePolicy>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdateStoragePolicy>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<ReadApplicationSettings>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdateAppearance>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdateDataRoot>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
-    runtime
-        .operations()
-        .register_wire_operation::<UpdateReportDefaults>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            resources.clone(),
-        )?;
+    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
+    runtime.operations().register_wire_operation::<ReadStoragePolicy>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdateStoragePolicy>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ReadApplicationSettings>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<UpdateAppearance>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdateDataRoot>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdateReportDefaults>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
     Ok(())
 }
 /* === Private Functions === */

@@ -19,11 +19,11 @@ use std::collections::BTreeSet;
 use async_trait::async_trait;
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::schema::Described;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
+use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::schema::Described;
 use harmos::sidecar::StreamDeclaration;
 
 /* === Constants === */
@@ -72,17 +72,12 @@ impl Checks {}
 
 #[dokime_runtime::template(id = "fixture.shared.checks.first", label = "First", streams = Streams)]
 impl First {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Measure")]
-    async fn measure(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::StepContext<'_>,
-    ) -> dokime_runtime::Result<()> {
+    async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.publish(Sample { value: 1.0 }).await;
         Ok(())
     }
@@ -90,17 +85,12 @@ impl First {
 
 #[dokime_runtime::template(id = "fixture.shared.checks.second", label = "Second", streams = Streams)]
 impl Second {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> dokime_runtime::Result<Self> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Measure")]
-    async fn measure(
-        &mut self,
-        ctx: &mut dokime_runtime::execution::StepContext<'_>,
-    ) -> dokime_runtime::Result<()> {
+    async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.publish(Sample { value: 2.0 }).await;
         Ok(())
     }
@@ -170,23 +160,13 @@ fn shared_stream_refusal(detail: &str) -> bool {
 async fn shared_stream_publishes() {
     let root = tempdir().unwrap();
     let config = config(root.path());
-    let mut runtime = Runtime::start(config.register(Arc::new(SharedProvider::new())))
-        .await
-        .unwrap();
+    let mut runtime = Runtime::start(config.register(Arc::new(SharedProvider::new()))).await.unwrap();
     let handle = runtime.handle();
     let suite = Checks::definition().suite;
 
     // Run Both Templates
-    let cycle = start_cases(
-        &handle,
-        metadata("fixture.shared.cycle", "Shared Cycle"),
-        materialize_cases(SUITE, &suite),
-        false,
-    )
-    .await;
-    let receipt = handle
-        .run_cycle_cases(cycle.clone(), CommandContext::default())
-        .await;
+    let cycle = start_cases(&handle, metadata("fixture.shared.cycle", "Shared Cycle"), materialize_cases(SUITE, &suite), false).await;
+    let receipt = handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
 
@@ -194,40 +174,19 @@ async fn shared_stream_publishes() {
     let rows = handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![Identifier::new(Sample::ID).unwrap()],
-            scope: ScopeSelection {
-                test_cycle_id: Some(cycle.clone()),
-                ..Default::default()
-            },
+            scope: ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
             ..Default::default()
         })
         .await;
-    let values = rows
-        .iter()
-        .map(|row| row.values["value"].clone())
-        .collect::<Vec<_>>();
+    let values = rows.iter().map(|row| row.values["value"].clone()).collect::<Vec<_>>();
     assert_eq!(rows.len(), 2, "both templates publish the shared stream");
     assert!(values.contains(&Value::Number(1.0)));
     assert!(values.contains(&Value::Number(2.0)));
-    let templates = rows
-        .iter()
-        .map(|row| {
-            row.scope
-                .as_ref()
-                .and_then(|scope| scope.template_id.clone())
-        })
-        .collect::<BTreeSet<_>>();
+    let templates = rows.iter().map(|row| row.scope.as_ref().and_then(|scope| scope.template_id.clone())).collect::<BTreeSet<_>>();
     assert_eq!(templates.len(), 2, "each row keeps its own template scope");
-    let ended = handle
-        .cycles()
-        .await
-        .into_iter()
-        .find(|item| item.test_cycle_id == cycle)
-        .unwrap();
+    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert!(
-        ended
-            .test_executions
-            .iter()
-            .all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
+        ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );
 
     drop(handle);
@@ -249,46 +208,28 @@ async fn shared_schema_refused() {
 
     let refused = runtime.register(Arc::new(provider)).await;
 
-    assert!(
-        refused
-            .as_ref()
-            .is_err_and(|error| shared_stream_refusal(&error.to_string())),
-        "{refused:?}"
-    );
+    assert!(refused.as_ref().is_err_and(|error| shared_stream_refusal(&error.to_string())), "{refused:?}");
     runtime.shutdown().await.unwrap();
 }
 
 #[tokio::test]
 async fn shared_owner_refused() {
     let root = tempdir().unwrap();
-    let mut runtime = Runtime::start(config(root.path()).register(Arc::new(SharedProvider::new())))
-        .await
-        .unwrap();
+    let mut runtime = Runtime::start(config(root.path()).register(Arc::new(SharedProvider::new()))).await.unwrap();
     let handle = runtime.handle();
     let mut definition = Checks::definition();
     definition.suite_id = "fixture.other.checks".to_owned();
     definition.suite.metadata = metadata("fixture.other.checks", "Other Checks");
     for template in &mut definition.suite.test_case_templates {
-        template.test_case_template_id =
-            TemplateId::from_seed(format!("other.{}", template.test_case_template_id));
+        template.test_case_template_id = TemplateId::from_seed(format!("other.{}", template.test_case_template_id));
     }
     for contract in &mut definition.telemetry_contracts {
-        contract.template_id = contract
-            .template_id
-            .as_ref()
-            .map(|id| TemplateId::from_seed(format!("other.{id}")));
+        contract.template_id = contract.template_id.as_ref().map(|id| TemplateId::from_seed(format!("other.{id}")));
     }
 
-    let refused = handle
-        .set_suites("fixture.other", SuiteSet::new([definition]))
-        .await;
+    let refused = handle.set_suites("fixture.other", SuiteSet::new([definition])).await;
 
-    assert!(
-        refused
-            .as_ref()
-            .is_err_and(|error| shared_stream_refusal(&error.to_string())),
-        "{refused:?}"
-    );
+    assert!(refused.as_ref().is_err_and(|error| shared_stream_refusal(&error.to_string())), "{refused:?}");
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

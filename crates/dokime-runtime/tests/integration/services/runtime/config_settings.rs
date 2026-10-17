@@ -50,34 +50,22 @@ async fn backend_policy_restart() {
     let mut policy = before.configured.clone();
     policy.compaction_interval_ms = 7_200_000;
     policy.local_retention_ms = Some(604_800_000);
-    let saved = handle
-        .update_storage_policy(0, policy.clone())
-        .await
-        .unwrap();
+    let saved = handle.update_storage_policy(0, policy.clone()).await.unwrap();
     assert_eq!(saved.revision, 1);
     assert!(saved.restart_required);
     assert_eq!(saved.effective, before.effective);
     assert_eq!(saved.configured, policy);
     assert!(matches!(
         handle.update_storage_policy(0, policy.clone()).await,
-        Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ .. }))
+        Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict { .. }))
     ));
     let mut invalid = policy.clone();
     invalid.compaction_interval_ms = 0;
     assert!(handle.update_storage_policy(1, invalid).await.is_err());
     assert_eq!(handle.storage_policy().await.unwrap(), saved);
-    assert_eq!(
-        handle
-            .update_storage_policy(1, policy.clone())
-            .await
-            .unwrap(),
-        saved
-    );
+    assert_eq!(handle.update_storage_policy(1, policy.clone()).await.unwrap(), saved);
     runtime.shutdown().await.unwrap();
-    assert!(matches!(
-        handle.update_storage_policy(1, policy.clone()).await,
-        Err(dokime_runtime::runtime::Error::ShuttingDown)
-    ));
+    assert!(matches!(handle.update_storage_policy(1, policy.clone()).await, Err(dokime_runtime::runtime::Error::ShuttingDown)));
     drop(handle);
 
     let mut fallback = config(root.path());
@@ -90,16 +78,11 @@ async fn backend_policy_restart() {
     assert!(!restored.restart_required);
     runtime.shutdown().await.unwrap();
     let settings = root.path().join("application/settings.json");
-    let saved: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
+    let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
     assert_eq!(saved["storage"]["compaction_interval_ms"], 7_200_000);
     assert!(saved.get("restart_required").is_none());
     std::fs::write(settings, b"broken").unwrap();
-    assert!(
-        dokime_runtime::Runtime::start(config(root.path()))
-            .await
-            .is_err()
-    );
+    assert!(dokime_runtime::Runtime::start(config(root.path())).await.is_err());
 }
 
 #[tokio::test]
@@ -111,10 +94,7 @@ async fn concurrent_policy_revision() {
     a.compaction_interval_ms = 3_600_000;
     let mut b = original.configured;
     b.compaction_interval_ms = 10_800_000;
-    let (a, b) = tokio::join!(
-        handle.update_storage_policy(0, a),
-        handle.update_storage_policy(0, b)
-    );
+    let (a, b) = tokio::join!(handle.update_storage_policy(0, a), handle.update_storage_policy(0, b));
     assert_ne!(a.is_ok(), b.is_ok());
     let saved = handle.storage_policy().await.unwrap();
     assert_eq!(saved.revision, 1);

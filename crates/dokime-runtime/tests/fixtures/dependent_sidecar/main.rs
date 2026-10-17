@@ -16,8 +16,7 @@
 use std::{io::Write, path::PathBuf, sync::Arc, time::Duration};
 // Third Party Imports
 use dokime_runtime::harmos::operations::{
-    Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, ServingError,
-    Visibility, WireOperation, WireTable,
+    Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, Visibility, WireOperation, WireTable,
 };
 // Local Imports
 use dokime_runtime::{Refusal, Supervisor};
@@ -67,8 +66,7 @@ impl OperationDeclaration for CheckHealth {
     type Request = ();
     type Response = ();
     const ID: &'static str = "validation-telemetry.check_health";
-    const DESCRIPTION: &'static str =
-        "Answers whether the fixture is reachable; a dependent plugin calls it.";
+    const DESCRIPTION: &'static str = "Answers whether the fixture is reachable; a dependent plugin calls it.";
     const VISIBILITY: Visibility = Visibility::Shared;
     const POLICY: OperationPolicy = POLICY;
 }
@@ -96,9 +94,7 @@ impl dokime_runtime::Plugin for Dependent {
 
     fn prepare(config: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
         let settings = dokime_runtime::plugin::refusal(config.settings::<DependentSettings>())?;
-        Ok(Self {
-            lifecycle: settings.config.lifecycle,
-        })
+        Ok(Self { lifecycle: settings.config.lifecycle })
     }
 
     async fn initialize(&mut self, host: &Supervisor) -> Result<(), Refusal> {
@@ -121,12 +117,7 @@ impl dokime_runtime::Plugin for Dependent {
         // Lifecycle Shutdown Does Not Hold The Dependency's Active Operation Lease.
         // Record Cleanup Locally After The Dependency Call Exercised Initialization.
         if let Some(lifecycle) = &self.lifecycle {
-            let mut file = dokime_runtime::plugin::refusal(
-                std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(lifecycle),
-            )?;
+            let mut file = dokime_runtime::plugin::refusal(std::fs::OpenOptions::new().create(true).append(true).open(lifecycle))?;
             dokime_runtime::plugin::refusal(writeln!(file, "cleanup:{}", std::process::id()))?;
         }
         Ok(())
@@ -135,17 +126,11 @@ impl dokime_runtime::Plugin for Dependent {
 
 impl Dependent {
     async fn record(&self, host: &Supervisor, phase: &str) -> std::io::Result<()> {
-        host.call_as::<CheckHealth>(())
-            .await
-            .map(|response| response.into_owned())
-            .map_err(std::io::Error::other)?;
+        host.call_as::<CheckHealth>(()).await.map(|response| response.into_owned()).map_err(std::io::Error::other)?;
         let Some(lifecycle) = &self.lifecycle else {
             return Ok(());
         };
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(lifecycle)?;
+        let mut file = std::fs::OpenOptions::new().create(true).append(true).open(lifecycle)?;
         writeln!(file, "{phase}:{}", std::process::id())
     }
 }

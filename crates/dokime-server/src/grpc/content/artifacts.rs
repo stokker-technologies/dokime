@@ -57,31 +57,21 @@ impl Operation for Download {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut content_wire::DownloadArtifact,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut content_wire::DownloadArtifact, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.artifact_id)?;
-        let id = ArtifactId::from_uuid(request.artifact_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
+        let id = ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
         let reader = self
             .resources
             .runtime
             .open_artifact_stream(&id)
             .await
             .map_err(|source| {
-                let status = if matches!(
-                    &source,
-                    dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
-                ) {
+                let status = if matches!(&source, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
                     Status::resource_exhausted("cannot open stored artifact")
                 } else {
                     Status::internal("cannot open stored artifact")
@@ -89,13 +79,7 @@ impl Operation for Download {
                 detailed(status, &source)
             })?
             .ok_or_else(|| Status::not_found("artifact not found"))?;
-        deliver(
-            reader,
-            self.resources.maximum,
-            super::transfer_chunk_bytes(self.resources.maximum),
-            output,
-        )
-        .await?;
+        deliver(reader, self.resources.maximum, super::transfer_chunk_bytes(self.resources.maximum), output).await?;
         Ok(().into())
     }
 }
@@ -111,31 +95,20 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
         dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-        }),
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
 
 pub(in crate::grpc) async fn deliver(
-    reader: ArtifactReader,
-    maximum: usize,
-    chunk_bytes: usize,
+    reader: ArtifactReader, maximum: usize, chunk_bytes: usize,
     output: &mut StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>,
 ) -> Result<(), Status> {
     let frame = dokime_domain::model::content::wire::ArtifactFrame {
-        payload: Some(
-            dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(
-                reader.record(),
-            )?),
-        ),
+        payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
     };
     if frame.encoded_len() > maximum {
-        return Err(Status::resource_exhausted(
-            "artifact metadata exceeds the message limit",
-        ));
+        return Err(Status::resource_exhausted("artifact metadata exceeds the message limit"));
     }
     let size_bytes = reader.record().size_bytes;
     let sha256 = reader.record().sha256.clone();

@@ -19,15 +19,15 @@ pub(crate) use crate::transactions::AddOperatorNote;
 
 // Local Imports
 use crate::RuntimeHandle;
-use dokime_domain::model::execution::notes::OperatorNote;
+use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
 use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
 use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
 use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
 use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
 use dokime_domain::model::execution::notes::NoteAdmission;
 use dokime_domain::model::execution::notes::NoteOwner;
+use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::execution::notes::note_identity;
-use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::SessionId;
@@ -98,25 +98,18 @@ pub enum NoteError {
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn create_current_note(
-        &self,
-        request: CreateNote,
-    ) -> Result<NoteCreation, NoteError> {
+    pub async fn create_current_note(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
         if request.actor.is_empty()
             || request.actor.len() > NOTE_ACTOR_BYTES
             || request.message.trim().is_empty()
             || request.message.len() > NOTE_TEXT_BYTES
         {
-            return Err(NoteError::Invalid(
-                "note actor/text exceeds bounds or is empty".into(),
-            ));
+            return Err(NoteError::Invalid("note actor/text exceeds bounds or is empty".into()));
         }
         if self.is_shutting_down() {
             return Err(NoteError::Unavailable("runtime is shutting down".into()));
         }
-        let permit = self
-            .admit_owned_work()
-            .ok_or_else(|| NoteError::Unavailable("runtime is shutting down".into()))?;
+        let permit = self.admit_owned_work().ok_or_else(|| NoteError::Unavailable("runtime is shutting down".into()))?;
         if self.is_shutting_down() {
             return Err(NoteError::Unavailable("runtime is shutting down".into()));
         }
@@ -130,18 +123,13 @@ impl RuntimeHandle {
         .map_err(|error| NoteError::Unavailable(error.to_string()))?
     }
 
-    async fn create_note_owned(
-        &self,
-        request: CreateNote,
-    ) -> Result<NoteCreation, NoteError> {
+    async fn create_note_owned(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
         // A sealed owner refuses before anything is written; a retry still answers.
         {
             let state = self.state_read();
             let id = note_identity(&request.epoch, &request.actor, &request.mutation_id);
             if !state.note_admissions.contains_key(&id)
-                && state
-                    .note_owner_scope(&request.owner)
-                    .is_ok_and(|scope| state.note_scope_sealed(&scope))
+                && state.note_owner_scope(&request.owner).is_ok_and(|scope| state.note_scope_sealed(&scope))
             {
                 return Err(NoteError::Sealed);
             }
@@ -156,89 +144,61 @@ impl RuntimeHandle {
             return Err(NoteError::Epoch);
         }
         let id = note_identity(&request.epoch, &request.actor, &request.mutation_id);
-        let admission =
-            if let Some(existing) = self.read_note_admission(&request.epoch, &id).await? {
-                if existing.owner != request.owner
-                    || existing.note.author.as_deref() != Some(&request.actor)
-                    || existing.note.message != request.message
-                {
-                    return Err(NoteError::Conflict);
-                }
-                existing
-            } else {
-                let scope = state
-                    .note_owner_scope(&request.owner)
-                    .map_err(NoteError::Owner)?;
-                let _guards = self
-                    .execution_storage
-                    .admit_annotations(&scope)
-                    .await
-                    .map_err(|error| NoteError::Owner(error.to_string()))?;
-                let targets = self
-                    .execution_storage
-                    .note_targets(
-                        &state
-                            .cycle_view(request.owner.cycle_id())
-                            .expect("note cycle exists"),
-                        &scope,
-                    )
-                    .await
-                    .map_err(|_| NoteError::Overloaded)?;
-                let admission = NoteAdmission {
-                    mutation_id: request.mutation_id,
-                    owner: request.owner,
-                    note: OperatorNote {
-                        note_id: id.clone(),
-                        scope,
-                        author: Some(request.actor),
-                        message: request.message,
-                        created_at: crate::model::time::now_utc(),
-                    },
-                    checkpoint_targets: targets,
-                };
-                if !admission_fits(&state, &admission) {
-                    return Err(NoteError::Overloaded);
-                }
-                self.commit(CreateOperatorNote {
-                    admission: admission.clone(),
-                })
+        let admission = if let Some(existing) = self.read_note_admission(&request.epoch, &id).await? {
+            if existing.owner != request.owner
+                || existing.note.author.as_deref() != Some(&request.actor)
+                || existing.note.message != request.message
+            {
+                return Err(NoteError::Conflict);
+            }
+            existing
+        } else {
+            let scope = state.note_owner_scope(&request.owner).map_err(NoteError::Owner)?;
+            let _guards = self.execution_storage.admit_annotations(&scope).await.map_err(|error| NoteError::Owner(error.to_string()))?;
+            let targets = self
+                .execution_storage
+                .note_targets(&state.cycle_view(request.owner.cycle_id()).expect("note cycle exists"), &scope)
+                .await
+                .map_err(|_| NoteError::Overloaded)?;
+            let admission = NoteAdmission {
+                mutation_id: request.mutation_id,
+                owner: request.owner,
+                note: OperatorNote {
+                    note_id: id.clone(),
+                    scope,
+                    author: Some(request.actor),
+                    message: request.message,
+                    created_at: crate::model::time::now_utc(),
+                },
+                checkpoint_targets: targets,
+            };
+            if !admission_fits(&state, &admission) {
+                return Err(NoteError::Overloaded);
+            }
+            self.commit(CreateOperatorNote { admission: admission.clone() })
                 .await
                 .map_err(|error| NoteError::Unavailable(error.to_string()))?;
-                self.read_note_admission(&request.epoch, &id)
-                    .await?
-                    .ok_or_else(|| {
-                        NoteError::Unavailable("committed note receipt could not be read".into())
-                    })?
-            };
+            self.read_note_admission(&request.epoch, &id)
+                .await?
+                .ok_or_else(|| NoteError::Unavailable("committed note receipt could not be read".into()))?
+        };
         drop(state);
         // Current ownership can disappear only through its native lifecycle.
         // Retired targets are verified read-only below; never replay a stored
         // checkpoint annotation or redirect this note to another owner.
         let snapshot = self.state_read();
         if let Some(cycle) = snapshot.cycle_view(admission.owner.cycle_id())
-            && let Err(error) = self
-                .execution_storage
-                .checkpoint_targets(&cycle, &admission.checkpoint_targets)
-                .await
+            && let Err(error) = self.execution_storage.checkpoint_targets(&cycle, &admission.checkpoint_targets).await
         {
             tracing::warn!(%error, note_id=%id, "committed note checkpoint publication failed");
         }
         let publication = self.note_publication(&admission).await;
-        Ok(NoteCreation {
-            epoch: request.epoch,
-            admission,
-            publication,
-        })
+        Ok(NoteCreation { epoch: request.epoch, admission, publication })
     }
 
-    pub async fn edit_current_note(
-        &self,
-        request: EditNote,
-    ) -> Result<OperatorNote, NoteError> {
+    pub async fn edit_current_note(&self, request: EditNote) -> Result<OperatorNote, NoteError> {
         if request.message.trim().is_empty() || request.message.len() > NOTE_TEXT_BYTES {
-            return Err(NoteError::Invalid(
-                "note text exceeds bounds or is empty".into(),
-            ));
+            return Err(NoteError::Invalid("note text exceeds bounds or is empty".into()));
         }
         if self.is_shutting_down() {
             return Err(NoteError::Unavailable("runtime is shutting down".into()));
@@ -267,11 +227,7 @@ impl RuntimeHandle {
             }
             note.scope.clone()
         };
-        let guards = self
-            .execution_storage
-            .admit_annotations(&scope)
-            .await
-            .map_err(|error| NoteError::Owner(error.to_string()))?;
+        let guards = self.execution_storage.admit_annotations(&scope).await.map_err(|error| NoteError::Owner(error.to_string()))?;
         self.commit(EditOperatorNote {
             note_id: request.note_id.clone(),
             actor: request.actor,
@@ -284,33 +240,18 @@ impl RuntimeHandle {
         if let Err(error) = self.checkpoint_evidence_scope(&scope).await {
             tracing::warn!(%error, note_id=%request.note_id, "edited note checkpoint failed");
         }
-        self.state_read()
-            .find_note(&request.note_id)
-            .cloned()
-            .ok_or(NoteError::Absent)
+        self.state_read().find_note(&request.note_id).cloned().ok_or(NoteError::Absent)
     }
 
-    pub async fn get_note_creation(
-        &self,
-        epoch: &SessionId,
-        id: &NoteId,
-    ) -> Result<Option<NoteCreation>, NoteError> {
+    pub async fn get_note_creation(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteCreation>, NoteError> {
         let Some(admission) = self.read_note_admission(epoch, id).await? else {
             return Ok(None);
         };
         let publication = self.note_publication(&admission).await;
-        Ok(Some(NoteCreation {
-            epoch: epoch.clone(),
-            admission,
-            publication,
-        }))
+        Ok(Some(NoteCreation { epoch: epoch.clone(), admission, publication }))
     }
 
-    async fn read_note_admission(
-        &self,
-        epoch: &SessionId,
-        id: &NoteId,
-    ) -> Result<Option<NoteAdmission>, NoteError> {
+    async fn read_note_admission(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteAdmission>, NoteError> {
         let epoch = epoch.clone();
         let id = id.clone();
         self.state_manager
@@ -332,11 +273,7 @@ impl RuntimeHandle {
         }
         let mut targets = Vec::new();
         for id in &admission.checkpoint_targets {
-            match self
-                .execution_storage
-                .note_is_published(id, &admission.note)
-                .await
-            {
+            match self.execution_storage.note_is_published(id, &admission.note).await {
                 Ok(true) => {}
                 Ok(false) => targets.push(id.clone()),
                 Err(error) => {
@@ -345,11 +282,7 @@ impl RuntimeHandle {
                 }
             }
         }
-        if targets.is_empty() {
-            NotePublication::Confirmed
-        } else {
-            NotePublication::Unconfirmed { targets }
-        }
+        if targets.is_empty() { NotePublication::Confirmed } else { NotePublication::Unconfirmed { targets } }
     }
 }
 

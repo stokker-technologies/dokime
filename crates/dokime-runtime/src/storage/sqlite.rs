@@ -93,17 +93,10 @@ impl State {
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
             std::fs::create_dir_all(&root)?;
-            let lease = OpenOptions::new()
-                .create(true)
-                .truncate(false)
-                .read(true)
-                .write(true)
-                .open(root.join("local.lock"))?;
+            let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
             if root.join("recovery.sqlite").exists() {
-                return Err(Error::Incompatible(
-                    "it holds a separate recovery.sqlite".to_owned(),
-                ));
+                return Err(Error::Incompatible("it holds a separate recovery.sqlite".to_owned()));
             }
             let mut connection = Connection::open(root.join("local.sqlite"))?;
             check_layout(&connection)?;
@@ -117,10 +110,7 @@ impl State {
             transaction.commit()?;
             let interrupt = connection.get_interrupt_handle();
             Ok(Self(Arc::new(Owner {
-                live: Arc::new(Mutex::new(Some(Live {
-                    connection,
-                    _lease: lease,
-                }))),
+                live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
                 closing: AtomicBool::new(false),
                 interrupt,
                 running: std::sync::Mutex::new(0),
@@ -148,24 +138,20 @@ impl State {
 
     /// Run a write or control operation to completion, even if its caller is cancelled.
     pub async fn call<T: Send + 'static>(
-        &self,
-        operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
+        &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
         self.dispatch(false, operation).await
     }
 
     /// Run a read; a cancelled caller interrupts its in-flight statement.
     pub(crate) async fn read<T: Send + 'static>(
-        &self,
-        operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
+        &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
         self.dispatch(true, operation).await
     }
 
     async fn dispatch<T: Send + 'static>(
-        &self,
-        interruptible: bool,
-        operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
+        &self, interruptible: bool, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
         if self.0.closing.load(Ordering::Acquire) {
             return Err(Error::Closed);
@@ -174,21 +160,11 @@ impl State {
         // older write that overtakes its retry or a subsequent transition.
         let owner = self.0.clone();
         let mut live = owner.live.clone().lock_owned().await;
-        let read = if interruptible {
-            owner.reads.fetch_add(1, Ordering::Relaxed)
-        } else {
-            0
-        };
-        let mut interruption = Interruption {
-            owner: owner.clone(),
-            read,
-        };
+        let read = if interruptible { owner.reads.fetch_add(1, Ordering::Relaxed) } else { 0 };
+        let mut interruption = Interruption { owner: owner.clone(), read };
         let result = tokio::task::spawn_blocking(move || {
             *owner.running.lock().unwrap() = read;
-            let result = live
-                .as_mut()
-                .ok_or(Error::Closed)
-                .and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
+            let result = live.as_mut().ok_or(Error::Closed).and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
             *owner.running.lock().unwrap() = 0;
             drop(live);
             result
@@ -221,11 +197,10 @@ fn acquire_lease(lease: &File) -> Result<(), Error> {
 // One Layout Check: A Fresh File Or This Build's Exact Layout.
 fn check_layout(connection: &Connection) -> Result<(), Error> {
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    let tables: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')",
-        [],
-        |row| row.get(0),
-    )?;
+    let tables: bool =
+        connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')", [], |row| {
+            row.get(0)
+        })?;
     if version == 0 && !tables {
         return Ok(());
     }
@@ -235,16 +210,12 @@ fn check_layout(connection: &Connection) -> Result<(), Error> {
         )));
     }
     let retired: bool = connection.query_row(
-        &format!(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ({RETIRED_TABLES}))"
-        ),
+        &format!("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ({RETIRED_TABLES}))"),
         [],
         |row| row.get(0),
     )?;
     if retired {
-        return Err(Error::Incompatible(
-            "local.sqlite uses an earlier storage layout".to_owned(),
-        ));
+        return Err(Error::Incompatible("local.sqlite uses an earlier storage layout".to_owned()));
     }
     data::check_format(connection)
 }

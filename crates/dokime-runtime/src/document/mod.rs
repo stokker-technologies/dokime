@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-pub mod error;
 #[cfg(feature = "host")]
 pub(crate) mod binding;
 #[cfg(feature = "host")]
@@ -17,6 +16,7 @@ pub mod bounded;
 pub mod capture;
 #[cfg(feature = "host")]
 mod context;
+pub mod error;
 #[cfg(feature = "host")]
 pub(crate) mod frame;
 #[cfg(feature = "host")]
@@ -50,9 +50,8 @@ pub use instance::DocumentInstance;
 pub use markers::record_markers_for_selection;
 #[cfg(feature = "host")]
 pub use payload::{
-    ArtifactListDescriptor, DocumentCardBodyPayload, DocumentCardPayload,
-    DocumentCardPlacementPayload, DocumentLayoutPayload, DocumentNodePayload, DocumentPayload,
-    DocumentSectionNodePayload, DocumentWarning, TelemetrySummaryGroupPayload,
+    ArtifactListDescriptor, DocumentCardBodyPayload, DocumentCardPayload, DocumentCardPlacementPayload, DocumentLayoutPayload,
+    DocumentNodePayload, DocumentPayload, DocumentSectionNodePayload, DocumentWarning, TelemetrySummaryGroupPayload,
     TelemetrySummaryTilePayload,
 };
 #[cfg(feature = "host")]
@@ -71,31 +70,20 @@ pub use resolve::resolve_document;
 
 /* === Constants === */
 
-
 /* === Macros === */
-
 
 /* === Type Aliases === */
 
-
 /* === Structs === */
-
 
 /* === Enums === */
 
-
 /* === Traits === */
-
 
 /* === Implementations === */
 
-
 /* === Public Functions === */
-
 
 /* === Private Functions === */
 
-
 /* === Tests === */
-
-

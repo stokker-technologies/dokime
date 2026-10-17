@@ -17,12 +17,12 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::*;
-use dokime_runtime::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
+use dokime_domain::model;
 use dokime_runtime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime_runtime::runtime::command::CommandContext;
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
+use dokime_runtime::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
 
 /* === Constants === */
 
@@ -52,9 +52,7 @@ fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
         value_type: ValueType::Number,
         unit: None,
         required: false,
-        expression: ParameterExpr::Literal {
-            value: Value::Number(value),
-        },
+        expression: ParameterExpr::Literal { value: Value::Number(value) },
         runtime_writable: false,
         selection: None,
         list: None,
@@ -64,14 +62,16 @@ fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
 
 fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
     let stream = Identifier::new("host.system").unwrap();
-    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, dokime_runtime::model::time::now_utc(), "fixture.host");
+    let mut sample = TelemetrySample::new(
+        dokime_runtime::model::identity::new_id(),
+        stream.clone(),
+        0,
+        dokime_runtime::model::time::now_utc(),
+        "fixture.host",
+    );
     sample.scope = scope;
-    sample
-        .values
-        .insert("host_name".into(), Value::Text(host_name.into()));
-    sample
-        .values
-        .insert("cpu_load_percent".into(), Value::Number(12.5));
+    sample.values.insert("host_name".into(), Value::Text(host_name.into()));
+    sample.values.insert("cpu_load_percent".into(), Value::Number(12.5));
     TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, vec![sample])
 }
 
@@ -87,10 +87,7 @@ async fn get_traceability_cursor() {
     ]);
     let mut registration = support::fixture_registration(suite.clone());
     registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
-    handle
-        .set_suites("fixture", SuiteSet::new([registration]))
-        .await
-        .unwrap();
+    handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
     let cycle_id = support::cycle_with_cases(
         &handle,
         support::metadata("traceability.fixture", "Traceability"),
@@ -98,23 +95,14 @@ async fn get_traceability_cursor() {
     )
     .await;
 
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Read)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let first = client
-        .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceability {
-                limit: 1,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+            limit: 1,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -130,45 +118,32 @@ async fn get_traceability_cursor() {
     // appear — inside an `if let`, so it never ran once. Assert instead what
     // every entry must carry, which can fail.
     assert!(first_snapshot.entries.iter().all(|entry| {
-        entry
-            .metadata
-            .as_ref()
-            .is_some_and(|metadata| !metadata.identifier.is_empty() && !metadata.label.is_empty())
+        entry.metadata.as_ref().is_some_and(|metadata| !metadata.identifier.is_empty() && !metadata.label.is_empty())
             && entry.value.is_some()
-            && entry
-                .source
-                .as_deref()
-                .is_some_and(|source| !source.is_empty())
+            && entry.source.as_deref().is_some_and(|source| !source.is_empty())
     }));
 
-    let first_host_receipt = handle
-        .publish_telemetry_batch(host_batch(None, "first-host"))
-        .await
-        .unwrap();
+    let first_host_receipt = handle.publish_telemetry_batch(host_batch(None, "first-host")).await.unwrap();
     assert_eq!(first_host_receipt.accepted, 1);
     assert_eq!(
         client
-            .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceability {
-                    limit: 1,
-                    after_traceability_id: first.next_after_traceability_id.clone(),
-                    cursor: first.cursor.clone(),
-                    host_traceability_fingerprint: "changed".into(),
-                    ..Default::default()
-                }
-            ))
+            .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+                limit: 1,
+                after_traceability_id: first.next_after_traceability_id.clone(),
+                cursor: first.cursor.clone(),
+                host_traceability_fingerprint: "changed".into(),
+                ..Default::default()
+            }))
             .await
             .unwrap_err()
             .code(),
         Code::Aborted
     );
     let first_after_host = client
-        .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceability {
-                limit: 1,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+            limit: 1,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
@@ -179,15 +154,13 @@ async fn get_traceability_cursor() {
         }
         let page = pages.last().unwrap();
         let next = client
-            .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceability {
-                    limit: 1,
-                    after_traceability_id: page.next_after_traceability_id.clone(),
-                    cursor: page.cursor.clone(),
-                    host_traceability_fingerprint: page.host_traceability_fingerprint.clone(),
-                    ..Default::default()
-                },
-            ))
+            .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+                limit: 1,
+                after_traceability_id: page.next_after_traceability_id.clone(),
+                cursor: page.cursor.clone(),
+                host_traceability_fingerprint: page.host_traceability_fingerprint.clone(),
+                ..Default::default()
+            }))
             .await
             .unwrap()
             .into_inner();
@@ -215,42 +188,25 @@ async fn get_traceability_cursor() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let second_host_receipt = handle
-        .publish_telemetry_batch(host_batch(None, "second-host"))
-        .await
-        .unwrap();
+    let second_host_receipt = handle.publish_telemetry_batch(host_batch(None, "second-host")).await.unwrap();
     assert_eq!(second_host_receipt.accepted, 1);
 
     let scoped = client
-        .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceability {
-                scope: Some(model::identity::wire::EvidenceScope {
-                    cycle_id: Some(cycle_id.to_string()),
-                    ..Default::default()
-                }),
-                limit: 100,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+            scope: Some(model::identity::wire::EvidenceScope { cycle_id: Some(cycle_id.to_string()), ..Default::default() }),
+            limit: 100,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
     assert!(scoped.snapshots.len() >= 2);
-    assert_eq!(
-        scoped
-            .scope
-            .as_ref()
-            .and_then(|scope| scope.cycle_id.as_deref()),
-        Some(cycle_id.as_str()),
-    );
+    assert_eq!(scoped.scope.as_ref().and_then(|scope| scope.cycle_id.as_deref()), Some(cycle_id.as_str()),);
     assert!(
-        scoped.snapshots.iter().any(|snapshot| {
-            snapshot
-                .scope
-                .as_ref()
-                .and_then(|scope| scope.cycle_id.as_deref())
-                == Some(cycle_id.as_str())
-        }),
+        scoped
+            .snapshots
+            .iter()
+            .any(|snapshot| { snapshot.scope.as_ref().and_then(|scope| scope.cycle_id.as_deref()) == Some(cycle_id.as_str()) }),
         "{scoped:?}"
     );
     assert!(
@@ -258,36 +214,24 @@ async fn get_traceability_cursor() {
             .snapshots
             .iter()
             .flat_map(|snapshot| &snapshot.entries)
-            .all(|entry| {
-                entry
-                    .metadata
-                    .as_ref()
-                    .is_none_or(|metadata| metadata.identifier != "host.hostname")
-            })
+            .all(|entry| { entry.metadata.as_ref().is_none_or(|metadata| metadata.identifier != "host.hostname") })
     );
     let current = client
-        .unary::<contracts::observation::GetTraceability>(authenticated(
-            contracts::observation::GetTraceability {
-                limit: 100,
-                ..Default::default()
-            },
-        ))
+        .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+            limit: 100,
+            ..Default::default()
+        }))
         .await
         .unwrap()
         .into_inner();
     assert!(current.snapshots.iter().any(|snapshot| {
         snapshot.entries.iter().any(|entry| {
-            entry
-                .metadata
-                .as_ref()
-                .is_some_and(|metadata| metadata.identifier == "host.hostname")
+            entry.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "host.hostname")
                 && entry
                     .value
                     .as_ref()
                     .map(|value| value.to_core().unwrap())
-                    .is_some_and(|kind| {
-                        matches!(kind, dokime_runtime::Value::Text(value) if value == "second-host")
-                    })
+                    .is_some_and(|kind| matches!(kind, dokime_runtime::Value::Text(value) if value == "second-host"))
         })
     }));
 
@@ -295,28 +239,20 @@ async fn get_traceability_cursor() {
     invalid_cursor.epoch = "different-epoch".into();
     assert_eq!(
         client
-            .unary::<contracts::observation::GetTraceability>(authenticated(
-                contracts::observation::GetTraceability {
-                    cursor: Some(invalid_cursor),
-                    after_traceability_id: pages[0].next_after_traceability_id.clone(),
-                    host_traceability_fingerprint: pages[0].host_traceability_fingerprint.clone(),
-                    ..Default::default()
-                }
-            ))
+            .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
+                cursor: Some(invalid_cursor),
+                after_traceability_id: pages[0].next_after_traceability_id.clone(),
+                host_traceability_fingerprint: pages[0].host_traceability_fingerprint.clone(),
+                ..Default::default()
+            }))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
 
-    handle
-        .stop_cycle(cycle_id.clone(), CommandContext::default())
-        .await
-        .unwrap();
-    handle
-        .stop_cycle(second_cycle_id, CommandContext::default())
-        .await
-        .unwrap();
+    handle.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    handle.stop_cycle(second_cycle_id, CommandContext::default()).await.unwrap();
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -330,22 +266,13 @@ async fn traceability_bounds_clone() {
     let suite = support::fixture_suite(&["passed"]);
     let mut registration = support::fixture_registration(suite);
     registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
-    handle
-        .set_suites("fixture", SuiteSet::new([registration]))
-        .await
-        .unwrap();
+    handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
 
-    let receipt = handle
-        .publish_telemetry_batch(host_batch(None, "budget-host"))
-        .await
-        .unwrap();
+    let receipt = handle.publish_telemetry_batch(host_batch(None, "budget-host")).await.unwrap();
     assert_eq!(receipt.accepted, 1);
 
     let snapshot = handle.watch_state().latest();
-    let error = handle
-        .traceability_snapshots_page_at(&snapshot, None, "", 100, 0, 512 * 1024)
-        .await
-        .unwrap_err();
+    let error = handle.traceability_snapshots_page_at(&snapshot, None, "", 100, 0, 512 * 1024).await.unwrap_err();
     assert!(error.to_string().contains("bounded page budget"));
 
     drop(handle);

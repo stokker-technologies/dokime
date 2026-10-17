@@ -30,10 +30,10 @@ use tokio::sync::watch;
 use super::Binding;
 use crate::execution::log::Level;
 use crate::host::ProcessExited;
+use crate::records::DeclaredRecord;
 use dokime_domain::model::process::wire::DEFAULT_GRACE_MS;
 use dokime_domain::model::process::wire::ProcessExit;
 use dokime_domain::operations::process::RunProcess;
-use crate::records::DeclaredRecord;
 
 /* === Constants === */
 // How long the output readers may outlast the child, for a grandchild that
@@ -55,11 +55,7 @@ const READ_BYTES: usize = 64 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) async fn run(
-    binding: Binding,
-    request: RunProcess,
-    mut cancel: watch::Receiver<bool>,
-) -> Result<ProcessExit, String> {
+pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch::Receiver<bool>) -> Result<ProcessExit, String> {
     if request.program.is_empty() {
         return Err("a process needs a program".into());
     }
@@ -70,18 +66,9 @@ pub(super) async fn run(
         .await
         .map_err(|error| error.to_string())?
         .map_err(|error| format!("the execution's artifact folder: {error}"))?;
-    let cwd = request
-        .cwd
-        .clone()
-        .map_or_else(|| folder.clone(), std::path::PathBuf::from);
+    let cwd = request.cwd.clone().map_or_else(|| folder.clone(), std::path::PathBuf::from);
     let mut command = tokio::process::Command::new(&request.program);
-    command
-        .args(&request.args)
-        .current_dir(&cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+    command.args(&request.args).current_dir(&cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     // The plugin's own connection to its host is never handed down.
     for (name, _) in std::env::vars_os() {
         if name.to_string_lossy().starts_with("HARMOS_") {
@@ -104,21 +91,9 @@ pub(super) async fn run(
 
     // Spawn, Then Route Each Output
     let started = Instant::now();
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("{} could not start: {error}", request.program))?;
-    let stdout = route(
-        &binding,
-        child.stdout.take(),
-        request.stdout_artifact.clone(),
-        Level::Info,
-    )?;
-    let stderr = route(
-        &binding,
-        child.stderr.take(),
-        request.stderr_artifact.clone(),
-        Level::Warn,
-    )?;
+    let mut child = command.spawn().map_err(|error| format!("{} could not start: {error}", request.program))?;
+    let stdout = route(&binding, child.stdout.take(), request.stdout_artifact.clone(), Level::Info)?;
+    let stderr = route(&binding, child.stderr.take(), request.stderr_artifact.clone(), Level::Warn)?;
 
     // Wait For The Exit, Or Terminate On Cancellation
     let grace = Duration::from_millis(request.grace_ms.unwrap_or(DEFAULT_GRACE_MS).into());
@@ -133,15 +108,10 @@ pub(super) async fn run(
             reader.abort();
         }
     }
-    let status =
-        status.map_err(|error| format!("{} could not be awaited: {error}", request.program))?;
+    let status = status.map_err(|error| format!("{} could not be awaited: {error}", request.program))?;
 
     // Record The Exit
-    let exit = ProcessExit {
-        exit_code: status.code(),
-        duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
-        cancelled,
-    };
+    let exit = ProcessExit { exit_code: status.code(), duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX), cancelled };
     binding.journal.record(
         ProcessExited {
             program: request.program,
@@ -158,10 +128,7 @@ pub(super) async fn run(
 // Pumps one output into the execution log line by line, or into a produced
 // artifact byte for byte.
 fn route(
-    binding: &Binding,
-    output: Option<impl AsyncRead + Unpin + Send + 'static>,
-    artifact: Option<String>,
-    level: Level,
+    binding: &Binding, output: Option<impl AsyncRead + Unpin + Send + 'static>, artifact: Option<String>, level: Level,
 ) -> Result<tokio::task::JoinHandle<()>, String> {
     let journal = binding.journal.clone();
     let Some(mut output) = output else {
@@ -175,33 +142,22 @@ fn route(
             }
         }));
     };
-    let mut writer = binding
-        .artifacts
-        .create(&artifact)
-        .map_err(|error| format!("artifact {artifact:?}: {error}"))?;
+    let mut writer = binding.artifacts.create(&artifact).map_err(|error| format!("artifact {artifact:?}: {error}"))?;
     Ok(tokio::spawn(async move {
         let mut buffer = vec![0; READ_BYTES];
         loop {
             match output.read(&mut buffer).await {
                 Ok(0) => break,
                 Ok(read) => {
-                    let written = writer
-                        .write_all(&buffer[..read])
-                        .and_then(|()| writer.flush());
+                    let written = writer.write_all(&buffer[..read]).and_then(|()| writer.flush());
                     if let Err(error) = written {
-                        journal.log(
-                            Level::Error,
-                            format!("artifact {artifact:?} stopped taking process output: {error}"),
-                        );
+                        journal.log(Level::Error, format!("artifact {artifact:?} stopped taking process output: {error}"));
                         writer.abandon();
                         return;
                     }
                 }
                 Err(error) => {
-                    journal.log(
-                        Level::Warn,
-                        format!("process output for {artifact:?} ended early: {error}"),
-                    );
+                    journal.log(Level::Warn, format!("process output for {artifact:?} ended early: {error}"));
                     break;
                 }
             }
@@ -220,10 +176,7 @@ async fn cancelled(cancel: &mut watch::Receiver<bool>) {
 }
 
 // SIGTERM, a grace period, then the kill; Windows has only the last.
-async fn terminate(
-    child: &mut Child,
-    grace: Duration,
-) -> std::io::Result<std::process::ExitStatus> {
+async fn terminate(child: &mut Child, grace: Duration) -> std::io::Result<std::process::ExitStatus> {
     #[cfg(unix)]
     if let Some(pid) = child.id().and_then(|pid| i32::try_from(pid).ok()) {
         // SAFETY: `kill` takes plain integers; the pid is our own unreaped child.

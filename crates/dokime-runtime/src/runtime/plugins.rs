@@ -119,9 +119,8 @@ impl Extraction {
 impl Package {
     async fn close(&mut self) -> std::io::Result<()> {
         self.programs.clear();
-        let directory = Arc::get_mut(&mut self._directory).ok_or_else(|| {
-            std::io::Error::other("plugin backend still owns the extraction directory")
-        })?;
+        let directory = Arc::get_mut(&mut self._directory)
+            .ok_or_else(|| std::io::Error::other("plugin backend still owns the extraction directory"))?;
         directory.close().await
     }
 }
@@ -153,9 +152,7 @@ async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
         match tokio::fs::remove_dir_all(path).await {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error)
-                if error.kind() == std::io::ErrorKind::PermissionDenied
-                    && attempt + 1 < delays.len() => {}
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
             Err(error) => return Err(error),
         }
     }
@@ -218,11 +215,7 @@ impl Runtime {
         inputs.extend(store.installed().map_err(operation)?);
         for input in &inputs {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {
-                self.handle
-                    .plugin_boot
-                    .write()
-                    .expect("plugin boot lock poisoned")
-                    .insert(install_id, false);
+                self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, false);
             }
         }
         let extraction = extraction_root(&config);
@@ -265,28 +258,13 @@ impl Runtime {
                     PluginProvenance::Configured => None,
                 })
                 .flat_map(|(package, install_id)| {
-                    package
-                        .programs
-                        .iter()
-                        .map(move |program| (program.executable.id().to_owned(), install_id))
+                    package.programs.iter().map(move |program| (program.executable.id().to_owned(), install_id))
                 })
                 .collect(),
         );
-        let embedded_plugins: Vec<_> = self
-            .embedded
-            .values()
-            .map(|provider| provider.definition.clone())
-            .collect();
-        let embedded_catalogs: Vec<_> = self
-            .embedded
-            .values()
-            .map(|provider| provider.catalog.clone())
-            .collect();
-        let mut removed = match plan(
-            &store,
-            &packages.iter().collect::<Vec<_>>(),
-            &embedded_plugins,
-        ) {
+        let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
+        let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
+        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins) {
             Ok(plan) => plan,
             Err(error) => {
                 self.pending_plugins.extend(packages);
@@ -307,28 +285,14 @@ impl Runtime {
                         .map(|(_, package)| package.catalog.clone().into()),
                 )
                 .collect();
-            if self
-                .handle
-                .state_read()
-                .validate_providers(&catalogs)
-                .is_ok()
-            {
+            if self.handle.state_read().validate_providers(&catalogs).is_ok() {
                 break;
             }
             let mut accepted = embedded_catalogs.clone();
             let mut refused = None;
-            for (index, package) in packages
-                .iter()
-                .enumerate()
-                .filter(|(index, _)| !removed.contains(index))
-            {
+            for (index, package) in packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)) {
                 accepted.push(package.catalog.clone().into());
-                if let Err(error) = self
-                    .handle
-                    .state_read()
-                    .as_ref()
-                    .validate_providers(&accepted)
-                {
+                if let Err(error) = self.handle.state_read().as_ref().validate_providers(&accepted) {
                     refused = Some((index, error));
                     break;
                 }
@@ -336,13 +300,7 @@ impl Runtime {
             let Some((index, reason)) = refused else {
                 break;
             };
-            if let Err(error) = prune(
-                &store,
-                &packages.iter().collect::<Vec<_>>(),
-                &mut removed,
-                index,
-                &reason,
-            ) {
+            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason) {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
@@ -358,52 +316,28 @@ impl Runtime {
                     .map(|(_, package)| package.catalog.clone().into()),
             )
             .collect();
-        self.handle
-            .state_read()
-            .validate_providers(&catalogs)
-            .map_err(operation)?;
+        self.handle.state_read().validate_providers(&catalogs).map_err(operation)?;
         for provider in self.embedded.values() {
-            self.handle
-                .streams
-                .validate_publications(&provider.definition.id, provider.streams.clone())
-                .map_err(operation)?;
+            self.handle.streams.validate_publications(&provider.definition.id, provider.streams.clone()).map_err(operation)?;
         }
 
         for (index, package) in packages.into_iter().enumerate() {
             if removed.contains(&index) {
                 self.pending_plugins.extend(vec![package]);
             } else {
-                self.plugins.insert(
-                    package.catalog.package.clone(),
-                    ActivePackage {
-                        package,
-                        running: Vec::new(),
-                        telemetry: BTreeMap::new(),
-                    },
-                );
+                self.plugins
+                    .insert(package.catalog.package.clone(), ActivePackage { package, running: Vec::new(), telemetry: BTreeMap::new() });
             }
         }
-        let candidate = graph(
-            self.plugins
-                .values()
-                .flat_map(|active| &active.package.programs),
-            self.embedded.values(),
-            [],
-        )?;
+        let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), self.embedded.values(), [])?;
         let manager = harmos::plugin::PluginManager::new(candidate)?;
-        self.handle
-            .routing
-            .set(manager.router().clone())
-            .map_err(|_| operation("plugin manager was already configured"))?;
+        self.handle.routing.set(manager.router().clone()).map_err(|_| operation("plugin manager was already configured"))?;
         self.plugin_manager = Some(manager);
 
         let mut excluded = BTreeSet::new();
         let mut next = None;
         loop {
-            let manager = self
-                .plugin_manager
-                .as_mut()
-                .expect("manager prepared before activation");
+            let manager = self.plugin_manager.as_mut().expect("manager prepared before activation");
             let mut lifecycle = lifecycle::Adapter {
                 handle: &self.handle,
                 publications: &self.publications,
@@ -423,44 +357,20 @@ impl Runtime {
                     if self.embedded.contains_key(plugin) || !cleanup.is_empty() {
                         return Err(error.into());
                     }
-                    let packages: Vec<_> = self
-                        .plugins
-                        .values()
-                        .map(|active| &active.package)
-                        .collect();
+                    let packages: Vec<_> = self.plugins.values().map(|active| &active.package).collect();
                     let initial = packages
                         .iter()
-                        .position(|package| {
-                            package
-                                .programs
-                                .iter()
-                                .any(|program| program.executable.id() == plugin)
-                        })
+                        .position(|package| package.programs.iter().any(|program| program.executable.id() == plugin))
                         .expect("failed plugin belongs to a staged package");
                     let mut removed = packages
                         .iter()
                         .enumerate()
-                        .filter_map(|(index, package)| {
-                            excluded.contains(&package.catalog.package).then_some(index)
-                        })
+                        .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(
-                        &self.handle.plugin_store(),
-                        &packages,
-                        &mut removed,
-                        initial,
-                        &source.to_string(),
-                    )?;
-                    excluded.extend(
-                        removed
-                            .iter()
-                            .map(|index| packages[*index].catalog.package.clone()),
-                    );
+                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string())?;
+                    excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
-                        self.plugins
-                            .iter()
-                            .filter(|(name, _)| !excluded.contains(*name))
-                            .flat_map(|(_, active)| &active.package.programs),
+                        self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
                         self.embedded.values(),
                         [],
                     )?);
@@ -468,45 +378,24 @@ impl Runtime {
             }
         }
         for name in excluded {
-            let active = self
-                .plugins
-                .remove(&name)
-                .expect("excluded package is staged");
+            let active = self.plugins.remove(&name).expect("excluded package is staged");
             self.pending_plugins.extend(vec![active.package]);
         }
-        let admitted: Vec<_> = self
-            .plugins
-            .values()
-            .map(|active| active.package.catalog.clone())
-            .collect();
-        let providers: Vec<_> = admitted
-            .into_iter()
-            .map(Into::into)
-            .chain(embedded_catalogs)
-            .collect();
+        let admitted: Vec<_> = self.plugins.values().map(|active| active.package.catalog.clone()).collect();
+        let providers: Vec<_> = admitted.into_iter().map(Into::into).chain(embedded_catalogs).collect();
         let state = self.handle.state_read();
-        let has_previous_providers = state
-            .plugin_owners
-            .values()
-            .any(|owner| !matches!(owner, crate::state::PluginOwner::Host));
+        let has_previous_providers = state.plugin_owners.values().any(|owner| !matches!(owner, crate::state::PluginOwner::Host));
         // An unchanged catalog set is not journaled again; otherwise every
         // boot appends every catalog in full to the journal and its tail.
-        let reconcile = (!providers.is_empty() || has_previous_providers)
-            && !state.providers_current(&providers);
+        let reconcile = (!providers.is_empty() || has_previous_providers) && !state.providers_current(&providers);
         drop(state);
-        if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await
-        {
+        if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
             return Err(operation(error));
         }
         self.recover_plugin_executions().await?;
         for active in self.plugins.values() {
-            if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance
-            {
-                self.handle
-                    .plugin_boot
-                    .write()
-                    .expect("plugin boot lock poisoned")
-                    .insert(install_id, true);
+            if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance {
+                self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, true);
             }
             record(&store, &active.package.input, None);
         }
@@ -515,19 +404,12 @@ impl Runtime {
     }
 
     fn ready_catalogs(&self) -> Vec<ProviderCatalog> {
-        let ready: BTreeSet<_> = self
-            .plugin_manager
-            .as_ref()
-            .expect("manager is initialized")
-            .ready()
-            .collect();
+        let ready: BTreeSet<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().collect();
         self.plugins
             .values()
             .filter_map(|active| {
                 let mut bundle = active.package.catalog.clone();
-                bundle
-                    .plugins
-                    .retain(|plugin| ready.contains(plugin.source.as_str()));
+                bundle.plugins.retain(|plugin| ready.contains(plugin.source.as_str()));
                 (!bundle.plugins.is_empty()).then_some(bundle.into())
             })
             .chain(
@@ -540,32 +422,21 @@ impl Runtime {
     }
 
     fn expose_plugins(&mut self) -> Result<()> {
-        let ready: BTreeSet<_> = self
-            .plugin_manager
-            .as_ref()
-            .expect("manager is initialized")
-            .ready()
-            .map(str::to_owned)
-            .collect();
+        let ready: BTreeSet<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().map(str::to_owned).collect();
         for active in self.plugins.values_mut() {
             for live in &mut active.running {
                 if !ready.contains(&live.source) || live.exposed {
                     continue;
                 }
                 let id = crate::Identifier::new(&live.source).map_err(operation)?;
-                let dispatcher =
-                    Arc::new(live.bindings.clone().attach(self.handle.operations.clone()));
-                self.handle
-                    .set_action_dispatcher(id.clone(), Arc::clone(&dispatcher) as _);
+                let dispatcher = Arc::new(live.bindings.clone().attach(self.handle.operations.clone()));
+                self.handle.set_action_dispatcher(id.clone(), Arc::clone(&dispatcher) as _);
                 let handle = self.handle.clone();
                 tokio::spawn(async move {
                     handle.discover_plugin_settings(&id, &dispatcher).await;
                 });
                 live.exposed = true;
-                active.telemetry.insert(
-                    live.source.clone(),
-                    super::native_telemetry::observe(&self.handle, &live.source),
-                );
+                active.telemetry.insert(live.source.clone(), super::native_telemetry::observe(&self.handle, &live.source));
             }
         }
         for (source, provider) in &mut self.embedded {
@@ -573,11 +444,7 @@ impl Runtime {
                 provider.expose(&self.handle);
             }
         }
-        self.handle
-            .unavailable_plugins
-            .write()
-            .expect("plugin availability lock poisoned")
-            .retain(|source| !ready.contains(source));
+        self.handle.unavailable_plugins.write().expect("plugin availability lock poisoned").retain(|source| !ready.contains(source));
         self.handle.reconcile_listener_record_demand()?;
         Ok(())
     }
@@ -589,44 +456,20 @@ impl Runtime {
             .plugins
             .values()
             .map(|active| active.package.catalog.clone().into())
-            .chain(
-                self.embedded
-                    .iter()
-                    .filter(|(id, _)| *id != &source)
-                    .map(|(_, active)| active.catalog.clone()),
-            )
+            .chain(self.embedded.iter().filter(|(id, _)| *id != &source).map(|(_, active)| active.catalog.clone()))
             .chain(std::iter::once(candidate.catalog.clone()))
             .collect();
-        self.handle
-            .state_read()
-            .validate_provider_reload(&catalogs, &source)
-            .map_err(operation)?;
-        self.handle
-            .streams
-            .validate_publications(&source, candidate.streams.clone())
-            .map_err(operation)?;
+        self.handle.state_read().validate_provider_reload(&catalogs, &source).map_err(operation)?;
+        self.handle.streams.validate_publications(&source, candidate.streams.clone()).map_err(operation)?;
         let definitions = graph(
-            self.plugins
-                .values()
-                .flat_map(|active| &active.package.programs),
-            self.embedded
-                .iter()
-                .filter(|(id, _)| *id != &source)
-                .map(|(_, active)| active)
-                .chain(std::iter::once(&candidate)),
+            self.plugins.values().flat_map(|active| &active.package.programs),
+            self.embedded.iter().filter(|(id, _)| *id != &source).map(|(_, active)| active).chain(std::iter::once(&candidate)),
             [source.clone()],
         )?;
-        let reload = self
-            .plugin_manager
-            .as_ref()
-            .expect("manager initialized at startup")
-            .plan_reload(definitions)?;
+        let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
         if let Some(previous) = self.embedded.insert(source.clone(), candidate) {
-            self.embedded
-                .get_mut(&source)
-                .expect("replacement catalog is retained")
-                .retain_observers(previous);
+            self.embedded.get_mut(&source).expect("replacement catalog is retained").retain_observers(previous);
         }
         let mut lifecycle = lifecycle::Adapter {
             handle: &self.handle,
@@ -634,74 +477,38 @@ impl Runtime {
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
         };
-        let manager = self
-            .plugin_manager
-            .as_mut()
-            .expect("manager initialized at startup");
+        let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
         if let Err(error) = manager.apply_reload(reload, &mut lifecycle).await {
             if start_failure(&error).is_some() {
-                self.handle
-                    .commit(ReconcileProviders {
-                        providers: self.ready_catalogs(),
-                    })
-                    .await
-                    .map_err(operation)?;
+                self.handle.commit(ReconcileProviders { providers: self.ready_catalogs() }).await.map_err(operation)?;
             }
             return Err(error.into());
         }
 
-        self.handle
-            .commit(ReloadProviderCatalog {
-                providers: catalogs,
-                provider: source,
-            })
-            .await
-            .map_err(operation)?;
+        self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: source }).await.map_err(operation)?;
         self.expose_plugins()?;
         Ok(())
     }
 
     pub async fn reinitialize_plugin(&mut self, plugin: &str) -> Result<()> {
-        let owned = self
-            .plugins
-            .values()
-            .flat_map(|active| &active.package.programs)
-            .any(|program| program.executable.id() == plugin)
+        let owned = self.plugins.values().flat_map(|active| &active.package.programs).any(|program| program.executable.id() == plugin)
             || self.embedded.contains_key(plugin);
         if !owned {
             return Err(operation(format!("no admitted plugin owns `{plugin}`")));
         }
 
-        let mut refreshed = self
-            .plugins
-            .values()
-            .flat_map(|active| &active.package.programs)
-            .find(|program| program.executable.id() == plugin)
-            .cloned();
+        let mut refreshed =
+            self.plugins.values().flat_map(|active| &active.package.programs).find(|program| program.executable.id() == plugin).cloned();
         if let Some(program) = &mut refreshed {
-            let initialization = self
-                .handle
-                .plugin_initialization(&program.plugin, &program.configured)
-                .await?;
-            program.definition.configuration =
-                serde_json::to_vec(&initialization).map_err(operation)?;
+            let initialization = self.handle.plugin_initialization(&program.plugin, &program.configured).await?;
+            program.definition.configuration = serde_json::to_vec(&initialization).map_err(operation)?;
         }
-        let programs = self
-            .plugins
-            .values()
-            .flat_map(|active| &active.package.programs)
-            .map(|program| {
-                refreshed
-                    .as_ref()
-                    .filter(|candidate| candidate.executable.id() == program.executable.id())
-                    .unwrap_or(program)
+        let programs =
+            self.plugins.values().flat_map(|active| &active.package.programs).map(|program| {
+                refreshed.as_ref().filter(|candidate| candidate.executable.id() == program.executable.id()).unwrap_or(program)
             });
         let definitions = graph(programs, self.embedded.values(), [plugin.to_owned()])?;
-        let reload = self
-            .plugin_manager
-            .as_ref()
-            .expect("manager initialized at startup")
-            .plan_reload(definitions)?;
+        let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
         // Desired preparation changes only after complete descriptor preflight.
         // Existing physical backends retain their original admitted bytes.
@@ -721,14 +528,8 @@ impl Runtime {
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
         };
-        let manager = self
-            .plugin_manager
-            .as_mut()
-            .expect("manager initialized at startup");
-        manager
-            .apply_reload(reload, &mut lifecycle)
-            .await
-            .map_err(Error::from)?;
+        let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
+        manager.apply_reload(reload, &mut lifecycle).await.map_err(Error::from)?;
 
         self.expose_plugins()
     }
@@ -741,34 +542,28 @@ impl Runtime {
         // `reusable_extraction`), never to this path.
         let bundle = read_bundle(input, None)?;
         if !matches!(bundle.input.provenance, PluginProvenance::Configured) {
-            return Err(operation(
-                "only explicitly configured development plugins can be reloaded",
-            ));
+            return Err(operation("only explicitly configured development plugins can be reloaded"));
         }
         // Exact bytes already admitted for this configuration need no new archive
         // inspection or staging. The digest is computed here, never supplied by
         // the caller; unavailable plugins still take the full recovery path.
         if matches!(bundle.input.provenance, PluginProvenance::Configured)
             && self.plugins.values().any(|active| {
-                matches!(
-                    active.package.input.provenance,
-                    PluginProvenance::Configured
-                ) && active.package.catalog.content_digest == bundle.content_digest
+                matches!(active.package.input.provenance, PluginProvenance::Configured)
+                    && active.package.catalog.content_digest == bundle.content_digest
                     && active.package.input.programs.len() == bundle.input.programs.len()
-                    && active.package.input.programs.iter().all(|(owner, config)| {
-                        bundle
-                            .input
-                            .programs
-                            .get(owner)
-                            .is_some_and(|candidate| candidate == config)
-                    })
+                    && active
+                        .package
+                        .input
+                        .programs
+                        .iter()
+                        .all(|(owner, config)| bundle.input.programs.get(owner).is_some_and(|candidate| candidate == config))
                     && active.package.programs.iter().all(|program| {
                         self.handle.plugin_available(program.executable.id())
-                            && self.plugin_manager.as_ref().is_some_and(|manager| {
-                                manager
-                                    .ready()
-                                    .any(|owner| owner == program.executable.id())
-                            })
+                            && self
+                                .plugin_manager
+                                .as_ref()
+                                .is_some_and(|manager| manager.ready().any(|owner| owner == program.executable.id()))
                     })
             })
         {
@@ -777,31 +572,19 @@ impl Runtime {
         let candidate = prepare(bundle, &extraction, None, &self.handle).await?;
         let name = candidate.catalog.package.clone();
         if let Some(current) = self.plugins.get(&name)
-            && !matches!(
-                current.package.input.provenance,
-                PluginProvenance::Configured
-            )
+            && !matches!(current.package.input.provenance, PluginProvenance::Configured)
         {
-            return Err(operation(
-                "only explicitly configured development plugins can be reloaded",
-            ));
+            return Err(operation("only explicitly configured development plugins can be reloaded"));
         }
         let mut catalogs: Vec<ProviderCatalog> = self
             .plugins
             .iter()
             .filter(|(key, _)| *key != &name)
             .map(|(_, active)| active.package.catalog.clone().into())
-            .chain(
-                self.embedded
-                    .values()
-                    .map(|provider| provider.catalog.clone()),
-            )
+            .chain(self.embedded.values().map(|provider| provider.catalog.clone()))
             .collect();
         catalogs.push(candidate.catalog.clone().into());
-        self.handle
-            .state_read()
-            .validate_provider_reload(&catalogs, &name)
-            .map_err(operation)?;
+        self.handle.state_read().validate_provider_reload(&catalogs, &name).map_err(operation)?;
         let redefined: Vec<_> = {
             let state = self.handle.state_read();
             candidate
@@ -809,13 +592,7 @@ impl Runtime {
                 .plugins
                 .iter()
                 .flat_map(|plugin| {
-                    plugin.record_contracts.iter().chain(
-                        plugin
-                            .suites
-                            .suites
-                            .iter()
-                            .flat_map(|suite| suite.record_contracts.iter()),
-                    )
+                    plugin.record_contracts.iter().chain(plugin.suites.suites.iter().flat_map(|suite| suite.record_contracts.iter()))
                 })
                 .filter(|contract| {
                     state
@@ -836,28 +613,14 @@ impl Runtime {
         for program in &programs {
             self.handle
                 .streams
-                .validate_publications(
-                    program.executable.id(),
-                    program.executable.0.declaration().streams.clone(),
-                )
+                .validate_publications(program.executable.id(), program.executable.0.declaration().streams.clone())
                 .map_err(operation)?;
         }
-        let rebuilt = candidate
-            .programs
-            .iter()
-            .map(|program| program.executable.id().to_owned());
+        let rebuilt = candidate.programs.iter().map(|program| program.executable.id().to_owned());
         let definitions = graph(programs.iter().copied(), self.embedded.values(), rebuilt)?;
-        let reload = self
-            .plugin_manager
-            .as_ref()
-            .expect("manager initialized at startup")
-            .plan_reload(definitions)?;
+        let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
-        let mut desired = ActivePackage {
-            package: candidate,
-            running: Vec::new(),
-            telemetry: BTreeMap::new(),
-        };
+        let mut desired = ActivePackage { package: candidate, running: Vec::new(), telemetry: BTreeMap::new() };
         if let Some(previous) = self.plugins.remove(&name) {
             // Manager backends retain old physical generations and their files.
             // These entries are only the domain projections for exposure.
@@ -872,33 +635,16 @@ impl Runtime {
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
         };
-        let manager = self
-            .plugin_manager
-            .as_mut()
-            .expect("manager initialized at startup");
+        let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
         if let Err(error) = manager.apply_reload(reload, &mut lifecycle).await {
             if start_failure(&error).is_some() {
-                self.handle
-                    .commit(ReconcileProviders {
-                        providers: self.ready_catalogs(),
-                    })
-                    .await
-                    .map_err(operation)?;
+                self.handle.commit(ReconcileProviders { providers: self.ready_catalogs() }).await.map_err(operation)?;
             }
             return Err(error.into());
         }
-        self.handle
-            .commit(ReloadProviderCatalog {
-                providers: catalogs,
-                provider: name.clone(),
-            })
-            .await
-            .map_err(operation)?;
+        self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: name.clone() }).await.map_err(operation)?;
         self.expose_plugins()?;
-        std::mem::take(&mut self.pending_plugins)
-            .close()
-            .await
-            .map_err(operation)?;
+        std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
         for (record, version) in redefined {
             tracing::warn!(
                 "development reload redefined record {record} version {version}; earlier executions in this state directory now decode against the new definition"
@@ -926,26 +672,17 @@ impl Runtime {
             .filter_map(|execution| execution.snapshot.plugin().cloned())
             .collect();
         for previous in previous {
-            let current = self
-                .handle
-                .state_read()
-                .execution_identity(&previous.source);
+            let current = self.handle.state_read().execution_identity(&previous.source);
             if current.as_ref() != Some(&previous) {
                 self.handle
-                    .commit(crate::transactions::InvalidateExecutions {
-                        previous,
-                        current,
-                        invalidated_at: crate::model::time::now_utc(),
-                    })
+                    .commit(crate::transactions::InvalidateExecutions { previous, current, invalidated_at: crate::model::time::now_utc() })
                     .await
                     .map_err(operation)?;
             }
         }
         if !self.handle.state_read().cycles.is_empty() {
             self.handle
-                .commit(crate::transactions::RecoverInterruptedCycles {
-                    at: crate::model::time::now_utc(),
-                })
+                .commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() })
                 .await
                 .map_err(operation)?;
         }
@@ -956,20 +693,10 @@ impl Runtime {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn start_failure(
-    error: &harmos::Error,
-) -> Option<(
-    &str,
-    &harmos::Error,
-    &[harmos::plugin::PluginCleanupFailure],
-)> {
+fn start_failure(error: &harmos::Error) -> Option<(&str, &harmos::Error, &[harmos::plugin::PluginCleanupFailure])> {
     match error {
         harmos::Error::PluginLifecycle { source } => match source.as_ref() {
-            harmos::plugin::PluginFailure::Start {
-                artifact: plugin,
-                source,
-                cleanup,
-            } => Some((plugin, source, cleanup)),
+            harmos::plugin::PluginFailure::Start { artifact: plugin, source, cleanup } => Some((plugin, source, cleanup)),
             _ => None,
         },
         _ => None,
@@ -978,26 +705,19 @@ fn start_failure(
 
 fn plugin_log_filter(filter: std::ffi::OsString) -> std::ffi::OsString {
     match filter.to_str() {
-        Some(level @ ("debug" | "trace")) => {
-            format!("{level},h2=warn,tower=warn,hyper=warn,hyper_util=warn,tonic=warn").into()
-        }
+        Some(level @ ("debug" | "trace")) => format!("{level},h2=warn,tower=warn,hyper=warn,hyper_util=warn,tonic=warn").into(),
         _ => filter,
     }
 }
 
 fn graph<'a>(
-    programs: impl IntoIterator<Item = &'a Program>,
-    embedded: impl IntoIterator<Item = &'a super::embedded::Active>,
+    programs: impl IntoIterator<Item = &'a Program>, embedded: impl IntoIterator<Item = &'a super::embedded::Active>,
     rebuilt: impl IntoIterator<Item = String>,
 ) -> Result<harmos::plugin::PluginDefinitions> {
     let definitions = programs
         .into_iter()
         .map(|program| program.definition.clone())
-        .chain(
-            embedded
-                .into_iter()
-                .map(|provider| provider.definition.clone()),
-        );
+        .chain(embedded.into_iter().map(|provider| provider.definition.clone()));
     harmos::plugin::PluginDefinitions::new(definitions, rebuilt).map_err(Error::from)
 }
 
@@ -1014,11 +734,7 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
     let mut paths = Vec::new();
     for entry in entries {
         let path = entry.map_err(operation)?.path();
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "dokime")
-            && path.is_file()
-        {
+        if path.extension().is_some_and(|extension| extension == "dokime") && path.is_file() {
             paths.push(path);
         }
     }
@@ -1027,15 +743,12 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
 }
 
 fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(&input.path, harmos::bundle::Limits::default().archive_bytes)
-        .map_err(operation)?;
+    let bytes = read_bounded(&input.path, harmos::bundle::Limits::default().archive_bytes).map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
     };
-    if let PluginProvenance::Installed {
-        install_id, sha256, ..
-    } = &input.provenance
+    if let PluginProvenance::Installed { install_id, sha256, .. } = &input.provenance
         && content_digest != *sha256
     {
         return Err(operation(format!(
@@ -1043,35 +756,15 @@ fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadB
             input.path.display()
         )));
     }
-    Ok(ReadBundle {
-        input,
-        bytes,
-        content_digest,
-    })
+    Ok(ReadBundle { input, bytes, content_digest })
 }
 
-async fn prepare(
-    read: ReadBundle,
-    extraction: &std::path::Path,
-    reuse: Option<PathBuf>,
-    handle: &super::RuntimeHandle,
-) -> Result<Package> {
-    let ReadBundle {
-        input,
-        bytes,
-        content_digest,
-    } = read;
+async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<PathBuf>, handle: &super::RuntimeHandle) -> Result<Package> {
+    let ReadBundle { input, bytes, content_digest } = read;
     let (bundle, metadata) = crate::plugins::inspect(&bytes).map_err(operation)?;
     let selected = selected_files(&bundle).map_err(operation)?;
-    if let Some(owner) = input
-        .programs
-        .keys()
-        .find(|owner| !metadata.owners.contains(owner))
-    {
-        return Err(operation(format!(
-            "plugin `{}` configuration names unknown executable `{owner}`",
-            input.path.display()
-        )));
+    if let Some(owner) = input.programs.keys().find(|owner| !metadata.owners.contains(owner)) {
+        return Err(operation(format!("plugin `{}` configuration names unknown executable `{owner}`", input.path.display())));
     }
     let mut plugins = Vec::new();
     let directory = match reuse {
@@ -1081,8 +774,7 @@ async fn prepare(
             match &input.provenance {
                 PluginProvenance::Installed { install_id, .. } => {
                     let target = extraction.join(install_id.to_string());
-                    persist_extraction(staged, &target, &input.path, &content_digest)
-                        .map_err(operation)?;
+                    persist_extraction(staged, &target, &input.path, &content_digest).map_err(operation)?;
                     Extraction::Cached(target)
                 }
                 PluginProvenance::Configured => Extraction::Ephemeral(staged),
@@ -1091,68 +783,35 @@ async fn prepare(
     };
     let mut programs = Vec::new();
     for file in selected {
-        let declaration = bundle
-            .declaration(&file.path)
-            .expect("selected executable declaration");
+        let declaration = bundle.declaration(&file.path).expect("selected executable declaration");
         if !crate::plugins::catalog::native(declaration) {
-            return Err(operation(crate::plugins::catalog::guest_refused(
-                &file.path,
-            )));
+            return Err(operation(crate::plugins::catalog::guest_refused(&file.path)));
         }
-        let (id, version, description, operations) = (
-            &declaration.id,
-            &declaration.version,
-            &declaration.description,
-            &declaration.operations,
-        );
+        let (id, version, description, operations) =
+            (&declaration.id, &declaration.version, &declaration.description, &declaration.operations);
         dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
-        let registrations = file
-            .executable
-            .as_ref()
-            .expect("selected executable")
-            .registrations
-            .clone();
+        let registrations = file.executable.as_ref().expect("selected executable").registrations.clone();
         let plugin = decode_registrations(id, &version.to_string(), description, &registrations)?;
         super::native_telemetry::validate(&plugin, &declaration.streams).map_err(operation)?;
-        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides)
-            .map_err(operation)?;
-        let bindings =
-            crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
+        crate::plugins::dispatch::validate_analyses(&plugin, &declaration.contracts.provides).map_err(operation)?;
+        let bindings = crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
-        let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path))
-            .map_err(operation)?;
+        let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path)).map_err(operation)?;
         if executable.declaration() != declaration {
-            return Err(operation(format!(
-                "extracted executable `{id}` has a different declaration than its verified bundle"
-            )));
+            return Err(operation(format!("extracted executable `{id}` has a different declaration than its verified bundle")));
         }
         if let Some(filter) = std::env::var_os(PLUGIN_LOG_VARIABLE) {
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
         }
 
-        let bytes = read_bounded(
-            executable.path(),
-            harmos::bundle::Limits::default().file_bytes,
-        )
-        .map_err(operation)?;
+        let bytes = read_bounded(executable.path(), harmos::bundle::Limits::default().file_bytes).map_err(operation)?;
         let hash = Sha256::digest(&bytes);
-        if hash
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-            != file.sha256
-        {
-            return Err(operation(format!(
-                "extracted executable `{id}` differs from its verified bundle"
-            )));
+        if hash.iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
+            return Err(operation(format!("extracted executable `{id}` differs from its verified bundle")));
         }
         let sha256 = hash.into();
         drop(bytes);
-        let configured = input
-            .programs
-            .get(id)
-            .cloned()
-            .unwrap_or_else(crate::plugins::config::empty_object);
+        let configured = input.programs.get(id).cloned().unwrap_or_else(crate::plugins::config::empty_object);
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
         let declaration = executable.declaration();
         let operations = declaration.operations.clone();
@@ -1164,9 +823,7 @@ async fn prepare(
                 path: executable.path().to_owned(),
                 sha256,
                 arguments: executable.arguments().to_vec(),
-                directory: executable
-                    .working_directory()
-                    .map(std::path::Path::to_owned),
+                directory: executable.working_directory().map(std::path::Path::to_owned),
                 environment: executable.environment().iter().cloned().collect(),
             },
             configuration: serde_json::to_vec(&initialization).map_err(operation)?,
@@ -1176,9 +833,7 @@ async fn prepare(
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 observers: declaration.observers.clone(),
                 observer_control: match &declaration.carrier {
-                    harmos::plugin::inventory::CarrierSection::Sidecar {
-                        observer_control, ..
-                    } => observer_control.as_deref().cloned(),
+                    harmos::plugin::inventory::CarrierSection::Sidecar { observer_control, .. } => observer_control.as_deref().cloned(),
                     harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 lifecycle: Some(declaration.contracts.lifecycle.clone()),
@@ -1189,13 +844,7 @@ async fn prepare(
             },
         };
 
-        programs.push(Program {
-            plugin,
-            executable: Executable(executable),
-            definition,
-            bindings,
-            configured,
-        });
+        programs.push(Program { plugin, executable: Executable(executable), definition, bindings, configured });
     }
     let installation = match &input.provenance {
         PluginProvenance::Configured => None,
@@ -1204,23 +853,14 @@ async fn prepare(
     let path = input.path.to_string_lossy().into_owned();
     Ok(Package {
         input,
-        catalog: BundleCatalog {
-            package: metadata.identity.name,
-            path,
-            content_digest,
-            installation,
-            plugins,
-        },
+        catalog: BundleCatalog { package: metadata.identity.name, path, content_digest, installation, plugins },
         programs,
         _directory: Arc::new(directory),
     })
 }
 
 fn reusable_extraction(extraction: &std::path::Path, input: &PluginBundle) -> Option<PathBuf> {
-    let PluginProvenance::Installed {
-        install_id, sha256, ..
-    } = &input.provenance
-    else {
+    let PluginProvenance::Installed { install_id, sha256, .. } = &input.provenance else {
         return None;
     };
     let target = extraction.join(install_id.to_string());
@@ -1240,10 +880,7 @@ fn extraction_matches(marker: &ExtractionMarker, sha256: &str, size: u64, modifi
 }
 
 fn persist_extraction(
-    staged: tempfile::TempDir,
-    target: &std::path::Path,
-    bundle_path: &std::path::Path,
-    content_digest: &str,
+    staged: tempfile::TempDir, target: &std::path::Path, bundle_path: &std::path::Path, content_digest: &str,
 ) -> std::io::Result<()> {
     if target.is_dir() {
         // Leftover from an interrupted extraction under this same install_id;
@@ -1253,11 +890,7 @@ fn persist_extraction(
     }
     std::fs::rename(staged.path(), target)?;
     let stat = std::fs::metadata(bundle_path)?;
-    let marker = ExtractionMarker {
-        sha256: content_digest.to_owned(),
-        size: stat.len(),
-        mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0),
-    };
+    let marker = ExtractionMarker { sha256: content_digest.to_owned(), size: stat.len(), mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0) };
     dokime_filesystem::publication::write(
         &target.join(EXTRACTION_MARKER_FILE),
         &serde_json::to_vec(&marker).map_err(std::io::Error::other)?,
@@ -1266,11 +899,7 @@ fn persist_extraction(
 }
 
 fn mtime_unix_ms(stat: &std::fs::Metadata) -> Option<i64> {
-    let elapsed = stat
-        .modified()
-        .ok()?
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
+    let elapsed = stat.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
     i64::try_from(elapsed.as_millis()).ok()
 }
 
@@ -1306,42 +935,22 @@ fn orphaned_extraction(name: &str, live: &BTreeSet<String>) -> bool {
 }
 
 fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginDefinition>> {
-    packages
-        .iter()
-        .map(|package| {
-            package
-                .programs
-                .iter()
-                .map(|program| program.definition.clone())
-                .collect()
-        })
-        .collect()
+    packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
 
-fn plan(
-    store: &PluginStore,
-    packages: &[&Package],
-    embedded: &[harmos::plugin::PluginDefinition],
-) -> Result<BTreeSet<usize>> {
-    plan_graph(&package_definitions(packages), embedded, |index, reason| {
-        failed(store, &packages[index].input, reason)
-    })
+fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
+    plan_graph(&package_definitions(packages), embedded, |index, reason| failed(store, &packages[index].input, reason))
 }
 
 fn plan_graph(
-    packages: &[Vec<harmos::plugin::PluginDefinition>],
-    embedded: &[harmos::plugin::PluginDefinition],
+    packages: &[Vec<harmos::plugin::PluginDefinition>], embedded: &[harmos::plugin::PluginDefinition],
     mut refuse: impl FnMut(usize, &str) -> Result<()>,
 ) -> Result<BTreeSet<usize>> {
     let mut removed = BTreeSet::new();
     loop {
         let mut locations = BTreeMap::new();
         let mut plugins = Vec::new();
-        for (package_index, package) in packages
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| !removed.contains(index))
-        {
+        for (package_index, package) in packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)) {
             for plugin in package {
                 locations.insert(plugin.id.clone(), package_index);
                 plugins.push(plugin.clone());
@@ -1355,28 +964,17 @@ fn plan_graph(
                     harmos::plugin::Error::Unknown { .. } => {
                         return Err(operation(error));
                     }
-                    harmos::plugin::Error::Definition {
-                        artifact: plugin, ..
-                    } => plugin,
-                    harmos::plugin::Error::StreamConflict { second, .. }
-                    | harmos::plugin::Error::OperationConflict { second, .. } => second,
+                    harmos::plugin::Error::Definition { artifact: plugin, .. } => plugin,
+                    harmos::plugin::Error::StreamConflict { second, .. } | harmos::plugin::Error::OperationConflict { second, .. } => {
+                        second
+                    }
                     harmos::plugin::Error::Duplicate { id } => id,
-                    harmos::plugin::Error::Missing {
-                        artifact: plugin, ..
-                    }
-                    | harmos::plugin::Error::Incompatible {
-                        artifact: plugin, ..
-                    }
+                    harmos::plugin::Error::Missing { artifact: plugin, .. }
+                    | harmos::plugin::Error::Incompatible { artifact: plugin, .. }
                     | harmos::plugin::Error::Cycle { artifact: plugin }
-                    | harmos::plugin::Error::IncompatibleOperation {
-                        artifact: plugin, ..
-                    }
-                    | harmos::plugin::Error::AmbiguousOperation {
-                        artifact: plugin, ..
-                    }
-                    | harmos::plugin::Error::ProviderSelection {
-                        artifact: plugin, ..
-                    } => plugin,
+                    | harmos::plugin::Error::IncompatibleOperation { artifact: plugin, .. }
+                    | harmos::plugin::Error::AmbiguousOperation { artifact: plugin, .. }
+                    | harmos::plugin::Error::ProviderSelection { artifact: plugin, .. } => plugin,
                 };
                 let Some(&package) = locations.get(owner) else {
                     return Err(operation(error));
@@ -1389,24 +987,14 @@ fn plan_graph(
     }
 }
 
-fn prune(
-    store: &PluginStore,
-    packages: &[&Package],
-    removed: &mut BTreeSet<usize>,
-    initial: usize,
-    reason: &str,
-) -> Result<()> {
+fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
         failed(store, &packages[index].input, reason)?;
     }
     Ok(())
 }
 
-fn prune_graph(
-    packages: &[Vec<harmos::plugin::PluginDefinition>],
-    removed: &mut BTreeSet<usize>,
-    initial: usize,
-) -> BTreeSet<usize> {
+fn prune_graph(packages: &[Vec<harmos::plugin::PluginDefinition>], removed: &mut BTreeSet<usize>, initial: usize) -> BTreeSet<usize> {
     let mut newly_removed = BTreeSet::new();
     if removed.insert(initial) {
         newly_removed.insert(initial);
@@ -1425,12 +1013,7 @@ fn prune_graph(
             .collect();
         let dependent = packages.iter().enumerate().find_map(|(index, package)| {
             (!removed.contains(&index)
-                && package.iter().any(|plugin| {
-                    plugin
-                        .requires
-                        .iter()
-                        .any(|requirement| unavailable.contains(requirement.id.as_str()))
-                }))
+                && package.iter().any(|plugin| plugin.requires.iter().any(|requirement| unavailable.contains(requirement.id.as_str()))))
             .then_some(index)
         });
         let Some(index) = dependent else { break };
@@ -1442,10 +1025,7 @@ fn prune_graph(
 
 fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Result<()> {
     let PluginProvenance::Installed { install_id, .. } = &input.provenance else {
-        return Err(operation(format!(
-            "configured plugin `{}` failed: {reason}",
-            input.path.display()
-        )));
+        return Err(operation(format!("configured plugin `{}` failed: {reason}", input.path.display())));
     };
     tracing::warn!(
         plugin = %input.path.display(),

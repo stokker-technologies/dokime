@@ -83,9 +83,7 @@ pub(crate) fn environment_references(bundle: &Bundle) -> Result<BTreeSet<Environ
             continue;
         };
         let owner = match bundle.declaration(&file.path) {
-            Some(declaration) if matches!(declaration.carrier, CarrierSection::Sidecar { .. }) => {
-                &declaration.id
-            }
+            Some(declaration) if matches!(declaration.carrier, CarrierSection::Sidecar { .. }) => &declaration.id,
             Some(_) => {
                 return Err(Error::Input(format!(
                     "Dokime admits native sidecar plugins only; `{}` declares a WebAssembly guest",
@@ -106,16 +104,8 @@ pub(crate) fn environment_references(bundle: &Bundle) -> Result<BTreeSet<Environ
             }
             let settings: SettingsRegistration = serde_json::from_slice(&registration.payload)?;
             for contribution in settings.catalog.contributions {
-                if let SettingContribution::SecretReference {
-                    id,
-                    default: Some(SecretDefault::Environment { variable }),
-                } = contribution
-                {
-                    let reference = EnvironmentReference {
-                        owner: owner.clone(),
-                        setting: id,
-                        variable,
-                    };
+                if let SettingContribution::SecretReference { id, default: Some(SecretDefault::Environment { variable }) } = contribution {
+                    let reference = EnvironmentReference { owner: owner.clone(), setting: id, variable };
                     references.insert(reference);
                 }
             }

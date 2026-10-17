@@ -64,21 +64,16 @@ pub(crate) enum Action {
 /* === Implementations === */
 impl Command {
     pub fn parse(request: &CommandExecutionRequest) -> Result<Self, Refusal> {
-        let id = CommandId::from_uuid(&request.command_id)
-            .map_err(|error| Refusal::of(error.to_string()))?;
+        let id = CommandId::from_uuid(&request.command_id).map_err(|error| Refusal::of(error.to_string()))?;
         if request.step.len() > 256 {
             return Err(Refusal::of("command step identifier exceeds 256 bytes"));
         }
         let action = match (request.action.as_str(), request.step.as_str()) {
             ("next", "") => Action::Next,
             ("finish", "") => Action::Finish,
-            ("run_step", step) => {
-                Action::Step(Identifier::new(step).map_err(|error| Refusal::of(error.to_string()))?)
-            }
+            ("run_step", step) => Action::Step(Identifier::new(step).map_err(|error| Refusal::of(error.to_string()))?),
             _ => {
-                return Err(Refusal::of(
-                    "command must be next, run_step with a step, or finish",
-                ));
+                return Err(Refusal::of("command must be next, run_step with a step, or finish"));
             }
         };
         Ok(Self { id, action })
@@ -88,13 +83,7 @@ impl Command {
 impl Controls {
     pub fn new(interactive: bool) -> Self {
         Self {
-            state: Mutex::new(State {
-                interactive,
-                closed: false,
-                pending: None,
-                active: None,
-                receipts: BTreeMap::new(),
-            }),
+            state: Mutex::new(State { interactive, closed: false, pending: None, active: None, receipts: BTreeMap::new() }),
             changed: Notify::new(),
         }
     }
@@ -109,9 +98,7 @@ impl Controls {
             return if action == &command.action {
                 Ok(receipt.clone())
             } else {
-                Err(Refusal::of(
-                    "command identity was reused with different content",
-                ))
+                Err(Refusal::of("command identity was reused with different content"))
             };
         }
         if !state.interactive {
@@ -124,19 +111,10 @@ impl Controls {
             return Err(Refusal::of("another execution command is still settling"));
         }
         if state.receipts.len() >= MAX_COMMANDS && command.action != Action::Finish {
-            return Err(Refusal::of(
-                "execution command receipts are at capacity; finish this execution",
-            ));
+            return Err(Refusal::of("execution command receipts are at capacity; finish this execution"));
         }
-        let receipt = CommandExecutionReply {
-            state: "accepted".into(),
-            attempt_id: String::new(),
-            message: String::new(),
-        };
-        state.receipts.insert(
-            command.id.clone(),
-            (command.action.clone(), receipt.clone()),
-        );
+        let receipt = CommandExecutionReply { state: "accepted".into(), attempt_id: String::new(), message: String::new() };
+        state.receipts.insert(command.id.clone(), (command.action.clone(), receipt.clone()));
         state.pending = Some(command);
         drop(state);
         self.changed.notify_one();
@@ -159,16 +137,7 @@ impl Controls {
         let Some((_, receipt)) = state.receipts.get_mut(id) else {
             return;
         };
-        receipt.state = if error.is_some() {
-            if attempt.is_some() {
-                "failed"
-            } else {
-                "refused"
-            }
-        } else {
-            "completed"
-        }
-        .into();
+        receipt.state = if error.is_some() { if attempt.is_some() { "failed" } else { "refused" } } else { "completed" }.into();
         receipt.attempt_id = attempt.map(ToString::to_string).unwrap_or_default();
         receipt.message = error.unwrap_or_default();
         state.active = None;
@@ -198,9 +167,7 @@ impl Controls {
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 

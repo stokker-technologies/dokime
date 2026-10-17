@@ -55,14 +55,7 @@ impl Server {
         let root = tempfile::tempdir().unwrap();
         let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
         command
-            .args([
-                "--dev-control",
-                "--shutdown-stdin",
-                "--no-seed-validation-artifact",
-                "--port",
-                "0",
-                "--output-root",
-            ])
+            .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
             .arg(root.path().join("data"))
             .arg("--application-root")
             .arg(root.path().join("application"))
@@ -80,21 +73,13 @@ impl Server {
         // `--dev-control` prints one JSON line per startup phase, then `ready`.
         let endpoint = loop {
             let mut line = String::new();
-            assert!(
-                stdout.read_line(&mut line).unwrap() > 0,
-                "the server exited before reporting readiness"
-            );
+            assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
             let event: serde_json::Value = serde_json::from_str(&line).unwrap();
             if event["event"] == "ready" {
                 break event["endpoint"].as_str().unwrap().to_owned();
             }
         };
-        Self {
-            child,
-            endpoint,
-            _stdout: stdout,
-            _root: root,
-        }
+        Self { child, endpoint, _stdout: stdout, _root: root }
     }
 
     pub fn endpoint(&self) -> &str {
@@ -129,11 +114,7 @@ pub fn plugin_bundle() -> Option<PathBuf> {
 /* === Private Functions === */
 fn artifact(relative: &str) -> PathBuf {
     let path = build_root().join(relative);
-    assert!(
-        path.is_file(),
-        "missing built artifact {}; run `mise run build`",
-        path.display()
-    );
+    assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }
 

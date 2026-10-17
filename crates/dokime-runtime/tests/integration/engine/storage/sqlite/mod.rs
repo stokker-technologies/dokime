@@ -52,9 +52,7 @@ async fn refuses_previous_data() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("local.sqlite");
         let previous = Connection::open(&path).unwrap();
-        previous
-            .pragma_update(None, "user_version", version)
-            .unwrap();
+        previous.pragma_update(None, "user_version", version).unwrap();
         previous
             .execute_batch(
                 "CREATE TABLE evidence(body BLOB NOT NULL);
@@ -68,15 +66,8 @@ async fn refuses_previous_data() {
             Err(Error::Incompatible(reason)) if reason.contains(&format!("version {version}"))
         ));
         let retained = Connection::open(&path).unwrap();
-        assert_eq!(
-            retained
-                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
-                .unwrap(),
-            version
-        );
-        let bytes: Vec<u8> = retained
-            .query_row("SELECT body FROM evidence", [], |row| row.get(0))
-            .unwrap();
+        assert_eq!(retained.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0)).unwrap(), version);
+        let bytes: Vec<u8> = retained.query_row("SELECT body FROM evidence", [], |row| row.get(0)).unwrap();
         assert_eq!(bytes, [0, 1, 2, 255]);
     }
 }
@@ -94,15 +85,10 @@ async fn refuses_unversioned_schema() {
         .unwrap();
     drop(existing);
 
-    assert!(matches!(
-        State::open(root.path()).await,
-        Err(Error::Incompatible(_))
-    ));
+    assert!(matches!(State::open(root.path()).await, Err(Error::Incompatible(_))));
 
     let retained = Connection::open(&path).unwrap();
-    let version: i64 = retained
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .unwrap();
+    let version: i64 = retained.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
     assert_eq!(version, 0);
     let created: i64 = retained
         .query_row(
@@ -114,9 +100,7 @@ async fn refuses_unversioned_schema() {
         )
         .unwrap();
     assert_eq!(created, 0);
-    let evidence: String = retained
-        .query_row("SELECT storage_key FROM file_cleanup", [], |row| row.get(0))
-        .unwrap();
+    let evidence: String = retained.query_row("SELECT storage_key FROM file_cleanup", [], |row| row.get(0)).unwrap();
     assert_eq!(evidence, "retained");
     retained.execute_batch("DROP TABLE file_cleanup").unwrap();
     drop(retained);
@@ -124,9 +108,7 @@ async fn refuses_unversioned_schema() {
     let owner = State::open(root.path()).await.unwrap();
     owner.close().await.unwrap();
     let installed = Connection::open(&path).unwrap();
-    let version: i64 = installed
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .unwrap();
+    let version: i64 = installed.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
     assert_eq!(version, 1);
 }
 
@@ -144,17 +126,10 @@ async fn refuses_retired_intent() {
         )
         .unwrap();
     drop(existing);
-    assert!(matches!(
-        State::open(root.path()).await,
-        Err(Error::Incompatible(_))
-    ));
+    assert!(matches!(State::open(root.path()).await, Err(Error::Incompatible(_))));
     let retained = Connection::open(&path).unwrap();
     let claim: (String, i64) = retained
-        .query_row(
-            "SELECT state,attempt FROM storage_operations WHERE identifier='original'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
+        .query_row("SELECT state,attempt FROM storage_operations WHERE identifier='original'", [], |row| Ok((row.get(0)?, row.get(1)?)))
         .unwrap();
     assert_eq!(claim, ("running".into(), 7));
 }
@@ -164,10 +139,7 @@ async fn refuses_attachment_receipts() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("local.sqlite");
     let owner = State::open(root.path()).await.unwrap();
-    owner
-        .call(|connection| connection.execute_batch("DROP TABLE storage_sources"))
-        .await
-        .unwrap();
+    owner.call(|connection| connection.execute_batch("DROP TABLE storage_sources")).await.unwrap();
     owner.close().await.unwrap();
     let previous = Connection::open(&path).unwrap();
     previous.execute_batch("PRAGMA user_version=3; CREATE TABLE evidence(value TEXT); INSERT INTO evidence VALUES ('retained');").unwrap();
@@ -179,27 +151,10 @@ async fn refuses_attachment_receipts() {
     ));
 
     let previous = Connection::open(&path).unwrap();
+    assert_eq!(previous.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0)).unwrap(), 3);
+    assert_eq!(previous.query_row("SELECT value FROM evidence", [], |row| row.get::<_, String>(0)).unwrap(), "retained");
     assert_eq!(
-        previous
-            .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
-            .unwrap(),
-        3
-    );
-    assert_eq!(
-        previous
-            .query_row("SELECT value FROM evidence", [], |row| row
-                .get::<_, String>(0))
-            .unwrap(),
-        "retained"
-    );
-    assert_eq!(
-        previous
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'storage_sources'",
-                [],
-                |row| row.get::<_, i64>(0)
-            )
-            .unwrap(),
+        previous.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'storage_sources'", [], |row| row.get::<_, i64>(0)).unwrap(),
         0
     );
 }
@@ -220,9 +175,12 @@ async fn refuses_second_drop() {
 async fn sqlite_rolls_reopen() {
     let root = tempfile::tempdir().unwrap();
     let state = State::open(root.path()).await.unwrap();
-    state.call(|connection| connection.execute_batch(
-        "CREATE TABLE operations(identifier TEXT PRIMARY KEY); INSERT INTO operations VALUES ('committed');"
-    )).await.unwrap();
+    state
+        .call(|connection| {
+            connection.execute_batch("CREATE TABLE operations(identifier TEXT PRIMARY KEY); INSERT INTO operations VALUES ('committed');")
+        })
+        .await
+        .unwrap();
     let result = state
         .call(|connection| {
             let transaction = connection.transaction()?;
@@ -251,12 +209,7 @@ async fn sqlite_rolls_reopen() {
 async fn cancelled_caller_progress() {
     let root = tempfile::tempdir().unwrap();
     let state = State::open(root.path()).await.unwrap();
-    state
-        .call(|connection| {
-            connection.execute_batch("CREATE TABLE writes(sequence INTEGER PRIMARY KEY)")
-        })
-        .await
-        .unwrap();
+    state.call(|connection| connection.execute_batch("CREATE TABLE writes(sequence INTEGER PRIMARY KEY)")).await.unwrap();
     let (started, running) = tokio::sync::oneshot::channel();
     let (release, blocked) = std::sync::mpsc::channel();
     let first = state.clone();
@@ -275,11 +228,7 @@ async fn cancelled_caller_progress() {
 
     let mut second = Box::pin(state.call(|connection| {
         // The prior write must complete before this callback can run.
-        assert_eq!(
-            connection.query_row("SELECT COUNT(*) FROM writes", [], |row| row
-                .get::<_, i64>(0))?,
-            1
-        );
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM writes", [], |row| row.get::<_, i64>(0))?, 1);
         connection.execute("INSERT INTO writes VALUES (2)", [])
     }));
     std::future::poll_fn(|context| {
@@ -335,9 +284,6 @@ async fn close_drains_clones() {
     assert!(matches!(shared.call(|_| Ok(())).await, Err(Error::Closed)));
 
     let reopened = State::open(root.path()).await.unwrap();
-    reopened
-        .call(|connection| connection.execute_batch("DROP TABLE closed_probe;"))
-        .await
-        .unwrap();
+    reopened.call(|connection| connection.execute_batch("DROP TABLE closed_probe;")).await.unwrap();
     reopened.close().await.unwrap();
 }

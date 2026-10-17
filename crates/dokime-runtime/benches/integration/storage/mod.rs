@@ -68,11 +68,7 @@ impl Application for App {
 impl Fixture {
     async fn new(concurrency: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let backend = Arc::new(
-            Backend::<()>::primary(root.path().to_owned())
-                .await
-                .unwrap(),
-        );
+        let backend = Arc::new(Backend::<()>::primary(root.path().to_owned()).await.unwrap());
         let mut settings = dokime_runtime::config::storage_defaults();
         settings.budget.read_memory_bytes = nz(128 * 1024 * 1024);
         settings.request.max_active_queries = nz(concurrency);
@@ -88,10 +84,7 @@ impl Fixture {
             settings,
         )
         .unwrap();
-        let runtime = Runtime::<App>::builder((), ())
-            .runtime_with_storage(&storage)
-            .await
-            .unwrap();
+        let runtime = Runtime::<App>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
         let graph = harmos::schema::graph::Schema::from_declaration(
             <Measurement as harmos::schema::Described>::DEFINITION,
             &harmos::config::SchemaSettings::default(),
@@ -99,18 +92,11 @@ impl Fixture {
         .unwrap();
         storage.write_schema(&schema(), &graph).await.unwrap();
         storage.flush().await.unwrap();
-        Self {
-            _root: root,
-            storage,
-            runtime,
-            backend,
-        }
+        Self { _root: root, storage, runtime, backend }
     }
 
     fn plan(
-        &self,
-        transforms: Vec<harmos::storage::query::transform::Transform>,
-        slice: harmos::storage::query::RowSlice,
+        &self, transforms: Vec<harmos::storage::query::transform::Transform>, slice: harmos::storage::query::RowSlice,
     ) -> harmos::storage::query::Query {
         use harmos::storage::query::{Query, Source, StreamSelection};
         Query {
@@ -144,18 +130,11 @@ impl Fixture {
     }
 
     async fn append(&self, start: u64, payloads: &[Vec<u8>]) -> StorageCursor {
-        let items = (start..start + payloads.len() as u64)
-            .map(|index| id(&format!("sample-{index}")))
-            .collect::<Vec<_>>();
+        let items = (start..start + payloads.len() as u64).map(|index| id(&format!("sample-{index}"))).collect::<Vec<_>>();
         self.append_with_ids(start, payloads, &items).await
     }
 
-    async fn append_with_ids(
-        &self,
-        start: u64,
-        payloads: &[Vec<u8>],
-        items: &[Identifier],
-    ) -> StorageCursor {
+    async fn append_with_ids(&self, start: u64, payloads: &[Vec<u8>], items: &[Identifier]) -> StorageCursor {
         let schema = schema();
         let scope = id("execution");
         let stream = id("voltage");
@@ -171,9 +150,7 @@ impl Fixture {
                     scope: Some(&scope),
                     item,
                     source: None,
-                    source_time: Some(
-                        std::time::UNIX_EPOCH + Duration::from_micros(start + index as u64),
-                    ),
+                    source_time: Some(std::time::UNIX_EPOCH + Duration::from_micros(start + index as u64)),
                     payload,
                 },
             })
@@ -200,21 +177,10 @@ fn id(value: &str) -> Identifier {
     Identifier::new(value).unwrap()
 }
 fn schema() -> SchemaKey {
-    SchemaKey {
-        id: id("bench.measurement"),
-        version: std::num::NonZeroU32::MIN,
-        payload_encoding: PayloadEncoding::PostcardV1,
-    }
+    SchemaKey { id: id("bench.measurement"), version: std::num::NonZeroU32::MIN, payload_encoding: PayloadEncoding::PostcardV1 }
 }
 fn samples(rows: usize) -> Vec<Vec<u8>> {
-    (0..rows)
-        .map(|index| {
-            Measurement {
-                value: 325.0 * (std::f64::consts::TAU * index as f64 / 64.0).sin(),
-            }
-            .encode_to_vec()
-        })
-        .collect()
+    (0..rows).map(|index| Measurement { value: 325.0 * (std::f64::consts::TAU * index as f64 / 64.0).sin() }.encode_to_vec()).collect()
 }
 /// A fixture holding `rows` saved samples in 1024-row batches.
 fn loaded(executor: &tokio::runtime::Runtime, rows: usize) -> Fixture {
@@ -226,11 +192,7 @@ fn loaded(executor: &tokio::runtime::Runtime, rows: usize) -> Fixture {
     fixture
 }
 fn executor() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-        .unwrap()
+    tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap()
 }
 
 /* === Tests === */

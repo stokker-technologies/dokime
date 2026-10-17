@@ -18,9 +18,9 @@ use std::collections::BTreeSet;
 
 // Local Imports
 use crate::evidence_runtime::ScopeSelection;
+use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::plot::PlotPayloadRequest;
 use dokime_domain::model::identity::Identifier;
-use crate::expressions::{DataExpression, DataSource, DataTransform};
 
 /* === Constants === */
 
@@ -43,13 +43,8 @@ pub(super) struct PlotTelemetryReadGroup {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn canonical_plot_request(
-    mut request: PlotPayloadRequest,
-    telemetry_streams: &[Identifier],
-) -> PlotPayloadRequest {
-    if !telemetry_streams
-        .iter()
-        .any(|stream| stream.as_str() == request.stream)
+pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_streams: &[Identifier]) -> PlotPayloadRequest {
+    if !telemetry_streams.iter().any(|stream| stream.as_str() == request.stream)
         && telemetry_streams.len() == 1
         && let Some(stream) = telemetry_streams.iter().next()
     {
@@ -62,11 +57,8 @@ pub(super) fn canonical_plot_request(
 }
 
 pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifier> {
-    let mut record_types = request
-        .marker_record_types
-        .iter()
-        .filter_map(|record_type| Identifier::new(record_type.clone()).ok())
-        .collect::<BTreeSet<_>>();
+    let mut record_types =
+        request.marker_record_types.iter().filter_map(|record_type| Identifier::new(record_type.clone()).ok()).collect::<BTreeSet<_>>();
 
     for expression in request_expressions(request) {
         collect_record_expression_types(expression, &mut record_types);
@@ -75,9 +67,7 @@ pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifi
     record_types.into_iter().collect()
 }
 
-pub(super) fn telemetry_read_groups(
-    requests: &[PlotPayloadRequest],
-) -> Vec<PlotTelemetryReadGroup> {
+pub(super) fn telemetry_read_groups(requests: &[PlotPayloadRequest]) -> Vec<PlotTelemetryReadGroup> {
     let mut groups = Vec::<PlotTelemetryReadGroup>::new();
     for (request_index, request) in requests.iter().enumerate() {
         let streams = request_telemetry_streams(request);
@@ -85,17 +75,10 @@ pub(super) fn telemetry_read_groups(
             continue;
         }
         let scope = scope_selection(request);
-        if let Some(group) = groups
-            .iter_mut()
-            .find(|group| group.scope == scope && group.streams == streams)
-        {
+        if let Some(group) = groups.iter_mut().find(|group| group.scope == scope && group.streams == streams) {
             group.request_indexes.push(request_index);
         } else {
-            groups.push(PlotTelemetryReadGroup {
-                scope,
-                streams,
-                request_indexes: vec![request_index],
-            });
+            groups.push(PlotTelemetryReadGroup { scope, streams, request_indexes: vec![request_index] });
         }
     }
     groups
@@ -103,11 +86,7 @@ pub(super) fn telemetry_read_groups(
 
 pub(crate) fn request_telemetry_streams(request: &PlotPayloadRequest) -> Vec<Identifier> {
     let mut streams = BTreeSet::new();
-    if !request.y_keys.is_empty()
-        || request.x_key.is_some()
-        || request.series_by.is_some()
-        || request.z_field.is_some()
-    {
+    if !request.y_keys.is_empty() || request.x_key.is_some() || request.series_by.is_some() || request.z_field.is_some() {
         insert_identifier(&mut streams, &request.stream);
     }
     if let Some(stream) = &request.z_stream {
@@ -123,15 +102,9 @@ pub(crate) fn request_telemetry_streams(request: &PlotPayloadRequest) -> Vec<Ide
 }
 
 pub(super) fn request_requires_context_snapshot(request: &PlotPayloadRequest) -> bool {
-    request
-        .z_stream
-        .as_ref()
-        .is_some_and(|stream| stream != &request.stream)
-        || request_expressions(request).any(|expression| {
-            expression_telemetry_streams(expression)
-                .into_iter()
-                .any(|stream| stream != request.stream)
-        })
+    request.z_stream.as_ref().is_some_and(|stream| stream != &request.stream)
+        || request_expressions(request)
+            .any(|expression| expression_telemetry_streams(expression).into_iter().any(|stream| stream != request.stream))
 }
 
 pub(super) fn request_needs_dimension_context(request: &PlotPayloadRequest) -> bool {
@@ -139,20 +112,16 @@ pub(super) fn request_needs_dimension_context(request: &PlotPayloadRequest) -> b
 }
 
 pub(super) fn request_requires_stateful_expression_snapshot(request: &PlotPayloadRequest) -> bool {
-    request_expressions(request)
-        .any(|expression| expression.transforms.iter().any(is_stateful_transform))
+    request_expressions(request).any(|expression| expression.transforms.iter().any(is_stateful_transform))
 }
 
 pub(super) fn scope_selection(request: &PlotPayloadRequest) -> ScopeSelection {
-    request
-        .scope
-        .as_ref()
-        .map_or_else(ScopeSelection::default, |scope| ScopeSelection {
-            test_cycle_id: scope.test_cycle_id.clone(),
-            test_execution_id: scope.test_execution_id.clone(),
-            test_case_id: scope.test_case_id.clone(),
-            template_id: scope.template_id.clone(),
-        })
+    request.scope.as_ref().map_or_else(ScopeSelection::default, |scope| ScopeSelection {
+        test_cycle_id: scope.test_cycle_id.clone(),
+        test_execution_id: scope.test_execution_id.clone(),
+        test_case_id: scope.test_case_id.clone(),
+        template_id: scope.template_id.clone(),
+    })
 }
 
 /* === Private Functions === */
@@ -176,10 +145,7 @@ fn insert_identifier(streams: &mut BTreeSet<Identifier>, stream: &str) {
     }
 }
 
-fn collect_record_expression_types(
-    expression: &DataExpression,
-    record_types: &mut BTreeSet<Identifier>,
-) {
+fn collect_record_expression_types(expression: &DataExpression, record_types: &mut BTreeSet<Identifier>) {
     let DataSource::Record { record_type } = &expression.source else {
         return;
     };
@@ -187,9 +153,7 @@ fn collect_record_expression_types(
         record_types.insert(identifier);
     }
     for transform in &expression.transforms {
-        if let DataTransform::TimeBetween {
-            previous_record_type,
-        } = transform
+        if let DataTransform::TimeBetween { previous_record_type } = transform
             && let Ok(identifier) = Identifier::new(previous_record_type.clone())
         {
             record_types.insert(identifier);
@@ -208,17 +172,11 @@ fn request_expressions(request: &PlotPayloadRequest) -> impl Iterator<Item = &Da
 }
 
 fn expression_needs_dimension_context(expression: &DataExpression) -> bool {
-    matches!(
-        &expression.source,
-        DataSource::Dimension { .. } | DataSource::Parameter { .. }
-    )
+    matches!(&expression.source, DataSource::Dimension { .. } | DataSource::Parameter { .. })
 }
 
 fn is_stateful_transform(transform: &DataTransform) -> bool {
-    matches!(
-        transform,
-        DataTransform::Aggregate(_) | DataTransform::TimeBetween { .. } | DataTransform::PerCase
-    )
+    matches!(transform, DataTransform::Aggregate(_) | DataTransform::TimeBetween { .. } | DataTransform::PerCase)
 }
 
 /* === Tests === */

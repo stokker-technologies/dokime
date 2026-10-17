@@ -17,10 +17,10 @@ use std::cmp::Ordering;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
 use crate::transactions::{ControlExecution, CycleControlAction};
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
@@ -108,21 +108,14 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
     }
     let request = ControlExecution::owning_request(state, id)?;
     let accepts = |action| {
-        ControlExecution {
-            test_execution_id: id.clone(),
-            action,
-            occurred_at: crate::model::time::now_utc(),
-        }
-        .request(state)
-        .is_ok()
+        ControlExecution { test_execution_id: id.clone(), action, occurred_at: crate::model::time::now_utc() }.request(state).is_ok()
     };
 
     Some(ExecutionControls {
         request_id: request.summary.request_id.clone(),
         mode: request.summary.mode,
         paused: request.summary.paused,
-        stop_requested: request.summary.stop_requested
-            || request.stopped_execution_ids.contains(id),
+        stop_requested: request.summary.stop_requested || request.stopped_execution_ids.contains(id),
         can_pause: accepts(CycleControlAction::Pause),
         can_resume: accepts(CycleControlAction::Resume),
         can_stop: accepts(CycleControlAction::Stop),
@@ -133,20 +126,10 @@ pub fn matches(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> bool {
     if !filter.statuses.is_empty() && !filter.statuses.contains(&metadata.status) {
         return false;
     }
-    if !filter.cycle_ids.is_empty()
-        && !filter
-            .cycle_ids
-            .iter()
-            .any(|want| want == metadata.cycle_id.as_str())
-    {
+    if !filter.cycle_ids.is_empty() && !filter.cycle_ids.iter().any(|want| want == metadata.cycle_id.as_str()) {
         return false;
     }
-    if !filter.template_ids.is_empty()
-        && !metadata
-            .template_id
-            .as_ref()
-            .is_some_and(|id| filter.template_ids.contains(id))
-    {
+    if !filter.template_ids.is_empty() && !metadata.template_id.as_ref().is_some_and(|id| filter.template_ids.contains(id)) {
         return false;
     }
     if !matches_text(metadata, &filter.text) {
@@ -155,25 +138,13 @@ pub fn matches(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> bool {
     started_within(metadata, filter)
 }
 
-pub fn compare(
-    left: &ExecutionMetadata,
-    right: &ExecutionMetadata,
-    order: ExecutionOrder,
-) -> Ordering {
+pub fn compare(left: &ExecutionMetadata, right: &ExecutionMetadata, order: ExecutionOrder) -> Ordering {
     let keyed = match order.key {
-        ExecutionOrderKey::StartedAt => {
-            instants(left.started_at.as_ref(), right.started_at.as_ref())
-        }
-        ExecutionOrderKey::FinishedAt => {
-            instants(left.finished_at.as_ref(), right.finished_at.as_ref())
-        }
+        ExecutionOrderKey::StartedAt => instants(left.started_at.as_ref(), right.started_at.as_ref()),
+        ExecutionOrderKey::FinishedAt => instants(left.finished_at.as_ref(), right.finished_at.as_ref()),
         ExecutionOrderKey::Title => left.title.to_lowercase().cmp(&right.title.to_lowercase()),
     };
-    let keyed = if order.descending {
-        keyed.reverse()
-    } else {
-        keyed
-    };
+    let keyed = if order.descending { keyed.reverse() } else { keyed };
     keyed.then_with(|| left.execution_id.as_str().cmp(right.execution_id.as_str()))
 }
 
@@ -185,20 +156,14 @@ fn matches_text(metadata: &ExecutionMetadata, text: &str) -> bool {
         return true;
     }
     let contains = |candidate: &str| candidate.to_lowercase().contains(&needle);
-    contains(&metadata.title)
-        || contains(metadata.execution_id.as_str())
-        || metadata.suite_label.as_deref().is_some_and(contains)
+    contains(&metadata.title) || contains(metadata.execution_id.as_str()) || metadata.suite_label.as_deref().is_some_and(contains)
 }
 
 fn started_within(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> bool {
     if filter.started_after.is_none() && filter.started_before.is_none() {
         return true;
     }
-    let Some(instant) = metadata
-        .started_at
-        .as_ref()
-        .and_then(|value| value.to_datetime().ok())
-    else {
+    let Some(instant) = metadata.started_at.as_ref().and_then(|value| value.to_datetime().ok()) else {
         return false;
     };
     let admits = |bound: Option<&Timestamp>, lower: bool| match bound {
@@ -213,10 +178,7 @@ fn started_within(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> boo
 }
 
 fn instants(left: Option<&Timestamp>, right: Option<&Timestamp>) -> Ordering {
-    match (
-        left.and_then(|value| value.to_datetime().ok()),
-        right.and_then(|value| value.to_datetime().ok()),
-    ) {
+    match (left.and_then(|value| value.to_datetime().ok()), right.and_then(|value| value.to_datetime().ok())) {
         (Some(left), Some(right)) => left.cmp(&right),
         (Some(_), None) => Ordering::Less,
         (None, Some(_)) => Ordering::Greater,

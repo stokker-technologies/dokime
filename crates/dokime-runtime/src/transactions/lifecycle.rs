@@ -19,9 +19,7 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::state::RuntimeState;
-use crate::transactions::prompts::{
-    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
-};
+use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
 use crate::transactions::provider::request::RunPhase;
 use crate::transactions::records::draft::Drafts;
 use dokime_domain::model::execution::result::CycleStatus;
@@ -99,11 +97,7 @@ pub struct CycleReportFinalization {
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
-#[harmos::transaction(
-    id = "dokime.cycle.report.finalization.request",
-    version = 1,
-    irreversible
-)]
+#[harmos::transaction(id = "dokime.cycle.report.finalization.request", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
@@ -124,9 +118,7 @@ pub struct SealCycle {
 /* === Implementations === */
 impl harmos::MemorySize for CycleReportFinalization {
     fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.source.memory_size())
-            .saturating_add(self.evidence_at.memory_size())
+        std::mem::size_of::<Self>().saturating_add(self.source.memory_size()).saturating_add(self.evidence_at.memory_size())
     }
 }
 
@@ -134,10 +126,7 @@ impl Transaction<RuntimeState> for RequestCycleReportFinalization {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let source = &self.intent.source;
-        let current = state
-            .cycles
-            .get(&source.test_cycle_id)
-            .ok_or("cycle report owner is missing")?;
+        let current = state.cycles.get(&source.test_cycle_id).ok_or("cycle report owner is missing")?;
         if source.saved.is_some()
             || current.saved.is_some()
             || source.session_id.is_none()
@@ -150,21 +139,14 @@ impl Transaction<RuntimeState> for RequestCycleReportFinalization {
         {
             return Err("cycle report source differs from its terminal owner".into());
         }
-        if state
-            .cycle_report_finalizations
-            .get(&source.test_cycle_id)
-            .is_some_and(|previous| previous != &self.intent)
-        {
+        if state.cycle_report_finalizations.get(&source.test_cycle_id).is_some_and(|previous| previous != &self.intent) {
             return Err("cycle report finalization is already frozen".into());
         }
         Ok(())
     }
     // No Primary Audit Record: The Journal Depends Only On Already-Durable Children.
     fn apply(&self, state: &mut RuntimeState) {
-        state
-            .cycle_report_finalizations
-            .entry(self.intent.source.test_cycle_id.clone())
-            .or_insert_with(|| self.intent.clone());
+        state.cycle_report_finalizations.entry(self.intent.source.test_cycle_id.clone()).or_insert_with(|| self.intent.clone());
     }
 }
 
@@ -172,17 +154,13 @@ impl Transaction<RuntimeState> for SealCycle {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let sealed = &self.sealed_cycle;
-        let current = state
-            .cycles
-            .get(&sealed.test_cycle_id)
-            .ok_or("sealed cycle is missing")?;
+        let current = state.cycles.get(&sealed.test_cycle_id).ok_or("sealed cycle is missing")?;
         let seal = sealed.saved.as_ref().ok_or("sealed cycle has no seal")?;
         if current.saved.as_ref().is_some_and(|saved| saved != seal) {
             return Err("cycle already has a different immutable report seal".into());
         }
-        if state.run_requests.values().any(|request| {
-            request.summary.cycle_id == sealed.test_cycle_id && !request.summary.phase.terminal()
-        }) {
+        if state.run_requests.values().any(|request| request.summary.cycle_id == sealed.test_cycle_id && !request.summary.phase.terminal())
+        {
             return Err("a run request still owns this cycle".into());
         }
         if !crate::transactions::archive::cycle_terminal(sealed.lifecycle)
@@ -201,11 +179,7 @@ impl Transaction<RuntimeState> for SealCycle {
             if &execution_seal.source.execution.execution_id != id {
                 return Err("sealed executions differ from cycle membership".into());
             }
-            if state.executions[id]
-                .saved
-                .as_ref()
-                .is_some_and(|saved| saved != execution_seal)
-            {
+            if state.executions[id].saved.as_ref().is_some_and(|saved| saved != execution_seal) {
                 return Err("execution already has a different immutable report seal".into());
             }
         }
@@ -217,11 +191,7 @@ impl Transaction<RuntimeState> for SealCycle {
         state.cycle_report_finalizations.remove(id);
         for seal in &self.sealed_executions {
             let member = &seal.source.execution.execution_id;
-            state
-                .executions
-                .get_mut(member)
-                .expect("checked member")
-                .saved = Some(seal.clone());
+            state.executions.get_mut(member).expect("checked member").saved = Some(seal.clone());
             state.report_finalizations.remove(member);
         }
     }
@@ -235,10 +205,7 @@ impl Transaction<RuntimeState> for RequestReportFinalization {
             return Err("initial report boundary cannot contain lifecycle metadata".into());
         }
         for id in &self.executions {
-            let execution = state
-                .executions
-                .get(id)
-                .ok_or("report execution not found")?;
+            let execution = state.executions.get(id).ok_or("report execution not found")?;
             if execution.saved.is_some() {
                 return Err("report execution is already sealed".into());
             }
@@ -249,10 +216,7 @@ impl Transaction<RuntimeState> for RequestReportFinalization {
     fn apply(&self, state: &mut RuntimeState) {
         for id in &self.executions {
             // Repeated Stop/Shutdown Never Moves An Existing Evidence Boundary.
-            state
-                .report_finalizations
-                .entry(id.clone())
-                .or_insert_with(|| self.intent.clone());
+            state.report_finalizations.entry(id.clone()).or_insert_with(|| self.intent.clone());
         }
     }
 }
@@ -262,24 +226,14 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
 
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let id = &self.lifecycle.execution.execution_id;
-        let intent = state
-            .report_finalizations
-            .get(id)
-            .ok_or("report evidence boundary is missing")?;
-        let owner = state
-            .executions
-            .get(id)
-            .ok_or("report execution owner is missing")?;
+        let intent = state.report_finalizations.get(id).ok_or("report evidence boundary is missing")?;
+        let owner = state.executions.get(id).ok_or("report execution owner is missing")?;
         // The Frozen Revision May Precede The Terminal Commit It Seals; Its
         // Owner Saved It Only After Checking It Terminal.
         if owner.saved.is_some() {
             return Err("report lifecycle must be unsealed".into());
         }
-        if intent
-            .lifecycle
-            .as_ref()
-            .is_some_and(|lifecycle| lifecycle.execution != self.lifecycle.execution)
-        {
+        if intent.lifecycle.as_ref().is_some_and(|lifecycle| lifecycle.execution != self.lifecycle.execution) {
             return Err("report lifecycle is already frozen to another terminal revision".into());
         }
         if self.lifecycle.id.is_nil() {
@@ -290,13 +244,9 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
 
     // This Transition Deliberately Emits No Primary Audit Record.
     fn apply(&self, state: &mut RuntimeState) {
-        let intent = state
-            .report_finalizations
-            .get_mut(&self.lifecycle.execution.execution_id)
-            .expect("checked report finalization intent exists");
-        intent
-            .lifecycle
-            .get_or_insert_with(|| self.lifecycle.clone());
+        let intent =
+            state.report_finalizations.get_mut(&self.lifecycle.execution.execution_id).expect("checked report finalization intent exists");
+        intent.lifecycle.get_or_insert_with(|| self.lifecycle.clone());
     }
 }
 
@@ -343,13 +293,9 @@ impl RecoverInterruptedCycles {
     /// execution raised expires as a runtime response, never an operator one.
     fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
         let mut records = Drafts::new(state);
-        let settled = settle_prompts(
-            state,
-            &mut records,
-            PromptSettlement::Interrupted,
-            &self.at,
-            |scope| scope.test_cycle_id.is_some() || scope.test_execution_id.is_some(),
-        );
+        let settled = settle_prompts(state, &mut records, PromptSettlement::Interrupted, &self.at, |scope| {
+            scope.test_cycle_id.is_some() || scope.test_execution_id.is_some()
+        });
         (records, settled)
     }
 }
@@ -370,11 +316,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         for request in state.run_requests.values_mut() {
             // A Request Whose Cycle Report Intent Is Durable Has Settled Its
             // Outcome; Only Its Seal Is Pending, And A Later Stop Completes It.
-            if request.summary.phase.terminal()
-                || state
-                    .cycle_report_finalizations
-                    .contains_key(&request.summary.cycle_id)
-            {
+            if request.summary.phase.terminal() || state.cycle_report_finalizations.contains_key(&request.summary.cycle_id) {
                 continue;
             }
 
@@ -393,18 +335,9 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
             // An Unsealed Cycle Report Is Not Resumed: The Live Cycle Stops, And
             // A Later Stop Seals It From The Persisted Intent's Frozen Source.
             let mut changed = state.cycle_report_finalizations.contains_key(id);
-            changed |= matches!(
-                cycle.lifecycle,
-                CycleStatus::Ready
-                    | CycleStatus::Running
-                    | CycleStatus::Paused
-                    | CycleStatus::Stopping
-            );
+            changed |= matches!(cycle.lifecycle, CycleStatus::Ready | CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
             for id in &cycle.execution_ids {
-                let execution = state
-                    .executions
-                    .get_mut(id)
-                    .expect("cycle execution owner exists");
+                let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
                 changed |= interrupt_execution(execution, &self.at);
             }
             if changed {
@@ -420,18 +353,13 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 // A step attempt that ended without a completion receipt keeps this redacted detail.
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
-    dokime_domain::model::diagnostics::Diagnostic::of(
-        "step runner ended without a completion receipt",
-    )
-    .redacted()
+    dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
 }
 
 /* === Private Functions === */
 fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
-    if !matches!(
-        execution.status,
-        ExecutionStatus::Pending | ExecutionStatus::Running
-    ) && !(execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none())
+    if !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+        && !(execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none())
     {
         return false;
     }
@@ -472,8 +400,7 @@ mod tests {
             test_cycle_id: id.clone(),
             session_id: Some(state.session_id.clone()),
             metadata: Metadata {
-                identifier: dokime_domain::model::identity::Identifier::new("cycle.restart")
-                    .unwrap(),
+                identifier: dokime_domain::model::identity::Identifier::new("cycle.restart").unwrap(),
                 label: "Cycle Restart".into(),
                 description: None,
                 tags: vec![],
@@ -498,12 +425,7 @@ mod tests {
             },
             sequence: 17,
         };
-        let request = RequestCycleReportFinalization {
-            intent: CycleReportFinalization {
-                source,
-                evidence_at: cursor.clone(),
-            },
-        };
+        let request = RequestCycleReportFinalization { intent: CycleReportFinalization { source, evidence_at: cursor.clone() } };
         request.check(&state).unwrap();
         request.apply(&mut state);
         let bytes = serde_json::to_vec(&state).unwrap();
@@ -517,13 +439,7 @@ mod tests {
         let mut changed = request.clone();
         changed.intent.evidence_at.sequence += 1;
         assert!(changed.check(&recovered).is_err());
-        assert_eq!(
-            recovered.cycle_report_finalizations[&id].evidence_at,
-            cursor
-        );
-        assert_eq!(
-            recovered.cycle_report_finalizations[&id].source,
-            request.intent.source
-        );
+        assert_eq!(recovered.cycle_report_finalizations[&id].evidence_at, cursor);
+        assert_eq!(recovered.cycle_report_finalizations[&id].source, request.intent.source);
     }
 }

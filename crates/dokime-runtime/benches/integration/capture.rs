@@ -25,13 +25,9 @@ use tempfile::TempDir;
 use dokime_domain::model;
 use dokime_runtime::{Identifier, Metadata};
 use {
-    dokime_runtime::Runtime,
-    dokime_runtime::RuntimeConfig,
-    dokime_runtime::RuntimeHandle,
-    model::records::product::ProductCalibrationDetails,
-    model::records::product::ProductCalibrationKind,
-    model::records::product::ProductCalibrationPhase,
-    model::records::product::ProductRecordDraft,
+    dokime_runtime::Runtime, dokime_runtime::RuntimeConfig, dokime_runtime::RuntimeHandle,
+    model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
+    model::records::product::ProductCalibrationPhase, model::records::product::ProductRecordDraft,
 };
 
 /* === Constants === */
@@ -57,18 +53,11 @@ struct Fixture {
 impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
-        let config = RuntimeConfig::new(
-            root.path(),
-            Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None),
-        );
+        let config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None));
         let owner = Runtime::start(config).await.unwrap();
         let handle = owner.handle();
         handle.storage().flush().await.unwrap();
-        Self {
-            _root: root,
-            owner,
-            handle,
-        }
+        Self { _root: root, owner, handle }
     }
 
     async fn publish(&self, count: u64) {
@@ -86,11 +75,7 @@ impl Fixture {
 
 /* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
-    let executor = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .unwrap();
+    let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
     let mut group = criterion.benchmark_group("runtime_admits_records");
     // Every iteration starts a runtime: equal iteration counts per sample.
@@ -128,9 +113,7 @@ pub fn benchmark(criterion: &mut Criterion) {
                         fixture.publish(count).await;
                         let captured = fixture.handle.captured_records();
                         let frontier = captured.frontier();
-                        assert!(
-                            captured.wait_after(frontier - 1).await.unwrap().unwrap() >= frontier
-                        );
+                        assert!(captured.wait_after(frontier - 1).await.unwrap().unwrap() >= frontier);
                         drop(captured);
                         fixture.handle.storage().flush().await.unwrap();
                         // A fresh reader after the save barrier replays saved
@@ -160,12 +143,8 @@ pub fn benchmark(criterion: &mut Criterion) {
 fn drafts(count: u64) -> Vec<ProductRecordDraft> {
     (0..count)
         .map(|_| {
-            ProductCalibrationDetails::new(
-                "benchmark-charger",
-                ProductCalibrationKind::Field,
-                ProductCalibrationPhase::Completed,
-            )
-            .into_draft("benchmark.charger")
+            ProductCalibrationDetails::new("benchmark-charger", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                .into_draft("benchmark.charger")
         })
         .collect()
 }

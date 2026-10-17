@@ -47,9 +47,7 @@ pub(crate) struct System {
 
 impl Default for System {
     fn default() -> Self {
-        Self {
-            machine: Machine::new(),
-        }
+        Self { machine: Machine::new() }
     }
 }
 
@@ -64,22 +62,15 @@ pub enum Streams {
 /* === Implementations === */
 #[dokime_runtime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
-    async fn observe(
-        &mut self,
-        ctx: &ObserverContext<'_, Resources, Publisher<ObcPlugin>>,
-    ) -> Result<(), PublishError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<ObcPlugin>>) -> Result<(), PublishError> {
         self.machine.refresh_all();
         let system_cpu_percent = f64::from(self.machine.global_cpu_usage());
         let system_memory_used_bytes = integer(self.machine.used_memory());
         let process = self.machine.process(Pid::from_u32(std::process::id()));
 
         let row = SystemRow {
-            process_cpu_percent: process
-                .map(|process| f64::from(process.cpu_usage()))
-                .unwrap_or_default(),
-            process_memory_bytes: process
-                .map(|process| integer(process.memory()))
-                .unwrap_or_default(),
+            process_cpu_percent: process.map(|process| f64::from(process.cpu_usage())).unwrap_or_default(),
+            process_memory_bytes: process.map(|process| integer(process.memory())).unwrap_or_default(),
             system_cpu_percent,
             system_memory_used_bytes,
         };

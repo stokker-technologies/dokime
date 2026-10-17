@@ -20,17 +20,16 @@ use std::time::Duration;
 // Local Imports
 use super::artifacts::ArtifactBridge;
 use super::{
-    CaseResult, DropReason, ExecutionFixtureContext, PhaseTracker, PromptBridge, StepLeaseBridge,
-    StreamLog, Target, close_record_subscriptions, commands, criterion_outcomes, execution_outcome,
-    failure, failure_detail, publish_document_parts, publish_progress, publish_records,
-    publish_traceability, report_dropped, validate_cursor, with_failed_stage,
+    CaseResult, DropReason, ExecutionFixtureContext, PhaseTracker, PromptBridge, StepLeaseBridge, StreamLog, Target,
+    close_record_subscriptions, commands, criterion_outcomes, execution_outcome, failure, failure_detail, publish_document_parts,
+    publish_progress, publish_records, publish_traceability, report_dropped, validate_cursor, with_failed_stage,
 };
 use crate::definition::{CriterionDefinition, TestCase};
-use dokime_domain::model::execution::result::TestExecution;
 use crate::transport::{
-    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer,
-    OperatorQuestion, ProviderExecutionFailure, SidecarExecutionOutcome, StepAdmission,
+    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, ProviderExecutionFailure,
+    SidecarExecutionOutcome, StepAdmission,
 };
+use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
 const ANSWER_POLL: Duration = Duration::from_millis(100);
@@ -118,20 +117,14 @@ impl Session {
         let settling = batch.record_subscriptions_settling && !pages.settled;
         if batch.cursor <= pages.cursor && !settling {
             // The run repeated a page whose receipt it never saw.
-            return EvidenceReceipt {
-                admitted: Vec::new(),
-                settled: pages.settled,
-            };
+            return EvidenceReceipt { admitted: Vec::new(), settled: pages.settled };
         }
         let begins = batch.step_begins.clone();
         // Once one page was refused the case is over: nothing later is
         // admitted as evidence, every step it asks to begin is refused, and
         // the run is released to wind down.
         let admitted = if self.refused().await {
-            Err(failure(
-                "sidecar_evidence",
-                "the case already ended on a refused page",
-            ))
+            Err(failure("sidecar_evidence", "the case already ended on a refused page"))
         } else {
             self.admit(&mut pages, batch).await
         };
@@ -149,11 +142,7 @@ impl Session {
                         .filter_map(|encoded| {
                             serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
                         })
-                        .map(|start| StepAdmission {
-                            attempt_id: start.attempt_id.to_string(),
-                            accepted: false,
-                            message: message.clone(),
-                        })
+                        .map(|start| StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: false, message: message.clone() })
                         .collect(),
                     settled: false,
                 }
@@ -192,25 +181,14 @@ impl Session {
 
     pub(crate) async fn lease(&self, ask: LeaseAsk) -> LeaseResolution {
         match serde_json::from_str::<crate::telemetry::LeaseRequest>(&ask.lease_json) {
-            Ok(request) => {
-                self.step_leases
-                    .request(&self.context, &self.execution, &self.source, request)
-                    .await
-            }
-            Err(error) => LeaseResolution {
-                granted: false,
-                message: format!("the lease request could not be read: {error}"),
-            },
+            Ok(request) => self.step_leases.request(&self.context, &self.execution, &self.source, request).await,
+            Err(error) => LeaseResolution { granted: false, message: format!("the lease request could not be read: {error}") },
         }
     }
 
     pub(super) async fn cancel(&self) {
         self.cancelling.store(true, Ordering::Release);
-        self.prompts
-            .lock()
-            .await
-            .settle_on_cancel(&self.context)
-            .await;
+        self.prompts.lock().await.settle_on_cancel(&self.context).await;
     }
 
     pub(super) async fn refused(&self) -> bool {
@@ -221,13 +199,7 @@ impl Session {
         let target = self.target.clone();
         let execution_token = self.execution.test_execution_id.to_string();
         tokio::spawn(async move {
-            let cancelled = target
-                .signal(ExecutionSignal {
-                    execution_token,
-                    cancel: true,
-                    ..ExecutionSignal::default()
-                })
-                .await;
+            let cancelled = target.signal(ExecutionSignal { execution_token, cancel: true, ..ExecutionSignal::default() }).await;
             if let Err(error) = cancelled {
                 tracing::debug!(detail = %error.message, "a refused run did not take its cancellation");
             }
@@ -247,12 +219,7 @@ impl Session {
 
     pub(super) async fn narrate_refusal(&self, refusal: &ProviderExecutionFailure) {
         let mut pages = self.pages.lock().await;
-        let stage = pages
-            .phase
-            .current
-            .as_ref()
-            .map(|(id, _)| id.to_string())
-            .unwrap_or_else(|| "initialization".to_owned());
+        let stage = pages.phase.current.as_ref().map(|(id, _)| id.to_string()).unwrap_or_else(|| "initialization".to_owned());
         pages
             .stream_log
             .append(
@@ -262,30 +229,16 @@ impl Session {
                 &self.source,
                 &[crate::execution::log::Entry::new(
                     crate::execution::log::Level::Error,
-                    format!(
-                        "execution failed during {stage} ({}): {}",
-                        refusal.stage, refusal.message
-                    ),
+                    format!("execution failed during {stage} ({}): {}", refusal.stage, refusal.message),
                 )],
             )
             .await;
     }
 
     pub(super) async fn conclude(
-        &self,
-        case: &TestCase,
-        outcome: SidecarExecutionOutcome,
-        cancelled: bool,
-        criteria: &[CriterionDefinition],
+        &self, case: &TestCase, outcome: SidecarExecutionOutcome, cancelled: bool, criteria: &[CriterionDefinition],
     ) -> Result<CaseResult, ProviderExecutionFailure> {
-        let reconciled = commands::reconcile(
-            &self.context,
-            &self.target,
-            &self.execution,
-            true,
-            cancelled,
-        )
-        .await;
+        let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, true, cancelled).await;
         match reconciled {
             Err(error) if !cancelled => return Err(error),
             Err(error) => tracing::warn!(detail = %error.message,
@@ -309,11 +262,7 @@ impl Session {
         if cancelled {
             // A cancelled run still has a verdict to give: its criteria are
             // indeterminate, and that is exactly the state worth recording.
-            let status = if outcome.passed {
-                "passed"
-            } else {
-                "cancelled"
-            };
+            let status = if outcome.passed { "passed" } else { "cancelled" };
             pages.phase.finish(status);
             return Ok(CaseResult {
                 execution: execution_outcome(
@@ -322,9 +271,7 @@ impl Session {
                     &self.source,
                     status,
                     std::mem::take(&mut pages.phase.phases),
-                    outcome
-                        .message
-                        .or_else(|| Some("execution cancelled by the host".to_owned())),
+                    outcome.message.or_else(|| Some("execution cancelled by the host".to_owned())),
                     decided,
                     None,
                 ),
@@ -332,34 +279,16 @@ impl Session {
             });
         }
         let status = if outcome.passed { "passed" } else { "failed" };
-        let detail = (!outcome.passed)
-            .then(|| failure_detail(&outcome, &self.source))
-            .flatten();
+        let detail = (!outcome.passed).then(|| failure_detail(&outcome, &self.source)).flatten();
         pages.phase.finish(status);
-        let phases = with_failed_stage(
-            std::mem::take(&mut pages.phase.phases),
-            outcome.failed_in.as_deref(),
-        );
+        let phases = with_failed_stage(std::mem::take(&mut pages.phase.phases), outcome.failed_in.as_deref());
         Ok(CaseResult {
-            execution: execution_outcome(
-                case,
-                &self.execution,
-                &self.source,
-                status,
-                phases,
-                outcome.message,
-                decided,
-                detail.as_ref(),
-            ),
+            execution: execution_outcome(case, &self.execution, &self.source, status, phases, outcome.message, decided, detail.as_ref()),
             cancelled: false,
         })
     }
 
-    async fn admit(
-        &self,
-        pages: &mut Pages,
-        mut batch: EvidenceBatch,
-    ) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
+    async fn admit(&self, pages: &mut Pages, mut batch: EvidenceBatch) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
         let cancelling = self.cancelling.load(Ordering::Acquire);
@@ -369,58 +298,18 @@ impl Session {
         // ingested. A page that moves the phase therefore waits for every row
         // already accepted, so a row is never filed under the phase after the
         // one that produced it.
-        if !batch.capture_phases.is_empty()
-            || !batch.step_begins.is_empty()
-            || !batch.step_attempts.is_empty()
-        {
-            context
-                .runtime
-                .flush_plugin_publications()
-                .await
-                .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+        if !batch.capture_phases.is_empty() || !batch.step_begins.is_empty() || !batch.step_attempts.is_empty() {
+            context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
         }
-        pages
-            .stream_log
-            .append(
-                context,
-                execution,
-                &self.workflow,
-                &self.source,
-                &batch.diagnostics,
-            )
-            .await;
-        let abandoned = pages
-            .artifacts
-            .accept(
-                context,
-                &execution.scope,
-                std::mem::take(&mut batch.artifact_chunks),
-            )
-            .await?;
-        report_dropped(
-            context,
-            execution,
-            &self.workflow,
-            &self.source,
-            &mut pages.stream_log,
-            &abandoned,
-            DropReason::Abandoned,
-        )
-        .await;
+        pages.stream_log.append(context, execution, &self.workflow, &self.source, &batch.diagnostics).await;
+        let abandoned = pages.artifacts.accept(context, &execution.scope, std::mem::take(&mut batch.artifact_chunks)).await?;
+        report_dropped(context, execution, &self.workflow, &self.source, &mut pages.stream_log, &abandoned, DropReason::Abandoned).await;
         // A cycle that is stopping admits no live phase transactions; the
         // final observations are kept for the provider completion fold. A stop
         // can land before this session learns of it, so a phase update the
         // stopped cycle refused is the stop, not a failure of the run.
-        let observed = pages
-            .phase
-            .observe(
-                context,
-                &execution.scope,
-                &batch.phase,
-                execution,
-                !cancelling && !context.is_cancelled(),
-            )
-            .await;
+        let observed =
+            pages.phase.observe(context, &execution.scope, &batch.phase, execution, !cancelling && !context.is_cancelled()).await;
         if let Err(refusal) = observed
             && !(context.is_cancelled() || self.cancelling.load(Ordering::Acquire))
         {
@@ -430,8 +319,7 @@ impl Session {
         if !cancelling {
             publish_progress(context, execution, &batch)?;
         }
-        if let Err(refusal) = publish_records(context, &execution.scope, &self.source, &batch).await
-        {
+        if let Err(refusal) = publish_records(context, &execution.scope, &self.source, &batch).await {
             if !cancelling {
                 return Err(refusal);
             }
@@ -442,10 +330,7 @@ impl Session {
                     execution,
                     &self.workflow,
                     &self.source,
-                    &[crate::execution::log::Entry::new(
-                        crate::execution::log::Level::Error,
-                        refusal.message,
-                    )],
+                    &[crate::execution::log::Entry::new(crate::execution::log::Level::Error, refusal.message)],
                 )
                 .await;
         }
@@ -457,33 +342,21 @@ impl Session {
                 prompts.request(context, &execution.scope, encoded).await?;
             }
         }
-        self.step_leases
-            .release(context, &batch.lease_releases)
-            .await?;
+        self.step_leases.release(context, &batch.lease_releases).await?;
         if batch.record_subscriptions_settling && !pages.settled {
             self.settle_records(Some(&mut pages.replayed)).await?;
             pages.settled = true;
         }
         pages.cursor = pages.cursor.max(batch.cursor);
-        Ok(EvidenceReceipt {
-            admitted,
-            settled: pages.settled,
-        })
+        Ok(EvidenceReceipt { admitted, settled: pages.settled })
     }
 
-    async fn admit_steps(
-        &self,
-        batch: &EvidenceBatch,
-    ) -> Result<Vec<StepAdmission>, ProviderExecutionFailure> {
+    async fn admit_steps(&self, batch: &EvidenceBatch) -> Result<Vec<StepAdmission>, ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
         for encoded in &batch.capture_phases {
-            let phase = serde_json::from_str(encoded).map_err(|error| {
-                failure(
-                    "sidecar_capture_phase",
-                    format!("invalid capture phase: {error}"),
-                )
-            })?;
+            let phase = serde_json::from_str(encoded)
+                .map_err(|error| failure("sidecar_capture_phase", format!("invalid capture phase: {error}")))?;
             context
                 .capture_phase(execution.scope.clone(), phase)
                 .await
@@ -491,37 +364,19 @@ impl Session {
         }
         let mut admitted = Vec::new();
         for encoded in &batch.step_begins {
-            let start: dokime_domain::model::execution::result::StepAttemptStart =
-                serde_json::from_str(encoded).map_err(|error| {
-                    failure(
-                        "sidecar_step_admission",
-                        format!("invalid step admission: {error}"),
-                    )
-                })?;
-            context
-                .runtime
-                .wait_if_paused(&execution.test_cycle_id)
-                .await;
-            let result = context
-                .begin_step_attempt(execution.scope.clone(), start.clone())
-                .await;
+            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded)
+                .map_err(|error| failure("sidecar_step_admission", format!("invalid step admission: {error}")))?;
+            context.runtime.wait_if_paused(&execution.test_cycle_id).await;
+            let result = context.begin_step_attempt(execution.scope.clone(), start.clone()).await;
             admitted.push(StepAdmission {
                 attempt_id: start.attempt_id.to_string(),
                 accepted: result.is_ok(),
-                message: result
-                    .as_ref()
-                    .err()
-                    .map(ToString::to_string)
-                    .unwrap_or_default(),
+                message: result.as_ref().err().map(ToString::to_string).unwrap_or_default(),
             });
         }
         for encoded in &batch.step_attempts {
-            let attempt = serde_json::from_str(encoded).map_err(|error| {
-                failure(
-                    "sidecar_step_attempt",
-                    format!("invalid step attempt: {error}"),
-                )
-            })?;
+            let attempt =
+                serde_json::from_str(encoded).map_err(|error| failure("sidecar_step_attempt", format!("invalid step attempt: {error}")))?;
             context
                 .record_step_attempt(execution.scope.clone(), attempt)
                 .await
@@ -543,18 +398,11 @@ impl Session {
 
     /// Delivers every captured record, and when `replayed` is given closes the
     /// record subscriptions and replays the captured samples after it.
-    async fn settle_records(
-        &self,
-        replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>,
-    ) -> Result<(), ProviderExecutionFailure> {
+    async fn settle_records(&self, replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>) -> Result<(), ProviderExecutionFailure> {
         let close = replayed.is_some();
         let context = &self.context;
         let execution = &self.execution;
-        context
-            .runtime
-            .flush_plugin_publications()
-            .await
-            .map_err(|error| failure("sidecar_records", error.to_string()))?;
+        context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
         let cycle_id = execution.test_cycle_id.clone();
         let execution_id = execution.test_execution_id.clone();
         if close {
@@ -574,12 +422,7 @@ impl Session {
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?
             .value
-            .ok_or_else(|| {
-                failure(
-                    "sidecar_records",
-                    "record subscription execution disappeared",
-                )
-            })?;
+            .ok_or_else(|| failure("sidecar_records", "record subscription execution disappeared"))?;
         let through = context.runtime.state_manager.applied().0;
         context
             .runtime
@@ -596,10 +439,7 @@ impl Session {
                 .await
                 .map_err(|error| failure("sidecar_records", error.to_string()))?;
             loop {
-                let record = reader
-                    .next()
-                    .await
-                    .map_err(|error| failure("sidecar_records", error.to_string()))?;
+                let record = reader.next().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
                 let Some(record) = record else {
                     break;
                 };
@@ -609,17 +449,13 @@ impl Session {
                 let Some(captured) = remaining.remove(&record.record_id) else {
                     continue;
                 };
-                let record_json = serde_json::to_string(&record.record)
-                    .map_err(|error| failure("sidecar_records", error.to_string()))?;
+                let record_json = serde_json::to_string(&record.record).map_err(|error| failure("sidecar_records", error.to_string()))?;
                 self.target
                     .signal(ExecutionSignal {
                         execution_token: execution.test_execution_id.to_string(),
                         record: Some(crate::transport::DeliverRecordRequest {
                             record_json,
-                            captured_scopes: vec![
-                                serde_json::to_string(&captured)
-                                    .expect("captured scope serializes"),
-                            ],
+                            captured_scopes: vec![serde_json::to_string(&captured).expect("captured scope serializes")],
                         }),
                         ..ExecutionSignal::default()
                     })
@@ -629,10 +465,7 @@ impl Session {
                 }
             }
             if !remaining.is_empty() {
-                return Err(failure(
-                    "sidecar_records",
-                    "captured subscription records are missing from the state history",
-                ));
+                return Err(failure("sidecar_records", "captured subscription records are missing from the state history"));
             }
         }
         if let Some(replayed) = replayed {

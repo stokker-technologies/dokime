@@ -17,27 +17,26 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model::identity::CriterionId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::MeasurementUnit;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::ParameterId;
-use dokime_domain::model::identity::StepId;
-use dokime_domain::model::identity::TemplateId;
-use dokime_domain::model::values::UnitFamily;
-use dokime_domain::model::values::Value;
-use dokime_domain::model::values::ValueFormat;
-use dokime_domain::model::values::ValueType;
-use dokime_domain::model::values::validate_value_format;
 use crate::definition::{
-    CriterionDefinition, DynamicDefaultKey, ExecutionPhaseDefinition, ParameterDefinition,
-    ParameterExpr, ParameterGroup, ParameterGroupId, ParameterList, ParameterSelection,
-    TestCaseTemplate,
+    CriterionDefinition, DynamicDefaultKey, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, ParameterGroup, ParameterGroupId,
+    ParameterList, ParameterSelection, TestCaseTemplate,
 };
 use crate::document::DocumentDefinition;
 use crate::domains::TestSuiteDefinition;
 use crate::records::RecordContract;
 use crate::telemetry::TelemetryContract;
+use dokime_domain::model::identity::CriterionId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::ParameterId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::values::UnitFamily;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
+use dokime_domain::model::values::ValueType;
+use dokime_domain::model::values::validate_value_format;
 
 /* === Constants === */
 
@@ -116,20 +115,13 @@ pub struct StepBinding<T, C, E = ()> {
 /* === Enums === */
 pub enum ParameterDefault {
     Expression(ParameterExpr),
-    Source {
-        source: Box<dyn Fn() -> Option<Value> + Send + Sync>,
-        fallback: Value,
-    },
+    Source { source: Box<dyn Fn() -> Option<Value> + Send + Sync>, fallback: Value },
 }
 
 #[derive(Debug)]
 pub enum TemplateAuthoringError {
     MissingMetadata,
-    InvalidIdentifier {
-        field: &'static str,
-        value: String,
-        reason: dokime_domain::Error,
-    },
+    InvalidIdentifier { field: &'static str, value: String, reason: dokime_domain::Error },
 }
 
 /* === Traits === */
@@ -173,9 +165,7 @@ pub trait DeclaredSuite {
 
     #[cfg(feature = "native")]
     fn bind<P: harmos::plugin::Declared>(
-        table: &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>,
-        workflow: &str,
-        records: &[RecordContract],
+        table: &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>, workflow: &str, records: &[RecordContract],
     ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
     #[cfg(feature = "native")]
@@ -251,10 +241,7 @@ impl TemplateContext {
         self.continue_on_failure = continue_on_failure;
     }
 
-    pub fn set_prompts(
-        &mut self,
-        prompts: impl IntoIterator<Item = crate::prompts::PromptDefinition>,
-    ) {
+    pub fn set_prompts(&mut self, prompts: impl IntoIterator<Item = crate::prompts::PromptDefinition>) {
         self.prompts = prompts.into_iter().collect();
     }
 
@@ -275,32 +262,19 @@ impl TemplateContext {
         if let Some(error) = self.errors.drain(..).next() {
             return Err(error);
         }
-        let metadata = self
-            .metadata
-            .ok_or(TemplateAuthoringError::MissingMetadata)?;
-        let mut phases = self
-            .steps
-            .into_iter()
-            .map(ExecutionPhaseDefinition::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-        let template_id = self
-            .template_id
-            .unwrap_or_else(|| TemplateId::from_seed(metadata.identifier.as_str()));
+        let metadata = self.metadata.ok_or(TemplateAuthoringError::MissingMetadata)?;
+        let mut phases = self.steps.into_iter().map(ExecutionPhaseDefinition::try_from).collect::<Result<Vec<_>, _>>()?;
+        let template_id = self.template_id.unwrap_or_else(|| TemplateId::from_seed(metadata.identifier.as_str()));
         // These are declaration identities. Execution IDs are minted separately.
         // References in parameter expressions and authored criteria use identifiers.
         for parameter in &mut self.parameters {
-            parameter.parameter_id = ParameterId::from_seed(format!(
-                "{template_id}:local:{}",
-                parameter.metadata.identifier
-            ));
+            parameter.parameter_id = ParameterId::from_seed(format!("{template_id}:local:{}", parameter.metadata.identifier));
         }
         for criterion in &mut self.criteria {
-            criterion.criterion_id =
-                CriterionId::from_seed(format!("{template_id}:{}", criterion.metadata.identifier));
+            criterion.criterion_id = CriterionId::from_seed(format!("{template_id}:{}", criterion.metadata.identifier));
         }
         for phase in &mut phases {
-            phase.step_id =
-                StepId::from_seed(format!("{template_id}:{}", phase.metadata.identifier));
+            phase.step_id = StepId::from_seed(format!("{template_id}:{}", phase.metadata.identifier));
         }
         let attributes = self.attributes;
 
@@ -347,8 +321,7 @@ impl AuthoredMetadata {
         Ok(Metadata::new(
             validated_identifier("metadata", self.identifier)?,
             self.label,
-            self.description
-                .filter(|description| !description.trim().is_empty()),
+            self.description.filter(|description| !description.trim().is_empty()),
         ))
     }
 }
@@ -357,22 +330,14 @@ impl Criterion {
     fn into_definition(self) -> Result<CriterionDefinition, TemplateAuthoringError> {
         Ok(CriterionDefinition {
             criterion_id: CriterionId::from_seed(&self.identifier),
-            metadata: Metadata::new(
-                validated_identifier("criterion", self.identifier)?,
-                self.label,
-                self.description,
-            ),
+            metadata: Metadata::new(validated_identifier("criterion", self.identifier)?, self.label, self.description),
             expected: self.expected,
         })
     }
 }
 
 impl Parameter {
-    pub fn new(
-        identifier: impl Into<String>,
-        label: impl Into<String>,
-        value_type: ValueType,
-    ) -> Self {
+    pub fn new(identifier: impl Into<String>, label: impl Into<String>, value_type: ValueType) -> Self {
         Self {
             expansion: super::ParameterExpansion::Single,
             identifier: identifier.into(),
@@ -451,17 +416,9 @@ impl Parameter {
         Self::new(identifier, label, ValueType::Array)
     }
 
-    pub fn list(
-        identifier: impl Into<String>,
-        label: impl Into<String>,
-        element: ValueType,
-    ) -> Self {
+    pub fn list(identifier: impl Into<String>, label: impl Into<String>, element: ValueType) -> Self {
         let mut parameter = Self::new(identifier, label, ValueType::Array);
-        parameter.list = Some(ParameterList {
-            element_type: element,
-            min_items: None,
-            max_items: None,
-        });
+        parameter.list = Some(ParameterList { element_type: element, min_items: None, max_items: None });
         parameter
     }
 
@@ -470,9 +427,7 @@ impl Parameter {
         I: IntoIterator<Item = V>,
         V: Into<Value>,
     {
-        self.selection = Some(ParameterSelection {
-            choices: choices.into_iter().map(Into::into).collect(),
-        });
+        self.selection = Some(ParameterSelection { choices: choices.into_iter().map(Into::into).collect() });
         self
     }
 
@@ -498,18 +453,14 @@ impl Parameter {
         self.try_into_definition_as("parameter")
     }
 
-    fn try_into_definition_as(
-        self,
-        field: &'static str,
-    ) -> Result<ParameterDefinition, TemplateAuthoringError> {
+    fn try_into_definition_as(self, field: &'static str) -> Result<ParameterDefinition, TemplateAuthoringError> {
         Ok(ParameterDefinition {
             expansion: self.expansion,
             parameter_id: ParameterId::from_seed(&self.identifier),
             metadata: Metadata::new(
                 validated_identifier(field, self.identifier)?,
                 self.label,
-                self.description
-                    .filter(|description| !description.trim().is_empty()),
+                self.description.filter(|description| !description.trim().is_empty()),
             ),
             group_id: self.group_id,
             value_type: self.value_type,
@@ -528,9 +479,7 @@ impl Parameter {
 
 impl ParameterDefault {
     pub fn literal(value: impl Into<Value>) -> Self {
-        Self::Expression(ParameterExpr::Literal {
-            value: value.into(),
-        })
+        Self::Expression(ParameterExpr::Literal { value: value.into() })
     }
 
     pub fn expression(expression: ParameterExpr) -> Self {
@@ -538,12 +487,7 @@ impl ParameterDefault {
     }
 
     pub fn dynamic(key: DynamicDefaultKey, fallback: impl Into<Value>) -> Self {
-        Self::Expression(ParameterExpr::DynamicDefault {
-            key,
-            fallback: Some(Box::new(ParameterExpr::Literal {
-                value: fallback.into(),
-            })),
-        })
+        Self::Expression(ParameterExpr::DynamicDefault { key, fallback: Some(Box::new(ParameterExpr::Literal { value: fallback.into() })) })
     }
 
     pub fn source<F, V>(source: F, fallback: impl Into<Value>) -> Self
@@ -551,10 +495,7 @@ impl ParameterDefault {
         F: Fn() -> Option<V> + Send + Sync + 'static,
         V: Into<Value>,
     {
-        Self::Source {
-            source: Box::new(move || source().map(Into::into)),
-            fallback: fallback.into(),
-        }
+        Self::Source { source: Box::new(move || source().map(Into::into)), fallback: fallback.into() }
     }
 
     pub fn space<I, V>(values: I) -> Self
@@ -563,12 +504,7 @@ impl ParameterDefault {
         V: Into<Value>,
     {
         Self::Expression(ParameterExpr::Array {
-            values: values
-                .into_iter()
-                .map(|value| ParameterExpr::Literal {
-                    value: value.into(),
-                })
-                .collect(),
+            values: values.into_iter().map(|value| ParameterExpr::Literal { value: value.into() }).collect(),
         })
     }
 
@@ -587,9 +523,7 @@ impl ParameterDefault {
     fn into_expression(self) -> ParameterExpr {
         match self {
             Self::Expression(expression) => expression,
-            Self::Source { source, fallback } => ParameterExpr::Literal {
-                value: source().unwrap_or(fallback),
-            },
+            Self::Source { source, fallback } => ParameterExpr::Literal { value: source().unwrap_or(fallback) },
         }
     }
 }
@@ -656,12 +590,7 @@ impl<T: Into<Value>> From<Vec<T>> for ParameterDefault {
 
 impl Step {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            identifier: identifier.into(),
-            label: label.into(),
-            description: None,
-            repeatable: false,
-        }
+        Self { identifier: identifier.into(), label: label.into(), description: None, repeatable: false }
     }
 
     pub fn repeatable(mut self) -> Self {
@@ -677,11 +606,7 @@ impl TryFrom<Step> for ExecutionPhaseDefinition {
         Ok(Self {
             step_id: StepId::from_seed(&step.identifier),
             repeatable: step.repeatable,
-            metadata: Metadata::new(
-                validated_identifier("step", step.identifier)?,
-                step.label,
-                step.description,
-            ),
+            metadata: Metadata::new(validated_identifier("step", step.identifier)?, step.label, step.description),
         })
     }
 }
@@ -691,20 +616,14 @@ impl<T, C, E> StepBinding<T, C, E> {
     where
         F: Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync + 'static,
     {
-        Self {
-            step: Step::new(identifier, label),
-            action: Box::new(action),
-        }
+        Self { step: Step::new(identifier, label), action: Box::new(action) }
     }
 
     pub fn with_step<F>(step: Step, action: F) -> Self
     where
         F: Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync + 'static,
     {
-        Self {
-            step,
-            action: Box::new(action),
-        }
+        Self { step, action: Box::new(action) }
     }
 
     pub fn step(&self) -> &Step {
@@ -721,55 +640,30 @@ impl<T, C, E> StepBinding<T, C, E> {
 }
 
 /* === Public Functions === */
-pub fn criterion(
-    identifier_value: impl Into<String>,
-    label: impl Into<String>,
-    expected: Option<Value>,
-) -> Criterion {
-    Criterion {
-        identifier: identifier_value.into(),
-        label: label.into(),
-        description: None,
-        expected,
-    }
+pub fn criterion(identifier_value: impl Into<String>, label: impl Into<String>, expected: Option<Value>) -> Criterion {
+    Criterion { identifier: identifier_value.into(), label: label.into(), description: None, expected }
 }
 
-pub fn metadata(
-    identifier_value: impl Into<String>,
-    label: impl Into<String>,
-    description: impl Into<Option<String>>,
-) -> AuthoredMetadata {
-    AuthoredMetadata {
-        identifier: identifier_value.into(),
-        label: label.into(),
-        description: description.into(),
-    }
+pub fn metadata(identifier_value: impl Into<String>, label: impl Into<String>, description: impl Into<Option<String>>) -> AuthoredMetadata {
+    AuthoredMetadata { identifier: identifier_value.into(), label: label.into(), description: description.into() }
 }
 
 pub fn unit(symbol: impl Into<String>) -> MeasurementUnit {
     let symbol = symbol.into();
-    let sanitized = symbol
-        .replace('%', "percent")
-        .replace('.', "_")
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric()
-                || character == '_'
-                || character == '-'
-                || character == '.'
-            {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
+    let sanitized =
+        symbol
+            .replace('%', "percent")
+            .replace('.', "_")
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || character == '_' || character == '-' || character == '.' { character } else { '_' }
+            })
+            .collect::<String>();
     MeasurementUnit {
         metadata: Metadata::new(
             // Sanitization keeps only valid identifier characters and the
             // "unit." prefix guarantees a valid start, so this cannot fail.
-            Identifier::new(format!("unit.{sanitized}"))
-                .expect("sanitized unit identifier is valid"),
+            Identifier::new(format!("unit.{sanitized}")).expect("sanitized unit identifier is valid"),
             symbol.clone(),
             None,
         ),
@@ -802,9 +696,9 @@ pub const fn assert_template_identifiers(suite: &str, templates: &[&str]) {
             Err(TemplateIdentifierRefusal::OutsideSuite) => {
                 panic!("a template id is its suite's id followed by `.` and one segment")
             }
-            Err(TemplateIdentifierRefusal::InvalidSegment) => panic!(
-                "a template id's last segment is lowercase ASCII letters, digits, and underscores, starting with a letter"
-            ),
+            Err(TemplateIdentifierRefusal::InvalidSegment) => {
+                panic!("a template id's last segment is lowercase ASCII letters, digits, and underscores, starting with a letter")
+            }
         }
         let mut earlier = 0;
         while earlier < index {
@@ -833,15 +727,8 @@ const fn same_identifier(left: &str, right: &str) -> bool {
     true
 }
 
-fn validated_identifier(
-    field: &'static str,
-    value: String,
-) -> Result<Identifier, TemplateAuthoringError> {
-    Identifier::new(value.clone()).map_err(|reason| TemplateAuthoringError::InvalidIdentifier {
-        field,
-        value,
-        reason: reason.into(),
-    })
+fn validated_identifier(field: &'static str, value: String) -> Result<Identifier, TemplateAuthoringError> {
+    Identifier::new(value.clone()).map_err(|reason| TemplateAuthoringError::InvalidIdentifier { field, value, reason: reason.into() })
 }
 
 /* === Tests === */

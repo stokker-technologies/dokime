@@ -103,19 +103,13 @@ impl Probe {
 
     #[sdk::observer(interval_ms = 10, streams = SamplesStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-        ctx.stream::<Row>()
-            .into::<Samples>()
-            .push(Row { value: 1.0 })
-            .await;
+        ctx.stream::<Row>().into::<Samples>().push(Row { value: 1.0 }).await;
         Ok(())
     }
 
     #[sdk::observer(interval_ms = 10, streams = StableSamplesStreams)]
     async fn stable_samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-        ctx.stream::<Row>()
-            .into::<StableSamples>()
-            .push(Row { value: 2.0 })
-            .await;
+        ctx.stream::<Row>().into::<StableSamples>().push(Row { value: 2.0 }).await;
         Ok(())
     }
 }
@@ -136,40 +130,10 @@ fn item_names_identities() {
     let template = Probe::declaration();
     assert_eq!(template.metadata.identifier.as_str(), "Checks.probe");
     assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, "Checks.probe");
-    assert_eq!(
-        Probe::template_id(),
-        sdk::TemplateId::from_seed("Checks.probe")
-    );
-    assert_eq!(
-        template
-            .phases
-            .iter()
-            .map(|v| v.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
-        ["start", "finished"]
-    );
-    assert_eq!(
-        template.phases[0].step_id,
-        sdk::StepId::from_seed(format!("{}:start", Probe::template_id()))
-    );
-    assert_eq!(
-        template
-            .criteria
-            .iter()
-            .map(|v| v.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
-        ["accepted", "stable.acceptance"]
-    );
-    assert_eq!(
-        template.criteria[0].criterion_id,
-        sdk::CriterionId::from_seed(format!("{}:accepted", Probe::template_id()))
-    );
-    assert_eq!(
-        suite
-            .telemetry_contracts
-            .iter()
-            .map(|v| v.stream.as_str())
-            .collect::<Vec<_>>(),
-        ["samples", "stable.samples"]
-    );
+    assert_eq!(Probe::template_id(), sdk::TemplateId::from_seed("Checks.probe"));
+    assert_eq!(template.phases.iter().map(|v| v.metadata.identifier.as_str()).collect::<Vec<_>>(), ["start", "finished"]);
+    assert_eq!(template.phases[0].step_id, sdk::StepId::from_seed(format!("{}:start", Probe::template_id())));
+    assert_eq!(template.criteria.iter().map(|v| v.metadata.identifier.as_str()).collect::<Vec<_>>(), ["accepted", "stable.acceptance"]);
+    assert_eq!(template.criteria[0].criterion_id, sdk::CriterionId::from_seed(format!("{}:accepted", Probe::template_id())));
+    assert_eq!(suite.telemetry_contracts.iter().map(|v| v.stream.as_str()).collect::<Vec<_>>(), ["samples", "stable.samples"]);
 }

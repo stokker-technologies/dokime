@@ -9,9 +9,9 @@
 
 /* === Modules === */
 pub mod authoring;
-mod dispatch;
 #[cfg(feature = "host")]
 pub(crate) mod credentials;
+mod dispatch;
 #[cfg(feature = "host")]
 pub(crate) mod documents;
 #[cfg(feature = "host")]
@@ -38,9 +38,7 @@ pub mod telemetry;
 pub(crate) mod traceability;
 
 /* === Re-Exports === */
-pub use dispatch::{
-    ActionDispatcher, ActionDispatcherFuture, DispatchContext, OptionsResponse, StatusResponse,
-};
+pub use dispatch::{ActionDispatcher, ActionDispatcherFuture, DispatchContext, OptionsResponse, StatusResponse};
 pub use dokime_domain::model::plugins::*;
 
 /* === Imports === */
@@ -52,31 +50,20 @@ pub use dokime_domain::model::plugins::*;
 
 /* === Constants === */
 
-
 /* === Macros === */
-
 
 /* === Type Aliases === */
 
-
 /* === Structs === */
-
 
 /* === Enums === */
 
-
 /* === Traits === */
-
 
 /* === Implementations === */
 
-
 /* === Public Functions === */
-
 
 /* === Private Functions === */
 
-
 /* === Tests === */
-
-

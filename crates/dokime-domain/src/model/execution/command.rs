@@ -46,11 +46,7 @@ pub struct IdempotencyKeyError;
 
 /* === Public Functions === */
 pub fn validate_idempotency_key(key: &str) -> Result<(), IdempotencyKeyError> {
-    if key.is_empty()
-        || key.len() > 256
-        || key.trim().is_empty()
-        || key.chars().any(char::is_control)
-    {
+    if key.is_empty() || key.len() > 256 || key.trim().is_empty() || key.chars().any(char::is_control) {
         return Err(IdempotencyKeyError);
     }
     Ok(())

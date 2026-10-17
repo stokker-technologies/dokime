@@ -20,10 +20,7 @@ pub mod suites;
 /* === Re-Exports === */
 pub use error::Error;
 pub use settings::BenchSettings;
-pub use suites::checks::{
-    DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS,
-    pulse_value,
-};
+pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
 /* === Imports === */
 // Standard Library Imports
@@ -33,9 +30,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::harmos::operations::{
-    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
-};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 use dokime_runtime::harmos::plugin::{Attachment, Declared};
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime_runtime::prelude::*;
@@ -79,23 +74,15 @@ pub enum Records {}
 /* === Implementations === */
 impl Resources {
     pub fn app(&self) -> &obc_runtime::Client {
-        self.app
-            .get()
-            .expect("the bench runtime launches before any operation is bound")
+        self.app.get().expect("the bench runtime launches before any operation is bound")
     }
 
     pub(crate) fn observed(&self, resource: String) {
-        self.connections
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(resource);
+        self.connections.lock().unwrap_or_else(PoisonError::into_inner).push(resource);
     }
 
     pub fn connected(&self) -> Vec<String> {
-        self.connections
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.connections.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 }
 
@@ -133,26 +120,16 @@ impl dokime_runtime::Plugin for ObcPlugin {
         let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
         Ok(Self {
             runtime: None,
-            resources: Arc::new(Resources {
-                app: OnceLock::new(),
-                connections: Mutex::default(),
-                settings,
-            }),
+            resources: Arc::new(Resources { app: OnceLock::new(), connections: Mutex::default(), settings }),
             observers: None,
         })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         let runtime = dokime_runtime::plugin::refusal(app::launch(Testbench::default()).await)?;
-        let _ = self
-            .resources
-            .app
-            .set(obc_runtime::Client::new(runtime.handle()));
+        let _ = self.resources.app.set(obc_runtime::Client::new(runtime.handle()));
         self.runtime = Some(runtime);
-        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -165,16 +142,11 @@ impl dokime_runtime::Plugin for ObcPlugin {
         table.bind_operations::<analyses::Implemented, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, suites::Suites>(table)?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<observers::controls::Observe>(table)
+        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind::<observers::controls::Observe>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
-        self.observers
-            .as_ref()
-            .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {

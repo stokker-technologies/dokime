@@ -69,28 +69,16 @@ impl Operation for Download {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::DownloadCycleReport,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadCycleReport, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.cycle_id)?;
-        let cycle = TestCycleId::from_uuid(request.cycle_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+        let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
         let identifier = report_identifier(&request.identifier)?;
-        let report = self
-            .resources
-            .runtime
-            .open_cycle_report(&cycle)
-            .await
-            .map_err(report_failure)?;
+        let report = self.resources.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
         deliver(&self.resources, report, &identifier, output).await
     }
 }
@@ -101,29 +89,18 @@ impl Operation for Execution {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
-    async fn initialize<'ctx>(
-        resources: Arc<Resources>,
-        _: Self::Context<'ctx>,
-    ) -> Result<Self, Status> {
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        request: &mut wire::DownloadExecutionReport,
-        output: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadExecutionReport, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         value::text(&request.execution_id)?;
-        let execution = TestExecutionId::from_uuid(request.execution_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-        let identifier = Identifier::new(EXECUTION_REPORT_IDENTIFIER)
-            .map_err(|_| Status::internal("execution report identifier is invalid"))?;
-        let report = self
-            .resources
-            .runtime
-            .open_execution_report(&execution)
-            .await
-            .map_err(report_failure)?;
+        let execution =
+            TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+        let identifier =
+            Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
+        let report = self.resources.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
         deliver(&self.resources, report, &identifier, output).await
     }
 }
@@ -132,9 +109,7 @@ impl chunked::Frames for HtmlFrames {
     type Frame = dokime_domain::model::reports::wire::ReportHtmlFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: self.0.payload.clone(),
-        }
+        dokime_domain::model::reports::wire::ReportHtmlFrame { payload: self.0.payload.clone() }
     }
 
     fn metadata_owned(&self) -> Option<Response<Self::Frame>> {
@@ -143,88 +118,56 @@ impl chunked::Frames for HtmlFrames {
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
         dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(
-                dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
-                    dokime_domain::model::reports::wire::ReportHtmlChunk { offset, data },
-                ),
-            ),
+            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
+                dokime_domain::model::reports::wire::ReportHtmlChunk { offset, data },
+            )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
         dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(
-                dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
-                    dokime_domain::model::reports::wire::ReportHtmlCompletion {
-                        size_bytes,
-                        sha256,
-                    },
-                ),
-            ),
+            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
+                dokime_domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
+            )),
         }
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(
-    runtime: &RuntimeHandle,
-    max_message_bytes: usize,
-) -> Result<(), super::Error> {
-    runtime
-        .operations()
-        .register_wire_operations::<Operations, Resources>(
-            "dokime",
-            dokime_runtime::app::Lanes::Open,
-            Arc::new(Resources {
-                runtime: runtime.clone(),
-                max_message_bytes,
-            }),
-        )?;
+pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operations::<Operations, Resources>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+    )?;
     Ok(())
 }
 
 /* === Private Functions === */
 /// Streams one opened report: its metadata, then its bytes, then the digest.
 async fn deliver(
-    resources: &Resources,
-    report: OpenedReport,
-    identifier: &Identifier,
+    resources: &Resources, report: OpenedReport, identifier: &Identifier,
     output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
-    let OpenedReport {
-        test_cycle_id,
-        test_execution_id,
-        metadata,
-        generated_at,
-        origin,
-        html,
-    } = report;
+    let OpenedReport { test_cycle_id, test_execution_id, metadata, generated_at, origin, html } = report;
     let frame = dokime_domain::model::reports::wire::ReportHtmlFrame {
-        payload: Some(
-            dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
-                dokime_domain::model::reports::wire::ReportMetadata {
-                    test_cycle_id: test_cycle_id.to_string(),
-                    test_execution_id: test_execution_id.map(|id| id.to_string()),
-                    identifier: identifier.to_string(),
-                    metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
-                    generated_at: Some(canonical::timestamp(&generated_at)?),
-                    origin: match origin {
-                        ReportOrigin::Sealed => {
-                            dokime_domain::model::reports::wire::ReportOrigin::Sealed
-                        }
-                        ReportOrigin::Current => {
-                            dokime_domain::model::reports::wire::ReportOrigin::Current
-                        }
-                    },
-                    warnings: Vec::new(),
+        payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
+            dokime_domain::model::reports::wire::ReportMetadata {
+                test_cycle_id: test_cycle_id.to_string(),
+                test_execution_id: test_execution_id.map(|id| id.to_string()),
+                identifier: identifier.to_string(),
+                metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
+                generated_at: Some(canonical::timestamp(&generated_at)?),
+                origin: match origin {
+                    ReportOrigin::Sealed => dokime_domain::model::reports::wire::ReportOrigin::Sealed,
+                    ReportOrigin::Current => dokime_domain::model::reports::wire::ReportOrigin::Current,
                 },
-            )),
-        ),
+                warnings: Vec::new(),
+            },
+        ))),
     };
     if frame.encoded_len() > resources.max_message_bytes {
-        return Err(Status::resource_exhausted(
-            "report metadata exceeds the message limit",
-        ));
+        return Err(Status::resource_exhausted("report metadata exceeds the message limit"));
     }
     let size_bytes = html.len() as u64;
     chunked::Download {
@@ -243,16 +186,10 @@ async fn deliver(
 }
 
 fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound {
-        message, ..
-    }) = &error
-    {
+    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
-    let status = if matches!(
-        &error,
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
-    ) {
+    let status = if matches!(&error, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
         Status::resource_exhausted(format!("report operation failed: {error}"))
     } else {
         Status::failed_precondition(format!("report operation failed: {error}"))
@@ -262,8 +199,7 @@ fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
 
 fn report_identifier(value: &str) -> Result<Identifier, Status> {
     if value.is_empty() {
-        Identifier::new("cycle.summary")
-            .map_err(|_| Status::internal("default report identifier is invalid"))
+        Identifier::new("cycle.summary").map_err(|_| Status::internal("default report identifier is invalid"))
     } else {
         required_identifier(value)
     }
@@ -271,8 +207,7 @@ fn report_identifier(value: &str) -> Result<Identifier, Status> {
 
 fn required_identifier(value: &str) -> Result<Identifier, Status> {
     value::text(value)?;
-    Identifier::new(value.to_owned())
-        .map_err(|_| Status::invalid_argument("invalid report identifier"))
+    Identifier::new(value.to_owned()).map_err(|_| Status::invalid_argument("invalid report identifier"))
 }
 
 /* === Tests === */

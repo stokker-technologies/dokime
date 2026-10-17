@@ -19,9 +19,9 @@
 
 // Local Imports
 use super::{Empty, Protocol, Resources};
-use dokime_runtime::{TemplateId, ValueType};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime_runtime::{Refusal, Supervisor};
+use dokime_runtime::{TemplateId, ValueType};
 
 /* === Constants === */
 
@@ -60,27 +60,14 @@ impl dokime_runtime::telemetry::TelemetryStream for Readings {
     fn contract() -> TelemetryContract {
         TelemetryContract::declared("fixture-sidecar.reading", "Reading")
             .typed::<Reading>()
-            .columns([TelemetryColumn::declared(
-                "value",
-                "Value",
-                ValueType::Number,
-                TelemetryRole::Value,
-            )])
+            .columns([TelemetryColumn::declared("value", "Value", ValueType::Number, TelemetryRole::Value)])
             .strict()
     }
 }
 
 impl Resources {
-    pub(super) async fn publish_telemetry(
-        &self,
-        host: &Supervisor,
-        request: Publish,
-    ) -> Result<Empty, Refusal> {
-        let token = if request.context == "current" {
-            self.state.lock().unwrap().token.clone()
-        } else {
-            request.context
-        };
+    pub(super) async fn publish_telemetry(&self, host: &Supervisor, request: Publish) -> Result<Empty, Refusal> {
+        let token = if request.context == "current" { self.state.lock().unwrap().token.clone() } else { request.context };
         for value in request.values {
             let row = Reading { value };
             let context = (!token.is_empty()).then_some(token.as_str());

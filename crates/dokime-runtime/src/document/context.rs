@@ -22,12 +22,12 @@ use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
 // Local Imports
+use crate::definition::MaterializedParameter;
+use crate::expressions::DataSource;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::values::Value;
-use crate::definition::MaterializedParameter;
-use dokime_domain::model::execution::result::TestExecution;
-use crate::expressions::DataSource;
 
 /* === Constants === */
 
@@ -54,10 +54,7 @@ pub(super) struct Entry<'a> {
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
-    Ordered {
-        ids: &'a [TestExecutionId],
-        values: &'a BTreeMap<TestExecutionId, TestExecution>,
-    },
+    Ordered { ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution> },
 }
 
 /* === Traits === */
@@ -65,16 +62,11 @@ enum Executions<'a> {
 /* === Implementations === */
 impl<'a> Context<'a> {
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
-        Self {
-            executions: Executions::Slice(executions),
-            selection: Some(selection),
-        }
+        Self { executions: Executions::Slice(executions), selection: Some(selection) }
     }
 
     pub(crate) fn ordered(
-        ids: &'a [TestExecutionId],
-        values: &'a BTreeMap<TestExecutionId, TestExecution>,
-        selection: &'a RecordScope,
+        ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution>, selection: &'a RecordScope,
     ) -> Option<Self> {
         let mut seen = BTreeSet::new();
         if ids.iter().any(|id| {
@@ -89,20 +81,11 @@ impl<'a> Context<'a> {
         }) {
             return None;
         }
-        Some(Self {
-            executions: Executions::Ordered { ids, values },
-            selection: Some(selection),
-        })
+        Some(Self { executions: Executions::Ordered { ids, values }, selection: Some(selection) })
     }
 
     pub(super) fn entries(self) -> impl DoubleEndedIterator<Item = Entry<'a>> {
-        self.executions
-            .iter()
-            .filter(move |execution| {
-                self.selection
-                    .is_none_or(|scope| member(&execution.scope, scope))
-            })
-            .map(Entry::from)
+        self.executions.iter().filter(move |execution| self.selection.is_none_or(|scope| member(&execution.scope, scope))).map(Entry::from)
     }
 
     pub(super) fn available(self) -> bool {
@@ -110,33 +93,16 @@ impl<'a> Context<'a> {
     }
 
     pub(super) fn cases(self) -> impl Iterator<Item = Entry<'a>> {
-        self.executions
-            .iter()
-            .enumerate()
-            .filter_map(move |(index, execution)| {
-                let selected = |candidate: &TestExecution| {
-                    self.selection
-                        .is_none_or(|scope| member(&candidate.scope, scope))
-                };
-                let same_case = |candidate: &TestExecution| {
-                    candidate.test_case_id == execution.test_case_id
-                        && candidate.test_cycle_id == execution.test_cycle_id
-                };
-                if !selected(execution)
-                    || self
-                        .executions
-                        .iter()
-                        .take(index)
-                        .any(|candidate| selected(candidate) && same_case(candidate))
-                {
-                    return None;
-                }
-                self.executions
-                    .iter()
-                    .rev()
-                    .find(|candidate| selected(candidate) && same_case(candidate))
-                    .map(Entry::from)
-            })
+        self.executions.iter().enumerate().filter_map(move |(index, execution)| {
+            let selected = |candidate: &TestExecution| self.selection.is_none_or(|scope| member(&candidate.scope, scope));
+            let same_case = |candidate: &TestExecution| {
+                candidate.test_case_id == execution.test_case_id && candidate.test_cycle_id == execution.test_cycle_id
+            };
+            if !selected(execution) || self.executions.iter().take(index).any(|candidate| selected(candidate) && same_case(candidate)) {
+                return None;
+            }
+            self.executions.iter().rev().find(|candidate| selected(candidate) && same_case(candidate)).map(Entry::from)
+        })
     }
 
     pub(super) fn len(self) -> usize {
@@ -145,18 +111,13 @@ impl<'a> Context<'a> {
 
     pub(crate) fn supplies(self, source: &DataSource) -> bool {
         let mut entries = self.entries();
-        entries
-            .next()
-            .is_some_and(|entry| entry.value(source).is_some())
-            && entries.all(|entry| entry.value(source).is_some())
+        entries.next().is_some_and(|entry| entry.value(source).is_some()) && entries.all(|entry| entry.value(source).is_some())
     }
 
     pub(super) fn for_scope(self, scope: Option<&RecordScope>) -> Option<Entry<'a>> {
         let scope = scope?;
         let id = scope.test_execution_id.as_ref()?;
-        self.entries().find(|entry| {
-            entry.scope.test_execution_id.as_ref() == Some(id) && matches(scope, entry.scope)
-        })
+        self.entries().find(|entry| entry.scope.test_execution_id.as_ref() == Some(id) && matches(scope, entry.scope))
     }
 
     pub(super) fn largest_value(self) -> usize {
@@ -186,9 +147,7 @@ impl<'a> Executions<'a> {
             Self::Slice(slice) => (slice, &[][..], None),
             Self::Ordered { ids, values } => (&[][..], ids, Some(values)),
         };
-        slice
-            .iter()
-            .chain(ids.iter().filter_map(move |id| values?.get(id)))
+        slice.iter().chain(ids.iter().filter_map(move |id| values?.get(id)))
     }
 
     fn len(self) -> usize {
@@ -211,23 +170,20 @@ impl Serialize for Context<'_> {
 
 impl MemorySize for Context<'_> {
     fn memory_size(&self) -> usize {
-        self.entries()
-            .fold(std::mem::size_of::<Self>(), |bytes, entry| {
-                bytes
-                    .saturating_add(entry.scope.memory_size())
-                    .saturating_add(entry.dimensions.memory_size())
-                    .saturating_add(entry.inputs.memory_size())
-                    .saturating_add(entry.outputs.memory_size())
-            })
+        self.entries().fold(std::mem::size_of::<Self>(), |bytes, entry| {
+            bytes
+                .saturating_add(entry.scope.memory_size())
+                .saturating_add(entry.dimensions.memory_size())
+                .saturating_add(entry.inputs.memory_size())
+                .saturating_add(entry.outputs.memory_size())
+        })
     }
 }
 
 impl<'a> Entry<'a> {
     pub(super) fn covers(self, scope: Option<&RecordScope>) -> bool {
         scope.is_some_and(|scope| {
-            self.scope.test_execution_id.is_some()
-                && scope.test_execution_id == self.scope.test_execution_id
-                && matches(scope, self.scope)
+            self.scope.test_execution_id.is_some() && scope.test_execution_id == self.scope.test_execution_id && matches(scope, self.scope)
         })
     }
 
@@ -270,32 +226,12 @@ fn matches(actual: &RecordScope, selected: &RecordScope) -> bool {
 }
 
 fn scoped(actual: &RecordScope, selected: &RecordScope, planned: bool) -> bool {
-    selected
-        .test_execution_id
-        .as_ref()
-        .is_none_or(|id| actual.test_execution_id.as_ref() == Some(id))
-        && selected
-            .test_cycle_id
-            .as_ref()
-            .is_none_or(|id| actual.test_cycle_id.as_ref() == Some(id))
-        && selected
-            .test_case_id
-            .as_ref()
-            .is_none_or(|id| actual.test_case_id.as_ref() == Some(id))
-        && selected
-            .template_id
-            .as_ref()
-            .is_none_or(|id| actual.template_id.as_ref() == Some(id))
-        && selected.session_id.as_ref().is_none_or(|id| {
-            actual
-                .session_id
-                .as_ref()
-                .map_or(planned, |session| session == id)
-        })
-        && selected
-            .suite_id
-            .as_ref()
-            .is_none_or(|id| actual.suite_id.as_ref() == Some(id))
+    selected.test_execution_id.as_ref().is_none_or(|id| actual.test_execution_id.as_ref() == Some(id))
+        && selected.test_cycle_id.as_ref().is_none_or(|id| actual.test_cycle_id.as_ref() == Some(id))
+        && selected.test_case_id.as_ref().is_none_or(|id| actual.test_case_id.as_ref() == Some(id))
+        && selected.template_id.as_ref().is_none_or(|id| actual.template_id.as_ref() == Some(id))
+        && selected.session_id.as_ref().is_none_or(|id| actual.session_id.as_ref().map_or(planned, |session| session == id))
+        && selected.suite_id.as_ref().is_none_or(|id| actual.suite_id.as_ref() == Some(id))
 }
 
 /* === Tests === */

@@ -53,42 +53,25 @@ impl harmos::MemorySize for PageCursor {
 }
 impl PageCursor {
     pub fn requested(after: Option<&str>) -> Result<u64> {
-        after
-            .map(decode)
-            .transpose()
-            .map(|cursor| cursor.map_or(0, |(_, position)| position))
+        after.map(decode).transpose().map(|cursor| cursor.map_or(0, |(_, position)| position))
     }
 
-    pub fn open(
-        checkpoint: &ExecutionCheckpoint,
-        kind: &str,
-        source: &str,
-        after: Option<&str>,
-    ) -> Result<Self> {
-        checkpoint.validate().map_err(|source| {
-            harmos::Error::backend(
-                "validate checkpoint page identity",
-                harmos::BackendFailure::Corrupt,
-                source,
-            )
-        })?;
+    pub fn open(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str, after: Option<&str>) -> Result<Self> {
+        checkpoint
+            .validate()
+            .map_err(|source| harmos::Error::backend("validate checkpoint page identity", harmos::BackendFailure::Corrupt, source))?;
         let identity = identity(checkpoint, kind, source);
         let Some(after) = after else {
             return Ok(Self { identity, after: 0 });
         };
         let (selected, position) = decode(after)?;
         if selected != identity {
-            return Err(invalid(
-                "native page cursor belongs to another checkpoint or source",
-            ));
+            return Err(invalid("native page cursor belongs to another checkpoint or source"));
         }
         if position == 0 || position > checkpoint.evidence_through.sequence {
             return Err(invalid("native page cursor exceeds its evidence boundary"));
         }
-        Ok(Self {
-            identity,
-            after: position,
-        })
+        Ok(Self { identity, after: position })
     }
 
     pub fn position(&self) -> u64 {
@@ -134,14 +117,8 @@ fn decode(after: &str) -> Result<([u8; 32], u64)> {
     if length != BYTES || bytes[0] != VERSION {
         return Err(invalid("invalid native page cursor version"));
     }
-    let identity = bytes[1..33]
-        .try_into()
-        .expect("fixed native cursor identity");
-    let position = u64::from_be_bytes(
-        bytes[33..]
-            .try_into()
-            .expect("fixed native cursor position"),
-    );
+    let identity = bytes[1..33].try_into().expect("fixed native cursor identity");
+    let position = u64::from_be_bytes(bytes[33..].try_into().expect("fixed native cursor position"));
     if position == 0 {
         return Err(invalid("native page cursor is not a saved admission"));
     }
@@ -169,16 +146,11 @@ fn identity(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str) -> [u8; 
 }
 
 fn invalid(message: &'static str) -> Error {
-    harmos::Error::InvalidInput {
-        field: "checkpoint evidence cursor",
-        reason: message,
-    }
+    harmos::Error::InvalidInput { field: "checkpoint evidence cursor", reason: message }
 }
 
 fn exhausted() -> Error {
-    harmos::Error::ResourceExhausted {
-        resource: "native page cursor",
-    }
+    harmos::Error::ResourceExhausted { resource: "native page cursor" }
 }
 
 /* === Tests === */

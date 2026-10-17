@@ -54,11 +54,7 @@ pub(crate) fn name() -> String {
     }
 }
 
-pub(crate) fn harmos_attribute(
-    name: &str,
-    attribute: TokenStream,
-    item: TokenStream,
-) -> TokenStream {
+pub(crate) fn harmos_attribute(name: &str, attribute: TokenStream, item: TokenStream) -> TokenStream {
     let sdk = root();
     let name = Ident::new(name, Span::call_site());
     quote! {

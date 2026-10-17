@@ -64,14 +64,8 @@ fn aggregate_json_roundtrips() {
     for aggregate in VOCABULARY {
         let transform = DataTransform::Aggregate(aggregate);
         let json = serde_json::to_value(&transform).unwrap();
-        assert_eq!(
-            json,
-            serde_json::json!({ "type": "aggregate", "aggregate": aggregate.name() })
-        );
-        assert_eq!(
-            serde_json::from_value::<DataTransform>(json).unwrap(),
-            transform
-        );
+        assert_eq!(json, serde_json::json!({ "type": "aggregate", "aggregate": aggregate.name() }));
+        assert_eq!(serde_json::from_value::<DataTransform>(json).unwrap(), transform);
     }
 
     let unknown = serde_json::json!({ "type": "aggregate", "aggregate": "p101" });
@@ -97,8 +91,5 @@ fn builders_roundtrip_expressions() {
         assert_eq!(DataExpression::try_from(tree).unwrap(), expression);
     }
 
-    assert_eq!(
-        telemetry("bench", "v").percentile(95).transforms,
-        [DataTransform::Aggregate(Aggregate::Percentile(95))]
-    );
+    assert_eq!(telemetry("bench", "v").percentile(95).transforms, [DataTransform::Aggregate(Aggregate::Percentile(95))]);
 }

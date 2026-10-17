@@ -17,22 +17,22 @@ use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use crate::RuntimeHandle;
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
+use crate::evidence_runtime::EvidenceCounts;
+use crate::installed_plugins::InstalledPluginErrorRecord;
+use crate::queries::RuntimeCursor;
+use crate::runtime::progress::{OperationSnapshot, OperationWatch};
+use crate::state::RuntimeState;
+use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::StepRecord;
-use crate::installed_plugins::InstalledPluginErrorRecord;
-use crate::runtime::progress::{OperationSnapshot, OperationWatch};
-use crate::RuntimeHandle;
-use crate::evidence_runtime::EvidenceCounts;
-use dokime_domain::model::execution::result::CycleView;
-use crate::queries::RuntimeCursor;
-use crate::state::RuntimeState;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DokimeIdentity;
 use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -169,15 +169,8 @@ impl RuntimeStateWatch {
         }
     }
 
-    pub async fn wait_until(
-        &mut self,
-        predicate: impl Fn(&RuntimeStateSnapshot) -> bool,
-    ) -> Option<RuntimeStateSnapshot> {
-        self.receiver
-            .wait_for(|snapshot| predicate(snapshot))
-            .await
-            .ok()
-            .map(|snapshot| snapshot.clone())
+    pub async fn wait_until(&mut self, predicate: impl Fn(&RuntimeStateSnapshot) -> bool) -> Option<RuntimeStateSnapshot> {
+        self.receiver.wait_for(|snapshot| predicate(snapshot)).await.ok().map(|snapshot| snapshot.clone())
     }
 }
 
@@ -192,11 +185,7 @@ impl RuntimeCycleSummary {
             started_at: cycle.started_at.clone(),
             updated_at: cycle.updated_at.clone(),
             test_cases: cycle.cases().cloned().collect::<Vec<_>>(),
-            test_executions: cycle
-                .test_executions
-                .iter()
-                .map(RuntimeExecutionSummary::from_execution)
-                .collect(),
+            test_executions: cycle.test_executions.iter().map(RuntimeExecutionSummary::from_execution).collect(),
             continue_on_failure: cycle.continue_on_failure,
             result: cycle.result.clone(),
         }
@@ -223,11 +212,7 @@ impl RuntimeExecutionSummary {
 impl RuntimeHandle {
     pub async fn runtime_overview(&self) -> crate::runtime::Result<RuntimeOverviewSnapshot> {
         let artifact_count = self.execution_storage.artifact_count().await?;
-        let telemetry_cursor_entries = self
-            .telemetry_cursors
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .len();
+        let telemetry_cursor_entries = self.telemetry_cursors.lock().unwrap_or_else(|error| error.into_inner()).len();
         let state = self.state_read();
         // Product revisions advance with transactions. Records share Harmos's
         // ordered history but do not mutate this state image, so report the
@@ -237,30 +222,18 @@ impl RuntimeHandle {
         let cycles = state.cycle_views().collect();
         let evidence_counts = crate::runtime_state::evidence_counts(&state, artifact_count);
         let config = self.config();
-        Ok(crate::runtime_state::runtime_overview_snapshot(
-            &state,
-            &config,
-            revision,
-            cycles,
-            evidence_counts,
-            telemetry_cursor_entries,
-        ))
+        Ok(crate::runtime_state::runtime_overview_snapshot(&state, &config, revision, cycles, evidence_counts, telemetry_cursor_entries))
     }
 
     pub fn watch_state(&self) -> RuntimeStateWatch {
-        RuntimeStateWatch {
-            receiver: self.state_watch.subscribe(),
-            operations: self.operation_progress.watch(),
-        }
+        RuntimeStateWatch { receiver: self.state_watch.subscribe(), operations: self.operation_progress.watch() }
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn public_parameters(
-    parameters: &BTreeMap<String, MaterializedParameter>,
-) -> BTreeMap<String, MaterializedParameter> {
+fn public_parameters(parameters: &BTreeMap<String, MaterializedParameter>) -> BTreeMap<String, MaterializedParameter> {
     parameters
         .iter()
         .filter(|(_, parameter)| {

@@ -20,8 +20,8 @@ use harmos::sidecar::operations::Definition;
 // Local Imports
 use crate::InstalledPlugin;
 use crate::domains::{
-    ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderOption,
-    OptionProviderSource, OptionsResponse, StatusResponse,
+    ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderOption, OptionProviderSource, OptionsResponse,
+    StatusResponse,
 };
 
 /* === Constants === */
@@ -50,33 +50,16 @@ pub(crate) struct Dispatcher {
 
 /* === Implementations === */
 impl Bindings {
-    pub(crate) fn inspect(
-        plugin: &InstalledPlugin,
-        operations: &[Definition],
-    ) -> Result<Self, String> {
-        let inventory: BTreeSet<_> = operations
-            .iter()
-            .map(|operation| operation.id.as_str())
-            .collect();
+    pub(crate) fn inspect(plugin: &InstalledPlugin, operations: &[Definition]) -> Result<Self, String> {
+        let inventory: BTreeSet<_> = operations.iter().map(|operation| operation.id.as_str()).collect();
         let mut claimed = BTreeSet::new();
         let mut claim = |method: &str| -> Result<(), String> {
             if method.starts_with("harmos.") || method.starts_with("dokime.") {
-                return Err(format!(
-                    "owner `{}` binds reserved operation `{method}`",
-                    plugin.source
-                ));
+                return Err(format!("owner `{}` binds reserved operation `{method}`", plugin.source));
             }
-            inventory.get(method).ok_or_else(|| {
-                format!(
-                    "owner `{}` binds undeclared operation `{method}`",
-                    plugin.source
-                )
-            })?;
+            inventory.get(method).ok_or_else(|| format!("owner `{}` binds undeclared operation `{method}`", plugin.source))?;
             if !claimed.insert(method.to_owned()) {
-                return Err(format!(
-                    "owner `{}` binds operation `{method}` more than once",
-                    plugin.source
-                ));
+                return Err(format!("owner `{}` binds operation `{method}` more than once", plugin.source));
             }
             Ok(())
         };
@@ -98,25 +81,17 @@ impl Bindings {
         }
         for discovery in &plugin.settings_discoveries {
             claim(&discovery.operation)?;
-            bindings
-                .discoveries
-                .push((discovery.field.clone(), discovery.operation.clone()));
+            bindings.discoveries.push((discovery.field.clone(), discovery.operation.clone()));
         }
         Ok(bindings)
     }
     pub(crate) fn attach(self, calls: OperationManager) -> Dispatcher {
-        Dispatcher {
-            bindings: self,
-            calls,
-        }
+        Dispatcher { bindings: self, calls }
     }
 }
 
 impl Dispatcher {
-    pub(crate) async fn discover(
-        &self,
-        saved: &BTreeSet<String>,
-    ) -> crate::settings::SettingValues {
+    pub(crate) async fn discover(&self, saved: &BTreeSet<String>) -> crate::settings::SettingValues {
         let mut found = crate::settings::SettingValues::new();
         for (field, operation) in &self.bindings.discoveries {
             if saved.contains(field) {
@@ -142,63 +117,39 @@ impl Dispatcher {
         found
     }
 
-    async fn call<Q: harmos::Message, T: harmos::Message>(
-        &self,
-        method: &str,
-        request: Q,
-    ) -> Result<T, ActionDispatcherError> {
-        let bytes = self
-            .calls
-            .call_encoded(method, request.encode_to_vec())
-            .await
-            .map_err(dispatch_error)?;
+    async fn call<Q: harmos::Message, T: harmos::Message>(&self, method: &str, request: Q) -> Result<T, ActionDispatcherError> {
+        let bytes = self.calls.call_encoded(method, request.encode_to_vec()).await.map_err(dispatch_error)?;
 
-        T::decode(bytes.as_slice())
-            .map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
+        T::decode(bytes.as_slice()).map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
     }
 }
 
 impl ActionDispatcher for Dispatcher {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse> {
         Box::pin(async move {
-            let method = self
-                .bindings
-                .status
-                .as_ref()
-                .ok_or_else(|| ActionDispatcherError::UnknownEntrypoint("status".into()))?;
+            let method = self.bindings.status.as_ref().ok_or_else(|| ActionDispatcherError::UnknownEntrypoint("status".into()))?;
 
             self.call(method, ()).await
         })
     }
     fn analyze<'a>(
-        &'a self,
-        entrypoint: &'a str,
-        request: crate::analysis::Request,
+        &'a self, entrypoint: &'a str, request: crate::analysis::Request,
     ) -> ActionDispatcherFuture<'a, crate::analysis::Response> {
         use harmos::Message;
         let admitted = if self.bindings.analyses.contains(entrypoint) {
-            self.calls
-                .submit_encoded(entrypoint, request.encode_to_vec())
-                .map_err(dispatch_error)
+            self.calls.submit_encoded(entrypoint, request.encode_to_vec()).map_err(dispatch_error)
         } else {
             Err(ActionDispatcherError::UnknownEntrypoint(entrypoint.into()))
         };
         Box::pin(async move {
             let bytes = admitted?.await.map_err(dispatch_error)?;
-            crate::analysis::Response::decode(bytes.as_slice())
-                .map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
+            crate::analysis::Response::decode(bytes.as_slice()).map_err(|error| ActionDispatcherError::Malformed(error.to_string()))
         })
     }
 
-    fn query_options<'a>(
-        &'a self,
-        entrypoint: &'a str,
-    ) -> ActionDispatcherFuture<'a, Vec<OptionProviderOption>> {
+    fn query_options<'a>(&'a self, entrypoint: &'a str) -> ActionDispatcherFuture<'a, Vec<OptionProviderOption>> {
         Box::pin(async move {
-            self.bindings
-                .options
-                .get(entrypoint)
-                .ok_or_else(|| ActionDispatcherError::UnknownEntrypoint(entrypoint.into()))?;
+            self.bindings.options.get(entrypoint).ok_or_else(|| ActionDispatcherError::UnknownEntrypoint(entrypoint.into()))?;
             let offered: OptionsResponse = self.call(entrypoint, ()).await?;
 
             Ok(offered.into_options())
@@ -207,10 +158,7 @@ impl ActionDispatcher for Dispatcher {
 }
 
 /* === Public Functions === */
-pub(crate) fn validate_analyses(
-    artifact: &InstalledPlugin,
-    contracts: &[harmos::operations::Contract],
-) -> Result<(), String> {
+pub(crate) fn validate_analyses(artifact: &InstalledPlugin, contracts: &[harmos::operations::Contract]) -> Result<(), String> {
     use harmos::schema::Described;
     for analysis in &artifact.analyses {
         let contract = contracts
@@ -218,25 +166,15 @@ pub(crate) fn validate_analyses(
             .find(|contract| contract.operation().id.as_str() == analysis.id)
             .ok_or_else(|| format!("analysis {} has no served wire contract", analysis.id))?;
         let schema = harmos::schema::graph::Schema::from_declarations(
-            &[
-                ("request", crate::analysis::Request::DEFINITION),
-                ("response", crate::analysis::Response::DEFINITION),
-            ],
+            &[("request", crate::analysis::Request::DEFINITION), ("response", crate::analysis::Response::DEFINITION)],
             &harmos::config::SchemaSettings::default(),
         )
         .map_err(|error| error.to_string())?;
-        let expected = harmos::operations::Contract::new(
-            contract.operation().clone(),
-            analysis.version,
-            harmos::operations::Codec::Postcard,
-            schema,
-        )
-        .map_err(|error| error.to_string())?;
+        let expected =
+            harmos::operations::Contract::new(contract.operation().clone(), analysis.version, harmos::operations::Codec::Postcard, schema)
+                .map_err(|error| error.to_string())?;
         if contract != &expected {
-            return Err(format!(
-                "analysis {} has an incompatible callback contract",
-                analysis.id
-            ));
+            return Err(format!("analysis {} has an incompatible callback contract", analysis.id));
         }
     }
     Ok(())
@@ -245,46 +183,27 @@ pub(crate) fn validate_analyses(
 /* === Private Functions === */
 fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
     match error {
-        harmos::Error::OperationRefused(harmos::Refusal::TimedOut) => {
-            ActionDispatcherError::Deadline
+        harmos::Error::OperationRefused(harmos::Refusal::TimedOut) => ActionDispatcherError::Deadline,
+        harmos::Error::OperationRefused(_) | harmos::Error::Closing { .. } | harmos::Error::NotRegistered { domain: "operation", .. } => {
+            ActionDispatcherError::Unavailable
         }
-        harmos::Error::OperationRefused(_)
-        | harmos::Error::Closing { .. }
-        | harmos::Error::NotRegistered {
-            domain: "operation",
-            ..
-        } => ActionDispatcherError::Unavailable,
         harmos::Error::OperationCaller { source } => caller_error(source),
         harmos::Error::OperationFailed { ref source, .. } => {
-            if matches!(
-                source.downcast_ref::<NativeError>(),
-                Some(NativeError::Unavailable)
-            ) {
+            if matches!(source.downcast_ref::<NativeError>(), Some(NativeError::Unavailable)) {
                 return ActionDispatcherError::Unavailable;
             }
             let refusal = source.downcast_ref::<harmos::sidecar::Refusal>().cloned();
             let refusal = refusal.unwrap_or_else(|| harmos::sidecar::Refusal::of(error));
-            ActionDispatcherError::Refused {
-                code: refusal.code(),
-                message: refusal.message().to_owned(),
-            }
+            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
         }
-        harmos::Error::OperationPayload { source, .. } => {
-            ActionDispatcherError::Malformed(source.to_string())
-        }
+        harmos::Error::OperationPayload { source, .. } => ActionDispatcherError::Malformed(source.to_string()),
         harmos::Error::OperationUnauthorized { .. } | harmos::Error::OperationLaneCycle { .. } => {
             let refusal = harmos::sidecar::Refusal::new(-32_604, error);
-            ActionDispatcherError::Refused {
-                code: refusal.code(),
-                message: refusal.message().to_owned(),
-            }
+            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
         }
         error => {
             let refusal = harmos::sidecar::Refusal::of(error);
-            ActionDispatcherError::Refused {
-                code: refusal.code(),
-                message: refusal.message().to_owned(),
-            }
+            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
         }
     }
 }
@@ -295,10 +214,7 @@ fn caller_error(error: harmos::plugin::DispatchError) -> ActionDispatcherError {
         harmos::plugin::DispatchError::Deadline => ActionDispatcherError::Deadline,
         error => {
             let refusal = error.into_refusal();
-            ActionDispatcherError::Refused {
-                code: refusal.code(),
-                message: refusal.message().to_owned(),
-            }
+            ActionDispatcherError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
         }
     }
 }

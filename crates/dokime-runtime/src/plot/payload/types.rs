@@ -19,13 +19,11 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 // Local Imports
-use crate::document::{
-    AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions,
-};
+use crate::document::{AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions};
+use crate::expressions::DataExpression;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
-use crate::expressions::DataExpression;
 
 /* === Constants === */
 
@@ -304,30 +302,21 @@ where
     if let Some(window_s) = window_s
         && super::plot_window_duration(window_s).is_none()
     {
-        return Err(serde::de::Error::custom(
-            "window_s must be a finite, non-negative duration",
-        ));
+        return Err(serde::de::Error::custom("window_s must be a finite, non-negative duration"));
     }
     Ok(window_s)
 }
 
 /* === Tests === */
 
-fn serialize_analysis_cursor<S: serde::Serializer>(
-    cursor: &PlotPayloadCursor,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+fn serialize_analysis_cursor<S: serde::Serializer>(cursor: &PlotPayloadCursor, serializer: S) -> Result<S::Ok, S::Error> {
     #[derive(Serialize)]
     struct Cursor {
         telemetry_streams: BTreeMap<String, String>,
         record_sequence: Option<String>,
     }
     Cursor {
-        telemetry_streams: cursor
-            .telemetry_streams
-            .iter()
-            .map(|(key, value)| (key.clone(), value.to_string()))
-            .collect(),
+        telemetry_streams: cursor.telemetry_streams.iter().map(|(key, value)| (key.clone(), value.to_string())).collect(),
         record_sequence: cursor.record_sequence.map(|value| value.to_string()),
     }
     .serialize(serializer)

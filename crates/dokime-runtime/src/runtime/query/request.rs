@@ -17,10 +17,10 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::time::DurationMillis;
-use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */

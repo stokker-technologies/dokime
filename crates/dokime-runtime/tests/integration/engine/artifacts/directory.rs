@@ -87,47 +87,25 @@ impl SidecarTemplate for Capture {
     fn definition() -> TemplateDefinition {
         let mut template = TemplateContext::new();
         template.set_template_id(dokime_runtime::TemplateId::from_seed(TEMPLATE));
-        template.set_metadata(dokime_runtime::definition::authoring::metadata(
-            TEMPLATE,
-            "Capture",
-            None::<String>,
-        ));
+        template.set_metadata(dokime_runtime::definition::authoring::metadata(TEMPLATE, "Capture", None::<String>));
         template.set_steps(vec![Step::new("capture", "Capture")]);
 
-        TemplateDefinition {
-            template: template.into_test_case_template().unwrap(),
-            records: Vec::new(),
-            streams: Vec::new(),
-        }
+        TemplateDefinition { template: template.into_test_case_template().unwrap(), records: Vec::new(), streams: Vec::new() }
     }
 
-    fn initialize<'a>(
-        ctx: &'a mut InitializationContext<'_, Self, ()>,
-    ) -> InitializationFuture<'a, (Self, ())> {
+    fn initialize<'a>(ctx: &'a mut InitializationContext<'_, Self, ()>) -> InitializationFuture<'a, (Self, ())> {
         Box::pin(async move {
             let state = ctx.environment().binding::<State>();
-            state
-                .paths
-                .lock()
-                .unwrap()
-                .push(ctx.artifacts().directory("capture").unwrap());
+            state.paths.lock().unwrap().push(ctx.artifacts().directory("capture").unwrap());
             *state.grant.lock().unwrap() = Some(ctx.artifacts().clone());
             Ok((Self, ()))
         })
     }
 
-    fn run_step<'a>(
-        &'a mut self,
-        _: &'a str,
-        ctx: &'a mut StepContext<'_, Self, ()>,
-    ) -> StepFuture<'a> {
+    fn run_step<'a>(&'a mut self, _: &'a str, ctx: &'a mut StepContext<'_, Self, ()>) -> StepFuture<'a> {
         Box::pin(async move {
             let state = ctx.environment().binding::<State>();
-            state
-                .paths
-                .lock()
-                .unwrap()
-                .push(ctx.artifacts().directory("capture").unwrap());
+            state.paths.lock().unwrap().push(ctx.artifacts().directory("capture").unwrap());
             state.done.notified().await;
 
             Ok(())
@@ -136,12 +114,7 @@ impl SidecarTemplate for Capture {
 
     fn cleanup<'a>(&'a mut self, ctx: &'a mut CleanupContext<'_, Self, ()>) -> StepFuture<'a> {
         Box::pin(async move {
-            ctx.environment()
-                .binding::<State>()
-                .paths
-                .lock()
-                .unwrap()
-                .push(ctx.artifacts().directory("capture").unwrap());
+            ctx.environment().binding::<State>().paths.lock().unwrap().push(ctx.artifacts().directory("capture").unwrap());
 
             Ok(())
         })
@@ -154,33 +127,18 @@ impl SidecarTemplate for Capture {
 
 impl DirectoryRun {
     fn directory(&self, name: &str) -> io::Result<PathBuf> {
-        self.state
-            .grant
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .directory(name)
-            .map_err(|error| {
-                let dokime_runtime::Error::Artifact(error) = error else {
-                    panic!("unexpected artifact error: {error}")
-                };
-                error
-            })
+        self.state.grant.lock().unwrap().as_ref().unwrap().directory(name).map_err(|error| {
+            let dokime_runtime::Error::Artifact(error) = error else { panic!("unexpected artifact error: {error}") };
+            error
+        })
     }
 
     fn drain(&mut self) {
         let reply = self.workflow.drain(&self.token, self.cursor).unwrap();
         for encoded in &reply.step_begins {
             let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            self.workflow.admit(
-                &self.token,
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: true,
-                    message: String::new(),
-                },
-            );
+            self.workflow
+                .admit(&self.token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         self.cursor = reply.cursor;
         for chunk in reply.artifact_chunks {
@@ -190,13 +148,7 @@ impl DirectoryRun {
                 self.sink.push(chunk);
             }
         }
-        self.notes.extend(
-            reply
-                .diagnostics
-                .into_iter()
-                .filter(|line| line.message.contains("capture/"))
-                .map(|line| line.message),
-        );
+        self.notes.extend(reply.diagnostics.into_iter().filter(|line| line.message.contains("capture/")).map(|line| line.message));
         if let Some(outcome) = reply.outcome {
             assert!(outcome.passed, "capture workflow failed: {outcome:?}");
             self.terminal = true;
@@ -263,8 +215,7 @@ async fn watching(token: &str) -> (DirectoryRun, Arc<RecordingSink>, PathBuf) {
         notes: Vec::new(),
         terminal: false,
     };
-    run.until(|run| run.state.paths.lock().unwrap().len() >= 2)
-        .await;
+    run.until(|run| run.state.paths.lock().unwrap().len() >= 2).await;
     let path = run.directory("capture").unwrap();
 
     (run, sink, path)
@@ -280,10 +231,7 @@ async fn file_sent_piece() {
 
     std::fs::write(path.join("chamber.log"), b"one line\n").unwrap();
     assert!(directories.scan().await.is_empty());
-    assert!(
-        sink.chunks().is_empty(),
-        "a few bytes are not worth a frame and a replay fingerprint"
-    );
+    assert!(sink.chunks().is_empty(), "a few bytes are not worth a frame and a replay fingerprint");
 
     let first = grown(GROWTH_FLOOR as usize + 7, b'a');
     std::fs::write(path.join("chamber.log"), &first).unwrap();
@@ -304,11 +252,7 @@ async fn file_sent_piece() {
     let appended = sink.chunks();
     assert_eq!(appended.len(), 2, "growth is the transfer's next piece");
     assert_eq!(appended[1].sequence, 1);
-    assert_eq!(
-        appended[1].bytes,
-        grown(GROWTH_FLOOR as usize, b'b'),
-        "only what the file grew by is sent again"
-    );
+    assert_eq!(appended[1].bytes, grown(GROWTH_FLOOR as usize, b'b'), "only what the file grew by is sent again");
     assert_eq!(sink.assembled("capture/chamber.log"), grown_file);
 
     directories.sweep().await;
@@ -322,26 +266,16 @@ async fn file_shrank_had() {
 
     std::fs::write(path.join("chamber.log"), b"rewritten\n").unwrap();
     directories.scan().await;
-    assert_eq!(
-        sink.chunks().len(),
-        1,
-        "a small rewrite waits for the sweep like any other small change"
-    );
+    assert_eq!(sink.chunks().len(), 1, "a small rewrite waits for the sweep like any other small change");
 
     directories.sweep().await;
     let chunks = sink.chunks();
-    let replacing = chunks
-        .iter()
-        .filter(|chunk| chunk.replace)
-        .collect::<Vec<_>>();
+    let replacing = chunks.iter().filter(|chunk| chunk.replace).collect::<Vec<_>>();
     assert_eq!(replacing.len(), 1);
     assert_eq!(replacing[0].bytes, b"rewritten\n");
     assert!(replacing[0].last);
     assert_eq!(
-        chunks
-            .iter()
-            .map(|chunk| chunk.sequence)
-            .collect::<Vec<_>>(),
+        chunks.iter().map(|chunk| chunk.sequence).collect::<Vec<_>>(),
         [0, 1],
         "sequences carry on rather than restarting with the content"
     );
@@ -359,21 +293,13 @@ async fn rewrite_same_time() {
     // Stated rather than waited for: whether two writes a millisecond apart
     // carry different times is the filesystem's business, and the rule
     // being tested is what the scan does when they do.
-    std::fs::File::options()
-        .write(true)
-        .open(&file)
-        .unwrap()
-        .set_modified(SystemTime::now() + Duration::from_secs(2))
-        .unwrap();
+    std::fs::File::options().write(true).open(&file).unwrap().set_modified(SystemTime::now() + Duration::from_secs(2)).unwrap();
     directories.scan().await;
 
     let chunks = sink.chunks();
     assert_eq!(chunks.len(), 2);
     assert!(chunks[1].replace, "the file no longer says what it said");
-    assert_eq!(
-        sink.assembled("capture/chamber.log"),
-        grown(GROWTH_FLOOR as usize, b'b')
-    );
+    assert_eq!(sink.assembled("capture/chamber.log"), grown(GROWTH_FLOOR as usize, b'b'));
 
     directories.sweep().await;
 }
@@ -389,20 +315,10 @@ async fn file_past_skipped() {
 
     let notes = directories.scan().await;
     assert_eq!(notes.len(), 1);
-    assert!(
-        notes[0].contains("capture/capture.bin") && notes[0].contains("limit"),
-        "the diagnostic names the file: {}",
-        notes[0]
-    );
-    assert!(
-        directories.scan().await.is_empty(),
-        "refused once, then skipped"
-    );
+    assert!(notes[0].contains("capture/capture.bin") && notes[0].contains("limit"), "the diagnostic names the file: {}", notes[0]);
+    assert!(directories.scan().await.is_empty(), "refused once, then skipped");
     assert!(directories.sweep().await.is_empty());
-    assert!(
-        sink.chunks().is_empty(),
-        "a refused file never opens a transfer for the sweep to finalize"
-    );
+    assert!(sink.chunks().is_empty(), "a refused file never opens a transfer for the sweep to finalize");
 }
 
 #[tokio::test(start_paused = true)]
@@ -411,12 +327,7 @@ async fn file_outgrows_opened() {
     let file = path.join("chamber.log");
     std::fs::write(&file, grown(GROWTH_FLOOR as usize, b'a')).unwrap();
     directories.scan().await;
-    std::fs::File::options()
-        .write(true)
-        .open(&file)
-        .unwrap()
-        .set_len(MAX_ARTIFACT_BYTES + 1)
-        .unwrap();
+    std::fs::File::options().write(true).open(&file).unwrap().set_len(MAX_ARTIFACT_BYTES + 1).unwrap();
 
     let notes = directories.scan().await;
 
@@ -440,10 +351,7 @@ async fn name_refuses_directory() {
 
     assert_eq!(notes.len(), 1);
     assert!(notes[0].contains("capture/notes"), "{}", notes[0]);
-    assert!(
-        directories.scan().await.is_empty(),
-        "reported once, then skipped"
-    );
+    assert!(directories.scan().await.is_empty(), "reported once, then skipped");
     assert!(sink.chunks().is_empty());
 
     directories.sweep().await;
@@ -460,25 +368,15 @@ async fn sweep_finalizes_directory() {
 
     let chunks = sink.chunks();
     assert_eq!(
-        chunks
-            .iter()
-            .map(|chunk| chunk.name.as_str())
-            .collect::<Vec<_>>(),
+        chunks.iter().map(|chunk| chunk.name.as_str()).collect::<Vec<_>>(),
         ["capture/empty.log", "capture/frames/first.txt"],
         "a file the scan never saw is still swept up, named by its path"
     );
     assert!(chunks.iter().all(|chunk| chunk.last));
-    assert!(
-        chunks[0].bytes.is_empty(),
-        "an empty file the run meant to produce is one terminal piece"
-    );
+    assert!(chunks[0].bytes.is_empty(), "an empty file the run meant to produce is one terminal piece");
     assert_eq!(chunks[1].bytes, b"nested\n");
     assert_eq!(
-        chunks
-            .iter()
-            .map(|chunk| chunk.transfer_id.as_str())
-            .collect::<std::collections::BTreeSet<_>>()
-            .len(),
+        chunks.iter().map(|chunk| chunk.transfer_id.as_str()).collect::<std::collections::BTreeSet<_>>().len(),
         2,
         "one transfer identity per file"
     );
@@ -508,14 +406,8 @@ async fn one_directory_cleanup() {
     std::fs::write(opened.join("evidence.txt"), b"written by anything at all").unwrap();
 
     assert!(run.sweep().await.is_empty());
-    assert_eq!(
-        *run.state.paths.lock().unwrap(),
-        [opened.clone(), opened.clone(), opened.clone()]
-    );
-    assert_eq!(
-        sink.assembled("capture/evidence.txt"),
-        b"written by anything at all"
-    );
+    assert_eq!(*run.state.paths.lock().unwrap(), [opened.clone(), opened.clone(), opened.clone()]);
+    assert_eq!(sink.assembled("capture/evidence.txt"), b"written by anything at all");
     assert!(!opened.exists(), "the directory is removed once swept");
 }
 
@@ -545,10 +437,7 @@ async fn closed_backlog_tick() {
     });
     tokio::time::advance(Duration::from_millis(300)).await;
     tokio::task::yield_now().await;
-    assert!(
-        !finishing.is_finished(),
-        "the undrained backlog applies backpressure"
-    );
+    assert!(!finishing.is_finished(), "the undrained backlog applies backpressure");
 
     // The runtime remains responsive while the scanner waits on its blocking thread.
     let responsive = tokio::spawn(async { true });

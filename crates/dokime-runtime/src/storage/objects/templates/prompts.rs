@@ -19,8 +19,8 @@
 // Local Imports
 use super::{Map, Value, conditions, expressions};
 use crate::prompts::{
-    FieldValidation, PromptAction, PromptActionEmphasis, PromptArchetype, PromptDefinition,
-    PromptField, PromptFieldKind, Rule as PromptRule,
+    FieldValidation, PromptAction, PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind,
+    Rule as PromptRule,
 };
 use crate::records::RecordSeverity;
 use crate::storage::objects::metadata;
@@ -139,12 +139,7 @@ pub(super) struct Validation {
 /* === Implementations === */
 impl Prompt {
     pub fn encoding_memory(value: &PromptDefinition) -> Result<usize> {
-        let condition = value
-            .condition
-            .as_ref()
-            .map(conditions::Condition::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let condition = value.condition.as_ref().map(conditions::Condition::encoding_memory).transpose()?.unwrap_or(0);
         if condition == usize::MAX {
             return Ok(usize::MAX);
         }
@@ -155,15 +150,10 @@ impl Prompt {
             value.title.len(),
             value.message.as_deref().map_or(0, str::len),
             value.owner.as_ref().map_or(0, |id| id.as_str().len()),
-            value
-                .template_identifier
-                .as_ref()
-                .map_or(0, |id| id.as_str().len()),
+            value.template_identifier.as_ref().map_or(0, |id| id.as_str().len()),
             condition.saturating_sub(std::mem::size_of::<conditions::Condition>()),
         ];
-        let mut bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
         for field in &value.fields {
             bytes = bytes.saturating_add(Field::encoding_memory(field)?);
         }
@@ -187,11 +177,7 @@ impl Prompt {
             .saturating_add(self.title.capacity())
             .saturating_add(self.message.as_ref().map_or(0, String::capacity))
             .saturating_add(self.owner.as_ref().map_or(0, String::capacity))
-            .saturating_add(
-                self.template_identifier
-                    .as_ref()
-                    .map_or(0, String::capacity),
-            );
+            .saturating_add(self.template_identifier.as_ref().map_or(0, String::capacity));
         for field in &self.fields {
             bytes = bytes.saturating_add(field.projection_memory()?);
         }
@@ -219,30 +205,22 @@ impl TryFrom<&PromptDefinition> for Prompt {
             return Err(Error::Invalid("prompt encoding memory overflows"));
         }
         let mut fields = Vec::new();
-        fields
-            .try_reserve_exact(value.fields.len())
-            .map_err(|_| Error::Invalid("prompt fields allocation failed"))?;
+        fields.try_reserve_exact(value.fields.len()).map_err(|_| Error::Invalid("prompt fields allocation failed"))?;
         for field in &value.fields {
             fields.push(Field::try_from(field)?);
         }
         let mut actions = Vec::new();
-        actions
-            .try_reserve_exact(value.actions.len())
-            .map_err(|_| Error::Invalid("prompt actions allocation failed"))?;
+        actions.try_reserve_exact(value.actions.len()).map_err(|_| Error::Invalid("prompt actions allocation failed"))?;
         for action in &value.actions {
             actions.push(Action::try_from(action)?);
         }
         let mut rules = Vec::new();
-        rules
-            .try_reserve_exact(value.rules.len())
-            .map_err(|_| Error::Invalid("prompt rules allocation failed"))?;
+        rules.try_reserve_exact(value.rules.len()).map_err(|_| Error::Invalid("prompt rules allocation failed"))?;
         for rule in &value.rules {
             rules.push(Rule::try_from(rule)?);
         }
         let mut examples = Vec::new();
-        examples
-            .try_reserve_exact(value.examples.len())
-            .map_err(|_| Error::Invalid("prompt examples allocation failed"))?;
+        examples.try_reserve_exact(value.examples.len()).map_err(|_| Error::Invalid("prompt examples allocation failed"))?;
         for example in &value.examples {
             examples.push(Map::try_from(example)?);
         }
@@ -255,16 +233,9 @@ impl TryFrom<&PromptDefinition> for Prompt {
             fields,
             actions,
             rules,
-            condition: value
-                .condition
-                .as_ref()
-                .map(conditions::Condition::try_from)
-                .transpose()?,
+            condition: value.condition.as_ref().map(conditions::Condition::try_from).transpose()?,
             owner: value.owner.as_ref().map(|id| id.as_str().to_owned()),
-            template_identifier: value
-                .template_identifier
-                .as_ref()
-                .map(|id| id.as_str().to_owned()),
+            template_identifier: value.template_identifier.as_ref().map(|id| id.as_str().to_owned()),
             examples,
             level: level_name(value.level).to_owned(),
         })
@@ -279,30 +250,22 @@ impl TryFrom<Prompt> for PromptDefinition {
             return Err(Error::Invalid("prompt projection memory overflows"));
         }
         let mut fields = Vec::new();
-        fields
-            .try_reserve_exact(row.fields.len())
-            .map_err(|_| Error::Invalid("prompt fields allocation failed"))?;
+        fields.try_reserve_exact(row.fields.len()).map_err(|_| Error::Invalid("prompt fields allocation failed"))?;
         for field in row.fields {
             fields.push(field.try_into()?);
         }
         let mut actions = Vec::new();
-        actions
-            .try_reserve_exact(row.actions.len())
-            .map_err(|_| Error::Invalid("prompt actions allocation failed"))?;
+        actions.try_reserve_exact(row.actions.len()).map_err(|_| Error::Invalid("prompt actions allocation failed"))?;
         for action in row.actions {
             actions.push(action.try_into()?);
         }
         let mut rules = Vec::new();
-        rules
-            .try_reserve_exact(row.rules.len())
-            .map_err(|_| Error::Invalid("prompt rules allocation failed"))?;
+        rules.try_reserve_exact(row.rules.len()).map_err(|_| Error::Invalid("prompt rules allocation failed"))?;
         for rule in row.rules {
             rules.push(rule.try_into()?);
         }
         let mut examples = Vec::new();
-        examples
-            .try_reserve_exact(row.examples.len())
-            .map_err(|_| Error::Invalid("prompt examples allocation failed"))?;
+        examples.try_reserve_exact(row.examples.len()).map_err(|_| Error::Invalid("prompt examples allocation failed"))?;
         for example in row.examples {
             examples.push(example.try_into()?);
         }
@@ -317,10 +280,7 @@ impl TryFrom<Prompt> for PromptDefinition {
             rules,
             condition: row.condition.map(TryInto::try_into).transpose()?,
             owner: row.owner.map(dokime_domain::model::identity::SuiteId::from_uuid).transpose()?,
-            template_identifier: row
-                .template_identifier
-                .map(dokime_domain::model::identity::Identifier::new)
-                .transpose()?,
+            template_identifier: row.template_identifier.map(dokime_domain::model::identity::Identifier::new).transpose()?,
             examples,
             level: level(&row.level)?,
         })
@@ -330,12 +290,7 @@ impl TryFrom<Prompt> for PromptDefinition {
 impl Field {
     fn encoding_memory(value: &PromptField) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let default = value
-            .default
-            .as_ref()
-            .map(Value::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let default = value.default.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
         let validation = Validation::encoding_memory(&value.validation)?;
         if [metadata, default, validation].contains(&usize::MAX) {
             return Ok(usize::MAX);
@@ -346,34 +301,17 @@ impl Field {
             field_kind_name(&value.kind).len(),
             default.saturating_sub(std::mem::size_of::<Value>()),
             validation.saturating_sub(std::mem::size_of::<Validation>()),
-            value
-                .choices
-                .len()
-                .saturating_mul(std::mem::size_of::<String>()),
+            value.choices.len().saturating_mul(std::mem::size_of::<String>()),
         ];
-        let bytes = fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), usize::saturating_add);
-        Ok(value
-            .choices
-            .iter()
-            .fold(bytes, |bytes, choice| bytes.saturating_add(choice.len())))
+        let bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
+        Ok(value.choices.iter().fold(bytes, |bytes, choice| bytes.saturating_add(choice.len())))
     }
 
     fn projection_memory(&self) -> Result<usize> {
         super::value_type(&self.value_type)?;
         field_kind(&self.kind)?;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or(Error::Invalid("prompt field metadata is missing"))?
-            .projection_memory()?;
-        let default = self
-            .default
-            .as_ref()
-            .map(Value::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("prompt field metadata is missing"))?.projection_memory()?;
+        let default = self.default.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
         use harmos::MemorySize;
         let choices = self.choices.memory_size();
         if choices == usize::MAX {
@@ -415,10 +353,7 @@ impl TryFrom<Field> for PromptField {
             return Err(Error::Invalid("prompt field projection memory overflows"));
         }
         Ok(Self {
-            metadata: row
-                .metadata
-                .ok_or(Error::Invalid("prompt field metadata is missing"))?
-                .try_into()?,
+            metadata: row.metadata.ok_or(Error::Invalid("prompt field metadata is missing"))?.try_into()?,
             value_type: super::value_type(&row.value_type)?,
             kind: field_kind(&row.kind)?,
             multiple: row.multiple,
@@ -440,9 +375,7 @@ impl Action {
 
     fn projection_memory(&self) -> Result<usize> {
         emphasis(&self.emphasis)?;
-        Ok(std::mem::size_of::<PromptAction>()
-            .saturating_add(self.id.capacity())
-            .saturating_add(self.label.capacity()))
+        Ok(std::mem::size_of::<PromptAction>().saturating_add(self.id.capacity()).saturating_add(self.label.capacity()))
     }
 }
 
@@ -466,12 +399,7 @@ impl TryFrom<Action> for PromptAction {
     type Error = Error;
 
     fn try_from(row: Action) -> Result<Self> {
-        Ok(Self {
-            id: row.id,
-            label: row.label,
-            emphasis: emphasis(&row.emphasis)?,
-            requires_condition: row.requires_condition,
-        })
+        Ok(Self { id: row.id, label: row.label, emphasis: emphasis(&row.emphasis)?, requires_condition: row.requires_condition })
     }
 }
 
@@ -487,9 +415,7 @@ impl Rule {
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        Ok(std::mem::size_of::<PromptRule>()
-            .saturating_add(self.message.capacity())
-            .saturating_add(self.predicate.projection_memory()?))
+        Ok(std::mem::size_of::<PromptRule>().saturating_add(self.message.capacity()).saturating_add(self.predicate.projection_memory()?))
     }
 }
 
@@ -500,10 +426,7 @@ impl TryFrom<&PromptRule> for Rule {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("prompt rule encoding memory overflows"));
         }
-        Ok(Self {
-            predicate: expressions::Boolean::try_from(&value.predicate)?,
-            message: value.message.as_str().to_owned(),
-        })
+        Ok(Self { predicate: expressions::Boolean::try_from(&value.predicate)?, message: value.message.as_str().to_owned() })
     }
 }
 
@@ -511,38 +434,17 @@ impl TryFrom<Rule> for PromptRule {
     type Error = Error;
 
     fn try_from(row: Rule) -> Result<Self> {
-        Ok(Self {
-            predicate: row.predicate.try_into()?,
-            message: row.message,
-        })
+        Ok(Self { predicate: row.predicate.try_into()?, message: row.message })
     }
 }
 
 impl Validation {
     fn encoding_memory(value: &FieldValidation) -> Result<usize> {
-        for count in [
-            value.min_length,
-            value.max_length,
-            value.min_items,
-            value.max_items,
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for count in [value.min_length, value.max_length, value.min_items, value.max_items].into_iter().flatten() {
             encoded_length(count)?;
         }
-        let minimum = value
-            .minimum
-            .as_ref()
-            .map(Value::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
-        let maximum = value
-            .maximum
-            .as_ref()
-            .map(Value::encoding_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let minimum = value.minimum.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
+        let maximum = value.maximum.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
         if [minimum, maximum].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
@@ -553,29 +455,11 @@ impl Validation {
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        for count in [
-            self.min_length,
-            self.max_length,
-            self.min_items,
-            self.max_items,
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for count in [self.min_length, self.max_length, self.min_items, self.max_items].into_iter().flatten() {
             length(count)?;
         }
-        let minimum = self
-            .minimum
-            .as_ref()
-            .map(Value::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
-        let maximum = self
-            .maximum
-            .as_ref()
-            .map(Value::projection_memory)
-            .transpose()?
-            .unwrap_or(0);
+        let minimum = self.minimum.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
+        let maximum = self.maximum.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
         Ok(std::mem::size_of::<FieldValidation>()
             .saturating_add(self.pattern.as_ref().map_or(0, String::capacity))
             .saturating_add(minimum)
@@ -588,9 +472,7 @@ impl TryFrom<&FieldValidation> for Validation {
 
     fn try_from(value: &FieldValidation) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid(
-                "prompt validation encoding memory overflows",
-            ));
+            return Err(Error::Invalid("prompt validation encoding memory overflows"));
         }
         Ok(Self {
             min_length: value.min_length.map(encoded_length).transpose()?,
@@ -609,9 +491,7 @@ impl TryFrom<Validation> for FieldValidation {
 
     fn try_from(row: Validation) -> Result<Self> {
         if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid(
-                "prompt validation projection memory overflows",
-            ));
+            return Err(Error::Invalid("prompt validation projection memory overflows"));
         }
         Ok(Self {
             min_length: row.min_length.map(length).transpose()?,

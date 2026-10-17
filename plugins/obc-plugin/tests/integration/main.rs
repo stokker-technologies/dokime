@@ -23,10 +23,10 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::{ValidationMode, ValueType};
 use dokime_runtime::definition::{SuiteSet, materialize_template_cases};
 use dokime_runtime::execution::{Answering, Caller};
 use dokime_runtime::harmos::operations::{Declares, OperationDeclaration};
+use dokime_runtime::{ValidationMode, ValueType};
 use obc_plugin::operations::readiness::{AskReadiness, Readiness};
 use obc_plugin::{MiniChecks, Pulse};
 
@@ -64,12 +64,7 @@ where
     O: Declares,
     <O::Declaration as OperationDeclaration>::Request: dokime_runtime::harmos::Message,
     <O::Declaration as OperationDeclaration>::Response: dokime_runtime::harmos::Message,
-    F: Fn(
-            <O::Declaration as OperationDeclaration>::Request,
-        ) -> <O::Declaration as OperationDeclaration>::Response
-        + Send
-        + Sync
-        + 'static,
+    F: Fn(<O::Declaration as OperationDeclaration>::Request) -> <O::Declaration as OperationDeclaration>::Response + Send + Sync + 'static,
 {
     let answer = Arc::new(answer);
     (
@@ -77,21 +72,17 @@ where
         Arc::new(move |payload: Vec<u8>| {
             let answer = Arc::clone(&answer);
             Box::pin(async move {
-                let request = <<O::Declaration as OperationDeclaration>::Request as dokime_runtime::harmos::Message>::decode(payload.as_slice())
-                    .map_err(|error| error.to_string())?;
+                let request =
+                    <<O::Declaration as OperationDeclaration>::Request as dokime_runtime::harmos::Message>::decode(payload.as_slice())
+                        .map_err(|error| error.to_string())?;
                 Ok(dokime_runtime::harmos::Message::encode_to_vec(&answer(request)))
-            })
-                as std::pin::Pin<
-                    Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>,
-                >
+            }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
         }),
     )
 }
 
 fn road() -> Caller {
-    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|()| {
-        Readiness { stopped: false }
-    })]))
+    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|()| Readiness { stopped: false })]))
 }
 
 fn measured<C: dokime_runtime::telemetry::TelemetryStream>(
@@ -131,27 +122,15 @@ fn contracts_bind_fields() {
     // and `PulseRow` contributed the rest, resolved from the field types rather
     // than from a second list an author would have to keep in agreement.
     assert_eq!(
-        contract
-            .columns
-            .iter()
-            .map(|column| column.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
+        contract.columns.iter().map(|column| column.metadata.identifier.as_str()).collect::<Vec<_>>(),
         vec!["timestamp", "sample_index", "value"]
     );
     assert_eq!(
-        contract
-            .columns
-            .iter()
-            .map(|column| column.value_type.clone())
-            .collect::<Vec<_>>(),
+        contract.columns.iter().map(|column| column.value_type.clone()).collect::<Vec<_>>(),
         vec![ValueType::Datetime, ValueType::Integer, ValueType::Number]
     );
     assert_eq!(
-        registration
-            .record_contracts
-            .iter()
-            .map(|contract| contract.record_type.as_str())
-            .collect::<Vec<_>>(),
+        registration.record_contracts.iter().map(|contract| contract.record_type.as_str()).collect::<Vec<_>>(),
         vec!["mini.run.started", "mini.run.completed"]
     );
     assert!(registration.record_contracts.iter().all(|contract| {
@@ -164,45 +143,24 @@ fn contracts_bind_fields() {
 #[test]
 fn default_case_phases() {
     let template = MiniChecks::suite().test_case_templates.remove(0);
-    let generated = materialize_template_cases(
-        "fixture.registration",
-        &template,
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
+    let generated = materialize_template_cases("fixture.registration", &template, Default::default(), Default::default()).unwrap();
 
     assert_eq!(generated.case_count, 1);
     assert_eq!(template.test_case_template_id, Pulse::template_id());
     assert_eq!(
-        template
-            .parameters
-            .iter()
-            .map(|parameter| parameter.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
+        template.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(),
         vec!["sample_count", "tolerance", "capture_system"]
     );
     // The sidecar names one of these phase ids in every drain reply.
     assert_eq!(
-        template
-            .phases
-            .iter()
-            .map(|phase| phase.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
+        template.phases.iter().map(|phase| phase.metadata.identifier.as_str()).collect::<Vec<_>>(),
         vec!["start", "stream", "complete"]
     );
-    assert!(
-        template.document.is_some(),
-        "the template owns the document its live plots render in"
-    );
+    assert!(template.document.is_some(), "the template owns the document its live plots render in");
     // The criterion came off the method that decides it, not off a separate
     // `criteria()` list.
     assert_eq!(
-        template
-            .criteria
-            .iter()
-            .map(|criterion| criterion.metadata.identifier.as_str())
-            .collect::<Vec<_>>(),
+        template.criteria.iter().map(|criterion| criterion.metadata.identifier.as_str()).collect::<Vec<_>>(),
         vec!["obc.checks.pulse.acceptance"]
     );
 }

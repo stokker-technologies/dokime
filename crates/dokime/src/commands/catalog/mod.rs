@@ -55,16 +55,9 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
 /* === Private Functions === */
 // The CLI names a template by its readable ID, `<suite id>.<segment>`, in the
 // `template_id` it prints and accepts; the registered UUID stays on the wire.
-fn readable(
-    suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
-) -> crate::Result<serde_json::Value> {
+fn readable(suite: &dokime_domain::model::catalog::wire::SuiteDefinition) -> crate::Result<serde_json::Value> {
     let mut value = serde_json::to_value(suite)?;
-    let templates = value
-        .get_mut("templates")
-        .and_then(serde_json::Value::as_array_mut)
-        .into_iter()
-        .flatten()
-        .zip(&suite.templates);
+    let templates = value.get_mut("templates").and_then(serde_json::Value::as_array_mut).into_iter().flatten().zip(&suite.templates);
     for (written, template) in templates {
         let identifier = template
             .metadata

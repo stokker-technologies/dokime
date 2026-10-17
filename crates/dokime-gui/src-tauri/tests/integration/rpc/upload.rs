@@ -21,9 +21,9 @@ use harmos::{MemorySize, Protobuf};
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime_domain::model;
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
+use dokime_domain::model;
 use dokime_domain::operations::content;
 use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 
@@ -48,11 +48,7 @@ use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 /* === Tests === */
 
 fn generation(session: &dokime_gui::connection::ConnectionSession) -> u64 {
-    session
-        .status()
-        .generation
-        .parse()
-        .expect("fixture generation is numeric")
+    session.status().generation.parse().expect("fixture generation is numeric")
 }
 
 fn header(size_bytes: u64, scope: Option<model::content::wire::ArtifactScope>) -> model::content::wire::UploadArtifactHeader {
@@ -67,19 +63,14 @@ fn header(size_bytes: u64, scope: Option<model::content::wire::ArtifactScope>) -
 
 fn app_and_window(
     session: &dokime_gui::connection::ConnectionSession,
-) -> (
-    tauri::App<tauri::test::MockRuntime>,
-    tauri::WebviewWindow<tauri::test::MockRuntime>,
-) {
+) -> (tauri::App<tauri::test::MockRuntime>, tauri::WebviewWindow<tauri::test::MockRuntime>) {
     let app = tauri::test::mock_builder()
         .manage(session.clone())
         .manage(Bridge::default())
         .invoke_handler(handler())
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
+    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
     (app, window)
 }
 
@@ -89,15 +80,11 @@ struct ActiveFixture {
 }
 impl dokime_runtime::ExecutionFixture for ActiveFixture {
     fn run_cycle<'a>(
-        &'a self,
-        _context: dokime_runtime::ExecutionFixtureContext,
-        cycle: &'a dokime_runtime::execution::CycleView,
+        &'a self, _context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_runtime::execution::CycleView,
         _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
     ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            use dokime_runtime::transport::{
-                ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome,
-            };
+            use dokime_runtime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
             self.release.notified().await;
             let execution = &cycle.test_executions[0];
             Ok(ProviderCycleOutcome {
@@ -142,11 +129,7 @@ impl ScopedFixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let metadata = || {
-            dokime_runtime::Metadata::new(
-                dokime_runtime::Identifier::new("rpc.artifact-upload").unwrap(),
-                "Artifact upload fixture",
-                None,
-            )
+            dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("rpc.artifact-upload").unwrap(), "Artifact upload fixture", None)
         };
         let execution = std::sync::Arc::new(ActiveFixture::default());
         let runtime = dokime_runtime::Runtime::with_execution_fixture(
@@ -192,12 +175,9 @@ impl ScopedFixture {
             )
             .await
             .unwrap();
-        let cycle_id_typed =
-            artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
+        let cycle_id_typed = artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
         let cycle_id = cycle_id_typed.to_string();
-        handle
-            .run_cycle_cases(cycle_id_typed, Default::default())
-            .await;
+        handle.run_cycle_cases(cycle_id_typed, Default::default()).await;
         let mut state = handle.watch_state();
         let server = dokime_server::grpc::Server::start(
             handle,
@@ -217,9 +197,7 @@ impl ScopedFixture {
         let session = dokime_gui::connection::ConnectionSession::default();
         session
             .connect(dokime_gui::connection::ConnectRequest {
-                target: dokime_gui::connection::ConnectionTarget::Local {
-                    endpoint: server.local_endpoint(),
-                },
+                target: dokime_gui::connection::ConnectionTarget::Local { endpoint: server.local_endpoint() },
                 credentials: dokime_gui::connection::ConnectionCredentials::Bearer {
                     token: "artifact-upload-fixture-token-01234567890123".into(),
                     remember: false,
@@ -229,13 +207,7 @@ impl ScopedFixture {
             .await
             .unwrap();
         let snapshot = state
-            .wait_until(|snapshot| {
-                snapshot
-                    .state()
-                    .executions
-                    .values()
-                    .any(|execution| execution.test_cycle_id.as_str() == cycle_id)
-            })
+            .wait_until(|snapshot| snapshot.state().executions.values().any(|execution| execution.test_cycle_id.as_str() == cycle_id))
             .await
             .expect("the runtime remains live during fixture setup");
         let execution_id = snapshot
@@ -251,11 +223,7 @@ impl ScopedFixture {
             server,
             runtime,
             _root: root,
-            scope: model::content::wire::ArtifactScope {
-                cycle_id: Some(cycle_id),
-                case_id: None,
-                execution_id: Some(execution_id),
-            },
+            scope: model::content::wire::ArtifactScope { cycle_id: Some(cycle_id), case_id: None, execution_id: Some(execution_id) },
             execution,
         }
     }
@@ -288,10 +256,7 @@ async fn upload_sink_completes() {
     let (app, window) = app_and_window(&fixture.session);
     let generation_value = generation(&fixture.session);
 
-    let open_bytes = request_bytes(
-        generation_value,
-        &header(6, Some(fixture.scope.clone())).encode_to_vec(),
-    );
+    let open_bytes = request_bytes(generation_value, &header(6, Some(fixture.scope.clone())).encode_to_vec());
     let response = invoke(&window, "artifact_upload_open", open_bytes).expect("open admitted");
     let tauri::ipc::InvokeResponseBody::Raw(handle_bytes) = response else {
         panic!("open replies with a raw stream handle");
@@ -299,25 +264,12 @@ async fn upload_sink_completes() {
     assert_eq!(handle_bytes.len(), 16);
     let id = u64::from_le_bytes(handle_bytes[8..16].try_into().unwrap());
 
-    invoke(
-        &window,
-        "artifact_upload_write",
-        request_bytes(generation_value, &write_payload(id, 1, b"foo")),
-    )
-    .expect("first slice accepted");
-    invoke(
-        &window,
-        "artifact_upload_write",
-        request_bytes(generation_value, &write_payload(id, 2, b"bar")),
-    )
-    .expect("second slice accepted");
+    invoke(&window, "artifact_upload_write", request_bytes(generation_value, &write_payload(id, 1, b"foo"))).expect("first slice accepted");
+    invoke(&window, "artifact_upload_write", request_bytes(generation_value, &write_payload(id, 2, b"bar")))
+        .expect("second slice accepted");
 
-    let finished = invoke(
-        &window,
-        "artifact_upload_finish",
-        request_bytes(generation_value, &id.to_le_bytes()),
-    )
-    .expect("finish resolves once the server verifies the digest");
+    let finished = invoke(&window, "artifact_upload_finish", request_bytes(generation_value, &id.to_le_bytes()))
+        .expect("finish resolves once the server verifies the digest");
     let tauri::ipc::InvokeResponseBody::Raw(metadata_bytes) = finished else {
         panic!("finish replies with raw metadata bytes");
     };
@@ -327,18 +279,9 @@ async fn upload_sink_completes() {
         "the metadata decoding budget stays within the native transfer bound"
     );
     let metadata = model::content::wire::ArtifactMetadata::decode(payload).unwrap();
-    assert!(
-        metadata.memory_size() <= MAX_FRAME_BYTES * 8,
-        "the decoded metadata stays within the native transfer bound"
-    );
+    assert!(metadata.memory_size() <= MAX_FRAME_BYTES * 8, "the decoded metadata stays within the native transfer bound");
     assert_eq!(metadata.size_bytes, 6);
-    assert_eq!(
-        metadata.sha256,
-        Sha256::digest(b"foobar")
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    );
+    assert_eq!(metadata.sha256, Sha256::digest(b"foobar").iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     assert_eq!(metadata.state, model::content::wire::ArtifactState::Complete);
 
     use tauri::Manager;
@@ -359,12 +302,8 @@ async fn upload_refuses_gap() {
     };
     let id = u64::from_le_bytes(handle_bytes[8..16].try_into().unwrap());
 
-    let error = invoke(
-        &window,
-        "artifact_upload_write",
-        request_bytes(generation_value, &write_payload(id, 2, b"foo")),
-    )
-    .expect_err("a write that skips a sequence number is refused");
+    let error = invoke(&window, "artifact_upload_write", request_bytes(generation_value, &write_payload(id, 2, b"foo")))
+        .expect_err("a write that skips a sequence number is refused");
     assert_eq!(error["kind"], "invalid_ack");
 
     use tauri::Manager;
@@ -388,24 +327,15 @@ async fn upload_owner_cancels() {
     use tauri::Manager;
     app.state::<Bridge>().cancel_owner("main");
 
-    let error = invoke(
-        &window,
-        "artifact_upload_write",
-        request_bytes(generation_value, &write_payload(id, 1, b"foo")),
-    )
-    .expect_err("a stream cancelled with its owner is no longer reachable");
+    let error = invoke(&window, "artifact_upload_write", request_bytes(generation_value, &write_payload(id, 1, b"foo")))
+        .expect_err("a stream cancelled with its owner is no longer reachable");
     assert_eq!(error["kind"], "unknown_stream");
     fixture.close().await;
 }
 
 fn recording_files(dir: &std::path::Path) -> std::collections::HashSet<String> {
     std::fs::read_dir(dir)
-        .map(|entries| {
-            entries
-                .filter_map(|entry| entry.ok())
-                .filter_map(|entry| entry.file_name().into_string().ok())
-                .collect()
-        })
+        .map(|entries| entries.filter_map(|entry| entry.ok()).filter_map(|entry| entry.file_name().into_string().ok()).collect())
         .unwrap_or_default()
 }
 
@@ -417,51 +347,22 @@ async fn recording_cancel_deletes() {
 
     let recordings_dir = {
         use tauri::Manager;
-        app.path()
-            .app_cache_dir()
-            .expect("test app cache dir resolves")
-            .join("recordings")
+        app.path().app_cache_dir().expect("test app cache dir resolves").join("recordings")
     };
     let before = recording_files(&recordings_dir);
 
-    invoke(
-        &window,
-        "recording_open",
-        request_bytes(generation_value, &header(0, None).encode_to_vec()),
-    )
-    .expect("recording sink opens");
-    invoke(
-        &window,
-        "recording_write",
-        request_bytes(generation_value, b"fragment"),
-    )
-    .expect("write accepted");
+    invoke(&window, "recording_open", request_bytes(generation_value, &header(0, None).encode_to_vec())).expect("recording sink opens");
+    invoke(&window, "recording_write", request_bytes(generation_value, b"fragment")).expect("write accepted");
 
-    let mut created: Vec<_> = recording_files(&recordings_dir)
-        .difference(&before)
-        .cloned()
-        .collect();
-    let temp_name = created
-        .pop()
-        .expect("recording_open must create exactly one temp file");
-    assert!(
-        created.is_empty(),
-        "recording_open must create exactly one temp file"
-    );
+    let mut created: Vec<_> = recording_files(&recordings_dir).difference(&before).cloned().collect();
+    let temp_name = created.pop().expect("recording_open must create exactly one temp file");
+    assert!(created.is_empty(), "recording_open must create exactly one temp file");
     let temp_path = recordings_dir.join(temp_name);
     assert!(temp_path.exists(), "the temp file must exist before cancel");
 
-    invoke(
-        &window,
-        "recording_cancel",
-        request_bytes(generation_value, &[]),
-    )
-    .expect("cancel accepted");
+    invoke(&window, "recording_cancel", request_bytes(generation_value, &[])).expect("cancel accepted");
 
-    assert!(
-        !temp_path.exists(),
-        "cancel must delete the sink's temp file"
-    );
+    assert!(!temp_path.exists(), "cancel must delete the sink's temp file");
 
     use tauri::Manager;
     app.state::<Bridge>().cancel_owner("main");
@@ -470,17 +371,13 @@ async fn recording_cancel_deletes() {
 
 #[test]
 fn upload_sink_opens() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let fixture = runtime.block_on(Fixture::new());
     let (app, window) = app_and_window(&fixture.session);
     let generation_value: u64 = fixture.session.status().generation.parse().unwrap();
     let bytes = request_bytes(generation_value, &header(1, None).encode_to_vec());
 
-    let response = invoke(&window, "artifact_upload_open", bytes)
-        .expect("the upload sink opener admits the stream");
+    let response = invoke(&window, "artifact_upload_open", bytes).expect("the upload sink opener admits the stream");
     let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
         panic!("the upload sink opener replies with a raw stream handle");
     };

@@ -88,11 +88,7 @@ struct Identity {
 /* === Implementations === */
 impl Backend {
     pub fn new(executable: PathBuf, arguments: Vec<String>) -> Self {
-        Self {
-            executable,
-            arguments,
-            logs: None,
-        }
+        Self { executable, arguments, logs: None }
     }
 
     /// Streams each launch's redacted stderr into its own file under
@@ -111,9 +107,7 @@ impl Search {
             // platform, so this application's own directory is the first and
             // most specific answer. A development build finds its sibling in
             // the same Cargo target directory.
-            beside: std::env::current_exe()
-                .ok()
-                .and_then(|executable| executable.parent().map(Path::to_path_buf)),
+            beside: std::env::current_exe().ok().and_then(|executable| executable.parent().map(Path::to_path_buf)),
             home: std::env::var_os("DOKIME_HOME").map(PathBuf::from),
             path: std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
                 // An empty PATH entry means the working directory, which is
@@ -140,11 +134,7 @@ impl Search {
 }
 
 impl Process {
-    async fn readiness(
-        &mut self,
-        executable: &Path,
-        on_phase: &mut (dyn FnMut(&str) + Send),
-    ) -> Result<String, String> {
+    async fn readiness(&mut self, executable: &Path, on_phase: &mut (dyn FnMut(&str) + Send)) -> Result<String, String> {
         tokio::time::timeout(READY_TIMEOUT, async {
             loop {
                 let mut line = Vec::new();
@@ -152,13 +142,9 @@ impl Process {
                     .take(READINESS_LIMIT + 1)
                     .read_until(b'\n', &mut line)
                     .await
-                    .map_err(|error| {
-                        format!("The {PRODUCT} backend readiness could not be read: {error}.")
-                    })?;
+                    .map_err(|error| format!("The {PRODUCT} backend readiness could not be read: {error}."))?;
                 if read == 0 {
-                    return Err(format!(
-                        "The {PRODUCT} backend stopped before reporting readiness; review its diagnostics."
-                    ));
+                    return Err(format!("The {PRODUCT} backend stopped before reporting readiness; review its diagnostics."));
                 }
                 match phase_name(&line) {
                     Some(phase) => {
@@ -178,10 +164,7 @@ impl Process {
         // Final Reports May Outlive An Ordinary Transfer Deadline.
         // The owner retains this process until shutdown finishes or the user
         // explicitly chooses to exit after a failure.
-        self.child
-            .wait()
-            .await
-            .map_err(|error| Self::failure(error, "stop"))
+        self.child.wait().await.map_err(|error| Self::failure(error, "stop"))
     }
 
     fn failure(error: std::io::Error, action: &str) -> String {
@@ -191,15 +174,10 @@ impl Process {
 
 /* === Public Functions === */
 pub fn locate() -> Result<PathBuf, String> {
-    Search::from_environment()
-        .find()
-        .ok_or_else(|| MISSING.to_owned())
+    Search::from_environment().find().ok_or_else(|| MISSING.to_owned())
 }
 
-pub async fn start(
-    backend: &Backend,
-    mut on_phase: impl FnMut(&str) + Send,
-) -> Result<(Process, String), Error> {
+pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Process, String), Error> {
     // Spawn The Backend
     let executable = backend.executable.display().to_string();
     let mut command = Command::new(&backend.executable);
@@ -227,12 +205,7 @@ pub async fn start(
     let events = BufReader::new(child.stdout.take().expect("piped readiness output"));
     let stderr = child.stderr.take().expect("piped diagnostic output");
     let diagnostics = Capture::start(stderr, backend.logs.as_deref(), child.id()).await;
-    let mut process = Process {
-        control: child.stdin.take(),
-        child,
-        events,
-        diagnostics,
-    };
+    let mut process = Process { control: child.stdin.take(), child, events, diagnostics };
 
     // Await Readiness
     let error = match process.readiness(&backend.executable, &mut on_phase).await {
@@ -263,18 +236,12 @@ pub async fn start(
 /* === Private Functions === */
 #[cfg(windows)]
 fn installed_directories() -> Vec<PathBuf> {
-    ["LOCALAPPDATA", "ProgramFiles"]
-        .into_iter()
-        .filter_map(std::env::var_os)
-        .map(|root| PathBuf::from(root).join(BUNDLE))
-        .collect()
+    ["LOCALAPPDATA", "ProgramFiles"].into_iter().filter_map(std::env::var_os).map(|root| PathBuf::from(root).join(BUNDLE)).collect()
 }
 
 #[cfg(target_os = "macos")]
 fn installed_directories() -> Vec<PathBuf> {
-    vec![PathBuf::from(format!(
-        "/Applications/{BUNDLE}.app/Contents/MacOS"
-    ))]
+    vec![PathBuf::from(format!("/Applications/{BUNDLE}.app/Contents/MacOS"))]
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
@@ -308,16 +275,10 @@ fn endpoint(line: &[u8], executable: &Path) -> Result<String, String> {
     if line.len() as u64 > READINESS_LIMIT || !line.ends_with(b"\n") {
         return Err(format!("The {PRODUCT} backend did not report readiness."));
     }
-    let ready: serde_json::Value = serde_json::from_slice(line).map_err(|error| {
-        format!("The {PRODUCT} backend readiness could not be parsed: {error}.")
-    })?;
-    if ready["event"] != "ready"
-        || ready["protocol"] != READINESS_PROTOCOL
-        || ready["transport"] != "grpc"
-    {
-        return Err(format!(
-            "The {PRODUCT} backend reported an unsupported readiness message."
-        ));
+    let ready: serde_json::Value =
+        serde_json::from_slice(line).map_err(|error| format!("The {PRODUCT} backend readiness could not be parsed: {error}."))?;
+    if ready["event"] != "ready" || ready["protocol"] != READINESS_PROTOCOL || ready["transport"] != "grpc" {
+        return Err(format!("The {PRODUCT} backend reported an unsupported readiness message."));
     }
     // The bundled backend is installed together with this desktop, so the
     // identity the ready line carries must match exactly; anything else means
@@ -325,22 +286,12 @@ fn endpoint(line: &[u8], executable: &Path) -> Result<String, String> {
     // version --json` probe spawned before `serve`; carrying it on the ready
     // line instead means a freshly installed backend is spawned exactly once.
     identity(line).map_err(|reason| identity_failure(executable, &reason))?;
-    let published = ready["endpoint"]
-        .as_str()
-        .ok_or_else(|| format!("The {PRODUCT} backend readiness omitted its gRPC endpoint."))?;
-    let published = url::Url::parse(published)
-        .map_err(|error| format!("The {PRODUCT} backend reported an invalid endpoint: {error}."))?;
+    let published = ready["endpoint"].as_str().ok_or_else(|| format!("The {PRODUCT} backend readiness omitted its gRPC endpoint."))?;
+    let published = url::Url::parse(published).map_err(|error| format!("The {PRODUCT} backend reported an invalid endpoint: {error}."))?;
     // An owned backend serves this desktop alone; a published address that is
     // not loopback means something other than the bundled backend answered.
-    if published.scheme() != "http"
-        || !matches!(
-            published.host_str(),
-            Some("127.0.0.1" | "localhost" | "[::1]")
-        )
-    {
-        return Err(format!(
-            "The {PRODUCT} backend reported a non-local endpoint."
-        ));
+    if published.scheme() != "http" || !matches!(published.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) {
+        return Err(format!("The {PRODUCT} backend reported a non-local endpoint."));
     }
     Ok(published.to_string())
 }
@@ -350,8 +301,7 @@ fn identity_failure(executable: &Path, reason: &str) -> String {
 }
 
 fn identity(bytes: &[u8]) -> Result<(), String> {
-    let identity: Identity = serde_json::from_slice(bytes)
-        .map_err(|error| format!("returned invalid version information: {error}"))?;
+    let identity: Identity = serde_json::from_slice(bytes).map_err(|error| format!("returned invalid version information: {error}"))?;
     if identity.dev_protocol != DEV_PROTOCOL {
         return Err(format!(
             "uses development protocol {}, and this desktop requires {DEV_PROTOCOL}; reinstall {PRODUCT} so the application and its backend ship together",

@@ -18,9 +18,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{
-    Host, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
-};
+use dokime_runtime::harmos::operations::{Host, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 // Local Imports
 use dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 use dokime_runtime::{Refusal, Supervisor};
@@ -236,9 +234,7 @@ impl dokime_runtime::Plugin for SuiteSidecar {
 
     fn prepare(config: dokime_runtime::plugin::Configuration) -> Result<Self, Refusal> {
         let settings = dokime_runtime::plugin::refusal(config.settings::<SuiteSidecarSettings>())?;
-        Ok(Self {
-            config: Arc::new(settings.config),
-        })
+        Ok(Self { config: Arc::new(settings.config) })
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -283,11 +279,7 @@ impl GetBehaviour {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Behaviour, Refusal> {
-        let path = |path: &Option<std::path::PathBuf>| {
-            path.as_ref()
-                .map(|path| path.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        };
+        let path = |path: &Option<std::path::PathBuf>| path.as_ref().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default();
         Ok(Behaviour {
             execution_marker: path(&self.config.execution_marker),
             artifact_evidence: self.config.artifact_evidence,
@@ -315,20 +307,14 @@ impl Smoke {
     fn document() -> dokime_runtime::prelude::Document {
         let mut plot = dokime_runtime::prelude::Plot::time_series("Pulse");
         plot.id("fixture.checks.smoke.pulse");
-        plot.y(dokime_runtime::expressions::telemetry(
-            "fixture-suites.pulse",
-            "value",
-        ));
+        plot.y(dokime_runtime::expressions::telemetry("fixture-suites.pulse", "value"));
         plot.display_points = Some(PULSE_DISPLAY_POINTS);
         plot.downsample = dokime_runtime::document::DownsampleTechnique::MinMax;
         let mut section = dokime_runtime::prelude::Section::new("Pulse");
         section.plot(plot);
         let mut spectrum = dokime_runtime::prelude::Plot::fft("Spectrum");
         spectrum.id("fixture.checks.smoke.spectrum");
-        spectrum.y(dokime_runtime::expressions::telemetry(
-            "fixture-suites.spectrum",
-            "value",
-        ));
+        spectrum.y(dokime_runtime::expressions::telemetry("fixture-suites.spectrum", "value"));
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
         section.plot(spectrum);
         let mut document = dokime_runtime::prelude::Document::new("default", "Fixture Smoke");
@@ -336,12 +322,8 @@ impl Smoke {
         document
     }
 
-    async fn initialize(
-        ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            behaviour: ctx.call::<GetBehaviour>(()).await?,
-        })
+    async fn initialize(ctx: &mut dokime_runtime::execution::InitializationContext<'_>) -> Result<Self, Error> {
+        Ok(Self { behaviour: ctx.call::<GetBehaviour>(()).await? })
     }
 
     #[dokime_runtime::step(label = "Check")]
@@ -356,10 +338,7 @@ impl Smoke {
             return Err(Error::HostDisagreed);
         }
         if !self.behaviour.execution_marker.is_empty() {
-            std::fs::write(
-                &self.behaviour.execution_marker,
-                std::env::current_exe()?.to_string_lossy().as_bytes(),
-            )?;
+            std::fs::write(&self.behaviour.execution_marker, std::env::current_exe()?.to_string_lossy().as_bytes())?;
         }
         for line in 0..self.behaviour.log_lines {
             tracing::info!(line, "fixture check logged");
@@ -367,25 +346,14 @@ impl Smoke {
         if self.behaviour.pulse_rows > 0 {
             let pulse = ctx.stream::<Pulse>().open();
             for index in 0..self.behaviour.pulse_rows {
-                pulse
-                    .push(Pulse {
-                        value: f64::from(index),
-                    })
-                    .await;
+                pulse.push(Pulse { value: f64::from(index) }).await;
             }
-            ctx.publish(PulseProduced {
-                rows: self.behaviour.pulse_rows,
-            })
-            .await;
+            ctx.publish(PulseProduced { rows: self.behaviour.pulse_rows }).await;
         }
         if self.behaviour.spectrum_rows > 0 {
             let spectrum = ctx.stream::<Spectrum>().open();
             for index in 0..self.behaviour.spectrum_rows {
-                spectrum
-                    .push(Spectrum {
-                        value: f64::from(index % 16),
-                    })
-                    .await;
+                spectrum.push(Spectrum { value: f64::from(index % 16) }).await;
             }
         }
         if self.behaviour.artifact_evidence {
@@ -399,10 +367,7 @@ impl Smoke {
             // directory and writes into it with nothing but `std::fs`, the way
             // a tool that never heard of Dokime would.
             let directory = ctx.artifacts().directory(WATCHED_DIRECTORY)?;
-            std::fs::write(
-                directory.join(WATCHED_FILE),
-                vec![b'.'; WATCHED_FIRST_BYTES],
-            )?;
+            std::fs::write(directory.join(WATCHED_FILE), vec![b'.'; WATCHED_FIRST_BYTES])?;
             // Long enough for the watch to have streamed that version, so what
             // follows is a replacement rather than a first sighting.
             tokio::time::sleep(std::time::Duration::from_millis(400)).await;
@@ -410,16 +375,13 @@ impl Smoke {
         }
         if self.behaviour.abandon_artifact {
             for index in 0..ABANDONED_ARTIFACT_COUNT {
-                let mut partial = ctx
-                    .artifacts()
-                    .create(format!("{ABANDONED_ARTIFACT_PREFIX}-{index}.bin"))?;
+                let mut partial = ctx.artifacts().create(format!("{ABANDONED_ARTIFACT_PREFIX}-{index}.bin"))?;
                 // More than one chunk, so pieces are already on their way to the
                 // host by the time the step gives up on the artifact.
                 partial.write_all(&vec![0xA5; MAX_ARTIFACT_CHUNK_BYTES + 1])?;
                 partial.abandon();
             }
-            ctx.artifacts()
-                .write(SETTLED_ARTIFACT_PATH, SETTLED_ARTIFACT_CONTENT)?;
+            ctx.artifacts().write(SETTLED_ARTIFACT_PATH, SETTLED_ARTIFACT_CONTENT)?;
         }
         if self.behaviour.block_execution {
             if self.behaviour.execution_release.is_empty() {
@@ -439,21 +401,10 @@ impl Smoke {
         description = "Passed when the host handed back every pulse row the step produced, each exactly once."
     )]
     fn pulse_replayed(ctx: &dokime_runtime::execution::CriterionContext<'_>) -> Result<bool, Error> {
-        let produced = ctx
-            .records::<PulseProduced>()?
-            .last()
-            .map_or(0, |produced| produced.rows);
-        let mut values = ctx
-            .samples::<Pulse>()
-            .iter()
-            .map(|row| row.value)
-            .collect::<Vec<_>>();
+        let produced = ctx.records::<PulseProduced>()?.last().map_or(0, |produced| produced.rows);
+        let mut values = ctx.samples::<Pulse>().iter().map(|row| row.value).collect::<Vec<_>>();
         values.sort_by(f64::total_cmp);
-        Ok(values.len() == produced as usize
-            && values
-                .iter()
-                .enumerate()
-                .all(|(index, value)| *value == index as f64))
+        Ok(values.len() == produced as usize && values.iter().enumerate().all(|(index, value)| *value == index as f64))
     }
 }
 
@@ -466,9 +417,7 @@ impl Questions {}
 
 #[dokime_runtime::template(id = "fixture.questions.hold", label = "Fixture Hold", prompts = HoldPrompts)]
 impl Hold {
-    async fn initialize(
-        _: &mut dokime_runtime::execution::InitializationContext<'_>,
-    ) -> Result<Self, Error> {
+    async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
 

@@ -19,19 +19,12 @@ use std::{path::Path, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
 use super::artifact;
-use {
-    dokime_runtime::Runtime,
-    dokime_runtime::RuntimeConfig,
-    dokime_runtime::Identifier,
-    dokime_runtime::Metadata,
-};
-use dokime_gui::connection::{
-    ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget,
-};
+use dokime_domain::model;
+use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::BackendSelection;
 use dokime_server::grpc::{Config, Server, access::Role};
+use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime, dokime_runtime::RuntimeConfig};
 
 /* === Constants === */
 /// The Bearer Token The Fixture Server Grants The Desktop.
@@ -72,10 +65,7 @@ impl Fixture {
         let root = tempfile::tempdir().unwrap();
         let artifacts = Arc::new(artifact::Provider::default());
         let runtime = Runtime::with_execution_fixture(
-            RuntimeConfig::new(
-                root.path(),
-                Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None),
-            ),
+            RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None)),
             "fixture",
             artifacts.clone(),
         )
@@ -86,39 +76,23 @@ impl Fixture {
             model::records::product::ProductCalibrationKind::Field,
             model::records::product::ProductCalibrationPhase::Completed,
         );
-        runtime
-            .handle()
-            .publish_product_record(calibration.into_draft("rpc.fixture"))
-            .await
-            .unwrap();
+        runtime.handle().publish_product_record(calibration.into_draft("rpc.fixture")).await.unwrap();
 
         // Authenticated Server And Session
-        let grant = dokime_server::grpc::access::BearerGrant::new("native-gui".into(), role, TOKEN)
-            .unwrap();
+        let grant = dokime_server::grpc::access::BearerGrant::new("native-gui".into(), role, TOKEN).unwrap();
         let config = Config::local().with_bearer_auth(vec![grant]).unwrap();
         let server = Server::start(runtime.handle(), config).await.unwrap();
         let session = ConnectionSession::default();
         session
             .connect(ConnectRequest {
-                target: ConnectionTarget::Local {
-                    endpoint: server.local_endpoint(),
-                },
-                credentials: ConnectionCredentials::Bearer {
-                    token: TOKEN.into(),
-                    remember: false,
-                },
+                target: ConnectionTarget::Local { endpoint: server.local_endpoint() },
+                credentials: ConnectionCredentials::Bearer { token: TOKEN.into(), remember: false },
                 expected_backend_id: None,
             })
             .await
             .unwrap();
 
-        Self {
-            session,
-            server,
-            runtime,
-            artifacts,
-            _root: root,
-        }
+        Self { session, server, runtime, artifacts, _root: root }
     }
 
     pub fn generation(&self) -> u64 {
@@ -136,12 +110,9 @@ impl Published {
     pub async fn start(root: &Path) -> Self {
         let mut config = dokime_runtime::config::Config::local(root);
         config.seed_plugins = false;
-        config.credential_backend =
-            serde_json::from_value(serde_json::json!({"backend":"memory"})).unwrap();
+        config.credential_backend = serde_json::from_value(serde_json::json!({"backend":"memory"})).unwrap();
         let runtime = dokime_runtime::app::launch(config).await.unwrap();
-        let server = Server::start(runtime.handle(), Config::local())
-            .await
-            .unwrap();
+        let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
         Self { runtime, server }
     }
 

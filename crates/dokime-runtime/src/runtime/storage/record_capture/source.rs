@@ -38,8 +38,8 @@ use tracing::Instrument;
 use super::error;
 use crate::runtime::Error;
 use crate::runtime::Result;
-use dokime_domain::model::records::evidence::RecordEntry;
 use crate::storage::records;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 const FRAME_BYTES: usize = 1024 * 1024;
@@ -82,10 +82,7 @@ pub(crate) struct Process {
 
 /* === Implementations === */
 impl Source {
-    pub(crate) fn new(
-        epoch: &dokime_domain::model::identity::SessionId,
-        storage: crate::storage::Manager,
-    ) -> Result<Self> {
+    pub(crate) fn new(epoch: &dokime_domain::model::identity::SessionId, storage: crate::storage::Manager) -> Result<Self> {
         Ok(Self {
             storage,
             schema: records::schema(),
@@ -97,20 +94,11 @@ impl Source {
 
     pub(crate) async fn initialize(&self) -> Result<()> {
         use harmos::schema::Described;
-        let schema = harmos::schema::graph::Schema::from_declaration(
-            records::RecordRow::DEFINITION,
-            &harmos::config::SchemaSettings::default(),
-        )
-        .map_err(projection_error)?;
-        let declared = self
-            .storage
-            .write_schema(&self.schema, &schema)
-            .await
-            .map_err(Error::from)?;
-        self.storage
-            .flush_until(&declared)
-            .await
-            .map_err(Error::from)?;
+        let schema =
+            harmos::schema::graph::Schema::from_declaration(records::RecordRow::DEFINITION, &harmos::config::SchemaSettings::default())
+                .map_err(projection_error)?;
+        let declared = self.storage.write_schema(&self.schema, &schema).await.map_err(Error::from)?;
+        self.storage.flush_until(&declared).await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -137,24 +125,13 @@ impl Source {
         state_manager.capture_status().map_err(error)
     }
 
-    pub(crate) async fn wait_through(
-        &self,
-        state_manager: &crate::app::StateManager,
-        frontier: u64,
-    ) -> Result<()> {
+    pub(crate) async fn wait_through(&self, state_manager: &crate::app::StateManager, frontier: u64) -> Result<()> {
         self.healthy(state_manager)?;
-        state_manager
-            .wait_until_captured(harmos::state::Position(frontier))
-            .await
-            .map_err(error)?;
+        state_manager.wait_until_captured(harmos::state::Position(frontier)).await.map_err(error)?;
         self.healthy(state_manager)
     }
 
-    pub(crate) async fn wait_after(
-        &self,
-        state_manager: &crate::app::StateManager,
-        after: u64,
-    ) -> Result<Option<u64>> {
+    pub(crate) async fn wait_after(&self, state_manager: &crate::app::StateManager, after: u64) -> Result<Option<u64>> {
         let mut progress = self.closed.subscribe();
         loop {
             self.healthy(state_manager)?;
@@ -166,9 +143,7 @@ impl Source {
             if *progress.borrow_and_update() {
                 return Ok(None);
             }
-            let watched = state_manager.watch::<harmos::state::Recorded<crate::app::Dokime>>(
-                harmos::state::Position(after),
-            );
+            let watched = state_manager.watch::<harmos::state::Recorded<crate::app::Dokime>>(harmos::state::Position(after));
             tokio::pin!(watched);
             tokio::select! {
                 _ = progress.changed() => {},
@@ -190,9 +165,7 @@ impl Source {
 
 impl harmos::storage::RecordProjection for Projection {
     fn project<'a>(
-        &'a self,
-        envelope: &'a harmos::state::Envelope<&serde_json::Value>,
-        output: &'a mut harmos::storage::ProjectedRecords<'_>,
+        &'a self, envelope: &'a harmos::state::Envelope<&serde_json::Value>, output: &'a mut harmos::storage::ProjectedRecords<'_>,
     ) -> harmos::storage::StorageFuture<'a, ()> {
         let span = tracing::debug_span!(
             target: "crate::record_admission",
@@ -234,11 +207,7 @@ impl Process {
     }
 
     pub(crate) async fn next(
-        &mut self,
-        source: &Arc<Source>,
-        state_manager: &crate::app::StateManager,
-        after: u64,
-        through: u64,
+        &mut self, source: &Arc<Source>, state_manager: &crate::app::StateManager, after: u64, through: u64,
     ) -> Result<Option<history::CapturedRecord>> {
         if after > through {
             return Err(error("invalid record capture range"));
@@ -270,11 +239,7 @@ impl Process {
             self.last = None;
             self.position = after;
             self.physical = 0;
-            self.history = Some(
-                source
-                    .history_scoped(state_manager, start, through, Some(source.epoch.clone()))
-                    .await?,
-            );
+            self.history = Some(source.history_scoped(state_manager, start, through, Some(source.epoch.clone())).await?);
             self.through = through;
         }
         loop {
@@ -305,43 +270,29 @@ impl Process {
 
 /* === Private Functions === */
 fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> harmos::Error {
-    harmos::Error::Backend {
-        operation: "project Dokime record",
-        kind: harmos::BackendFailure::Permanent,
-        source: source.into(),
-    }
+    harmos::Error::Backend { operation: "project Dokime record", kind: harmos::BackendFailure::Permanent, source: source.into() }
 }
 
 // Restore One Journal Envelope As The Record Row It Captures, If Any.
-fn project(
-    envelope: &harmos::state::Envelope<&serde_json::Value>,
-) -> harmos::Result<Option<(Identifier, Vec<u8>)>> {
+fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Result<Option<(Identifier, Vec<u8>)>> {
     let record = if let Some(fact) =
-        harmos::state::SystemFact::restore(&envelope.id, envelope.version, envelope.payload)
-            .map_err(projection_error)?
+        harmos::state::SystemFact::restore(&envelope.id, envelope.version, envelope.payload).map_err(projection_error)?
     {
         let harmos::state::FactSource::Sidecar(owner) = fact.source else {
             return Ok(None);
         };
-        let persisted: PersistedRecord =
-            serde_json::from_slice(&fact.payload).map_err(projection_error)?;
+        let persisted: PersistedRecord = serde_json::from_slice(&fact.payload).map_err(projection_error)?;
         if persisted.dokime_encoding != 2 {
             return Err(projection_error("unsupported Dokime persistence encoding"));
         }
         let record = persisted.payload;
-        if record.source != owner
-            || record.record_type.as_str() != fact.name
-            || record.schema_version != fact.version
-        {
-            return Err(projection_error(
-                "native fact identity differs from its envelope",
-            ));
+        if record.source != owner || record.record_type.as_str() != fact.name || record.schema_version != fact.version {
+            return Err(projection_error("native fact identity differs from its envelope"));
         }
         record
     } else {
         let Some(dokime_domain::state::records::Records::Record(record)) =
-            dokime_domain::state::records::Records::restore(&envelope.id, envelope.version, envelope.payload)
-                .map_err(projection_error)?
+            dokime_domain::state::records::Records::restore(&envelope.id, envelope.version, envelope.payload).map_err(projection_error)?
         else {
             return Err(projection_error("unknown product record"));
         };
@@ -358,10 +309,7 @@ fn project(
 }
 
 pub(crate) fn group_limits() -> ReadLimits {
-    ReadLimits {
-        rows: NonZeroUsize::new(MAX_GROUP_ROWS).unwrap(),
-        bytes: NonZeroUsize::new(4 * FRAME_BYTES).unwrap(),
-    }
+    ReadLimits { rows: NonZeroUsize::new(MAX_GROUP_ROWS).unwrap(), bytes: NonZeroUsize::new(4 * FRAME_BYTES).unwrap() }
 }
 
 /* === Tests === */

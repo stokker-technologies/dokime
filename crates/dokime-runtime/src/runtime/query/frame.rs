@@ -20,10 +20,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     queries::RuntimeOverviewSnapshot,
     queries::{
-        RuntimeArtifactFrame, RuntimeCursor, RuntimeDocumentFrame, RuntimeExecutionFileRead,
-        RuntimeHealthFrame, RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame,
-        RuntimeRecordFrame, RuntimeResolvedDocumentFrame, RuntimeResourceFrame,
-        RuntimeTelemetryFrame, RuntimeTraceabilityFrame, RuntimeWindow,
+        RuntimeArtifactFrame, RuntimeCursor, RuntimeDocumentFrame, RuntimeExecutionFileRead, RuntimeHealthFrame,
+        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentFrame,
+        RuntimeResourceFrame, RuntimeTelemetryFrame, RuntimeTraceabilityFrame, RuntimeWindow,
     },
 };
 
@@ -73,60 +72,24 @@ pub struct RuntimeListFrame {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeViewPayload {
     Empty,
-    Overview {
-        frame: Box<RuntimeOverviewFrame>,
-    },
-    InstalledPlugins {
-        frame: Box<RuntimeInstalledPluginFrame>,
-    },
-    Suites {
-        frame: RuntimeListFrame,
-    },
-    Cycles {
-        frame: RuntimeListFrame,
-    },
-    Execution {
-        frame: RuntimeListFrame,
-    },
-    ExecutionFiles {
-        frame: RuntimeExecutionFileRead,
-    },
-    RecordDefinitions {
-        frame: RuntimeListFrame,
-    },
-    Records {
-        frame: Box<RuntimeRecordFrame>,
-    },
-    TelemetryDefinitions {
-        frame: RuntimeListFrame,
-    },
-    Telemetry {
-        frame: Box<RuntimeTelemetryFrame>,
-    },
-    Document {
-        frame: Box<RuntimeResolvedDocumentFrame>,
-    },
-    Documents {
-        frame: Box<RuntimeDocumentFrame>,
-    },
-    Artifacts {
-        frame: Box<RuntimeArtifactFrame>,
-    },
-    Resources {
-        frame: Box<RuntimeResourceFrame>,
-    },
-    Prompts {
-        frame: Box<RuntimePromptFrame>,
-    },
-    Health {
-        frame: Box<RuntimeHealthFrame>,
-    },
-    Traceability {
-        frame: Box<RuntimeTraceabilityFrame>,
-    },
-    Notes {
-        frame: Box<RuntimeNoteFrame>,
-    },
+    Overview { frame: Box<RuntimeOverviewFrame> },
+    InstalledPlugins { frame: Box<RuntimeInstalledPluginFrame> },
+    Suites { frame: RuntimeListFrame },
+    Cycles { frame: RuntimeListFrame },
+    Execution { frame: RuntimeListFrame },
+    ExecutionFiles { frame: RuntimeExecutionFileRead },
+    RecordDefinitions { frame: RuntimeListFrame },
+    Records { frame: Box<RuntimeRecordFrame> },
+    TelemetryDefinitions { frame: RuntimeListFrame },
+    Telemetry { frame: Box<RuntimeTelemetryFrame> },
+    Document { frame: Box<RuntimeResolvedDocumentFrame> },
+    Documents { frame: Box<RuntimeDocumentFrame> },
+    Artifacts { frame: Box<RuntimeArtifactFrame> },
+    Resources { frame: Box<RuntimeResourceFrame> },
+    Prompts { frame: Box<RuntimePromptFrame> },
+    Health { frame: Box<RuntimeHealthFrame> },
+    Traceability { frame: Box<RuntimeTraceabilityFrame> },
+    Notes { frame: Box<RuntimeNoteFrame> },
 }
 
 /* === Traits === */

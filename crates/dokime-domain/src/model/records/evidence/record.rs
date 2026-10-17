@@ -65,74 +65,28 @@ pub struct Record {
 impl harmos::MemorySize for Record {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.record_id),
-                std::mem::size_of_val(&self.record_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.timestamp),
-                std::mem::size_of_val(&self.timestamp),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.received_at),
-                std::mem::size_of_val(&self.received_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.record_type),
-                std::mem::size_of_val(&self.record_type),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.source),
-                std::mem::size_of_val(&self.source),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.error),
-                std::mem::size_of_val(&self.error),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.details),
-                std::mem::size_of_val(&self.details),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.related_sample_id),
-                std::mem::size_of_val(&self.related_sample_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.related_stream_id),
-                std::mem::size_of_val(&self.related_stream_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.related_artifact_id),
-                std::mem::size_of_val(&self.related_artifact_id),
-            ),
+            (harmos::MemorySize::memory_size(&self.record_id), std::mem::size_of_val(&self.record_id)),
+            (harmos::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
+            (harmos::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
+            (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.error), std::mem::size_of_val(&self.error)),
+            (harmos::MemorySize::memory_size(&self.details), std::mem::size_of_val(&self.details)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.related_sample_id), std::mem::size_of_val(&self.related_sample_id)),
+            (harmos::MemorySize::memory_size(&self.related_stream_id), std::mem::size_of_val(&self.related_stream_id)),
+            (harmos::MemorySize::memory_size(&self.related_artifact_id), std::mem::size_of_val(&self.related_artifact_id)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
 impl Record {
     pub fn new(
-        record_id: RecordId,
-        timestamp: Timestamp,
-        record_type: Identifier,
-        schema_version: u32,
-        source: impl Into<String>,
+        record_id: RecordId, timestamp: Timestamp, record_type: Identifier, schema_version: u32, source: impl Into<String>,
         severity: RecordSeverity,
     ) -> Self {
         Self {
@@ -153,16 +107,11 @@ impl Record {
         }
     }
 
-    pub fn detail<T: serde::de::DeserializeOwned>(
-        &self,
-        name: &str,
-    ) -> Result<T, crate::model::records::error::RecordDetailError> {
-        let value = self.details.get(name).ok_or_else(|| {
-            crate::model::records::error::RecordDetailError {
-                record: self.record_type.to_string(),
-                field: name.to_owned(),
-                reason: "no such detail is carried".to_owned(),
-            }
+    pub fn detail<T: serde::de::DeserializeOwned>(&self, name: &str) -> Result<T, crate::model::records::error::RecordDetailError> {
+        let value = self.details.get(name).ok_or_else(|| crate::model::records::error::RecordDetailError {
+            record: self.record_type.to_string(),
+            field: name.to_owned(),
+            reason: "no such detail is carried".to_owned(),
         })?;
         value
             .to_plain_json()

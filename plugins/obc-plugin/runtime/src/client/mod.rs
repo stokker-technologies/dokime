@@ -41,17 +41,11 @@ pub struct Client {
 /* === Implementations === */
 impl Client {
     pub fn new(handle: Handle) -> Self {
-        Self {
-            state: handle.state.state(),
-        }
+        Self { state: handle.state.state() }
     }
 
     pub async fn ensure_ready(&self) -> Result<(), Error> {
-        if self.stopped().await? {
-            Err(Error::Stopped)
-        } else {
-            Ok(())
-        }
+        if self.stopped().await? { Err(Error::Stopped) } else { Ok(()) }
     }
 
     pub async fn stopped(&self) -> Result<bool, Error> {

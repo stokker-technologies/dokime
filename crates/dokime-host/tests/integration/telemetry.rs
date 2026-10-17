@@ -19,10 +19,10 @@
 
 // Local Imports
 use dokime_domain::model;
+use dokime_host::{HOST_STREAMS, Host, HostTelemetryStream, host_telemetry_contracts};
 use dokime_runtime::telemetry::TelemetryRow;
 use dokime_runtime::telemetry::validate_telemetry_sample;
 use model::telemetry::ValidationMode;
-use dokime_host::{HOST_STREAMS, Host, HostTelemetryStream, host_telemetry_contracts};
 
 /* === Constants === */
 
@@ -67,10 +67,7 @@ fn fixture_host_contracts() {
 
     for stream in HOST_STREAMS {
         let batch = host.collect_stream(*stream).unwrap().unwrap();
-        let contract = contracts
-            .iter()
-            .find(|contract| contract.stream == batch.stream)
-            .unwrap();
+        let contract = contracts.iter().find(|contract| contract.stream == batch.stream).unwrap();
 
         for sample in batch.samples {
             validate_telemetry_sample(Some(contract), &sample, ValidationMode::Strict).unwrap();
@@ -101,10 +98,7 @@ fn collected_row_stream() {
 #[test]
 fn fixture_battery_columns() {
     let host = Host::fixture();
-    let batch = host
-        .collect_stream(HostTelemetryStream::System)
-        .unwrap()
-        .unwrap();
+    let batch = host.collect_stream(HostTelemetryStream::System).unwrap().unwrap();
     let row = dokime_runtime::host::System::from_row(&batch.samples[0].values).unwrap();
 
     assert_eq!(row.battery_state.as_deref(), Some("discharging"));
@@ -129,10 +123,7 @@ fn fixture_battery_columns() {
 #[test]
 fn fixture_channel_columns() {
     let host = Host::fixture();
-    let batch = host
-        .collect_stream(HostTelemetryStream::WifiChannelOccupancy)
-        .unwrap()
-        .unwrap();
+    let batch = host.collect_stream(HostTelemetryStream::WifiChannelOccupancy).unwrap().unwrap();
     let row = dokime_runtime::host::WifiChannelOccupancy::from_row(&batch.samples[0].values).unwrap();
 
     assert_eq!(row.active_channel, Some(true));

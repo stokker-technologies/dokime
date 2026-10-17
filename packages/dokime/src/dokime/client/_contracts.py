@@ -45,11 +45,7 @@ def operation(service: str, method: str) -> Operation:
     import dokime
 
     path = f"/dokime.v1.{service}/{method}"
-    entries = [
-        item
-        for item in vars(dokime).values()
-        if isinstance(item, Operation) and item.grpc_path == path
-    ]
+    entries = [item for item in vars(dokime).values() if isinstance(item, Operation) and item.grpc_path == path]
     if len(entries) != 1:
         raise ProtocolError(f"the prepared operation catalog does not contain {path}")
     return entries[0]
@@ -59,9 +55,7 @@ def request(service: str, method: str, **fields: Any) -> Message:
     return construct(operation(service, method).request.DESCRIPTOR, fields)
 
 
-def nested(
-    service: str, method: str, path: str, *, direction: str = "request", **fields: Any
-) -> Message:
+def nested(service: str, method: str, path: str, *, direction: str = "request", **fields: Any) -> Message:
     descriptor = getattr(operation(service, method), direction).DESCRIPTOR
     for name in path.split("."):
         field = descriptor.fields_by_name.get(name)
@@ -71,9 +65,7 @@ def nested(
     return construct(descriptor, fields)
 
 
-def construct(
-    descriptor: Descriptor | UpbDescriptor, fields: Mapping[str, Any]
-) -> Message:
+def construct(descriptor: Descriptor | UpbDescriptor, fields: Mapping[str, Any]) -> Message:
     # Protobuf's Native Descriptor Implements The Same Factory Contract
     result = GetMessageClass(cast(Descriptor, descriptor))()
     for name, value in fields.items():
@@ -88,9 +80,7 @@ def construct(
                 container.extend(value)
             else:
                 for item in value:
-                    container.add().CopyFrom(
-                        construct(field.message_type, values(item))
-                    )
+                    container.add().CopyFrom(construct(field.message_type, values(item)))
         elif field.message_type is not None:
             getattr(result, name).CopyFrom(construct(field.message_type, values(value)))
         else:
@@ -115,11 +105,7 @@ def equal(message: Message, other: Message | Mapping[str, Any]) -> bool:
 
 
 def variant(message: Message) -> str:
-    names = [
-        oneof.name
-        for oneof in message.DESCRIPTOR.oneofs
-        if oneof.name.startswith("_harmos_variant")
-    ]
+    names = [oneof.name for oneof in message.DESCRIPTOR.oneofs if oneof.name.startswith("_harmos_variant")]
     if len(names) != 1:
         raise ProtocolError("expected a canonical variant message")
     selected = message.WhichOneof(names[0])

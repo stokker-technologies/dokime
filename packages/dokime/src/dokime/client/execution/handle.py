@@ -72,9 +72,7 @@ class TestExecutionHandle:
 
     __slots__ = ("_backend", "_id", "_transport")
 
-    def __init__(
-        self, execution_id: str, transport: Transport, backend: Backend
-    ) -> None:
+    def __init__(self, execution_id: str, transport: Transport, backend: Backend) -> None:
         _identity(execution_id)
         self._id = execution_id
         self._transport = transport
@@ -108,9 +106,7 @@ class TestExecutionHandle:
             point = await self._transport.unary(
                 "History",
                 "GetExecutionCheckpoint",
-                _wire.request(
-                    "History", "GetExecutionCheckpoint", execution_identifier=self.id
-                ),
+                _wire.request("History", "GetExecutionCheckpoint", execution_identifier=self.id),
             )
         except RpcError as error:
             if error.code == "NOT_FOUND":
@@ -156,9 +152,7 @@ class TestExecutionHandle:
         _wire.result(saved.result)
         return reply
 
-    async def wait(
-        self, *, timeout: float | None = None, poll_interval: float | None = None
-    ) -> ExecutionOutcome:
+    async def wait(self, *, timeout: float | None = None, poll_interval: float | None = None) -> ExecutionOutcome:
         """Wait natively for a saved outcome; cancellation leaves remote work running."""
         interval = 0.2 if poll_interval is None else poll_interval
         _interval(interval)
@@ -204,9 +198,7 @@ class TestExecutionHandle:
             )
         except RpcError as error:
             if error.submission_uncertain:
-                raise ExecutionSubmissionUncertain(
-                    self.id, request_key, mode
-                ) from error
+                raise ExecutionSubmissionUncertain(self.id, request_key, mode) from error
             raise
         admission = _admission(self._backend, reply)
         return RunRequest(self._transport, self._backend, admission.command_id)
@@ -256,9 +248,7 @@ class TestExecutionHandle:
             read_records(
                 self._transport,
                 self._backend,
-                _wire.nested(
-                    "Evidence", "ListRecords", "selection.scope", execution_id=self.id
-                ),
+                _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
                 record_types,
                 completion,
             )
@@ -286,17 +276,13 @@ class TestExecutionHandle:
 
         async def records() -> None:
             if on_record is not None:
-                async with aclosing(
-                    self.records(follow=True, poll_interval=poll_interval)
-                ) as reader:
+                async with aclosing(self.records(follow=True, poll_interval=poll_interval)) as reader:
                     async for item in reader:
                         await on_record(item)
 
         async def samples() -> None:
             if on_sample is not None:
-                async with aclosing(
-                    self.samples(follow=True, poll_interval=poll_interval)
-                ) as reader:
+                async with aclosing(self.samples(follow=True, poll_interval=poll_interval)) as reader:
                     async for item in reader:
                         await on_sample(item)
 
@@ -332,9 +318,7 @@ class TestExecutionHandle:
         async for page in read_samples(
             self._transport,
             self._backend,
-            _wire.nested(
-                "Evidence", "ListRecords", "selection.scope", execution_id=self.id
-            ),
+            _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
             streams,
             page_size,
             interval,
@@ -343,21 +327,13 @@ class TestExecutionHandle:
             for item in page.samples:
                 yield _wire.sample(item)
 
-    async def next(
-        self, *, request_id: str, command_id: str
-    ) -> ExecutionCommandReceipt:
+    async def next(self, *, request_id: str, command_id: str) -> ExecutionCommandReceipt:
         return await self._command(request_id, command_id, CommandAction.NEXT)
 
-    async def run_step(
-        self, step_id: str, *, request_id: str, command_id: str
-    ) -> ExecutionCommandReceipt:
-        return await self._command(
-            request_id, command_id, CommandAction.RUN_STEP, step_id
-        )
+    async def run_step(self, step_id: str, *, request_id: str, command_id: str) -> ExecutionCommandReceipt:
+        return await self._command(request_id, command_id, CommandAction.RUN_STEP, step_id)
 
-    async def finish(
-        self, *, request_id: str, command_id: str
-    ) -> ExecutionCommandReceipt:
+    async def finish(self, *, request_id: str, command_id: str) -> ExecutionCommandReceipt:
         """Submit normal finalization; an accepted receipt is not completion."""
         return await self._command(request_id, command_id, CommandAction.FINISH)
 
@@ -386,20 +362,13 @@ class TestExecutionHandle:
             }[action],
             step_id=step_id,
         )
-        receipt = await self._transport.unary(
-            "Execution", "SubmitExecutionCommand", request
-        )
+        receipt = await self._transport.unary("Execution", "SubmitExecutionCommand", request)
         _command_receipt(self.id, request_id, command_id, receipt)
-        if (
-            not _wire.equal(receipt.action, request.action)
-            or receipt.step_id != request.step_id
-        ):
+        if not _wire.equal(receipt.action, request.action) or receipt.step_id != request.step_id:
             raise ProtocolError("command receipt differs from submitted action")
         return _wire.command_receipt(receipt)
 
-    async def command_receipt(
-        self, request_id: str, command_id: str
-    ) -> ExecutionCommandReceipt:
+    async def command_receipt(self, request_id: str, command_id: str) -> ExecutionCommandReceipt:
         """Read published progress without repeating a device action."""
         _identity(request_id)
         _identity(command_id)
@@ -460,14 +429,8 @@ def _admission(backend: Backend, reply: Message) -> Message:
 
 
 def _key(key: str) -> None:
-    if (
-        not key.strip()
-        or len(key.encode("utf-8")) > 256
-        or any(unicodedata.category(c) == "Cc" for c in key)
-    ):
-        raise ValueError(
-            "request key must contain 1–256 bytes without control characters"
-        )
+    if not key.strip() or len(key.encode("utf-8")) > 256 or any(unicodedata.category(c) == "Cc" for c in key):
+        raise ValueError("request key must contain 1–256 bytes without control characters")
 
 
 def _command_receipt(
@@ -489,17 +452,13 @@ def _command_receipt(
             _identity(receipt.step_id)
         except ValueError as error:
             raise ProtocolError("command receipt step identity is invalid") from error
-    elif _wire.enum_name(receipt.action) not in ("next", "finish") or receipt.HasField(
-        "step_id"
-    ):
+    elif _wire.enum_name(receipt.action) not in ("next", "finish") or receipt.HasField("step_id"):
         raise ProtocolError("command receipt action is invalid")
     if receipt.HasField("attempt_id"):
         try:
             _identity(receipt.attempt_id)
         except ValueError as error:
-            raise ProtocolError(
-                "command receipt attempt identity is invalid"
-            ) from error
+            raise ProtocolError("command receipt attempt identity is invalid") from error
     _wire.command_receipt(receipt)
 
 

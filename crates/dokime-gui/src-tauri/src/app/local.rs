@@ -40,12 +40,10 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
     // A desktop launch has no console for the backend's stderr; its log lives
     // with the rest of this application's data, so an unresolved root keeps
     // only the in-memory diagnostics tail.
-    Ok(
-        match super::settings::application_root(&app.config().identifier) {
-            Ok(root) => backend.with_logs(ApplicationPaths::new(root).logs()),
-            Err(_) => backend,
-        },
-    )
+    Ok(match super::settings::application_root(&app.config().identifier) {
+        Ok(root) => backend.with_logs(ApplicationPaths::new(root).logs()),
+        Err(_) => backend,
+    })
 }
 
 pub(crate) fn arguments() -> Vec<String> {

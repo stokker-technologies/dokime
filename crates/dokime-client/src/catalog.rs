@@ -36,26 +36,16 @@ use dokime_domain::operations::catalog;
 
 /* === Implementations === */
 impl Client {
-    pub fn suites(
-        &self,
-    ) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
+    pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
         let client = self.clone();
         ResponseStream::spawn(self, move |sender| async move {
             let read = async {
-                let mut request = catalog::ListSuites {
-                    limit: 100,
-                    after_suite_id: String::new(),
-                    cursor: None,
-                };
+                let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
                 loop {
                     let page = client.suite_page(&request).await?;
                     for identity in page.suites {
                         client.verify(true).await?;
-                        let suite = client
-                            .definition(catalog::GetSuite {
-                                suite_id: identity.suite_id.clone(),
-                            })
-                            .await?;
+                        let suite = client.definition(catalog::GetSuite { suite_id: identity.suite_id.clone() }).await?;
                         validate_definition(&identity.suite_id, &suite)?;
                         validate_listed_identity(&identity, &suite)?;
                         if sender.send(Ok(suite)).await.is_err() {
@@ -78,40 +68,22 @@ impl Client {
         })
     }
 
-    async fn suite_page(
-        &self,
-        request: &catalog::ListSuites,
-    ) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
+    async fn suite_page(&self, request: &catalog::ListSuites) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
         self.verify(true).await?;
-        let page = self
-            .unary::<catalog::ListSuites>(catalog::ListSuites::PATH, request.clone())
-            .await?;
+        let page = self.unary::<catalog::ListSuites>(catalog::ListSuites::PATH, request.clone()).await?;
         let page = super::transport::value(page)?;
         validate_page(&self.backend().epoch, request, &page)?;
         Ok(page)
     }
 
-    async fn definition(
-        &self,
-        request: catalog::GetSuite,
-    ) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
-        let reply = self
-            .unary::<catalog::GetSuite>(catalog::GetSuite::PATH, request)
-            .await?;
+    async fn definition(&self, request: catalog::GetSuite) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
+        let reply = self.unary::<catalog::GetSuite>(catalog::GetSuite::PATH, request).await?;
         super::transport::value(reply)
     }
 
-    pub async fn suite(
-        &self,
-        identifier: &str,
-    ) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
+    pub async fn suite(&self, identifier: &str) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
         self.verify(true).await?;
-        match self
-            .definition(catalog::GetSuite {
-                suite_id: identifier.into(),
-            })
-            .await
-        {
+        match self.definition(catalog::GetSuite { suite_id: identifier.into() }).await {
             Ok(suite) => {
                 validate_definition(identifier, &suite)?;
                 return Ok(suite);
@@ -119,24 +91,15 @@ impl Client {
             Err(Error::Rpc(status)) if status.code() == tonic::Code::NotFound => {}
             Err(error) => return Err(error),
         }
-        let mut request = catalog::ListSuites {
-            limit: 100,
-            after_suite_id: String::new(),
-            cursor: None,
-        };
+        let mut request = catalog::ListSuites { limit: 100, after_suite_id: String::new(), cursor: None };
         let mut matched = None;
         loop {
             let page = self.suite_page(&request).await?;
             for suite in &page.suites {
-                if suite
-                    .metadata
-                    .as_ref()
-                    .is_some_and(|metadata| metadata.identifier == identifier)
+                if suite.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier)
                     && matched.replace(suite.suite_id.clone()).is_some()
                 {
-                    return Err(Error::Rpc(tonic::Status::invalid_argument(
-                        "suite identifier is ambiguous; use its registered ID",
-                    )));
+                    return Err(Error::Rpc(tonic::Status::invalid_argument("suite identifier is ambiguous; use its registered ID")));
                 }
             }
             match page.next_after_suite_id {
@@ -148,17 +111,9 @@ impl Client {
             }
         }
         let id = matched.ok_or_else(|| Error::Rpc(tonic::Status::not_found("suite not found")))?;
-        let suite = self
-            .definition(catalog::GetSuite {
-                suite_id: id.clone(),
-            })
-            .await?;
+        let suite = self.definition(catalog::GetSuite { suite_id: id.clone() }).await?;
         validate_definition(&id, &suite)?;
-        if suite
-            .identity
-            .as_ref()
-            .and_then(|identity| identity.metadata.as_ref())
-            .is_none_or(|metadata| metadata.identifier != identifier)
+        if suite.identity.as_ref().and_then(|identity| identity.metadata.as_ref()).is_none_or(|metadata| metadata.identifier != identifier)
         {
             return Err(invalid("resolved suite identifier changed"));
         }
@@ -168,17 +123,10 @@ impl Client {
     // A template is referenced as `<suite id>.<segment>`, so the reference
     // names its own suite; the registered UUID stays on the wire.
     pub async fn template(
-        &self,
-        identifier: &str,
-    ) -> Result<(
-        dokime_domain::model::catalog::wire::SuiteDefinition,
-        dokime_domain::model::catalog::wire::TemplateDefinition,
-    )> {
-        let suite = template_suite(identifier).ok_or_else(|| {
-            Error::Rpc(tonic::Status::invalid_argument(
-                "a template is referenced as `<suite id>.<segment>`",
-            ))
-        })?;
+        &self, identifier: &str,
+    ) -> Result<(dokime_domain::model::catalog::wire::SuiteDefinition, dokime_domain::model::catalog::wire::TemplateDefinition)> {
+        let suite = template_suite(identifier)
+            .ok_or_else(|| Error::Rpc(tonic::Status::invalid_argument("a template is referenced as `<suite id>.<segment>`")))?;
         let definition = self.suite(suite).await?;
         let template = registered_template(&definition, identifier)?.clone();
         Ok((definition, template))
@@ -189,27 +137,18 @@ impl Client {
 // The suite a readable template id names, when the id is well formed.
 pub fn template_suite(identifier: &str) -> Option<&str> {
     let (suite, _) = identifier.rsplit_once('.')?;
-    dokime_domain::model::definition::template_identifier(suite, identifier)
-        .ok()
-        .map(|()| suite)
+    dokime_domain::model::definition::template_identifier(suite, identifier).ok().map(|()| suite)
 }
 
 /* === Private Functions === */
 pub(crate) fn registered_template<'a>(
-    suite: &'a dokime_domain::model::catalog::wire::SuiteDefinition,
-    identifier: &str,
+    suite: &'a dokime_domain::model::catalog::wire::SuiteDefinition, identifier: &str,
 ) -> Result<&'a dokime_domain::model::catalog::wire::TemplateDefinition> {
-    let mut matches = suite.templates.iter().filter(|candidate| {
-        candidate
-            .metadata
-            .as_ref()
-            .is_some_and(|metadata| metadata.identifier == identifier)
-    });
-    let selected = matches.next().ok_or_else(|| {
-        Error::Rpc(tonic::Status::not_found(format!(
-            "template `{identifier}` is not registered in its suite"
-        )))
-    })?;
+    let mut matches =
+        suite.templates.iter().filter(|candidate| candidate.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier));
+    let selected = matches
+        .next()
+        .ok_or_else(|| Error::Rpc(tonic::Status::not_found(format!("template `{identifier}` is not registered in its suite"))))?;
     if matches.next().is_some() {
         return Err(Error::Rpc(tonic::Status::failed_precondition(format!(
             "template `{identifier}` is declared more than once in its suite"
@@ -221,8 +160,7 @@ pub(crate) fn registered_template<'a>(
 }
 
 fn validate_listed_identity(
-    identity: &dokime_domain::model::catalog::wire::SuiteIdentity,
-    suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
+    identity: &dokime_domain::model::catalog::wire::SuiteIdentity, suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
 ) -> Result<()> {
     if suite.identity.as_ref() != Some(identity) {
         return Err(invalid("suite definition differs from the listed identity"));
@@ -230,14 +168,8 @@ fn validate_listed_identity(
     Ok(())
 }
 
-fn validate_definition(
-    id: &str,
-    suite: &dokime_domain::model::catalog::wire::SuiteDefinition,
-) -> Result<()> {
-    let identity = suite
-        .identity
-        .as_ref()
-        .ok_or_else(|| invalid("suite definition has no identity"))?;
+fn validate_definition(id: &str, suite: &dokime_domain::model::catalog::wire::SuiteDefinition) -> Result<()> {
+    let identity = suite.identity.as_ref().ok_or_else(|| invalid("suite definition has no identity"))?;
     if identity.suite_id.trim().is_empty() {
         return Err(invalid("suite definition has an invalid identity"));
     }
@@ -247,22 +179,13 @@ fn validate_definition(
     Ok(())
 }
 
-fn validate_page(
-    epoch: &str,
-    request: &catalog::ListSuites,
-    page: &dokime_domain::model::catalog::wire::ListSuitesReply,
-) -> Result<()> {
-    let cursor = page
-        .cursor
-        .as_ref()
-        .filter(|cursor| !cursor.epoch.is_empty())
-        .ok_or_else(|| invalid("suite page has no observed epoch"))?;
+fn validate_page(epoch: &str, request: &catalog::ListSuites, page: &dokime_domain::model::catalog::wire::ListSuitesReply) -> Result<()> {
+    let cursor =
+        page.cursor.as_ref().filter(|cursor| !cursor.epoch.is_empty()).ok_or_else(|| invalid("suite page has no observed epoch"))?;
     if cursor.epoch != epoch {
         return Err(Error::IdentityChanged);
     }
-    if (request.cursor.is_some() && request.cursor != page.cursor)
-        || page.suites.len() > request.limit as usize
-    {
+    if (request.cursor.is_some() && request.cursor != page.cursor) || page.suites.len() > request.limit as usize {
         return Err(invalid("suite page changed revision or exceeded its limit"));
     }
     let mut previous = request.after_suite_id.as_str();

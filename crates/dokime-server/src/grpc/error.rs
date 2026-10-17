@@ -65,13 +65,7 @@ fn captured(diagnostic: &Diagnostic) -> dokime_domain::model::evidence::wire::Ca
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(
-                |cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
-                    message: cause.clone(),
-                    code: None,
-                    source: None,
-                },
-            )
+            .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause { message: cause.clone(), code: None, source: None })
             .collect(),
         stacktrace_attachment: None,
         trace_id: None,

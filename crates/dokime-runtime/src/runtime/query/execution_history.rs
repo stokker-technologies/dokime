@@ -19,12 +19,12 @@ use std::collections::BTreeMap;
 use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
+use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultStatus;
-use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
-use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -147,8 +147,7 @@ pub struct ExecutionCheckpointContext {
     pub scope: dokime_domain::model::execution::RecordScope,
     pub session_id: dokime_domain::model::identity::SessionId,
     pub cycle: crate::runtime::ExecutionCycleContext,
-    pub execution_documents:
-        BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
+    pub execution_documents: BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
     pub prompts: Vec<crate::prompts::PromptInstance>,
     pub health: Vec<dokime_domain::model::execution::health::HealthItem>,
     pub notes: Vec<dokime_domain::model::execution::notes::OperatorNote>,
@@ -231,48 +230,35 @@ impl CycleFold<'_> {
 
 impl RuntimeHandle {
     pub async fn checkpoint_execution(
-        &self,
-        checkpoint: &ExecutionCheckpoint,
+        &self, checkpoint: &ExecutionCheckpoint,
     ) -> Result<crate::runtime::storage::execution::ExecutionView> {
-        crate::runtime::storage::execution::ExecutionView::open_checkpoint(
-            self.storage(),
-            checkpoint,
-        )
-        .await?
-        .ok_or_else(|| Error::Admission(AdmissionFailure::NotFound {
-            code: "execution_seal_missing".into(),
-            message: "execution checkpoint has no retained exact seal".into(),
-        }))
+        crate::runtime::storage::execution::ExecutionView::open_checkpoint(self.storage(), checkpoint).await?.ok_or_else(|| {
+            Error::Admission(AdmissionFailure::NotFound {
+                code: "execution_seal_missing".into(),
+                message: "execution checkpoint has no retained exact seal".into(),
+            })
+        })
     }
 
-    pub async fn execution_saved_checkpoint(
-        &self,
-        id: TestExecutionId,
-    ) -> Result<ExecutionCheckpoint> {
-        crate::runtime::storage::execution::ExecutionView::open(
-            self.storage(),
-            &id,
-            harmos::storage::ObjectVersion::Latest,
-        )
-        .await?
-        .filter(|inspection| inspection.execution().saved.is_some())
-        .ok_or_else(|| Error::Admission(AdmissionFailure::NotFound {
-            code: "execution_seal_missing".into(),
-            message: "execution has no saved seal".into(),
-        }))?
-        .checkpoint()
+    pub async fn execution_saved_checkpoint(&self, id: TestExecutionId) -> Result<ExecutionCheckpoint> {
+        crate::runtime::storage::execution::ExecutionView::open(self.storage(), &id, harmos::storage::ObjectVersion::Latest)
+            .await?
+            .filter(|inspection| inspection.execution().saved.is_some())
+            .ok_or_else(|| {
+                Error::Admission(AdmissionFailure::NotFound {
+                    code: "execution_seal_missing".into(),
+                    message: "execution has no saved seal".into(),
+                })
+            })?
+            .checkpoint()
     }
 
-    pub async fn browse_executions(
-        &self,
-        query: ExecutionBrowseQuery,
-    ) -> Result<ExecutionBrowsePage> {
+    pub async fn browse_executions(&self, query: ExecutionBrowseQuery) -> Result<ExecutionBrowsePage> {
         let limit = query.limit.unwrap_or(100);
         if !(1..=1000).contains(&limit) {
             return Err(error("execution page limit must be 1..=1000"));
         }
-        let stored =
-            stored_rows(crate::runtime::storage::history::executions(self.storage()).await?);
+        let stored = stored_rows(crate::runtime::storage::history::executions(self.storage()).await?);
         let active = self.execution_storage.active_ids()?;
         let live = {
             let state = self.state_read();
@@ -282,8 +268,7 @@ impl RuntimeHandle {
                     live.push(ExecutionBrowseEntry {
                         metadata: ExecutionMetadata::new(execution),
                         checkpoint: None,
-                        availability: if active.binary_search(&execution.test_execution_id).is_ok()
-                        {
+                        availability: if active.binary_search(&execution.test_execution_id).is_ok() {
                             ExecutionAvailability::Live
                         } else {
                             ExecutionAvailability::Uncheckpointed
@@ -296,42 +281,24 @@ impl RuntimeHandle {
         };
         let archived = {
             let state = self.state_read();
-            Archived {
-                cycles: state.archived_cycles.clone(),
-                executions: state.archived_executions.clone(),
-            }
+            Archived { cycles: state.archived_cycles.clone(), executions: state.archived_executions.clone() }
         };
         let mut page = browse_page(&stored, &live, &query, &archived, limit)?;
         // Each Group Is Titled By Its Own Cycle, Live Or Sealed In History.
         for cycle in &mut page.cycles {
-            let live = self
-                .state_read()
-                .cycles
-                .get(&cycle.cycle_id)
-                .map(|header| header.metadata.label.clone());
+            let live = self.state_read().cycles.get(&cycle.cycle_id).map(|header| header.metadata.label.clone());
             cycle.label = match live {
                 Some(label) => Some(label),
-                None => crate::storage::objects::cycle::read(
-                    self.storage(),
-                    &cycle.cycle_id,
-                    harmos::storage::ObjectVersion::Latest,
-                )
-                .await?
-                .map(|revision| revision.value.metadata.label),
+                None => crate::storage::objects::cycle::read(self.storage(), &cycle.cycle_id, harmos::storage::ObjectVersion::Latest)
+                    .await?
+                    .map(|revision| revision.value.metadata.label),
             };
         }
         Ok(page)
     }
 
-    pub async fn execution_checkpoint_context(
-        &self,
-        checkpoint: ExecutionCheckpoint,
-    ) -> Result<ExecutionCheckpointContext> {
-        let view = self
-            .checkpoint_execution(&checkpoint)
-            .await?
-            .snapshot()
-            .await?;
+    pub async fn execution_checkpoint_context(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointContext> {
+        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
         let context = view.context()?.clone();
         Ok(ExecutionCheckpointContext {
             checkpoint,
@@ -348,69 +315,46 @@ impl RuntimeHandle {
     }
 
     pub async fn execution_checkpoint_outputs(
-        &self,
-        checkpoint: ExecutionCheckpoint,
+        &self, checkpoint: ExecutionCheckpoint,
     ) -> Result<Vec<dokime_domain::model::execution::saved::ExecutionOutput>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
         Ok(view.outputs()?.to_vec())
     }
 
-    pub async fn execution_checkpoint_evidence(
-        &self,
-        checkpoint: ExecutionCheckpoint,
-    ) -> Result<ExecutionCheckpointEvidence> {
-        let view = self
-            .checkpoint_execution(&checkpoint)
-            .await?
-            .snapshot()
-            .await?;
+    pub async fn execution_checkpoint_evidence(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointEvidence> {
+        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
         let outputs = view.outputs()?;
         let captured = view.source_snapshot()?;
         Ok(ExecutionCheckpointEvidence {
             outputs: outputs
                 .iter()
-                .map(|output| {
-                    crate::domains::documents::saved::entry(&checkpoint.execution_id, output)
-                })
+                .map(|output| crate::domains::documents::saved::entry(&checkpoint.execution_id, output))
                 .collect::<harmos::Result<Vec<_>>>()?,
             artifacts: outputs
                 .iter()
                 .filter_map(|output| match &output.content {
-                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact {
-                        record, ..
-                    } => Some(record.as_ref().clone()),
+                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } => {
+                        Some(record.as_ref().clone())
+                    }
                     _ => None,
                 })
                 .collect(),
-            record_contracts: captured
-                .record_contracts
-                .values()
-                .flat_map(|versions| versions.values().cloned())
-                .collect(),
+            record_contracts: captured.record_contracts.values().flat_map(|versions| versions.values().cloned()).collect(),
             telemetry: captured
                 .telemetry_contracts
                 .values()
                 .flat_map(|versions| versions.values())
-                .map(
-                    |contract| super::checkpoint_telemetry::ExecutionTelemetryTable {
-                        table: contract.stream.to_string(),
-                        contract: contract.clone(),
-                    },
-                )
+                .map(|contract| super::checkpoint_telemetry::ExecutionTelemetryTable {
+                    table: contract.stream.to_string(),
+                    contract: contract.clone(),
+                })
                 .collect(),
             checkpoint,
         })
     }
 
-    pub async fn execution_checkpoint_document(
-        &self,
-        checkpoint: ExecutionCheckpoint,
-    ) -> Result<ExecutionCheckpointDocument> {
-        let view = self
-            .checkpoint_execution(&checkpoint)
-            .await?
-            .snapshot()
-            .await?;
+    pub async fn execution_checkpoint_document(&self, checkpoint: ExecutionCheckpoint) -> Result<ExecutionCheckpointDocument> {
+        let view = self.checkpoint_execution(&checkpoint).await?.snapshot().await?;
         let cycle = &view.context()?.cycle.cycle;
         let mut execution = view.execution().clone();
         execution.saved = None;
@@ -431,9 +375,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn stored_rows(
-    rows: Vec<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>,
-) -> Vec<ExecutionBrowseEntry> {
+fn stored_rows(rows: Vec<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>) -> Vec<ExecutionBrowseEntry> {
     rows.into_iter()
         .map(|row| {
             let checkpoint = row.value.saved.as_ref().map(|seal| ExecutionCheckpoint {
@@ -444,11 +386,7 @@ fn stored_rows(
             });
             ExecutionBrowseEntry {
                 metadata: ExecutionMetadata::new(&row.value),
-                availability: if checkpoint.is_some() {
-                    ExecutionAvailability::Stored
-                } else {
-                    ExecutionAvailability::Interrupted
-                },
+                availability: if checkpoint.is_some() { ExecutionAvailability::Stored } else { ExecutionAvailability::Interrupted },
                 checkpoint,
                 archived: false,
             }
@@ -457,15 +395,10 @@ fn stored_rows(
 }
 
 fn browse_page(
-    stored: &[ExecutionBrowseEntry],
-    live: &[ExecutionBrowseEntry],
-    query: &ExecutionBrowseQuery,
-    archived: &Archived,
-    limit: usize,
+    stored: &[ExecutionBrowseEntry], live: &[ExecutionBrowseEntry], query: &ExecutionBrowseQuery, archived: &Archived, limit: usize,
 ) -> Result<ExecutionBrowsePage> {
     let admitted = |row: &ExecutionBrowseEntry| {
-        executions::matches(&row.metadata, &query.filter)
-            && query.filter.archive.admits(archived.covers(&row.metadata))
+        executions::matches(&row.metadata, &query.filter) && query.filter.archive.admits(archived.covers(&row.metadata))
     };
     let mut candidates = BTreeMap::new();
     let mut checkpoints = BTreeMap::new();
@@ -488,9 +421,7 @@ fn browse_page(
         }
     }
     let mut selected = candidates.into_values().collect::<Vec<_>>();
-    selected.sort_unstable_by(|left, right| {
-        executions::compare(&left.metadata, &right.metadata, query.order)
-    });
+    selected.sort_unstable_by(|left, right| executions::compare(&left.metadata, &right.metadata, query.order));
     let start = match &query.after {
         None => 0,
         Some(after) => {
@@ -514,8 +445,7 @@ fn browse_page(
             continue;
         }
         let live = matches!(row.availability, ExecutionAvailability::Live);
-        let checkpointed = row.checkpoint.is_some()
-            || matches!(checkpoints.get(&metadata.execution_id), Some(Some(_)));
+        let checkpointed = row.checkpoint.is_some() || matches!(checkpoints.get(&metadata.execution_id), Some(Some(_)));
         fold.cases.insert(&metadata.case_id);
         fold.executions += 1;
         match metadata.status {
@@ -527,8 +457,7 @@ fn browse_page(
             _ => {}
         }
         fold.interrupted |= matches!(row.availability, ExecutionAvailability::Interrupted);
-        fold.uncheckpointed |=
-            matches!(row.availability, ExecutionAvailability::Uncheckpointed) && !checkpointed;
+        fold.uncheckpointed |= matches!(row.availability, ExecutionAvailability::Uncheckpointed) && !checkpointed;
         if let Some(at) = &metadata.started_at {
             fold.started_at = Some(fold.started_at.map_or(at, |earliest| earliest.min(at)));
         }
@@ -547,29 +476,15 @@ fn browse_page(
         let mut entry = (*row).clone();
         entry.archived = archived.covers(&entry.metadata);
         if entry.checkpoint.is_none() {
-            entry.checkpoint = checkpoints
-                .get(&entry.metadata.execution_id)
-                .and_then(|checkpoint| checkpoint.cloned());
-            if entry.checkpoint.is_some()
-                && matches!(entry.availability, ExecutionAvailability::Uncheckpointed)
-            {
+            entry.checkpoint = checkpoints.get(&entry.metadata.execution_id).and_then(|checkpoint| checkpoint.cloned());
+            if entry.checkpoint.is_some() && matches!(entry.availability, ExecutionAvailability::Uncheckpointed) {
                 entry.availability = ExecutionAvailability::Stored;
             }
         }
         entries.push(entry);
     }
-    let cycles = page_cycles
-        .into_iter()
-        .map(|(id, fold)| fold.finish(id))
-        .collect();
-    let next = more.then(|| {
-        entries
-            .last()
-            .expect("nonempty continued page")
-            .metadata
-            .execution_id
-            .clone()
-    });
+    let cycles = page_cycles.into_iter().map(|(id, fold)| fold.finish(id)).collect();
+    let next = more.then(|| entries.last().expect("nonempty continued page").metadata.execution_id.clone());
     Ok(ExecutionBrowsePage {
         entries,
         next,

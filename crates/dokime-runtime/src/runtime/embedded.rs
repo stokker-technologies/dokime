@@ -20,12 +20,12 @@ use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
-use crate::state::ProviderCatalog;
-use crate::{runtime::Error, InstalledPlugin, runtime::Result};
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
 use crate::schema::graph::Schema;
+use crate::state::ProviderCatalog;
+use crate::{InstalledPlugin, runtime::Error, runtime::Result};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -97,16 +97,11 @@ impl Active {
         let streams = provider.streams();
         let generation = uuid::Uuid::now_v7().to_string();
         let wire_contracts = template_contracts(&catalog)?;
-        let operations = wire_contracts
-            .iter()
-            .map(|contract| contract.operation().clone())
-            .collect();
+        let operations = wire_contracts.iter().map(|contract| contract.operation().clone()).collect();
         let definition = harmos::plugin::PluginDefinition {
             id: catalog.source.clone(),
             version: catalog.version.parse().map_err(operation)?,
-            artifact: harmos::plugin::PluginArtifact::Embedded {
-                revision: generation.clone(),
-            },
+            artifact: harmos::plugin::PluginArtifact::Embedded { revision: generation.clone() },
             requires: Vec::new(),
             configuration: b"null".to_vec(),
             contributions: harmos::plugin::PluginContributions {
@@ -127,10 +122,7 @@ impl Active {
 
         Ok(Self {
             provider,
-            catalog: ProviderCatalog::Embedded {
-                plugin: Box::new(catalog),
-                generation,
-            },
+            catalog: ProviderCatalog::Embedded { plugin: Box::new(catalog), generation },
             definition,
             streams,
             observers: Vec::new(),
@@ -164,19 +156,10 @@ impl Active {
 
 impl Instance {
     pub(super) async fn start(
-        &mut self,
-        handle: &RuntimeHandle,
-        router: &harmos::plugin::Router,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
+        &mut self, handle: &RuntimeHandle, router: &harmos::plugin::Router, authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let instance = router.enter(&self.owner).map_err(operation)?;
-        self.running = Some(Running {
-            instance,
-            publisher: None,
-            templates: Vec::new(),
-            provider_started: false,
-            operations: None,
-        });
+        self.running = Some(Running { instance, publisher: None, templates: Vec::new(), provider_started: false, operations: None });
 
         let scope = self
             .running
@@ -186,78 +169,45 @@ impl Instance {
             .scope()
             .cloned()
             .ok_or_else(|| operation("embedded endpoint has no managed activation scope"))?;
-        if !authority.matches_scope(
-            &scope,
-            harmos::plugin::PluginKind::Embedded,
-            harmos::plugin::PluginLifecyclePhase::Initialize,
-        ) {
+        if !authority.matches_scope(&scope, harmos::plugin::PluginKind::Embedded, harmos::plugin::PluginLifecyclePhase::Initialize) {
             return Err(operation("embedded initialization generation differs"));
         }
         let publisher = Arc::new(Publisher::stage(handle, &scope, self.streams.clone()).await?);
-        let running = self
-            .running
-            .as_mut()
-            .expect("endpoint retained before admission");
+        let running = self.running.as_mut().expect("endpoint retained before admission");
         running.publisher = Some(publisher.clone());
         running.provider_started = true;
 
         let templates = self.provider.start().await?;
-        let running = self
-            .running
-            .as_mut()
-            .expect("partial initialization remains owned");
+        let running = self.running.as_mut().expect("partial initialization remains owned");
         running.templates = templates.clone();
         handle.capture_suite_objects(&self.owner).await?;
 
         let registration = handle.operations.stage_plugin(&scope, |bindings| {
             for template in &templates {
-                let [run, signal] = crate::execution::contracts(template.template_identifier())
-                    .map_err(|_| harmos::Error::InvalidInput {
-                        field: "embedded template",
-                        reason: "the template id is not an operation identity",
-                    })?;
+                let [run, signal] = crate::execution::contracts(template.template_identifier()).map_err(|_| {
+                    harmos::Error::InvalidInput { field: "embedded template", reason: "the template id is not an operation identity" }
+                })?;
                 let served = Arc::new(Served {
                     template: Arc::clone(template),
                     publisher: Arc::clone(&publisher),
                     sessions: Arc::clone(&handle.execution_sessions),
                 });
-                bindings.register_wire_contract::<EmbeddedRun>(
-                    &run,
-                    crate::app::Lanes::Open,
-                    Arc::clone(&served),
-                )?;
-                bindings.register_wire_contract::<EmbeddedSignal>(
-                    &signal,
-                    crate::app::Lanes::Open,
-                    served,
-                )?;
+                bindings.register_wire_contract::<EmbeddedRun>(&run, crate::app::Lanes::Open, Arc::clone(&served))?;
+                bindings.register_wire_contract::<EmbeddedSignal>(&signal, crate::app::Lanes::Open, served)?;
             }
             Ok(())
         })?;
-        self.running
-            .as_mut()
-            .expect("provider retains its engine")
-            .operations = Some(registration);
+        self.running.as_mut().expect("provider retains its engine").operations = Some(registration);
         Ok(())
     }
 
-    pub(super) async fn stop(
-        &mut self,
-        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
-    ) -> Result<()> {
+    pub(super) async fn stop(&mut self, authority: &harmos::plugin::PluginLifecycleAuthority<'_>) -> Result<()> {
         if self.running.is_none() {
             return Ok(());
         }
         if let Some(running) = &mut self.running {
-            let scope = running
-                .instance
-                .scope()
-                .ok_or_else(|| operation("embedded shutdown has no retained activation scope"))?;
-            if !authority.matches_scope(
-                scope,
-                harmos::plugin::PluginKind::Embedded,
-                harmos::plugin::PluginLifecyclePhase::Shutdown,
-            ) {
+            let scope = running.instance.scope().ok_or_else(|| operation("embedded shutdown has no retained activation scope"))?;
+            if !authority.matches_scope(scope, harmos::plugin::PluginKind::Embedded, harmos::plugin::PluginLifecyclePhase::Shutdown) {
                 return Err(operation("embedded shutdown generation differs"));
             }
             if let Some(operations) = &mut running.operations {
@@ -271,16 +221,9 @@ impl Instance {
         }
 
         // Keep both partial provider state and leases owned across cancellation.
-        if self
-            .running
-            .as_ref()
-            .is_some_and(|running| running.provider_started)
-        {
+        if self.running.as_ref().is_some_and(|running| running.provider_started) {
             self.provider.stop().await?;
-            self.running
-                .as_mut()
-                .expect("cleanup remains owned")
-                .provider_started = false;
+            self.running.as_mut().expect("cleanup remains owned").provider_started = false;
         }
         if let Some(running) = self.running.take()
             && let Some(publisher) = running.publisher
@@ -302,35 +245,19 @@ impl harmos::operations::Operation for EmbeddedRun {
     type Error = harmos::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
-    async fn initialize<'ctx>(
-        served: Arc<Served>,
-        _: Self::Context<'ctx>,
-    ) -> std::result::Result<Self, Self::Error> {
+    async fn initialize<'ctx>(served: Arc<Served>, _: Self::Context<'ctx>) -> std::result::Result<Self, Self::Error> {
         Ok(Self(served))
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        request: &mut crate::transport::RunExecution,
-        _: &mut (),
-    ) -> std::result::Result<
-        harmos::operations::Response<crate::transport::SidecarExecutionOutcome>,
-        Self::Error,
-    > {
+        &mut self, _: Self::Context<'ctx>, request: &mut crate::transport::RunExecution, _: &mut (),
+    ) -> std::result::Result<harmos::operations::Response<crate::transport::SidecarExecutionOutcome>, Self::Error> {
         let request = std::mem::take(request);
-        let host = Arc::new(crate::domains::execution::run::host::Embedded::new(
-            Arc::clone(&self.0.sessions),
-            request.execution_token.clone(),
-        ));
+        let host =
+            Arc::new(crate::domains::execution::run::host::Embedded::new(Arc::clone(&self.0.sessions), request.execution_token.clone()));
         self.0
             .template
-            .run(
-                request,
-                host,
-                Some(SampleOutput::Embedded(self.0.publisher.clone())),
-                crate::execution::Caller::default(),
-            )
+            .run(request, host, Some(SampleOutput::Embedded(self.0.publisher.clone())), crate::execution::Caller::default())
             .await
             .map(Into::into)
     }
@@ -343,61 +270,29 @@ impl harmos::operations::Operation for EmbeddedSignal {
     type Error = harmos::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
-    async fn initialize<'ctx>(
-        served: Arc<Served>,
-        _: Self::Context<'ctx>,
-    ) -> std::result::Result<Self, Self::Error> {
+    async fn initialize<'ctx>(served: Arc<Served>, _: Self::Context<'ctx>) -> std::result::Result<Self, Self::Error> {
         Ok(Self(served))
     }
 
     async fn run<'ctx>(
-        &mut self,
-        _: Self::Context<'ctx>,
-        signal: &mut crate::transport::ExecutionSignal,
-        _: &mut (),
-    ) -> std::result::Result<
-        harmos::operations::Response<crate::transport::SignalReply>,
-        Self::Error,
-    > {
-        self.0
-            .template
-            .signal(std::mem::take(signal))
-            .await
-            .map(Into::into)
+        &mut self, _: Self::Context<'ctx>, signal: &mut crate::transport::ExecutionSignal, _: &mut (),
+    ) -> std::result::Result<harmos::operations::Response<crate::transport::SignalReply>, Self::Error> {
+        self.0.template.signal(std::mem::take(signal)).await.map(Into::into)
     }
 }
 
 impl Publisher {
-    async fn stage(
-        handle: &RuntimeHandle,
-        scope: &harmos::plugin::PluginScope,
-        declarations: Vec<StreamDeclaration>,
-    ) -> Result<Self> {
-        let registration = handle
-            .streams
-            .stage_plugin(scope, declarations.clone())
-            .await
-            .map_err(operation)?;
+    async fn stage(handle: &RuntimeHandle, scope: &harmos::plugin::PluginScope, declarations: Vec<StreamDeclaration>) -> Result<Self> {
+        let registration = handle.streams.stage_plugin(scope, declarations.clone()).await.map_err(operation)?;
         let streams = declarations
             .into_iter()
             .zip(registration.leases().iter().cloned())
             .map(|(declaration, lease)| {
-                Ok((
-                    Identifier::new(declaration.id).map_err(operation)?,
-                    Publication {
-                        lease,
-                        schema: declaration.row,
-                    },
-                ))
+                Ok((Identifier::new(declaration.id).map_err(operation)?, Publication { lease, schema: declaration.row }))
             })
             .collect::<Result<_>>()?;
 
-        Ok(Self {
-            owner: scope.owner().into(),
-            executions: handle.native_executions.clone(),
-            streams,
-            _registration: registration,
-        })
+        Ok(Self { owner: scope.owner().into(), executions: handle.native_executions.clone(), streams, _registration: registration })
     }
 
     fn revoke(&self) {
@@ -409,28 +304,15 @@ impl Publisher {
 
 impl EmbeddedPublisher for Publisher {
     fn publish(
-        &self,
-        token: &str,
-        stream: &Identifier,
-        _values: BTreeMap<String, Value>,
-        payload: Vec<u8>,
+        &self, token: &str, stream: &Identifier, _values: BTreeMap<String, Value>, payload: Vec<u8>,
     ) -> std::result::Result<(), String> {
         self.executions.scope(&self.owner, token, stream)?;
-        let publication = self
-            .streams
-            .get(stream)
-            .ok_or("stream was not admitted for this provider")?;
-        let validator = harmos::schema::Validator::from_schema(
-            &publication.schema,
-            &harmos::config::SchemaSettings::default(),
-        )
-        .map_err(|error| error.to_string())?;
-        validator
-            .validate(&payload)
+        let publication = self.streams.get(stream).ok_or("stream was not admitted for this provider")?;
+        let validator = harmos::schema::Validator::from_schema(&publication.schema, &harmos::config::SchemaSettings::default())
             .map_err(|error| error.to_string())?;
-        let published_unix_micros =
-            i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
-                .map_err(|_| "publication time exceeds the protocol range")?;
+        validator.validate(&payload).map_err(|error| error.to_string())?;
+        let published_unix_micros = i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
+            .map_err(|_| "publication time exceeds the protocol range")?;
         publication
             .lease
             .publish_row(
@@ -450,9 +332,8 @@ impl EmbeddedPublisher for Publisher {
 /* === Private Functions === */
 fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
     use crate::plugin::registration::{
-        APPEARANCE_NAMESPACE, AppearanceRegistration, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE,
-        PERMISSIONS_NAMESPACE, PROMPTS_NAMESPACE, RECORDS_NAMESPACE, SETTINGS_NAMESPACE,
-        SUITES_NAMESPACE, SettingsRegistration, TELEMETRY_NAMESPACE, domain_schema,
+        APPEARANCE_NAMESPACE, AppearanceRegistration, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, PERMISSIONS_NAMESPACE, PROMPTS_NAMESPACE,
+        RECORDS_NAMESPACE, SETTINGS_NAMESPACE, SUITES_NAMESPACE, SettingsRegistration, TELEMETRY_NAMESPACE, domain_schema,
     };
 
     let settings = SettingsRegistration {
@@ -460,32 +341,17 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         catalog: catalog.settings.clone(),
         discoveries: catalog.settings_discoveries.clone(),
     };
-    let appearance = AppearanceRegistration {
-        customizations: catalog.app_customizations.clone(),
-        themes: catalog.app_themes.clone(),
-    };
+    let appearance = AppearanceRegistration { customizations: catalog.app_customizations.clone(), themes: catalog.app_themes.clone() };
     let values = [
         (SUITES_NAMESPACE, serde_json::to_vec(&catalog.suites)),
         (SETTINGS_NAMESPACE, serde_json::to_vec(&settings)),
         (APPEARANCE_NAMESPACE, serde_json::to_vec(&appearance)),
-        (
-            PERMISSIONS_NAMESPACE,
-            serde_json::to_vec(&catalog.permissions),
-        ),
-        (
-            RECORDS_NAMESPACE,
-            serde_json::to_vec(&catalog.record_contracts),
-        ),
+        (PERMISSIONS_NAMESPACE, serde_json::to_vec(&catalog.permissions)),
+        (RECORDS_NAMESPACE, serde_json::to_vec(&catalog.record_contracts)),
         (LISTENERS_NAMESPACE, serde_json::to_vec(&catalog.listeners)),
         (PROMPTS_NAMESPACE, serde_json::to_vec(&catalog.prompts)),
-        (
-            TELEMETRY_NAMESPACE,
-            serde_json::to_vec(&catalog.telemetry_contracts),
-        ),
-        (
-            OPTIONS_NAMESPACE,
-            serde_json::to_vec(&catalog.option_providers),
-        ),
+        (TELEMETRY_NAMESPACE, serde_json::to_vec(&catalog.telemetry_contracts)),
+        (OPTIONS_NAMESPACE, serde_json::to_vec(&catalog.option_providers)),
     ];
     values
         .into_iter()
@@ -503,10 +369,7 @@ fn template_contracts(catalog: &InstalledPlugin) -> Result<Vec<harmos::operation
     let mut contracts = Vec::new();
     for suite in &catalog.suites.suites {
         for template in &suite.suite.test_case_templates {
-            contracts.extend(
-                crate::execution::contracts(template.metadata.identifier.as_str())
-                    .map_err(operation)?,
-            );
+            contracts.extend(crate::execution::contracts(template.metadata.identifier.as_str()).map_err(operation)?);
         }
     }
     Ok(contracts)

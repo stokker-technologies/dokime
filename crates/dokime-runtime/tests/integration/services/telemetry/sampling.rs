@@ -17,10 +17,8 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
+use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetrySamplingRequest, TelemetrySourceKind};
 use dokime_runtime::{Identifier, Metadata, TestCycleId, Timestamp};
-use dokime_runtime::telemetry::{
-    SamplingScope, TelemetryBatch, TelemetrySamplingRequest, TelemetrySourceKind,
-};
 use tempfile::TempDir;
 
 // Local Imports
@@ -66,30 +64,19 @@ impl Count {
     }
 
     async fn at_least(&self, count: usize) {
-        self.0
-            .subscribe()
-            .wait_for(|current| *current >= count)
-            .await
-            .expect("the counter outlives the story");
+        self.0.subscribe().wait_for(|current| *current >= count).await.expect("the counter outlives the story");
     }
 }
 
 impl Sampler for CountingSampler {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String> {
         self.opens.add();
-        Ok(Box::new(CountingSession {
-            samples: self.samples.clone(),
-            closes: self.closes.clone(),
-        }))
+        Ok(Box::new(CountingSession { samples: self.samples.clone(), closes: self.closes.clone() }))
     }
 }
 
 impl SamplerSession for CountingSession {
-    fn settle(
-        &mut self,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>,
-    > {
+    fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async { Ok(()) })
     }
 
@@ -116,11 +103,7 @@ async fn test_runtime() -> (TempDir, Runtime, RuntimeHandle) {
     let runtime_owner = {
         let runtime_config = crate::service_support::budgets::runtime_config(
             root.path(),
-            Metadata::new(
-                Identifier::new("runtime.sampling.test").unwrap(),
-                "Sampling Test",
-                None,
-            ),
+            Metadata::new(Identifier::new("runtime.sampling.test").unwrap(), "Sampling Test", None),
         );
         Runtime::start(runtime_config)
     }
@@ -131,11 +114,7 @@ async fn test_runtime() -> (TempDir, Runtime, RuntimeHandle) {
 }
 
 fn scope(test_cycle_id: Option<String>) -> SamplingScope {
-    SamplingScope {
-        test_cycle_id,
-        test_case_id: None,
-        test_execution_id: None,
-    }
+    SamplingScope { test_cycle_id, test_case_id: None, test_execution_id: None }
 }
 
 fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
@@ -156,14 +135,8 @@ fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
 async fn captures_share_demand() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
     let sampler = CountingSampler::default();
-    let fast = runtime
-        .request_sampling(scope(None), request("fast", 30), sampler.clone())
-        .await
-        .unwrap();
-    let slow = runtime
-        .request_sampling(scope(None), request("slow", 80), sampler.clone())
-        .await
-        .unwrap();
+    let fast = runtime.request_sampling(scope(None), request("fast", 30), sampler.clone()).await.unwrap();
+    let slow = runtime.request_sampling(scope(None), request("slow", 80), sampler.clone()).await.unwrap();
 
     assert_eq!(fast.job_id, slow.job_id);
     sampler.samples.at_least(4).await;
@@ -171,21 +144,11 @@ async fn captures_share_demand() {
     let before_stop = sampler.samples.get();
     assert!(before_stop >= 4);
 
-    assert!(
-        runtime
-            .stop_telemetry_capture(&fast.lease_id)
-            .await
-            .unwrap()
-    );
+    assert!(runtime.stop_telemetry_capture(&fast.lease_id).await.unwrap());
     sampler.samples.at_least(before_stop + 1).await;
     assert!(runtime.telemetry_capture_is_active(&slow.lease_id).await);
 
-    assert!(
-        runtime
-            .stop_telemetry_capture(&slow.lease_id)
-            .await
-            .unwrap()
-    );
+    assert!(runtime.stop_telemetry_capture(&slow.lease_id).await.unwrap());
     sampler.closes.at_least(1).await;
     assert_eq!(sampler.closes.get(), 1);
     assert!(!runtime.telemetry_capture_is_active(&slow.lease_id).await);
@@ -197,36 +160,20 @@ async fn captures_share_demand() {
 async fn new_capture_drains() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
     let first = CountingSampler::default();
-    let first_lease = runtime
-        .request_sampling(scope(None), request("first", 20), first.clone())
-        .await
-        .unwrap();
+    let first_lease = runtime.request_sampling(scope(None), request("first", 20), first.clone()).await.unwrap();
     first.samples.at_least(1).await;
     assert!(first.samples.get() > 0);
-    assert!(
-        runtime
-            .stop_telemetry_capture(&first_lease.lease_id)
-            .await
-            .unwrap()
-    );
+    assert!(runtime.stop_telemetry_capture(&first_lease.lease_id).await.unwrap());
     first.closes.at_least(1).await;
 
     let second = CountingSampler::default();
-    let second_lease = runtime
-        .request_sampling(scope(None), request("second", 20), second.clone())
-        .await
-        .unwrap();
+    let second_lease = runtime.request_sampling(scope(None), request("second", 20), second.clone()).await.unwrap();
     second.samples.at_least(1).await;
 
     assert_eq!(first.opens.get(), 1);
     assert_eq!(second.opens.get(), 1);
     assert!(second.samples.get() > 0);
-    assert!(
-        runtime
-            .stop_telemetry_capture(&second_lease.lease_id)
-            .await
-            .unwrap()
-    );
+    assert!(runtime.stop_telemetry_capture(&second_lease.lease_id).await.unwrap());
     drop(runtime);
     runtime_owner.shutdown().await.unwrap();
 }
@@ -256,8 +203,8 @@ async fn stopped_scope_sampler() {
 
 #[tokio::test]
 async fn host_collector_stream() {
-    use dokime_runtime::domains::evidence::TelemetrySelection;
     use dokime_host::{HostTelemetryConfig, HostTelemetrySourceKind};
+    use dokime_runtime::domains::evidence::TelemetrySelection;
 
     let root = tempfile::tempdir().unwrap();
     let artifact = dokime_host::installed_plugin();
@@ -265,11 +212,7 @@ async fn host_collector_stream() {
     let mut owner = Runtime::start(
         crate::service_support::budgets::runtime_config(
             root.path(),
-            Metadata::new(
-                Identifier::new("fixture.host.sampling").unwrap(),
-                "Host Sampling",
-                None,
-            ),
+            Metadata::new(Identifier::new("fixture.host.sampling").unwrap(), "Host Sampling", None),
         )
         .with_installed_plugins([artifact]),
     )
@@ -282,22 +225,9 @@ async fn host_collector_stream() {
     let mut initial_request = request("initial", 10);
     initial_request.source_id = source.clone();
     initial_request.stream = "host.system".into();
-    let initial = runtime
-        .request_host_sampling(scope(None), vec![initial_request])
-        .await
-        .unwrap();
-    let initial_selection = TelemetrySelection {
-        streams: vec![Identifier::new("host.system").unwrap()],
-        ..Default::default()
-    };
-    until_telemetry(&runtime, || async {
-        (!runtime
-            .collect_telemetry(&initial_selection)
-            .await
-            .is_empty())
-        .then_some(())
-    })
-    .await;
+    let initial = runtime.request_host_sampling(scope(None), vec![initial_request]).await.unwrap();
+    let initial_selection = TelemetrySelection { streams: vec![Identifier::new("host.system").unwrap()], ..Default::default() };
+    until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&initial_selection).await.is_empty()).then_some(()) }).await;
 
     let streams = ["host.system", "host.bluetooth"];
     let leases = runtime
@@ -318,32 +248,15 @@ async fn host_collector_stream() {
     assert_eq!(leases.len(), streams.len());
     assert_eq!(leases[0].job_id, leases[1].job_id);
     assert_eq!(leases[0].job_id, initial[0].job_id);
-    let selection = TelemetrySelection {
-        streams: streams
-            .iter()
-            .map(|stream| Identifier::new(*stream).unwrap())
-            .collect(),
-        ..Default::default()
-    };
+    let selection =
+        TelemetrySelection { streams: streams.iter().map(|stream| Identifier::new(*stream).unwrap()).collect(), ..Default::default() };
     until_telemetry(&runtime, || async {
         let samples = runtime.collect_telemetry(&selection).await;
-        streams
-            .iter()
-            .all(|stream| {
-                samples
-                    .iter()
-                    .any(|sample| sample.stream.as_str() == *stream)
-            })
-            .then_some(())
+        streams.iter().all(|stream| samples.iter().any(|sample| sample.stream.as_str() == *stream)).then_some(())
     })
     .await;
     for lease in initial.into_iter().chain(leases) {
-        assert!(
-            runtime
-                .stop_telemetry_capture(&lease.lease_id)
-                .await
-                .unwrap()
-        );
+        assert!(runtime.stop_telemetry_capture(&lease.lease_id).await.unwrap());
     }
     owner.shutdown().await.unwrap();
 }

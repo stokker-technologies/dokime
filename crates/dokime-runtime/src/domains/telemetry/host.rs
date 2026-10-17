@@ -24,11 +24,9 @@ use std::{
 // Local Imports
 use super::{Sampler, SamplerSession, SettlementError};
 use crate::runtime::handle::RuntimeHandle;
+use crate::telemetry::{SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySamplingRequest};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::time::Timestamp;
-use crate::telemetry::{
-    SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySamplingRequest,
-};
 
 /* === Constants === */
 
@@ -74,9 +72,7 @@ impl HostTelemetrySource {
     }
 
     fn sampler(&self) -> HostSampler {
-        HostSampler {
-            collector: self.collector.clone(),
-        }
+        HostSampler { collector: self.collector.clone() }
     }
 }
 
@@ -101,8 +97,7 @@ impl HostSamplerSession {
         let mut index = 0;
         while index < self.tasks.len() {
             let pending = &mut self.tasks[index];
-            let result =
-                std::future::Future::poll(std::pin::Pin::new(&mut pending.task), &mut context);
+            let result = std::future::Future::poll(std::pin::Pin::new(&mut pending.task), &mut context);
             let std::task::Poll::Ready(result) = result else {
                 if !pending.expired && now >= pending.deadline {
                     pending.expired = true;
@@ -118,13 +113,8 @@ impl HostSamplerSession {
     }
 
     fn complete(
-        &mut self,
-        stream: String,
-        at: Timestamp,
-        result: std::result::Result<
-            std::result::Result<Option<TelemetryBatch>, String>,
-            tokio::task::JoinError,
-        >,
+        &mut self, stream: String, at: Timestamp,
+        result: std::result::Result<std::result::Result<Option<TelemetryBatch>, String>, tokio::task::JoinError>,
     ) {
         let outcome = match result {
             Ok(outcome) => outcome,
@@ -161,39 +151,20 @@ impl SamplerSession for HostSamplerSession {
     fn tick(&mut self, at: Timestamp, streams: &[String]) {
         self.reap();
         let now = tokio::time::Instant::now();
-        let due = due_streams(
-            streams,
-            &mut self.working,
-            &mut self.next_due,
-            now,
-            |stream| self.collector.interval(stream),
-        );
+        let due = due_streams(streams, &mut self.working, &mut self.next_due, now, |stream| self.collector.interval(stream));
         for stream in due {
             let collector = Arc::clone(&self.collector);
             let source = stream.clone();
             let task = tokio::task::spawn_blocking(move || collector.collect(&source));
-            self.tasks.push(Collecting {
-                task,
-                deadline: now + collection_timeout(&stream),
-                stream,
-                at: at.clone(),
-                expired: false,
-            });
+            self.tasks.push(Collecting { task, deadline: now + collection_timeout(&stream), stream, at: at.clone(), expired: false });
         }
     }
 
-    fn settle(
-        &mut self,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>,
-    > {
+    fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>> {
         Box::pin(async move {
             while let Some(pending) = self.tasks.last_mut() {
                 let result = (&mut pending.task).await;
-                let pending = self
-                    .tasks
-                    .pop()
-                    .expect("the original collector remains owned");
+                let pending = self.tasks.pop().expect("the original collector remains owned");
                 self.complete(pending.stream, pending.at, result);
             }
             self.reap();
@@ -226,10 +197,7 @@ impl SamplerSession for HostSamplerSession {
 
 impl RuntimeHandle {
     pub fn bind_host_telemetry_source(&self, collector: Arc<dyn HostTelemetryCollector>) {
-        *self
-            .host_telemetry_source
-            .write()
-            .expect("host telemetry source lock is healthy") =
+        *self.host_telemetry_source.write().expect("host telemetry source lock is healthy") =
             Some(Arc::new(HostTelemetrySource::new(collector)));
     }
 
@@ -238,18 +206,13 @@ impl RuntimeHandle {
     }
 
     pub async fn request_host_sampling(
-        &self,
-        scope: SamplingScope,
-        requests: Vec<TelemetrySamplingRequest>,
+        &self, scope: SamplingScope, requests: Vec<TelemetrySamplingRequest>,
     ) -> Result<Vec<TelemetryCaptureLease>> {
-        self.request_host_sampling_bound(scope, requests, |_| Ok(()))
-            .await
+        self.request_host_sampling_bound(scope, requests, |_| Ok(())).await
     }
 
     pub(crate) async fn request_host_sampling_bound(
-        &self,
-        scope: SamplingScope,
-        requests: Vec<TelemetrySamplingRequest>,
+        &self, scope: SamplingScope, requests: Vec<TelemetrySamplingRequest>,
         bind: impl FnOnce(&[TelemetryCaptureLease]) -> Result<()> + Send,
     ) -> Result<Vec<TelemetryCaptureLease>> {
         let source = self
@@ -260,8 +223,7 @@ impl RuntimeHandle {
             .ok_or_else(|| Error::Operation("host telemetry source is unavailable".to_owned()))?;
         let producer_key = host_producer_key();
         let sampler = Arc::new(source.sampler());
-        self.request_grouped_sampling(scope, requests, sampler, producer_key, bind)
-            .await
+        self.request_grouped_sampling(scope, requests, sampler, producer_key, bind).await
     }
 }
 
@@ -269,11 +231,7 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 fn due_streams<T: Copy + Ord + std::ops::Add<Duration, Output = T>>(
-    streams: &[String],
-    working: &mut BTreeSet<String>,
-    next_due: &mut BTreeMap<String, T>,
-    now: T,
-    interval: impl Fn(&str) -> Duration,
+    streams: &[String], working: &mut BTreeSet<String>, next_due: &mut BTreeMap<String, T>, now: T, interval: impl Fn(&str) -> Duration,
 ) -> Vec<String> {
     let mut due = Vec::new();
     for stream in streams {
@@ -281,10 +239,7 @@ fn due_streams<T: Copy + Ord + std::ops::Add<Duration, Output = T>>(
             continue;
         }
         if working.contains(stream) {
-            tracing::trace!(
-                stream,
-                "host telemetry stream is still collecting and skips this tick"
-            );
+            tracing::trace!(stream, "host telemetry stream is still collecting and skips this tick");
             continue;
         }
         working.insert(stream.clone());

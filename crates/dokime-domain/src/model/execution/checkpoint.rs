@@ -60,41 +60,21 @@ pub enum SavedEvidenceError {
 impl harmos::MemorySize for ExecutionCheckpoint {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.execution_id),
-                std::mem::size_of_val(&self.execution_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.position),
-                std::mem::size_of_val(&self.position),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.version),
-                std::mem::size_of_val(&self.version),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.evidence_through),
-                std::mem::size_of_val(&self.evidence_through),
-            ),
+            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
+            (harmos::MemorySize::memory_size(&self.position), std::mem::size_of_val(&self.position)),
+            (harmos::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
+            (harmos::MemorySize::memory_size(&self.evidence_through), std::mem::size_of_val(&self.evidence_through)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 impl ExecutionCheckpoint {
     pub fn validate(&self) -> Result<()> {
         self.version.check_position(&self.position)?;
         if !self.position.covers(&self.evidence_through)? {
-            return Err(SavedEvidenceError::Invalid(
-                "dependency exceeds saved boundary",
-            ));
+            return Err(SavedEvidenceError::Invalid("dependency exceeds saved boundary"));
         }
         Ok(())
     }

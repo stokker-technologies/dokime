@@ -18,10 +18,10 @@ use std::fmt;
 #[cfg(feature = "native")]
 use tokio_stream::Elapsed;
 // Local Imports
-use dokime_domain::model::identity::Identifier;
 use crate::document::DocumentFailure;
-use dokime_domain::model::records::error::RecordFailure;
 use crate::values::FieldError;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::error::RecordFailure;
 
 /* === Constants === */
 
@@ -89,51 +89,24 @@ pub enum Error {
     Artifact(#[source] std::io::Error),
 
     #[error("operation {operation:?} did not answer: {reason}")]
-    Call {
-        operation: &'static str,
-        reason: String,
-    },
+    Call { operation: &'static str, reason: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PublishFailure {
-    Undeclared {
-        declared_as: String,
-    },
-    Oversized {
-        declared_as: String,
-        encoded: usize,
-        limit: usize,
-    },
+    Undeclared { declared_as: String },
+    Oversized { declared_as: String, encoded: usize, limit: usize },
     Closed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TelemetryFailure {
-    UnknownStream {
-        stream: String,
-    },
-    SchemaVersionMismatch {
-        stream: String,
-        expected: u32,
-        actual: u32,
-    },
-    MissingColumn {
-        stream: String,
-        column: String,
-    },
-    InvalidColumn {
-        stream: String,
-        column: String,
-    },
-    InvalidTimestamp {
-        stream: String,
-        column: String,
-    },
-    UnexpectedColumns {
-        stream: String,
-        columns: Vec<String>,
-    },
+    UnknownStream { stream: String },
+    SchemaVersionMismatch { stream: String, expected: u32, actual: u32 },
+    MissingColumn { stream: String, column: String },
+    InvalidColumn { stream: String, column: String },
+    InvalidTimestamp { stream: String, column: String },
+    UnexpectedColumns { stream: String, columns: Vec<String> },
     IncompatibleContract(String),
 }
 
@@ -142,17 +115,11 @@ pub enum TelemetryFailure {
 /* === Implementations === */
 impl Error {
     pub fn record_mismatched(wanted: &'static str, found: &Identifier) -> Self {
-        Self::RecordDecode {
-            record: found.to_string(),
-            reason: format!("is not a {wanted:?}"),
-        }
+        Self::RecordDecode { record: found.to_string(), reason: format!("is not a {wanted:?}") }
     }
 
     pub fn record_field(record_type: &'static str, field: FieldError) -> Self {
-        Self::RecordDecode {
-            record: record_type.to_owned(),
-            reason: field.to_string(),
-        }
+        Self::RecordDecode { record: record_type.to_owned(), reason: field.to_string() }
     }
 }
 
@@ -163,14 +130,9 @@ impl fmt::Display for PublishFailure {
                 f,
                 "this plugin declared no {declared_as:?}: include it in the sidecar records or streams catalog, or in a declared observer catalog"
             ),
-            Self::Oversized {
-                declared_as,
-                encoded,
-                limit,
-            } => write!(
-                f,
-                "one {declared_as:?} publication needs {encoded} bytes; the transport frame limit is {limit}"
-            ),
+            Self::Oversized { declared_as, encoded, limit } => {
+                write!(f, "one {declared_as:?} publication needs {encoded} bytes; the transport frame limit is {limit}")
+            }
             Self::Closed => f.write_str("the host is no longer listening to this plugin"),
         }
     }
@@ -182,29 +144,19 @@ impl fmt::Display for TelemetryFailure {
             Self::UnknownStream { stream } => {
                 write!(f, "telemetry stream {stream:?} is not registered")
             }
-            Self::SchemaVersionMismatch {
-                stream,
-                expected,
-                actual,
-            } => write!(
-                f,
-                "telemetry stream {stream:?} expects schema version {expected}, got {actual}"
-            ),
+            Self::SchemaVersionMismatch { stream, expected, actual } => {
+                write!(f, "telemetry stream {stream:?} expects schema version {expected}, got {actual}")
+            }
             Self::MissingColumn { stream, column } => {
                 write!(f, "telemetry stream {stream:?} requires column {column:?}")
             }
-            Self::InvalidColumn { stream, column } => write!(
-                f,
-                "telemetry stream {stream:?} column {column:?} does not match its declared schema"
-            ),
-            Self::InvalidTimestamp { stream, column } => write!(
-                f,
-                "telemetry stream {stream:?} has an invalid timestamp in column {column:?}"
-            ),
-            Self::UnexpectedColumns { stream, columns } => write!(
-                f,
-                "telemetry stream {stream:?} does not declare columns: {columns:?}"
-            ),
+            Self::InvalidColumn { stream, column } => {
+                write!(f, "telemetry stream {stream:?} column {column:?} does not match its declared schema")
+            }
+            Self::InvalidTimestamp { stream, column } => {
+                write!(f, "telemetry stream {stream:?} has an invalid timestamp in column {column:?}")
+            }
+            Self::UnexpectedColumns { stream, columns } => write!(f, "telemetry stream {stream:?} does not declare columns: {columns:?}"),
             Self::IncompatibleContract(message) => {
                 write!(f, "telemetry contract compatibility failed: {message}")
             }

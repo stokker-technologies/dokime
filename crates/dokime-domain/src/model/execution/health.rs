@@ -53,36 +53,15 @@ pub enum HealthSeverity {
 impl harmos::MemorySize for HealthItem {
     fn memory_size(&self) -> usize {
         let fields = [
-            (
-                harmos::MemorySize::memory_size(&self.health_item_id),
-                std::mem::size_of_val(&self.health_item_id),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.scope),
-                std::mem::size_of_val(&self.scope),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.message),
-                std::mem::size_of_val(&self.message),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.detail),
-                std::mem::size_of_val(&self.detail),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.observed_at),
-                std::mem::size_of_val(&self.observed_at),
-            ),
+            (harmos::MemorySize::memory_size(&self.health_item_id), std::mem::size_of_val(&self.health_item_id)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
+            (harmos::MemorySize::memory_size(&self.observed_at), std::mem::size_of_val(&self.observed_at)),
         ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
+        fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
+            if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
+        })
     }
 }
 
