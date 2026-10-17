@@ -38,10 +38,10 @@ use crate::runtime::storage::captures::SealRequest;
 use crate::{Error, Result, RuntimeHandle};
 use dokime::artifacts::ArtifactRecord;
 use dokime::core::{Identifier, RecordScope, TestExecutionId, Timestamp};
+use dokime::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 use dokime::records::{RecordPublishRequest, RecordSeverity};
 use dokime::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_contract::artifacts::name;
-use dokime_contract::operations::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 
 /* === Constants === */
 // Consecutive failed passes after which an unreachable source ends the watch.

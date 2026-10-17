@@ -15,14 +15,10 @@
 
 /* === Modules === */
 mod file_watch;
-mod lines;
-mod rules;
 mod watch_file;
 
 /* === Re-Exports === */
 pub use file_watch::FileWatch;
-pub use lines::{InvalidLineMatcher, LineBuffer, LineMatch, LineMatchers};
-pub use rules::{FileMatcher, InvalidRule};
 pub use watch_file::WatchFile;
 
 /* === Imports === */
@@ -35,6 +31,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::content::ArtifactMetadata;
 use super::{Access, Endpoint, FOLLOW};
+use crate::core::ValueType;
+use crate::telemetry::{TelemetryRow, TelemetryStream};
 
 /* === Constants === */
 
@@ -347,6 +345,50 @@ impl Endpoint for FileWatch {
     const ACCESS: Access = Access::Control;
     // A local root reads the host's filesystem, which a remote listener never exposes.
     const LOCAL_ONLY: bool = true;
+}
+
+impl LineMatcher {
+    // Publishes one row of `S` per matching line, each column read from the
+    // named group of the same name.
+    pub fn publishing<S: TelemetryStream>(pattern: impl Into<String>) -> Self
+    where
+        S::Row: harmos::Message + harmos::schema::Described,
+    {
+        Self {
+            storage_schema: harmos::schema::graph::Schema::from_declaration(
+                <S::Row as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("a matcher row declares a valid finite schema"),
+            pattern: pattern.into(),
+            stream: S::ID.to_owned(),
+            fields: <S::Row as TelemetryRow>::columns()
+                .into_iter()
+                .filter_map(|column| {
+                    let kind = match column.value_type {
+                        ValueType::Text => LineFieldKind::Text,
+                        ValueType::Integer => LineFieldKind::Integer,
+                        ValueType::Number => LineFieldKind::Number,
+                        ValueType::Boolean => LineFieldKind::Boolean,
+                        _ => return None,
+                    };
+                    Some(LineField {
+                        name: column.metadata.identifier.to_string(),
+                        kind,
+                    })
+                })
+                .collect(),
+        }
+    }
+}
+
+impl LineMarker {
+    pub fn new(pattern: impl Into<String>, record_type: impl Into<String>) -> Self {
+        Self {
+            pattern: pattern.into(),
+            record_type: record_type.into(),
+        }
+    }
 }
 
 /* === Public Functions === */

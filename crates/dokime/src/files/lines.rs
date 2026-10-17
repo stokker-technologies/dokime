@@ -24,9 +24,8 @@ use std::collections::BTreeMap;
 use regex::{Regex, RegexBuilder};
 
 // Local Imports
-use super::{LineField, LineFieldKind, LineMarker, LineMatcher};
-use crate::core::{Value, ValueType};
-use crate::telemetry::{TelemetryRow, TelemetryStream};
+use dokime_contract::core::Value;
+use dokime_contract::operations::files::{LineFieldKind, LineMarker, LineMatcher};
 
 /* === Constants === */
 // The most matchers and markers one watch may carry together.
@@ -103,50 +102,6 @@ pub enum InvalidLineMatcher {
 /* === Traits === */
 
 /* === Implementations === */
-impl LineMatcher {
-    // Publishes one row of `S` per matching line, each column read from the
-    // named group of the same name.
-    pub fn publishing<S: TelemetryStream>(pattern: impl Into<String>) -> Self
-    where
-        S::Row: harmos::Message + harmos::schema::Described,
-    {
-        Self {
-            storage_schema: harmos::schema::graph::Schema::from_declaration(
-                <S::Row as harmos::schema::Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .expect("a matcher row declares a valid finite schema"),
-            pattern: pattern.into(),
-            stream: S::ID.to_owned(),
-            fields: <S::Row as TelemetryRow>::columns()
-                .into_iter()
-                .filter_map(|column| {
-                    let kind = match column.value_type {
-                        ValueType::Text => LineFieldKind::Text,
-                        ValueType::Integer => LineFieldKind::Integer,
-                        ValueType::Number => LineFieldKind::Number,
-                        ValueType::Boolean => LineFieldKind::Boolean,
-                        _ => return None,
-                    };
-                    Some(LineField {
-                        name: column.metadata.identifier.to_string(),
-                        kind,
-                    })
-                })
-                .collect(),
-        }
-    }
-}
-
-impl LineMarker {
-    pub fn new(pattern: impl Into<String>, record_type: impl Into<String>) -> Self {
-        Self {
-            pattern: pattern.into(),
-            record_type: record_type.into(),
-        }
-    }
-}
-
 impl LineMatchers {
     pub fn compile(
         matchers: &[LineMatcher],
@@ -359,6 +314,7 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dokime_contract::operations::files::LineField;
 
     fn row_schema() -> harmos::schema::graph::Schema {
         #[harmos::message]

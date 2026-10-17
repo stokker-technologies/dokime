@@ -1939,9 +1939,11 @@ dependencies = [
  "dokime-filesystem",
  "dokime-macros",
  "futures-util",
+ "globset",
  "harmos",
  "libc",
  "prost",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
@@ -2066,15 +2068,12 @@ name = "dokime-contract"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "globset",
  "harmos",
- "regex",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "time",
- "tracing",
  "tracing-error",
  "uuid",
 ]

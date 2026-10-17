@@ -13,15 +13,12 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use super::{PromptDefinition, validate_fields};
+use super::PromptDefinition;
 use crate::core::{ValidationIssue, Value, ValueType};
-use crate::expressions::{
-    BooleanExpression, Expression, ExpressionBinaryOp, ExpressionContext, ExpressionKind,
-};
+use crate::expressions::{BooleanExpression, Expression, ExpressionBinaryOp, ExpressionKind};
 
 /* === Constants === */
 
@@ -66,29 +63,8 @@ impl harmos::MemorySize for Rule {
 }
 
 /* === Public Functions === */
-pub fn validate_answers(
-    definition: &PromptDefinition,
-    values: &BTreeMap<String, Value>,
-) -> Vec<ValidationIssue> {
-    let mut issues = validate_fields(&definition.fields, values);
-    if !issues.is_empty() {
-        return issues;
-    }
-    // Bound evaluation even for definitions supplied directly outside installation.
-    issues.extend(validate_rules(definition));
-    if !issues.is_empty() {
-        return issues;
-    }
-    let context = ExpressionContext::new(values.clone());
-    for (index, rule) in definition.rules.iter().enumerate() {
-        if !matches!(rule.predicate.evaluate(&context), Ok(true)) {
-            issues.push(issue(index, &rule.message));
-        }
-    }
-    issues
-}
-
-pub(super) fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
+/// The shape issues of a definition's answer rules, before any answer arrives.
+pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
     if definition.rules.len() > 32 {
         return vec![issue(0, "a prompt may declare at most 32 answer rules")];
     }

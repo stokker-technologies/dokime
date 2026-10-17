@@ -54,15 +54,7 @@ pub(crate) async fn build(
         // tail, which the journal itself retains anyway. A short tail keeps one
         // wide cycle's entries from crowding state out of the snapshot.
         .tail(64)
-        .managed_snapshots(harmos::state::SnapshotPolicy {
-            schema: harmos::storage::SchemaKey {
-                payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
-                id: harmos::Identifier::new("dokime.runtime.state").unwrap(),
-                version: 1.try_into().unwrap(),
-            },
-            every: 1024.try_into().unwrap(),
-            max_bytes: dokime::storage::STATE_SNAPSHOT_BYTES.try_into().unwrap(),
-        })
+        .managed_snapshots(dokime::storage::snapshot_policy())
         .reconcile(move |state_manager, _storage| async move {
             // Validate Replayed Ownership Without Copying The Runtime Graph
             state_manager

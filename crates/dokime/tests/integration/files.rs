@@ -20,7 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::operations::files::{FileMatcher, FileRule, FileRuleAction, InvalidRule};
+use dokime::files::{FileMatcher, InvalidRule};
+use dokime_contract::operations::files::{FileRule, FileRuleAction};
 
 /* === Constants === */
 

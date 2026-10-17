@@ -175,7 +175,6 @@ impl Materialization<'_> {
 }
 
 /* === Public Functions === */
-#[tracing::instrument(level = "debug", skip_all)]
 pub fn materialize_template_cases(
     suite_id: &str,
     template: &TestCaseTemplate,

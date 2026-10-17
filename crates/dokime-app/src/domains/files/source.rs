@@ -25,7 +25,7 @@ use std::{collections::BTreeMap, time::SystemTime};
 // Local Imports
 use super::{ftp::FtpSource, local::LocalSource};
 use crate::{Error, Result};
-use dokime_contract::operations::files::FileMatcher;
+use dokime::files::FileMatcher;
 
 /* === Constants === */
 

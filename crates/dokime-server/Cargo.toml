@@ -25,7 +25,7 @@ media-native = ["dokime-app/media-native"]
 # Local
 dokime = { path = "../dokime" }
 dokime-app = { path = "../dokime-app", features = ["fft"] }
-dokime-contract = { path = "../dokime-contract" }
+dokime-contract = { path = "../dokime-contract", features = ["diagnostics"] }
 dokime-filesystem = { path = "../dokime-filesystem" }
 dokime-cli = { path = "../dokime-cli" }
 

@@ -14,6 +14,7 @@
 mod artifacts;
 mod diagnostics;
 mod execution;
+mod files;
 mod plugin;
 mod storage;
 #[path = "../support/mod.rs"]

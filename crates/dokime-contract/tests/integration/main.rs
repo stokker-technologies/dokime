@@ -13,7 +13,6 @@
 mod artifacts;
 mod documents;
 mod expressions;
-mod files;
 mod operations;
 
 /* === Re-Exports === */

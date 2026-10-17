@@ -32,9 +32,10 @@ use tokio::time::Instant;
 use super::Binding;
 use crate::artifacts::ArtifactWriter;
 use crate::core::Identifier;
+use crate::files::{LineBuffer, LineMatch, LineMatchers};
 use crate::operations::files::{
-    FileWatchGap, FileWatchGapReason, FileWatchPolicy, FileWatchSourcePayload, LineBuffer,
-    LineMatch, LineMatchers, WatchFileOutcome, WatchFileRequest, WatchedArtifact,
+    FileWatchGap, FileWatchGapReason, FileWatchPolicy, FileWatchSourcePayload, WatchFileOutcome,
+    WatchFileRequest, WatchedArtifact,
 };
 use crate::records::{RecordPublishRequest, RecordSeverity};
 

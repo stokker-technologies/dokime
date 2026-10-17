@@ -79,6 +79,7 @@ The SDK tracks Dokime’s `dev` branch during development. Generation is offline
 the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
-`mise run check` formats, lints and type-checks; `mise run test:unit` and
+Run `mise install` once and commit the `mise.lock` it writes: CI installs
+exactly the locked tools. `mise run check` formats, lints and type-checks; `mise run test:unit` and
 `mise run test:integration:rust` run the tests; `mise run build` writes
 `dist/{{package}}.dokime`. The CI workflows run the same tasks, one per job.

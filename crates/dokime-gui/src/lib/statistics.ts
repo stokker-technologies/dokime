@@ -41,13 +41,14 @@ export type SeriesLegendTrace = {
 /** A legend table row: the trace, its visibility, and its formatted cells. */
 export type SeriesLegendRow = SeriesLegendTrace & {
   hidden: boolean;
-  cursor: string;
+  xCursor: string;
+  yCursor: string;
   cells: Record<SeriesStatistic, string>;
 };
 
 export type SeriesStatistic = (typeof SERIES_STATISTICS)[number][0];
 
-export type SeriesLegendColumn = { id: "trace" | "cursor" | SeriesStatistic; header: string };
+export type SeriesLegendColumn = { id: "trace" | "xCursor" | "yCursor" | SeriesStatistic; header: string };
 
 /** What happened to a plot's summary request on its stream. */
 export type SummaryRequestEvent = "requested" | "delivered" | "failed" | "ended";
@@ -77,14 +78,19 @@ export const SERIES_STATISTICS = [
 /* === Public Functions === */
 
 /**
- * The legend table's columns. The Cursor column reads the pointer over a live
- * plot, so a report omits it; the unit sits in each value column's header.
+ * The legend table's columns. Cursor columns read the pointer over a live
+ * plot, so a report omits them; the unit sits in each value column's header.
  */
 export function seriesLegendColumns(live: boolean, unit?: string | null): SeriesLegendColumn[] {
   const withUnit = (title: string) => (unit ? `${title} (${unit})` : title);
   return [
     { id: "trace", header: "Trace" },
-    ...(live ? [{ id: "cursor" as const, header: withUnit("Cursor") }] : []),
+    ...(live
+      ? [
+          { id: "xCursor" as const, header: "X Cursor" },
+          { id: "yCursor" as const, header: withUnit("Y Cursor") },
+        ]
+      : []),
     ...SERIES_STATISTICS.map(([id, title]) => ({
       id,
       header: id === "count" ? title : withUnit(title),
@@ -98,12 +104,12 @@ export function seriesLegendColumns(live: boolean, unit?: string | null): Series
  * the browser computed from its reduced points.
  */
 export function seriesLegendRows({
-  cursorValues,
+  cursorPoints,
   hidden,
   summaries,
   traces,
 }: {
-  cursorValues?: readonly (number | null)[] | null;
+  cursorPoints?: readonly ({ x: number; y: number } | null)[] | null;
   hidden: ReadonlySet<string>;
   summaries: readonly SeriesSummary[];
   traces: readonly SeriesLegendTrace[];
@@ -121,11 +127,12 @@ export function seriesLegendRows({
           : formatSummaryValue(summary?.[id]),
       ]),
     ) as Record<SeriesStatistic, string>;
-    const cursor = cursorValues?.[index];
+    const cursor = cursorPoints?.[index];
     return {
       ...trace,
       hidden: hidden.has(trace.key),
-      cursor: cursor === undefined || cursor === null ? "" : formatSummaryValue(cursor),
+      xCursor: cursor ? formatSummaryValue(cursor.x) : "",
+      yCursor: cursor ? formatSummaryValue(cursor.y) : "",
       cells,
     };
   });
@@ -148,22 +155,22 @@ export function toggleTrace(hidden: ReadonlySet<string>, key: string): Set<strin
 }
 
 /**
- * The y of the drawn point nearest `at` on x, skipping gaps; `null` when the
+ * The drawn point nearest `at` on x, skipping gaps; `null` when the
  * trace draws no point. A scatter's x need not ascend, so every point is read.
  */
-export function nearestDrawnValue(
+export function nearestDrawnPoint(
   x: readonly number[],
   y: readonly (number | null | undefined)[],
   at: number,
-): number | null {
+): { x: number; y: number } | null {
   if (!Number.isFinite(at)) return null;
-  let best: number | null = null;
+  let best: { x: number; y: number } | null = null;
   let distance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < x.length; index += 1) {
     const value = y[index];
     const gap = Math.abs(x[index] - at);
     if (value != null && Number.isFinite(value) && gap < distance) {
-      best = value;
+      best = { x: x[index], y: value };
       distance = gap;
     }
   }

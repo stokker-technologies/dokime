@@ -12,8 +12,8 @@ mod rules;
 mod validation;
 
 /* === Re-Exports === */
-pub use rules::{Rule, validate_answers};
-pub use validation::{FieldValidation, validate_definition, validate_fields};
+pub use rules::{Rule, validate_rules};
+pub use validation::FieldValidation;
 
 /* === Imports === */
 // Standard Library Imports
