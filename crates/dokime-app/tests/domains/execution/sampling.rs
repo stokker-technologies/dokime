@@ -61,11 +61,8 @@ const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 /// How a report too large for its whole budget names what it ran out of.
 const EXHAUSTED: &str = "memory";
 
-/// Members of the cycle the refusing pool cannot hold at once.
+/// Members of the cycle whose every report the constrained pool refuses.
 const POOLED_MEMBERS: usize = 9;
-
-/// Rows of each member's whole-capture stream: within one report's budget.
-const POOLED_SPECTRUM_ROWS: u32 = 1_536;
 
 /// Cases of one cycle whose terminal captures seal concurrently.
 const LOGGED_CASES: usize = 5;
@@ -738,14 +735,16 @@ pub(crate) async fn oversized_report_remains_unsealed() {
     );
 }
 
-// A Refused Pool Never Publishes A Degraded Cycle Report.
+// A Refused Pool Never Publishes A Degraded Cycle Report. Members are
+// materialized one at a time, so the refusal is each member's own
+// whole-capture read exceeding the constrained report budget.
 pub(crate) async fn pool_refusal_settles() {
     let root = tempdir().unwrap();
     let mut refusing =
         config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
             .configured(
                 "fixture-suites",
-                serde_json::json!({ "spectrum_rows": POOLED_SPECTRUM_ROWS }),
+                serde_json::json!({ "spectrum_rows": OVERSIZED_SPECTRUM_ROWS }),
             )
             .unwrap()]);
     constrain_report_memory(&mut refusing);
@@ -789,6 +788,11 @@ pub(crate) async fn pool_refusal_settles() {
         settled.summary.phase,
         RunPhase::Completed,
         "permanent refusal cannot complete a report"
+    );
+    let cause = format!("{:?}", settled.interruption);
+    assert!(
+        cause.contains(EXHAUSTED) || cause.contains("exhaust"),
+        "the run names the refused pool: {cause}"
     );
     let cycle = handle
         .cycles()

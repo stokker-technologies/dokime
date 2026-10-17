@@ -527,22 +527,23 @@ impl RuntimeHandle {
             });
         }
 
+        // A page resumes after its stream cursors; rows it has passed are
+        // dropped before they are decoded, so paging stays one decode per row.
+        rows.retain(|row| {
+            let row = &row.value;
+            let stream = telemetry_stream_id_from_track(&row.cycle, &row.execution, &row.stream);
+            selection
+                .after_stream_cursors
+                .get(&stream)
+                .is_none_or(|after| row.ordinal > *after)
+        });
         // Preserve publication order across tracks within the selected prefix.
         rows.sort_by_key(|row| row.position);
         let samples = rows
             .into_iter()
             .map(|row| row.value)
             .map(sample_from_row)
-            .collect::<crate::Result<Vec<_>>>()?
-            .into_iter()
-            .filter(|sample| {
-                let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-                selection
-                    .after_stream_cursors
-                    .get(&stream)
-                    .is_none_or(|after| sample.sequence > *after)
-            })
-            .collect::<Vec<_>>();
+            .collect::<crate::Result<Vec<_>>>()?;
         Ok(selection.apply(&samples))
     }
 
