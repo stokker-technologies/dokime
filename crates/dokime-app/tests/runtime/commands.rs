@@ -211,14 +211,19 @@ async fn kill_recovers_cycle() {
 
     // The Saved Cycle Retains Admission Even After It Leaves The Live Registry.
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let cycles = dokime::storage::rows::objects::<dokime::storage::objects::cycle::Cycle>(
-        runtime.storage(),
-        None,
-        harmos::storage::query::ObjectVersions::Latest,
-        Vec::new(),
-    )
-    .await
-    .unwrap();
+    let cycles = runtime
+        .storage()
+        .read_objects::<dokime::storage::objects::cycle::Cycle>(harmos::storage::ObjectRead {
+            at: runtime.storage().cursor_saved(),
+            key: None,
+            versions: harmos::storage::query::ObjectVersions::Latest,
+            filters: Vec::new(),
+        })
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
     assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
     let cycle = dokime::execution::TestCycle::try_from(cycles[0].value.clone())
         .expect("saved cycle is canonical");

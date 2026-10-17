@@ -17,12 +17,12 @@
 
 // Third Party Imports
 use harmos::storage::{
-    StoredRecord,
+    RecordRead, StoredRecord,
     query::{
-        Query, RecordSelection, RowSlice, Source,
+        RecordSelection,
         scalar::ScalarValue,
         transform::{
-            FieldPath, Transform,
+            FieldPath,
             filter::{Clause, Compare, Condition, Filter, Term},
         },
     },
@@ -34,7 +34,7 @@ use crate::{Error, Result};
 use dokime::{
     core::{CaseId, SessionId, TestCycleId, TestExecutionId},
     records::{RecordEntry, TestRecordSet},
-    storage::{records, rows::Rows},
+    storage::records::{self, RecordRow},
 };
 
 /* === Constants === */
@@ -49,7 +49,7 @@ pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 /* === Structs === */
 /// The records an execution captured, read at its frozen evidence cut.
 pub struct RecordReader {
-    rows: Rows<StoredRecord>,
+    rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
 }
 
@@ -72,38 +72,21 @@ impl RecordReader {
         if !view.saved().covers(through)? {
             return Err(invalid("record evidence exceeds the original saved view"));
         }
-        let mut transforms = vec![Transform::Filter(execution_filter(view, context)?)];
-        if after > 0 {
-            transforms.push(Transform::Filter(Filter {
-                clauses: vec![Clause {
-                    terms: vec![term(
-                        "_storage.position",
-                        Condition::Compare {
-                            op: Compare::Gt,
-                            value: ScalarValue::Unsigned(after),
-                        },
-                    )],
-                }],
-            }));
-        }
-        let query = Query {
-            at: through.clone(),
-            source: Source::Records(RecordSelection {
-                schema: records::schema(),
-                scope: None,
-                item: None,
-                source_start: None,
-                source_end: None,
-            }),
-            transforms,
-            slice: RowSlice::default(),
-        };
-        let rows = Rows::with_query(
-            view.storage(),
-            query,
-            dokime::storage::rows::graph::<records::RecordRow>()?,
-        )
-        .await?;
+        let rows = view
+            .storage()
+            .read_records::<RecordRow>(RecordRead {
+                at: through.clone(),
+                selection: RecordSelection {
+                    schema: records::schema(),
+                    scope: None,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
+                after,
+                filters: vec![execution_filter(view, context)?],
+            })
+            .await?;
         Ok(Self {
             rows,
             view: view.clone(),
@@ -124,7 +107,8 @@ impl RecordReader {
         let execution = self.view.execution();
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {
-            let mut decoded = decode(&row)?;
+            let position = row.position.sequence;
+            let mut decoded = decode(row)?;
             apply_execution_scope(
                 &mut decoded.record,
                 &execution.records,
@@ -133,7 +117,7 @@ impl RecordReader {
                 &execution.test_execution_id,
             )?;
             selected.push(PositionedRecord {
-                position: row.position.sequence,
+                position,
                 captured: decoded,
             });
         }
@@ -212,7 +196,7 @@ fn execution_filter(view: &ExecutionView, context: bool) -> Result<Filter> {
     Ok(Filter { clauses })
 }
 
-fn decode(row: &StoredRecord) -> Result<ContextRecord> {
+fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {
     let epoch = row
         .scope
         .as_ref()
@@ -226,7 +210,7 @@ fn decode(row: &StoredRecord) -> Result<ContextRecord> {
         ));
     }
     let epoch = SessionId::from_uuid(epoch.as_str()).map_err(dokime::storage::Error::from)?;
-    let record = records::RecordRow::decode_entry(&row.payload)?;
+    let record = row.payload.entry()?;
     if row.item.as_str() != record.record_id.as_str() {
         return Err(invalid("captured record key differs from payload identity"));
     }

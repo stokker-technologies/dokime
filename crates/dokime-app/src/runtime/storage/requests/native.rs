@@ -18,12 +18,12 @@ use std::sync::Arc;
 
 // Third Party Imports
 use harmos::storage::{
-    ObjectVersion, StoredObject,
+    ObjectRead, ObjectRevision, ObjectVersion, StoredObject,
     query::{
         ObjectVersions,
         scalar::ScalarValue,
         transform::{
-            FieldPath, Transform,
+            FieldPath,
             filter::{Clause, Compare, Condition, Filter, Term},
         },
     },
@@ -67,14 +67,9 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let commands = dokime::storage::rows::objects::<Command>(
+    let commands = latest::<Command>(
         storage,
-        None,
-        ObjectVersions::Latest,
-        vec![filter(vec![equal(
-            "request_id",
-            ScalarValue::Text(id.to_string()),
-        )])],
+        filter(vec![equal("request_id", ScalarValue::Text(id.to_string()))]),
     )
     .await?;
     if commands.len() > MAX_COMMANDS {
@@ -89,14 +84,12 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
 
 /// This node's nonterminal saved requests, ascending by identity.
 pub(super) async fn pending(storage: &Manager, node: &NodeId) -> Result<Vec<CommandId>> {
-    let requests = dokime::storage::rows::objects::<Request>(
+    let requests = latest::<Request>(
         storage,
-        None,
-        ObjectVersions::Latest,
-        vec![filter(vec![
+        filter(vec![
             equal("node_id", ScalarValue::Text(node.to_string())),
             equal("terminal", ScalarValue::Bool(false)),
-        ])],
+        ]),
     )
     .await?;
     let mut ids = requests
@@ -175,10 +168,27 @@ fn storage_group_bytes() -> std::num::NonZeroUsize {
     std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()
 }
 
-fn filter(terms: Vec<Term>) -> Transform {
-    Transform::Filter(Filter {
+async fn latest<T>(storage: &Manager, filter: Filter) -> Result<Vec<ObjectRevision<T>>>
+where
+    T: StoredObject,
+    dokime::storage::objects::Objects: harmos::catalog::Contains<T>,
+{
+    Ok(storage
+        .read_objects::<T>(ObjectRead {
+            at: storage.cursor_saved(),
+            key: None,
+            versions: ObjectVersions::Latest,
+            filters: vec![filter],
+        })
+        .await?
+        .collect()
+        .await?)
+}
+
+fn filter(terms: Vec<Term>) -> Filter {
+    Filter {
         clauses: vec![Clause { terms }],
-    })
+    }
 }
 
 fn equal(field: &str, value: ScalarValue) -> Term {

@@ -18,8 +18,8 @@ mod groups;
 
 // Third Party Imports
 use harmos::storage::{
-    StoredRecord,
-    query::{ObjectVersions, Query, RecordSelection, RowSlice, Source},
+    ObjectRead, RecordRead,
+    query::{ObjectVersions, RecordSelection},
 };
 
 // Local Imports
@@ -29,7 +29,6 @@ use dokime::storage::{
     Manager,
     objects::{case::Case, cycle::Cycle, execution::Execution},
     records::{self, RecordRow},
-    rows::{self, Rows},
 };
 use fields::Row;
 use groups::Groups;
@@ -102,28 +101,24 @@ pub(crate) async fn native_aggregate(
             Groups::fold(query, &selected)?
         }
         AggregateSource::Records => {
-            let rows = Rows::<StoredRecord>::with_query(
-                storage,
-                Query {
+            let entries = storage
+                .read_records::<RecordRow>(RecordRead {
                     at: storage.cursor_saved(),
-                    source: Source::Records(RecordSelection {
+                    selection: RecordSelection {
                         schema: records::schema(),
                         scope: None,
                         item: None,
                         source_start: None,
                         source_end: None,
-                    }),
-                    transforms: Vec::new(),
-                    slice: RowSlice::default(),
-                },
-                rows::graph::<RecordRow>()?,
-            )
-            .await?;
-            let entries = rows
+                    },
+                    after: 0,
+                    filters: Vec::new(),
+                })
+                .await?
                 .collect()
                 .await?
-                .iter()
-                .map(|row| RecordRow::decode_entry(&row.payload))
+                .into_iter()
+                .map(|row| row.payload.entry())
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             Groups::fold(query, &entries.iter().map(Row::Record).collect::<Vec<_>>())?
         }
@@ -134,15 +129,22 @@ pub(crate) async fn native_aggregate(
 /* === Private Functions === */
 async fn latest<T>(storage: &Manager) -> Result<Vec<T>>
 where
-    T: harmos::storage::StoredObject + harmos::schema::Described,
+    T: harmos::storage::StoredObject,
+    dokime::storage::objects::Objects: harmos::catalog::Contains<T>,
 {
-    Ok(
-        rows::objects::<T>(storage, None, ObjectVersions::Latest, Vec::new())
-            .await?
-            .into_iter()
-            .map(|revision| revision.value)
-            .collect(),
-    )
+    Ok(storage
+        .read_objects::<T>(ObjectRead {
+            at: storage.cursor_saved(),
+            key: None,
+            versions: ObjectVersions::Latest,
+            filters: Vec::new(),
+        })
+        .await?
+        .collect()
+        .await?
+        .into_iter()
+        .map(|revision| revision.value)
+        .collect())
 }
 
 /* === Tests === */

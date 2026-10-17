@@ -20,13 +20,15 @@ use std::num::NonZeroU128;
 
 // Third Party Imports
 use harmos::Aggregate;
-use harmos::storage::query::scalar::{Agg, ExactNumber, ScalarValue};
+use harmos::storage::query::{
+    Accumulator, Scratch,
+    scalar::{Agg, ExactNumber, ScalarValue},
+};
 
 // Local Imports
 use super::DocumentFailure;
 use super::binding::{Evidence, Row};
 use super::context::Entry;
-use super::fold::Accumulator;
 use super::input::RecordView;
 use crate::core::{EvidenceOrigin, RecordScope, Value};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
@@ -497,6 +499,7 @@ impl Plan {
         };
         let case = self.left.iter().position(|column| *column == Column::Case);
         let groups = self.cases.unwrap_or(1);
+        let mut scratch = Scratch::new(left.len().saturating_mul(self.measured));
         let mut folds = (0..groups)
             .map(|_| {
                 (0..self.measured)
@@ -533,14 +536,16 @@ impl Plan {
                 }
             };
             for (accumulator, value) in folds[group].iter_mut().zip(&measured) {
-                accumulator.push(row.capture, value).map_err(failure)?;
+                accumulator
+                    .push(row.capture, value, &mut scratch)
+                    .map_err(reduction)?;
             }
         }
         let groups = folds
             .into_iter()
             .map(|fold| {
                 fold.into_iter()
-                    .map(|accumulator| accumulator.finish().map_err(failure))
+                    .map(|accumulator| accumulator.finish(&mut || Ok(())).map_err(reduction))
                     .collect::<Result<Vec<_>>>()
             })
             .collect::<Result<Vec<_>>>()?;
@@ -548,6 +553,7 @@ impl Plan {
             None => None,
             Some(outer) => {
                 let mut values = Vec::with_capacity(self.measured);
+                let mut scratch = Scratch::new(groups.len().saturating_mul(self.measured));
                 for column in 0..self.measured {
                     let mut accumulator = Accumulator::new(if column == 0 {
                         outer
@@ -556,10 +562,10 @@ impl Plan {
                     });
                     for (position, group) in groups.iter().enumerate() {
                         accumulator
-                            .push(position as u64, &group[column])
-                            .map_err(failure)?;
+                            .push(position as u64, &group[column], &mut scratch)
+                            .map_err(reduction)?;
                     }
-                    values.push(accumulator.finish().map_err(failure)?);
+                    values.push(accumulator.finish(&mut || Ok(())).map_err(reduction)?);
                 }
                 Some(values)
             }
@@ -992,6 +998,14 @@ fn seconds(value: ScalarValue) -> Result<Option<Value>> {
 
 fn failure(message: &'static str) -> dokime::Error {
     DocumentFailure::Evaluation { message }.into()
+}
+
+fn reduction(error: harmos::Error) -> dokime::Error {
+    match error {
+        harmos::Error::InvalidInput { reason, .. } => failure(reason),
+        harmos::Error::ResourceExhausted { .. } => failure("document fold exceeds its value bound"),
+        _ => failure("document fold failed"),
+    }
 }
 
 /* === Tests === */

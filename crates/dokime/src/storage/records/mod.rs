@@ -270,6 +270,14 @@ impl RecordRow {
         decode(bytes, usize::MAX)
     }
 
+    /// Project a decoded stored record into its entry.
+    pub fn entry(self) -> Result<RecordEntry> {
+        let bound = self.projection_memory()?;
+        let allowance =
+            NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
+        self.into_entry(allowance)
+    }
+
     pub fn from_bytes(bytes: &[u8], max_bytes: usize) -> Result<Self> {
         if bytes.len() > max_bytes {
             return Err(error("record capture frame exceeds byte limit"));
@@ -602,11 +610,7 @@ pub fn encode(entry: &RecordEntry, max_bytes: usize) -> Result<Vec<u8>> {
 }
 
 pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RecordEntry> {
-    let row = RecordRow::from_bytes(bytes, max_bytes)?;
-    let bound = row.projection_memory()?;
-    let allowance =
-        NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;
-    row.into_entry(allowance)
+    RecordRow::from_bytes(bytes, max_bytes)?.entry()
 }
 
 pub fn schema() -> SchemaKey {

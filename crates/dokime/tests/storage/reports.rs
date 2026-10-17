@@ -157,23 +157,25 @@ pub(crate) async fn report_publication_reopens() {
     let published = |owner, report_id| {
         let storage = storage.clone();
         async move {
-            dokime::storage::rows::Rows::<harmos::storage::StoredRecord>::open::<reports::Publication>(
-                &storage,
-                storage.cursor_saved(),
-                harmos::storage::query::Source::Records(reports::selection(owner, report_id)),
-            )
-            .await
-            .unwrap()
-            .collect()
-            .await
-            .unwrap()
+            storage
+                .read_records::<reports::Publication>(harmos::storage::RecordRead {
+                    at: storage.cursor_saved(),
+                    selection: reports::selection(owner, report_id),
+                    after: 0,
+                    filters: Vec::new(),
+                })
+                .await
+                .unwrap()
+                .collect()
+                .await
+                .unwrap()
         }
     };
     for report_id in [None, Some(file.metadata.id.clone())] {
         let page = published(reports::Owner::Cycle(&owner), report_id).await;
         assert_eq!(page.len(), 1);
         assert_eq!(page[0].position, receipt);
-        let publication = reports::Publication::from_record(&page[0]).unwrap();
+        let publication = reports::Publication::from_record(page[0].clone()).unwrap();
         assert_eq!(publication.file().unwrap(), &file);
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
         assert_eq!(page[0].item, file.metadata.id);

@@ -13,7 +13,6 @@ pub mod objects;
 pub mod records;
 pub mod reports;
 pub mod requests;
-pub mod rows;
 pub mod sqlite;
 pub mod telemetry;
 mod values;

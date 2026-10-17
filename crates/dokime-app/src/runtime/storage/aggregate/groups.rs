@@ -18,12 +18,14 @@ use std::{cmp::Ordering, collections::BTreeMap};
 // Third Party Imports
 use harmos::{
     Aggregate,
-    storage::query::scalar::{Agg, ScalarValue},
+    storage::query::{
+        Accumulator, Scratch,
+        scalar::{Agg, ScalarValue},
+    },
 };
 
 // Local Imports
 use super::fields::{self, Row};
-use crate::document::fold::Accumulator;
 use crate::runtime::query::aggregate::{AggregateOperator, AggregateOutcome, AggregateQuery};
 use crate::{Error, Result};
 use dokime::core::Value;
@@ -61,6 +63,7 @@ impl Groups {
         if query.group_by.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query));
         }
+        let mut scratch = Scratch::new(rows.len().saturating_mul(query.aggregates.len()));
         for (ordinal, row) in rows.iter().enumerate() {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
@@ -82,7 +85,9 @@ impl Groups {
                 } else {
                     scalar(&row.field(&column.column)?.project()?, column.aggregate)?
                 };
-                reduction.push(ordinal as u64, &value).map_err(invalid)?;
+                reduction
+                    .push(ordinal as u64, &value, &mut scratch)
+                    .map_err(reduction_error)?;
             }
             // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
             if query.limit != 0 && selected.entries.len() > query.limit + 1 {
@@ -109,7 +114,9 @@ impl Groups {
         for (key, reductions) in self.entries.into_iter().take(count) {
             let mut row = key.0;
             for reduction in reductions {
-                row.push(value(reduction.finish().map_err(invalid)?)?);
+                row.push(value(
+                    reduction.finish(&mut || Ok(())).map_err(reduction_error)?,
+                )?);
             }
             rows.push(row);
         }
@@ -410,6 +417,13 @@ fn column(query: &AggregateQuery, name: &str) -> Result<()> {
 }
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
+}
+
+fn reduction_error(error: harmos::Error) -> Error {
+    match error {
+        harmos::Error::InvalidInput { reason, .. } => invalid(reason),
+        error => error.into(),
+    }
 }
 
 /* === Tests === */

@@ -16,12 +16,12 @@
 use std::{collections::VecDeque, ops::Deref, sync::Arc};
 // Third Party Imports
 use harmos::storage::{
-    StoredRecord,
+    RecordRead, RecordReader,
     query::{
-        Query, RecordSelection, RowSlice, Source as QuerySource,
+        RecordSelection,
         scalar::ScalarValue,
         transform::{
-            FieldPath, Transform,
+            FieldPath,
             filter::{Clause, Compare, Condition, Filter, Term},
         },
     },
@@ -29,7 +29,7 @@ use harmos::storage::{
 // Local Imports
 use super::{Source, error};
 use crate::{Result, records::RecordEntry};
-use dokime::storage::{records, rows::Rows};
+use dokime::storage::records::RecordRow;
 
 /* === Constants === */
 
@@ -43,7 +43,7 @@ use dokime::storage::{records, rows::Rows};
 pub(crate) struct History {
     source: Arc<Source>,
     state_manager: crate::app::StateManager,
-    rows: Rows<StoredRecord>,
+    rows: RecordReader<RecordRow>,
     pending: VecDeque<CapturedRecord>,
     after: u64,
     through: u64,
@@ -76,11 +76,11 @@ impl Source {
     ) -> Result<Vec<RecordEntry>> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
-        let rows = self.rows(at, None, vec![Transform::Filter(filter)]).await?;
+        let rows = self.rows(at, None, 0, vec![filter]).await?;
         let mut selected = Vec::new();
         for row in rows.collect().await? {
             let current = row.scope.as_ref() == Some(&self.epoch);
-            let record = records::RecordRow::decode_entry(&row.payload)?;
+            let record = row.payload.entry()?;
             if !current || record.sequence <= through {
                 selected.push(record);
             }
@@ -107,27 +107,19 @@ impl Source {
     ) -> Result<History> {
         self.wait_through(state_manager, through).await?;
         let at = self.save_accepted(state_manager).await?;
-        let (after, transform) = match start {
-            Start::Physical(after) => (after, after_term("_storage.position", after)),
+        let (after, filters) = match start {
+            Start::Physical(after) => (after, Vec::new()),
             Start::Logical(after) => {
                 if scope.is_none() {
                     return Err(error("logical seek requires a process epoch"));
                 }
-                (0, after_term("payload.sequence", after))
+                (0, logical_after(after).into_iter().collect())
             }
         };
-        let transforms = transform
-            .map(|term| {
-                Transform::Filter(Filter {
-                    clauses: vec![Clause { terms: vec![term] }],
-                })
-            })
-            .into_iter()
-            .collect();
         Ok(History {
             source: self.clone(),
             state_manager: state_manager.clone(),
-            rows: self.rows(at, scope, transforms).await?,
+            rows: self.rows(at, scope, after, filters).await?,
             pending: VecDeque::new(),
             after,
             through,
@@ -150,26 +142,24 @@ impl Source {
         &self,
         at: harmos::storage::StorageCursor,
         scope: Option<harmos::Identifier>,
-        transforms: Vec<Transform>,
-    ) -> Result<Rows<StoredRecord>> {
-        let query = Query {
-            at,
-            source: QuerySource::Records(RecordSelection {
-                schema: self.schema.clone(),
-                scope,
-                item: None,
-                source_start: None,
-                source_end: None,
-            }),
-            transforms,
-            slice: RowSlice::default(),
-        };
-        Ok(Rows::with_query(
-            &self.storage,
-            query,
-            dokime::storage::rows::graph::<records::RecordRow>()?,
-        )
-        .await?)
+        after: u64,
+        filters: Vec<Filter>,
+    ) -> Result<RecordReader<RecordRow>> {
+        Ok(self
+            .storage
+            .read_records::<RecordRow>(RecordRead {
+                at,
+                selection: RecordSelection {
+                    schema: self.schema.clone(),
+                    scope,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
+                after,
+                filters,
+            })
+            .await?)
     }
 }
 
@@ -199,7 +189,7 @@ impl History {
                 self.pending.push_back(CapturedRecord {
                     position: row.position.sequence,
                     current_process: row.scope.as_ref() == Some(&self.source.epoch),
-                    record: Arc::new(records::RecordRow::decode_entry(&row.payload)?),
+                    record: Arc::new(row.payload.entry()?),
                 });
             }
         }
@@ -224,14 +214,18 @@ impl Deref for CapturedRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn after_term(path: &str, after: u64) -> Option<Term> {
-    (after > 0).then(|| Term {
-        field: FieldPath::from(path),
-        condition: Condition::Compare {
-            op: Compare::Gt,
-            value: ScalarValue::Unsigned(after),
-        },
-        negate: false,
+fn logical_after(after: u64) -> Option<Filter> {
+    (after > 0).then(|| Filter {
+        clauses: vec![Clause {
+            terms: vec![Term {
+                field: FieldPath::from("payload.sequence"),
+                condition: Condition::Compare {
+                    op: Compare::Gt,
+                    value: ScalarValue::Unsigned(after),
+                },
+                negate: false,
+            }],
+        }],
     })
 }
 

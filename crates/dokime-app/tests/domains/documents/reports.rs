@@ -675,25 +675,26 @@ pub(crate) async fn cycle_report_reboot() {
             .cycles
             .is_empty()
     );
-    let mut reader = dokime::storage::rows::Rows::<harmos::storage::StoredRecord>::open::<
-        dokime::storage::records::RecordRow,
-    >(
-        handle.storage(),
-        handle.storage().cursor_saved(),
-        harmos::storage::query::Source::Records(harmos::storage::query::RecordSelection {
-            schema: dokime::storage::records::schema(),
-            scope: None,
-            item: None,
-            source_start: None,
-            source_end: None,
-        }),
-    )
-    .await
-    .unwrap();
+    let mut reader = handle
+        .storage()
+        .read_records::<dokime::storage::records::RecordRow>(harmos::storage::RecordRead {
+            at: handle.storage().cursor_saved(),
+            selection: harmos::storage::query::RecordSelection {
+                schema: dokime::storage::records::schema(),
+                scope: None,
+                item: None,
+                source_start: None,
+                source_end: None,
+            },
+            after: 0,
+            filters: Vec::new(),
+        })
+        .await
+        .unwrap();
     let mut after = Vec::new();
     while let Some(batch) = reader.next().await.unwrap() {
         for row in batch {
-            let entry = dokime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
+            let entry = row.payload.entry().unwrap();
             after.push((entry.record_id.clone(), entry.record_type.to_string()));
         }
     }

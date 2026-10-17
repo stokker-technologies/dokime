@@ -160,8 +160,8 @@ impl Owner<'_> {
 
 impl Publication {
     /// Decode and verify one saved publication record against its envelope.
-    pub fn from_record(record: &StoredRecord) -> Result<Self> {
-        let publication = Self::decode(&record.payload)?;
+    pub fn from_record(record: StoredRecord<Self>) -> Result<Self> {
+        let publication = record.payload;
         publication.check()?;
         let dependencies = publication
             .dependencies_saved
