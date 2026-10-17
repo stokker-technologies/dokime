@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 use super::environment::{EnvironmentReference, requested_environment_references};
 use crate::error::Error;
 use dokime_client::contracts::plugins;
-use dokime_terminal::Terminal;
+use dokime_cli::terminal::Terminal;
 
 /* === Constants === */
 

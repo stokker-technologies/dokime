@@ -32,7 +32,7 @@ use super::{
 };
 use crate::error::Error;
 use dokime_packaging::process;
-use dokime_terminal::{ColorMode, Terminal};
+use dokime_cli::terminal::{ColorMode, Terminal};
 
 /* === Constants === */
 
@@ -566,7 +566,7 @@ async fn launch(
     gui: Option<&Path>,
 ) -> Result<(Host, String), Error> {
     let mut command = Command::new(executable);
-    let color = match dokime_terminal::color_mode() {
+    let color = match dokime_cli::terminal::color_mode() {
         ColorMode::Auto => "auto",
         ColorMode::Always => "always",
         ColorMode::Never => "never",

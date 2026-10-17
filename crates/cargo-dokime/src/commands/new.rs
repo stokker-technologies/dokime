@@ -207,7 +207,7 @@ pub fn run(args: Args) -> Result<(), Error> {
         }
         return Err(error);
     }
-    let terminal = dokime_terminal::Terminal::default();
+    let terminal = dokime_cli::terminal::Terminal::default();
     terminal.success(format!("Created {name}"));
     terminal.hint(format!("cd {}", args.path.display()));
     terminal.hint(format!("cargo dokime dev{selection}"));

@@ -926,10 +926,10 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
+ "dokime-cli",
  "dokime-client",
  "dokime-contract",
  "dokime-packaging",
- "dokime-terminal",
  "dotenvy",
  "futures-util",
  "glob",
@@ -2032,12 +2032,14 @@ dependencies = [
 name = "dokime-cli"
 version = "0.1.0"
 dependencies = [
+ "anstream",
+ "anstyle",
  "clap",
  "criterion",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
- "dokime-terminal",
+ "indicatif",
  "serde",
  "serde_json",
  "tempfile",
@@ -2197,7 +2199,7 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
- "dokime-terminal",
+ "dokime-cli",
  "harmos",
  "process-wrap",
  "serde_json",
@@ -2216,11 +2218,11 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-app",
+ "dokime-cli",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
  "dokime-host",
- "dokime-terminal",
  "dotenvy",
  "futures-util",
  "harmos",
@@ -2251,29 +2253,6 @@ dependencies = [
  "uuid",
  "zeroize",
  "zip 9.0.2",
-]
-
-[[package]]
-name = "dokime-starter-check"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "dokime-terminal"
-version = "0.1.0"
-dependencies = [
- "anstream",
- "anstyle",
- "indicatif",
- "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]

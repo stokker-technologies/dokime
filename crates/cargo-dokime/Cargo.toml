@@ -12,7 +12,7 @@ version = { workspace = true }
 dokime-client = { path = "../dokime-client" }
 dokime-contract = { path = "../dokime-contract" }
 dokime-packaging = { path = "../dokime-packaging" }
-dokime-terminal = { path = "../dokime-terminal" }
+dokime-cli = { path = "../dokime-cli" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }

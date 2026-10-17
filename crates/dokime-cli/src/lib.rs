@@ -12,6 +12,7 @@ mod cli;
 mod commands;
 mod connection;
 mod error;
+pub mod terminal;
 
 /* === Re-Exports === */
 pub use cli::Cli;

@@ -76,10 +76,10 @@ pub(crate) async fn run(args: Args) -> Result<(), Error> {
 
 /* === Private Functions === */
 fn color() -> &'static str {
-    match dokime_terminal::color_mode() {
-        dokime_terminal::ColorMode::Auto => "auto",
-        dokime_terminal::ColorMode::Always => "always",
-        dokime_terminal::ColorMode::Never => "never",
+    match dokime_cli::terminal::color_mode() {
+        dokime_cli::terminal::ColorMode::Auto => "auto",
+        dokime_cli::terminal::ColorMode::Always => "always",
+        dokime_cli::terminal::ColorMode::Never => "never",
     }
 }
 

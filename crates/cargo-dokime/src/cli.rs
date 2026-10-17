@@ -32,8 +32,8 @@ use clap::Parser;
     about = "Build, develop, inspect, and install Dokime plugins"
 )]
 pub struct Cli {
-    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime_terminal::ColorMode), help = "Color output: auto, always, or never.")]
-    pub color: dokime_terminal::ColorMode,
+    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime_cli::terminal::ColorMode), help = "Color output: auto, always, or never.")]
+    pub color: dokime_cli::terminal::ColorMode,
     #[command(subcommand)]
     pub command: crate::commands::Command,
 }

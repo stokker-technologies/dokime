@@ -56,14 +56,14 @@ pub enum ColorMode {
 
 /* === Implementations === */
 impl FromStr for ColorMode {
-    type Err = crate::Error;
+    type Err = super::Error;
     #[tracing::instrument(level = "debug", skip_all)]
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "auto" => Ok(Self::Auto),
             "always" => Ok(Self::Always),
             "never" => Ok(Self::Never),
-            _ => Err(crate::Error::InvalidColorMode),
+            _ => Err(super::Error::InvalidColorMode),
         }
     }
 }
