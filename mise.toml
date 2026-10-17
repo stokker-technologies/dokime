@@ -187,9 +187,16 @@ run = "{{vars.tools}} dokime_tools.build.run typescript --profile {{usage.profil
 # === Dev === #
 
 [tasks.dev]
-description = "Start The Native Desktop Shell With An Owned Local Backend"
-env.DOKIME_PLUGINS_DIR = "{{config_root}}/dist/build/{{vars.platform}}/plugins"
-run = "pnpm --dir crates/dokime-gui run tauri:dev"
+description = "Start The Native Desktop Shell With An Owned Local Backend And The OBC Plugin"
+depends = ["prepare:report"]
+env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
+run = [
+  'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
+  "cargo build --locked -p dokime-server --bin dokime-server --message-format json-render-diagnostics > target/contracts/dev.jsonl",
+  "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
+  "cargo run --locked -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
+  "pnpm --dir crates/dokime-gui run tauri:dev",
+]
 
 # === Test === #
 
