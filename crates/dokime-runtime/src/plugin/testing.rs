@@ -357,7 +357,7 @@ impl Harness {
             // a step can have reached anything.
             tokio::task::yield_now().await;
             for signal in deliveries(&self.measured, &self.published, &execution_id, &capture) {
-                runner.signal(signal).map_err(HarnessError::Deliver)?;
+                runner.signal(signal).await.map_err(HarnessError::Deliver)?;
             }
             Ok::<(), HarnessError>(())
         };

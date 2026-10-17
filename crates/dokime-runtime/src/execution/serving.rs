@@ -101,7 +101,12 @@ pub trait Runnable: Send + Sync + 'static {
         caller: Caller,
     ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>>;
 
-    fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, Refusal>;
+    // The caller owns the signal deadline. Dropping this future cancels a
+    // cooperative delivery; implementations must not block the executor.
+    fn signal(
+        &self,
+        signal: ExecutionSignal,
+    ) -> TransportFuture<'_, Result<SignalReply, Refusal>>;
 
     fn take_local_samples(
         &self,
@@ -408,8 +413,11 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
         Box::pin(self.execute(request, host, output, caller))
     }
 
-    fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, Refusal> {
-        Workflow::signal(self, signal)
+    fn signal(
+        &self,
+        signal: ExecutionSignal,
+    ) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
+        Box::pin(std::future::ready(Workflow::signal(self, signal)))
     }
 
     fn take_local_samples(
