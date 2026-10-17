@@ -51,6 +51,7 @@ TMPDIR = "{{config_root}}/target/tmp"
 
 [vars]
 platform = "{% if os() == 'windows' %}windows{% else %}linux{% endif %}"
+python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
 lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
 
@@ -84,8 +85,8 @@ depends = [
 description = "Format Python"
 usage = 'flag "--check"'
 run = [
-  "uv run --no-sync ruff format packages/dokime{% if usage.check %} --check{% endif %}",
-  "uv run --no-sync ruff format tools/python{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format packages/dokime{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -100,6 +101,7 @@ run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --option column_width=14
 
 [tasks."format:typescript"]
 description = "Format TypeScript"
+depends = ["prepare"]
 usage = 'flag "--check"'
 run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
 
@@ -111,7 +113,7 @@ depends = ["lint:rust", "lint:python", "lint:typescript"]
 
 [tasks."lint:python"]
 description = "Lint Python"
-run = ["uv run --no-sync ruff check packages/dokime", "uv run --no-sync ruff check tools/python"]
+run = ["{{vars.python}} ruff check packages/dokime", "{{vars.python}} ruff check tools/python"]
 
 [tasks."lint:rust"]
 description = "Lint Rust"
@@ -120,6 +122,7 @@ run = "cargo clippy --locked --workspace --all-targets -- -D warnings"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
+depends = ["prepare"]
 run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
@@ -130,10 +133,8 @@ run = [{ task = "check:rust" }, { task = "check:python" }, { task = "check:types
 
 [tasks."check:python"]
 description = "Check Python"
-run = [
-  "uv run --no-sync pyright --project packages/dokime/pyproject.toml",
-  "uv run --no-sync pyright --project tools/python/pyproject.toml",
-]
+depends = ["prepare"]
+run = ["{{vars.python}} pyright --project packages/dokime/pyproject.toml", "{{vars.python}} pyright --project tools/python/pyproject.toml"]
 
 [tasks."check:rust"]
 description = "Check Rust"
@@ -149,6 +150,7 @@ run = [
 
 [tasks."check:typescript"]
 description = "Check TypeScript"
+depends = ["prepare"]
 run = "pnpm --dir crates/dokime-gui run typecheck"
 
 # === Build === #
@@ -234,10 +236,7 @@ run = "{{vars.lane}} --profile {{usage.profile}} --category integration --langua
 [tasks."test:acceptance"]
 description = "Test Acceptance Layer"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "test:acceptance:rust --profile {{usage.profile}}" },
-  { task = "test:acceptance:python --profile {{usage.profile}}" },
-]
+run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
 
 [tasks."test:acceptance:python"]
 description = "Test Acceptance Python"
@@ -252,10 +251,7 @@ run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --languag
 [tasks."test:system"]
 description = "Test System Layer"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "test:system:rust --profile {{usage.profile}}" },
-  { task = "test:system:typescript --profile {{usage.profile}}" },
-]
+run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test:system:typescript --profile {{usage.profile}}" }]
 
 [tasks."test:system:rust"]
 description = "Test System Rust"

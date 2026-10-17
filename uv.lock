@@ -238,8 +238,22 @@ dependencies = [
     { name = "packaging" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "hatchling" },
+    { name = "pyright" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [{ name = "packaging", specifier = "==26.3" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hatchling", specifier = "==1.32.4" },
+    { name = "pyright", specifier = "==1.1.414" },
+    { name = "ruff", specifier = "==0.17.0" },
+]
 
 [[package]]
 name = "git-cliff"

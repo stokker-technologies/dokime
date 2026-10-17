@@ -4,6 +4,9 @@ version = "0.0.0"
 requires-python = ">=3.13,<3.16"
 dependencies = ["packaging==26.3"]
 
+[dependency-groups]
+dev = ["hatchling==1.32.4", "pyright==1.1.414", "ruff==0.17.0"]
+
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"

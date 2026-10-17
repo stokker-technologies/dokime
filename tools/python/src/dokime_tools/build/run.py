@@ -13,7 +13,8 @@
 
 `rust` captures the embedded report viewer, compiles the one workspace nextest archive with
 that report as its declared parent input, stages the product executables and packages the
-OBC plugin bundle from the archive's compiler output. `typescript` runs protoc-gen-es over the
+OBC plugin bundle from the archive's compiler output, and exports the locked Cargo source closure and
+starter wheelhouse for the generated-project story. `typescript` runs protoc-gen-es over the
 dokime-server contract export, verifies the tracked GUI client and captures the live frontend.
 `python` verifies the tracked client bindings and captures the client wheel. `stamp` binds every
 staged file under `dist/build/<platform>` to its original producer. Each step records its producers
@@ -24,7 +25,6 @@ under `target/build/<profile>/` so later steps never compile again.
 
 # Standard Library Imports
 import argparse
-import importlib.util
 import json
 import subprocess
 import sys
@@ -32,7 +32,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import frontend, outputs, wheel
+from dokime_tools.build import dependencies, frontend, outputs, wheel
 from dokime_tools.package import fixtures
 from dokime_tools.package.staging import clear_output, stage_verified
 from dokime_tools.prepare import bindings
@@ -51,9 +51,6 @@ STAGED = ROOT / "dist/build" / PLATFORM
 EXECUTABLES = ("dokime", "dokime-server", "cargo-dokime", "dokime-gui")
 STEPS = ("rust", "typescript", "python")
 
-# The Hatchling backend closure the offline, nonisolated wheel build imports.
-BACKEND = ("hatchling", "packaging", "pathspec", "pluggy", "trove_classifiers")
-
 # === Types === #
 
 # === Classes === #
@@ -70,7 +67,9 @@ def rust(profile: str) -> dict:
     selected = outputs.executables(ROOT, compiled, EXECUTABLES)
     files = stage_verified(ROOT, compiled, {path: binaries / path.name for path in selected.values()})
     packaged, plugins = fixtures.prepare(ROOT, compiled, tool=selected["cargo-dokime"], output=STAGED / "plugins")
-    return {"producers": [report, compiled, *packaged], "files": {**files, **plugins}}
+    # The Generated-Project Story Builds Offline From The Locked Source Closure And Wheelhouse.
+    exported = [dependencies.cargo(ROOT, compiled), dependencies.wheelhouse(ROOT, compiled)]
+    return {"producers": [report, compiled, *packaged, *exported], "files": {**files, **plugins}}
 
 
 def typescript(profile: str) -> dict:
@@ -90,7 +89,7 @@ def python(profile: str) -> dict:
     """Require Current Tracked Client Bindings And Capture The Wheel Offline."""
     compiled = _archive(profile)
     bindings.generate(ROOT / compiled["messages"]["path"], check=True)
-    built = wheel.capture(ROOT, compiled, backend())
+    built = wheel.capture(ROOT, compiled)
     destination = STAGED / "python"
     clear_output(destination)
     files = stage_verified(ROOT, built, outputs.exports(built, ROOT / "target/build" / profile / "python", destination))
@@ -106,17 +105,6 @@ def stamp(profile: str) -> dict:
         producers.extend(record["producers"])
         files.update(record["files"])
     return archive.stamp(ROOT, producers, files, {"platform": PLATFORM})
-
-
-def backend() -> list[Path]:
-    """The Installed Backend Packages The Root Environment Imports For The Wheel."""
-    paths = []
-    for name in BACKEND:
-        spec = importlib.util.find_spec(name)
-        if spec is None or not spec.submodule_search_locations:
-            raise ValueError(f"the locked root environment lacks the wheel backend package {name}")
-        paths.append(Path(next(iter(spec.submodule_search_locations))))
-    return paths
 
 
 def main(arguments: list[str] | None = None) -> int:

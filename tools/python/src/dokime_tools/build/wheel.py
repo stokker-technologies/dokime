@@ -13,7 +13,6 @@
 
 # Standard Library Imports
 import os
-from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
@@ -35,10 +34,10 @@ from dokime_tools.test import archive
 # === Public Functions === #
 
 
-def capture(root: Path, producer: dict, backend: Sequence[Path]) -> dict:
+def capture(root: Path, producer: dict) -> dict:
     """Use The Prepared Backend Offline And Preserve Original Wheel Exports.
 
-    `backend` names the installed build-system packages the nonisolated build imports.
+    The Hub capture binds the prepared build-system closure the package manifest declares.
     """
     root = root.resolve()
     profile = producer["profile"]
@@ -72,7 +71,7 @@ def capture(root: Path, producer: dict, backend: Sequence[Path]) -> dict:
             [command],
             [output],
             locks=[root / "uv.lock", root / "mise.lock"],
-            installed=list(backend),
+            backend=root / "packages/dokime/pyproject.toml",
             parents=[producer],
         )
     finally:
