@@ -25,7 +25,9 @@ use std::collections::BTreeMap;
 // Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
-use crate::execution::{HealthItem, HealthSeverity, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::records::EvidenceRecords;
 use crate::records::RecordContract;
 use crate::records::{ResourceRecord, ResourceRegistry, TestRecordSet};
@@ -83,7 +85,7 @@ pub struct RuntimeState {
         BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests:
         BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
-    pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, crate::execution::notes::NoteAdmission>,
+    pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     pub records: EvidenceRecords,
     pub resources: ResourceRegistry,
     pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,

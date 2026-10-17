@@ -158,7 +158,7 @@ pub(super) fn preflight(
     budget.source(&execution.output_parameters)?;
     budget.source(&state.run_parameters)?;
     // Registered presets can be applied to each of the two default documents.
-    let mut remaining = crate::execution::notes::NOTE_SCAN_LIMIT;
+    let mut remaining = dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
     for suite in state.suites.suites() {
         remaining = remaining
             .checked_sub(1usize.saturating_add(suite.suite.test_case_templates.len()))
@@ -191,7 +191,7 @@ pub(super) fn preflight(
             budget.source(health)?;
         }
     }
-    if state.prompt_requests.len() > crate::execution::notes::NOTE_SCAN_LIMIT {
+    if state.prompt_requests.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
         return Err(error("presentation prompt scan budget exceeded"));
     }
     for prompt in prompt_rows(state, scope) {
@@ -283,7 +283,7 @@ pub(super) fn select_cases<'a>(
     terminal: Option<&'a TestExecution>,
 ) -> Result<CaseSelection<'a>> {
     let members = cycle.test_executions.len();
-    if members > crate::execution::notes::NOTE_SCAN_LIMIT {
+    if members > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
         return Err(error("presentation case selection exceeds scan budget"));
     }
     let slots = members
@@ -394,7 +394,7 @@ pub(super) fn prompt_rows<'a>(
 pub(super) fn note_rows<'a>(
     state: &'a RuntimeState,
     scope: &'a RecordScope,
-) -> impl Iterator<Item = &'a crate::execution::OperatorNote> {
+) -> impl Iterator<Item = &'a dokime_domain::model::execution::notes::OperatorNote> {
     state
         .iter_notes()
         .filter(move |item| owns_annotation(&item.scope, scope))
@@ -403,7 +403,7 @@ pub(super) fn note_rows<'a>(
 pub(super) fn health_rows<'a>(
     state: &'a RuntimeState,
     scope: &'a RecordScope,
-) -> impl Iterator<Item = &'a crate::execution::HealthItem> {
+) -> impl Iterator<Item = &'a dokime_domain::model::execution::health::HealthItem> {
     state
         .iter_health_items()
         .filter(move |item| owns_annotation(&item.scope, scope))
@@ -527,7 +527,7 @@ fn cycle_budget(cycle: &CycleView) -> Result<Budget> {
         &cycle.continue_on_failure,
         &cycle.result,
     ))?;
-    if cycle.test_executions.len() > crate::execution::notes::NOTE_SCAN_LIMIT {
+    if cycle.test_executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
         return Err(error("presentation execution order exceeds scan budget"));
     }
     let cases = select_cases(cycle, None)?;

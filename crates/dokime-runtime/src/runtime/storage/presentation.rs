@@ -64,7 +64,7 @@ pub(super) fn capture_prepared(
         return Err(error("execution presentation belongs to another cycle"));
     }
 
-    if execution.test_case_id.as_str().len() > crate::execution::notes::NOTE_OWNER_BYTES {
+    if execution.test_case_id.as_str().len() > dokime_domain::model::execution::notes::NOTE_OWNER_BYTES {
         return Err(error("presentation case identity exceeds source budget"));
     }
     let cycle_scope = RecordScope::default().with_cycle(cycle.test_cycle_id.clone());

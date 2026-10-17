@@ -17,7 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{HealthItem, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use crate::records::ResourceRecord;
 use crate::traceability::TraceabilitySnapshot;

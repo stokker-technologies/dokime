@@ -111,7 +111,7 @@ struct NoteRow<'a> {
 #[derive(Serialize)]
 struct HealthRow<'a> {
     health_id: &'a str,
-    level: &'a crate::execution::HealthSeverity,
+    level: &'a dokime_domain::model::execution::health::HealthSeverity,
     title: &'a str,
     message: Option<&'a str>,
     details: BTreeMap<String, JsonValue>,

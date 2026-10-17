@@ -22,8 +22,10 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
-use dokime_runtime::execution::notes::NoteOwner;
-use dokime_runtime::execution::{HealthItem, HealthSeverity, OperatorNote};
+use dokime_domain::model::execution::notes::NoteOwner;
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::notes as contract;
 
@@ -93,9 +95,9 @@ pub(super) fn encode_owner(value: &NoteOwner) -> dokime_domain::model::notes::wi
 }
 
 pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
-    bounded_text(&note.message, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(&note.message, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
     if let Some(author) = &note.author {
-        bounded_text(author, dokime_runtime::execution::notes::NOTE_ACTOR_BYTES)?;
+        bounded_text(author, dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES)?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&note.scope)?)
@@ -104,9 +106,9 @@ pub(super) fn note_size(note: &OperatorNote) -> Result<usize, Status> {
 }
 
 pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
-    bounded_text(&item.message, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
+    bounded_text(&item.message, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
     if let Some(detail) = &item.detail {
-        bounded_text(detail, dokime_runtime::execution::notes::NOTE_TEXT_BYTES)?;
+        bounded_text(detail, dokime_domain::model::execution::notes::NOTE_TEXT_BYTES)?;
     }
     Ok(1024usize
         .saturating_add(scope_bytes(&item.scope)?)

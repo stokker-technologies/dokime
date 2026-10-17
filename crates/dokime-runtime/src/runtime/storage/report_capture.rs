@@ -256,10 +256,10 @@ impl ExecutionStorage {
             })
             .await?
             .value?;
-        context.health.push(crate::execution::HealthItem {
+        context.health.push(dokime_domain::model::execution::health::HealthItem {
             health_item_id: crate::model::identity::new_id::<dokime_domain::model::identity::HealthItemId>(),
             scope: inputs.execution.scope.clone(),
-            severity: crate::execution::HealthSeverity::Info,
+            severity: dokime_domain::model::execution::health::HealthSeverity::Info,
             message: "Report Evidence Provenance".into(),
             detail: Some(format!(
                 "Execution outcomes preserve recorded lifecycle state (capture {}). Chart samples use persisted evidence through storage cursor {}. Recorded verdicts may include outcomes whose raw samples were not retained at that boundary.",
@@ -268,10 +268,10 @@ impl ExecutionStorage {
             observed_at: captured_at.clone(),
         });
         for path in inputs.unavailable_outputs.iter() {
-            context.health.push(crate::execution::HealthItem {
+            context.health.push(dokime_domain::model::execution::health::HealthItem {
                 health_item_id: crate::model::identity::new_id::<dokime_domain::model::identity::HealthItemId>(),
                 scope: inputs.execution.scope.clone(),
-                severity: crate::execution::HealthSeverity::Warning,
+                severity: dokime_domain::model::execution::health::HealthSeverity::Warning,
                 message: format!("{path}: Unfinished At Stop — Not Included"),
                 detail: Some("The file was not finished at the persisted report boundary.".into()),
                 observed_at: captured_at.clone(),

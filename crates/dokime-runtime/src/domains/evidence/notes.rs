@@ -19,11 +19,14 @@ pub(crate) use crate::transactions::AddOperatorNote;
 
 // Local Imports
 use crate::RuntimeHandle;
-use crate::execution::OperatorNote;
-use crate::execution::notes::{
-    NOTE_ACTOR_BYTES, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_TEXT_BYTES, NoteAdmission,
-    NoteOwner, note_identity,
-};
+use dokime_domain::model::execution::notes::OperatorNote;
+use dokime_domain::model::execution::notes::NOTE_ACTOR_BYTES;
+use dokime_domain::model::execution::notes::NOTE_EDIT_NOT_AUTHOR;
+use dokime_domain::model::execution::notes::NOTE_OWNER_SEALED;
+use dokime_domain::model::execution::notes::NOTE_TEXT_BYTES;
+use dokime_domain::model::execution::notes::NoteAdmission;
+use dokime_domain::model::execution::notes::NoteOwner;
+use dokime_domain::model::execution::notes::note_identity;
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NoteId;

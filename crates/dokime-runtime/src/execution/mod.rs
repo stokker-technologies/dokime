@@ -15,10 +15,8 @@ pub mod document;
 pub mod environment;
 pub mod error;
 pub mod evidence;
-pub mod health;
 pub mod lease;
 pub mod log;
-pub mod notes;
 pub mod progress;
 pub mod request;
 pub mod result;
@@ -80,9 +78,7 @@ pub use document::DocumentHandle;
 pub use environment::Environment;
 pub use error::TerminationReason;
 pub use evidence::ExecutionEvidence;
-pub use health::{HealthItem, HealthSeverity};
 pub use lease::{Lease, LeaseHold, LeaseRelease};
-pub use notes::{OperatorNote, OperatorNoteRequest};
 pub use progress::{ExecutionProgress, Progress, ProgressSink};
 pub use result::{
     CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionMode, ExecutionStatus,

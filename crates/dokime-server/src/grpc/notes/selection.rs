@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_domain::model::execution::RecordScope;
-use dokime_runtime::execution::notes::NoteOwner;
+use dokime_domain::model::execution::notes::NoteOwner;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::notes as contract;
@@ -124,9 +124,9 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
-                .take(dokime_runtime::execution::notes::NOTE_SCAN_LIMIT + 1)
+                .take(dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT + 1)
                 .collect::<Vec<_>>();
-            if executions.len() > dokime_runtime::execution::notes::NOTE_SCAN_LIMIT {
+            if executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
                 return Err(Status::resource_exhausted(
                     "annotation owner scan budget exceeded",
                 ));

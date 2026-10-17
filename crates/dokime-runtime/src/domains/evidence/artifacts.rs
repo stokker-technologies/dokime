@@ -17,7 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::execution::{HealthSeverity, OperatorNote};
+use dokime_domain::model::execution::health::HealthSeverity;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, exports::cycle::ArtifactContent};
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::HealthItemId;
@@ -97,7 +98,7 @@ impl RuntimeHandle {
         message: String,
         detail: Option<String>,
     ) -> Result<()> {
-        self.record_health_item(crate::execution::HealthItem {
+        self.record_health_item(dokime_domain::model::execution::health::HealthItem {
             scope,
             severity,
             message,

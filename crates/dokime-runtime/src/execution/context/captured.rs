@@ -27,7 +27,10 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::document::DocumentDefinition;
-use crate::execution::{CycleView, HealthItem, OperatorNote, TestExecution};
+use crate::execution::CycleView;
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
+use crate::execution::TestExecution;
 use crate::installed_plugins::RuntimeAppearanceFrame;
 use crate::traceability::TraceabilitySnapshot;
 use crate::{runtime::Error, runtime::Result};

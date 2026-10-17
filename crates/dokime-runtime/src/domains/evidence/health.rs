@@ -18,7 +18,7 @@ pub(crate) use crate::transactions::RecordHealth;
 // Third Party Imports
 
 // Local Imports
-use crate::execution::HealthItem;
+use dokime_domain::model::execution::health::HealthItem;
 use crate::{runtime::Error, runtime::Result as RuntimeResult, RuntimeHandle};
 
 /* === Constants === */

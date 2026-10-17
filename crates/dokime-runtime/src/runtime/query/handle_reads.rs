@@ -17,7 +17,8 @@ use std::{collections::BTreeSet, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use crate::execution::{HealthItem, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::records::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use crate::{

@@ -17,7 +17,7 @@ pub(crate) mod state;
 mod summary;
 
 /* === Re-Exports === */
-pub use crate::execution::OperatorNoteRequest;
+pub use dokime_domain::model::execution::notes::OperatorNoteRequest;
 pub use crate::artifacts::ArtifactUploadInput;
 pub use publish::{PublishReceipt, PublishStatus, RecordPublishRequest};
 pub(crate) use publish::{retain_running_samples, validation_rejection};
@@ -31,7 +31,8 @@ pub use summary::{EvidenceSummaries, RecordSummary, TelemetryStreamSummary};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{HealthItem, OperatorNote};
+use dokime_domain::model::execution::health::HealthItem;
+use dokime_domain::model::execution::notes::OperatorNote;
 use crate::records::{RecordContract, RecordEntry};
 use crate::traceability::TraceabilitySnapshot;
 use crate::artifacts::ArtifactRecord;
