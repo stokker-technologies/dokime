@@ -21,6 +21,7 @@ pub(crate) mod queue;
 pub(crate) mod reboot;
 pub(crate) mod run;
 pub(crate) mod sampling;
+pub(crate) mod session;
 #[cfg(feature = "simulation")]
 pub(crate) mod simulation;
 pub(crate) mod smoke;
