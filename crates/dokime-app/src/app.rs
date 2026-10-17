@@ -132,7 +132,7 @@ pub fn simulate(
 ) -> Result<Simulated, harmos::runtime::Incompatible> {
     builder(
         origin,
-        Resources::new(crate::config::StorageSettings::default()),
+        Resources::new(crate::config::storage_defaults()),
     )
     .entropy_seed(seed)
     .simulate()

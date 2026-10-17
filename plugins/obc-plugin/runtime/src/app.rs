@@ -34,9 +34,6 @@ pub type Handle = harmos::runtime::Handle<ChargerBench>;
 
 pub type State = harmos::state::ManagedState<ChargerBench>;
 
-#[cfg(feature = "simulation")]
-pub type Simulated = harmos::simulation::SimulatedRuntime<ChargerBench>;
-
 /* === Structs === */
 #[derive(Clone, Copy, Debug)]
 pub struct ChargerBench;
@@ -65,14 +62,6 @@ pub fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn launch(origin: impl Into<Origin>) -> Result<Runtime, LaunchError> {
     Ok(builder(origin, ()).runtime().await?)
-}
-
-#[cfg(feature = "simulation")]
-pub fn simulate(
-    origin: impl Into<Origin>,
-    seed: u64,
-) -> Result<Simulated, harmos::runtime::Incompatible> {
-    builder(origin, ()).entropy_seed(seed).simulate()
 }
 
 /* === Private Functions === */

@@ -7,10 +7,6 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-[features]
-# Deterministic whole-app simulation, forwarded to the library that owns it.
-simulation = ["harmos/simulation"]
-
 [dependencies]
 # Git
 harmos = { workspace = true }
