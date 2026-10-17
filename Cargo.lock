@@ -2024,6 +2024,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.23.1",
+ "dokime",
  "dokime-client",
  "dokime-domain",
  "dokime-filesystem",
