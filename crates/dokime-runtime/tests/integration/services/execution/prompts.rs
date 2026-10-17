@@ -727,7 +727,7 @@ async fn answer_rules_commit() {
     use dokime_runtime::prompts::{FormPrompt, Prompt, TextPrompt};
     let root = tempdir().unwrap();
     let definition = FormPrompt::<BTreeMap<String, String>>::new("pair", "Confirm the entry")
-        .field(TextPrompt::new("first", "First").field())
+        .field(TextPrompt::new("first", "First").pattern("^[a-z]+$").field())
         .field(TextPrompt::new("second", "Second").field())
         .rule(
             BooleanExpression::new(Expression::binary(
@@ -740,21 +740,49 @@ async fn answer_rules_commit() {
         .definition();
     let mut invalid = definition.clone();
     invalid.rules[0].predicate = BooleanExpression::selector("undeclared").eq(true);
-    let domains = prompts([invalid]);
+    let mut invalid_pattern = definition.clone();
+    invalid_pattern.fields[0].validation.pattern = Some("[".into());
+    for rejected in [invalid, invalid_pattern.clone()] {
+        let invalid_root = tempdir().unwrap();
+        let invalid_config = config(invalid_root.path())
+            .with_installed_plugins([])
+            .with_declared_plugin("invalid.rules", "1.0.0", "Invalid rules", prompts([rejected]));
+        assert!(invalid_config.is_err());
+    }
     let invalid_root = tempdir().unwrap();
-    let invalid_config = config(invalid_root.path())
-        .with_installed_plugins([])
-        .with_declared_plugin("invalid.rules", "1.0.0", "Invalid rules", domains)
-        .unwrap();
-    assert!(
-        {
-            let runtime_config = invalid_config;
-            dokime_runtime::Runtime::start(runtime_config)
+    let invalid_config = config(invalid_root.path()).with_installed_plugins([
+        dokime_runtime::InstalledPlugin {
+            source: "invalid.pattern".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+            prompts: vec![invalid_pattern.clone()],
+            ..Default::default()
         }
-        .await
-        .is_err()
-    );
+    ]);
+    assert!(dokime_runtime::Runtime::start(invalid_config).await.is_err());
     let (mut owner, runtime) = started(question_config(root.path(), definition.clone())).await;
+    let mut invalid_suite = AskingChecks::definition();
+    invalid_suite.suite.test_case_templates[0].prompt_definitions = vec![invalid_pattern];
+    let rejected_catalog = runtime.set_suites(
+        "fixture.asking", dokime_runtime::definition::SuiteSet::new([invalid_suite]),
+    ).await.unwrap_err();
+    assert!(rejected_catalog.to_string().contains("invalid text pattern"));
+    assert_eq!(runtime.prompt_definitions().await, vec![definition.clone()]);
+    let invalid_initial = runtime.request_prompt(PromptRequest {
+        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
+        prompt_type: definition.prompt_type.clone(),
+        values: BTreeMap::from([("first".into(), Value::from("123"))]),
+        scope: RecordScope::default(),
+    }).await.unwrap_err();
+    assert_eq!(invalid_initial.code(), Some("validation_failed"));
+    assert!(matches!(&invalid_initial,
+        dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation{ message, issues, .. })
+            if message == "invalid question initial values"
+                && issues.iter().any(|issue| issue.path == "values.first"
+                    && issue.message == "text does not match the required pattern")
+    ));
+    assert!(runtime.pending_prompt_projection().await.is_empty());
+    assert!(runtime.prompt_request_records().await.unwrap().is_empty());
     let id = dokime_runtime::model::identity::new_id::<PromptId>();
     runtime
         .request_prompt(PromptRequest {
@@ -774,6 +802,23 @@ async fn answer_rules_commit() {
         .await
         .expect("runtime overview query succeeds")
         .revision;
+    let rejected_pattern = runtime.submit_prompt_response(
+        id.clone(), "submit".into(), "operator".into(),
+        BTreeMap::from([
+            ("first".into(), Value::from("123")),
+            ("second".into(), Value::from("123")),
+        ]), true,
+    ).await.unwrap_err();
+    assert_eq!(rejected_pattern.code(), Some("validation_failed"));
+    assert!(matches!(&rejected_pattern,
+        dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation{ message, issues, .. })
+            if message == "prompt response validation failed"
+                && issues.iter().any(|issue| issue.path == "values.first"
+                    && issue.message == "text does not match the required pattern")
+    ));
+    assert_eq!(runtime.runtime_overview().await.unwrap().revision, revision);
+    assert_eq!(runtime.pending_prompt_projection().await.len(), 1);
+    assert!(runtime.prompt_response_records().await.unwrap().is_empty());
     let bad = BTreeMap::from([
         ("first".into(), Value::from("one")),
         ("second".into(), Value::from("two")),
@@ -785,7 +830,7 @@ async fn answer_rules_commit() {
     assert_eq!(rejected.code(), Some("validation_failed"));
     assert!(matches!(
         &rejected,
-        dokime_runtime::runtime::Error::Validation { issues, .. }
+        dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation{ issues, .. })
             if issues.iter().any(|issue| issue.message == "Entries must match")
     ));
     assert_eq!(

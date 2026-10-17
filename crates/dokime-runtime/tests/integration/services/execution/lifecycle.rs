@@ -390,7 +390,7 @@ async fn rename_refuses_sealed() {
 
     // Once Sealed, Neither Subject Can Be Renamed
     let refused = |result: Result<String, dokime_runtime::runtime::Error>| match result {
-        Err(dokime_runtime::runtime::Error::Conflict { message, .. }) => message,
+        Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ message, .. })) => message,
         other => panic!("a sealed subject refuses the rename: {other:?}"),
     };
     let cycle = refused(
@@ -464,13 +464,13 @@ async fn rename_refuses_empty() {
             CommandContext::default(),
         )
         .await;
-    assert!(matches!(cycle, Err(dokime_runtime::runtime::Error::Validation { .. })));
+    assert!(matches!(cycle, Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation{ .. }))));
     let execution = runtime
         .rename_execution(execution, String::new(), CommandContext::default())
         .await;
     assert!(matches!(
         execution,
-        Err(dokime_runtime::runtime::Error::Validation { .. })
+        Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Validation{ .. }))
     ));
     let missing = runtime
         .rename_execution(
@@ -479,7 +479,7 @@ async fn rename_refuses_empty() {
             CommandContext::default(),
         )
         .await;
-    assert!(matches!(missing, Err(dokime_runtime::runtime::Error::NotFound { .. })));
+    assert!(matches!(missing, Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::NotFound{ .. }))));
 
     let after = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(after.metadata.label, before.metadata.label);

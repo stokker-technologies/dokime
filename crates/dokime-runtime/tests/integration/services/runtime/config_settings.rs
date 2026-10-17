@@ -60,7 +60,7 @@ async fn backend_policy_restart() {
     assert_eq!(saved.configured, policy);
     assert!(matches!(
         handle.update_storage_policy(0, policy.clone()).await,
-        Err(dokime_runtime::runtime::Error::Conflict { .. })
+        Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ .. }))
     ));
     let mut invalid = policy.clone();
     invalid.compaction_interval_ms = 0;

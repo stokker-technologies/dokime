@@ -49,7 +49,7 @@ pub async fn assert_late_answer_refused(runtime: &RuntimeHandle, id: &PromptId) 
         .await
         .unwrap_err();
     assert!(
-        matches!(error, dokime_runtime::runtime::Error::Conflict { .. }),
+        matches!(error, dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ .. })),
         "a late answer is a failed precondition, got {error:?}"
     );
 }

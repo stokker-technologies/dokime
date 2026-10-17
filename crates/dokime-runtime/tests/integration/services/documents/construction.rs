@@ -245,7 +245,7 @@ async fn current_cycle_state() {
         .err()
         .expect("later member must be refused");
     assert!(
-        matches!(error, dokime_runtime::runtime::Error::Conflict { ref code, .. } if code == "document_capture_incomplete")
+        matches!(error, dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ ref code, .. }) if code == "document_capture_incomplete")
     );
     let current = runtime
         .prepare_current_cycle_document(&cycle_id, &document_id)
