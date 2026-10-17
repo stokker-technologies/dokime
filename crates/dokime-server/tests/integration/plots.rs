@@ -205,7 +205,7 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
                 index / 1_000 % 60,
                 index % 1_000
             ));
-            let mut sample = TelemetrySample::new(id.clone(), index, at, "fixture");
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample
                 .values
                 .insert("progress".into(), Value::Number(index as f64));
@@ -215,7 +215,7 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
         })
         .collect();
     handle
-        .publish_telemetry_batch(TelemetryBatch::new(id.clone(), samples))
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples))
         .await
         .unwrap();
 }

@@ -64,7 +64,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 
 /* === Private Functions === */
 fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
-    let mut state = RuntimeState::default();
+    let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
     state.install_builtin_domains().unwrap();
     let transactions = (0..count)
         .map(|_| {
@@ -76,7 +76,7 @@ fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
                 )
                 .into_draft("benchmark.charger")
                 .into(),
-                dokime_runtime::core::Timestamp::now_utc(),
+                dokime_runtime::model::time::now_utc(),
             )
         })
         .collect();

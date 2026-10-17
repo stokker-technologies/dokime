@@ -63,7 +63,7 @@ fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
 
 fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
     let stream = Identifier::new("host.system").unwrap();
-    let mut sample = TelemetrySample::new(stream.clone(), 0, Timestamp::now_utc(), "fixture.host");
+    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, dokime_runtime::model::time::now_utc(), "fixture.host");
     sample.scope = scope;
     sample
         .values
@@ -71,7 +71,7 @@ fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
     sample
         .values
         .insert("cpu_load_percent".into(), Value::Number(12.5));
-    TelemetryBatch::new(stream, vec![sample])
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, vec![sample])
 }
 
 #[tokio::test]

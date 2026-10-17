@@ -474,7 +474,7 @@ async fn rename_refuses_empty() {
     ));
     let missing = runtime
         .rename_execution(
-            TestExecutionId::new(),
+            dokime_runtime::model::identity::new_id::<TestExecutionId>(),
             "Charger Soak".into(),
             CommandContext::default(),
         )

@@ -83,10 +83,9 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
     fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String> {
         self.reads.send_modify(|reads| *reads += 1);
         let identifier = Identifier::new(stream).expect("a fixture stream is addressable");
-        let mut sample = TelemetrySample::new(
-            identifier.clone(),
+        let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier.clone(),
             0,
-            Timestamp::now_utc(),
+            dokime_runtime::model::time::now_utc(),
             "counting-fixture",
         );
         let host_stream = dokime_host::HostTelemetryStream::try_from(stream)
@@ -102,7 +101,7 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
             dokime_contract::telemetry::host_telemetry_payload(host_stream, &sample.values)
                 .map_err(|error| error.to_string())?,
         );
-        Ok(Some(TelemetryBatch::new(identifier, vec![sample])))
+        Ok(Some(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier, vec![sample])))
     }
 }
 
@@ -284,11 +283,10 @@ async fn stored(handle: &dokime_runtime::RuntimeHandle) -> usize {
 }
 
 fn gateway_batch(rssi: f64) -> TelemetryBatch {
-    let mut sample = TelemetrySample::new(foreign_stream(), 0, Timestamp::now_utc(), "gateway");
+    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), foreign_stream(), 0, dokime_runtime::model::time::now_utc(), "gateway");
     sample.values.insert("rssi".to_owned(), Value::from(rssi));
 
-    TelemetryBatch::new(
-        foreign_stream(),
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), foreign_stream(),
         vec![sample.with_storage_payload(harmos::Message::encode_to_vec(&GatewayRow { rssi }))],
     )
 }

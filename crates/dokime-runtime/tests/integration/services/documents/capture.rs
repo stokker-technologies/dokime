@@ -51,7 +51,7 @@ async fn notes_until_seal() {
     let execution = &running.test_executions[0];
     let request = CreateNoteRequest {
         epoch: handle.process_epoch(),
-        mutation_id: CommandId::new(),
+        mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         owner: NoteOwner::Execution {
             cycle_id: id.clone(),
             execution_id: execution.test_execution_id.clone(),
@@ -92,7 +92,7 @@ async fn notes_until_seal() {
 
     let cycle_note = handle
         .create_current_note(CreateNoteRequest {
-            mutation_id: CommandId::new(),
+            mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
             owner: NoteOwner::Cycle {
                 cycle_id: id.clone(),
             },
@@ -128,7 +128,7 @@ async fn notes_until_seal() {
     );
 
     let late = CreateNoteRequest {
-        mutation_id: CommandId::new(),
+        mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         message: "Filed after the seal.".into(),
         ..request
     };

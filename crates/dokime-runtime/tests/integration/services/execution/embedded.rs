@@ -78,8 +78,8 @@ impl Runnable for Idle {
         Box::pin(async { Err(dokime_runtime::Refusal::of("the probe runs nothing")) })
     }
 
-    fn signal(&self, _: ExecutionSignal) -> Result<SignalReply, dokime_runtime::Refusal> {
-        Err(dokime_runtime::Refusal::of("the probe runs nothing"))
+    fn signal(&self, _: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, dokime_runtime::Refusal>> {
+        Box::pin(std::future::ready(Err(dokime_runtime::Refusal::of("the probe runs nothing"))))
     }
 
     fn take_local_samples(

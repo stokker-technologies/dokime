@@ -113,7 +113,7 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         )
     };
     let template = TestCaseTemplate {
-        test_case_template_id: TemplateId::new(),
+        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(),
         tags: vec![],
         parameter_groups: vec![],
@@ -178,7 +178,9 @@ pub async fn registered_cycle(
         .suite;
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        ..Default::default()
+        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
     };
     let cases = suite
         .test_case_templates

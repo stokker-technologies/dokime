@@ -89,10 +89,10 @@ fn materialize_cases(
     planned.replace_cycle(cycle).unwrap();
     let append = AppendCycle {
         test_cycle_id: cycle_id.clone(),
-        admission_identifier: CommandId::new(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
         cases,
         settings: BTreeMap::from([("fixture.plugin".into(), settings)]),
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&planned)?;
     append.apply(&mut planned);
@@ -101,7 +101,7 @@ fn materialize_cases(
 }
 
 fn admitted() -> (RuntimeState, TestCycleId) {
-    let mut state = RuntimeState::default();
+    let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
     let template: TestCaseTemplate = serde_json::from_value(serde_json::json!({
         "test_case_template_id": TemplateId::from_seed("snapshot.template"),
         "metadata": metadata("snapshot.template"), "parameters": [],
@@ -129,7 +129,7 @@ fn admitted() -> (RuntimeState, TestCycleId) {
         .suites
         .set("fixture.plugin", SuiteSet::new([definition]))
         .unwrap();
-    let now = Timestamp::now_utc();
+    let now = dokime_runtime::model::time::now_utc();
     let id = TestCycleId::from_seed("snapshot.cycle");
     create_cycle(&mut state, &id, "snapshot.cycle");
     state.plugin_owners.insert(
@@ -173,10 +173,10 @@ fn admitted() -> (RuntimeState, TestCycleId) {
 
 fn planned() -> (RuntimeState, TestCycleId) {
     let (mut state, existing) = admitted();
-    let id = TestCycleId::new();
+    let id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     create_cycle(&mut state, &id, "queued.cycle");
     let append = AppendCycle {
-        admission_identifier: CommandId::new(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
         test_cycle_id: id.clone(),
         cases: state
             .cycle_view(&existing)
@@ -185,7 +185,7 @@ fn planned() -> (RuntimeState, TestCycleId) {
             .cloned()
             .collect(),
         settings: BTreeMap::new(),
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&state).unwrap();
     append.apply(&mut state);
@@ -199,7 +199,7 @@ fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
             continue_on_failure: false,
         },
         test_cycle_id: id.clone(),
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     create.check(state).unwrap();
     create.apply(state);
@@ -212,8 +212,8 @@ fn queued() -> (RuntimeState, TestCycleId, CommandId) {
         test_cycle_id: cycle_id.clone(),
         test_execution_id: None,
         context: Default::default(),
-        command_id: CommandId::new(),
-        accepted_at: Timestamp::now_utc(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
@@ -226,14 +226,14 @@ fn dispatch_request(state: &mut RuntimeState, id: &CommandId) {
         let transaction = dokime_runtime::transactions::PrepareAttempt {
             request_id: id.clone(),
             ordinal: state.run_requests[id].summary.prepared,
-            at: Timestamp::now_utc(),
+            at: dokime_runtime::model::time::now_utc(),
         };
         transaction.check(state).unwrap();
         transaction.apply(state);
     }
     let transaction = dokime_runtime::transactions::DispatchProvider {
         request_id: id.clone(),
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     transaction.check(state).unwrap();
     transaction.apply(state);
@@ -253,7 +253,7 @@ fn provider_outcome(execution: &TestExecution) -> dokime_runtime::transport::Pro
 fn settle_request(state: &mut RuntimeState, id: &CommandId) {
     let settle = dokime_runtime::transactions::SettleRun {
         request_id: id.clone(),
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     settle.check(state).unwrap();
     settle.apply(state);
@@ -273,7 +273,7 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
     dokime_runtime::traceability::execution_traceability(
         &state.cycle_view(cycle).unwrap(),
         execution,
-        Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
     )
     .into_iter()
     .flat_map(|snapshot| snapshot.entries)
@@ -331,7 +331,7 @@ fn reruns_invalidate_steps() {
     let receipt = |position: usize| RecordStepAttempt {
         scope: scope.clone(),
         attempt: TestStepAttempt {
-            attempt_id: StepAttemptId::new(),
+            attempt_id: dokime_runtime::model::identity::new_id::<StepAttemptId>(),
             step_id: steps[position].clone(),
             started_at: Timestamp::new("2026-10-05T09:00:00Z"),
             finished_at: Some(Timestamp::new("2026-10-05T09:00:01Z")),
@@ -484,7 +484,7 @@ fn step_attempt_rewrites() {
     );
     let captured_id = dokime_runtime::core::RecordId::from_seed("admitted-at-first-attempt");
     let mut admitted = dokime_runtime::records::Record::new(
-        Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         Identifier::new("fixture.output").unwrap(),
         1,
         "fixture",
@@ -501,7 +501,7 @@ fn step_attempt_rewrites() {
     begin.check(&state).unwrap();
     begin.apply(&mut state);
     let mut other = begin.clone();
-    other.start.attempt_id = StepAttemptId::new();
+    other.start.attempt_id = dokime_runtime::model::identity::new_id::<StepAttemptId>();
     assert!(other.check(&state).is_err());
     let mut mismatched = record.clone();
     mismatched.attempt.started_at = Timestamp::new("2026-10-05T09:00:00.100Z");
@@ -596,11 +596,11 @@ fn append_checks_execution() {
         .unwrap()
         .clone();
     let append = AppendCycle {
-        admission_identifier: dokime_runtime::core::CommandId::new(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original.clone()],
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     for lifecycle in [
         CycleStatus::Running,
@@ -654,11 +654,11 @@ fn append_admissions_identity() {
         .clone();
     state.cycles.get_mut(&cycle_id).unwrap().lifecycle = CycleStatus::Stopped;
     let mut append = AppendCycle {
-        admission_identifier: dokime_runtime::core::CommandId::new(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original],
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&state).unwrap();
     append.apply(&mut state);
@@ -671,7 +671,7 @@ fn append_admissions_identity() {
         .unwrap();
     let removed = state.executions.remove(&removed_id).unwrap();
 
-    append.admission_identifier = dokime_runtime::core::CommandId::new();
+    append.admission_identifier = dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>();
     append.check(&state).unwrap();
     append.apply(&mut state);
     let cycle = state.cycle_view(&cycle_id).unwrap();
@@ -697,7 +697,7 @@ fn repeated_case_order() {
         settings: BTreeMap::new(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![case.clone(), case.clone()],
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&state).unwrap();
     append.apply(&mut state);
@@ -801,8 +801,8 @@ fn admission_freezes_them() {
         test_cycle_id: cycle_id.clone(),
         test_execution_id: None,
         context: Default::default(),
-        command_id: CommandId::new(),
-        accepted_at: Timestamp::now_utc(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
@@ -814,7 +814,7 @@ fn admission_freezes_them() {
     let prepare = dokime_runtime::transactions::PrepareAttempt {
         request_id: run.command_id.clone(),
         ordinal: 0,
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     assert!(
         prepare
@@ -906,7 +906,7 @@ fn recovery_completed_outcomes() {
     let (mut state, cycle_id) = admitted();
     let mut cycle = state.cycle_view(&cycle_id).unwrap();
     let mut completed = cycle.test_executions[0].clone();
-    completed.test_execution_id = dokime_runtime::core::TestExecutionId::new();
+    completed.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     completed.status = ExecutionStatus::Passed;
     completed.finished_at = Some(cycle.updated_at.clone());
     completed.result = Some(ResultSummary {
@@ -920,8 +920,8 @@ fn recovery_completed_outcomes() {
     cycle.test_executions[0].status = ExecutionStatus::Running;
     state.replace_cycle(cycle).unwrap();
     MarkRuntimeStarted {
-        record_namespace: dokime_runtime::core::SessionId::new(),
-        session_id: dokime_runtime::core::SessionId::new(),
+        record_namespace: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
     }
     .apply(&mut state);
     assert_eq!(
@@ -931,12 +931,12 @@ fn recovery_completed_outcomes() {
     let invalidation = InvalidateExecutions {
         previous: identity("old"),
         current: Some(identity("new")),
-        invalidated_at: Timestamp::now_utc(),
+        invalidated_at: dokime_runtime::model::time::now_utc(),
     };
     invalidation.check(&state).unwrap();
     invalidation.apply(&mut state);
     RecoverInterruptedCycles {
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     let execution = &state.cycle_view(&cycle_id).unwrap().test_executions[0];
@@ -963,7 +963,7 @@ fn recovery_completed_outcomes() {
         target,
         started_execution_ids: vec![execution.test_execution_id.clone()],
         outcome: Ok(provider_outcome(&execution)),
-        finished_at: Timestamp::now_utc(),
+        finished_at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     assert_eq!(
@@ -1001,7 +1001,7 @@ fn execution_requires_snapshot() {
     let unchanged = InvalidateExecutions {
         previous: identity("old"),
         current: Some(identity("old")),
-        invalidated_at: Timestamp::now_utc(),
+        invalidated_at: dokime_runtime::model::time::now_utc(),
     };
     assert!(unchanged.check(&state).is_err());
 }
@@ -1047,7 +1047,7 @@ fn admission_validates_parameters() {
         test_execution_id: None,
         context: Default::default(),
         command_id: CommandId::from_seed("validation.run"),
-        accepted_at: Timestamp::now_utc(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     // Each refused write is measured against the same admitted plan: a null or
@@ -1063,7 +1063,7 @@ fn admission_validates_parameters() {
     ] {
         let mut candidate = state.clone();
         let mut case = prototype.clone();
-        case.test_case_id = CaseId::new();
+        case.test_case_id = dokime_runtime::model::identity::new_id::<CaseId>();
         let parameters = &mut case.parameters;
         match value {
             Some(value) => parameters.insert(key.to_owned(), value),
@@ -1079,7 +1079,7 @@ fn admission_validates_parameters() {
         );
     }
     let mut case = prototype;
-    case.test_case_id = CaseId::new();
+    case.test_case_id = dokime_runtime::model::identity::new_id::<CaseId>();
     case.parameters.insert("voltage".into(), Value::from(12.0));
     materialize_cases(&mut state, &cycle_id, vec![case], BTreeMap::new()).unwrap();
     run.check(&state).unwrap();
@@ -1113,7 +1113,7 @@ fn terminal_traceability_history() {
         target,
         started_execution_ids: vec![first.test_execution_id.clone()],
         outcome: Ok(provider_outcome(&first)),
-        finished_at: Timestamp::now_utc(),
+        finished_at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     settle_request(&mut state, &CommandId::from_seed("snapshot.run"));
@@ -1156,9 +1156,9 @@ fn terminal_traceability_history() {
         test_cycle_id: cycle_id.clone(),
         action: dokime_runtime::transactions::CycleResetAction::Rerun {
             test_case_id: completed.test_case_id.clone(),
-            execution_id: dokime_runtime::core::TestExecutionId::new(),
+            execution_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>(),
         },
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     // Later cycle metadata must not rewrite the previous execution's evidence.
@@ -1175,7 +1175,7 @@ fn terminal_traceability_history() {
         ),
         context: Default::default(),
         command_id: CommandId::from_seed("snapshot.rerun"),
-        accepted_at: Timestamp::now_utc(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     }
     .apply(&mut state);
@@ -1213,7 +1213,7 @@ fn terminal_traceability_history() {
             message: "failed".into(),
             detail: None,
         }),
-        finished_at: Timestamp::now_utc(),
+        finished_at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     assert_eq!(
@@ -1247,14 +1247,14 @@ fn large_request_fenced() {
         })
         .collect();
     materialize_cases(&mut state, &cycle_id, cases, BTreeMap::new()).unwrap();
-    let id = CommandId::new();
+    let id = dokime_runtime::model::identity::new_id::<CommandId>();
     let run = RunProvider {
         mode: Default::default(),
         test_cycle_id: cycle_id.clone(),
         test_execution_id: None,
         context: Default::default(),
         command_id: id.clone(),
-        accepted_at: Timestamp::now_utc(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
@@ -1270,7 +1270,7 @@ fn large_request_fenced() {
         let prepare = PrepareAttempt {
             request_id: id.clone(),
             ordinal,
-            at: Timestamp::now_utc(),
+            at: dokime_runtime::model::time::now_utc(),
         };
         prepare.check(&state).unwrap();
         let count = state.record_count;
@@ -1290,14 +1290,14 @@ fn large_request_fenced() {
             ControlCycle {
                 test_cycle_id: cycle_id.clone(),
                 action: CycleControlAction::Pause,
-                occurred_at: Timestamp::now_utc(),
+                occurred_at: dokime_runtime::model::time::now_utc(),
             }
             .apply(&mut state);
             assert!(next.check(&state).is_err());
             ControlCycle {
                 test_cycle_id: cycle_id.clone(),
                 action: CycleControlAction::Resume,
-                occurred_at: Timestamp::now_utc(),
+                occurred_at: dokime_runtime::model::time::now_utc(),
             }
             .apply(&mut state);
             assert!(next.check(&state).is_ok());
@@ -1321,13 +1321,13 @@ fn large_request_fenced() {
     );
     let dispatch = dokime_runtime::transactions::DispatchProvider {
         request_id: id.clone(),
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     dispatch.check(&state).unwrap();
     ControlCycle {
         test_cycle_id: cycle_id.clone(),
         action: CycleControlAction::Stop,
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     assert!(dispatch.check(&state).is_err());
@@ -1347,7 +1347,7 @@ fn large_request_fenced() {
                 "cancel",
                 "stopped before dispatch",
             )),
-            finished_at: Timestamp::now_utc(),
+            finished_at: dokime_runtime::model::time::now_utc(),
         };
         finish.check(&state).unwrap();
         let before = state.record_count;
@@ -1390,8 +1390,8 @@ fn copied_cycle_reusing() {
     let run_parameters = state.run_parameters.clone();
     let copy = dokime_runtime::transactions::CopyCycle {
         source_cycle_id: source_id.clone(),
-        test_cycle_id: TestCycleId::new(),
-        occurred_at: Timestamp::now_utc(),
+        test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     copy.check(&state).unwrap();
     copy.apply(&mut state);
@@ -1446,8 +1446,8 @@ fn copied_cycle_reusing() {
     // that is gone are each refused by `check`.
     let retry = dokime_runtime::transactions::CopyCycle {
         source_cycle_id: source_id.clone(),
-        test_cycle_id: TestCycleId::new(),
-        occurred_at: Timestamp::now_utc(),
+        test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     state.cycles.get_mut(&source_id).unwrap().metadata.label = "x".repeat(8 * 1024 * 1024);
     assert!(retry.check(&state).unwrap_err().contains("source budget"));
@@ -1482,7 +1482,7 @@ fn copied_cycle_reusing() {
 fn recovery_requires_request() {
     let (mut state, cycle_id) = admitted();
     let before = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
-    let at = Timestamp::now_utc();
+    let at = dokime_runtime::model::time::now_utc();
     RecoverInterruptedCycles { at: at.clone() }.apply(&mut state);
     let sealed = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     assert_eq!(sealed.status, ExecutionStatus::Interrupted);
@@ -1502,18 +1502,18 @@ fn recovery_requires_request() {
         test_execution_id: Some(sealed.test_execution_id.clone()),
         context: Default::default(),
         command_id: CommandId::from_seed("recovery.fresh"),
-        accepted_at: Timestamp::now_utc(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     assert!(run.check(&state).is_err());
-    let execution_id = dokime_runtime::core::TestExecutionId::new();
+    let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     let reset = dokime_runtime::transactions::ResetCycle {
         test_cycle_id: cycle_id.clone(),
         action: dokime_runtime::transactions::CycleResetAction::Rerun {
             test_case_id: sealed.test_case_id.clone(),
             execution_id: execution_id.clone(),
         },
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     reset.check(&state).unwrap();
     reset.apply(&mut state);
@@ -1532,7 +1532,7 @@ fn recovery_keeps_intent() {
     use dokime_runtime::transactions::provider::request::RunPhase;
 
     let (mut state, cycle_id) = admitted();
-    let completed_at = Timestamp::now_utc();
+    let completed_at = dokime_runtime::model::time::now_utc();
     let request = state.run_requests.values_mut().next().unwrap();
     request.summary.phase = RunPhase::Finishing;
     request.completion_at = Some(completed_at.clone());
@@ -1555,7 +1555,7 @@ fn recovery_keeps_intent() {
         .insert(cycle_id.clone(), intent.clone());
 
     RecoverInterruptedCycles {
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     }
     .apply(&mut state);
     assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Stopped);
@@ -1583,7 +1583,7 @@ fn recovery_seals_receipts() {
         request.summary.paused = true;
         request.summary.stop_requested = true;
         let before = request.clone();
-        let at = Timestamp::now_utc();
+        let at = dokime_runtime::model::time::now_utc();
         RecoverInterruptedCycles { at: at.clone() }.apply(&mut state);
         let after = state.run_requests.values().next().unwrap().clone();
         if phase.terminal() {
@@ -1604,7 +1604,7 @@ fn recovery_seals_receipts() {
         }
 
         RecoverInterruptedCycles {
-            at: Timestamp::now_utc(),
+            at: dokime_runtime::model::time::now_utc(),
         }
         .apply(&mut state);
         assert_eq!(state.run_requests.values().next().unwrap(), &after);
@@ -1616,7 +1616,7 @@ fn copied_cycle_membership() {
     let (mut state, source_id) = admitted();
     let mut source = state.cycle_view(&source_id).unwrap();
     let mut repeated = source.test_executions[0].clone();
-    repeated.test_execution_id = dokime_runtime::core::TestExecutionId::new();
+    repeated.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     repeated.scope.test_execution_id = Some(repeated.test_execution_id.clone());
     source.test_executions.push(repeated);
     let originals = source.test_executions.clone();
@@ -1624,8 +1624,8 @@ fn copied_cycle_membership() {
     // Cycle-level presentation is not an authority for copied execution inputs.
     let copy = dokime_runtime::transactions::CopyCycle {
         source_cycle_id: source_id,
-        test_cycle_id: TestCycleId::new(),
-        occurred_at: Timestamp::now_utc(),
+        test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     copy.check(&state).unwrap();
     copy.apply(&mut state);
@@ -1654,7 +1654,7 @@ fn copied_cycle_membership() {
 #[test]
 fn cycle_admission_plans() {
     let (mut state, existing) = admitted();
-    let id = TestCycleId::new();
+    let id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     create_cycle(&mut state, &id, "explicit.empty");
     let created = state.cycle_view(&id).unwrap();
     assert_eq!(created.lifecycle, CycleStatus::Ready);
@@ -1677,14 +1677,14 @@ fn cycle_admission_provenance() {
         .next()
         .unwrap()
         .clone();
-    let id = TestCycleId::new();
+    let id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     create_cycle(&mut state, &id, "explicit.provenance");
     let mut append = AppendCycle {
-        admission_identifier: CommandId::new(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
         test_cycle_id: id,
         cases: vec![case.clone()],
         settings: BTreeMap::new(),
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     append.check(&state).unwrap();
     append.cases[0].suite = None;
@@ -1704,11 +1704,11 @@ fn request_queues_evidence() {
     let execution_id = execution.test_execution_id.clone();
     assert_eq!(execution.status, ExecutionStatus::Skipped);
     let note = dokime_runtime::execution::OperatorNote {
-        note_id: dokime_runtime::core::NoteId::new(),
+        note_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::NoteId>(),
         scope: execution.scope.clone(),
         author: None,
         message: "Admitted after queuing".into(),
-        created_at: Timestamp::now_utc(),
+        created_at: dokime_runtime::model::time::now_utc(),
     };
     execution.records.push_note(note.clone());
     execution
@@ -1727,7 +1727,7 @@ fn request_queues_evidence() {
     let prepare = dokime_runtime::transactions::PrepareAttempt {
         request_id: request_id.clone(),
         ordinal: 0,
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     prepare.check(&state).unwrap();
     prepare.apply(&mut state);
@@ -1754,7 +1754,7 @@ fn preparation_refuses_execution() {
     let prepare = dokime_runtime::transactions::PrepareAttempt {
         request_id: request_id.clone(),
         ordinal: 0,
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     for status in [ExecutionStatus::Invalidated, ExecutionStatus::Running] {
         state
@@ -1774,7 +1774,7 @@ fn preparation_refuses_execution() {
         .get_mut(&state.cycles[&cycle_id].execution_ids[0])
         .unwrap();
     execution.status = ExecutionStatus::Skipped;
-    execution.finished_at = Some(Timestamp::now_utc());
+    execution.finished_at = Some(dokime_runtime::model::time::now_utc());
     assert!(
         prepare
             .check(&state)
@@ -1809,11 +1809,11 @@ fn execution_cycle_fenced() {
         .executions
         .get_mut(&state.cycles[&cycle_id].execution_ids[0])
         .unwrap()
-        .test_cycle_id = TestCycleId::new();
+        .test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let prepare = dokime_runtime::transactions::PrepareAttempt {
         request_id: request_id.clone(),
         ordinal: 0,
-        at: Timestamp::now_utc(),
+        at: dokime_runtime::model::time::now_utc(),
     };
     assert!(prepare.check(&state).unwrap_err().contains("another cycle"));
     assert_eq!(state.run_requests[&request_id].summary.prepared, 0);
@@ -1828,14 +1828,14 @@ fn request_admission_owner() {
         .executions
         .get_mut(&state.cycles[&cycle_id].execution_ids[0])
         .unwrap()
-        .test_cycle_id = TestCycleId::new();
+        .test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let run = RunProvider {
         mode: Default::default(),
         test_cycle_id: cycle_id,
         test_execution_id: None,
         context: Default::default(),
-        command_id: CommandId::new(),
-        accepted_at: Timestamp::now_utc(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     assert!(run.check(&state).unwrap_err().contains("another cycle"));
@@ -1847,7 +1847,7 @@ fn execution_selection_attempts() {
     let (mut state, cycle_id) = planned();
     let first = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     let mut second = first.clone();
-    second.test_execution_id = dokime_runtime::core::TestExecutionId::new();
+    second.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     second.scope = second
         .scope
         .with_test_execution(second.test_execution_id.clone());
@@ -1860,8 +1860,8 @@ fn execution_selection_attempts() {
         test_cycle_id: cycle_id.clone(),
         test_execution_id: Some(selected.clone()),
         context: Default::default(),
-        command_id: CommandId::new(),
-        accepted_at: Timestamp::now_utc(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
         plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
@@ -1878,7 +1878,7 @@ fn execution_selection_attempts() {
     let mut control = dokime_runtime::transactions::ControlExecution {
         test_execution_id: first.test_execution_id.clone(),
         action: dokime_runtime::transactions::CycleControlAction::Pause,
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     assert!(control.check(&state).is_err());
     assert!(
@@ -1911,7 +1911,7 @@ fn execution_selection_attempts() {
             "test",
             "selected execution failed",
         )),
-        finished_at: Timestamp::now_utc(),
+        finished_at: dokime_runtime::model::time::now_utc(),
     };
     finish.check(&state).unwrap();
     finish.apply(&mut state);
@@ -1922,7 +1922,7 @@ fn execution_selection_attempts() {
     assert!(dokime_runtime::runtime::query::execution_controls(&state, &selected).is_none());
     assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Ready);
     assert_eq!(state.run_requests[&run.command_id].summary.finished, 1);
-    run.command_id = CommandId::new();
+    run.command_id = dokime_runtime::model::identity::new_id::<CommandId>();
     assert!(
         run.check(&state).is_err(),
         "finished execution cannot reopen"
@@ -1944,7 +1944,7 @@ fn execution_selection_attempts() {
         outcome: Ok(provider_outcome(
             &state.executions[&first.test_execution_id],
         )),
-        finished_at: Timestamp::now_utc(),
+        finished_at: dokime_runtime::model::time::now_utc(),
     };
     finish.check(&state).unwrap();
     finish.apply(&mut state);
@@ -1965,10 +1965,10 @@ fn execution_controls_requests() {
     let mut control = dokime_runtime::transactions::ControlExecution {
         test_execution_id: id.clone(),
         action: dokime_runtime::transactions::CycleControlAction::Stop,
-        occurred_at: Timestamp::now_utc(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
     };
     let mut sibling = state.executions[&id].clone();
-    sibling.test_execution_id = dokime_runtime::core::TestExecutionId::new();
+    sibling.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     sibling.scope = sibling
         .scope
         .with_test_execution(sibling.test_execution_id.clone());
@@ -2109,7 +2109,7 @@ fn canonical_execution_recovery() {
         .executions
         .get_mut(&execution_id)
         .unwrap()
-        .test_cycle_id = TestCycleId::new();
+        .test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     assert!(
         foreign
             .validate_execution_ownership()
@@ -2138,7 +2138,7 @@ fn canonical_execution_recovery() {
         .executions
         .get_mut(&execution_id)
         .unwrap()
-        .test_execution_id = dokime_runtime::core::TestExecutionId::new();
+        .test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
     assert!(
         wrong_key
             .validate_execution_ownership()
@@ -2148,7 +2148,7 @@ fn canonical_execution_recovery() {
     assert_invalid_snapshot(&wrong_key, "canonical key");
 
     let mut wrong_cycle = restored.clone();
-    wrong_cycle.cycles.get_mut(&cycle_id).unwrap().test_cycle_id = TestCycleId::new();
+    wrong_cycle.cycles.get_mut(&cycle_id).unwrap().test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     assert_invalid_snapshot(&wrong_cycle, "cycle identity");
 }
 
@@ -2166,7 +2166,7 @@ fn cycle_projection_atomic() {
     projection.test_executions[0].status = ExecutionStatus::Failed;
     assert_eq!(state.cycle_view(&cycle_id).unwrap(), original);
 
-    projection.test_executions[0].test_cycle_id = TestCycleId::new();
+    projection.test_executions[0].test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let before = state.clone();
     assert!(state.replace_cycle(projection).is_err());
     assert_eq!(state, before);

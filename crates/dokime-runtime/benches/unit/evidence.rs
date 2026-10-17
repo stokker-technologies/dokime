@@ -85,7 +85,7 @@ fn records(count: u64) -> Vec<RecordEntry> {
             let mut record = RecordEntry::from_record(
                 index + 1,
                 Record::new(
-                    Timestamp::now_utc(),
+                    dokime_runtime::model::time::now_utc(),
                     identifier("bench.event"),
                     1,
                     if index % 2 == 0 { "bench" } else { "other" },
@@ -104,7 +104,7 @@ fn telemetry_samples(count: u64, stream: &str) -> Vec<TelemetrySample> {
     (0..count)
         .map(|index| {
             let mut sample =
-                TelemetrySample::new(identifier(stream), index + 1, Timestamp::now_utc(), "bench");
+                TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier(stream), index + 1, dokime_runtime::model::time::now_utc(), "bench");
             sample
                 .values
                 .insert("value".to_owned(), Value::Number(index as f64));

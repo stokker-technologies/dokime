@@ -572,7 +572,7 @@ async fn opened(
 
 fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
     let mut filed = dokime_runtime::records::Record::new(
-        dokime_runtime::core::Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         <UnitConnected as dokime_runtime::records::DeclaredRecord>::record_type(),
         1,
         "gateway",

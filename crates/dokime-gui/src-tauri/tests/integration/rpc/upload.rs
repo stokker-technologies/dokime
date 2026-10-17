@@ -157,7 +157,7 @@ impl ScopedFixture {
         .unwrap();
         let handle = runtime.handle();
         let template = dokime_runtime::definition::TestCaseTemplate {
-            test_case_template_id: dokime_runtime::core::TemplateId::new(),
+            test_case_template_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],

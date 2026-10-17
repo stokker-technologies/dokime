@@ -605,7 +605,7 @@ async fn ask_inspection(
 ) -> PromptId {
     let execution = &cycle.test_executions[index];
     let request = PromptRequest {
-        prompt_id: PromptId::new(),
+        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
         prompt_type: Identifier::new("test.prompt.inspect").unwrap(),
         values: BTreeMap::new(),
         scope: RecordScope::default()
@@ -644,7 +644,7 @@ fn prompt_definition() -> dokime_runtime::prompts::PromptDefinition {
 
 fn prompt_request() -> PromptRequest {
     PromptRequest {
-        prompt_id: PromptId::new(),
+        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
         prompt_type: Identifier::new("test.prompt.confirm").unwrap(),
         values: BTreeMap::new(),
         scope: RecordScope::default(),
@@ -707,7 +707,7 @@ async fn requests_refuses_scopes() {
         assert!(runtime.request_prompt(prompt).await.is_err());
     }
     let mut prompt = prompt_request();
-    prompt.scope.test_execution_id = Some(dokime_runtime::core::TestExecutionId::new());
+    prompt.scope.test_execution_id = Some(dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>());
     assert_eq!(
         runtime.request_prompt(prompt).await.unwrap_err().code(),
         Some("prompt_scope_invalid")
@@ -750,7 +750,7 @@ async fn answer_rules_commit() {
         .is_err()
     );
     let (mut owner, runtime) = started(question_config(root.path(), definition.clone())).await;
-    let id = PromptId::new();
+    let id = dokime_runtime::model::identity::new_id::<PromptId>();
     runtime
         .request_prompt(PromptRequest {
             prompt_id: id.clone(),

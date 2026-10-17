@@ -228,7 +228,12 @@ fn overrides_and_sweeps() {
         "fixture.registration",
         &template,
         selection,
-        CaseMaterializationOptions::default(),
+        CaseMaterializationOptions {
+            max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+            force: false,
+            registration_id: dokime_runtime::model::identity::new_id(),
+            first_label_number: 1,
+        },
     )
     .unwrap();
     assert_eq!(output.case_count, 4);

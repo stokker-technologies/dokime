@@ -318,7 +318,7 @@ async fn telemetry_refuses_partial() {
     let (_owner, runtime) = started(wifi_config(root.path())).await;
     let mut batch = samples(WIFI, 2, None);
     batch.samples[1].scope =
-        Some(RecordScope::default().with_test_execution(TestExecutionId::new()));
+        Some(RecordScope::default().with_test_execution(dokime_runtime::model::identity::new_id::<TestExecutionId>()));
 
     let error = runtime.publish_telemetry_batch(batch).await.unwrap_err();
     assert!(error.to_string().contains("acquisition"), "{error}");

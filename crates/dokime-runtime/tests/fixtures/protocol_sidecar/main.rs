@@ -579,9 +579,9 @@ impl Resources {
         // The one step this template declares, begun the way a run begins it:
         // the host admits the attempt before the step's body runs.
         let start = StepAttemptStart {
-            attempt_id: StepAttemptId::new(),
+            attempt_id: dokime_runtime::model::identity::new_id::<StepAttemptId>(),
             step_id: StepId::from_seed(format!("fixture.sidecar.{mode}.stream")),
-            started_at: Timestamp::now_utc(),
+            started_at: dokime_runtime::model::time::now_utc(),
         };
         host.call_as::<PushEvidence>(EvidenceBatch {
             cursor: 1,
@@ -617,7 +617,7 @@ impl Resources {
             attempt_id: start.attempt_id,
             step_id: start.step_id,
             started_at: start.started_at,
-            finished_at: Some(Timestamp::now_utc()),
+            finished_at: Some(dokime_runtime::model::time::now_utc()),
             termination: TerminationReason::Cancelled,
             detail: None,
         })

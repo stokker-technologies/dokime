@@ -226,7 +226,9 @@ pub async fn cycle_with_cases(
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        ..Default::default()
+        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
     };
     suite
         .test_case_templates
@@ -326,8 +328,8 @@ pub async fn register_fixture_execution_pair(
 pub fn materialized_case(identifier: &str, label: &str, result: &str) -> TestCase {
     TestCase {
         suite_id: "fixture.registration".to_owned(),
-        test_case_id: CaseId::new(),
-        test_case_template_id: TemplateId::new(),
+        test_case_id: dokime_runtime::model::identity::new_id::<CaseId>(),
+        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         suite: None,
         metadata: metadata(identifier, label),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from(result))]),
@@ -563,7 +565,7 @@ fn named_case_template(
     result: &str,
 ) -> TestCaseTemplate {
     TestCaseTemplate {
-        test_case_template_id: TemplateId::new(),
+        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(
             &format!("{identifier}.{index}"),
             &format!("{label} {index}"),
@@ -574,7 +576,7 @@ fn named_case_template(
             expansion: Default::default(),
             min: None,
             max: None,
-            parameter_id: ParameterId::new(),
+            parameter_id: dokime_runtime::model::identity::new_id::<ParameterId>(),
             metadata: metadata("fixture.result", "Fixture Result"),
             group_id: None,
             value_type: ValueType::Text,
@@ -591,11 +593,11 @@ fn named_case_template(
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_runtime::core::StepId::new(),
+            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_runtime::core::CriterionId::new(),
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],

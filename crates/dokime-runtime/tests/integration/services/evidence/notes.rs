@@ -61,7 +61,7 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNoteRequest) {
         .unwrap();
     let request = CreateNoteRequest {
         epoch: handle.process_epoch(),
-        mutation_id: CommandId::new(),
+        mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         owner: NoteOwner::Cycle { cycle_id },
         actor: "operator".into(),
         message: "inspected".into(),

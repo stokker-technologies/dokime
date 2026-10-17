@@ -40,7 +40,7 @@ use dokime_runtime::transactions::PublishRecord;
 
 /* === Private Functions === */
 fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::RuntimeState {
-    let mut state = dokime_runtime::state::RuntimeState::default();
+    let mut state = dokime_runtime::state::RuntimeState::new(dokime_runtime::model::identity::new_id());
     let bundles = declarations
         .iter()
         .map(|(source, record_type)| dokime_runtime::state::BundleCatalog {

@@ -46,7 +46,7 @@ async fn unavailable_sidecar_context() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
-    let correlation_id = CorrelationId::new();
+    let correlation_id = dokime_runtime::model::identity::new_id::<CorrelationId>();
     let context = CommandContext {
         correlation_id: Some(correlation_id.clone()),
         idempotency_key: Some("unavailable-provider".to_owned()),

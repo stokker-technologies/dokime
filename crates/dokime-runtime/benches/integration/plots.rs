@@ -143,8 +143,8 @@ fn batch(rows: usize) -> TelemetryBatch {
     let stream = identifier(STREAM);
     let samples = (0..rows)
         .map(|index| {
-            let timestamp = Timestamp::now_utc();
-            let mut sample = TelemetrySample::new(stream.clone(), 0, timestamp.clone(), STREAM);
+            let timestamp = dokime_runtime::model::time::now_utc();
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), STREAM);
             let value = index as f64;
             sample.values.insert("value".to_owned(), value.into());
             sample.storage_payload = Some(
@@ -157,7 +157,7 @@ fn batch(rows: usize) -> TelemetryBatch {
             sample
         })
         .collect();
-    TelemetryBatch::new(stream, samples)
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
 fn metadata(identifier: &str, label: &str) -> Metadata {

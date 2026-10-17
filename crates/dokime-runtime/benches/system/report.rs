@@ -228,7 +228,9 @@ async fn started_cycle(
         .expect("the plugin's steady suite is registered");
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        ..Default::default()
+        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
     };
     let mut cases = Vec::new();
     for template in &registration.suite.test_case_templates {

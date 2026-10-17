@@ -128,8 +128,7 @@ async fn telemetry_reads_stream() {
         cursor,
     };
     let published = |values: std::ops::RangeInclusive<i64>| {
-        TelemetryBatch::new(
-            stream.clone(),
+        TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream.clone(),
             values
                 .map(|value| telemetry_sample(&stream, value))
                 .collect(),
@@ -275,7 +274,7 @@ fn telemetry_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
 }
 
 fn telemetry_sample(stream: &Identifier, value: i64) -> TelemetrySample {
-    let mut sample = TelemetrySample::new(stream.clone(), 0, Timestamp::now_utc(), "runtime.test");
+    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, dokime_runtime::model::time::now_utc(), "runtime.test");
     sample.values.insert("value".to_owned(), Value::from(value));
     crate::service_support::contracts::typed_fixture_sample(sample)
 }

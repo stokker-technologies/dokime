@@ -76,8 +76,7 @@ async fn telemetry_pages_window() {
     let id = Identifier::new("fixture.progress").unwrap();
     let samples = (0..5)
         .map(|index| {
-            let mut sample = TelemetrySample::new(
-                id.clone(),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
                 "fixture",
@@ -91,7 +90,7 @@ async fn telemetry_pages_window() {
         })
         .collect();
     handle
-        .publish_telemetry_batch(TelemetryBatch::new(id.clone(), samples))
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples))
         .await
         .unwrap();
 

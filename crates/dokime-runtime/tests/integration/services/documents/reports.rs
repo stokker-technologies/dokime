@@ -87,18 +87,18 @@ async fn report_save_receipt() {
 
     // Use An Actual Admitted Execution Revision
     let finished_at = Timestamp::new("2026-10-06T06:00:00Z");
-    let cycle_id = TestCycleId::new();
+    let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let case = TestCase {
         suite_id: "fixture.registration".into(),
-        test_case_id: dokime_runtime::core::CaseId::new(),
-        test_case_template_id: TemplateId::new(),
+        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CaseId>(),
+        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata("fixture.case", "Stored Report Case"),
         suite: None,
         parameters: BTreeMap::new(),
         generation_index: 0,
         label_number: 0,
     };
-    let execution_id = TestExecutionId::new();
+    let execution_id = dokime_runtime::model::identity::new_id::<TestExecutionId>();
     let original_execution = TestExecution {
         saved: None,
         mode: Default::default(),
@@ -134,7 +134,7 @@ async fn report_save_receipt() {
         result: None,
     };
     let input = CycleReportInput {
-        session_id: dokime_runtime::core::SessionId::new(),
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::SessionId>(),
         cycle: CycleView {
             saved: None,
             test_cycle_id: cycle_id,

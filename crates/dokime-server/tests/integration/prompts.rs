@@ -65,7 +65,7 @@ async fn prompt_answers_identity() {
     }];
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
-    let ids = [PromptId::new(), PromptId::new()];
+    let ids = [dokime_runtime::model::identity::new_id::<PromptId>(), dokime_runtime::model::identity::new_id::<PromptId>()];
     for id in &ids {
         handle
             .request_prompt(PromptRequest {
@@ -292,7 +292,7 @@ async fn prompt_condition_commit() {
     });
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
-    let id = PromptId::new();
+    let id = dokime_runtime::model::identity::new_id::<PromptId>();
     handle
         .request_prompt(PromptRequest {
             prompt_id: id.clone(),
@@ -387,7 +387,7 @@ async fn prompt_level_watched() {
         .definition();
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
-    let id = PromptId::new();
+    let id = dokime_runtime::model::identity::new_id::<PromptId>();
     handle
         .request_prompt(PromptRequest {
             prompt_id: id.clone(),
@@ -469,7 +469,7 @@ async fn settled_prompt_refused() {
         )
         .await
         .unwrap();
-    let id = PromptId::new();
+    let id = dokime_runtime::model::identity::new_id::<PromptId>();
     handle
         .request_prompt(PromptRequest {
             prompt_id: id.clone(),

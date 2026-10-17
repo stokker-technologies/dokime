@@ -158,8 +158,7 @@ impl Hosting {
             let instant = std::time::UNIX_EPOCH
                 .checked_add(Duration::from_micros(micros))
                 .unwrap();
-            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-                dokime_runtime::core::Identifier::new(publication.stream()).unwrap(),
+            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), dokime_runtime::core::Identifier::new(publication.stream()).unwrap(),
                 publication.sequence(),
                 dokime_runtime::core::Timestamp::from_system_time(instant),
                 publication.owner(),

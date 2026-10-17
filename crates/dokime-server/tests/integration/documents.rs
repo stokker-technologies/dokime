@@ -261,8 +261,7 @@ async fn summary_complete_telemetry() {
     let stream = Identifier::new("fixture.progress").unwrap();
     let mut samples: Vec<_> = (0..300)
         .map(|index| {
-            let mut sample = TelemetrySample::new(
-                stream.clone(),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
                 "fixture",
@@ -276,8 +275,7 @@ async fn summary_complete_telemetry() {
             }))
         })
         .collect();
-    let mut unrelated = TelemetrySample::new(
-        stream.clone(),
+    let mut unrelated = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
         300,
         Timestamp::new("2026-09-13T00:00:00Z"),
         "fixture",
@@ -291,7 +289,7 @@ async fn summary_complete_telemetry() {
         })),
     );
     handle
-        .publish_telemetry_batch(TelemetryBatch::new(stream, samples))
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples))
         .await
         .unwrap();
     let server = Server::start(handle.clone(), Config::local())

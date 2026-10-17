@@ -81,7 +81,7 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
         self.workflow.run(request, admitted, output, caller)
     }
 
-    fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, Refusal> {
+    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
         self.workflow.signal(signal)
     }
 

@@ -282,10 +282,9 @@ pub async fn publish_tracking_sample(
         .cases()
         .find(|case| case.test_case_id == execution.test_case_id)
         .expect("execution case exists");
-    let mut sample = TelemetrySample::new(
-        Identifier::new("tracking").unwrap(),
+    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), Identifier::new("tracking").unwrap(),
         0,
-        dokime_runtime::core::Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         "python.fixture",
     );
     sample.scope = Some(
@@ -303,8 +302,7 @@ pub async fn publish_tracking_sample(
         .insert("target_locked".to_owned(), Value::Bool(true));
 
     runtime
-        .publish_telemetry_batch(TelemetryBatch::new(
-            Identifier::new("tracking").unwrap(),
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), Identifier::new("tracking").unwrap(),
             vec![crate::service_support::contracts::typed_minimal_tracking_sample(
                 sample,
             )],
@@ -384,26 +382,23 @@ pub fn tracking_connection_details(connection_state: &str) -> BTreeMap<String, V
 }
 
 pub fn tracking_batch() -> TelemetryBatch {
-    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-        identifier("tracking"),
+    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier("tracking"),
         0,
-        Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         "testdb",
     );
     sample
         .values
         .insert("distance_m".to_owned(), Value::Number(1.0));
-    TelemetryBatch::new(
-        identifier("tracking"),
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("tracking"),
         vec![crate::service_support::contracts::typed_fixture_sample(sample)],
     )
 }
 
 pub fn host_system_batch() -> TelemetryBatch {
-    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-        identifier("host.system"),
+    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier("host.system"),
         0,
-        Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         "fixture.host",
     );
     sample
@@ -416,8 +411,7 @@ pub fn host_system_batch() -> TelemetryBatch {
         .values
         .insert("battery_percent".to_owned(), Value::Number(99.0));
 
-    TelemetryBatch::new(
-        identifier("host.system"),
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("host.system"),
         vec![crate::service_support::contracts::typed_fixture_sample(sample)],
     )
 }
@@ -439,8 +433,7 @@ pub fn tracking_transition_batch() -> TelemetryBatch {
     insert_sample_value(&mut samples[4], "connection_loss_distance_m", 4.0);
     insert_sample_value(&mut samples[4], "connection_acquired_distance_m", 6.0);
 
-    TelemetryBatch::new(
-        identifier("tracking"),
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("tracking"),
         samples
             .into_iter()
             .map(crate::service_support::contracts::typed_fixture_sample)
@@ -465,8 +458,7 @@ pub fn tracking_status_sample(
     target_locked: bool,
     tool_connected: bool,
 ) -> dokime_runtime::telemetry::TelemetrySample {
-    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-        identifier("tracking"),
+    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier("tracking"),
         0,
         Timestamp::new(format!("2026-05-28T10:00:0{index}Z")),
         "testdb",
@@ -568,8 +560,7 @@ pub fn samples(stream: &str, count: usize, scope: Option<RecordScope>) -> Teleme
     let stream = super::identifier(stream);
     let samples = (0..count)
         .map(|index| {
-            let mut sample = TelemetrySample::new(
-                stream.clone(),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
                 0,
                 Timestamp::new(format!(
                     "2026-01-01T{:02}:{:02}:{:02}Z",
@@ -588,7 +579,7 @@ pub fn samples(stream: &str, count: usize, scope: Option<RecordScope>) -> Teleme
         })
         .collect();
 
-    TelemetryBatch::new(stream, samples)
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
 /* === Private Functions === */

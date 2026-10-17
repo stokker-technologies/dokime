@@ -144,10 +144,9 @@ impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
             sequence
         };
         let scope = self.2.lock().unwrap().clone();
-        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-            stream.clone(),
+        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
             sequence,
-            dokime_runtime::core::Timestamp::now_utc(),
+            dokime_runtime::model::time::now_utc(),
             SOURCE,
         );
         sample.values = values;
@@ -844,7 +843,7 @@ async fn interactive_commands_downstream() {
     ] {
         let command = CommandExecutionRequest {
             execution_token: token.into(),
-            command_id: dokime_runtime::core::CommandId::new().to_string(),
+            command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
             action: action.into(),
             step: step.into(),
         };
@@ -856,7 +855,7 @@ async fn interactive_commands_downstream() {
     assert_ne!(commands[0].1.attempt_id, commands[2].1.attempt_id);
     let blocked = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::core::CommandId::new().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
         action: "run_step".into(),
         step: "start".into(),
     };
@@ -870,7 +869,7 @@ async fn interactive_commands_downstream() {
     }
     let finish = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::core::CommandId::new().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
         action: "finish".into(),
         step: String::new(),
     };
@@ -908,7 +907,7 @@ async fn interactive_commands_downstream() {
     assert!(
         workflow
             .command(CommandExecutionRequest {
-                command_id: dokime_runtime::core::CommandId::new().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
                 ..blocked
             })
             .is_err()
@@ -955,7 +954,7 @@ async fn interactive_idle_stop() {
         workflow
             .command(CommandExecutionRequest {
                 execution_token: token.into(),
-                command_id: dokime_runtime::core::CommandId::new().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CommandId>().to_string(),
                 action: "next".into(),
                 step: String::new(),
             })
@@ -1122,7 +1121,7 @@ fn respond(
         prompt_id: prompt_id.clone(),
         action: action.to_owned(),
         responder: "test".to_owned(),
-        submitted_at: Timestamp::now_utc(),
+        submitted_at: dokime_runtime::model::time::now_utc(),
         values: BTreeMap::new(),
         accepted,
     };
@@ -1969,7 +1968,7 @@ async fn unanswered_question_id() {
     // same request.
     assert_eq!(asked.prompt_id, PromptId::from_seed("asked:prompt:0"));
     // An answer for a question this execution never asked changes nothing.
-    respond(&workflow, "asked", &PromptId::new(), "yes", true);
+    respond(&workflow, "asked", &dokime_runtime::model::identity::new_id::<PromptId>(), "yes", true);
     assert!(drain(&workflow, "asked", raised.cursor).outcome.is_none());
 
     respond(&workflow, "asked", &asked.prompt_id, "yes", true);
@@ -2343,7 +2342,7 @@ fn captured(execution: dokime_runtime::core::TestExecutionId) -> dokime_runtime:
 
 fn admitted(record_type: &str, source: &str, serial: &str) -> dokime_runtime::records::Record {
     let mut record = dokime_runtime::records::Record::new(
-        Timestamp::now_utc(),
+        dokime_runtime::model::time::now_utc(),
         dokime_runtime::core::Identifier::new(record_type).expect("a fixture identifier is valid"),
         1,
         source,

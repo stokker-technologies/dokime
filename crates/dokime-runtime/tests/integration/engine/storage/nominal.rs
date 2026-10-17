@@ -265,8 +265,7 @@ async fn nominal() {
             samples: vec![1.0, 2.0, 3.0],
         },
     };
-    let mut sample = TelemetrySample::new(
-        typed_stream.clone(),
+    let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), typed_stream.clone(),
         0,
         Timestamp::new("2026-10-15T10:00:00Z"),
         "typed-meter",

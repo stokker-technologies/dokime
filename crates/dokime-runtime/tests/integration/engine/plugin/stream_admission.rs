@@ -116,12 +116,12 @@ impl Declared {
 async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>()
 -> (Vec<EvidenceBatch>, Vec<dokime_runtime::telemetry::TelemetrySample>) {
     let engine = Workflow::<T>::new("admission.fixture", "admission-owner");
-    let token = dokime_runtime::core::TestExecutionId::new().to_string();
+    let token = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>().to_string();
     engine
         .start(RunExecutionRequest {
             mode: "automatic".into(),
             execution_token: token.clone(),
-            test_cycle_id: dokime_runtime::core::TestCycleId::new().to_string(),
+            test_cycle_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestCycleId>().to_string(),
             test_execution_id: token.clone(),
             template_identifier: T::declaration().metadata.identifier.to_string(),
             workflow: "admission.fixture".into(),

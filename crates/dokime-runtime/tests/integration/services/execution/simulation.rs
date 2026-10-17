@@ -45,7 +45,7 @@ use dokime_runtime::state::RuntimeState;
 
 #[test]
 fn declaration_boots_runtime() {
-    let origin = RuntimeState::new(SessionId::new());
+    let origin = RuntimeState::new(dokime_runtime::model::identity::new_id::<SessionId>());
 
     app::simulate(origin, 42).expect("Dokime's catalogs are simulable");
 }

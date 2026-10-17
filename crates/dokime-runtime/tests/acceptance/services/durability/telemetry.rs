@@ -144,8 +144,7 @@ async fn run_telemetry_kill_child(published: usize) {
         .with_template(case.test_case_template_id.clone());
     let samples = (0..published)
         .map(|index| {
-            let mut sample = TelemetrySample::new(
-                Identifier::new("tracking").unwrap(),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), Identifier::new("tracking").unwrap(),
                 0,
                 Timestamp::new(format!("2026-01-01T00:00:{index:02}Z")),
                 "python.fixture",
@@ -161,8 +160,7 @@ async fn run_telemetry_kill_child(published: usize) {
         })
         .collect();
     handle
-        .publish_telemetry_batch(TelemetryBatch::new(
-            Identifier::new("tracking").unwrap(),
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), Identifier::new("tracking").unwrap(),
             samples,
         ))
         .await

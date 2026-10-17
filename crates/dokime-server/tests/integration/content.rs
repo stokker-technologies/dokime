@@ -306,7 +306,7 @@ async fn artifact_transfer(message_bytes: usize) {
         content
             .download::<contracts::content::DownloadArtifact>(authenticated(
                 contracts::content::DownloadArtifactRequest {
-                    artifact_id: dokime_runtime::core::ArtifactId::new().to_string(),
+                    artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::ArtifactId>().to_string(),
                 }
             ))
             .await

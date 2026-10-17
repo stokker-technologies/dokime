@@ -666,7 +666,7 @@ async fn effective_native_materialization() {
         step: 1,
     };
     let mut other = suite.test_case_templates[0].parameters[0].clone();
-    other.parameter_id = dokime_runtime::core::ParameterId::new();
+    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other dimension");
     suite.test_case_templates[0].parameters.push(other);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
@@ -785,7 +785,7 @@ async fn payload_budget_allocation() {
         value: Value::Array(vec![Value::Text("x".repeat(1024)); 32]),
     };
     let mut other = template.parameters[0].clone();
-    other.parameter_id = dokime_runtime::core::ParameterId::new();
+    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other");
     other.expression = ParameterExpr::Array {
         values: vec![

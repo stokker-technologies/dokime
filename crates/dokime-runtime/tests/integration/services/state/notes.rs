@@ -43,21 +43,21 @@ use dokime_runtime::transactions::{AddOperatorNote, CreateOperatorNote};
 
 /* === Private Functions === */
 fn fixture() -> (RuntimeState, NoteAdmission) {
-    let mut state = RuntimeState::new(SessionId::new());
+    let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id::<SessionId>());
     dokime_runtime::transactions::MarkRuntimeStarted {
         session_id: state.session_id.clone(),
-        record_namespace: SessionId::new(),
+        record_namespace: dokime_runtime::model::identity::new_id::<SessionId>(),
     }
     .apply(&mut state);
-    let cycle_id = TestCycleId::new();
-    let case_id = CaseId::new();
+    let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
+    let case_id = dokime_runtime::model::identity::new_id::<CaseId>();
     let cycle:CycleView=serde_json::from_value(serde_json::json!({
         "test_cycle_id":cycle_id,"metadata":{"identifier":"fixture.cycle","label":"Fixture"},
-        "created_at":Timestamp::now_utc(),"updated_at":Timestamp::now_utc(),
+        "created_at":dokime_runtime::model::time::now_utc(),"updated_at":dokime_runtime::model::time::now_utc(),
         "test_executions":[{
-            "test_cycle_id": cycle_id, "test_execution_id": TestExecutionId::new(), "test_case_id": case_id, "status":"skipped", "scope":{},
+            "test_cycle_id": cycle_id, "test_execution_id": dokime_runtime::model::identity::new_id::<TestExecutionId>(), "test_case_id": case_id, "status":"skipped", "scope":{},
             "snapshot":dokime_runtime::execution::ExecutionSnapshot::materialize(
-                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::core::TemplateId::new(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
+                &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration","test_case_id":case_id, "test_case_template_id":dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),"metadata":{"identifier":"fixture.case","label":"Case"}})).unwrap(),
                 None, Default::default(), None, Default::default(),
             ).unwrap()
         }]
@@ -66,7 +66,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
         .replace_cycle(cycle)
         .expect("cycle projection has valid ownership");
     let owner = NoteOwner::Case { cycle_id, case_id };
-    let mutation_id = CommandId::new();
+    let mutation_id = dokime_runtime::model::identity::new_id::<CommandId>();
     let admission = NoteAdmission {
         mutation_id: mutation_id.clone(),
         owner: owner.clone(),
@@ -75,7 +75,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
             scope: state.note_owner_scope(&owner).unwrap(),
             author: Some("operator".into()),
             message: "inspected connector".into(),
-            created_at: Timestamp::now_utc(),
+            created_at: dokime_runtime::model::time::now_utc(),
         },
         checkpoint_targets: Vec::new(),
     };
@@ -93,7 +93,7 @@ fn note_mutations_restarts() {
 
     dokime_runtime::transactions::MarkRuntimeStarted {
         session_id: state.session_id.clone(),
-        record_namespace: SessionId::new(),
+        record_namespace: dokime_runtime::model::identity::new_id::<SessionId>(),
     }
     .apply(&mut state);
     assert!(create.check(&state).unwrap_err().contains("epoch/actor"));
@@ -117,7 +117,7 @@ fn retry_identity_retirement() {
     create.apply(&mut state);
     assert_eq!(state.iter_notes().count(), 1);
     let mut retry = create.clone();
-    retry.admission.note.created_at = Timestamp::now_utc();
+    retry.admission.note.created_at = dokime_runtime::model::time::now_utc();
     retry.check(&state).unwrap();
     retry.apply(&mut state);
     assert_eq!(state.iter_notes().count(), 1);
@@ -131,13 +131,13 @@ fn retry_identity_retirement() {
     assert!(retry.check(&state).is_err());
     retry = create.clone();
     retry.admission.owner = NoteOwner::Cycle {
-        cycle_id: TestCycleId::new(),
+        cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
     };
     assert!(retry.check(&state).is_err());
     let old_id = create.admission.note.note_id;
     assert_ne!(
         old_id,
-        note_identity(&SessionId::new(), "operator", &admission.mutation_id)
+        note_identity(&dokime_runtime::model::identity::new_id::<SessionId>(), "operator", &admission.mutation_id)
     );
     assert_ne!(
         old_id,
@@ -154,12 +154,12 @@ fn rejects_missing_owners() {
     let (mut state, admission) = fixture();
     let cycle_id = admission.owner.cycle_id().clone();
     let mut note = admission.note;
-    note.scope.test_execution_id = Some(TestExecutionId::new());
+    note.scope.test_execution_id = Some(dokime_runtime::model::identity::new_id::<TestExecutionId>());
     let transaction = AddOperatorNote { note: note.clone() };
     assert!(transaction.check(&state).is_err());
     assert!(state.cycles[&cycle_id].records.notes().is_empty());
     note.scope.test_execution_id = None;
-    note.scope.session_id = Some(SessionId::new());
+    note.scope.session_id = Some(dokime_runtime::model::identity::new_id::<SessionId>());
     assert!(
         AddOperatorNote { note: note.clone() }
             .check(&state)
@@ -178,7 +178,7 @@ fn capacity_preserves_receipts() {
     let (mut state, admission) = fixture();
     for _ in 0..NOTE_RECEIPT_LIMIT {
         let mut item = admission.clone();
-        item.mutation_id = CommandId::new();
+        item.mutation_id = dokime_runtime::model::identity::new_id::<CommandId>();
         item.note.note_id = note_identity(state.process_epoch(), "operator", &item.mutation_id);
         state
             .note_admissions
@@ -202,7 +202,7 @@ fn capacity_preserves_receipts() {
     state.note_admissions.clear();
     for _ in 0..600 {
         let mut item = admission.clone();
-        item.note.note_id = NoteId::new();
+        item.note.note_id = dokime_runtime::model::identity::new_id::<NoteId>();
         item.note.message = "x".repeat(NOTE_TEXT_BYTES);
         state
             .note_admissions
@@ -222,10 +222,10 @@ fn scoped_read_bounds() {
     let cycle = state.cycle_views().next().unwrap();
     for _ in 0..NOTE_SCAN_LIMIT {
         let mut cycle = cycle.clone();
-        cycle.test_cycle_id = TestCycleId::new();
+        cycle.test_cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
         for execution in &mut cycle.test_executions {
             execution.test_cycle_id = cycle.test_cycle_id.clone();
-            execution.test_execution_id = dokime_runtime::core::TestExecutionId::new();
+            execution.test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestExecutionId>();
         }
         state
             .replace_cycle(cycle)
@@ -234,11 +234,11 @@ fn scoped_read_bounds() {
     assert!(state.annotation_sets(None, false).is_err());
     assert!(state.annotation_sets(Some(&admission.owner), false).is_ok());
     state.session_records_mut().push_note(OperatorNote {
-        note_id: NoteId::new(),
+        note_id: dokime_runtime::model::identity::new_id::<NoteId>(),
         scope: RecordScope::default(),
         author: None,
         message: "x".repeat(NOTE_TEXT_BYTES + 1),
-        created_at: Timestamp::now_utc(),
+        created_at: dokime_runtime::model::time::now_utc(),
     });
     let invalid = &state.session_records().notes()[0];
     assert!(state.validate_operator_note(invalid).is_err());

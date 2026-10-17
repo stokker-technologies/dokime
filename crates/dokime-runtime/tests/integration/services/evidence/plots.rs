@@ -277,8 +277,7 @@ async fn wifi_occupancy_scans() {
         .iter()
         .enumerate()
         .map(|(index, (second, channel, networks))| {
-            let mut sample = TelemetrySample::new(
-                stream.clone(),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(),
                 0,
                 Timestamp::new(format!("2026-01-01T00:00:0{second}.{index}Z")),
                 "host.fixture",
@@ -296,7 +295,7 @@ async fn wifi_occupancy_scans() {
         })
         .collect();
     runtime
-        .publish_telemetry_batch(TelemetryBatch::new(stream, samples))
+        .publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples))
         .await
         .unwrap();
     let mut request = wifi_request(None, Some(0), None);

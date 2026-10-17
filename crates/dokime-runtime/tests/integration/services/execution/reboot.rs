@@ -152,7 +152,7 @@ fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
     let samples = (0..count)
         .map(|index| {
             let mut sample =
-                TelemetrySample::new(stream.clone(), 0, Timestamp::now_utc(), "python.fixture");
+                TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, dokime_runtime::model::time::now_utc(), "python.fixture");
             sample
                 .values
                 .insert("elapsed_s".to_owned(), Value::Number(index as f64));
@@ -162,7 +162,7 @@ fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
             crate::service_support::contracts::typed_minimal_tracking_sample(sample)
         })
         .collect();
-    TelemetryBatch::new(stream, samples)
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
 /* === Tests === */

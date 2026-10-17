@@ -193,7 +193,7 @@ async fn current_cycle_state() {
     );
     assert!(
         runtime
-            .prepare_current_cycle_document(&dokime_runtime::core::TestCycleId::new(), &document_id)
+            .prepare_current_cycle_document(&dokime_runtime::model::identity::new_id::<dokime_runtime::core::TestCycleId>(), &document_id)
             .is_err()
     );
     // An Original Cycle Cut Cannot Acquire An Artifact From A Later Member.

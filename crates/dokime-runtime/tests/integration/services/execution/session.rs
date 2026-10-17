@@ -55,6 +55,7 @@ enum Settlement {
     Deferred,
     Refused,
     Ignored,
+    IgnoredSignal,
 }
 
 /* === Traits === */
@@ -80,9 +81,9 @@ impl Runnable for Probe {
         Box::pin(async move {
             *self.token.lock().unwrap() = request.execution_token;
             let start = StepAttemptStart {
-                attempt_id: dokime_runtime::core::StepAttemptId::new(),
+                attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepAttemptId>(),
                 step_id: dokime_runtime::core::StepId::from_seed(PHASE),
-                started_at: Timestamp::now_utc(),
+                started_at: dokime_runtime::model::time::now_utc(),
             };
             host.push(EvidenceBatch {
                 cursor: 1,
@@ -92,17 +93,17 @@ impl Runnable for Probe {
             }).await.map_err(Refusal::of)?;
             self.entered.notify_one();
             self.cancellation.subscribe().wait_for(|cancelled| *cancelled).await.unwrap();
-            if matches!(self.mode, Settlement::Deferred | Settlement::Ignored) {
+            if matches!(self.mode, Settlement::Deferred | Settlement::Ignored | Settlement::IgnoredSignal) {
                 self.released.subscribe().wait_for(|released| *released).await.unwrap();
             }
-            if self.mode == Settlement::Ignored {
+            if matches!(self.mode, Settlement::Ignored | Settlement::IgnoredSignal) {
                 return Err(Refusal::of("run released after the host settled it"));
             }
             let ended = TestStepAttempt {
                 attempt_id: start.attempt_id,
                 step_id: start.step_id,
                 started_at: start.started_at,
-                finished_at: Some(Timestamp::now_utc()),
+                finished_at: Some(dokime_runtime::model::time::now_utc()),
                 termination: TerminationReason::Cancelled,
                 detail: None,
             };
@@ -130,13 +131,20 @@ impl Runnable for Probe {
         })
     }
 
-    fn signal(&self, signal: ExecutionSignal) -> Result<SignalReply, Refusal> {
-        if signal.cancel {
-            if *self.token.lock().unwrap() != signal.execution_token { return Err(Refusal::of("cancellation token does not own execution")); }
-            self.cancellation.send_replace(true);
-            self.cancelled.notify_one();
-        }
-        Ok(SignalReply::default())
+    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
+        Box::pin(async move {
+            if signal.cancel {
+                if *self.token.lock().unwrap() != signal.execution_token {
+                    return Err(Refusal::of("cancellation token does not own execution"));
+                }
+                self.cancellation.send_replace(true);
+                self.cancelled.notify_one();
+                if self.mode == Settlement::IgnoredSignal {
+                    self.released.subscribe().wait_for(|released| *released).await.unwrap();
+                }
+            }
+            Ok(SignalReply::default())
+        })
     }
 
     fn take_local_samples(&self, _: &str) -> Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> { Ok(Vec::new()) }
@@ -246,8 +254,17 @@ async fn cancellation_preserves_verdict_and_log() {
 // Thirty Seconds Of Host Settlement Policy Elapse On The Controlled Clock.
 #[tokio::test]
 async fn ignored_run_keeps_execution_identity() {
+    ignored_stop(Settlement::Ignored).await;
+}
+
+#[tokio::test]
+async fn ignored_signal_keeps_execution_identity() {
+    ignored_stop(Settlement::IgnoredSignal).await;
+}
+
+async fn ignored_stop(mode: Settlement) {
     let root = tempdir().unwrap();
-    let probe = Arc::new(Probe::new(Settlement::Ignored));
+    let probe = Arc::new(Probe::new(mode));
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite), false).await;

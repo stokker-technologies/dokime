@@ -131,7 +131,7 @@ async fn refusals_refuses_processor() {
     let before = revision().await;
 
     let rejected = runtime
-        .run_cycle_cases(TestCycleId::new(), CommandContext::default())
+        .run_cycle_cases(dokime_runtime::model::identity::new_id::<TestCycleId>(), CommandContext::default())
         .await;
     let after = revision().await;
 

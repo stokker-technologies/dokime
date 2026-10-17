@@ -237,7 +237,7 @@ async fn stopped_scope_sampler() {
     let sampler = CountingSampler::default();
     let lease = runtime
         .request_sampling(
-            scope(Some(TestCycleId::new().to_string())),
+            scope(Some(dokime_runtime::model::identity::new_id::<TestCycleId>().to_string())),
             request("stopped", 20),
             sampler.clone(),
         )

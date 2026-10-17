@@ -152,7 +152,7 @@ pub fn case_template_with_identifier(
     result: &str,
 ) -> TestCaseTemplate {
     TestCaseTemplate {
-        test_case_template_id: TemplateId::new(),
+        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(identifier, label),
         tags: vec!["fixture".to_owned()],
         parameter_groups: Vec::new(),
@@ -160,7 +160,7 @@ pub fn case_template_with_identifier(
             expansion: Default::default(),
             min: None,
             max: None,
-            parameter_id: ParameterId::new(),
+            parameter_id: dokime_runtime::model::identity::new_id::<ParameterId>(),
             metadata: metadata("fixture.result", "Fixture Result"),
             group_id: None,
             value_type: ValueType::Text,
@@ -177,11 +177,11 @@ pub fn case_template_with_identifier(
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_runtime::core::StepId::new(),
+            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::StepId>(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_runtime::core::CriterionId::new(),
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
@@ -241,7 +241,7 @@ pub fn materialized_case(
 ) -> TestCase {
     TestCase {
         suite_id: suite_id.to_owned(),
-        test_case_id: dokime_runtime::core::CaseId::new(),
+        test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::core::CaseId>(),
         test_case_template_id: suite.map_or_else(TemplateId::new, |suite| {
             suite.test_case_templates[0].test_case_template_id.clone()
         }),
@@ -256,7 +256,9 @@ pub fn materialized_case(
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
-        ..Default::default()
+        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime_runtime::model::identity::new_id(),
+        first_label_number: 1,
     };
     suite
         .test_case_templates

@@ -58,7 +58,7 @@ pub(crate) async fn native_publications_order() {
     request
         .details
         .insert("value".into(), dokime_runtime::core::Value::Number(7.0));
-    request.scope = Some(dokime_runtime::core::RecordScope::default().with_cycle(TestCycleId::new()));
+    request.scope = Some(dokime_runtime::core::RecordScope::default().with_cycle(dokime_runtime::model::identity::new_id::<TestCycleId>()));
     let timestamp = "2026-09-17T10:00:00Z";
     let first = RecordPublication {
         request_json: serde_json::to_string(&request).unwrap(),
@@ -87,7 +87,7 @@ pub(crate) async fn native_publications_order() {
             produced_at: String::new(),
         },
     ];
-    let arrival = dokime_runtime::core::Timestamp::now_utc();
+    let arrival = dokime_runtime::model::time::now_utc();
     // The host files what the plugin relays under the caller's own identity,
     // and refuses to the plugin, synchronously, what it cannot file: a forged
     // source, an undeclared record type and a payload that is no request.

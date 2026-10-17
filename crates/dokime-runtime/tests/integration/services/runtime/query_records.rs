@@ -554,7 +554,7 @@ async fn capture_failure_provider() {
     let suite: dokime_runtime::definition::TestSuite = serde_json::from_value(serde_json::json!({
         "metadata": metadata,
         "test_case_templates": [{
-            "test_case_template_id": dokime_runtime::core::TemplateId::new(),
+            "test_case_template_id": dokime_runtime::model::identity::new_id::<dokime_runtime::core::TemplateId>(),
             "metadata": metadata,
             "parameters": []
         }]
@@ -707,10 +707,10 @@ async fn native_entry_independent() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let now = Timestamp::now_utc();
+    let now = dokime_runtime::model::time::now_utc();
     let cycle = TestCycle {
         saved: None,
-        test_cycle_id: TestCycleId::new(),
+        test_cycle_id: dokime_runtime::model::identity::new_id::<TestCycleId>(),
         session_id: None,
         metadata: Metadata::new(
             Identifier::new("fixture.large-cycle").unwrap(),

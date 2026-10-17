@@ -436,7 +436,7 @@ async fn planned_params_limit() {
     suite.test_case_templates[0].parameters = (0..257)
         .map(|index| {
             let mut parameter = prototype.clone();
-            parameter.parameter_id = dokime_runtime::core::ParameterId::new();
+            parameter.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::ParameterId>();
             parameter.metadata = support::metadata(&format!("p{index:03}"), "Parameter");
             parameter.expression = dokime_runtime::definition::ParameterExpr::Literal {
                 value: Value::Integer(index),

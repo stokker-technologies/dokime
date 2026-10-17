@@ -84,7 +84,13 @@ async fn concurrent_creators_identity() {
 #[tokio::test]
 async fn existing_identity_republishing() {
     let root = tempfile::tempdir().unwrap();
-    let node = DokimeNodeIdentity::transient(None);
+    let now = dokime_runtime::model::time::now_utc();
+    let node = DokimeNodeIdentity {
+        node_id: dokime_runtime::model::identity::new_id(),
+        hostname_label: None,
+        created_at: now.clone(),
+        updated_at: now,
+    };
     let bytes = serde_json::to_vec(&serde_json::json!({ "identity": node })).unwrap();
     let path = root.path().join("settings.json");
     std::fs::write(&path, &bytes).unwrap();

@@ -62,8 +62,8 @@ struct FixtureConnection {
 async fn boot_health_transaction() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
-    let boot_health_item_id = dokime_runtime::core::HealthItemId::new();
-    let boot_health_observed_at = dokime_runtime::core::Timestamp::now_utc();
+    let boot_health_item_id = dokime_runtime::model::identity::new_id::<dokime_runtime::core::HealthItemId>();
+    let boot_health_observed_at = dokime_runtime::model::time::now_utc();
 
     runtime
         .record_health_item(dokime_runtime::execution::HealthItem {

@@ -57,7 +57,7 @@ fn assert_record_contract(request: dokime_runtime::records::RecordPublishRequest
             .find(|contract| contract.record_type == request.record_type)
             .expect("emitted record is declared");
     let record = request.into_record(
-        dokime_runtime::core::RecordId::new(),
+        dokime_runtime::model::identity::new_id::<dokime_runtime::core::RecordId>(),
         contract.schema_version,
         Timestamp::new("2026-01-01T00:00:00Z"),
         obc_plugin::SOURCE,

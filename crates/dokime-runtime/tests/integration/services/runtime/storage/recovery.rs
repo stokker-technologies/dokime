@@ -202,10 +202,9 @@ fn wide_schema() -> harmos::schema::graph::Schema {
 fn wide_batch(scope: RecordScope) -> TelemetryBatch {
     let samples = (0..4)
         .map(|sequence| {
-            let mut sample = TelemetrySample::new(
-                identifier(STREAM),
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), identifier(STREAM),
                 sequence,
-                Timestamp::now_utc(),
+                dokime_runtime::model::time::now_utc(),
                 "fixture.host",
             );
             let mut payload = Vec::new();
@@ -225,7 +224,7 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
             sample
         })
         .collect();
-    TelemetryBatch::new(identifier(STREAM), samples)
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier(STREAM), samples)
 }
 
 // Shut A Session Down And Return The Payload Bytes Of The State Snapshot It
