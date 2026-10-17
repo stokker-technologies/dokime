@@ -494,7 +494,7 @@ impl RuntimeState {
                 declarations.insert(id, definition);
             }
             for definition in declarations.into_values() {
-                let issues = crate::prompts::validate_definition(&definition);
+                let issues = dokime_domain::model::prompts::validate_definition(&definition);
                 if !issues.is_empty() {
                     return Err(format!(
                         "invalid prompt {} from {}: {}",

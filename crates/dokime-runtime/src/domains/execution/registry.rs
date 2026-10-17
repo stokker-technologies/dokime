@@ -57,6 +57,8 @@ impl RuntimeHandle {
                 )
                 .map_err(|error| unavailable_rejection(error.to_string()))?;
             }
+            crate::prompts::admission::validate_suites(&source, &suites)
+                .map_err(unavailable_rejection)?;
             let transaction = SetSuiteSet {
                 source: source.clone(),
                 catalog: suites,

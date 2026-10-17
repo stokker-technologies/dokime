@@ -284,7 +284,7 @@ fn prepare_request(
         // Opening an empty control is allowed. Provided values must be valid.
         field.required = false;
     }
-    let issues = crate::prompts::validate_fields(&fields, &invocation.values);
+    let issues = dokime_domain::model::prompts::validate_fields(&fields, &invocation.values);
     if !issues.is_empty() {
         return Err(Error::validation(
             "validation_failed",
@@ -529,7 +529,7 @@ fn prepare_prompt_record(
 }
 
 fn validate_prompt_definition(definition: &PromptDefinition) -> Result<(), Error> {
-    let issues = crate::prompts::validate_definition(definition);
+    let issues = dokime_domain::model::prompts::validate_definition(definition);
     if issues.is_empty() {
         Ok(())
     } else {
@@ -545,7 +545,7 @@ fn validate_prompt_response_values(
     prompt: &PromptInstance,
     values: &BTreeMap<String, Value>,
 ) -> Vec<ValidationIssue> {
-    crate::prompts::validate_answers(&prompt.definition, values)
+    dokime_domain::model::prompts::validate_answers(&prompt.definition, values)
 }
 
 fn unsupported_action(prompt: &PromptInstance, action: &str) -> Error {

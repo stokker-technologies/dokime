@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+pub mod checks;
 pub mod wire;
 mod rules;
 mod validation;
 
 /* === Re-Exports === */
+pub use checks::{validate_fields, validate_definition, validate_answers, validate_answer_rules};
 pub use rules::Rule;
 pub use rules::validate_rules;
 pub use validation::FieldValidation;
