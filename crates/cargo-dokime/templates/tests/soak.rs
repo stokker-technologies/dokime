@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -16,12 +15,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-
-// Local Imports
 use dokime::host::ToolConnectionAcquired;
 use dokime::plugin::testing::Harness;
+
+// Local Imports
 use {{crate}}::bench::Sensor;
-use {{crate}}::operations::chamber::{ChamberReading, ReadChamber};
+use {{crate}}::domain::model::chamber::ChamberReading;
+use {{crate}}::operations::chamber::ReadChamber;
 
 /* === Constants === */
 

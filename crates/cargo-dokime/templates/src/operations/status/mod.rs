@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -42,7 +41,7 @@ pub struct GetStatus {
     id = "{{owner}}.get_status",
     version = 1,
     description = "Reports whether the bench is reachable.",
-    policy = super::POLICY
+    policy = crate::domain::operations::POLICY
 )]
 impl GetStatus {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {

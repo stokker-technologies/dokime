@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 pub mod chamber;
@@ -16,20 +15,12 @@ pub mod status;
 
 /* === Imports === */
 // Standard Library Imports
-use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
-pub(crate) const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_millis(2_000),
-    attempt_timeout: Duration::from_millis(2_000),
-    retries: RetryPolicy::Never,
-    restart: RestartPolicy::Never,
-};
 
 /* === Macros === */
 
@@ -38,19 +29,6 @@ pub(crate) const POLICY: OperationPolicy = OperationPolicy {
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
-pub enum Implemented {
-    GetStatus(status::GetStatus),
-    ReadChamber(chamber::ReadChamber),
-    DetectPort(chamber::DetectPort),
-}
-
-#[dokime::catalog]
-pub enum Operations {
-    #[nested]
-    Implemented(Implemented),
-    Observe(crate::observers::controls::Observe),
-}
 
 /* === Traits === */
 

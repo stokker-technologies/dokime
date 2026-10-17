@@ -1,0 +1,205 @@
+# Rendered-pending: the plugin-profile output of `stkr project update` from templates/ci/.github/workflows/ci.yml
+# (Hub refactor/test-layers), copied by hand until the Hub renders it; the gate and the release verify
+# through `mise run test:verify` and `mise run ci` instead of the internal evidence tooling.
+name: CI
+"on":
+  push:
+    branches:
+    - dev
+    - main
+    - release/v*
+  pull_request: {}
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  MISE_LOCKED: "1"
+  MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
+  CARGO_TERM_COLOR: always
+jobs:
+  source:
+    name: Source
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: mise run format:rust --check
+  build:
+    name: Build
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: mise run build
+    - run: mise run test:unit
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-${{ github.sha }}
+        path: |-
+          target/nextest/
+          target/fixtures/
+          dist/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: evidence-build-${{ github.sha }}
+        path: .stkr/tests/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - run: mise run check
+    - run: mise run lint:rust
+    - run: mise run package:rust
+    - if: steps.tools.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/mise/
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+  test_integration_rust:
+    name: Test / Integration / Rust
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - build
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: build-${{ github.sha }}
+        merge-multiple: true
+    - run: mise run test:integration:rust
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: evidence-test_integration_rust-${{ github.sha }}
+        path: .stkr/tests/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+  test_acceptance_rust:
+    name: Test / Acceptance / Rust
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - build
+    - test_integration_rust
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: build-${{ github.sha }}
+        merge-multiple: true
+    - run: mise run test:acceptance:rust
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: evidence-test_acceptance_rust-${{ github.sha }}
+        path: .stkr/tests/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+  gate:
+    name: Gate
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - source
+    - build
+    - test_integration_rust
+    - test_acceptance_rust
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: >-
+        test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result,
+        'cancelled') }}" = false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: evidence-*-${{ github.sha }}
+        path: .cache/evidence
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: build-${{ github.sha }}
+        merge-multiple: true
+    - run: mise run test:verify
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: gate-${{ github.sha }}
+        path: |-
+          .stkr/tests/
+          .stkr/benchmarks/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    if: always()

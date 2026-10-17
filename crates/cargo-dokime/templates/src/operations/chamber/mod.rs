@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -20,6 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Bench;
+use crate::domain::model::chamber::ChamberReading;
 use dokime::prelude::*;
 
 /* === Constants === */
@@ -37,15 +37,6 @@ pub struct DetectPort {
     bench: Arc<Bench>,
 }
 
-#[dokime::message]
-#[derive(Clone, PartialEq)]
-pub struct ChamberReading {
-        #[row(description = "What the chamber is at, in °C.")]
-    pub celsius: f64,
-                        #[row(description = "What read it, for the traceability a template states.\nA template never names this plugin, so anything it wants to say about the bench it reads off a reply: what an operation answers is the whole of what a run knows about the process serving it.")]
-    pub sensor: String,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -55,7 +46,7 @@ pub struct ChamberReading {
     id = "{{owner}}.get_chamber",
     version = 1,
     description = "Reads the chamber. A template calls it with `ctx.call::<ReadChamber>(())`.",
-    policy = super::POLICY
+    policy = crate::domain::operations::POLICY
 )]
 impl ReadChamber {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
@@ -77,7 +68,7 @@ impl ReadChamber {
     id = "{{owner}}.detect_port",
     version = 1,
     description = "Finds the sensor port the settings card offers before anybody saved one.",
-    policy = super::POLICY
+    policy = crate::domain::operations::POLICY
 )]
 impl DetectPort {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {

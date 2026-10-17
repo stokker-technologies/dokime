@@ -5,22 +5,31 @@ runs on any machine; `src/bench.rs` is the one file that pretends, and the first
 one to replace with a real driver.
 
 ```text
-src/bench.rs                  the simulated sensor and heater
-src/settings.rs               the one settings section an operator edits
-src/error.rs                  the one error every boundary answers with
-src/lib.rs                    the catalogs, the settings, and the handles opened once
-src/listeners/unit_connected.rs  what the bench hears between runs
-src/prompts/checkpoint.rs     the one question it asks an operator
-src/operations/chamber.rs         reads the chamber; the one road a template has to it
-src/operations/status.rs          what the bench reports about itself
-src/observers/temperature.rs  the chamber's row, and the observer that measures it
-src/suites/soak/hold.rs       the procedure: steps, samples, criteria, cleanup
-tests/soak.rs                 the whole procedure, run in process
+src/bench.rs                       the simulated sensor and heater
+src/error.rs                       the one error every boundary answers with
+src/lib.rs                         the plugin, its contributions, and the handles opened once
+src/domain/model/chamber/          what the chamber answers, and its temperature row
+src/domain/model/prompts/          the one question it asks an operator
+src/domain/model/settings/         the one settings section an operator edits
+src/domain/operations/             the catalog of operations the plugin provides
+src/operations/chamber/            reads the chamber; the one road a template has to it
+src/operations/status/             what the bench reports about itself
+src/listeners/unit_connected.rs    what the bench hears between runs
+src/observers/temperature.rs       the observer that measures the chamber
+src/suites/soak/hold.rs            the procedure: steps, samples, criteria, cleanup
+tests/soak.rs                      the whole procedure, run in process
+mise.toml                          the tasks every CI job runs
+.github/workflows/, .gitlab-ci.yml CI for either provider
 ```
+
+`src/domain/` holds what the plugin declares, by kind first and domain second:
+`model/` for messages, rows, prompts and settings, `operations/` for the
+operations it provides. The handlers live under `src/operations/`, one folder
+per domain with the same name.
 
 Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
 module. `src/lib.rs` composes these on `#[dokime::plugin]`: `provides =
-operations::Operations` names the operations it serves, and `contributions(...)`
+domain::operations::Operations` names the operations it serves, and `contributions(...)`
 lists the suites, records and listeners, evidence streams and settings it adds
 to the host. Public `Streams` and `Records` catalogs in `lib.rs` register
 process-wide outputs exactly once. Each
@@ -33,7 +42,7 @@ wire id, a version and a policy, with request and response types read off its
 `run`. Empty requests use `()`. A template names the operations it calls with
 `requires = Required` and invokes `ctx.call::<ReadChamber>(()).await?`; the call
 is routed through the host. Adding an operation means a variant in
-`operations::Implemented`.
+`domain::operations::Operations`.
 
 Install `cargo-dokime` and the `dokime` host, then run from this directory:
 
@@ -68,7 +77,8 @@ cargo dokime build{{selection}}
 
 The SDK tracks Dokime’s `dev` branch during development. Generation is offline;
 the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
-to retain the resolved revisions. The development command
-runs its bundled backend by default; no separate Dokime installation is needed.
-Use `--dokime PATH` to test an external host explicitly. The backend serves no UI;
-Dokime uses the Tauri desktop application.
+to retain the resolved revisions.
+
+`mise run check` formats, lints and type-checks; `mise run test:unit` and
+`mise run test:integration:rust` run the tests; `mise run build` writes
+`dist/{{package}}.dokime`. The CI workflows run the same tasks, one per job.

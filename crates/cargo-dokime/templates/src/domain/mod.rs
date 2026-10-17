@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -8,7 +8,8 @@
  */
 
 /* === Modules === */
-pub mod checkpoint;
+pub mod model;
+pub mod operations;
 
 /* === Re-Exports === */
 
