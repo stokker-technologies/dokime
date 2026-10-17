@@ -122,8 +122,6 @@ impl ExecutionPluginIdentity {
 }
 
 impl ExecutionSnapshot {
-    /// Reassembles a snapshot from parts captured earlier without materializing
-    /// them again; they were validated when the snapshot was first built.
     pub fn from_captured(
         case: TestCase, template: Option<TestCaseTemplate>, parameter_definitions: Vec<ParameterDefinition>,
         plugin: Option<ExecutionPluginIdentity>, host_version: Option<String>, parameters: BTreeMap<String, MaterializedParameter>,

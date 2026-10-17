@@ -44,12 +44,10 @@ const UUID_BYTES: usize = 36;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Counts every artifact of sealed executions and live acquisitions.
 pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
     inspect(storage, |_, _| Ok(())).await
 }
 
-/// Visits each distinct artifact once, sealed history first, then live uploads.
 pub(super) async fn inspect(
     storage: &ExecutionStorage, mut visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
 ) -> Result<usize> {
@@ -83,8 +81,6 @@ pub(super) async fn inspect(
     Ok(seen.len())
 }
 
-/// Every artifact record, ordered by identity. Ordering needs the whole
-/// inventory, so no bound applies before it is read.
 pub(super) async fn records(storage: &ExecutionStorage) -> Result<Vec<ArtifactRecord>> {
     let mut records = Vec::new();
     inspect(storage, |_, output| {

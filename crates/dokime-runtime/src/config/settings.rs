@@ -78,8 +78,6 @@ pub struct Appearance {
     pub density: Density,
 }
 
-/// How a plot draws when neither its author nor its operator chose: the points
-/// it keeps and the strategy that selects them, live and in every report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ReportDefaults {
@@ -116,8 +114,6 @@ impl Default for ReportDefaults {
 }
 
 impl ReportDefaults {
-    /// Fills every plot of `document` its author and operator left unset:
-    /// absent points take the default points, and `Auto` the default strategy.
     pub fn apply(&self, document: &mut crate::document::DocumentDefinition) {
         let bodies = document
             .cards

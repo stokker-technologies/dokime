@@ -206,8 +206,6 @@ async fn prune(directory: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Masks bearer credentials and the values of authorization, token, secret
-/// and password keys, whether written as `key: value`, `key=value` or JSON.
 fn redact(line: &str) -> String {
     // Locate The Secrets
     // ASCII lowercasing keeps byte offsets, and every boundary below sits next

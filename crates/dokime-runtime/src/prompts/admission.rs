@@ -45,7 +45,6 @@ use dokime_domain::model::prompts::{PromptDefinition, checks::collect_definition
 
 /* === Public Functions === */
 
-/// Untrusted declarations are checked before the pure installation transaction.
 pub(crate) fn validate_installation(installation: &InstalledPlugin) -> Result<(), String> {
     validate_definitions(
         &installation.source,

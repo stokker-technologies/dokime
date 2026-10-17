@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Connection Session Selection, Negotiation And Credentials Against A gRPC Fixture.
-
 /* === Modules === */
 
 /* === Re-Exports === */

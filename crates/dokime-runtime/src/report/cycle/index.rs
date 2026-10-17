@@ -64,7 +64,6 @@ pub(crate) struct Member {
     pub parameters: BTreeMap<String, Value>,
     pub scope: RecordScope,
     pub steps: Vec<StepRecord>,
-    /// The member's own report time, standing in for step times it never set.
     pub generated_at: Timestamp,
 }
 #[derive(Clone)]
@@ -76,7 +75,6 @@ pub(crate) struct Sample {
     received_at: Timestamp,
     id: String,
 }
-/// Where one note or health observation sits among the captured members.
 #[derive(Clone)]
 pub(crate) struct Annotation {
     pub kind: AnnotationKind,
@@ -92,7 +90,6 @@ pub(crate) struct Index {
     pub counts: Vec<[usize; 3]>,
     pub cases: Vec<Case>,
     pub samples: Vec<Sample>,
-    /// The latest observation of each note and health item, in member order.
     pub annotations: Vec<Annotation>,
     seen: BTreeMap<CaseId, usize>,
     templates: BTreeSet<TemplateId>,

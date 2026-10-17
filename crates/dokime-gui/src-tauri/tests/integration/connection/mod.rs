@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Connection Session And Shared Client Stories Against An In-Process gRPC Fixture.
-
 /* === Modules === */
 
 mod client;

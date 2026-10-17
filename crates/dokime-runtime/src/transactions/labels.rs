@@ -34,12 +34,6 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Renames one live cycle or execution until it seals.
-///
-/// A sealed report froze the label, so a sealed or archived cycle and an
-/// execution whose case has a sealed attempt refuse the rename. An execution's
-/// label is its case's label, so every attempt of that case in the cycle takes
-/// the new label and the case lists follow.
 #[harmos::transaction(id = "dokime.execution.label.rename", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
@@ -151,7 +145,6 @@ impl RenameLabel {
 }
 
 /* === Public Functions === */
-/// Every attempt of the execution's case in its cycle, the execution included.
 pub fn case_attempts(state: &RuntimeState, id: &TestExecutionId) -> Vec<TestExecutionId> {
     let Some(execution) = state.executions.get(id) else {
         return Vec::new();

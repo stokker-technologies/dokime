@@ -25,7 +25,6 @@ use super::server::{Server, plugin_bundle};
 use dokime_client::{Client, Target};
 
 /* === Constants === */
-/// The idle window before shutdown, so background startup work has settled.
 const SETTLE: Duration = Duration::from_secs(2);
 
 /* === Macros === */
@@ -61,7 +60,6 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
-/// Starts an idle server with the requested sessions and times only its shutdown.
 fn idle_shutdown(runtime: &tokio::runtime::Runtime, connected: bool, watching: bool, plugin: Option<&Path>) -> Duration {
     let server = Server::start(plugin);
     let target = || Target::local(server.endpoint()).unwrap();

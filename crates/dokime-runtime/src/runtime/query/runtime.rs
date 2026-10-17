@@ -116,11 +116,8 @@ pub struct RuntimeExecutionSummary {
 }
 
 /* === Enums === */
-/// What changed since a [`RuntimeStateWatch`] last answered.
 pub enum RuntimeChange {
-    /// Runtime state committed a new revision.
     State(RuntimeStateSnapshot),
-    /// Only the operation list changed; state is where it was.
     Operations(OperationSnapshot),
 }
 
@@ -151,13 +148,10 @@ impl RuntimeStateWatch {
         Some(self.receiver.borrow_and_update().clone())
     }
 
-    /// The operations the runtime is performing now.
     pub fn operations(&self) -> OperationSnapshot {
         self.operations.latest()
     }
 
-    /// The next change of state or of the operation list. State wins when
-    /// both changed, so a committed revision is never delayed by progress.
     pub async fn next_change(&mut self) -> Option<RuntimeChange> {
         tokio::select! {
             biased;

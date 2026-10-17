@@ -67,7 +67,6 @@ pub struct CaseMaterializationOptions {
     pub max_cases: usize,
     pub force: bool,
     pub registration_id: CommandId,
-    /// Number of the first case's label; later cases count up from it.
     pub first_label_number: usize,
 }
 

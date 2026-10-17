@@ -130,11 +130,6 @@ fn bounded_limit(value: u32) -> Result<usize, Status> {
     Ok(value.min(MAX_LIMIT))
 }
 
-/// Clamps the selected samples to the longest run that fits the message
-/// budget, returning the page's continuation cursors and its reserved bytes.
-/// Forward pages keep their oldest samples so the cursors continue exactly
-/// after them; latest windows keep their newest. Only a single sample larger
-/// than the whole budget is refused, because no page could ever carry it.
 fn fit_page(
     samples: &mut Vec<dokime_runtime::telemetry::TelemetrySample>, latest: bool, after_stream_cursors: BTreeMap<String, u64>, budget: usize,
 ) -> Result<(BTreeMap<String, u64>, usize), Status> {

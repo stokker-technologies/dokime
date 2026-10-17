@@ -44,11 +44,8 @@ use dokime_runtime::runtime::query::PlotPayloadStreamKind;
 use dokime_runtime::runtime::query::plot_payload_request_for_descriptor;
 
 /* === Constants === */
-/// What a stream frame adds around its envelope: its kind and length prefixes.
 const MESSAGE_HEADROOM_BYTES: usize = 64;
-/// What the output stream adds around a decoded frame.
 const DECODED_HEADROOM_BYTES: usize = 1024;
-/// The longest generation time a payload names: RFC 3339 with nanoseconds.
 const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
 
 /* === Macros === */
@@ -77,8 +74,6 @@ pub(crate) fn document_plot_definition(
     })
 }
 
-/// One plot's envelope, refused with the points it can take when its points
-/// cannot cross in one message of `limit` bytes.
 pub(super) fn envelope(
     value: PlotPayloadEnvelope, epoch: &str, selection: &str, limit: usize,
 ) -> Result<dokime_domain::model::plots::wire::PlotEnvelope, Status> {
@@ -120,10 +115,6 @@ pub(super) fn ensure_message_budget<M: Portable>(value: &M, limit: usize, label:
 }
 
 /* === Private Functions === */
-/// Refuses an envelope whose points overflow one message, naming the most
-/// points per series this plot can take. A frame must fit the message both as
-/// encoded and as decoded into the output stream; what the envelope spends
-/// besides its points is fixed, and each point costs what the points averaged.
 fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), Status> {
     let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
     let decoded_budget = super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);

@@ -29,8 +29,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Captured records in storage order, read from one saved cut that covers
-/// every record accepted when the history opened.
 pub(crate) struct History {
     source: Arc<Source>,
     state_manager: crate::app::StateManager,
@@ -60,7 +58,6 @@ pub(super) enum Start {
 
 /* === Implementations === */
 impl Source {
-    /// Saved records `select` accepts, excluding this process's records after `through`.
     pub(crate) async fn saved_filtered_records(
         &self, state_manager: &crate::app::StateManager, through: u64, select: impl Fn(&RecordEntry) -> bool,
     ) -> Result<Vec<RecordEntry>> {

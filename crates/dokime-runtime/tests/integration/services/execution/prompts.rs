@@ -40,7 +40,6 @@ use {
 
 /* === Structs === */
 
-/// A step that asks the operator and waits for the answer.
 struct AskingChecks;
 
 struct Hold;
@@ -74,7 +73,6 @@ impl Hold {
     }
 }
 
-/// Serves the asking suite in process.
 struct Asking;
 
 #[async_trait::async_trait]
@@ -433,15 +431,11 @@ async fn interruption_settles_prompts() {
     owner.shutdown().await.unwrap();
 }
 
-/// A runtime with the inspection question installed and `executor` running
-/// every cycle.
 async fn inspection_runtime(root: &std::path::Path, executor: Arc<dyn ExecutionFixture>) -> (dokime_runtime::Runtime, RuntimeHandle) {
     let config = config(root).with_declared_plugin("prompt.fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
     started_with_fixture(config, executor).await
 }
 
-/// Declares the operator question every execution of the suite may ask. It
-/// offers no cancel action, so only the runtime can settle it.
 fn inspection_suite(mut suite: TestSuite) -> TestSuite {
     suite.test_case_templates[0].prompt_definitions.push(inspection_definition());
     suite

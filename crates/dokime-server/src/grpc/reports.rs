@@ -145,7 +145,6 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 }
 
 /* === Private Functions === */
-/// Streams one opened report: its metadata, then its bytes, then the digest.
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
     output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,

@@ -7,8 +7,6 @@
  * ***
  */
 
-//! The Desktop's Transpiled TypeScript Facade, Run In Node, Against The Native Bridge.
-
 /* === Modules === */
 
 /* === Re-Exports === */

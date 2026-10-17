@@ -29,8 +29,6 @@
 /* === Enums === */
 
 /* === Traits === */
-/// The protobuf form a typed message takes on the gRPC wire, for stories that
-/// build or read raw frames.
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 

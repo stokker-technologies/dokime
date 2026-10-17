@@ -31,12 +31,6 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Archives or unarchives one terminal cycle or execution.
-///
-/// Archiving is orthogonal to the lifecycle: it hides a row from the lists
-/// that do not ask for archived rows and changes nothing else. A subject still
-/// in live state must be terminal; one already retired to native history was
-/// confirmed by the caller and is terminal by construction.
 #[harmos::transaction(id = "dokime.execution.archive", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetArchived {
@@ -102,12 +96,10 @@ impl Transaction<RuntimeState> for SetArchived {
 }
 
 /* === Public Functions === */
-/// Whether a cycle's lifecycle has ended: nothing more will run in it.
 pub fn cycle_terminal(lifecycle: CycleStatus) -> bool {
     matches!(lifecycle, CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped)
 }
 
-/// Whether an execution has ended, whatever its verdict.
 pub fn execution_terminal(status: &ExecutionStatus) -> bool {
     !matches!(status, ExecutionStatus::Pending | ExecutionStatus::Running)
 }

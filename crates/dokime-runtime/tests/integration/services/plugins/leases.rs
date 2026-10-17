@@ -31,7 +31,6 @@ use dokime_runtime::{InstalledPlugin, Runtime};
 /* === Macros === */
 
 /* === Type Aliases === */
-/// How Many Times The Counting Collector Has Read, Observable As It Changes.
 type Reads = Arc<tokio::sync::watch::Sender<usize>>;
 
 /* === Structs === */

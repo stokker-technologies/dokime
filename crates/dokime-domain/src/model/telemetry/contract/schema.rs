@@ -43,7 +43,6 @@ pub struct TelemetryContract {
     pub template_id: Option<TemplateId>,
     pub owner: Option<SuiteId>,
     pub columns: Vec<TelemetryColumn>,
-    /// Authoritative finite row schema; display columns do not define storage types.
     pub storage_schema: Option<harmos::schema::graph::Schema>,
     pub default_x: Option<String>,
     pub interval: Option<crate::model::time::DurationMillis>,
@@ -228,9 +227,6 @@ impl TelemetryContract {
         normalized
     }
 
-    /// The normalized contract without its template association: what every
-    /// declaration of one stream has to agree on, whichever of its plugin's
-    /// templates declares it.
     pub fn stream_schema(&self) -> Self {
         let mut schema = self.normalized();
         schema.template_id = None;

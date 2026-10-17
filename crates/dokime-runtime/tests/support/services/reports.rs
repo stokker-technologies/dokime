@@ -37,7 +37,6 @@ use model::execution::{HealthItem, OperatorNote};
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A bare application that only serves storage operations over one manager.
 pub struct ReportOwner;
 
 /* === Enums === */
@@ -63,8 +62,6 @@ impl harmos::operations::Lane for ReportOwner {
 }
 
 /* === Public Functions === */
-/// A bare runtime over `manager` serving the Harmos storage operations on its
-/// own declared lane.
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
     use harmos::operations::Lane;
     let runtime = harmos::Runtime::<ReportOwner>::builder((), ())
@@ -100,7 +97,6 @@ pub async fn render(input: &CycleReportInput) -> String {
     render_annotated(input, Vec::new(), Vec::new()).await
 }
 
-/// Renders one execution whose frozen context carries these notes and health items.
 pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>, health: Vec<HealthItem>) -> String {
     assert_eq!(input.cycle.test_executions.len(), 1);
 

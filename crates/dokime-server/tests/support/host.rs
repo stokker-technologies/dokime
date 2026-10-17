@@ -27,7 +27,6 @@ use tokio::process::{Child, ChildStdout, Command};
 /* === Type Aliases === */
 
 /* === Structs === */
-/// The built `dokime-server` host under dev control, killed on drop.
 pub struct Host {
     child: Child,
     endpoint: String,
@@ -41,7 +40,6 @@ pub struct Host {
 
 /* === Implementations === */
 impl Host {
-    /// Launches the host on a fresh storage root it owns.
     pub async fn launch(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
         let mut host = Self::launch_in(root.path(), plugin).await;
@@ -49,9 +47,6 @@ impl Host {
         host
     }
 
-    /// Launches the host on `root`, optionally with one plugin bundle, and
-    /// returns once its `ready` line names the listening endpoint. A later
-    /// launch on the same root sees what this one stored.
     pub async fn launch_in(root: &Path, plugin: Option<&Path>) -> Self {
         let mut command = Command::new(super::artifacts::host_binary());
         command
@@ -95,7 +90,6 @@ impl Host {
         Self { child, endpoint, replies: lines, _root: None }
     }
 
-    /// Sends one dev-control command line and returns the host's reply line.
     pub async fn command(&mut self, request: serde_json::Value) -> serde_json::Value {
         let stdin = self.child.stdin.as_mut().unwrap();
         stdin.write_all(format!("{request}\n").as_bytes()).await.unwrap();
@@ -104,14 +98,10 @@ impl Host {
         serde_json::from_str(&line).unwrap()
     }
 
-    /// Connects an unauthenticated local client to the host.
     pub async fn connect(&self) -> dokime_client::Client {
         dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
     }
 
-    /// Stops the host by closing stdin or, with `signal`, by SIGINT, and
-    /// asserts a clean exit. Process exit is the event; the lane deadline
-    /// bounds a hang.
     pub async fn stop(mut self, signal: bool) {
         if signal {
             let pid = self.child.id().unwrap().to_string();

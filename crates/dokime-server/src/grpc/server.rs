@@ -29,7 +29,6 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Configured operations and immutable listener policy for one runtime.
 pub struct Service {
     runtime: RuntimeHandle,
     settings: harmos::grpc::Settings,
@@ -77,7 +76,6 @@ impl Service {
         Ok(Self { runtime, settings, tls })
     }
 
-    /// Attach or reattach this configured service without registering it again.
     pub async fn listen(&self) -> Result<Server, Error> {
         let attachment = self.runtime.grpc().attach(self.settings.clone()).await?;
         Ok(Server { address: attachment.local_addr(), tls: self.tls, attachment: Some(attachment) })

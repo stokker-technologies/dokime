@@ -38,9 +38,6 @@ use harmos::storage::{StorageBudget, StorageRequestSettings, StorageResponseSett
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Dokime's storage policy: a quarter of memory for reads, a twentieth for
-/// pending writes, active queries by core count, and response batches of at
-/// most an eighth of the read budget.
 pub fn storage_defaults() -> StorageSettings {
     let memory = effective_memory();
     let read = nonzero(memory / 4);

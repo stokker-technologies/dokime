@@ -93,7 +93,6 @@ fn rms() -> Transform {
     })
 }
 
-/// The fixture's sine samples have the RMS of a 325 V amplitude.
 async fn assert_rms(fixture: &Fixture) {
     let mut reader = fixture.storage.query(fixture.plan(vec![rms()], RowSlice::default())).await.unwrap();
     let mut actual = None;

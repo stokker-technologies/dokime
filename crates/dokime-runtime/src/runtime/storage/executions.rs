@@ -219,13 +219,11 @@ impl ExecutionStorage {
         })
     }
 
-    /// The seal `id` saved durably, which an open cycle's state does not yet hold.
     pub(crate) async fn durable_seal(&self, id: &TestExecutionId) -> Result<Option<dokime_domain::model::execution::saved::ExecutionSeal>> {
         let latest = super::execution::ExecutionView::open(&self.storage, id, harmos::storage::ObjectVersion::Latest).await?;
         Ok(latest.and_then(|latest| latest.execution().saved.clone()))
     }
 
-    /// The final seal this process saved for `id`, which its cycle's state holds only once the cycle seals.
     pub(crate) async fn final_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
         let owner = self.acquisition(id).await?;
         let acquisition = owner.lock().await;
@@ -371,8 +369,6 @@ impl ExecutionStorage {
             .value)
     }
 
-    /// Save `execution` as its owner's revision and return it: the durable
-    /// terminal snapshot a report lifecycle references instead of copying.
     pub(crate) async fn freeze_revision(&self, execution: &TestExecution) -> Result<Arc<ExecutionRevision>> {
         let owner =
             self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
@@ -399,8 +395,6 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
-    /// The terminal execution a report lifecycle froze, read from its owner
-    /// when that owner saved it, otherwise from its durable revision.
     pub(crate) async fn frozen_execution(&self, revision: &ExecutionRevision) -> Result<TestExecution> {
         if let Some(owner) = self.acquisition(&revision.execution_id).await {
             let acquisition = owner.lock().await;
@@ -421,8 +415,6 @@ impl ExecutionStorage {
         Ok(stored.value)
     }
 
-    /// Bind the owner of `execution` to the revision its lifecycle froze,
-    /// reading it back when this owner has not saved it (after a restart).
     pub(crate) async fn adopt_revision(&self, execution: &TestExecution, revision: &ExecutionRevision) -> Result<()> {
         let owner =
             self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
@@ -498,7 +490,6 @@ impl ExecutionStorage {
         acquisition.published.is_some() || acquisition.execution.saved.is_some()
     }
 
-    /// The final report already published for `execution` at `at`, awaiting its seal.
     pub(crate) async fn published_final_report(
         &self, execution: &TestExecutionId, at: &StorageCursor,
     ) -> Result<Option<dokime_domain::model::reports::wire::MaterializedReport>> {
@@ -515,7 +506,6 @@ impl ExecutionStorage {
         Ok(Some(dokime_domain::model::reports::wire::MaterializedReport { report: published.seal.report.clone() }))
     }
 
-    /// Seal `execution` with its published final report.
     pub(crate) async fn seal_final_report(&self, execution: &TestExecutionId) -> Result<Arc<ExecutionRevision>> {
         let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report seal has no acquisition owner"))?;
         // Saving Survives Caller Cancellation So A Started Seal Always Settles.

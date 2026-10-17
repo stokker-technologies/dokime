@@ -185,7 +185,6 @@ pub fn validate_answer_rules(definition: &PromptDefinition, values: &BTreeMap<St
     issues
 }
 
-/// Collects the one definition for each prompt identity, ordered by prompt identity.
 pub fn collect_definitions<'a>(
     source: &str, definitions: impl IntoIterator<Item = &'a PromptDefinition>,
 ) -> Result<Vec<&'a PromptDefinition>, String> {

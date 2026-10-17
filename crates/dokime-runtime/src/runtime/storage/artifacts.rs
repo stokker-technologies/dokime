@@ -61,7 +61,6 @@ pub struct ArtifactUpload {
     _owner: Arc<()>,
 }
 
-/// How far an upload has come against the size it declared.
 struct UploadProgress {
     operation: Operation,
     sent: AtomicU64,
@@ -322,7 +321,6 @@ impl ExecutionStorage {
         super::artifact_inventory::records(self).await
     }
 
-    /// Counts every artifact of sealed and live executions.
     pub(crate) async fn artifact_count(&self) -> Result<usize> {
         super::artifact_inventory::count(self).await
     }

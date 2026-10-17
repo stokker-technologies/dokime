@@ -29,7 +29,6 @@ use crate::{ExecutionFileContent, runtime::Result, runtime::storage::native_outp
 /* === Type Aliases === */
 
 /* === Structs === */
-/// An execution output read in chunks, live from its producer or from its seal.
 pub struct ExecutionFileStream {
     source: Source,
     metadata: ExecutionFileContent,
@@ -60,7 +59,6 @@ impl ExecutionFileStream {
         &self.metadata
     }
 
-    /// The next chunk of at most `maximum` bytes, or `None` at the end.
     pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ExecutionFileContent>> {
         let content = match &mut self.source {
             Source::Live(reader) => reader.next_chunk(maximum).await?,

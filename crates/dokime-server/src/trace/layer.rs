@@ -38,8 +38,6 @@ use super::journal::{Event, Journal};
 use crate::grpc::redaction;
 
 /* === Constants === */
-/// Events emitted while serving a trace watch are not captured, so a reader
-/// never feeds its own stream.
 pub const WATCH_SPAN: &str = "dokime.trace.watch";
 
 const MAX_MESSAGE_BYTES: usize = 8 * 1024;
@@ -59,12 +57,10 @@ const BEARER: &str = "bearer ";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Captures every event its filter admits into one journal.
 pub struct Capture {
     journal: Arc<Journal>,
 }
 
-/// The scope ids one span recorded.
 #[derive(Clone, Debug, Default)]
 struct SpanScope {
     plugin: Option<String>,
@@ -190,7 +186,6 @@ impl SpanScope {
         }
     }
 
-    /// Keeps every id already known and takes the rest from `other`.
     fn merge(&mut self, other: SpanScope) {
         self.plugin = self.plugin.take().or(other.plugin);
         self.cycle = self.cycle.take().or(other.cycle);
@@ -273,7 +268,6 @@ impl Role {
 }
 
 /* === Public Functions === */
-/// Cuts every bearer credential out of `text`, keeping the scheme name.
 pub fn scrubbed(text: &str) -> String {
     let folded = text.to_ascii_lowercase();
     let mut result = String::with_capacity(text.len());

@@ -76,10 +76,6 @@ pub trait ExecutionFixture: Send + Sync + 'static {
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a>;
 
-    /// Refuses One Execution's Final Report Before It Is Materialized.
-    ///
-    /// A refusal is a permanent finalization failure: the execution is never
-    /// sealed while this fixture serves the runtime.
     fn refuse_final_report(&self, _execution: &TestExecution) -> Option<String> {
         None
     }
@@ -106,8 +102,6 @@ impl ExecutionFixtureContext {
         self
     }
 
-    /// True once the runtime shuts down, the work is cancelled, or an operator
-    /// stopped the cycle run this context serves.
     pub fn is_cancelled(&self) -> bool {
         self.runtime.is_shutting_down()
             || self.cancellation.as_ref().is_some_and(|cancelled| *cancelled.borrow())
@@ -116,8 +110,6 @@ impl ExecutionFixtureContext {
             })
     }
 
-    /// Wait until the same cancellation conditions reported by `is_cancelled` hold.
-    /// Closing the provider's cancellation channel also ends the wait.
     pub async fn cancelled(&self) {
         let mut cancellation = self.cancellation.clone();
         let mut shutdown = self.runtime.shutdown_requested.subscribe();
@@ -144,8 +136,6 @@ impl ExecutionFixtureContext {
         }
     }
 
-    /// True once an operator stopped this one execution of a cycle run. The
-    /// provider cancels it cooperatively and keeps running its siblings.
     pub fn execution_stop_requested(&self, test_execution_id: &TestExecutionId) -> bool {
         let Some(request_id) = &self.request_id else {
             return false;
@@ -157,8 +147,6 @@ impl ExecutionFixtureContext {
             .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
     }
 
-    /// Wait until this one execution is stopped. Select with `cancelled` when
-    /// the provider also needs to heed cancellation of the whole cycle run.
     pub async fn execution_stopped(&self, test_execution_id: &TestExecutionId) {
         let Some(request_id) = &self.request_id else {
             return std::future::pending().await;
@@ -204,8 +192,6 @@ impl ExecutionFixtureContext {
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
     }
 
-    /// Admit one attempt of a declared step; its outcome follows through
-    /// [`Self::record_step_attempt`].
     pub async fn begin_step_attempt(
         &self, scope: RecordScope, start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> crate::runtime::Result<()> {
@@ -217,7 +203,6 @@ impl ExecutionFixtureContext {
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
     }
 
-    /// Record how an admitted step attempt ended; this is the step's outcome.
     pub async fn record_step_attempt(
         &self, scope: RecordScope, attempt: dokime_domain::model::execution::result::TestStepAttempt,
     ) -> crate::runtime::Result<()> {
@@ -289,7 +274,6 @@ impl ProviderExecutorRegistry {
         self.fixtures.get(&target.source).cloned().or_else(|| Some(Arc::clone(&self.sidecar)))
     }
 
-    /// The First Fixture Refusal Of An Execution's Final Report, If Any.
     pub(crate) fn final_report_refusal(&self, execution: &TestExecution) -> Option<String> {
         self.fixtures.values().find_map(|fixture| fixture.refuse_final_report(execution))
     }

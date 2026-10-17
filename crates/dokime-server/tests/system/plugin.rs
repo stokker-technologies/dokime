@@ -63,7 +63,6 @@ const HOST_STREAMS: &[&str] =
 /* === Private Functions === */
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
-/// Re-runs `probe` after every runtime frame the host pushes until it yields.
 async fn on_change<T>(changes: &mut Changes, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
     loop {
         if let Some(value) = probe().await {
@@ -247,7 +246,6 @@ async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInsta
     client.plugins_list_installations(Default::default()).await.unwrap().installations
 }
 
-/// Stages `bytes` in the plugin store and consents to them.
 async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
     use {model::plugins::wire::StagePluginFrame, model::plugins::wire::StagePluginFrameFrame as Frame};
     let sha256 = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
@@ -263,7 +261,6 @@ async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginI
     client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
 }
 
-/// The file under `root` the store holds with exactly `bytes`.
 fn installed_copy(root: &Path, bytes: &[u8]) -> Option<PathBuf> {
     for entry in std::fs::read_dir(root).ok()? {
         let path = entry.ok()?.path();
@@ -278,9 +275,6 @@ fn installed_copy(root: &Path, bytes: &[u8]) -> Option<PathBuf> {
     None
 }
 
-/// Scene: a steady sweep runs through its prompt and leaves its execution
-/// evidence: criteria, stream log, traceability, paged samples, pushed rows,
-/// host streams, the document plot, records and the summary artifact.
 async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let mut catalog = client.clone();
     let steady = suite(&mut catalog, STEADY_SUITE).await;
@@ -671,7 +665,6 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     assert!(summary["sample_count"].as_u64().is_some_and(|count| count >= STEADY_SAMPLE_COUNT));
 }
 
-/// Scene: Every Execution In The Nine-Case Steady Sweep Seals Its Report.
 async fn steady_reports(client: &Client, changes: &mut Changes) {
     let mut catalog = client.clone();
     let steady = suite(&mut catalog, STEADY_SUITE).await;

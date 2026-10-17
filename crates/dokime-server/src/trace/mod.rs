@@ -50,7 +50,6 @@ tower=off,tower_http=off,rustls=off";
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The capture layer for `journal`, behind the capture filter.
 pub fn layer<S>(journal: Arc<Journal>) -> Box<dyn Layer<S> + Send + Sync>
 where
     S: Subscriber + for<'a> LookupSpan<'a> + Send + Sync,

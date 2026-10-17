@@ -132,7 +132,6 @@ impl RuntimeHandle {
         self.state_read().prompt_response(prompt_id)
     }
 
-    /// When the runtime settled the prompt because its owner ended, if it did.
     pub async fn prompt_settled_at(&self, prompt_id: &PromptId) -> Option<Timestamp> {
         self.state_read().closed_prompts.get(prompt_id).cloned()
     }
@@ -147,8 +146,6 @@ impl RuntimeHandle {
             .ok_or_else(|| prompt_wait_cancelled("runtime cancellation requested while waiting for prompt"))
     }
 
-    /// Waits for the prompt's response. A stop settles the prompt in the same
-    /// transaction without answering it, so the wait ends as cancelled.
     pub async fn wait_for_prompt_response_for_cycle(
         &self, prompt_id: PromptId, test_cycle_id: TestCycleId,
     ) -> std::result::Result<PromptResponse, Error> {

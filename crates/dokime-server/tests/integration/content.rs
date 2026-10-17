@@ -787,7 +787,6 @@ async fn completion_harness()
     (root, owner, server, execution, content, gate, cycle_id, scope)
 }
 
-/// Wait on the live state the settled-evidence refusal reads, not on a sibling source.
 async fn wait_for_watched_lifecycle(
     owner: &Runtime, cycle: &dokime_runtime::TestCycleId, lifecycle: dokime_domain::model::execution::result::CycleStatus,
 ) {

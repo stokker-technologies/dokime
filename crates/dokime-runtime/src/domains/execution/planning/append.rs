@@ -35,8 +35,6 @@ use dokime_domain::model::identity::TestCycleId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Appends materialized cases to an existing mutable cycle. Each case's
-    /// authored definition is read from the registry at its suite revision.
     pub async fn append_cycle_cases(&self, test_cycle_id: TestCycleId, cases: Vec<TestCase>, context: CommandContext) -> Result<(), Error> {
         let sources = {
             let state = self.state_read();

@@ -78,7 +78,6 @@ pub struct PreparedExecutionReport {
     sealed_at: Option<Timestamp>,
 }
 
-/// One rendered report file and its idempotent publication progress.
 pub(super) struct ReportFile {
     data: Arc<ReportFileData>,
     window: Option<Identifier>,

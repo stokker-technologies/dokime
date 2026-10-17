@@ -141,7 +141,6 @@ impl Drop for BootRuntime {
 }
 
 impl RuntimeHandle {
-    /// Admit detached work that shutdown drains, or `None` once shutdown closed admission.
     pub(crate) fn admit_owned_work(&self) -> Option<tokio_util::task::task_tracker::TaskTrackerToken> {
         // Take The Token First So A Concurrent Close Either Waits For It Or Is Seen.
         let token = self.owned_work.token();
@@ -156,8 +155,6 @@ impl RuntimeHandle {
         &self.streams
     }
 
-    /// The slow operations this runtime is performing; `begin` one around
-    /// work that may keep an operator waiting.
     pub fn operation_progress(&self) -> &Arc<crate::runtime::progress::OperationRegistry> {
         &self.operation_progress
     }

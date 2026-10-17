@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Artifact Upload And Recording Sinks Through The Desktop Bridge.
-
 /* === Modules === */
 
 /* === Re-Exports === */

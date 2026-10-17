@@ -74,8 +74,6 @@ struct First;
 
 struct Second;
 
-/// A plugin that contributes only its suite: every stream, record and prompt
-/// it registers is one its templates declared.
 struct Declaring;
 
 struct DeclaringProvider {

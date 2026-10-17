@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Parameter Persistence And Atomic Replacement.
-
 /* === Modules === */
 
 /* === Re-Exports === */

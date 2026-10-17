@@ -32,7 +32,6 @@ use super::{Client, Error, Result, stream::Input};
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Opaque Protobuf Payloads: Bytes Cross Unchanged In Both Directions.
 #[derive(Clone, Copy, Debug, Default)]
 struct RawCodec;
 
@@ -84,11 +83,6 @@ impl Decoder for RawDecoder {
 }
 
 impl Client {
-    /// Calls One Unary Method By Path With An Encoded Request.
-    ///
-    /// The caller owns the method's schema: the request and the response cross
-    /// as opaque protobuf bytes. The method must be one the backend advertised,
-    /// and both directions are bounded by the negotiated message limits.
     pub async fn call_raw(&self, path: &str, request: Vec<u8>, deadline: Duration) -> Result<Vec<u8>> {
         let (mut grpc, path) = self.raw_call(path, request.len())?;
         let mut request = self.request(request);
@@ -101,13 +95,6 @@ impl Client {
             .await
     }
 
-    /// Opens One Streaming Call By Path, Whatever Its Declared Shape.
-    ///
-    /// gRPC frames every method the same way on the wire, so a server, client or
-    /// bidirectional stream is one HTTP/2 stream whose input ends when `input`
-    /// ends. A server-streaming method receives exactly one input frame; the
-    /// caller decides how many it sends and bounds each to `max_request_bytes`.
-    /// Input ends early when the client closes.
     pub async fn stream_raw<S>(&self, path: &str, input: S, deadline: Duration) -> Result<RawStreaming<Vec<u8>>>
     where
         S: Stream<Item = Vec<u8>> + Send + 'static,
@@ -123,7 +110,6 @@ impl Client {
         .await
     }
 
-    /// The Largest Encoded Request Frame The Backend Accepts From This Client.
     pub fn max_request_bytes(&self) -> usize {
         self.request_limit()
     }

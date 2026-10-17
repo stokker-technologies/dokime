@@ -39,7 +39,6 @@ use dokime_domain::state::records::set::TestRecordSet;
 pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 
 /* === Structs === */
-/// The records an execution captured, read at its frozen evidence cut.
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,

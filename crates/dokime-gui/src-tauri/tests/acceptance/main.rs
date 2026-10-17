@@ -7,9 +7,6 @@
  * ***
  */
 
-//! Desktop Shell User Stories Across A Process Boundary: Backend Launch, Discovery,
-//! The TypeScript Facade In Node And The Shared Execution Matrix.
-
 /* === Modules === */
 
 mod discovery;

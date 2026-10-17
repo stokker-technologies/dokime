@@ -30,7 +30,6 @@ const PRODUCT: &str = "Dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One installed Dokime program this CLI launches on the caller's behalf.
 pub(crate) struct Program {
     name: &'static str,
 }
@@ -44,9 +43,6 @@ impl Program {
     pub(crate) const SERVER: Self = Self { name: "dokime-server" };
     pub(crate) const GUI: Self = Self { name: "dokime-gui" };
 
-    /// The explicit path when given, otherwise the first installed copy: beside
-    /// this executable, in `DOKIME_HOME`, then the platform's installation
-    /// directories.
     pub(crate) fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {
         if let Some(path) = explicit {
             return executable(path).ok_or_else(|| Error::Input(format!("{} {} is not a file", self.name, path.display())));
@@ -70,9 +66,6 @@ impl Program {
 }
 
 /* === Public Functions === */
-/// Hands this process over to `command`: on Unix it replaces the process, so
-/// signals and a caller's kill reach the program itself; elsewhere it waits and
-/// exits with the program's status.
 pub(crate) fn hand_over(mut command: Command) -> Result<()> {
     #[cfg(unix)]
     {

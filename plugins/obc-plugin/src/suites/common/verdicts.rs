@@ -33,7 +33,6 @@
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Decides a criterion from the last record of `R` the run published.
 pub(crate) fn decided<R: dokime_runtime::records::DeclaredRecord>(
     records: dokime_runtime::Result<Vec<R>>, accepted: impl Fn(&R) -> bool,
 ) -> Result<bool, crate::error::Error> {

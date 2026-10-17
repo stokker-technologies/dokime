@@ -37,7 +37,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Archives or unarchives one terminal cycle, live or retired to history.
     pub async fn set_cycle_archived(&self, test_cycle_id: TestCycleId, archived: bool, context: CommandContext) -> Result<(), Error> {
         let live = self.state_read().cycles.contains_key(&test_cycle_id);
         if !live && !self.stored_cycle_exists(&test_cycle_id).await? {
@@ -46,7 +45,6 @@ impl RuntimeHandle {
         self.commit_archive(ArchiveSubject::Cycle(test_cycle_id), archived, context).await
     }
 
-    /// Archives or unarchives one terminal execution, live or retired to history.
     pub async fn set_execution_archived(
         &self, test_execution_id: TestExecutionId, archived: bool, context: CommandContext,
     ) -> Result<(), Error> {

@@ -221,7 +221,6 @@ impl RequestStorage {
         Ok(())
     }
 
-    /// Reads Storage Without Holding The Request Registry, Then Rechecks Ownership.
     async fn lock_read(
         &self, id: &CommandId,
     ) -> Result<(tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active>>, Option<Option<Arc<RunReceipt>>>)> {

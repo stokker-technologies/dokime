@@ -22,7 +22,6 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Constants === */
-/// The most points one plot may request, live or in a report.
 pub const MAX_PLOT_POINTS: u64 = 100_000;
 
 /* === Macros === */
@@ -78,8 +77,6 @@ impl crate::RuntimeHandle {
         Ok(self.application_settings())
     }
 
-    /// The points and strategy every plot starts from. Points stay within the
-    /// live plot cap; the strategy is one a plot can name.
     pub async fn update_report_defaults(&self, report: ReportDefaults) -> Result<ApplicationSettingsView> {
         if report.plot_points == 0 || u64::from(report.plot_points) > MAX_PLOT_POINTS {
             return Err(invalid(&format!("default plot points must be between 1 and {MAX_PLOT_POINTS}")));

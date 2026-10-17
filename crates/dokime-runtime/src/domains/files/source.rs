@@ -65,7 +65,6 @@ impl Source {
         Ok(Self::Local(LocalSource::open(root).await?))
     }
 
-    /// The source watching one named file reads only its parent's own entries.
     pub(super) fn single_file(self) -> Self {
         match self {
             Self::Local(local) => Self::Local(local.top_level()),

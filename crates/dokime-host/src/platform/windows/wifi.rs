@@ -98,8 +98,6 @@ struct WifiInterface {
 
 /* === Implementations === */
 impl WifiLink {
-    /// Reads the `LONG` the `wlan_intf_opcode_rssi` query returns as dBm; `None`
-    /// for a short buffer or a value outside the plausible dBm range.
     pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
         let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
         let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
@@ -175,7 +173,6 @@ impl WlanClient {
         Ok(Some(attributes))
     }
 
-    /// The received signal of the current association, in dBm.
     fn rssi_dbm(&self, interface: &WifiInterface) -> Option<f64> {
         let mut data_size = 0;
         let mut data: *mut c_void = null_mut();

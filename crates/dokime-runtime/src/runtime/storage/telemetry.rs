@@ -54,7 +54,6 @@ pub(crate) struct PreparedTelemetry {
     payload: Vec<u8>,
 }
 
-/// An execution's typed telemetry at its frozen evidence cut, merged by position.
 pub struct TelemetryReader {
     storage: Manager,
     readers: Vec<TypedRead>,
@@ -305,7 +304,6 @@ impl super::executions::ExecutionStorage {
 }
 
 /* === Public Functions === */
-/// Producer Schemas Are Durable Before An Execution Can Start Acquiring.
 pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
     let mut last = None;
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
@@ -339,7 +337,6 @@ pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> 
 }
 
 /* === Private Functions === */
-/// Resolves When Live Measurement Of The Scope Closes; Never Without A Closure Owner.
 async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &str) {
     match closure {
         Some(sampling) => sampling.wait_measurement_closed(scope).await,

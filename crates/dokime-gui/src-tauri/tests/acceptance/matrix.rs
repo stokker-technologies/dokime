@@ -7,8 +7,6 @@
  * ***
  */
 
-//! The Shared Execution Matrix, Driven By The Python Client And The Desktop Facade.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -248,7 +246,6 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
     result.expect("desktop returned its observations")
 }
 
-/// Runs Every Contract Scenario Through One Client Interface Against A Fresh Backend.
 async fn run_matrix(interface: &str) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let contract: Value = serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();

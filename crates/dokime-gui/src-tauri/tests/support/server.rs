@@ -7,8 +7,6 @@
  * ***
  */
 
-//! In-Process Backends That Stories Connect The Desktop Session To.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -27,7 +25,6 @@ use dokime_server::grpc::{Config, Server, access::Role};
 use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime, dokime_runtime::RuntimeConfig};
 
 /* === Constants === */
-/// The Bearer Token The Fixture Server Grants The Desktop.
 pub const TOKEN: &str = "rpc-test-token-012345678901234567890123456789";
 
 /* === Macros === */
@@ -35,7 +32,6 @@ pub const TOKEN: &str = "rpc-test-token-012345678901234567890123456789";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A Runtime With An Execution Fixture Served Over gRPC And A Connected Session.
 pub struct Fixture {
     pub session: ConnectionSession,
     pub server: Server,
@@ -44,7 +40,6 @@ pub struct Fixture {
     _root: tempfile::TempDir,
 }
 
-/// A Local Runtime Served Over gRPC That A Desktop Session Attaches To.
 pub struct Published {
     runtime: Runtime,
     server: Server,
@@ -127,7 +122,6 @@ impl Published {
 }
 
 /* === Public Functions === */
-/// Selects An Attachment To An Unauthenticated Local Endpoint.
 pub fn attach(endpoint: String) -> BackendSelection {
     BackendSelection::Attach {
         request: ConnectRequest {

@@ -7,10 +7,6 @@
  * ***
  */
 
-//! Desktop Session Stories That Launch A Backend Process: A Shell Stub Publishing Readiness.
-//!
-//! The stub is a POSIX shell script, so the module builds on Unix only.
-
 /* === Modules === */
 
 /* === Re-Exports === */

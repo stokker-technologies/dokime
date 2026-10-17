@@ -65,7 +65,6 @@ pub struct SubmitPromptResponse {
     pub accepted_at: Timestamp,
 }
 
-/// The prompts a transaction settles, and when.
 #[derive(Debug, Default)]
 pub(crate) struct SettledPrompts {
     ids: Vec<PromptId>,
@@ -73,14 +72,10 @@ pub(crate) struct SettledPrompts {
 }
 
 /* === Enums === */
-/// Why the runtime settled a prompt that nobody can answer any more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PromptSettlement {
-    /// An operator stopped the owning execution or cycle.
     Stopped,
-    /// The owning execution reached a terminal status.
     Ended,
-    /// The host restarted while the prompt was open.
     Interrupted,
 }
 
@@ -182,12 +177,6 @@ pub fn submit_prompt_response(state: &mut RuntimeState, response: &SubmitPromptR
     Ok(response.prompt_id.clone())
 }
 
-/// Settles every open prompt whose scope `owned` selects: one runtime
-/// settlement record per prompt, appended to the transaction's own drafts so
-/// the settlement commits with the transition that ended the owner. The
-/// prompt closes without a response: no requester is handed an answer nobody
-/// gave, and a requester still waiting is cancelled with its owner. Commit
-/// the result with [`commit_settled_prompts`].
 pub(crate) fn settle_prompts(
     state: &RuntimeState, records: &mut Drafts, settlement: PromptSettlement, at: &Timestamp, owned: impl Fn(&RecordScope) -> bool,
 ) -> SettledPrompts {

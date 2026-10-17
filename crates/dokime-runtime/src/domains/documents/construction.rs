@@ -30,8 +30,6 @@ use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
-/// The result built-ins lead the default document: steps and criteria, then
-/// the operator's notes on them, before any authored section.
 pub(super) const RESULT_SECTIONS: [Section; 2] = [
     Section {
         id: "execution.result",
@@ -47,7 +45,6 @@ pub(super) const RESULT_SECTIONS: [Section; 2] = [
         cards: &[Card { id: "traceability.notes", label: "Operator Notes", order: 10, body: DocumentCardBody::Notes }],
     },
 ];
-/// The evidence built-ins close the default document, after authored sections.
 pub(super) const EVIDENCE_SECTIONS: [Section; 4] = [
     Section {
         id: "execution.events",

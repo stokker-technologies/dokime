@@ -62,7 +62,6 @@ pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
 }
 
-/// The Immutable Measurement Boundary Of A Pending Final Report.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportFinalization {
     pub evidence_at: harmos::storage::StorageCursor,
@@ -83,14 +82,12 @@ pub struct CaptureReportLifecycle {
     pub lifecycle: ReportLifecycle,
 }
 
-/// The Terminal Execution A Final Report Captures, By Its Durable Revision.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
     pub id: uuid::Uuid,
     pub execution: dokime_domain::model::execution::saved::ExecutionRevision,
 }
 
-/// The Frozen Cycle Header And Durable Member Boundary Used By Every Retry.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportFinalization {
     pub source: dokime_domain::model::execution::result::TestCycle,
@@ -103,7 +100,6 @@ pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
-/// Seals a terminal cycle no run request will complete, with its published report.
 #[harmos::transaction(id = "dokime.cycle.seal", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
@@ -289,8 +285,6 @@ impl Transaction<RuntimeState> for StartShutdown {
 }
 
 impl RecoverInterruptedCycles {
-    /// The requester no longer exists after restart: every prompt a cycle or
-    /// execution raised expires as a runtime response, never an operator one.
     fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
         let mut records = Drafts::new(state);
         let settled = settle_prompts(state, &mut records, PromptSettlement::Interrupted, &self.at, |scope| {

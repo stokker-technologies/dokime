@@ -41,9 +41,7 @@ use wire::{ensure_message_budget, envelope, stream_frame};
 
 /* === Constants === */
 const PLOT_STREAM_THROTTLE: Duration = Duration::from_millis(100);
-/// The first pause before a watch retries plots whose read was refused.
 const PLOT_RETRY_FIRST: Duration = Duration::from_millis(250);
-/// The longest pause between retries of refused plot reads.
 const PLOT_RETRY_MAX: Duration = Duration::from_secs(5);
 
 /* === Macros === */
@@ -80,11 +78,6 @@ impl Resources {
     }
 }
 impl Resources {
-    /// One stream frame for `value`, advancing its request's cursor. A frame
-    /// that cannot be served is sent as the plot's error instead and leaves
-    /// the cursor where it was; one refused for its size also takes its
-    /// request out of the watch, so a later small append cannot hide that the
-    /// plot never received its window.
     fn frame(
         &self, requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
         current: &dokime_runtime::runtime::query::PlotPayloadRequest, kind: dokime_runtime::runtime::query::PlotPayloadStreamKind,
@@ -108,8 +101,6 @@ impl Resources {
     }
 }
 impl Resources {
-    /// Sends one cursorless plot's snapshot. A read that fails is sent as the
-    /// plot's error instead, and false asks the watch to retry it.
     async fn snapshot(
         &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
         requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>, selections: &[String], epoch: &str,

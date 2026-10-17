@@ -34,19 +34,14 @@ use std::{
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-/// How long a settled operation stays visible before it retires.
 pub const SETTLED_RETENTION: Duration = Duration::from_secs(3);
 
-/// The most operations one snapshot carries, running ones first.
 pub const MAX_OPERATIONS: usize = 32;
 
-/// The longest label, phase or failure an operation publishes, in characters.
 pub const MAX_TEXT_CHARS: usize = 160;
 
-/// The most phases an operation remembers, newest kept.
 pub const MAX_PHASES: usize = 16;
 
-/// The smallest change of fraction worth publishing on its own.
 const FRACTION_STEP: f64 = 0.01;
 
 /* === Macros === */
@@ -54,42 +49,32 @@ const FRACTION_STEP: f64 = 0.01;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One operation as the runtime last published it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveOperation {
     pub operation_id: String,
     pub label: String,
     pub phase: String,
-    /// Every phase the operation has entered, in order, the current one
-    /// last, so a watcher that joins late still sees each step.
     pub phases: Vec<String>,
-    /// How far the operation has come, from zero to one; absent while it
-    /// cannot tell.
     pub fraction: Option<f64>,
     pub started_at: Timestamp,
     pub outcome: OperationOutcome,
 }
 
-/// Every operation the runtime currently shows, oldest first.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OperationSnapshot {
     revision: u64,
     operations: Vec<LiveOperation>,
 }
 
-/// The process-wide list of operations.
 pub struct OperationRegistry {
     state: Mutex<Entries>,
     sender: tokio::sync::watch::Sender<OperationSnapshot>,
 }
 
-/// Follows the operation list.
 pub struct OperationWatch {
     receiver: tokio::sync::watch::Receiver<OperationSnapshot>,
 }
 
-/// The handle the code doing the work holds. Clones share one operation, which
-/// finishes when the last clone drops unless it was already settled.
 #[derive(Clone)]
 pub struct Operation {
     owner: Arc<Owner>,
@@ -112,7 +97,6 @@ struct Entry {
 }
 
 /* === Enums === */
-/// Where an operation stands.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OperationOutcome {
     Running,
@@ -124,7 +108,6 @@ pub enum OperationOutcome {
 
 /* === Implementations === */
 impl LiveOperation {
-    /// The bytes this operation occupies once published.
     pub fn memory_size(&self) -> usize {
         let failure = match &self.outcome {
             OperationOutcome::Failed { failure, .. } => failure.len(),
@@ -159,8 +142,6 @@ impl OperationRegistry {
         Arc::new(Self { state: Mutex::new(Entries::default()), sender })
     }
 
-    /// Begins an operation named `label`, running with no phase and no
-    /// fraction yet.
     pub fn begin(self: &Arc<Self>, label: impl Into<String>) -> Operation {
         let operation_id = uuid::Uuid::now_v7().to_string();
         let operation = LiveOperation {
@@ -273,8 +254,6 @@ impl Operation {
         &self.owner.operation_id
     }
 
-    /// Names the step the operation is on. The fraction stays until the
-    /// step states its own.
     pub fn phase(&self, phase: impl Into<String>) {
         let phase = bounded(phase.into());
         self.update(|operation| {
@@ -290,8 +269,6 @@ impl Operation {
         });
     }
 
-    /// States how far the operation has come, from zero to one. Changes too
-    /// small to see are not published on their own.
     pub fn fraction(&self, fraction: f64) {
         let fraction = fraction.is_finite().then(|| fraction.clamp(0.0, 1.0));
         self.update(|operation| {
@@ -306,8 +283,6 @@ impl Operation {
         });
     }
 
-    /// States `done` of `total` units complete; indeterminate while `total`
-    /// is zero.
     pub fn progress(&self, done: u64, total: u64) {
         if total == 0 {
             self.indeterminate();
@@ -316,7 +291,6 @@ impl Operation {
         }
     }
 
-    /// States that the operation cannot tell how far it has come.
     pub fn indeterminate(&self) {
         self.update(|operation| operation.fraction.take().is_some());
     }
@@ -329,8 +303,6 @@ impl Operation {
         self.settle(OperationOutcome::Failed { at: crate::model::time::now_utc(), failure: bounded(failure.to_string()) });
     }
 
-    /// Records `result` on the operation: a failure settles it failed, success
-    /// leaves it running for the caller to finish.
     pub fn track<T, E: Display>(&self, result: Result<T, E>) -> Result<T, E> {
         if let Err(error) = &result {
             self.fail(error);

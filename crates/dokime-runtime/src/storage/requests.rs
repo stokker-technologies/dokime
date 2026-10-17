@@ -174,7 +174,6 @@ impl Request {
         Ok(bytes.saturating_add(commands))
     }
 
-    /// Whether this saved request is nonterminal on `node`.
     pub fn pending_on(&self, node: &str) -> bool {
         self.node_id == node && !self.terminal
     }

@@ -46,8 +46,6 @@ use dokime_domain::model::reports::wire::ReportSubject;
 /* === Implementations === */
 
 impl RuntimeHandle {
-    /// Seal a terminal cycle no running request will finish: from its durable
-    /// report intent when one exists, otherwise from its persisted members now.
     pub(crate) async fn seal_settled_cycle(&self, id: &dokime_domain::model::identity::TestCycleId) -> Result<()> {
         let (cycle, completion) = {
             let state = self.state_read();

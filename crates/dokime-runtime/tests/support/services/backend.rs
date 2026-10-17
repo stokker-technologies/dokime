@@ -33,7 +33,6 @@ use harmos::storage::{ScanPage, SchemaKey, StorageBackend, StorageCursor, Stored
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Every stored record of `schema` at `at`, read directly from a closed root's backend.
 pub async fn records(backend: &impl StorageBackend, at: &StorageCursor, schema: SchemaKey) -> Vec<StoredRecord> {
     let selection = RecordSelection { schema, scope: None, item: None, source_start: None, source_end: None };
     let snapshot = backend.open_snapshot(at).await.unwrap();

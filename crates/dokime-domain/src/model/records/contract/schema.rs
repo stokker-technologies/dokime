@@ -194,8 +194,6 @@ impl RecordContract {
         self
     }
 
-    /// The contract without its template association: what every declaration
-    /// of one record has to agree on, whichever template or listener declares it.
     pub fn record_schema(&self) -> Self {
         let mut schema = self.clone();
         schema.template_id = None;

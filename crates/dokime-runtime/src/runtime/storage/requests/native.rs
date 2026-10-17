@@ -45,7 +45,6 @@ const MAX_COMMANDS: usize = 4097;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The latest saved receipt of one request with its latest command receipts.
 pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<RunReceipt>> {
     let Some(parent) = storage.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
         return Ok(None);
@@ -66,7 +65,6 @@ pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<Run
     Ok(Some(receipt))
 }
 
-/// This node's nonterminal saved requests, ascending by identity.
 pub(super) async fn pending(storage: &Manager, node: &NodeId) -> Result<Vec<CommandId>> {
     let node = node.to_string();
     let requests = latest::<Request>(storage, |request| request.pending_on(&node)).await?;

@@ -57,7 +57,6 @@ fn main() {
     }
 }
 
-/// One nonblank text field of a generated brand file, tracked for rebuilds.
 fn brand_text(file: &str, field: &str) -> String {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../branding/generated").join(file);
     println!("cargo:rerun-if-changed={}", path.display());

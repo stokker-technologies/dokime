@@ -75,7 +75,6 @@ fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
     (state, transactions)
 }
 
-/// Checks, prepares the records of, and applies every transaction in order.
 fn fold((mut state, transactions): (RuntimeState, Vec<PublishRecord>)) -> RuntimeState {
     for transaction in transactions {
         transaction.check(&state).unwrap();

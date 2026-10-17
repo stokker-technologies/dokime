@@ -97,7 +97,6 @@ pub struct ProviderTelemetryOutcome {
     pub samples: Vec<ProviderTelemetryRow>,
 }
 
-/// A producer-declared row and its untouched canonical Postcard representation.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProviderTelemetryRow {
     pub values: BTreeMap<String, Value>,

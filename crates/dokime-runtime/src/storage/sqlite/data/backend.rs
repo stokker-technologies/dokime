@@ -50,7 +50,6 @@ const RECEIPT_BYTES: usize = 32 * 1024;
 
 /* === Structs === */
 
-/// Dokime's SQLite primary store for one storage root.
 pub struct Backend<C: ObjectCatalog> {
     catalog: std::marker::PhantomData<fn() -> C>,
     root: PathBuf,
@@ -87,7 +86,6 @@ impl Drop for ActiveRead {
 }
 
 impl<C: ObjectCatalog> Backend<C> {
-    /// Open the root's SQLite store once for this manager's lifetime.
     pub async fn primary(root: PathBuf) -> harmos::storage::Result<Self> {
         C::validate()?;
         let state = State::open(&root).await.map_err(|error| failure("open SQLite", error))?;
@@ -105,7 +103,6 @@ impl<C: ObjectCatalog> Backend<C> {
         })
     }
 
-    /// The connection owner shared with Dokime's local catalog state.
     pub fn local_state(&self) -> State {
         self.state.clone()
     }

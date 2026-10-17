@@ -37,21 +37,15 @@ pub const PRODUCT_CALIBRATION_KINDS: &[&str] = &["field", "tilt"];
 pub const PRODUCT_CALIBRATION_PHASES: &[&str] = &["started", "activity", "completed"];
 
 /* === Macros === */
-/// Declares the built-in record types once: the enum, its ordered catalog
-/// listing and each identifier come from this single list.
 macro_rules! builtin_record_types {
     ($($variant:ident => $identifier:literal,)+) => {
-        /// A record type the host publishes itself. Every variant has a
-        /// built-in contract by construction, so a host publisher naming one
-        /// can never reach an unregistered type.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+                                #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub enum BuiltinRecordType {
             $($variant,)+
         }
 
         impl BuiltinRecordType {
-            /// Every built-in record type in catalog order.
-            pub const ALL: &'static [Self] = &[$(Self::$variant,)+];
+                        pub const ALL: &'static [Self] = &[$(Self::$variant,)+];
 
             pub const fn as_str(self) -> &'static str {
                 match self {
@@ -170,12 +164,10 @@ impl BuiltinRecordType {
         identifier(self.as_str())
     }
 
-    /// Resolves a published record type to its built-in declaration.
     pub fn from_identifier(record_type: &Identifier) -> Option<Self> {
         Self::ALL.iter().copied().find(|kind| kind.as_str() == record_type.as_str())
     }
 
-    /// The schema version its contract declares; product records are v2.
     pub const fn schema_version(self) -> u32 {
         match self {
             Self::ToolConnectionAcquired
@@ -192,8 +184,6 @@ impl BuiltinRecordType {
         }
     }
 
-    /// The built-in contract. The match is exhaustive, so declaring a type
-    /// without its contract does not compile.
     pub fn contract(self) -> RecordContract {
         let record_type = self.as_str();
         match self {

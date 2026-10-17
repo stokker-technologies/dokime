@@ -36,7 +36,6 @@ use dokime_domain::model::identity::Metadata;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One saved artifact's descriptor and its verified bytes.
 pub struct ArtifactReader {
     descriptor: ExecutionOutput,
     reader: FileReader,
@@ -88,7 +87,6 @@ impl ArtifactReader {
         metadata
     }
 
-    /// The next verified bytes, at most `maximum`, or `None` at the end.
     pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>> {
         if self.offset == self.pending.len() {
             let Some(batch) = self.reader.next().await? else {

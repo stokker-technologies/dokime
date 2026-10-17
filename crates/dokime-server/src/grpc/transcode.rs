@@ -29,7 +29,6 @@ use tonic::Status;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A typed message the protobuf transcoder refused.
 #[derive(Debug, thiserror::Error)]
 #[error("message encoding failed: {0}")]
 pub(super) struct Untranscodable(#[from] MessageError);
@@ -37,7 +36,6 @@ pub(super) struct Untranscodable(#[from] MessageError);
 /* === Enums === */
 
 /* === Traits === */
-/// The protobuf form of a typed message, as the gRPC wire carries it.
 pub(super) trait Transcode {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable>;
 

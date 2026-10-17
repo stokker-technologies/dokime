@@ -39,7 +39,6 @@ const BATCH_BYTES: usize = 16 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// An open SQLite backend with its record schema and encoded records; untimed.
 struct Records {
     _root: tempfile::TempDir,
     backend: Backend<()>,

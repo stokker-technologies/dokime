@@ -7,14 +7,6 @@
  * ***
  */
 
-//! Drives The Desktop's TypeScript Transport Against The Real IPC Bridge.
-//!
-//! A Node process runs the GUI's transpiled transport with a stand-in for
-//! `window.__TAURI_INTERNALS__` that writes each invoke as one JSON line. This
-//! side dispatches the line through Tauri's own command handler on a mock
-//! WebView, answers with the same line identifier, and forwards every channel
-//! frame the bridge emits. Replies and channel frames interleave freely.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -60,12 +52,10 @@ pub struct Harness {
 #[derive(Clone, Default)]
 struct Writer(Arc<Mutex<Option<ChildStdin>>>);
 
-/// Every Channel Frame The Bridge Emitted, By Channel, For Rust-Side Scenarios.
 #[derive(Clone, Default)]
 struct Frames(Arc<(Mutex<ChannelFrames>, Condvar)>);
 
 /* === Enums === */
-/// How A Test Answers One Line Before It Reaches The Bridge.
 pub enum Local {
     Dispatch,
     Reply(Value),
@@ -121,7 +111,6 @@ impl Harness {
         Self { app, window, writer, frames, channels: AtomicU32::new(1) }
     }
 
-    /// Opens One Bridge Stream From Rust, Returning Its Stream And Channel.
     pub fn open(&self, generation: u64, path: &str, opening: &[u8], keep_input: bool) -> Result<(u64, u32), Value> {
         let channel = self.channels.fetch_add(1, Ordering::Relaxed);
         let reply = invoke(
@@ -142,7 +131,6 @@ impl Harness {
         Ok((u64::from_le_bytes(reply[8..].try_into().unwrap()), channel))
     }
 
-    /// Sends A Stream Control Command (`send`, `finish`, `cancel`, `ack`).
     pub fn control(
         &self, command: &str, generation: u64, stream: u64, payload: &[u8], extra: Value,
     ) -> Result<tauri::ipc::InvokeResponseBody, Value> {
@@ -153,7 +141,6 @@ impl Harness {
         invoke(&self.window, command, fenced(generation, payload), &headers)
     }
 
-    /// Waits Until A Channel Carries Its Terminal Frame, Then Returns Them All.
     pub fn settle(&self, channel: u32) -> Vec<Vec<u8>> {
         let (frames, ready) = &*self.frames.0;
         let guard = frames.lock().expect("harness frames poisoned");
@@ -163,7 +150,6 @@ impl Harness {
         guard[&channel].clone()
     }
 
-    /// Serves The Child's Invokes Until It Exits; Each Runs On Its Own Thread.
     pub fn drive(&self, child: &mut Child, mut local: impl FnMut(&str, &[u8]) -> Local, mut observe: impl FnMut(&Value)) -> ExitStatus {
         *self.writer.0.lock().expect("harness writer poisoned") = child.stdin.take();
         let output = BufReader::new(child.stdout.take().expect("piped child output"));
@@ -211,7 +197,6 @@ impl Harness {
 }
 
 /* === Public Functions === */
-/// Dispatches One Raw-Body Command With Optional Headers, As The WebView Would.
 pub fn invoke(window: &Window, cmd: &str, bytes: Vec<u8>, headers: &Value) -> Result<tauri::ipc::InvokeResponseBody, Value> {
     let headers = headers
         .as_object()
@@ -238,7 +223,6 @@ pub fn invoke(window: &Window, cmd: &str, bytes: Vec<u8>, headers: &Value) -> Re
     )
 }
 
-/// Prefixes A Payload With The Generation And Descriptor Digest Fence.
 pub fn fenced(generation: u64, payload: &[u8]) -> Vec<u8> {
     let mut bytes = generation.to_le_bytes().to_vec();
     bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));

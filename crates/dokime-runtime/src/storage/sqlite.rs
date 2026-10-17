@@ -49,7 +49,6 @@ const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_
 /* === Type Aliases === */
 
 /* === Structs === */
-/// The exclusive owner of one storage root's SQLite connection and lease.
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
 
@@ -88,7 +87,6 @@ impl Drop for Interruption {
 }
 
 impl State {
-    /// Open the root exclusively; roots from another layout fail to open.
     pub async fn open(root: impl AsRef<Path>) -> Result<Self, Error> {
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
@@ -120,7 +118,6 @@ impl State {
         .await?
     }
 
-    /// Close the connection and release the root lease once.
     pub async fn close(&self) -> Result<(), Error> {
         self.0.closing.store(true, Ordering::Release);
         let mut live = self.0.live.clone().lock_owned().await;
@@ -136,14 +133,12 @@ impl State {
         .await?
     }
 
-    /// Run a write or control operation to completion, even if its caller is cancelled.
     pub async fn call<T: Send + 'static>(
         &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
         self.dispatch(false, operation).await
     }
 
-    /// Run a read; a cancelled caller interrupts its in-flight statement.
     pub(crate) async fn read<T: Send + 'static>(
         &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {

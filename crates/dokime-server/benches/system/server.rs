@@ -36,7 +36,6 @@ const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One `dokime-server --dev-control` process on a fresh storage root.
 pub struct Server {
     child: Child,
     endpoint: String,
@@ -50,7 +49,6 @@ pub struct Server {
 
 /* === Implementations === */
 impl Server {
-    /// Starts the built host and returns once it reports readiness on stdout.
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
         let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
@@ -86,7 +84,6 @@ impl Server {
         &self.endpoint
     }
 
-    /// Closes stdin and returns the time until the process exits successfully.
     pub fn stop(mut self) -> Duration {
         let started = Instant::now();
         drop(self.child.stdin.take());
@@ -105,7 +102,6 @@ impl Drop for Server {
 }
 
 /* === Public Functions === */
-/// The native client bundle, when the build staged one.
 pub fn plugin_bundle() -> Option<PathBuf> {
     let path = build_root().join("plugins/obc-plugin.dokime");
     path.is_file().then_some(path)

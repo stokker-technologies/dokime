@@ -462,7 +462,6 @@ async fn open_report_repeatedly() {
     owner.shutdown().await.unwrap();
 }
 
-/// A payload without the times each rendering stamps on itself.
 fn stable(mut value: serde_json::Value) -> serde_json::Value {
     match &mut value {
         serde_json::Value::Object(fields) => {

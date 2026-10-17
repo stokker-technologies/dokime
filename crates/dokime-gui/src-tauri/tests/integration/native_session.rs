@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Desktop Session Attachment Stories Against An In-Process Backend.
-
 /* === Modules === */
 
 /* === Re-Exports === */

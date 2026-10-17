@@ -40,7 +40,6 @@ struct CountingSampler {
     closes: Count,
 }
 
-/// A Counter Whose Changes Are Observable, So Stories Await A Count Instead Of Polling It.
 #[derive(Clone, Default)]
 struct Count(Arc<tokio::sync::watch::Sender<usize>>);
 

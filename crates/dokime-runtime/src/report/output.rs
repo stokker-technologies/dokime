@@ -110,7 +110,6 @@ impl Count {
     pub(super) fn len(&self) -> usize {
         self.bytes
     }
-    /// Whether the counted output outgrew its byte limit.
     pub(super) fn exceeded(&self) -> bool {
         self.exceeded
     }

@@ -49,12 +49,9 @@ use dokime_domain::model::identity::DocumentId;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A report's frozen inputs, rendered to HTML on demand.
 pub(super) struct HtmlReport {
     index: Index,
     source: Source,
-    /// The measured length avoids counting the same immutable report twice.
-    /// Zero until counted; a report is never empty.
     counted: AtomicUsize,
 }
 

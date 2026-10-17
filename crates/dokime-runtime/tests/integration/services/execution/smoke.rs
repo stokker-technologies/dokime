@@ -30,20 +30,15 @@ use dokime_runtime::runtime::Result;
 use dokime_runtime::schema::Described;
 
 /* === Constants === */
-/// The plugin source and suite the smoke check registers under.
 pub(crate) const SOURCE: &str = "fixture-suites";
 pub(crate) const SUITE: &str = "fixture.checks";
 
-/// The stream the pulse plot draws.
 pub(crate) const PULSE_STREAM: &str = "fixture-suites.pulse";
 
-/// The time series plot over the pulse stream.
 pub(crate) const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
 
-/// Points the pulse plot declares it shows, whatever the capture's length.
 pub(crate) const PULSE_DISPLAY_POINTS: u32 = 400;
 
-/// Sample rate the spectrum plot transforms its rows at.
 const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 
 /* === Macros === */
@@ -51,7 +46,6 @@ const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// What one run of the in-process smoke check produces, and the signals the story drives it by.
 pub(crate) struct Behaviour {
     pulse_rows: u32,
     spectrum_rows: u32,
@@ -62,7 +56,6 @@ pub(crate) struct Behaviour {
     watched: tokio::sync::watch::Sender<bool>,
 }
 
-/// Serves the smoke suite in process, as the plugin fixture used to over its sidecar.
 pub(crate) struct Smoke {
     behaviour: Arc<Behaviour>,
 }
@@ -127,7 +120,6 @@ enum Templates {
 
 /* === Implementations === */
 impl Behaviour {
-    /// Rows the step pushes onto each stream, and whether it then holds until released.
     pub(crate) fn new(pulse_rows: u32, spectrum_rows: u32, hold: bool) -> Self {
         Self {
             pulse_rows,
@@ -146,7 +138,6 @@ impl Behaviour {
         self
     }
 
-    /// Lets A Held Step Finish.
     pub(crate) fn release(&self) {
         self.released.send_replace(true);
     }

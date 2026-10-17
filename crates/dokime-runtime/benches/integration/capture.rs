@@ -38,7 +38,6 @@ const COUNTS: [u64; 3] = [500, 1_000, 2_000];
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A started runtime on a fresh storage root; setup and teardown stay untimed.
 struct Fixture {
     _root: TempDir,
     owner: Runtime,

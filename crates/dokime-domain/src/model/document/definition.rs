@@ -1053,8 +1053,6 @@ impl DocumentDefinition {
         }
     }
 
-    /// Places `sections` at the front of the document in the given order, so
-    /// their cards are also defined in that order.
     pub fn prepend_sections(&mut self, sections: impl IntoIterator<Item = DocumentSection>) {
         for (index, section) in sections.into_iter().enumerate() {
             remove_section_node_from_layout(&mut self.layout, &section.metadata.identifier);
@@ -2119,7 +2117,6 @@ fn validate_xy_axes(plot: &PlotDefinition) -> Result<(), String> {
     Ok(())
 }
 
-/// A histogram bins one value on its x axis; the count on y is the host's.
 fn validate_histogram_axes(plot: &PlotDefinition) -> Result<(), String> {
     if !plot.y.is_empty() || !plot.y_expressions.is_empty() {
         return Err("histogram plots take their value on the x axis and the host counts it on y; \

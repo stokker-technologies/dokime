@@ -273,7 +273,6 @@ impl ExecutionState {
         self.subscriptions_settled
     }
 
-    /// Samples staged so far, which grows while the host replays the capture.
     pub(crate) fn staged_samples(&self) -> usize {
         self.stream_rows.len()
     }

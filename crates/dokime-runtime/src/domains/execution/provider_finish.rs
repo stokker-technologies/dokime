@@ -25,7 +25,6 @@ use crate::{
 };
 
 /* === Constants === */
-/// The wait before retrying any other transient finalization failure.
 const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
 /* === Macros === */
@@ -374,7 +373,6 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Retry Transient Persistence Failures At The Original Evidence Boundary.
 fn retry_after(error: &Error) -> Option<std::time::Duration> {
     transient_persistence(error).then_some(RETRY_INTERVAL)
 }

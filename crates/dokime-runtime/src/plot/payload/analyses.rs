@@ -82,16 +82,13 @@ pub struct SigmaBin {
 pub struct SigmaSeries {
     pub key: String,
     pub bins: Vec<SigmaBin>,
-    /// Samples the bins summarize: every row with a finite x and y.
     pub raw_points: usize,
 }
-/// Networks one scan saw on one channel.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiChannelCount {
     pub channel: i64,
     pub count: usize,
 }
-/// One band's occupancy within one scan.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiBandScan {
     pub band: String,
@@ -99,11 +96,8 @@ pub struct WifiBandScan {
     pub total_networks: usize,
     pub peak_count: usize,
 }
-/// One scan: the readings sharing a whole second, a channel keeping its
-/// largest reading.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiScan {
-    /// The scan's x value as the series carried it.
     pub time: String,
     pub channels: Vec<WifiChannelCount>,
     pub bands: Vec<WifiBandScan>,
@@ -111,7 +105,6 @@ pub struct WifiScan {
     pub total_networks: usize,
     pub peak_count: usize,
 }
-/// Channels of one band that held a network in any scan of the window.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiBandWindow {
     pub band: String,
@@ -122,29 +115,11 @@ pub struct WifiBandWindow {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
-    Error {
-        message: String,
-    },
-    Histogram {
-        series: Vec<HistogramSeries>,
-    },
-    BoxSummary {
-        series: Vec<BoxSummary>,
-        /// Samples summarized across every box.
-        total: usize,
-    },
-    SigmaInterval {
-        series: Vec<SigmaSeries>,
-    },
-    WifiOccupancy {
-        /// Every channel a series reported, ascending.
-        channels: Vec<i64>,
-        /// Channels that held a network in any scan, ascending.
-        occupied_channels: Vec<i64>,
-        bands: Vec<WifiBandWindow>,
-        /// Scans in time order.
-        scans: Vec<WifiScan>,
-    },
+    Error { message: String },
+    Histogram { series: Vec<HistogramSeries> },
+    BoxSummary { series: Vec<BoxSummary>, total: usize },
+    SigmaInterval { series: Vec<SigmaSeries> },
+    WifiOccupancy { channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<WifiBandWindow>, scans: Vec<WifiScan> },
 }
 
 /* === Traits === */
@@ -187,9 +162,6 @@ pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -
     }
 }
 
-/// One summary per series of a time series or scatter plot, over the rows
-/// inside the requested summary window, or every row when none is requested.
-/// Other plot types carry none.
 pub(super) fn summarize(series: &[PlotSeries], request: &PlotPayloadRequest) -> Vec<PlotSeriesSummary> {
     if !summarizes(request) {
         return Vec::new();
@@ -433,19 +405,16 @@ fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
     PlotAnalysis::WifiOccupancy { channels, occupied_channels: occupied, bands, scans }
 }
 
-/// Occupied channels, total networks and the busiest channel's count.
 fn occupancy<'a>(counts: impl Iterator<Item = &'a usize>) -> (usize, usize, usize) {
     counts.fold((0, 0, 0), |(occupied, total, peak), count| (occupied + usize::from(*count > 0), total + count, peak.max(*count)))
 }
 
-/// A series names its channel by its label, or by the last `:` part of its key.
 fn series_channel(entry: &PlotSeries) -> Option<i64> {
     let channel =
         |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
     channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
 }
 
-/// The band of a channel; 6 GHz channels are encoded as 1000 plus their number.
 fn wifi_band(channel: i64) -> Option<&'static str> {
     match channel {
         1..=14 => Some(WIFI_BANDS[0]),

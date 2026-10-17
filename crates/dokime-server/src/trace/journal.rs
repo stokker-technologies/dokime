@@ -40,7 +40,6 @@ const FIELD_OVERHEAD_BYTES: usize = 16;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One captured event, already redacted and truncated at capture.
 #[derive(Debug)]
 pub struct Event {
     pub time: OffsetDateTime,
@@ -53,9 +52,6 @@ pub struct Event {
     pub fields: Vec<(String, String)>,
 }
 
-/// The bounds of one journal: per-ring event and byte bounds, how many cycle
-/// and execution rings live at once, and how many execution-to-cycle
-/// associations are remembered.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
     pub instance_events: usize,
@@ -67,9 +63,6 @@ pub struct Limits {
     pub lineage: usize,
 }
 
-/// One read: the accepted events with their scope sequences, how many events
-/// of the scope were evicted before this read reached them, and the last
-/// sequence scanned.
 #[derive(Debug, Default)]
 pub struct Page {
     pub events: Vec<(u64, Arc<Event>)>,
@@ -77,7 +70,6 @@ pub struct Page {
     pub next: u64,
 }
 
-/// The process's captured tracing output.
 pub struct Journal {
     limits: Limits,
     state: Mutex<State>,
@@ -114,7 +106,6 @@ struct Lineage {
 }
 
 /* === Enums === */
-/// Which ring a reader follows.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Scope {
     Instance,
@@ -122,7 +113,6 @@ pub enum Scope {
     Execution(String),
 }
 
-/// A cursor this journal never issued, typically one from before a restart.
 #[derive(Debug, thiserror::Error)]
 #[error("trace sequence {after} was never issued by this backend process (head {head})")]
 pub struct Stale {
@@ -148,7 +138,6 @@ impl Default for Limits {
 }
 
 impl Event {
-    /// A conservative estimate of the event's encoded size, used for bounds.
     pub fn bytes(&self) -> usize {
         let ids = [&self.plugin, &self.cycle, &self.execution].into_iter().flatten().map(String::len).sum::<usize>();
         let fields = self.fields.iter().map(|(name, value)| name.len() + value.len() + FIELD_OVERHEAD_BYTES).sum::<usize>();
@@ -172,14 +161,11 @@ impl Journal {
         })
     }
 
-    /// The journal the process-wide subscriber captures into.
     pub fn global() -> &'static Arc<Self> {
         static GLOBAL: OnceLock<Arc<Journal>> = OnceLock::new();
         GLOBAL.get_or_init(|| Self::new(Limits::default()))
     }
 
-    /// Whether a capture layer feeds this journal; an unfed journal would
-    /// answer every reader with silence that looks like a quiet backend.
     pub fn installed(&self) -> bool {
         self.installed.load(Ordering::Acquire)
     }
@@ -188,16 +174,10 @@ impl Journal {
         self.installed.store(true, Ordering::Release);
     }
 
-    /// Wakes whenever any event is captured.
     pub fn subscribe(&self) -> watch::Receiver<u64> {
         self.head.subscribe()
     }
 
-    /// Appends one event to the instance ring and to its scope rings.
-    ///
-    /// An execution seen with its cycle teaches the journal that association,
-    /// so the execution's later events, which carry only their own id, still
-    /// reach the cycle ring.
     pub fn record(&self, mut event: Event) {
         let sequence = {
             let mut state = self.lock();
@@ -228,8 +208,6 @@ impl Journal {
         self.head.send_replace(sequence);
     }
 
-    /// Accepted events of `scope` after `after`, at most `max_events` and,
-    /// beyond the first, within `max_bytes`.
     pub fn read(
         &self, scope: &Scope, after: u64, accept: impl Fn(&Event) -> bool, max_events: usize, max_bytes: usize,
     ) -> Result<Page, Stale> {
@@ -279,12 +257,10 @@ impl Journal {
         Ok(Page { events, missed, next: sequence - 1 })
     }
 
-    /// The last sequence `scope` has issued, or zero before its first event.
     pub fn tail(&self, scope: &Scope) -> u64 {
         self.lock().ring(scope).map_or(0, |ring| ring.end().saturating_sub(1).max(ring.base))
     }
 
-    /// Events evicted from `scope` since its ring was created.
     pub fn evicted(&self, scope: &Scope) -> u64 {
         self.lock().ring(scope).map_or(0, |ring| ring.front - ring.base - 1)
     }
@@ -340,8 +316,6 @@ impl Rings {
         Self { capacity: capacity.max(1), rings: HashMap::new() }
     }
 
-    /// The ring of `id`, created on its first event. A new ring replaces the
-    /// least recently written one once the bound is reached.
     fn ring(&mut self, id: &str, sequence: u64) -> &mut Ring {
         if !self.rings.contains_key(id) {
             if self.rings.len() >= self.capacity

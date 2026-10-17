@@ -46,8 +46,6 @@ const NONNUMERIC: &str = "numeric aggregate contains nonnumeric or nonfinite evi
 type Result<T> = crate::Result<T>;
 
 /* === Structs === */
-/// One compiled data expression: which columns each side projects, how they
-/// correlate and how the measured value folds, per case or overall.
 pub(super) struct Plan {
     left: Vec<Column>,
     right: Vec<Column>,

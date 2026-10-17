@@ -35,7 +35,6 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A cycle frozen for its report: header, member revisions and presentation.
 #[derive(Clone)]
 pub(crate) struct CycleSnapshot(Arc<State>);
 
@@ -68,8 +67,6 @@ impl CycleSnapshot {
         Ok(Self(Arc::new(State { saved, source, revisions, appearance, captured_at, owner_node_id: owner_node_id.clone() })))
     }
 
-    /// Frozen Presentation Metadata For An Unsealed Cycle Report.
-    /// The Operation Supplies Its Separately Materialized Member Inputs.
     pub(crate) fn current(
         saved: StorageCursor, source: Arc<TestCycle>, appearance: Arc<RuntimeAppearanceFrame>, owner_node_id: &NodeId,
     ) -> Result<Self> {
@@ -86,7 +83,6 @@ impl CycleSnapshot {
         })))
     }
 
-    /// The saved cut the snapshot was frozen at.
     pub(crate) fn saved(&self) -> &StorageCursor {
         &self.0.saved
     }

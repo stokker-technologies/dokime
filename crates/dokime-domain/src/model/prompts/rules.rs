@@ -57,7 +57,6 @@ impl harmos::MemorySize for Rule {
 }
 
 /* === Public Functions === */
-/// The shape issues of a definition's answer rules, before any answer arrives.
 pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
     if definition.rules.len() > 32 {
         return vec![issue(0, "a prompt may declare at most 32 answer rules")];

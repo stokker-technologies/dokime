@@ -34,32 +34,20 @@ use dokime_runtime::{Identifier, Metadata, TestCycleId, TestExecutionId};
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
 /* === Constants === */
-/// Rows each case pushes onto its own stream: many storage pages per case.
 const PULSE_ROWS: u32 = 640;
 
-/// Cases run back to back in one store. Before the pager kept its cursor in
-/// the index range, every page of a later case rescanned the earlier cases'
-/// rows and the terminal capture exhausted its query time by the third case.
 const CASES: usize = 6;
 
-/// Rows one large case pushes: more than the report could hold as samples
-/// under its 32 MiB materialization budget.
 const LARGE_PULSE_ROWS: u32 = 20_000;
 
-/// Points an operator sets on the live pulse plot, above what it declares.
 const LIVE_DISPLAY_POINTS: u32 = 1_500;
 
-/// Rows of the stream the frequency plot transforms whole: many storage
-/// pages, yet a fraction of the 32 MiB report budget.
 const SPECTRUM_ROWS: u32 = 1_024;
 
-/// Rows of the whole-capture stream that alone exceed the 32 MiB report budget.
 const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 
-/// How a report too large for its whole budget names what it ran out of.
 const EXHAUSTED: &str = "memory";
 
-/// Members of the cycle whose every report the constrained pool refuses.
 const POOLED_MEMBERS: usize = 9;
 
 /* === Macros === */
@@ -77,7 +65,6 @@ const POOLED_MEMBERS: usize = 9;
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// A runtime serving the in-process smoke check with `behaviour`.
 async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> (Runtime, RuntimeHandle, Arc<Behaviour>) {
     let smoke = Smoke::new(behaviour);
     let behaviour = smoke.behaviour();
@@ -110,7 +97,6 @@ async fn settled(handle: &RuntimeHandle, run: &CommandId) -> Arc<RunReceipt> {
     handle.run_request(run).await.unwrap().unwrap()
 }
 
-/// Waits Until Every Row The Step Pushed Onto `stream` Is Durable.
 async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str, rows: u32) {
     let selection = TelemetrySelection {
         streams: vec![Identifier::new(stream).unwrap()],
@@ -120,7 +106,6 @@ async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str
     until_telemetry(handle, || async { (handle.selected_telemetry(selection.clone()).await.len() >= rows as usize).then_some(()) }).await;
 }
 
-/// Runs One Case To Completion And Checks Its Criterion Saw Every Row Once.
 async fn run_case(handle: &RuntimeHandle, label: &str) -> TestExecutionId {
     let cycle_id = start_smoke(handle, label, 1).await;
     let command = run(handle, &cycle_id).await;

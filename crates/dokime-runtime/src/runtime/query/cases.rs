@@ -48,12 +48,9 @@ pub struct CaseProjection {
     pub actions: CaseActions,
 }
 
-/// A cycle's planned cases counted by their latest attempt's projected status.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaseTally {
-    /// Cases whose latest attempt is running.
     pub running: u64,
-    /// Cases still waiting to run: planned, undispatched, or admitted but not started.
     pub queued: u64,
 }
 
@@ -100,8 +97,6 @@ pub fn case_projection(state: &RuntimeState, cycle: &CycleView, test_case_id: &C
     }
 }
 
-/// Count a cycle's cases by the status their latest attempt projects, in one
-/// pass over the cycle's attempts.
 pub fn case_tally(state: &RuntimeState, cycle: &TestCycle) -> CaseTally {
     let mut latest = BTreeMap::new();
     for execution in state.executions_for_cycle(cycle) {

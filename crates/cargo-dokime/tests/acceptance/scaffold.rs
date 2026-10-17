@@ -43,7 +43,6 @@ fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
 }
 
-/// Runs one of the generated plugin's own mise tasks, offline, against this tree.
 fn task(plugin: &Path, name: &str) {
     let output = Command::new("mise")
         .arg("run")

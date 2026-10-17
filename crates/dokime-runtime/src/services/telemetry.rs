@@ -580,7 +580,6 @@ impl Sampling {
         quiescence.publish.lock().unwrap_or_else(|error| error.into_inner()).take();
     }
 
-    /// Prevent New Samples Without Waiting For Already Accepted Storage Work.
     pub(crate) async fn fence_executions(&self, ids: &[TestExecutionId]) {
         let mut state = self.state.lock().await;
         state.fencing_executions.extend(ids.iter().cloned());

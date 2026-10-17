@@ -64,7 +64,6 @@ impl PublicationFault {
             released: AtomicUsize::new(0),
         }
     }
-    /// Only Child-Process Crash Stories Use This Constructor.
     pub fn crash(suffix: &'static str, status: i32) -> Self {
         let mut fault = Self::new(suffix);
         fault.exit = Some(status);

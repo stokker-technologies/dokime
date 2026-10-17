@@ -37,7 +37,6 @@ use crate::runtime::Result;
 /* === Structs === */
 pub(in crate::domains::files) struct LocalSource {
     root: PathBuf,
-    /// How deep a scan descends below the root; a single-file watch reads one level.
     depth: usize,
 }
 
@@ -59,7 +58,6 @@ impl LocalSource {
         Ok(Self { root, depth: usize::MAX })
     }
 
-    /// Scan only the root's own entries, as a watch over one named file does.
     pub(super) fn top_level(mut self) -> Self {
         self.depth = 1;
         self

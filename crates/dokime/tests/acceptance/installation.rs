@@ -38,7 +38,6 @@ const ENDPOINT: &str = "http://127.0.0.1:8765";
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// A directory holding `programs`, each linked from the build under test.
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir_in(target).unwrap();

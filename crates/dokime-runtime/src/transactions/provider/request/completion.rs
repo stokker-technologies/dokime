@@ -35,15 +35,10 @@ pub struct CompleteRun {
     pub at: Timestamp,
     pub sealed_cycle: Option<dokime_domain::model::execution::result::TestCycle>,
     pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
-    /// A final report that could not be produced. The run settles Failed with
-    /// its cause instead of a seal; nothing claims a report that does not exist.
     #[serde(default)]
     pub unsealed: Option<Unsealed>,
 }
 
-/// The permanent cause a run's final reports could not be sealed, and the
-/// executions whose own reports were never produced. A cycle seal failure
-/// names no executions: their seals already exist and stay as they are.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Unsealed {
     pub cause: String,
@@ -207,8 +202,6 @@ impl CompleteRun {
         }
     }
 
-    /// The permanent finalization cause, recorded once against every execution
-    /// it left unsealed and once against the cycle as its terminal diagnosis.
     fn unsealed_drafts(&self, state: &RuntimeState, unsealed: &Unsealed) -> crate::transactions::records::draft::Drafts {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
@@ -334,7 +327,6 @@ impl Transaction<RuntimeState> for SettleRun {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Keep Publication Diagnosis Separate From The Actual Test Outcome And Counts.
 fn record_publication_failure(request: &mut RunRequest, cause: &str) {
     request.publication_failure = Some(cause.to_owned());
 }

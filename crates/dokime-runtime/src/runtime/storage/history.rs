@@ -40,7 +40,6 @@ use dokime_domain::model::execution::result::TestExecution;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The latest saved revision of every stored execution.
 pub(crate) async fn executions(storage: &Manager) -> Result<Vec<ObjectRevision<TestExecution>>> {
     let mut selected = Vec::new();
     let rows = storage

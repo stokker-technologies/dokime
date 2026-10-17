@@ -41,7 +41,6 @@ criterion_main!(benches);
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The native client bundle staged by the build.
 pub fn plugin_bundle() -> PathBuf {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

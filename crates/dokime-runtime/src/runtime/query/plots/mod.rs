@@ -55,8 +55,6 @@ use stream::{cursor_revision, response_cursor, stream_requests_by_mode};
 /* === Macros === */
 
 /* === Type Aliases === */
-/// Each request's selected rows, and for an append frame whose series are
-/// summarized, every row of its window.
 type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySample>>>);
 
 /* === Structs === */

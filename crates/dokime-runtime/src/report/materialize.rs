@@ -52,7 +52,6 @@ const ACTIVE_PLOT_PLANS: usize = 4;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Compose A Cycle Member From Its Frozen Source And Persisted Evidence.
 pub(crate) async fn sealed_member(
     ctx: &Context<'_>, storage: &Manager, settings: &crate::config::StorageSettings,
     seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
@@ -75,7 +74,6 @@ pub(crate) async fn sealed_member(
     execution(ctx, settings, &inspection, true, operation).await
 }
 
-/// Materialize one execution's report input from its frozen capture and evidence.
 pub(crate) async fn execution(
     ctx: &Context<'_>, settings: &crate::config::StorageSettings, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<CapturedExecutionReportInput> {

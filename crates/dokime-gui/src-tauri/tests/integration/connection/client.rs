@@ -7,8 +7,6 @@
  * ***
  */
 
-//! The Shared Client's Lifetime, Streams And Uploads Against A gRPC Fixture.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -41,7 +39,6 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Asserts That A Future Is Still Waiting Once Every Ready Task Has Run.
 async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     tokio::task::yield_now().await;
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());

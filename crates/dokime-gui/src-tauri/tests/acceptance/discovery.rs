@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Backend Discovery Precedence, Probed By Re-Running This Binary In A Fixture Layout.
-
 /* === Modules === */
 
 /* === Re-Exports === */

@@ -28,7 +28,6 @@ use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, S
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Peak-to-peak ripple of one plotted trace, over its original samples.
 pub struct Ripple;
 
 pub struct Amplitude {

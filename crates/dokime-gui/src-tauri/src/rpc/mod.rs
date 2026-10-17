@@ -42,7 +42,6 @@ use calls::Streams;
 /* === Constants === */
 pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 pub const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
-/// Every Raw-Body Command This Module Answers; The Shell Routes Them Here.
 pub const COMMANDS: &[&str] = &[
     "rpc",
     "rpc_stream_open",
@@ -72,7 +71,6 @@ const REQUEST_HEADER: usize = 40;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Forwards Opaque Protobuf Calls From The WebView To The Session's Client.
 #[derive(Clone)]
 pub struct Bridge {
     owners: Arc<Mutex<HashMap<String, CancellationToken>>>,
@@ -190,7 +188,6 @@ impl Bridge {
         self.recordings.take(owner, generation).await
     }
 
-    /// Binds One Call To The Main Window's Current Generation.
     fn context(
         &self, session: &ConnectionSession, owner: &str, generation: u64, permit: Option<OwnedSemaphorePermit>,
     ) -> Result<Context, RpcError> {
@@ -202,7 +199,6 @@ impl Bridge {
         Ok(Context { generation, owner: owner.into(), owner_cancel, lease, _permit: permit })
     }
 
-    /// Takes A Permit Without Waiting: An Exhausted Budget Answers `Busy`.
     fn admit(&self, budget: &Arc<Semaphore>) -> Result<OwnedSemaphorePermit, RpcError> {
         Arc::clone(budget).try_acquire_owned().map_err(|_| RpcError::Busy)
     }
@@ -245,10 +241,6 @@ fn rpc_error(status: tonic::Status) -> RpcError {
     RpcError::Grpc { code: status.code() as i32, message: status.message().into(), details: status.details().to_vec() }
 }
 
-/// Splits A Fenced Request Into Its Connection Generation And Payload.
-///
-/// Every raw request starts with the generation the WebView believes is
-/// current and the SHA-256 of the descriptor set its client was generated from.
 fn request(body: &tauri::ipc::InvokeBody) -> Result<(u64, &[u8]), RpcError> {
     let tauri::ipc::InvokeBody::Raw(bytes) = body else {
         return Err(RpcError::InvalidRequest);
@@ -270,7 +262,6 @@ fn read_u64(bytes: &[u8]) -> Result<u64, RpcError> {
     Ok(u64::from_le_bytes(bytes.get(..8).ok_or(RpcError::InvalidRequest)?.try_into().map_err(|_| RpcError::InvalidRequest)?))
 }
 
-/// Native Transfer Input Is Bounded Before Any Message Allocation.
 fn decode<M: Portable + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
     if bytes.len() > MAX_FRAME_BYTES
         || <Transcoded as Wire<M>>::decoding_memory(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)? > MAX_FRAME_BYTES * 8

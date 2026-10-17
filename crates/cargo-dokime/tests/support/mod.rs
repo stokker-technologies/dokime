@@ -33,17 +33,14 @@
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The released `cargo-dokime` this crate's stories drive.
 pub fn tool() -> std::path::PathBuf {
     artifact("cargo-dokime")
 }
 
-/// The released `dokime-server` the tool's stories host plugins in.
 pub fn host() -> std::path::PathBuf {
     artifact("dokime-server")
 }
 
-/// The directory holding `Cargo.lock`, which every built artifact derives from.
 pub fn workspace_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

@@ -53,7 +53,6 @@ struct Key(Vec<Value>);
 
 /* === Implementations === */
 impl Groups {
-    /// Fold rows into at most `limit + 1` groups in key order.
     pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
         validate(query)?;
         let mut selected = Self { entries: BTreeMap::new(), omitted: false };

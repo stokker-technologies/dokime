@@ -29,8 +29,6 @@ use dokime_runtime::prelude::*;
 /* === Structs === */
 
 /* === Enums === */
-/// The host streams every OBC template leases, so the system section below
-/// draws what each run captured. Each stream declares its own cadence.
 #[dokime_runtime::catalog]
 pub enum SystemInputs {
     System(host::System),
@@ -46,8 +44,6 @@ pub enum SystemInputs {
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The host around the bench, the same for every OBC template: appended last
-/// in each template's document, its plots under ids the template `owner` prefixes.
 pub fn section(owner: &str) -> Section {
     let mut section = Section::new("System Information");
 

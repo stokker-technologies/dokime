@@ -35,12 +35,10 @@ const EXECUTABLE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The built `dokime-server` host under the workspace's platform build tree.
 pub fn host_binary() -> PathBuf {
     artifact(&format!("bin/dokime-server{EXECUTABLE_SUFFIX}"))
 }
 
-/// The native client bundle the build stages beside the host.
 pub fn obc_plugin_bundle() -> PathBuf {
     artifact("plugins/obc-plugin.dokime")
 }

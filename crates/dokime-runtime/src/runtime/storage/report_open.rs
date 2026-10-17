@@ -41,12 +41,9 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One report, ready to deliver.
 pub struct OpenedReport {
     pub test_cycle_id: TestCycleId,
-    /// Set when the report is one execution's rather than its cycle's.
     pub test_execution_id: Option<TestExecutionId>,
-    /// The cycle's metadata, for a cycle report.
     pub metadata: Option<Metadata>,
     pub generated_at: Timestamp,
     pub origin: ReportOrigin,
@@ -54,12 +51,9 @@ pub struct OpenedReport {
 }
 
 /* === Enums === */
-/// Where an opened report came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReportOrigin {
-    /// The report finalization sealed, read back unchanged.
     Sealed,
-    /// The subject is not sealed: materialized at its selected persisted boundary.
     Current,
 }
 
@@ -67,8 +61,6 @@ pub enum ReportOrigin {
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// The report a cycle has right now. See the module comment for which.
-    /// A live report is one materialization operation; a sealed one is read.
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let live = self.watch_state().latest().state().cycles.get(id).map(|cycle| cycle.saved.is_none());
         match live {
@@ -77,8 +69,6 @@ impl RuntimeHandle {
         }
     }
 
-    /// The report one execution has right now. See the module comment for
-    /// which.
     pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
         let live = self
             .watch_state()

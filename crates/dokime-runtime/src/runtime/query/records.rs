@@ -76,8 +76,6 @@ pub(crate) fn execution_capture<'a>(
     executions.find(|execution| &execution.test_execution_id == execution_id).map(|execution| &execution.records)
 }
 
-/// Selects the saved records one runtime view shows: visible or context records
-/// within the selected scope, plus frozen subscriptions that override their native scope.
 pub(crate) fn view_filter<'a>(
     snapshot: &'a crate::queries::RuntimeStateSnapshot, scope: Option<&'a RecordScope>,
     captured: Option<&'a dokime_domain::state::records::set::TestRecordSet>,

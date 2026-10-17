@@ -509,10 +509,6 @@ impl TestExecution {
         effective_attempts(template, &self.step_attempts, self.active_step_attempt.as_ref())
     }
 
-    /// Present each template phase from its effective step attempt. Once an
-    /// execution records attempts, the attempt ledger alone decides every
-    /// template phase; an execution that reports phases without attempts keeps
-    /// each explicitly recorded outcome.
     pub fn refresh_step_records(&mut self) {
         let Some(template) = self.snapshot.template() else {
             return;

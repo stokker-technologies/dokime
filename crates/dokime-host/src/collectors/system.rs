@@ -156,8 +156,6 @@ fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
     manager?.batteries().ok()?.next()?.ok()
 }
 
-/// Every reading `starship-battery` offers for one battery, in the units the
-/// column names declare. A host without a battery yields no values at all.
 fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>)> {
     let Some(battery) = battery else {
         return Vec::new();

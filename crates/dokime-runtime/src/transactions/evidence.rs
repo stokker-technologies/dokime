@@ -69,11 +69,7 @@ pub struct PublishRecord {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
     Host,
-    Sidecar {
-        owner: String,
-    },
-    /// Fault injection: a host record admitted without a declaration or a
-    /// registered contract, as an unregistered built-in once was.
+    Sidecar { owner: String },
     Undeclared,
 }
 
@@ -129,10 +125,6 @@ impl PublishRecord {
         Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Host }
     }
 
-    /// Bypasses admission so a story can prove that finalization settles,
-    /// naming the type, when an undeclared record reaches it. Never used by
-    /// the product, whose publishers name declared types only.
-    #[doc(hidden)]
     pub fn undeclared(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
         Self { request, received_at: occurred_at.clone(), occurred_at, source: PublicationSource::Undeclared }
     }

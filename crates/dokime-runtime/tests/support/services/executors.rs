@@ -37,7 +37,6 @@ pub struct FakePythonExecutor {
     case_parameter_status: bool,
 }
 
-/// Holds its first execution open until the story releases it or the run is cancelled.
 #[derive(Default)]
 pub struct BlockingPublishingExecutor {
     entered: Entered,
@@ -50,15 +49,11 @@ pub struct BlockingErrorExecutor {
     released: tokio::sync::watch::Sender<bool>,
 }
 
-/// Runs every case of a cycle and holds the first one open until an operator
-/// stops that execution alone; the siblings then run to completion.
 #[derive(Default)]
 pub struct MemberStopExecutor {
     entered: Entered,
 }
 
-/// Runs the first provider group to completion and holds the next one open
-/// until the story releases it, so earlier members settle inside a running cycle.
 #[derive(Default)]
 pub struct SecondGroupHoldExecutor {
     groups: std::sync::atomic::AtomicUsize,
@@ -66,7 +61,6 @@ pub struct SecondGroupHoldExecutor {
     released: tokio::sync::watch::Sender<bool>,
 }
 
-/// Signals Once A Fixture Executor Holds Its Execution Open.
 #[derive(Default)]
 struct Entered(tokio::sync::watch::Sender<bool>);
 

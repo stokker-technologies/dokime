@@ -37,7 +37,6 @@ use dokime_runtime::{TestCycleId, TestExecutionId, Value};
 
 const STEADY_SUITE: &str = "obc.charger.steady";
 
-/// Half a second at the steady suite's 1 ms step: about 500 rows per case.
 const STEADY_DURATION_S: f64 = 0.5;
 const SETTLE: Duration = Duration::from_secs(600);
 const POLL: Duration = Duration::from_millis(20);
@@ -56,8 +55,6 @@ const POLL: Duration = Duration::from_millis(20);
 
 /* === Public Functions === */
 
-/// Measures fresh materialization at admission limits 1/2/4 separately from
-/// rendering immutable saved reports. Fixture acquisition and cleanup are untimed.
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
     fresh_materialization(criterion, &executor);
@@ -105,8 +102,6 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
     group.finish();
 }
 
-/// Runs one steady execution to its inspection prompt and times only the
-/// report materialization of the unsealed execution.
 async fn materialization(concurrency: usize, duration: f64) -> Duration {
     use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wire::ReportSubject};
     let root = tempfile::tempdir().unwrap();
@@ -130,8 +125,6 @@ async fn materialization(concurrency: usize, duration: f64) -> Duration {
     elapsed
 }
 
-/// Polls the prompt projection until the cycle's steady execution holds its
-/// inspection prompt; the sidecar exposes no inspection event.
 async fn inspected_execution(runtime: &RuntimeHandle, cycle: &TestCycleId) -> TestExecutionId {
     loop {
         for prompt in runtime.pending_prompt_projection().await {
@@ -210,8 +203,6 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
     (owner, runtime, test_cycle_id, receipt.command_id)
 }
 
-/// Accepts every steady inspection until the cycle report is sealed and its
-/// run has settled, so no finalization still holds storage reads.
 async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &CommandId) -> Vec<TestExecutionId> {
     loop {
         for prompt in runtime.pending_prompt_projection().await {

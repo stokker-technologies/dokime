@@ -7,8 +7,6 @@
  * ***
  */
 
-//! A Configurable gRPC Backend Fixture For Connection And Client Stories.
-
 /* === Modules === */
 
 /* === Re-Exports === */

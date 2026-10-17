@@ -238,11 +238,6 @@ impl<T: SidecarTemplate> Workflow<T> {
         Ok(reply)
     }
 
-    /// Wait for the next output page, input-settlement request or completed cleanup.
-    ///
-    /// This is the waitable form of `drain`, for the execution's single output
-    /// consumer. Registering before the cursor read preserves changes arriving
-    /// between the read and suspension. Dropping the future stops waiting.
     pub async fn next(&self, token: &str, cursor: u64) -> Result<EvidenceBatch, Refusal> {
         let changed = lock(&self.executions)
             .get(token)

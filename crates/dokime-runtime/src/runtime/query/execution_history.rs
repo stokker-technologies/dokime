@@ -45,7 +45,6 @@ pub struct ExecutionBrowseQuery {
     pub order: ExecutionOrder,
 }
 
-/// The archive marks a browse reads once, for every row it selects.
 struct Archived {
     cycles: std::collections::BTreeSet<TestCycleId>,
     executions: std::collections::BTreeSet<TestExecutionId>,
@@ -56,7 +55,6 @@ pub struct ExecutionBrowseEntry {
     pub metadata: ExecutionMetadata,
     pub checkpoint: Option<ExecutionCheckpoint>,
     pub availability: ExecutionAvailability,
-    /// Whether an operator archived this execution or its cycle.
     pub archived: bool,
 }
 
@@ -76,30 +74,19 @@ pub struct ExecutionBrowsePage {
     pub omitted_conflicts: usize,
     pub issues: Vec<ExecutionBrowseIssue>,
     pub omitted_issues: usize,
-    /// One aggregate per cycle the entries belong to, folded over the whole
-    /// filtered selection rather than this page.
     pub cycles: Vec<ExecutionBrowseCycle>,
 }
 
-/// Totals of one cycle's executions within a browse selection. Planned
-/// executions that never started are counted apart in `unrun_count`; every
-/// other count describes only executions that ran.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionBrowseCycle {
     pub cycle_id: TestCycleId,
-    /// The cycle's own label, when its header is still readable.
     pub label: Option<String>,
     pub lifecycle: ExecutionBrowseLifecycle,
-    /// Present once the cycle settled: failed when any execution failed,
-    /// passed when every execution passed.
     pub result_status: Option<ResultStatus>,
-    /// Distinct cases among executions that ran.
     pub case_count: usize,
     pub execution_count: usize,
     pub unrun_count: usize,
-    /// Executions admitted to run but not yet started.
     pub queued_count: usize,
-    /// Live executions still running.
     pub running_count: usize,
     pub passed_count: usize,
     pub failed_count: usize,
@@ -108,7 +95,6 @@ pub struct ExecutionBrowseCycle {
     pub finished_at: Option<Timestamp>,
 }
 
-/// One cycle's running fold while a browse walks its selection.
 #[derive(Default)]
 struct CycleFold<'a> {
     cases: std::collections::BTreeSet<&'a CaseId>,
@@ -156,9 +142,6 @@ pub struct ExecutionCheckpointContext {
 }
 
 /* === Enums === */
-/// Where a browsed cycle stands, by precedence: a live running execution, an
-/// interrupted one, work still pending (or nothing ran), an execution without
-/// a checkpoint; otherwise every execution completed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionBrowseLifecycle {
@@ -182,7 +165,6 @@ pub enum ExecutionAvailability {
 
 /* === Implementations === */
 impl Archived {
-    /// An execution reads as archived when it, or its whole cycle, is.
     fn covers(&self, metadata: &ExecutionMetadata) -> bool {
         self.executions.contains(&metadata.execution_id) || self.cycles.contains(&metadata.cycle_id)
     }

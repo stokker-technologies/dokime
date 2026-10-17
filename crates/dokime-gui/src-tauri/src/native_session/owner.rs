@@ -109,7 +109,6 @@ impl DesktopSession {
             state.archived = Some(bytes);
         }
     }
-    /// The log file of the current failed owned start, if it wrote one.
     pub fn startup_log(&self) -> Option<PathBuf> {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         state.startup_log.clone()
@@ -175,8 +174,6 @@ impl DesktopSession {
         }
         result
     }
-    /// Stops the owned backend, deletes the contents of its data root and
-    /// starts it again on the empty root with the same settings.
     pub async fn reset_local_storage(&self, confirmed: &Path, root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
         // Refuse Before Touching The Running Backend
         if self.status().ownership != BackendOwnership::OwnedLocal {
@@ -199,9 +196,6 @@ impl DesktopSession {
         }
         result
     }
-    /// Archives the owned backend's data root to `destination`, then resets
-    /// and restarts it as `reset_local_storage` does. Offered only while no
-    /// backend is connected, after the owned backend failed to start.
     pub async fn backup_and_reset_local_storage(&self, root: StorageRoot, destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
         // Refuse While Any Backend Is Connected
         self.backend()?;
@@ -269,8 +263,6 @@ impl DesktopSession {
         self.current(revision)?;
         self.establish(revision, selection, &mut resources).await
     }
-    /// Starts or attaches the selected backend once the previous one is gone,
-    /// and connects to it; the caller holds the transition lock throughout.
     async fn establish(
         &self, revision: u64, selection: BackendSelection, resources: &mut Resources,
     ) -> Result<DesktopSessionSnapshot, Error> {
@@ -359,8 +351,6 @@ impl DesktopSession {
             .await
             .map_err(|error| Error::Archived { archive: archive.display().to_string(), error: Box::new(error) })
     }
-    /// Deletes the contents of the data root and starts the owned backend
-    /// again on it; the caller holds the transition lock.
     async fn clear_and_restart(
         &self, revision: u64, root: StorageRoot, resources: &mut Resources,
     ) -> Result<DesktopSessionSnapshot, Error> {

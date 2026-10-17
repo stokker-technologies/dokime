@@ -139,15 +139,11 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Whether installing this host plugin would leave the state unchanged.
-    /// Boot skips such commits: each one journals the whole installation.
     pub(crate) fn host_plugin_current(&self, installation: &InstalledPlugin) -> bool {
         self.installed_plugins.get(&installation.source) == Some(installation)
             && self.plugin_owners.get(&installation.source) == Some(&PluginOwner::Host)
     }
 
-    /// Whether reconciling these catalogs would leave the state unchanged.
-    /// Boot skips such commits: each one journals every catalog in full.
     pub(crate) fn providers_current<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C]) -> bool {
         self.provider_candidate(catalogs, None).is_ok_and(|candidate| candidate == *self)
     }

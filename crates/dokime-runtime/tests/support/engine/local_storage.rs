@@ -41,7 +41,6 @@ use dokime_runtime::storage::sqlite::Backend;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One SQLite backend and the history its positions belong to.
 pub(crate) struct Store<C: ObjectCatalog = ()> {
     pub backend: Backend<C>,
     pub history: StoreHistory,
@@ -53,7 +52,6 @@ pub(crate) struct Store<C: ObjectCatalog = ()> {
 
 /* === Implementations === */
 impl<C: ObjectCatalog> Store<C> {
-    /// Open and initialize the backend owning `root`.
     pub(crate) async fn open(root: &Path) -> Self {
         let backend = Backend::<C>::primary(root.to_path_buf()).await.unwrap();
         backend.open().await.unwrap();
@@ -65,7 +63,6 @@ impl<C: ObjectCatalog> Store<C> {
         StorageCursor { history: self.history.clone(), sequence }
     }
 
-    /// The fixture record schema, written at position one.
     pub(crate) fn schema(&self) -> StorageSchema {
         StorageSchema::new(
             self.at(1),
@@ -86,7 +83,6 @@ impl<C: ObjectCatalog> Store<C> {
         }
     }
 
-    /// Every fixture record visible at `through`, read in small pages.
     pub(crate) async fn records(&self, through: u64) -> Vec<StoredRecord> {
         let snapshot = self.backend.open_snapshot(&self.at(through)).await.unwrap();
         let records = read_records(&self.backend, &snapshot, rows(2)).await.unwrap();
@@ -96,7 +92,6 @@ impl<C: ObjectCatalog> Store<C> {
 }
 
 /* === Public Functions === */
-/// Shipped-shape storage settings sized for scenarios.
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
         budget: StorageBudget { read_memory_bytes: nonzero(16 * 1024 * 1024) },
@@ -114,7 +109,6 @@ pub fn storage_settings() -> StorageSettings {
     }
 }
 
-/// Every record of the fixture schema in `snapshot`, paged ascending.
 pub(crate) async fn read_records<C: ObjectCatalog>(
     backend: &Backend<C>, snapshot: &BackendSnapshot, rows: NonZeroUsize,
 ) -> harmos::Result<Vec<StoredRecord>> {

@@ -85,12 +85,9 @@ struct ExecutionRow<'a, S> {
     finished_at: Option<&'a Timestamp>,
     parameters: ReportValues<'a>,
     metadata: ExecutionMetadata<'a>,
-    /// The execution's own step and criterion rows, in recorded order.
     steps: S,
 }
 
-/// One reachable artifact: its link already carries the record's description
-/// and grouping, so the row is complete once the download target is named.
 #[derive(Serialize)]
 struct ArtifactRow<'a> {
     #[serde(flatten)]

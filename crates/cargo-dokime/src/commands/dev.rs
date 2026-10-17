@@ -76,7 +76,6 @@ pub struct Args {
     shutdown_stdin: bool,
 }
 
-/// The host identity `dokime-server version --json` reports.
 #[derive(serde::Deserialize)]
 struct Identity {
     version: Version,
@@ -699,7 +698,6 @@ fn read_environment_keys(path: &Path, reader: impl std::io::Read) -> Result<BTre
     Ok(values)
 }
 
-/// A `dokime` CLI invocation carrying this tool's color mode.
 fn dokime(cli: &Path, subcommand: &str) -> Command {
     let color = match dokime::terminal::color_mode() {
         ColorMode::Auto => "auto",
@@ -711,8 +709,6 @@ fn dokime(cli: &Path, subcommand: &str) -> Command {
     command
 }
 
-/// Reads the installed server's identity through the CLI and refuses a host
-/// this tool or the plugin's SDK cannot develop against.
 async fn inspect(cli: &Path) -> Result<Identity, Error> {
     let mut command = std::process::Command::new(cli);
     command.args(["serve", "--", "version", "--json"]);

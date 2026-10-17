@@ -23,7 +23,6 @@ use super::{
 };
 
 /* === Constants === */
-/// How many times its encoded size a decoded output frame may occupy.
 const OUTPUT_DECODED_FACTOR: usize = 4;
 
 /* === Macros === */
@@ -102,11 +101,6 @@ impl Config {
         self
     }
 
-    /// Also Serves gRPC-Web Over HTTP/1.1, For Browser Clients Only.
-    ///
-    /// Native clients, the desktop among them, speak gRPC over HTTP/2 and
-    /// never need it. `origins` lists the exact cross-origin pages allowed to
-    /// call; an empty list emits no CORS headers.
     pub fn with_grpc_web(mut self, origins: Vec<harmos::grpc::Origin>) -> Result<Self, Error> {
         if origins.len() > 32 || origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
             return Err(Error::Configuration("allowed origins require at most 32 distinct exact origins"));
@@ -182,8 +176,6 @@ impl Default for Config {
 }
 
 /* === Public Functions === */
-/// The decoded bytes one server-streamed frame may hold: a message's encoding
-/// grows several times over once decoded into owned values.
 pub(crate) fn output_stream_bytes(max_message_bytes: usize) -> usize {
     max_message_bytes.saturating_mul(OUTPUT_DECODED_FACTOR)
 }

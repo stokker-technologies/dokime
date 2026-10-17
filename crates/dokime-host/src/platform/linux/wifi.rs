@@ -28,8 +28,6 @@ const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One network of `nmcli -t dev wifi list`, the source of SSID, channel,
-/// security and the scan on Linux.
 #[cfg(not(windows))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct NmcliWifiRow {
@@ -42,9 +40,6 @@ pub struct NmcliWifiRow {
     pub device: Option<String>,
 }
 
-/// The current association of one wireless interface as the kernel reports it:
-/// the received signal and the PHY rates the link negotiated, not the AP's
-/// advertised maximum.
 #[cfg(not(windows))]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WifiLinkReport {
@@ -60,7 +55,6 @@ pub struct WifiLinkReport {
 /* === Implementations === */
 #[cfg(not(windows))]
 impl NmcliWifiRow {
-    /// Parses one terse line of the `ACTIVE,SSID,BSSID,CHAN,SIGNAL,SECURITY,DEVICE` fields.
     pub fn parse(line: &str) -> Option<Self> {
         let fields = split_nmcli_fields(line);
         if fields.len() < 7 {
@@ -81,7 +75,6 @@ impl NmcliWifiRow {
 
 #[cfg(not(windows))]
 impl WifiLinkReport {
-    /// Parses `iw dev <interface> link`; `None` when the interface is not connected.
     pub fn parse_iw_link(output: &str) -> Option<Self> {
         if !output.trim_start().starts_with("Connected to") {
             return None;
@@ -104,8 +97,6 @@ impl WifiLinkReport {
         Some(link)
     }
 
-    /// Reads the `level` column of `interface` from `/proc/net/wireless` as the
-    /// RSSI in dBm; the wireless extensions carry no PHY rates.
     pub fn parse_proc_wireless(output: &str, interface: &str) -> Option<Self> {
         let fields = output.lines().find_map(|line| {
             let (name, fields) = line.trim().split_once(':')?;
@@ -145,9 +136,6 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool) -> Result<Vec<NmcliWifiRow>, String>
     Ok(stdout.lines().filter_map(NmcliWifiRow::parse).collect())
 }
 
-/// Reads the link of `interface` from `iw`, or only its RSSI from
-/// `/proc/net/wireless` when `iw` is unavailable. `None` when the interface is
-/// not associated or neither source knows it.
 #[cfg(not(windows))]
 pub(crate) fn wireless_link(interface: &str) -> Option<WifiLinkReport> {
     match iw_links() {
@@ -159,8 +147,6 @@ pub(crate) fn wireless_link(interface: &str) -> Option<WifiLinkReport> {
     }
 }
 
-/// The network interfaces `iw dev` lists, skipping non-netdev devices such as
-/// a P2P device.
 #[cfg(not(windows))]
 pub fn parse_iw_interfaces(output: &str) -> Vec<String> {
     output
@@ -180,7 +166,6 @@ pub(crate) fn adapter_matches(device: Option<&str>, filter: Option<&str>) -> boo
 }
 
 /* === Private Functions === */
-/// Links of every associated wireless interface `iw dev` lists, by interface.
 #[cfg(not(windows))]
 fn iw_links() -> Result<BTreeMap<String, WifiLinkReport>, String> {
     let devices = iw_output(&["dev"])?;

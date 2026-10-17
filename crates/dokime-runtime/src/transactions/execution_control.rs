@@ -57,8 +57,6 @@ pub struct ControlExecution {
 
 /* === Implementations === */
 impl ControlExecution {
-    /// The active request that runs this execution: the one addressed to it,
-    /// or the cycle-addressed request whose queue or running set holds it.
     pub(crate) fn owning_request<'a>(state: &'a RuntimeState, id: &TestExecutionId) -> Option<&'a RunRequest> {
         let execution = state.executions.get(id)?;
         state.run_requests.values().find(|request| {

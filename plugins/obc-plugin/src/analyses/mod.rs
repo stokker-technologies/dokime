@@ -29,13 +29,11 @@ use dokime_runtime::analysis::{Operation, Served};
 /* === Structs === */
 
 /* === Enums === */
-/// The analyses an operator may select on any of this bench's plots.
 #[dokime_runtime::catalog]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),
 }
 
-/// The operations that answer [`Analyses`] inside this plugin.
 #[dokime_runtime::catalog]
 pub enum Implemented {
     Ripple(Served<ripple::Ripple, crate::Resources>),

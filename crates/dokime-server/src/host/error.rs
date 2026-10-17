@@ -79,11 +79,6 @@ impl Error {
         })
     }
 
-    /// Classifies a failed launch on `root`.
-    ///
-    /// Only refusals that name the stored data's own shape become
-    /// `IncompatibleStorage`; lease contention, I/O and replay failures stay
-    /// runtime failures so the remedy never suggests discarding usable data.
     pub fn launch(error: dokime_runtime::runtime::Error, root: PathBuf) -> Self {
         let reason = match storage_refusal(&error) {
             Some(refusal) => refusal.to_string(),

@@ -52,7 +52,6 @@ pub(crate) async fn evaluate(storage: &super::executions::ExecutionStorage, quer
     native_aggregate(&storage.storage, query).await
 }
 
-/// Fold the latest saved domain objects, or every captured record, by the query.
 pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) -> Result<AggregateOutcome> {
     groups::validate(query)?;
     let groups = match query.source {

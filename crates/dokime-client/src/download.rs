@@ -40,7 +40,6 @@ struct Partial(Option<PathBuf>);
 /* === Enums === */
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The backend refused to open the download; nothing was received.
     #[error("download request failed")]
     Request(#[source] super::Error),
     #[error(transparent)]

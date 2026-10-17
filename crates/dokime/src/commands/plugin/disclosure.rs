@@ -74,8 +74,6 @@ enum SecretDefault {
 /* === Implementations === */
 
 /* === Public Functions === */
-/// The environment variables a bundle's settings would read secrets from, by
-/// name only, for the operator to review before consenting.
 pub(crate) fn environment_references(bundle: &Bundle) -> Result<BTreeSet<EnvironmentReference>> {
     let mut references = BTreeSet::new();
     for file in &bundle.manifest().files {

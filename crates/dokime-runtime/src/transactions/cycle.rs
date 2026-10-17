@@ -69,8 +69,6 @@ pub struct ResetCycle {
     pub occurred_at: Timestamp,
 }
 
-/// A checked cycle control: the next cycle view, its records, and the prompts
-/// a stop settles in the same transaction.
 struct CycleControlPlan {
     cycle: CycleView,
     records: Drafts,

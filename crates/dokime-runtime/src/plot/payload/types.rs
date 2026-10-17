@@ -85,8 +85,6 @@ pub struct PlotPayloadRequest {
     pub cursor: Option<PlotPayloadCursor>,
     #[serde(default)]
     pub technique: DownsampleTechnique,
-    /// The x range a time series or scatter plot shows, when the reader has
-    /// zoomed: its series summaries cover only the rows inside it.
     #[serde(default)]
     pub summary_window: Option<PlotWindow>,
 }
@@ -135,14 +133,10 @@ pub struct PlotPayload {
     pub run_started_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cycle_started_at: Option<String>,
-    /// One summary per series, in series order, for time series and scatter
-    /// plots: the statistics of the exact rows in the shown window.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub summaries: Vec<PlotSeriesSummary>,
 }
 
-/// The statistics of one series' y values over the rows of the shown window,
-/// computed before any display reduction.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PlotSeriesSummary {
@@ -157,8 +151,6 @@ pub struct PlotSeriesSummary {
     pub window: Option<PlotWindow>,
 }
 
-/// An inclusive x range in the cartesian x space: epoch seconds on a time
-/// axis, x values on a scatter.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PlotWindow {

@@ -149,7 +149,6 @@ impl Owner<'_> {
 }
 
 impl Publication {
-    /// Decode and verify one saved publication record against its envelope.
     pub fn from_record(record: StoredRecord<Self>) -> Result<Self> {
         let publication = record.payload;
         publication.check()?;
@@ -280,7 +279,6 @@ pub fn schema() -> SchemaKey {
     }
 }
 
-/// The record selection holding one owner's publications, optionally one report.
 pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storage::query::RecordSelection {
     harmos::storage::query::RecordSelection {
         schema: schema(),

@@ -68,8 +68,6 @@ pub(crate) struct Session {
 struct Pages {
     cursor: u64,
     settled: bool,
-    /// Storage position, per stream, through which the run has received its
-    /// captured samples back, kept across settling pages the run sends again.
     replayed: BTreeMap<harmos::Identifier, u64>,
     stream_log: StreamLog,
     artifacts: ArtifactBridge,
@@ -396,8 +394,6 @@ impl Session {
         }
     }
 
-    /// Delivers every captured record, and when `replayed` is given closes the
-    /// record subscriptions and replays the captured samples after it.
     async fn settle_records(&self, replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>) -> Result<(), ProviderExecutionFailure> {
         let close = replayed.is_some();
         let context = &self.context;

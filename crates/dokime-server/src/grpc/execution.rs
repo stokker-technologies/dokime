@@ -524,7 +524,6 @@ fn cycle_order(order: Option<&dokime_domain::model::execution::wire::CycleOrder>
     CycleOrder { key, descending: order.descending }
 }
 
-/// The archive selection a list request asks for; absent lists unarchived rows.
 pub(super) fn archive_scope(
     scope: Option<dokime_domain::model::execution::wire::ArchiveScope>,
 ) -> dokime_runtime::runtime::query::executions::ArchiveScope {

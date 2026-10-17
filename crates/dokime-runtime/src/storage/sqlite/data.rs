@@ -89,7 +89,6 @@ pub(crate) struct SavedData {
     pub retention_generation: u64,
 }
 
-/// A scan of one entry kind within a pinned cut, ascending by position.
 pub(super) struct Scan {
     pub kind: &'static str,
     pub at: u64,

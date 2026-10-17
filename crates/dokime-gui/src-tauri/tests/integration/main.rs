@@ -7,8 +7,6 @@
  * ***
  */
 
-//! In-Process Stories Of The Desktop Shell: Connection, Session, Storage And RPC Bridge.
-
 /* === Modules === */
 
 mod connection;

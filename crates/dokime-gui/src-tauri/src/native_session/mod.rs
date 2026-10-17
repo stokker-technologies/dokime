@@ -70,9 +70,6 @@ pub fn desktop_session_status(state: tauri::State<'_, DesktopSessionControl>) ->
     Ok(state.0.status())
 }
 
-/// Development only: stops the owned backend, deletes the contents of its data
-/// directory and starts it again on the empty root. `directory` is the path
-/// the operator confirmed; anything but this desktop's data root is refused.
 pub async fn desktop_reset_local_storage(
     window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, directory: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -88,9 +85,6 @@ pub async fn desktop_reset_local_storage(
     state.0.reset_local_storage(std::path::Path::new(&directory), root).await
 }
 
-/// Names the archive a backup of the owned backend's data root writes: beside
-/// the root by default, or where the operator picks in a native save dialog.
-/// `None` means the operator cancelled the dialog.
 pub async fn desktop_storage_backup_destination(
     window: tauri::WebviewWindow, app: tauri::AppHandle, choose: bool,
 ) -> Result<Option<String>, DesktopSessionError> {
@@ -118,9 +112,6 @@ pub async fn desktop_storage_backup_destination(
     selected.map(|path| path.into_path().map(|path| path.display().to_string()).map_err(|error| failed(error.to_string()))).transpose()
 }
 
-/// Archives the owned backend's data root to `archive`, then resets it and
-/// starts the backend again. Release builds offer it on the startup failure
-/// screen only: the session refuses while any backend is connected.
 pub async fn desktop_backup_reset_local_storage(
     window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, archive: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -146,8 +137,6 @@ pub(crate) fn trusted_application_url(url: &url::Url, config: &tauri::Config) ->
         && url.password().is_none()
 }
 
-/// Opens the failed owned start's log with the system handler. The WebView
-/// names no path: the shell opens only the log its own session recorded.
 pub async fn desktop_open_backend_log(
     window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, app: tauri::AppHandle,
 ) -> Result<(), String> {
@@ -176,8 +165,6 @@ pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, Stri
 }
 
 /* === Private Functions === */
-/// Resolves the data root the owned backend opens, for the main application
-/// window only.
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 

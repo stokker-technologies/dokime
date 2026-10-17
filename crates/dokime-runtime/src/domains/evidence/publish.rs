@@ -55,8 +55,6 @@ impl RuntimeHandle {
         self.commit_record(PublishRecord::host(request, crate::model::time::now_utc())).await
     }
 
-    /// Fault injection for stories: commits a record whose type no contract
-    /// declares, through `PublishRecord::undeclared`.
     #[cfg(feature = "fault-injection")]
     pub async fn publish_undeclared_record(&self, request: RecordPublishRequest) -> Result<PublishReceipt, Error> {
         self.commit_record(PublishRecord::undeclared(request, crate::model::time::now_utc())).await

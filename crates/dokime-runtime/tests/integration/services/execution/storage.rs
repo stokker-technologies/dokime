@@ -26,10 +26,8 @@ use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, Exec
 use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::TestExecution};
 
 /* === Constants === */
-/// Why the first runtime refuses every final execution report.
 const UNENCODABLE: &str = "fixture report cannot be encoded";
 
-/// How a permanent execution finalization failure opens its diagnosis.
 const UNSEALED: &str = "final execution report was not sealed";
 
 /* === Macros === */
@@ -37,7 +35,6 @@ const UNSEALED: &str = "final execution report was not sealed";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Runs every case passed, then refuses to materialize its final report.
 struct UnencodableReport(FakePythonExecutor);
 
 /* === Enums === */

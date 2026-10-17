@@ -183,7 +183,6 @@ fn schema() -> SchemaKey {
 fn samples(rows: usize) -> Vec<Vec<u8>> {
     (0..rows).map(|index| Measurement { value: 325.0 * (std::f64::consts::TAU * index as f64 / 64.0).sin() }.encode_to_vec()).collect()
 }
-/// A fixture holding `rows` saved samples in 1024-row batches.
 fn loaded(executor: &tokio::runtime::Runtime, rows: usize) -> Fixture {
     let fixture = executor.block_on(Fixture::new(4));
     for (index, batch) in samples(rows).chunks(1024).enumerate() {

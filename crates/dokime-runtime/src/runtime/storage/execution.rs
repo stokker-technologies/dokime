@@ -42,8 +42,6 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// One execution as stored at a saved cut: its revision, and once captured,
-/// the frozen source its report reads.
 #[derive(Clone)]
 pub struct ExecutionView {
     storage: Manager,
@@ -101,7 +99,6 @@ impl ExecutionView {
         Ok(checkpoint)
     }
 
-    /// Binds a captured pre-report source to the saved evidence it reads.
     pub(crate) async fn captured(storage: &Manager, captured: Arc<CapturedSource>, owner: &NodeId) -> Result<Self> {
         if &captured.owner_node_id != owner {
             return Err(Error::Storage(crate::storage::Error::Invalid("captured execution source belongs to another node")));
@@ -178,12 +175,10 @@ impl ExecutionView {
         self.captured_source().ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("execution evidence requires a snapshot")))
     }
 
-    /// The storage this execution was read from.
     pub fn storage(&self) -> &Manager {
         &self.storage
     }
 
-    /// The saved cut this execution was read at.
     pub fn saved(&self) -> &StorageCursor {
         &self.saved
     }
@@ -240,7 +235,6 @@ impl ExecutionView {
         super::telemetry::TelemetryReader::open(self, true)
     }
 
-    /// Read `range` of one exact captured dependency of this execution.
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {
         let owned = self.captured.as_ref().is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
             || self.execution().saved.as_ref().is_some_and(|seal| seal.files().any(|owned| owned == file));

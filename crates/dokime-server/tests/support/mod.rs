@@ -132,8 +132,6 @@ impl ExecutionFixture for FixtureProgressExecutor {
 }
 
 /* === Public Functions === */
-/// Creates an empty cycle, then appends the planned cases under the same
-/// request metadata, and returns the cycle ID.
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient, create: Request<contracts::execution::CreateCycle>, plan: model::planning::wire::SelectionPlan,
 ) -> Result<String, Status> {
@@ -144,7 +142,6 @@ pub(crate) async fn planned_cycle(
     Ok(cycle_id)
 }
 
-/// Creates an empty cycle on the runtime, then appends the materialized cases.
 pub async fn cycle_with_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
     let cycle_id = runtime.create_cycle(CycleDefinition { metadata, continue_on_failure: false }, CommandContext::default()).await.unwrap();
     runtime.append_cycle_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
@@ -267,7 +264,6 @@ pub async fn test_case_id_for(runtime: &RuntimeHandle, test_cycle_id: &TestCycle
         .clone()
 }
 
-/// Awaits the state revision in which the cycle reaches `lifecycle`.
 pub async fn wait_for_cycle_lifecycle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, lifecycle: CycleStatus) -> CycleView {
     let snapshot = runtime
         .watch_state()
@@ -277,7 +273,6 @@ pub async fn wait_for_cycle_lifecycle(runtime: &RuntimeHandle, test_cycle_id: &T
     snapshot.state().cycle_view(test_cycle_id).expect("the cycle stays live until it reaches the lifecycle")
 }
 
-/// Re-runs `probe` after every runtime state change until it yields a value.
 pub async fn on_state_change<T>(runtime: &RuntimeHandle, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
     let mut changes = runtime.watch_state();
     loop {

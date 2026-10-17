@@ -55,8 +55,6 @@ impl InvalidateExecutions {
             && matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
     }
 
-    /// An invalidated execution answers nothing: its open prompts expire in
-    /// the same transaction.
     fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
         let mut records = Drafts::new(state);
         let settled = settle_prompts(state, &mut records, PromptSettlement::Ended, &self.invalidated_at, |scope| {

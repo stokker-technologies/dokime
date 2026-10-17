@@ -41,8 +41,6 @@ use harmos::schema::{
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Encode finite scalar line captures against the producer's declared schema.
-/// This path never infers types or reconstructs nested measurements.
 pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Result<Vec<u8>, String> {
     schema.preparation(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
     let fields = schema.definitions.get(schema.root).ok_or("matcher schema root is absent")?;

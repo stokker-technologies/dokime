@@ -52,10 +52,7 @@ use session::Session;
 
 /* === Constants === */
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
-/// How long a cancelled run may take to answer before the host settles the
-/// execution as stopped without it. Stop stays cooperative inside this budget.
 const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
-/// Encoded sample bytes one replay signal carries before the next begins.
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
 /* === Macros === */
@@ -1228,10 +1225,6 @@ fn failure(stage: impl Into<String>, message: impl Into<String>) -> ProviderExec
     ProviderExecutionFailure::new(stage, message)
 }
 
-/// Ends the step a host-settled stop left open as cancelled by the operator.
-///
-/// Interrupted is reserved for recovery that never resumed the run; an
-/// explicit stop the host settled keeps its stop outcome.
 async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &TestExecution) -> Result<(), ProviderExecutionFailure> {
     let execution_id = execution.test_execution_id.clone();
     let active = context
@@ -1256,8 +1249,6 @@ async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &Te
     context.record_step_attempt(execution.scope.clone(), attempt).await.map_err(|error| failure("stop_settlement", error.to_string()))
 }
 
-/// Hands the run every captured sample after its stream's `replayed`
-/// position, advancing that position past each signal the run has received.
 async fn replay_sample_inputs(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, replayed: &mut BTreeMap<harmos::Identifier, u64>,
 ) -> Result<(), ProviderExecutionFailure> {

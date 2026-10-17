@@ -29,7 +29,6 @@ use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Runs One Cycle That Uploads An Artifact And Publishes Its Identifier.
 pub struct Provider(tokio::sync::watch::Sender<Option<String>>);
 
 /* === Enums === */
@@ -140,7 +139,6 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
     published.wait_for(Option::is_some).await.expect("the provider outlives its cycle").clone().unwrap()
 }
 
-/// Creates an empty cycle and appends every case of the registered suite.
 pub async fn registered_cycle(runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata) -> dokime_runtime::TestCycleId {
     let suite =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == suite_id).expect("fixture suite is registered").suite;

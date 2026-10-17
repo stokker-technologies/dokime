@@ -80,7 +80,6 @@ pub struct RuntimeState {
     pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
-    /// Pending report boundaries survive restart independently of later stop metadata.
     pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
@@ -92,12 +91,8 @@ pub struct RuntimeState {
     pub record_count: u64,
     pub prompt_requests: BTreeMap<PromptId, PromptInstance>,
     pub prompt_responses: BTreeMap<PromptId, PromptResponse>,
-    /// Prompts the runtime settled when their owner ended, and when.
     pub closed_prompts: BTreeMap<PromptId, Timestamp>,
-    /// Terminal cycles an operator archived. Kept apart from the cycle so a
-    /// sealed cycle, live or retired to native history, is never rewritten.
     pub archived_cycles: std::collections::BTreeSet<TestCycleId>,
-    /// Terminal executions an operator archived, live or retired.
     pub archived_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 }
 
@@ -531,11 +526,6 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Admits one plugin's declaration of a stream. The stream belongs to the
-    /// plugin that declares it, and any number of that plugin's templates may
-    /// declare it again with the same schema: each keeps its own declaration
-    /// in its suite, which is what grants it publication. Another plugin only
-    /// ever reads the stream through a foreign view.
     pub fn ensure_telemetry_definition(&mut self, source: &str, contract: TelemetryContract) -> Result<(), RuntimeStateInstallError> {
         let Some(definition) = self.telemetry_definitions.get(&contract.stream) else {
             self.telemetry_definitions.insert(contract.stream.clone(), contract);
@@ -550,7 +540,6 @@ impl RuntimeState {
         Err(RuntimeStateInstallError::DuplicateTelemetry(contract.stream))
     }
 
-    /// Whether a plugin other than `source` declares `stream` as its own.
     fn owned_elsewhere(&self, source: &str, stream: &dokime_domain::model::identity::Identifier) -> bool {
         let suites = self.suites.suites().filter(|snapshot| snapshot.source != source).flat_map(|snapshot| &snapshot.telemetry_contracts);
         let plugins = self
@@ -592,15 +581,10 @@ impl RuntimeState {
         self.open_prompts().cloned().collect()
     }
 
-    /// The prompts an operator can still answer: the one authority every
-    /// pending view, count and response check reads.
     pub fn open_prompts(&self) -> impl Iterator<Item = &PromptInstance> {
         self.prompt_requests.values().filter(|prompt| self.prompt_open(prompt))
     }
 
-    /// A prompt is open while it has no response and its owner still runs. An
-    /// execution-scoped prompt never outlives its execution, and a
-    /// cycle-scoped one never outlives its cycle.
     pub fn prompt_open(&self, prompt: &PromptInstance) -> bool {
         if self.prompt_responses.contains_key(&prompt.prompt_id) || self.closed_prompts.contains_key(&prompt.prompt_id) {
             return false;

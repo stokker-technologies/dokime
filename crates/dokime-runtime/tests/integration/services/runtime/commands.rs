@@ -34,7 +34,6 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// A runtime whose in-process provider passes every case of the fixture suite.
 async fn provider_runtime(root: &Path) -> (Runtime, RuntimeHandle) {
     let executor = Arc::new(FakePythonExecutor::fixed("passed"));
     let (owner, runtime) = booted_with_fixture(root, executor).await;
@@ -42,7 +41,6 @@ async fn provider_runtime(root: &Path) -> (Runtime, RuntimeHandle) {
     (owner, runtime)
 }
 
-/// A fresh cycle of the fixture suite once no earlier cycle is running.
 async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
     until_state(runtime, |state| state.cycle_views().all(|cycle| cycle.lifecycle != CycleStatus::Running)).await;
     let registration = runtime

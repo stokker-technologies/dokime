@@ -50,7 +50,6 @@ pub(super) struct ReadContext<'a, 'ctx> {
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Every Arrow batch one query answers through the storage operation.
 pub(super) async fn batches(ctx: &Context<'_>, settings: &crate::config::StorageSettings, query: Query) -> Result<Vec<ArrowBatch>> {
     let at = query.at.clone();
     let session = ctx.download::<harmos::storage::operations::Query>(

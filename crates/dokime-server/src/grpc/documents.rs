@@ -137,8 +137,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
-/// The capture scope: a cycle, and the execution whose document it names, or
-/// none for the cycle's own document.
 fn owner(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;

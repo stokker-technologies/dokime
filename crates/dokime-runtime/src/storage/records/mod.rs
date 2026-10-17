@@ -243,22 +243,18 @@ impl RecordRow {
             .ok_or_else(|| error("record decoding memory overflows"))
     }
 
-    /// The capture sequence this row was journaled at.
     pub fn sequence(&self) -> u64 {
         self.sequence
     }
 
-    /// The stored owner scope, before projection into its entry.
     pub fn scope(&self) -> Option<&ScopeRow> {
         self.scope.as_ref()
     }
 
-    /// Decode one stored record payload into its entry.
     pub fn decode_entry(bytes: &[u8]) -> Result<RecordEntry> {
         decode(bytes, usize::MAX)
     }
 
-    /// Project a decoded stored record into its entry.
     pub fn entry(self) -> Result<RecordEntry> {
         let bound = self.projection_memory()?;
         let allowance = NonZeroUsize::new(bound).ok_or_else(|| error("record projection memory is invalid"))?;

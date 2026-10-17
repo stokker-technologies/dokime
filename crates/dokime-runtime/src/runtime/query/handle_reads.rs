@@ -237,7 +237,6 @@ impl RuntimeHandle {
         crate::queries::plots::query_plot_stream_batches(self, requests).await
     }
 
-    /// Every artifact of sealed and live executions, ordered by identity.
     pub async fn artifacts(&self) -> crate::runtime::Result<Vec<ArtifactRecord>> {
         self.execution_storage.artifact_records().await
     }

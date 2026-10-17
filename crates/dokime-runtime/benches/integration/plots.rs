@@ -49,8 +49,6 @@ struct PlotRow {
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Times publication of one telemetry batch until the plot watch has
-/// delivered its last row; batch construction stays outside the interval.
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let root = tempfile::tempdir().unwrap();

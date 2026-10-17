@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Local Storage Reset Refusals And Backup Archives.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -64,9 +62,6 @@ async fn reset_refuses_unowned() {
     assert!(store.join("local.sqlite").exists());
 }
 
-/// A backup streams every nested file into a zip beside the root, leaves out
-/// only the lease, keeps a WAL a crash left behind, and the reset then empties
-/// the root.
 #[test]
 fn backup_archives_store() {
     let root = tempfile::tempdir().unwrap();

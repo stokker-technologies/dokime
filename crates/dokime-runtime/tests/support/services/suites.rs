@@ -232,8 +232,6 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .collect()
 }
 
-/// Starts a cycle holding every case of an installed suite; an empty suite
-/// yields an empty Ready cycle.
 pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite, continue_on_failure: bool) -> TestCycleId {
     let cases = if suite.test_case_templates.is_empty() {
         Vec::new()
@@ -244,7 +242,6 @@ pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite, continue_on_
     start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases, continue_on_failure).await
 }
 
-/// Creates an empty cycle and appends the given materialized cases to it.
 pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>, continue_on_failure: bool) -> TestCycleId {
     let cycle_id = runtime.create_cycle(CycleDefinition { metadata, continue_on_failure }, CommandContext::default()).await.unwrap();
     if !cases.is_empty() {

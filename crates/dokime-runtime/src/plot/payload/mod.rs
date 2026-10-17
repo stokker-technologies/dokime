@@ -51,7 +51,6 @@ use harmos::signal::{Aggregates, Series};
 
 /* === Constants === */
 pub(crate) use crate::document::DEFAULT_PLOT_MAX_POINTS;
-/// The stream whose latest sample gives a channel occupancy plot its context.
 const WIFI_CONTEXT_STREAM: &str = "host.wifi";
 const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
 
@@ -133,9 +132,6 @@ pub(crate) fn build_plot_payload(
     finish_plot_payload(payload, &request)
 }
 
-/// Every telemetry stream a whole-capture build of `request` reads: its own,
-/// its z axis, each expression's sources and lookups, and the occupancy
-/// context. Rows of no listed stream never change its payload.
 pub(crate) fn plot_streams(request: &PlotPayloadRequest) -> Vec<String> {
     let mut streams = vec![request.stream.clone(), RECORD_CONTEXT_STREAM.to_owned()];
     streams.extend(request.z_stream.clone());
@@ -243,15 +239,10 @@ pub(crate) fn project_plot_payload(
     }
 }
 
-/// Whether an append frame of this request also reads its whole window: for
-/// its series summaries or its cartesian domains and point count.
 pub(crate) fn reads_window(request: &PlotPayloadRequest) -> bool {
     request.analysis.is_none() && (analyses::summarizes(request) || request.plot_type.as_ref().is_some_and(cartesian::draws_cartesian))
 }
 
-/// Completes an append frame, whose series hold only the rows after its
-/// cursor, with what its whole window answers: the series summaries, and the
-/// cartesian domains and point count a snapshot of that window carries.
 pub(crate) fn complete_window(
     payload: &mut PlotPayload, telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext,
@@ -326,10 +317,6 @@ pub(crate) fn enrich_plot_samples_with_traceability_context(
     telemetry
 }
 
-/// A histogram declares the value it bins on x and the host counts it on y.
-/// The series builders, the live window and the analysis all read a series
-/// value against the row timestamp, so the declared x becomes that series and
-/// its format, and x returns to the timestamp. A y binding is no value.
 pub(crate) fn normalize_histogram_value(request: &mut PlotPayloadRequest) {
     if request.plot_type != Some(PlotType::Histogram) {
         return;

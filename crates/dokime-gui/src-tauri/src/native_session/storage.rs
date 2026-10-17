@@ -37,16 +37,12 @@ const PROGRESS_STEP: u64 = 1 << 20;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// The data directory an owned local backend opens, resolved the way the
-/// backend resolves it, beside the application root it must never enclose.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageRoot {
     data: PathBuf,
     application: PathBuf,
 }
 
-/// A writer that tracks the length of what it writes, ignoring the headers
-/// the archive seeks back to rewrite, and reports it in steps.
 struct Counted<W, F> {
     inner: W,
     position: u64,
@@ -65,8 +61,6 @@ impl StorageRoot {
         Self { data, application }
     }
 
-    /// Resolves the data root the owned backend will open: the environment
-    /// override, then the configured `data_root`, then the default location.
     pub fn resolve(application: PathBuf) -> Result<Self, String> {
         let configured = match std::env::var_os(DATA_ROOT_ENV).filter(|value| !value.is_empty()) {
             Some(root) => Some(PathBuf::from(root)),
@@ -83,8 +77,6 @@ impl StorageRoot {
         &self.data
     }
 
-    /// Refuses any directory other than this data root, and a data root that
-    /// is not a dedicated directory of its own.
     pub fn verify(&self, confirmed: &Path) -> Result<(), Error> {
         if confirmed != self.data {
             return Err(refusal(
@@ -104,8 +96,6 @@ impl StorageRoot {
         Ok(())
     }
 
-    /// The archive a backup writes by default: beside the data root, named
-    /// `<root name>-backup-<UTC stamp>.zip`.
     pub fn backup_destination(&self, now: time::OffsetDateTime) -> PathBuf {
         let now = now.to_offset(time::UtcOffset::UTC);
         let name = self.data.file_name().map_or_else(|| "data".into(), |name| name.to_string_lossy());
@@ -122,11 +112,6 @@ impl StorageRoot {
         parent.join(format!("{name}-backup-{stamp}.zip"))
     }
 
-    /// Streams every file under the data root into a new zip archive at
-    /// `destination` and returns its path, reporting the archive bytes
-    /// written. Refuses while any backend still holds the store's lease, so
-    /// SQLite's WAL and shared-memory files are at rest and kept: a WAL a
-    /// crash left behind still holds committed rows. Only the lease is left out.
     pub fn archive(&self, destination: &Path, progress: impl FnMut(u64)) -> Result<PathBuf, Error> {
         // Refuse A Destination The Reset Would Delete Or Overwrite
         let destination = std::path::absolute(destination).map_err(|error| archive_failure(destination, &error))?;
@@ -158,8 +143,6 @@ impl StorageRoot {
         Ok(destination)
     }
 
-    /// Deletes everything inside the data root, keeping the root itself.
-    /// Refuses while any backend still holds the store's lease.
     pub fn clear(&self) -> Result<(), Error> {
         // Prove No Backend Holds The Store
         let lease = self.lease("resetting")?;
@@ -191,8 +174,6 @@ impl StorageRoot {
         Ok(())
     }
 
-    /// Opens and locks the store's lease, if the store has one; a lease
-    /// another process holds means a backend still runs on this root.
     fn lease(&self, action: &str) -> Result<Option<File>, Error> {
         let lease = match OpenOptions::new().write(true).open(self.data.join(LEASE)) {
             Ok(lease) => lease,

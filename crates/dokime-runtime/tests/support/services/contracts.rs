@@ -71,7 +71,6 @@ pub struct TrackingRow {
     pub connection_acquired_distance_m: Option<f64>,
 }
 
-/// The host wire shape of a timestamp: a message wrapping its RFC 3339 text.
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

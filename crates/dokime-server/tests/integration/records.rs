@@ -34,15 +34,12 @@ const SUITE: &str = "fixture.bench";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// The waiting step's budget, the signal it gives once it listens, and the
-/// unit it heard.
 struct Expectation {
     budget: Duration,
     listening: Notify,
     heard: std::sync::Mutex<Option<String>>,
 }
 
-/// Serves the waiting suite in process.
 struct Bench {
     expectation: Arc<Expectation>,
 }
@@ -121,7 +118,6 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Starts a host serving the waiting suite and runs one cycle of it.
 async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime_runtime::TestCycleId) {
     let config =
         support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host")).register(Arc::new(Bench { expectation }));

@@ -38,7 +38,6 @@ const READINESS_LIMIT: u64 = 16 * 1024;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The installed bundle's directory name, as the bundler names it.
 #[cfg(any(windows, target_os = "macos"))]
 const BUNDLE: &str = env!("DOKIME_BUNDLE_NAME");
 const MISSING: &str = concat!(
@@ -91,8 +90,6 @@ impl Backend {
         Self { executable, arguments, logs: None }
     }
 
-    /// Streams each launch's redacted stderr into its own file under
-    /// `directory`; without one, only the in-memory tail is kept.
     #[must_use]
     pub fn with_logs(mut self, directory: PathBuf) -> Self {
         self.logs = Some(directory);

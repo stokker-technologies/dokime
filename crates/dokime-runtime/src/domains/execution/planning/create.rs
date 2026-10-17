@@ -35,7 +35,6 @@ use dokime_domain::model::identity::TestCycleId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Creates an empty Ready cycle; cases join it only through an append.
     pub async fn create_cycle(&self, definition: CycleDefinition, context: CommandContext) -> Result<TestCycleId, Error> {
         let request_key = context.idempotency_key.as_deref().filter(|key| !key.is_empty());
         let test_cycle_id = request_key.map_or_else(crate::model::identity::new_id::<TestCycleId>, |key| {

@@ -37,11 +37,6 @@ pub(crate) struct VerifiedContent {
     pub content_type: Option<String>,
 }
 
-/// Where a native delivery failed, carrying the backend's own status when it answered.
-///
-/// Serialized to the webview as `{ stage, failure }`; `failure` is the same
-/// `RpcError` shape generated RPC commands reject with, or a local message
-/// when the failure never reached the backend.
 #[derive(Debug, serde::Serialize, thiserror::Error)]
 #[error("{stage:?} failed: {failure}")]
 pub struct DeliveryError {
@@ -53,17 +48,11 @@ pub struct DeliveryError {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryStage {
-    /// Session, cache or filename checks before any backend call.
     Prepare,
-    /// The backend refused to open the download.
     Request,
-    /// The download opened, then a frame failed or did not verify.
     Stream,
-    /// Staging the received bytes on this machine failed.
     Write,
-    /// Publishing the staged file under its final name failed.
     Rename,
-    /// Handing the verified file to the operating system failed.
     Open,
 }
 

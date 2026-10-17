@@ -46,7 +46,6 @@ pub(super) struct PendingCycle {
     completed: Option<Arc<CompletedCycle>>,
 }
 
-/// A finalizing cycle's frozen report inputs, or the report it already published.
 pub(crate) struct Materialization {
     pub snapshot: CycleSnapshot,
     pub executions: Arc<Vec<ExecutionSeal>>,

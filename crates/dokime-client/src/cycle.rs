@@ -56,9 +56,6 @@ pub struct TestCycleHandle {
 
 /* === Implementations === */
 impl Client {
-    /// Creates an empty cycle, then appends one case planned from a suite
-    /// template named by its readable ID. Not idempotent: a retry after an
-    /// ambiguous failure may leave an extra cycle.
     pub async fn plan_cycle(
         &self, suite: &str, template: &str, parameters: BTreeMap<String, dokime_domain::model::values::Value>, label: Option<String>,
     ) -> Result<TestCycleHandle> {
@@ -216,11 +213,6 @@ impl TestCycleHandle {
         super::execution::admission(&self.client.backend().epoch, reply)
     }
 
-    /// Append the case's next attempt as a new execution without running it.
-    ///
-    /// Creation is not idempotent: every accepted call appends another attempt.
-    /// Earlier attempts and their evidence are never reused or changed; admit
-    /// the new one with [`Self::run_case`].
     pub async fn schedule_rerun(&self, case_id: &str) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
@@ -235,7 +227,6 @@ impl TestCycleHandle {
         Ok(reply)
     }
 
-    /// Admit the case's queued attempt once under a caller-retained key.
     pub async fn run_case(&self, case_id: &str, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
@@ -288,8 +279,6 @@ impl TestCycleHandle {
             .await?
     }
 
-    /// Appends the planned cases to this cycle; template selections continue
-    /// the cycle's case numbering.
     pub async fn append_cases(
         &self, plan: dokime_domain::model::planning::wire::SelectionPlan,
     ) -> Result<dokime_domain::model::execution::wire::ControlReply> {

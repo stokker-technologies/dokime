@@ -36,7 +36,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Renames one live cycle until it seals and saves its new revision.
     pub async fn rename_cycle(&self, test_cycle_id: TestCycleId, label: String, context: CommandContext) -> Result<String, Error> {
         let label = admitted_label(&label)?;
         if !self.state_read().cycles.contains_key(&test_cycle_id) {
@@ -51,8 +50,6 @@ impl RuntimeHandle {
         Ok(label)
     }
 
-    /// Renames one live execution's case until an attempt of it seals and
-    /// saves a new revision of every attempt of that case.
     pub async fn rename_execution(
         &self, test_execution_id: TestExecutionId, label: String, context: CommandContext,
     ) -> Result<String, Error> {

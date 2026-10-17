@@ -7,8 +7,6 @@
  * ***
  */
 
-//! The Desktop RPC Bridge Against An In-Process Server: Unary, Streaming And Upload Frames.
-
 /* === Modules === */
 mod upload;
 
@@ -134,7 +132,6 @@ fn invoke(window: &bridge::Window, cmd: &str, bytes: Vec<u8>) -> Result<tauri::i
     bridge::invoke(window, cmd, bytes, &serde_json::Value::Null)
 }
 
-/// Encodes One `oneof value` Arm Of A Client-Stream Input Envelope.
 fn envelope(field: u8, message: &[u8]) -> Vec<u8> {
     let mut bytes = vec![(field << 3) | 2];
     let mut length = message.len();
@@ -160,7 +157,6 @@ fn stage_header(size_bytes: u64, sha256: String) -> Vec<u8> {
     )
 }
 
-/// Streams A Bundle Through The Generic Bridge And Returns Its Channel Frames.
 fn stage(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
     const CHUNK_BYTES: usize = 256 * 1024;
     let sha256 = hex(&sha2::Sha256::digest(bytes));
@@ -321,7 +317,6 @@ fn refuses_foreign_bundle() {
     runtime.block_on(fixture.close());
 }
 
-/// Cancelling An Owner Ends Its Live Stream Cancelled And Leaves The Backend Healthy.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn owner_cancellation_health() {
     use tauri::Manager;
@@ -347,7 +342,6 @@ async fn owner_cancellation_health() {
     fixture.close().await;
 }
 
-/// A Session Advance Ends Every Stream Of The Old Generation.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn generation_fences_streams() {
     let fixture = Fixture::new().await;

@@ -25,7 +25,6 @@ use {
 };
 
 /* === Constants === */
-/// More rows than one message can carry as points, so the cap is refused.
 const ROWS: u64 = 40_000;
 const BATCH: u64 = 2_000;
 
@@ -162,7 +161,6 @@ fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
         .unwrap_or_default()
 }
 
-/// Publishes `count` progress rows from `start`, one millisecond apart.
 async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
     let samples = (start..start + count)
         .map(|index| {
@@ -181,7 +179,6 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 }
 
-/// The number the refusal names after "at most".
 fn maximum_points(message: &str) -> usize {
     message
         .split("at most ")

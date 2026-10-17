@@ -36,7 +36,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Fence Measurements And Remember The Already-Persisted Boundary.
     pub(crate) async fn freeze_report_inputs(&self, ids: Vec<TestExecutionId>) -> crate::runtime::Result<()> {
         if ids.is_empty() {
             return Ok(());
@@ -52,8 +51,6 @@ impl RuntimeHandle {
         Ok(())
     }
 
-    /// Freeze the terminal `execution` a final report captures: saved once as
-    /// its durable revision, which the lifecycle intent references.
     pub(crate) async fn capture_report_lifecycle(
         &self, execution: &dokime_domain::model::execution::result::TestExecution,
     ) -> crate::runtime::Result<crate::transactions::ReportLifecycle> {

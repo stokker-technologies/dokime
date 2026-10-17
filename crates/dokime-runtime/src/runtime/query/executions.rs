@@ -61,8 +61,6 @@ pub struct ExecutionOrder {
 }
 
 /* === Enums === */
-/// Which rows a list admits by their archive mark. Unarchived rows are the
-/// default; archived ones appear only when a request asks for them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveScope {
@@ -85,7 +83,6 @@ pub enum ExecutionOrderKey {
 
 /* === Implementations === */
 impl ArchiveScope {
-    /// Whether a row with this archive mark belongs in the list.
     pub fn admits(self, archived: bool) -> bool {
         match self {
             Self::Unarchived => !archived,

@@ -24,13 +24,10 @@ use dokime_runtime::runtime::query::{
 };
 
 /* === Constants === */
-/// Samples a long fast capture holds: far more than one plot shows.
 const LARGE_PLOT_SAMPLES: usize = 50_000;
 
-/// Samples published per batch.
 const SAMPLE_BATCH: usize = 1_000;
 
-/// Points the plot asks to show.
 const PLOT_POINTS: usize = 400;
 
 /* === Macros === */
@@ -342,8 +339,6 @@ async fn large_sample_plot() {
     assert!(series.points.len() <= PLOT_POINTS);
 }
 
-/// One summary of the `network_count` series: count, then min, max, mean,
-/// median, std and rms, over the inclusive x range `window`.
 fn assert_summary(summaries: &[PlotSeriesSummary], count: usize, statistics: [f64; 6], window: [f64; 2]) {
     let [summary] = summaries else {
         panic!("one summary per series: {summaries:?}");

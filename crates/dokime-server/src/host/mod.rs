@@ -319,7 +319,6 @@ async fn shutdown_signal(stdin: bool) {
     }
 }
 
-/// Both Service Termination And Interactive Stop Finalize Persisted Evidence.
 async fn stop_signal() {
     #[cfg(unix)]
     {

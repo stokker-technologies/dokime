@@ -45,10 +45,6 @@ use dokime_runtime::state::RuntimeState;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Re-Runs `check` After Every Committed State Revision Or Operation Change Until It Answers.
-///
-/// The watch subscribes before the first check, so a change between the check and
-/// the wait wakes it at once. The lane deadline is the only timer.
 pub async fn settle<T, F, Fut>(runtime: &RuntimeHandle, mut check: F) -> T
 where
     F: FnMut() -> Fut,
@@ -63,7 +59,6 @@ where
     }
 }
 
-/// Re-Runs `check` After Every Row The Durable Telemetry Stream Appends Until It Answers.
 pub async fn until_telemetry<T, F, Fut>(runtime: &RuntimeHandle, mut check: F) -> T
 where
     F: FnMut() -> Fut,
@@ -80,7 +75,6 @@ where
     }
 }
 
-/// Waits For The First Committed Runtime State `predicate` Accepts.
 pub async fn until_state(runtime: &RuntimeHandle, predicate: impl Fn(&RuntimeState) -> bool) -> RuntimeStateSnapshot {
     runtime
         .watch_state()
@@ -122,7 +116,6 @@ pub async fn wait_for_cycle_lifecycle(
     snapshot.state().cycle_views().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
 }
 
-/// Waits Until A Run Receipt Is Terminal, Which Follows Its Seals Or Unsealed Cause.
 pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_domain::model::identity::CommandId) {
     // TODO(source-hook): RequestStorage publishes no receipt change; a watch on the durable run receipt would replace this poll.
     loop {

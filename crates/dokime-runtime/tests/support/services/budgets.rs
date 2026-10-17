@@ -39,12 +39,10 @@ use dokime_runtime::config::StorageSettings;
 /* === Implementations === */
 
 /* === Public Functions === */
-/// A story runtime configuration with Dokime's shipped storage settings.
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
     RuntimeConfig::new(root, hub_metadata)
 }
 
-/// The storage settings every story runtime and directly opened manager uses.
 pub fn story_settings() -> StorageSettings {
     dokime_runtime::config::storage_defaults()
 }

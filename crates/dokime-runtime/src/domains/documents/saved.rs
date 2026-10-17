@@ -41,13 +41,11 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// The sealed outputs of one stored execution revision.
 pub(crate) struct SavedOutputs {
     storage: Manager,
     revision: ObjectRevision<TestExecution>,
 }
 
-/// One sealed output file, read by byte range.
 pub(crate) struct SavedOutputFile {
     outputs: SavedOutputs,
     index: usize,
@@ -59,7 +57,6 @@ pub(crate) struct SavedOutputFile {
 
 /* === Implementations === */
 impl SavedOutputs {
-    /// The latest sealed revision, or the exact checkpointed one.
     pub(crate) async fn open(storage: &Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>) -> Result<Option<Self>> {
         let version = match checkpoint {
             Some(point) => {
@@ -124,7 +121,6 @@ impl SavedOutputFile {
         window(self.descriptor(), 0, Vec::new())
     }
 
-    /// Up to `maximum` verified bytes from `offset`.
     pub(crate) async fn window(&self, offset: u64, maximum: NonZeroUsize) -> Result<ExecutionFileContent> {
         let maximum = maximum.get().min(MAX_ARTIFACT_READ_BYTES);
         let output = self.descriptor();
@@ -133,7 +129,6 @@ impl SavedOutputFile {
         Ok(window(output, offset, bytes))
     }
 
-    /// The whole file, or its first `maximum` bytes unless it must be complete.
     pub(crate) async fn snapshot(&self, maximum: NonZeroUsize, require_complete: bool) -> Result<ExecutionFileContent> {
         let output = self.descriptor();
         if require_complete && output.file.length > maximum.get() as u64 {

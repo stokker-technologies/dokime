@@ -78,7 +78,6 @@ pub struct ArtifactDeliveryRequest {
 pub enum DesktopSaveKind {
     HtmlReport,
     DiagnosticsBundle,
-    /// JSON assembled in the webview, such as an execution's traceability.
     JsonDocument,
     Artifact,
 }

@@ -31,13 +31,10 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 pub struct DesktopSessionSnapshot {
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
-    /// The archive bytes a backup has written so far, while it archives.
     pub archived_bytes: Option<u64>,
     pub connection: ConnectionSnapshot,
 }
 
-/// What an owned backend left behind when it failed to start: the resolved
-/// executable, how it exited, the redacted stderr tail and its full log.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackendDiagnostics {
@@ -72,29 +69,13 @@ pub enum DesktopSessionError {
     LocalBackendUnavailable,
     ShuttingDown,
     Superseded,
-    Startup {
-        message: String,
-        diagnostics: Option<Box<BackendDiagnostics>>,
-    },
-    Shutdown {
-        message: String,
-    },
-    Connection {
-        error: ConnectionError,
-    },
-    StorageReset {
-        reason: StorageResetReason,
-        message: String,
-    },
-    /// A backup archive was written, then the reset or restart that followed
-    /// it failed; `archive` names the kept backup.
-    Archived {
-        archive: String,
-        error: Box<DesktopSessionError>,
-    },
+    Startup { message: String, diagnostics: Option<Box<BackendDiagnostics>> },
+    Shutdown { message: String },
+    Connection { error: ConnectionError },
+    StorageReset { reason: StorageResetReason, message: String },
+    Archived { archive: String, error: Box<DesktopSessionError> },
 }
 
-/// Why the shell refused or failed to reset its owned backend's storage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageResetReason {

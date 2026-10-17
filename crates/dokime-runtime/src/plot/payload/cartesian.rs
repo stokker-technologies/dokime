@@ -60,7 +60,6 @@ pub(super) fn cartesian_frame(
     }
 }
 
-/// Whether plots of this type draw a cartesian frame.
 pub(super) fn draws_cartesian(plot_type: &PlotType) -> bool {
     cartesian_mode(plot_type).is_some()
 }

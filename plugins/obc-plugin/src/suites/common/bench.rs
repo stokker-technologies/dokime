@@ -19,21 +19,15 @@
 // Local Imports
 
 /* === Constants === */
-/// The shortest observation a bench parameter accepts, in model seconds.
 pub const SHORTEST_S: f64 = 0.0001;
 
-/// The finest simulation step a bench parameter accepts, in model seconds.
 pub const FINEST_STEP_S: f64 = 0.0001;
 
-/// The coarsest simulation step a bench parameter accepts, in model seconds.
 pub const COARSEST_STEP_S: f64 = 1.0;
 
-/// The most rows one observation may produce.
 pub const MOST_ROWS: f64 = 100_000.0;
 
 /* === Macros === */
-/// Gives a template's parameters, which all carry the bench supply fields, the
-/// device supply they describe and the row count their observation produces.
 macro_rules! bench {
     ($parameters:ty) => {
         impl $parameters {

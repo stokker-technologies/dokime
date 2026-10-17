@@ -22,21 +22,13 @@ use tokio_stream::wrappers::ReceiverStream;
 use super::*;
 
 /* === Constants === */
-/// The Method Path, `/package.Service/Method`.
 pub const PATH_HEADER: &str = "dokime-rpc-path";
-/// The Call Deadline In Milliseconds.
 pub const DEADLINE_HEADER: &str = "dokime-rpc-deadline-ms";
-/// The Tauri Channel A Stream Delivers Its Frames To.
 pub const CHANNEL_HEADER: &str = "dokime-rpc-channel";
-/// `open` Keeps A Stream's Input Open After The Opening Frame.
 pub const INPUT_HEADER: &str = "dokime-rpc-input";
-/// The Stream A Send, Finish, Cancel Or Acknowledgement Addresses.
 pub const STREAM_HEADER: &str = "dokime-rpc-stream";
-/// How Many Delivered Messages An Acknowledgement Releases.
 pub const CREDIT_HEADER: &str = "dokime-rpc-credit";
-/// Messages A Stream May Deliver Before The WebView Acknowledges Them.
 pub const STREAM_CREDIT: usize = 32;
-/// Channel Frame Kinds Following The Eight-Byte Generation.
 pub const FRAME_MESSAGE: u8 = 0;
 pub const FRAME_END: u8 = 1;
 pub const FRAME_ERROR: u8 = 2;
@@ -95,7 +87,6 @@ impl Streams {
         Self { budget: Arc::new(Semaphore::new(capacity)), registry: Arc::default() }
     }
 
-    /// Deregisters Before Cancelling, So Every Removed Stream Ends Cancelled.
     pub(super) fn cancel_owner(&self, owner: &str) {
         let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
         registry.entries.retain(|_, entry| {
@@ -221,7 +212,6 @@ impl Entry {
 }
 
 /* === Public Functions === */
-/// Forwards One Unary Call: Path And Request Bytes In, Response Bytes Out.
 #[tauri::command]
 pub async fn rpc<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -239,10 +229,6 @@ pub async fn rpc<R: tauri::Runtime>(
     context.reply_bytes(&response)
 }
 
-/// Opens One Stream Whose Frames Are Delivered Through A Tauri Channel.
-///
-/// The reply carries the stream identifier. Messages, the final status and
-/// any failure all arrive on the channel, each fenced by the generation.
 #[tauri::command]
 pub async fn rpc_stream_open<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -268,7 +254,6 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
     bridge.streams.open(context, channel, opening)
 }
 
-/// Sends One Input Frame On A Stream Opened With Its Input Kept Open.
 #[tauri::command]
 pub async fn rpc_stream_send<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -280,7 +265,6 @@ pub async fn rpc_stream_send<R: tauri::Runtime>(
     entry.send(payload.to_vec()).await
 }
 
-/// Closes A Stream's Input; Its Response Still Arrives On The Channel.
 #[tauri::command]
 pub async fn rpc_stream_finish<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -292,7 +276,6 @@ pub async fn rpc_stream_finish<R: tauri::Runtime>(
     entry.input.lock().await.take().map(drop).ok_or(RpcError::UnknownStream)
 }
 
-/// Cancels A Stream: The Backend Call Is Reset And Nothing More Is Delivered.
 #[tauri::command]
 pub async fn rpc_stream_cancel<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -304,7 +287,6 @@ pub async fn rpc_stream_cancel<R: tauri::Runtime>(
     Ok(())
 }
 
-/// Releases Delivery Credit For Messages The WebView Has Consumed.
 #[tauri::command]
 pub async fn rpc_stream_ack<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -321,7 +303,6 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 }
 
 /* === Private Functions === */
-/// Relays Every Response Message In Order Within The Stream's Credit.
 async fn forward(
     entry: &Entry, context: &Context, client: &dokime_client::Client, channel: &Channel<Response>, path: &str,
     receiver: mpsc::Receiver<Vec<u8>>, deadline: Duration,
@@ -350,7 +331,6 @@ fn header<'a>(headers: &'a tauri::http::HeaderMap, name: &str) -> Result<Option<
     headers.get(name).map(|value| value.to_str().map_err(|_| RpcError::InvalidRequest)).transpose()
 }
 
-/// Accepts Only `/package.Service/Method`; The Backend Decides If It Exists.
 fn path(headers: &tauri::http::HeaderMap) -> Result<&str, RpcError> {
     let path = header(headers, PATH_HEADER)?.ok_or(RpcError::InvalidRequest)?;
     let (service, method) = path.strip_prefix('/').and_then(|path| path.split_once('/')).ok_or(RpcError::InvalidRequest)?;

@@ -7,8 +7,6 @@
  * ***
  */
 
-//! Shared Fixtures For The Desktop Shell's Integration, Acceptance And System Stories.
-
 /* === Modules === */
 
 pub mod artifact;

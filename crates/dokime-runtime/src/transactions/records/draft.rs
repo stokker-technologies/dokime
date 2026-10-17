@@ -34,8 +34,6 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A record the host drafts itself. Its type is a declared built-in, so it
-/// always has a registered contract and is never published unregistered.
 pub(crate) struct BuiltinDraft {
     pub record_type: BuiltinRecordType,
     pub source: String,

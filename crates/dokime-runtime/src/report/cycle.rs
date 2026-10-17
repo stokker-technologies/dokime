@@ -35,7 +35,6 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A rendered cycle report, ready to publish through the file operations.
 pub(crate) struct CycleReport {
     manager: Manager,
     file: super::saved::ReportFile,

@@ -38,7 +38,6 @@ use crate::{
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A frozen native output read in caller-sized chunks.
 pub(crate) struct Reader {
     source: Arc<Source>,
     offset: u64,

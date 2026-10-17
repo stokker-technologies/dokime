@@ -383,8 +383,6 @@ pub const fn required_by(
     true
 }
 
-/// Every stream a plugin's declarations publish, before deduplication: the
-/// streams its suites' templates and its evidence name, then its observers'.
 #[cfg(feature = "native")]
 pub const fn publication_count(streams: &[Node<Publication>], observers: &[Node<Observer>]) -> usize {
     harmos::catalog::count(streams) + observed_count(observers)
@@ -399,9 +397,6 @@ pub const fn publications<const N: usize>(streams: &[Node<Publication>], observe
     gathered
 }
 
-/// How many distinct streams `declared` names. Several declarations may name
-/// one stream, as long as each declares it the same way; two that disagree on
-/// its row, schema version, window or presentation stop the build.
 #[cfg(feature = "native")]
 pub const fn distinct_publications(declared: &[Publication]) -> usize {
     let mut distinct = 0;

@@ -23,7 +23,6 @@ use std::process::{Child, Command, Stdio};
 // Local Imports
 
 /* === Constants === */
-/// The Line A Child Story Prints Once It Reached The State The Parent Kills It In.
 const READY: &str = "dokime-child-story-ready";
 
 /* === Macros === */
@@ -31,7 +30,6 @@ const READY: &str = "dokime-child-story-ready";
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A Child Story That Is Killed And Reaped When Dropped, Even If The Parent Panics.
 pub struct ChildStory(Child);
 
 /* === Enums === */
@@ -40,7 +38,6 @@ pub struct ChildStory(Child);
 
 /* === Implementations === */
 impl ChildStory {
-    /// Re-Runs One Story Of This Test Binary As A Child Process The Parent Story Can Kill.
     pub fn spawn(story: &str, environment: &[(&str, &OsStr)]) -> Self {
         let child = Command::new(std::env::current_exe().expect("current test executable"))
             .args(["--exact", story, "--nocapture"])
@@ -51,10 +48,6 @@ impl ChildStory {
         Self(child)
     }
 
-    /// Waits For The Child's Readiness Line; Panics If The Child Exits First.
-    ///
-    /// The reader keeps draining the child's stdout until it exits, so the child
-    /// never writes into a closed pipe while it waits to be killed.
     pub async fn ready(&mut self) {
         let stdout = self.0.stdout.take().expect("the child's stdout is piped");
         let (announced, signal) = tokio::sync::oneshot::channel();
@@ -77,7 +70,6 @@ impl ChildStory {
         }
     }
 
-    /// Kills The Child At Its Kill Point And Reaps It.
     pub fn kill(self) {
         drop(self);
     }
@@ -91,7 +83,6 @@ impl Drop for ChildStory {
 }
 
 /* === Public Functions === */
-/// Tells The Parent Story That This Child Reached Its Kill Point.
 pub fn announce_ready() {
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "{READY}").expect("the parent reads the child's stdout");

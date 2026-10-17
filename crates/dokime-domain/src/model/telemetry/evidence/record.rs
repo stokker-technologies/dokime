@@ -42,7 +42,6 @@ pub struct TelemetrySample {
     pub source: String,
     pub scope: Option<RecordScope>,
     pub values: BTreeMap<String, Value>,
-    /// Original canonical row bytes, preserved before convenience-map projection.
     #[serde(skip)]
     pub storage_payload: Option<Vec<u8>>,
     pub summary: BTreeMap<String, Value>,

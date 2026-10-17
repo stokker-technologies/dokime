@@ -33,7 +33,6 @@
 /* === Implementations === */
 
 /* === Public Functions === */
-/// Refuses to start a template once the embedded bench stopped taking work.
 pub(crate) async fn ready<T, O, I>(ctx: &dokime_runtime::execution::InitializationContext<'_, T, O, I>) -> Result<(), crate::error::Error>
 where
     T: dokime_runtime::execution::Calls<crate::domain::operations::AskReadiness>,

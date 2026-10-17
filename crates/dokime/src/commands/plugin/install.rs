@@ -52,7 +52,6 @@ pub(crate) struct Args {
     yes: bool,
 }
 
-/// What the operator reviews: the verified bundle and the identities it claims.
 struct Review {
     bundle: Bundle,
     digest: String,

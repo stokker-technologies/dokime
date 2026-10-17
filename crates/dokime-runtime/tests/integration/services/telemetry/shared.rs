@@ -46,8 +46,6 @@ struct First;
 
 struct Second;
 
-/// One plugin whose two templates and plugin-level evidence all declare the
-/// same stream, the way an author shares one row type across templates.
 struct SharedProvider {
     catalog: InstalledPlugin,
 }

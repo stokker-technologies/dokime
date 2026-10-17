@@ -235,10 +235,6 @@ async fn checkpoints_advance_boundaries() {
     backend.close().await.unwrap();
 }
 
-/// A storage flush captures checkpoints of producing files and persists them
-/// after its data barrier, so a checkpoint can arrive after a longer save, the
-/// production's completion, its abandonment or its deletion. Each is a no-op;
-/// a fenced generation, a different identity or bytes past completion refuse.
 #[tokio::test]
 async fn late_checkpoints_settle() {
     let root = tempfile::tempdir().unwrap();

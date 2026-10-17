@@ -72,7 +72,6 @@ enum TelemetryRead {
 
 /* === Implementations === */
 impl SampleAdmission {
-    /// Admits A Finishing Provider's Outcome Rows Under Its Own Sampling Quiescence.
     pub(crate) fn within_quiescence(mut self) -> Self {
         self.observes_closure = false;
         self
