@@ -228,7 +228,7 @@ impl ExecutionState {
                     previous
                         .keys()
                         .chain(sample.values.keys())
-                        .find(|key| previous.get(*key) != sample.values.get(*key))
+                        .find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
                 })
                 .flatten();
             let suffix = key.map_or_else(String::new, |key| format!(".{key}"));
@@ -996,7 +996,10 @@ fn sample_difference(
         ),
         ("source", previous.source == incoming.source),
         ("scope", scope_matches),
-        ("values", previous.values == incoming.values),
+        (
+            "values",
+            values_equivalent(&previous.values, &incoming.values),
+        ),
         ("summary", previous.summary == incoming.summary),
         ("metadata", previous.metadata == incoming.metadata),
         (
@@ -1009,6 +1012,33 @@ fn sample_difference(
     ]
     .into_iter()
     .find_map(|(field, matches)| (!matches).then_some(field))
+}
+
+// A typed sample's absent optional field and its null are the same datum: the
+// live sample omits it, its stored projection names it null.
+fn values_equivalent(
+    left: &BTreeMap<String, crate::core::Value>,
+    right: &BTreeMap<String, crate::core::Value>,
+) -> bool {
+    left.keys()
+        .chain(right.keys())
+        .all(|key| value_equivalent(left.get(key), right.get(key)))
+}
+
+fn value_equivalent(left: Option<&crate::core::Value>, right: Option<&crate::core::Value>) -> bool {
+    use crate::core::Value;
+    match (left, right) {
+        (None | Some(Value::Null), None | Some(Value::Null)) => true,
+        (Some(Value::Object(left)), Some(Value::Object(right))) => values_equivalent(left, right),
+        (Some(Value::Array(left)), Some(Value::Array(right))) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| value_equivalent(Some(left), Some(right)))
+        }
+        (left, right) => left == right,
+    }
 }
 
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
@@ -1049,6 +1079,10 @@ mod tests {
         let mut changed = wire.clone();
         changed.values.insert("value".into(), Value::from(2.0));
         assert!(sample_difference(&original, &changed, true).is_some());
+        // The stored projection names an absent optional field null.
+        let mut projected = wire.clone();
+        projected.values.insert("probe_error".into(), Value::Null);
+        assert!(sample_difference(&original, &projected, false).is_none());
         let mut changed = original.clone();
         changed.storage_payload = Some(vec![3]);
         assert!(sample_difference(&original, &changed, true).is_some());
