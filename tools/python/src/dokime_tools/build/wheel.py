@@ -17,7 +17,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.package.staging import clear_output
 from dokime_tools.test import archive
@@ -81,7 +80,6 @@ def capture(root: Path, producer: dict, backend: Sequence[Path]) -> dict:
             os.environ.pop("PYTHONDONTWRITEBYTECODE", None)
         else:
             os.environ["PYTHONDONTWRITEBYTECODE"] = previous
-
 
 
 # === Private Functions === #

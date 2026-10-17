@@ -34,9 +34,7 @@ from pathlib import Path
 _MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 _MAX_MEMBER_BYTES = 8 * 1024 * 1024
 _MAX_ASSETS = 4096
-CORE_MEMBERS = frozenset(
-    {"manifest.txt", "revision.txt", "contracts.json", "descriptors.bin"}
-)
+CORE_MEMBERS = frozenset({"manifest.txt", "revision.txt", "contracts.json", "descriptors.bin"})
 
 # === Types === #
 
@@ -64,9 +62,7 @@ def locate(messages: Path) -> Path:
         elif reason == "build-finished":
             finished.append(event["success"])
     if finished != [True] or len(artifacts) != 1:
-        raise ValueError(
-            "expected one dokime-server contract producer from a successful Cargo build"
-        )
+        raise ValueError("expected one dokime-server contract producer from a successful Cargo build")
     outputs = scripts.get(next(iter(artifacts)), set())
     if not outputs:
         raise ValueError("selected Dokime build has no build-script output")
@@ -79,9 +75,7 @@ def locate(messages: Path) -> Path:
     if not descriptor.is_file() or not manifest.is_file():
         raise ValueError("selected Dokime contract build did not export contracts")
     names = manifest.read_text(encoding="utf-8").splitlines()
-    if not {"descriptors.bin", "contracts.json"}.issubset(names) or len(names) != len(
-        set(names)
-    ):
+    if not {"descriptors.bin", "contracts.json"}.issubset(names) or len(names) != len(set(names)):
         raise ValueError("invalid contract export manifest")
     for name in names:
         relative = Path(name)
@@ -92,10 +86,7 @@ def locate(messages: Path) -> Path:
             or relative.is_absolute()
             or ".." in relative.parts
             or relative.as_posix() != name
-            or (
-                name not in {"descriptors.bin", "contracts.json"}
-                and relative.suffix != ".proto"
-            )
+            or (name not in {"descriptors.bin", "contracts.json"} and relative.suffix != ".proto")
         ):
             raise ValueError(f"invalid contract export path: {name}")
         if not (root / relative).is_file():
@@ -103,9 +94,7 @@ def locate(messages: Path) -> Path:
     return root
 
 
-def prepare(
-    messages: Path, *, profile: str, root: Path, cargo_config: Path | None = None
-) -> Path:
+def prepare(messages: Path, *, profile: str, root: Path, cargo_config: Path | None = None) -> Path:
     if cargo_config is not None:
         cargo_config = cargo_config.resolve(strict=True)
         if not cargo_config.is_file():
@@ -133,15 +122,8 @@ def prepare(
     try:
         with temporary.open("w", encoding="utf-8") as output:
             subprocess.run(command, cwd=root, stdout=output, check=True)
-        events = [
-            json.loads(line)
-            for line in temporary.read_text(encoding="utf-8").splitlines()
-        ]
-        if [
-            event.get("success")
-            for event in events
-            if event.get("reason") == "build-finished"
-        ] != [True]:
+        events = [json.loads(line) for line in temporary.read_text(encoding="utf-8").splitlines()]
+        if [event.get("success") for event in events if event.get("reason") == "build-finished"] != [True]:
             raise ValueError("contract producer build did not complete successfully")
         producers = [
             event
@@ -167,9 +149,7 @@ def archive(
     root: Path,
     export: Path | None = None,
 ) -> None:
-    if len(revision) != 40 or any(
-        character not in "0123456789abcdef" for character in revision
-    ):
+    if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
         raise ValueError("contract archive requires the exact source commit")
     if export is not None:
         exported = restored(export, revision)
@@ -182,9 +162,7 @@ def archive(
     temporary = destination.with_suffix(".pending")
     try:
         with tarfile.open(temporary, "w", format=tarfile.USTAR_FORMAT) as output:
-            contents = [
-                (name, (exported / name).read_bytes()) for name in sorted(names)
-            ]
+            contents = [(name, (exported / name).read_bytes()) for name in sorted(names)]
             contents.extend(
                 [
                     ("manifest.txt", (exported / "manifest.txt").read_bytes()),
@@ -200,9 +178,7 @@ def archive(
         temporary.replace(destination)
         with destination.open("rb") as source:
             digest = hashlib.file_digest(source, "sha256").hexdigest()
-        destination.with_suffix(destination.suffix + ".sha256").write_text(
-            f"{digest}  {destination.name}\n", encoding="ascii"
-        )
+        destination.with_suffix(destination.suffix + ".sha256").write_text(f"{digest}  {destination.name}\n", encoding="ascii")
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -250,13 +226,9 @@ def members(archive_path: Path) -> dict[str, bytes]:
 
 
 def restore(archive_path: Path, sha256: str, revision: str, destination: Path) -> Path:
-    if len(sha256) != 64 or any(
-        character not in "0123456789abcdef" for character in sha256
-    ):
+    if len(sha256) != 64 or any(character not in "0123456789abcdef" for character in sha256):
         raise ValueError("restored contracts require the exact artifact SHA-256")
-    if len(revision) != 40 or any(
-        character not in "0123456789abcdef" for character in revision
-    ):
+    if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
         raise ValueError("restored contracts require the exact source commit")
     contents = members(archive_path)
     with archive_path.open("rb") as source:
@@ -265,9 +237,7 @@ def restore(archive_path: Path, sha256: str, revision: str, destination: Path) -
     if contents["revision.txt"] != (revision + "\n").encode("ascii"):
         raise ValueError("contract archive belongs to another source commit")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(
-        prefix="contracts-restore-", dir=destination.parent
-    ) as directory:
+    with tempfile.TemporaryDirectory(prefix="contracts-restore-", dir=destination.parent) as directory:
         staged = Path(directory) / "export"
         staged.mkdir()
         for name, data in contents.items():
@@ -278,14 +248,9 @@ def restore(archive_path: Path, sha256: str, revision: str, destination: Path) -
             "schema": 1,
             "revision": revision,
             "archive_sha256": sha256,
-            "files": {
-                name: hashlib.sha256(data).hexdigest()
-                for name, data in contents.items()
-            },
+            "files": {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()},
         }
-        (staged / ".restored.json").write_text(
-            json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        (staged / ".restored.json").write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
         if destination.is_symlink():
             raise ValueError("refusing to replace a linked contract directory")
         if destination.exists():
@@ -301,9 +266,7 @@ def restored(export: Path, revision: str) -> Path:
         raise ValueError("restored contract root must not be a symlink")
     receipt = json.loads((export / ".restored.json").read_text(encoding="utf-8"))
     if receipt.get("schema") != 1 or receipt.get("revision") != revision:
-        raise ValueError(
-            "restored contracts do not belong to the selected source commit"
-        )
+        raise ValueError("restored contracts do not belong to the selected source commit")
     files = receipt.get("files")
     if not isinstance(files, dict) or not {
         "manifest.txt",
@@ -314,30 +277,13 @@ def restored(export: Path, revision: str) -> Path:
         raise ValueError("restored contracts have no complete provenance")
     for name, expected in files.items():
         relative = Path(name)
-        if (
-            not name
-            or "\\" in name
-            or ":" in name
-            or relative.is_absolute()
-            or ".." in relative.parts
-            or relative.as_posix() != name
-        ):
+        if not name or "\\" in name or ":" in name or relative.is_absolute() or ".." in relative.parts or relative.as_posix() != name:
             raise ValueError("restored contract provenance contains an invalid path")
         target = export / relative
         ancestors = [target, *target.parents]
-        linked = any(
-            path.is_symlink()
-            for path in ancestors
-            if path == export or export in path.parents
-        )
-        if (
-            linked
-            or not target.is_file()
-            or hashlib.sha256(target.read_bytes()).hexdigest() != expected
-        ):
-            raise ValueError(
-                "restored contracts differ from the verified build artifact"
-            )
+        linked = any(path.is_symlink() for path in ancestors if path == export or export in path.parents)
+        if linked or not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+            raise ValueError("restored contracts differ from the verified build artifact")
     names = (export / "manifest.txt").read_text(encoding="utf-8").splitlines()
     if set(files) != set(names) | {"manifest.txt", "revision.txt"}:
         raise ValueError("restored contract provenance differs from its manifest")
@@ -355,24 +301,14 @@ def main() -> None:
     build = subcommands.add_parser("prepare")
     build.add_argument("--profile", choices=("dev", "release"), default="dev")
     build.add_argument("--cargo-config", type=Path)
-    build.add_argument(
-        "--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON")
-    )
-    build.add_argument(
-        "--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT")
-    )
+    build.add_argument("--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON"))
+    build.add_argument("--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT"))
     build.add_argument("--revision", default=os.environ.get("GITHUB_SHA"))
     package = subcommands.add_parser("archive")
-    package.add_argument(
-        "--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON")
-    )
-    package.add_argument(
-        "--output", type=Path, default=root / "target/contracts/dokime-contract.tar"
-    )
+    package.add_argument("--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON"))
+    package.add_argument("--output", type=Path, default=root / "target/contracts/dokime-contract.tar")
     package.add_argument("--revision", default=os.environ.get("GITHUB_SHA"))
-    package.add_argument(
-        "--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT")
-    )
+    package.add_argument("--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT"))
     consume = subcommands.add_parser("restore")
     consume.add_argument("--archive", type=Path, required=True)
     consume.add_argument("--sha256", required=True)
@@ -409,9 +345,7 @@ def main() -> None:
 
 
 def _revision(root: Path) -> str:
-    return subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=root, text=True
-    ).strip()
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 
 
 # === Entry Point === #

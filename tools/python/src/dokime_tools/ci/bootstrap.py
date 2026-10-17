@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release.run import _override_source as _override_source
+from dokime_tools.release.run import _override_source
 
 # Type Checking Imports
 
@@ -230,13 +230,9 @@ def harmos_pin(root: Path) -> dict[str, str]:
         return {"git": url, "rev": revision, "package": "cargo-harmos"}
     if revision is None and isinstance(branch, str) and branch:
         # Cargo Percent-Encodes The Branch In Its Lockfile Source
-        locked = _locked_revision(
-            root, f"git+{url}?branch={urllib.parse.quote(branch, safe='')}#"
-        )
+        locked = _locked_revision(root, f"git+{url}?branch={urllib.parse.quote(branch, safe='')}#")
         return {"git": url, "branch": branch, "rev": locked, "package": "cargo-harmos"}
-    raise ValueError(
-        "Harmos tools require the exact declared public Git revision or a branch"
-    )
+    raise ValueError("Harmos tools require the exact declared public Git revision or a branch")
 
 
 def prepare_harmos(
@@ -247,35 +243,20 @@ def prepare_harmos(
 ) -> None:
     local_source = None
     if cargo_config is not None:
-        if (
-            os.environ.get("CI")
-            or os.environ.get("GITHUB_ACTIONS")
-            or os.environ.get("DOKIME_CI_ROLE")
-        ):
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("DOKIME_CI_ROLE"):
             raise ValueError("CI refuses local Harmos tool overrides")
         config = cargo_config.resolve(strict=True)
-        patch = tomllib.loads(config.read_text(encoding="utf-8"))["patch"][
-            HARMOS_REPOSITORY
-        ]["harmos"]
+        patch = tomllib.loads(config.read_text(encoding="utf-8"))["patch"][HARMOS_REPOSITORY]["harmos"]
         crate = Path(patch["path"])
         if not crate.is_absolute():
-            raise ValueError(
-                "local Harmos tool configuration requires an absolute patch path"
-            )
+            raise ValueError("local Harmos tool configuration requires an absolute patch path")
         crate = crate.resolve(strict=True)
-        package = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))[
-            "package"
-        ]
+        package = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))["package"]
         if package["name"] != "harmos":
             raise ValueError("local Harmos patch does not identify the harmos package")
         local_source = crate.parent.parent
         tool = local_source / "crates/cargo-harmos"
-        if (
-            tomllib.loads((tool / "Cargo.toml").read_text(encoding="utf-8"))["package"][
-                "name"
-            ]
-            != "cargo-harmos"
-        ):
+        if tomllib.loads((tool / "Cargo.toml").read_text(encoding="utf-8"))["package"]["name"] != "cargo-harmos":
             raise ValueError("local Harmos checkout has no canonical tool package")
         source_identity = {
             "local_source": str(local_source),
@@ -290,9 +271,7 @@ def prepare_harmos(
         "profile": "dev",
         "platform": platform.system(),
         "architecture": platform.machine(),
-        "rustc": subprocess.check_output(
-            ["mise", "exec", "--", "rustc", "-vV"], text=True, encoding="utf-8"
-        ).strip(),
+        "rustc": subprocess.check_output(["mise", "exec", "--", "rustc", "-vV"], text=True, encoding="utf-8").strip(),
         "environment": {
             name: os.environ.get(name)
             for name in sorted(
@@ -310,42 +289,25 @@ def prepare_harmos(
         },
     }
     destination = root / ".cache/harmos-tool"
-    binary = (
-        destination
-        / "bin"
-        / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
-    )
+    binary = destination / "bin" / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
     receipt = destination / "receipt.json"
     available = False
-    if (
-        binary.is_file()
-        and not binary.is_symlink()
-        and receipt.is_file()
-        and not receipt.is_symlink()
-    ):
+    if binary.is_file() and not binary.is_symlink() and receipt.is_file() and not receipt.is_symlink():
         try:
             value = json.loads(receipt.read_text(encoding="utf-8"))
-            available = (
-                value.get("identity") == identity
-                and value.get("sha256")
-                == hashlib.sha256(binary.read_bytes()).hexdigest()
-            )
+            available = value.get("identity") == identity and value.get("sha256") == hashlib.sha256(binary.read_bytes()).hexdigest()
         except (OSError, ValueError):
             available = False
     if not available:
         if not allow_install:
-            raise ValueError(
-                "exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it"
-            )
+            raise ValueError("exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it")
         destination.parent.mkdir(parents=True, exist_ok=True)
         source_arguments = (
             ["--path", str(local_source / "crates/cargo-harmos")]
             if local_source is not None
             else ["--git", identity["git"], "--rev", identity["rev"]]
         )
-        with tempfile.TemporaryDirectory(
-            prefix="harmos-tool-", dir=destination.parent
-        ) as temporary:
+        with tempfile.TemporaryDirectory(prefix="harmos-tool-", dir=destination.parent) as temporary:
             staged = Path(temporary)
             _run(
                 [
@@ -364,25 +326,18 @@ def prepare_harmos(
                     identity["package"],
                 ]
             )
-            if (
-                local_source is not None
-                and _override_source(local_source) != identity["source"]
-            ):
+            if local_source is not None and _override_source(local_source) != identity["source"]:
                 raise ValueError("Harmos source changed while preparing the local tool")
             executable = staged / "bin" / binary.name
             if executable.is_symlink() or not executable.is_file():
                 raise ValueError("published Harmos package omitted its required CLI")
-            version = subprocess.check_output(
-                [str(executable), "--version"], text=True, encoding="utf-8"
-            ).strip()
+            version = subprocess.check_output([str(executable), "--version"], text=True, encoding="utf-8").strip()
             value = {
                 "identity": identity,
                 "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
                 "version": version,
             }
-            (staged / "receipt.json").write_text(
-                json.dumps(value, indent=2) + "\n", encoding="utf-8"
-            )
+            (staged / "receipt.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
             for path in staged.iterdir():
                 if path.name not in {"bin", "receipt.json"}:
                     path.unlink()
@@ -415,21 +370,14 @@ def install_gui_packages() -> None:
         _step("skipping GUI packages: all prerequisites are installed")
         return
     prefix = []
-    if (
-        os.geteuid() != 0
-        and os.environ.get("GITHUB_ACTIONS") == "true"
-        and shutil.which("sudo")
-    ):
+    if os.geteuid() != 0 and os.environ.get("GITHUB_ACTIONS") == "true" and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit(
-            f"{GUI_MARKER_PACKAGE} is missing and apt-get needs root; install the "
-            "GUI development packages by hand or run this as root."
+            f"{GUI_MARKER_PACKAGE} is missing and apt-get needs root; install the GUI development packages by hand or run this as root."
         )
     _run([*prefix, "apt-get", "update"])
-    _run(
-        [*prefix, "apt-get", "install", "-y", "--no-install-recommends", *GUI_PACKAGES]
-    )
+    _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *GUI_PACKAGES])
 
 
 def verify_visual_cpp_toolset() -> None:
@@ -443,8 +391,7 @@ def verify_visual_cpp_toolset() -> None:
     vswhere = Path(program_files) / VSWHERE_RELATIVE_PATH
     if not vswhere.is_file():
         raise SystemExit(
-            f"vswhere.exe not found at '{vswhere}'; install Visual Studio with the "
-            "'Desktop development with C++' workload on this runner."
+            f"vswhere.exe not found at '{vswhere}'; install Visual Studio with the 'Desktop development with C++' workload on this runner."
         )
     _step(f"resolving the MSVC toolset through {vswhere}")
     completed = subprocess.run(
@@ -477,11 +424,7 @@ def verify_visual_cpp_toolset() -> None:
 
 
 def _is_revision(value: object) -> bool:
-    return (
-        isinstance(value, str)
-        and len(value) == 40
-        and all(character in "0123456789abcdef" for character in value)
-    )
+    return isinstance(value, str) and len(value) == 40 and all(character in "0123456789abcdef" for character in value)
 
 
 def _locked_revision(root: Path, source: str) -> str:
@@ -493,9 +436,7 @@ def _locked_revision(root: Path, source: str) -> str:
             revision = locked.removeprefix(source)
             if _is_revision(revision):
                 return revision
-    raise ValueError(
-        "the Harmos branch has no locked public revision; a local path override is active"
-    )
+    raise ValueError("the Harmos branch has no locked public revision; a local path override is active")
 
 
 def _create_temporary_directory() -> None:

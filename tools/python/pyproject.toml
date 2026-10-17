@@ -10,6 +10,7 @@ build-backend = "hatchling.build"
 
 [tool.pyright]
 include = ["src"]
+exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]
 pythonVersion = "3.13"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
@@ -19,15 +20,6 @@ venv = ".venv"
 [tool.uv]
 system-certs = true
 
-[tool.ruff.format]
-# Shared generated modules are formatted and validated by Hub.
-exclude = [
-  "src/dokime_tools/_policy.py",
-  "src/dokime_tools/docs.py",
-  "src/dokime_tools/docs_site.py",
-  "src/dokime_tools/docs_artifacts.py",
-  "src/dokime_tools/docs_registry.py",
-  "src/dokime_tools/evidence.py",
-  "src/dokime_tools/release.py",
-  "src/dokime_tools/screenshots.py",
-]
+[tool.ruff]
+# Hub-rendered runners are formatted, linted and type-checked by the Hub.
+extend-exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]

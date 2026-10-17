@@ -20,19 +20,17 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from dokime_tools.package.wheel import WheelSelectionError, select_wheel
+
 # Third Party Imports
 # Local Imports
 from dokime_tools.test import archive, policy
-from dokime_tools.package.wheel import WheelSelectionError as WheelSelectionError
-from dokime_tools.package.wheel import select_wheel as select_wheel
 
 # Type Checking Imports
 
 # === Public Exports === #
 
 # === Constants === #
-
-
 
 
 # === Types === #
@@ -53,9 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # One immutable client wheel supplies all cross-language categories.
     # Mise prepares the shared workspace before installing this wheel.
     native_environment = root / ".venv"
-    native_python = native_environment / (
-        "Scripts/python.exe" if os.name == "nt" else "bin/python"
-    )
+    native_python = native_environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     _run(
         [
             "uv",
@@ -81,12 +77,8 @@ def _unique_wheel(wheel_dir: Path) -> Path:
         return select_wheel(wheel_dir, "dokime-*.whl")
     except WheelSelectionError as error:
         if not error.wheels:
-            raise SystemExit(
-                f"No dokime wheel artifact exists in {wheel_dir}."
-            ) from error
-        raise SystemExit(
-            f"Expected one dokime wheel in {wheel_dir}, found: {error}."
-        ) from error
+            raise SystemExit(f"No dokime wheel artifact exists in {wheel_dir}.") from error
+        raise SystemExit(f"Expected one dokime wheel in {wheel_dir}, found: {error}.") from error
 
 
 def _run(

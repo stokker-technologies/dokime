@@ -17,7 +17,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.test import archive
 

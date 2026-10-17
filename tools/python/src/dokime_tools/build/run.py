@@ -30,7 +30,6 @@ import sys
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.build import frontend, outputs, wheel
 from dokime_tools.package import fixtures
@@ -120,7 +119,7 @@ def backend() -> list[Path]:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Build Every Development Output Once")
     parser.add_argument("step", choices=(*STEPS, "stamp"))
     parser.add_argument("--profile", choices=(*policy.PROFILES, "bench"), default="dev")
     options = parser.parse_args(arguments)

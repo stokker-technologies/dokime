@@ -72,9 +72,7 @@ def ensure_report() -> None:
     if is_stale(previous, current, REPORT.exists()):
         vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
         STAMP.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(
-            prefix="report-", dir=STAMP.parent
-        ) as directory:
+        with tempfile.TemporaryDirectory(prefix="report-", dir=STAMP.parent) as directory:
             output = Path(directory)
             subprocess.run(
                 [
@@ -103,12 +101,9 @@ def build_live(args: list[str]) -> None:
         return
     target = ROOT / "target"
     target.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(
-        prefix="dokime-gui-live-", dir=target
-    ) as directory:
+    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-", dir=target) as directory:
         subprocess.run(command + ["--outDir", directory], cwd=WEB_ROOT, check=True)
         sync_output(Path(directory), WEB_ROOT / "dist")
-
 
 
 def capture(
@@ -156,13 +151,8 @@ def check_assets() -> None:
         for path in _files(root):
             if path.suffix in {".css", ".html", ".js", ".json", ".svg", ".txt"}:
                 text = path.read_text(encoding="utf-8")
-                if any(
-                    pattern in text
-                    for pattern in ["WiFi Band Usage", "WifiBandUsage", "wifi_nearby_"]
-                ):
-                    raise ValueError(
-                        f"generated asset contains removed WiFi band usage code: {path}"
-                    )
+                if any(pattern in text for pattern in ["WiFi Band Usage", "WifiBandUsage", "wifi_nearby_"]):
+                    raise ValueError(f"generated asset contains removed WiFi band usage code: {path}")
 
 
 def main() -> None:

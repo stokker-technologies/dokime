@@ -25,9 +25,8 @@ from pathlib import Path
 
 # Local Imports
 # isort: split
-from dokime_tools.ci.bootstrap import prepare_harmos as prepare_harmos
-from dokime_tools.package.contracts import locate as locate
-from dokime_tools.package.contracts import restored as restored
+from dokime_tools.ci.bootstrap import prepare_harmos
+from dokime_tools.package.contracts import locate, restored
 
 # Type Checking Imports
 
@@ -69,9 +68,7 @@ def generate(
         if messages is None:
             raise ValueError("a selected contract build is required")
         export = locate(messages)
-    project = tomllib.loads((root / "packages/dokime/pyproject.toml").read_text())[
-        "project"
-    ]
+    project = tomllib.loads((root / "packages/dokime/pyproject.toml").read_text())["project"]
     destination = root / "packages/dokime/src/dokime"
     with tempfile.TemporaryDirectory(prefix="dokime-bindings-") as directory:
         package = Path(directory) / "package"
@@ -105,12 +102,8 @@ def generate(
             if not path.is_file():
                 continue
             relative = path.relative_to(source)
-            if path.is_symlink() or (
-                relative.as_posix() not in _FILES and relative.parts[0] != "_wire"
-            ):
-                raise ValueError(
-                    f"exporter returned an unexpected SDK path: {relative}"
-                )
+            if path.is_symlink() or (relative.as_posix() not in _FILES and relative.parts[0] != "_wire"):
+                raise ValueError(f"exporter returned an unexpected SDK path: {relative}")
             generated[relative] = path.read_bytes()
         for name in ("__init__.py", "__init__.pyi"):
             current = destination / name
@@ -119,9 +112,7 @@ def generate(
                 contents = current.read_bytes()
                 if marker in contents:
                     suffix = marker + contents.split(marker, 1)[1]
-                    generated[Path(name)] = (
-                        generated[Path(name)].rstrip() + b"\n\n" + suffix
-                    )
+                    generated[Path(name)] = generated[Path(name)].rstrip() + b"\n\n" + suffix
         if not {Path(name) for name in _FILES | {"_wire/_pool.py"}}.issubset(generated):
             raise ValueError("shared exporter omitted required contract assets")
         _normalize(generated, source, root)
@@ -131,32 +122,21 @@ def generate(
         for relative in generated:
             target = destination / relative
             ancestors = [target, *target.parents]
-            if any(
-                path.is_symlink()
-                for path in ancestors
-                if path == destination or destination in path.parents
-            ):
-                raise ValueError(
-                    f"generated destination contains a symlink: {relative}"
-                )
+            if any(path.is_symlink() for path in ancestors if path == destination or destination in path.parents):
+                raise ValueError(f"generated destination contains a symlink: {relative}")
             if target.exists() and not target.is_file():
                 raise ValueError(f"generated destination is not a file: {relative}")
         obsolete = [
-            path
-            for path in (destination / "_wire").rglob("*")
-            if path.is_file() and path.relative_to(destination) not in generated
+            path for path in (destination / "_wire").rglob("*") if path.is_file() and path.relative_to(destination) not in generated
         ]
         if check:
             stale = [
                 relative
                 for relative, data in generated.items()
-                if not (destination / relative).is_file()
-                or (destination / relative).read_bytes() != data
+                if not (destination / relative).is_file() or (destination / relative).read_bytes() != data
             ]
             if stale or obsolete:
-                raise ValueError(
-                    "Python contracts are stale; regenerate from the selected Cargo build"
-                )
+                raise ValueError("Python contracts are stale; regenerate from the selected Cargo build")
         else:
             for relative, data in generated.items():
                 target = destination / relative
@@ -242,11 +222,7 @@ def _sections(docstring: str, *, imports: tuple[str, str], constants: str) -> st
 
 
 def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
-    selected = sorted(
-        path
-        for path in generated
-        if path.as_posix() in _FILES and path.suffix in {".py", ".pyi"}
-    )
+    selected = sorted(path for path in generated if path.as_posix() in _FILES and path.suffix in {".py", ".pyi"})
     for relative in selected:
         (source / relative).write_bytes(generated[relative])
     paths = [str(source / relative) for relative in selected]
@@ -296,31 +272,18 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--language", choices=("python", "typescript"), default="python"
-    )
-    parser.add_argument(
-        "--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON")
-    )
+    parser.add_argument("--language", choices=("python", "typescript"), default="python")
+    parser.add_argument("--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON"))
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--cargo-config", type=Path)
-    parser.add_argument(
-        "--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT")
-    )
+    parser.add_argument("--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT"))
     args = parser.parse_args()
     export = None
     if args.export is not None:
-        revision = (
-            os.environ.get("GITHUB_SHA")
-            or subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
-            ).strip()
-        )
+        revision = os.environ.get("GITHUB_SHA") or subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         export = restored(args.export, revision)
     if args.build_json is None and export is None:
-        parser.error(
-            "--build-json or DOKIME_CONTRACT_BUILD_JSON must select a successful Cargo build"
-        )
+        parser.error("--build-json or DOKIME_CONTRACT_BUILD_JSON must select a successful Cargo build")
     if args.language == "typescript":
         if export is None:
             if args.build_json is None:

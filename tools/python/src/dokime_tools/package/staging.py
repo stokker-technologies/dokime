@@ -20,10 +20,8 @@ from collections.abc import Mapping
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.test import archive
-
 
 # Type Checking Imports
 
@@ -69,11 +67,7 @@ def stage_file(source: Path, destination: Path) -> None:
     _ensure_directory(destination.parent)
     if destination.is_symlink():
         raise ValueError(f"staged destination must not be a symlink: {destination}")
-    if (
-        destination.exists()
-        and destination.is_file()
-        and source.read_bytes() == destination.read_bytes()
-    ):
+    if destination.exists() and destination.is_file() and source.read_bytes() == destination.read_bytes():
         _permissions(source, destination)
         return
     _remove(destination)
@@ -84,11 +78,7 @@ def stage_file(source: Path, destination: Path) -> None:
 def sync_output(source: Path, destination: Path) -> None:
     source = source.absolute()
     destination = destination.absolute()
-    if (
-        source == destination
-        or source in destination.parents
-        or destination in source.parents
-    ):
+    if source == destination or source in destination.parents or destination in source.parents:
         raise ValueError("build output roots must be separate directories")
     _ensure_directory(source, create=False)
     _ensure_directory(destination)
@@ -97,12 +87,8 @@ def sync_output(source: Path, destination: Path) -> None:
     # Validate The Complete Projection Before Pruning
     for relative in sources.keys() & destinations.keys():
         if destinations[relative] == "symlink":
-            raise ValueError(
-                f"build output destination contains an unsafe entry: {destination / relative}"
-            )
-    for relative in sorted(
-        destinations.keys() - sources.keys(), key=lambda p: len(p.parts), reverse=True
-    ):
+            raise ValueError(f"build output destination contains an unsafe entry: {destination / relative}")
+    for relative in sorted(destinations.keys() - sources.keys(), key=lambda p: len(p.parts), reverse=True):
         _remove(destination / relative)
     for relative in sorted(sources, key=lambda p: (len(p.parts), str(p))):
         src = source / relative
@@ -167,11 +153,7 @@ def _remove(path: Path) -> None:
 def _permissions(source: Path, destination: Path) -> None:
     src = stat.S_IMODE(source.stat().st_mode)
     dst = stat.S_IMODE(destination.stat().st_mode)
-    same = (
-        bool(src & stat.S_IWRITE) == bool(dst & stat.S_IWRITE)
-        if os.name == "nt"
-        else src == dst
-    )
+    same = bool(src & stat.S_IWRITE) == bool(dst & stat.S_IWRITE) if os.name == "nt" else src == dst
     if not same:
         destination.chmod(src)
 
