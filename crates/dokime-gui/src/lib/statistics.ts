@@ -78,19 +78,16 @@ export const SERIES_STATISTICS = [
 /* === Public Functions === */
 
 /**
- * The legend table's columns. Cursor columns read the pointer over a live
- * plot, so a report omits them; the unit sits in each value column's header.
+ * The legend table's columns, the same on a live plot and in a report: the
+ * cursor columns read the pointer over either; the unit sits in each value
+ * column's header.
  */
-export function seriesLegendColumns(live: boolean, unit?: string | null): SeriesLegendColumn[] {
+export function seriesLegendColumns(unit?: string | null): SeriesLegendColumn[] {
   const withUnit = (title: string) => (unit ? `${title} (${unit})` : title);
   return [
     { id: "trace", header: "Trace" },
-    ...(live
-      ? [
-          { id: "xCursor" as const, header: "X Cursor" },
-          { id: "yCursor" as const, header: withUnit("Y Cursor") },
-        ]
-      : []),
+    { id: "xCursor", header: "X Cursor" },
+    { id: "yCursor", header: withUnit("Y Cursor") },
     ...SERIES_STATISTICS.map(([id, title]) => ({
       id,
       header: id === "count" ? title : withUnit(title),

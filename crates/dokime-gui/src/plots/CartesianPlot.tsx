@@ -166,8 +166,6 @@ export const CartesianPlot = memo(function CartesianPlot({
   onViewportChange,
 }: CartesianPlotProps) {
   const { zoom } = usePlotInteraction();
-  // A report freezes its statistics; only a live plot reads the pointer.
-  const live = !zoom;
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
   const [traceColors, setTraceColors] = useState<string[]>([]);
   const [cursorX, setCursorX] = useState<number | null>(null);
@@ -342,7 +340,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
-            if (!tableLegend || !live || left == null || left < 0) return;
+            if (!tableLegend || left == null || left < 0) return;
             const x = plot.posToVal(left, "x");
             if (cursorFrameRef.current !== null) {
               window.cancelAnimationFrame(cursorFrameRef.current);
@@ -561,7 +559,6 @@ export const CartesianPlot = memo(function CartesianPlot({
     chartMode,
     formatsKey,
     tableLegend,
-    live,
   ]);
 
   // Visibility is this card's own state: toggling a trace shows or hides its
@@ -578,7 +575,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const legendRows = useMemo(() => {
     if (!legend) return null;
     const frame = backendCartesian;
-    const cursorPoints = live && cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
+    const cursorPoints = cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
     return seriesLegendRows({
       cursorPoints,
       hidden: hiddenTraces,
@@ -589,8 +586,8 @@ export const CartesianPlot = memo(function CartesianPlot({
         color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
       })),
     });
-  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, live, renderedSeries, series, traceColors]);
-  const legendColumns = useMemo(() => seriesLegendColumns(live, unit), [live, unit]);
+  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, renderedSeries, series, traceColors]);
+  const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {
     markersRef.current = markers;

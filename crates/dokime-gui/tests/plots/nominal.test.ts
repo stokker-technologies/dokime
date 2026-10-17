@@ -412,16 +412,14 @@ test("Histogram Axes", () => {
 });
 
 test("Series Legend", () => {
-  // A Live Legend Lists The Trace, The Cursor And The Statistics With The Unit In Each Header
+  // Live And Report Legends List The Trace, The Cursor And The Statistics With The Unit In Each Header
   assert.deepEqual(
-    seriesLegendColumns(true, "V").map((column) => column.header),
+    seriesLegendColumns("V").map((column) => column.header),
     ["Trace", "X Cursor", "Y Cursor (V)", "Count", "Min (V)", "Max (V)", "Mean (V)", "Median (V)", "Std (V)", "Rms (V)"],
   );
-
-  // A Report Legend Omits The Cursor Column
   assert.deepEqual(
-    seriesLegendColumns(false, null).map((column) => column.id),
-    ["trace", "count", "min", "max", "mean", "median", "std", "rms"],
+    seriesLegendColumns(null).map((column) => column.id),
+    ["trace", "xCursor", "yCursor", "count", "min", "max", "mean", "median", "std", "rms"],
   );
 
   // Rows Follow Trace Order And Read Each Trace's Own Backend Summary
@@ -491,6 +489,7 @@ test("Series Legend", () => {
   assert.deepEqual(nearestDrawnPoint(x, voltage, 99), { x: 4, y: 14 });
   assert.equal(nearestDrawnPoint(x, current, 1), null);
   assert.deepEqual(nearestDrawnPoint([3, 0, 2], [30, 0, 20], 0.9), { x: 0, y: 0 });
+  // Live Or Report, The Cursor Cells Follow The Plot Cursor
   const cursorPoints = [nearestDrawnPoint(x, voltage, 3.1), nearestDrawnPoint(x, current, 3.1)];
   const pointed = seriesLegendRows({
     cursorPoints,
