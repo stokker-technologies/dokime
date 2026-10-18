@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:a388264595a6a48f5a5050438540b75237dea7478030b2c46bd2db01bd3d8c84
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:2a8880d781851b0175820918b86cb7b012391eb50c5647017c243527f0cd4a9c
 # === Settings === #
 
 [settings]
@@ -134,7 +134,8 @@ depends = ["test:unit --profile {{usage.profile}}", "test:integration --profile 
 [tasks."test:coverage"]
 description = "Measure Coverage Over Instrumented Lanes"
 env.CARGO_INCREMENTAL = "0"
-run = "uv run --locked --project tools/python python -m project_tools.test.run coverage --language rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "uv run --locked --project tools/python python -m project_tools.test.run coverage --language rust --profile {{usage.profile}}"
 
 [tasks."test:unit"]
 description = "Test Unit Layer"

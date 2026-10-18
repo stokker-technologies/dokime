@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:5600228e8f91fc4b9d2cedc14de3b543f8a5d09442d426b99d823fcba9a713fd
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bbd7519d09ea0980d4a00eb3945432f0c92bba46e5dcf5963390b45266bff8d3
 name: CI
 "on":
   push:
@@ -25,7 +25,7 @@ env:
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   source:
-    name: Check / Config
+    name: Check / Repository
     runs-on:
     - ubuntu-latest
     timeout-minutes: 10
@@ -58,7 +58,9 @@ jobs:
         version: v0.18.0
     - run: mise run format:toml --check
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -105,7 +107,9 @@ jobs:
     - run: mise run format:python --check
     - run: mise run lint:python
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -159,7 +163,9 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.test.cache -- cargo check --workspace --all-targets --no-default-features
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -216,20 +222,37 @@ jobs:
         version: v0.18.0
     - run: mise run build --profile dev
     - run: mise run test:unit --profile dev
+    - name: Archive Build
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        mkdir -p target/tmp
+        outputs=()
+        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/'; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
+    - name: Archive Build
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        New-Item -ItemType Directory -Force target/tmp | Out-Null
+        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | Where-Object { Test-Path -LiteralPath $_ }
+        if (!$outputs) { throw 'No build outputs found' }
+        tar --zstd -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
       with:
         name: build-dev-${{ matrix.os }}
-        path: |-
-          target/nextest/
-          target/fixtures/
-          target/wheels/
-          dist/
-        if-no-files-found: ignore
+        path: target/tmp/build-dev-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -286,20 +309,37 @@ jobs:
         version: v0.18.0
     - run: mise run build --profile release
     - run: mise run test:unit --profile release
+    - name: Archive Build
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        mkdir -p target/tmp
+        outputs=()
+        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/'; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
+    - name: Archive Build
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        New-Item -ItemType Directory -Force target/tmp | Out-Null
+        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | Where-Object { Test-Path -LiteralPath $_ }
+        if (!$outputs) { throw 'No build outputs found' }
+        tar --zstd -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
       with:
         name: build-release-${{ matrix.os }}
-        path: |-
-          target/nextest/
-          target/fixtures/
-          target/wheels/
-          dist/
-        if-no-files-found: ignore
+        path: target/tmp/build-release-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -324,6 +364,7 @@ jobs:
     timeout-minutes: 10
     needs:
     - build_dev
+    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -353,18 +394,31 @@ jobs:
         version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-dev-${{ matrix.os }}
-    - run: mise run test:unit:rust --profile dev
+        name: >-
+          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
+          matrix.os }}
+    - name: Extract Build
+      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      run: >-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+        'dev' }}-${{ matrix.os }}.tar.zst"
+    - run: >-
+        mise run test:unit:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_unit_rust-${{ matrix.os }}
+        name: >-
+          junit-test_unit_rust-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+          'dev' }}-${{ matrix.os }}
         path: target/tests/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -388,6 +442,7 @@ jobs:
     timeout-minutes: 10
     needs:
     - build_dev
+    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -417,18 +472,31 @@ jobs:
         version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-dev-${{ matrix.os }}
-    - run: mise run test:integration:rust --profile dev
+        name: >-
+          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
+          matrix.os }}
+    - name: Extract Build
+      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      run: >-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+        'dev' }}-${{ matrix.os }}.tar.zst"
+    - run: >-
+        mise run test:integration:rust --profile ${{ startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_integration_rust-${{ matrix.os }}
+        name: >-
+          junit-test_integration_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
+          'release' || 'dev' }}-${{ matrix.os }}
         path: target/tests/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -452,6 +520,7 @@ jobs:
     timeout-minutes: 10
     needs:
     - build_dev
+    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -481,18 +550,31 @@ jobs:
         version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-dev-${{ matrix.os }}
-    - run: mise run test:acceptance:rust --profile dev
+        name: >-
+          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
+          matrix.os }}
+    - name: Extract Build
+      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      run: >-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+        'dev' }}-${{ matrix.os }}.tar.zst"
+    - run: >-
+        mise run test:acceptance:rust --profile ${{ startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_acceptance_rust-${{ matrix.os }}
+        name: >-
+          junit-test_acceptance_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
+          'release' || 'dev' }}-${{ matrix.os }}
         path: target/tests/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -552,10 +634,14 @@ jobs:
         version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: >-
+        name: >-
           build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
           matrix.os }}
-        merge-multiple: true
+    - name: Extract Build
+      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      run: >-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+        'dev' }}-${{ matrix.os }}.tar.zst"
     - run: >-
         mise run package:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}
@@ -573,7 +659,9 @@ jobs:
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -601,15 +689,6 @@ jobs:
     - self-hosted
     - linux
     timeout-minutes: 30
-    needs:
-    - source
-    - check_python
-    - check_rust
-    - validate_test_unit_rust
-    - validate_test_integration_rust
-    - validate_test_acceptance_rust
-    - build_dev
-    - package_rust
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -639,7 +718,9 @@ jobs:
         version: v0.18.0
     - run: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -698,7 +779,9 @@ jobs:
         CARGO_REGISTRY_TOKEN: ${{ steps.crates.outputs.token }}
         GH_TOKEN: ${{ github.token }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: steps.tools.outputs.cache-hit != 'true'
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
@@ -723,6 +806,7 @@ jobs:
     timeout-minutes: 180
     needs:
     - build_dev
+    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -742,6 +826,23 @@ jobs:
         mise_dir: ${{ github.workspace }}/.cache/mise
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-dev-linux
-    - run: mise run test:coverage
-    if: always() && github.event_name == 'schedule'
+        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+        'dev' }}-linux.tar.zst"
+    - run: >-
+        mise run test:coverage --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: >-
+          junit-coverage-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-linux
+        path: target/tests/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    if: always()
