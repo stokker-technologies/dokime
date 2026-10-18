@@ -54,9 +54,12 @@ fn sdk_artifact() -> &'static SdkArtifact {
         let directory =
             std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
         let profile = if directory == "debug" { "dev".into() } else { directory.to_string_lossy().into_owned() };
-        let messages = target.join("nextest").join(profile).join("compiler.json");
+        let messages = target.join("nextest").join(&profile).join("compiler.json");
         let built = std::fs::read_to_string(&messages)
             .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
+        // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
+        // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
+        let closure = sdk_closure(&target.join("nextest").join(&profile).join("metadata.json"), &manifest);
         let mut artifacts = Vec::new();
         let mut serde = None;
         let mut native_paths = Vec::new();
@@ -66,6 +69,9 @@ fn sdk_artifact() -> &'static SdkArtifact {
             };
 
             if value["reason"] == "build-script-executed" {
+                if !value["package_id"].as_str().is_some_and(|id| closure.contains(id)) {
+                    continue;
+                }
                 if let Some(paths) = value["linked_paths"].as_array() {
                     for path in paths.iter().filter_map(|path| path.as_str()) {
                         let Some(path) = path.strip_prefix("native=") else {
@@ -131,6 +137,33 @@ fn sdk_artifact() -> &'static SdkArtifact {
         assert!(serde.canonicalize().unwrap().starts_with(&target));
         SdkArtifact { library, serde, native_paths }
     })
+}
+
+// Every package the SDK depends on, by Cargo package id, from the build's resolved metadata.
+fn sdk_closure(metadata: &std::path::Path, manifest: &std::path::Path) -> std::collections::BTreeSet<String> {
+    let metadata: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(metadata).unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", metadata.display())),
+    )
+    .unwrap();
+    let root = metadata["packages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|package| package["manifest_path"].as_str().is_some_and(|path| same_path(manifest, path)))
+        .and_then(|package| package["id"].as_str())
+        .expect("the build's metadata names the SDK package")
+        .to_owned();
+    let nodes = metadata["resolve"]["nodes"].as_array().unwrap();
+    let mut closure = std::collections::BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !closure.insert(id.clone()) {
+            continue;
+        }
+        let node = nodes.iter().find(|node| node["id"] == id.as_str()).expect("every resolved package has a node");
+        pending.extend(node["deps"].as_array().unwrap().iter().filter_map(|dependency| dependency["pkg"].as_str()).map(str::to_owned));
+    }
+    closure
 }
 
 fn same_path(left: &std::path::Path, right: &str) -> bool {
