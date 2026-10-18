@@ -61,7 +61,7 @@ doc = false
 [dev-dependencies]
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
-harmos-packaging = { workspace = true, features = ["bindings-proto"] }
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Networking
 tonic = { workspace = true }

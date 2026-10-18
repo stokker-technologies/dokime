@@ -13,13 +13,13 @@
 
 # Standard Library Imports
 import ensurepip
+import subprocess
 import sys
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
 from dokime_tools.package.staging import clear_output, stage_file
-from dokime_tools.test import archive
 
 # Type Checking Imports
 
@@ -35,36 +35,26 @@ from dokime_tools.test import archive
 # === Public Functions === #
 
 
-def cargo(root: Path, producer: dict) -> dict:
+def cargo(root: Path, directory: Path) -> list[Path]:
     """Export The Locked Source Closure Without Compiling Another Target."""
     root = root.resolve()
-    directory = root / "target/dependencies"
     vendor = directory / "vendor"
     config = directory / "cargo-config.toml"
     clear_output(vendor)
     clear_output(config)
-    return archive.native(
-        root,
-        producer["profile"],
-        "dependency-export",
-        [["cargo", "vendor", "--locked", "--versioned-dirs", str(vendor)]],
-        [vendor, config],
-        locks=[root / "Cargo.lock"],
-        parents=[producer],
-        stdout={0: config},
-    )
+    with config.open("w", encoding="utf-8") as output:
+        subprocess.run(["cargo", "vendor", "--locked", "--versioned-dirs", str(vendor)], cwd=root, stdout=output, check=True)
+    # The Configuration Names The Closure; Its Thousands Of Vendored Files Stay Out Of The Stamp.
+    return [config]
 
 
-def wheelhouse(root: Path, producer: dict) -> dict:
+def wheelhouse(root: Path, directory: Path) -> list[Path]:
     """Export The Starter's Actual Locked Backend And Tool Wheels."""
     root = root.resolve()
-    directory = root / "target/dependencies"
     tools = directory / "starter-tools"
     templates = root / "crates/cargo-dokime/templates/tools/python"
     for name in ("pyproject.toml", "uv.lock"):
-        source = templates / f"{name}.tmpl"
-        destination = tools / name
-        stage_file(source, destination)
+        stage_file(templates / f"{name}.tmpl", tools / name)
     requirements = directory / "starter-requirements.txt"
     wheels = directory / "wheels"
     clear_output(requirements)
@@ -72,38 +62,17 @@ def wheelhouse(root: Path, producer: dict) -> dict:
     bundled = list((Path(ensurepip.__file__).parent / "_bundled").glob("pip-*.whl"))
     if len(bundled) != 1:
         raise ValueError("the selected Python must supply one bundled ensurepip wheel")
+    with requirements.open("w", encoding="utf-8") as output:
+        subprocess.run(
+            ["uv", "export", "--locked", "--all-groups", "--no-emit-project", "--project", str(tools)], cwd=root, stdout=output, check=True
+        )
     loader = "import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('pip',run_name='__main__')"
-    commands = [
-        ["uv", "export", "--locked", "--all-groups", "--no-emit-project", "--project", str(tools)],
-        [
-            sys.executable,
-            "-c",
-            loader,
-            str(bundled[0]),
-            "download",
-            "--dest",
-            str(wheels),
-            "--require-hashes",
-            "--only-binary=:all:",
-            "--requirement",
-            str(requirements),
-        ],
-    ]
+    download = [sys.executable, "-c", loader, str(bundled[0]), "download", "--dest", str(wheels), "--require-hashes", "--only-binary=:all:"]
+    subprocess.run([*download, "--requirement", str(requirements)], cwd=root, check=True)
     # Hatchling Requests `editables` Only For Editable Installs, So No Lock Names It; The Hash-Checked
-    # Requirement Is Tracked So Every Lane Runner Verifies The Same Declared Input.
-    editables = root / "tools/python/editables.txt"
-    commands.append([*commands[1][:-2], "--no-deps", "--requirement", str(editables)])
-    return archive.native(
-        root,
-        producer["profile"],
-        "dependency-export",
-        commands,
-        [requirements, wheels],
-        locks=[tools / "pyproject.toml", tools / "uv.lock"],
-        inputs=[bundled[0], editables],
-        parents=[producer],
-        stdout={0: requirements},
-    )
+    # Requirement Is Tracked So Every Lane Runner Installs The Same Wheel.
+    subprocess.run([*download, "--no-deps", "--requirement", str(root / "tools/python/editables.txt")], cwd=root, check=True)
+    return [requirements, *sorted(wheels.glob("*.whl"))]
 
 
 # === Private Functions === #

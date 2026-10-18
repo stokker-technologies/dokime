@@ -13,12 +13,11 @@
 
 # Standard Library Imports
 import os
+import subprocess
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.package.staging import clear_output
-from dokime_tools.test import archive
 
 # Type Checking Imports
 
@@ -34,51 +33,25 @@ from dokime_tools.test import archive
 # === Public Functions === #
 
 
-def capture(root: Path, producer: dict) -> dict:
-    """Use The Prepared Backend Offline And Preserve Original Wheel Exports.
-
-    The Hub capture binds the prepared build-system closure the package manifest declares.
-    """
+def build(root: Path, profile: str) -> Path:
+    """Build The Client Wheel Offline With The Prepared Backend Into The Lanes' Wheel Directory."""
     root = root.resolve()
-    profile = producer["profile"]
     environment = root / ".venv"
     python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if not python.is_file():
         raise ValueError("prepare the locked repository-root Python environment before building the wheel")
-    output = root / "target/build" / profile / "python"
-    clear_output(output)
-    command = [
-        "uv",
-        "build",
-        "--no-build-isolation",
-        "--offline",
-        "--python",
-        str(python),
-        "--package",
-        "dokime",
-        "--out-dir",
-        str(output),
-    ]
+    output = root / "target/wheels"
+    output.mkdir(parents=True, exist_ok=True)
+    for stale in output.glob("dokime-*"):
+        stale.unlink()
+    command = ["uv", "build", "--no-build-isolation", "--offline", "--python", str(python), "--package", "dokime", "--out-dir", str(output)]
     if profile != "release":
         command += ["--wheel"]
-    previous = os.environ.get("PYTHONDONTWRITEBYTECODE")
-    os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
-    try:
-        return archive.native(
-            root,
-            profile,
-            "python-package",
-            [command],
-            [output],
-            locks=[root / "uv.lock", root / "mise.lock"],
-            backend=root / "packages/dokime/pyproject.toml",
-            parents=[producer],
-        )
-    finally:
-        if previous is None:
-            os.environ.pop("PYTHONDONTWRITEBYTECODE", None)
-        else:
-            os.environ["PYTHONDONTWRITEBYTECODE"] = previous
+    subprocess.run(command, cwd=root, check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    wheels = sorted(output.glob("dokime-*.whl"))
+    if len(wheels) != 1:
+        raise ValueError(f"expected one dokime wheel in {output}, found {len(wheels)}")
+    return wheels[0]
 
 
 # === Private Functions === #

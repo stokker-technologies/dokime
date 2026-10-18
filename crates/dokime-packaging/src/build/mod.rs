@@ -117,12 +117,9 @@ pub async fn run(args: Options) -> Result<PathBuf, Error> {
 
 // The selected executables of the build whose Cargo messages and metadata `args` names; Cargo is not run.
 pub async fn collect(args: &Options) -> Result<Collected, Error> {
-    let (Some(messages), Some(metadata), Some(receipt)) = (&args.from_cargo_json, &args.metadata_json, &args.archive_json) else {
-        return Err(Error::Invalid("collection requires Cargo messages, metadata and the archive producer receipt".into()));
+    let (Some(messages), Some(metadata)) = (&args.from_cargo_json, &args.metadata_json) else {
+        return Err(Error::Invalid("collection requires Cargo messages and metadata".into()));
     };
-    if !receipt.is_file() {
-        return Err(Error::Invalid(format!("archive producer receipt {} is missing", receipt.display())));
-    }
     let metadata: cargo_metadata::Metadata = serde_json::from_slice(&std::fs::read(metadata)?)?;
     let package = select_package(&metadata, args.package.as_deref())?;
     let selected = selected_binaries(package, &args.binaries)?;

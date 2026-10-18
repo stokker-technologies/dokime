@@ -12,12 +12,12 @@
 
 # Standard Library Imports
 import json
+import subprocess
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
 from dokime_tools.package.staging import clear_output
-from dokime_tools.test import archive
 
 # Type Checking Imports
 
@@ -34,75 +34,27 @@ PACKAGES = ("obc-plugin",)
 # === Public Functions === #
 
 
-def prepare(
-    root: Path,
-    producer: dict,
-    *,
-    tool: Path,
-    output: Path,
-) -> tuple[list[dict], dict[str, str]]:
-    """Collect Typed Build Receipts And Package Without Another Compiler."""
+def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path) -> list[Path]:
+    """Collect The Archived Build's Plugin Executables And Package Them Without Another Compiler."""
     root = root.resolve()
-    tool = tool.resolve()
-    output = output.resolve()
-    archive.verify_outputs(producer, [tool])
-    messages = root / producer["messages"]["path"]
-    metadata = root / producer["metadata"]["path"]
-    receipt = archive.location(root, producer["profile"]).with_name(archive.RECEIPT)
+    metadata = messages.with_name("metadata.json")
+    with metadata.open("w", encoding="utf-8") as written:
+        subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root, stdout=written, check=True)
     clear_output(output)
     output.mkdir(parents=True)
-    files: dict[str, str] = {}
-    producers: list[dict] = []
+    staged: list[Path] = []
     for package in PACKAGES:
-        directory = output
-        build_json = directory / f"{package}.build.json"
-        package_json = directory / f"{package}.package.json"
-        collector = [
-            str(tool),
-            "dokime",
-            "build",
-            "--from-cargo-json",
-            str(messages),
-            "--metadata-json",
-            str(metadata),
-            "--archive-json",
-            str(receipt),
-            "--profile",
-            producer["profile"],
-            "--package",
-            package,
-            "--json",
-        ]
-        packager = [
-            str(tool),
-            "dokime",
-            "package",
-            "--build-json",
-            str(build_json),
-            "--output",
-            str(directory),
-            "--json",
-        ]
-        produced = archive.native(
-            root,
-            producer["profile"],
-            "package",
-            [collector, packager],
-            [directory],
-            locks=[root / "Cargo.lock"],
-            inputs=[messages, metadata, receipt],
-            parents=[producer],
-            stdout={0: build_json, 1: package_json},
-        )
-        producers.append(produced)
-        for item in json.loads(package_json.read_text(encoding="utf-8")):
+        build_json = output / f"{package}.build.json"
+        collector = [str(tool), "dokime", "build", "--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
+        collector += ["--profile", profile, "--package", package, "--json"]
+        with build_json.open("w", encoding="utf-8") as written:
+            subprocess.run(collector, cwd=root, stdout=written, check=True)
+        packager = [str(tool), "dokime", "package", "--build-json", str(build_json), "--output", str(output), "--json"]
+        packaged = subprocess.run(packager, cwd=root, capture_output=True, text=True, check=True).stdout
+        for item in json.loads(packaged):
             path = Path(item["path"])
-            path = path.resolve() if path.is_absolute() else (root / path).resolve()
-            relative = path.relative_to(root).as_posix()
-            if relative in files:
-                raise ValueError(f"plugin fixture output collision: {relative}")
-            files[relative] = item["sha256"]
-    return producers, files
+            staged.append(path if path.is_absolute() else root / path)
+    return staged
 
 
 # === Private Functions === #

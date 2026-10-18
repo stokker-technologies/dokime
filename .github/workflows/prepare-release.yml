@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:e9fcf7c3a3ccef39e4093f53b8e3fc38f6fbbb2cb5b9da406e1f9580e8d0b338
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:470a918511b668b5d79cae9d1049a4fa8f05a80d29526b41ee6ffb82850780dc
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -11,14 +11,17 @@ permissions:
   contents: write
 env:
   MISE_LOCKED: "1"
+  CARGO_INCREMENTAL: "0"
   MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
-  CARGO_TERM_COLOR: always
+  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
+  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
-  release_prepare:
-    name: Release / Prepare
+  prepare:
+    name: Publish / Prepare
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -29,6 +32,9 @@ jobs:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
       with:
         install: true
         cache: false
@@ -41,9 +47,15 @@ jobs:
         xvfb
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - name: Check Runner Group Allowlist
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.test.runners
+      env:
+        GITHUB_RUNNER_WORKFLOWS: "{\"ci.yml\":[[\"self-hosted\",\"linux\"]]}"
+        RELEASE_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ secrets.RUNNER_GROUP_READ_TOKEN || github.token }}
     - run: git switch -c "release/v${{ inputs.version }}"
     - run: mise run release:prepare
     - run: "git -c user.name=\"${{ github.actor }}\" -c user.email=\"${{ github.actor }}@users.noreply.github.com\" commit -am \"chore: prepare release v${{ inputs.version }}\""
     - run: git push origin "release/v${{ inputs.version }}"
-    env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,git-cliff,gh,aqua:jedisct1/minisign

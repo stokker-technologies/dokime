@@ -27,9 +27,7 @@ from dokime_tools.build.frontend import ROOT
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.outputs import executables
-from dokime_tools.package.staging import stage_file, stage_verified
-from dokime_tools.test import archive
+from dokime_tools.package.staging import stage_file
 
 # Type Checking Imports
 
@@ -42,6 +40,7 @@ WEB = Path("crates/dokime-gui")
 TAURI = WEB / "src-tauri"
 DIST = Path("dist/tauri/windows-x86_64")
 LINUX_DIST = Path("dist/tauri/linux-x86_64")
+PLATFORM = "windows" if sys.platform == "win32" else "linux"
 UPDATER_TARGET = "windows-x86_64"
 PROJECT_URL = "https://github.com/stokker-technologies/dokime"
 
@@ -113,53 +112,80 @@ def bundle_args(platform: str, *, signed: bool) -> list[str]:
 
 
 def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
-    if profile != "release":
-        raise ValueError("distribution installers are assembled only from release-profile application artifacts")
+    """Bundle The Built Shell With Its Companions; Development Packages Use Tauri's Debug Mode."""
     check(root)
-    signed = sys.platform == "win32" and _signing_available()
-    bundles = _target_directory(root) / "release" / "bundle"
-    if sys.platform == "win32":
-        if (bundles / "nsis").exists():
-            shutil.rmtree(bundles / "nsis")
-        if (root / DIST).exists():
-            shutil.rmtree(root / DIST)
-    else:
-        for package in ("deb", "rpm"):
-            if (bundles / package).exists():
-                shutil.rmtree(bundles / package)
-        if (root / LINUX_DIST).exists():
-            shutil.rmtree(root / LINUX_DIST)
+    release = profile == "release"
+    signed = release and sys.platform == "win32" and _signing_available()
+    directory = _target_directory(root) / ("release" if release else "debug")
+    stage_resources(root, directory=directory)
+    bundles = directory / "bundle"
+    for package in ("nsis",) if sys.platform == "win32" else ("deb", "rpm"):
+        if (bundles / package).exists():
+            shutil.rmtree(bundles / package)
+    if release:
+        for dist in (DIST, LINUX_DIST):
+            if (root / dist).exists():
+                shutil.rmtree(root / dist)
     command = [
         "node",
         "./node_modules/@tauri-apps/cli/tauri.js",
         *bundle_args(sys.platform, signed=signed),
+        *([] if release else ["--debug"]),
     ]
     subprocess.run(command, cwd=root / WEB, check=True)
-    collect(root, profile=profile, signed=signed, bundles=bundles)
+    if release:
+        collect(root, signed=signed, bundles=bundles)
+    else:
+        collect_development(root, bundles=bundles)
 
 
-def stage_resources(
-    root: Path = ROOT,
-    *,
-    profile: str = "release",
-    target: str | None = None,
-    arguments: tuple[str, ...] = (),
-) -> None:
-    archive.require(root, profile, archive.tree(root), arguments)
-    receipt_path = archive.location(root, profile).with_name(archive.RECEIPT)
-    record = json.loads(receipt_path.read_text(encoding="utf-8"))
-    triple = record["target"]
-    if target is not None and target != triple:
-        raise ValueError("companion target must match the selected archive producer")
-    for name, executable in executables(root, record, ("dokime", "dokime-server")).items():
-        destination = root / TAURI / "binaries" / (f"{name}-{triple}" + (".exe" if "windows" in triple else ""))
-        stage_verified(root, record, {executable: destination})
+def stage_resources(root: Path = ROOT, *, directory: Path) -> None:
+    """Place The Built Executables Where The Tauri Bundler Reads Them, Without Compiling."""
+    built = root / "dist/build" / PLATFORM / "bin"
+    suffix = ".exe" if sys.platform == "win32" else ""
+    triple = _host_triple(root)
+    for name in ("dokime", "dokime-server"):
+        destination = root / TAURI / "binaries" / f"{name}-{triple}{suffix}"
+        stage_file(_built(built, f"{name}{suffix}"), destination)
         print(f"Staged Tauri companion {name}: {destination}")
+    shell = _built(built, f"dokime-gui{suffix}")
+    destination = directory / shell.name
+    if not destination.exists() or not destination.samefile(shell):
+        stage_file(shell, destination)
 
 
-def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> None:
-    if profile != "release":
-        raise ValueError("native installers are produced only by release-tag packaging")
+def collect_development(root: Path = ROOT, *, bundles: Path) -> None:
+    """Gather The Unsigned Development Installers And The Plugin Bundle."""
+    destination = root / "target/package" / PLATFORM
+    for kind in ("installers", "plugins"):
+        if (destination / kind).exists():
+            shutil.rmtree(destination / kind)
+    patterns = ["nsis/*-setup.exe"] if sys.platform == "win32" else ["deb/*.deb", "rpm/*.rpm"]
+    installers = [path for pattern in patterns for path in bundles.glob(pattern)]
+    if len(installers) != len(patterns):
+        raise ValueError(f"expected {len(patterns)} development installers under {bundles}; found {len(installers)}")
+    plugins = sorted((root / "dist/build" / PLATFORM / "plugins").glob("*.dokime"))
+    if not plugins:
+        raise ValueError("development packages require the built plugin bundle; run `mise run build` first")
+    for source, kind in [*((path, "installers") for path in installers), *((path, "plugins") for path in plugins)]:
+        stage_file(source, destination / kind / source.name)
+        print(f"Packaged {(destination / kind / source.name).relative_to(root).as_posix()}")
+
+
+def package_wheel(root: Path = ROOT) -> None:
+    """Gather The Built Client Wheel Beside The Other Packages Of This Platform."""
+    wheels = sorted((root / "target/wheels").glob("dokime-*"))
+    if not wheels:
+        raise ValueError("packaging requires the built client wheel; run `mise run build` first")
+    destination = root / "target/package" / PLATFORM / "python"
+    if destination.exists():
+        shutil.rmtree(destination)
+    for wheel in wheels:
+        stage_file(wheel, destination / wheel.name)
+        print(f"Packaged {(destination / wheel.name).relative_to(root).as_posix()}")
+
+
+def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:
     if sys.platform == "linux":
         version = _release_version(root)
         slug = _slug(root)
@@ -236,9 +262,8 @@ def check_package(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check", "bundle", "resources", "verify"])
+    parser.add_argument("command", choices=["check", "bundle", "resources", "verify", "wheel"])
     parser.add_argument("--profile", choices=["dev", "release"], default="dev")
-    parser.add_argument("--target")
     parser.add_argument("--dist-dir", type=Path, default=DIST)
     parser.add_argument("--expected-version")
     parser.add_argument("--require-signed", action="store_true")
@@ -248,8 +273,10 @@ def main() -> int:
             check()
         elif args.command == "bundle":
             bundle(profile=args.profile)
+        elif args.command == "wheel":
+            package_wheel()
         elif args.command == "resources":
-            stage_resources(profile=args.profile, target=args.target)
+            stage_resources(directory=_target_directory(ROOT) / ("release" if args.profile == "release" else "debug"))
         else:
             check_package(
                 dist=args.dist_dir,
@@ -285,6 +312,18 @@ def _target_directory(root: Path) -> Path:
         encoding="utf-8",
     )
     return Path(json.loads(output)["target_directory"])
+
+
+def _built(directory: Path, name: str) -> Path:
+    path = directory / name
+    if not path.is_file():
+        raise ValueError(f"missing built executable {path}; run `mise run build` first")
+    return path
+
+
+def _host_triple(root: Path) -> str:
+    output = subprocess.check_output(["mise", "exec", "--", "rustc", "-vV"], cwd=root, text=True, encoding="utf-8")
+    return next(line.split(": ", 1)[1] for line in output.splitlines() if line.startswith("host: "))
 
 
 def _one(paths: list[Path], label: str) -> Path:

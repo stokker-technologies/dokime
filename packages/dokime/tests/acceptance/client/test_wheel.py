@@ -16,7 +16,6 @@ import importlib.metadata
 import importlib.util
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -37,10 +36,11 @@ from zipfile import ZipFile
 # === Public Functions === #
 
 
-def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
-    wheel_dir = artifact("python")
+def test_pure_wheel(workspace: Path) -> None:
+    # The build writes the wheel where every Python lane installs it from.
+    wheel_dir = workspace / "target/wheels"
     wheels = list(wheel_dir.glob("dokime-*.whl"))
-    assert len(wheels) == 1, "prepare exactly one wheel before acceptance"
+    assert len(wheels) == 1, "build exactly one wheel before acceptance"
     assert wheels[0].name.endswith("-py3-none-any.whl")
     distribution = importlib.metadata.distribution("dokime")
     with ZipFile(wheels[0]) as archive:

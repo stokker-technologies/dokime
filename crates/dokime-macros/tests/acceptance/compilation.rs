@@ -51,7 +51,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
         // The development build records the compiler messages beside its nextest archive.
-        let messages = target.join("nextest/dev/compiler-artifacts.jsonl");
+        let messages = target.join("nextest/dev/compiler.json");
         let built = std::fs::read_to_string(&messages)
             .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
         let mut artifacts = Vec::new();

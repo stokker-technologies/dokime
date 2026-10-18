@@ -6,6 +6,21 @@
 
 [project]
 name = "Dokime"
+platforms = ["linux", "windows"]
+
+[languages.rust]
+roots = ["crates", "plugins"]
+# The GUI's Node dependencies and the starter templates are not workspace Rust sources.
+exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
+
+[languages.python]
+roots = ["tools/python", "packages"]
+generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/operation.py", "packages/dokime/src/dokime/dynamic.py"]
+
+[languages.typescript]
+roots = ["crates/dokime-gui"]
+exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
+generated = ["crates/dokime-gui/.generated", "crates/dokime-gui/src/lib/rpc/generated"]
 
 # === Repository === #
 
@@ -13,6 +28,9 @@ name = "Dokime"
 max_workspaces = 5
 
 # === CI === #
+
+[ci.runners]
+windows = ["windows-latest"]
 
 [ci.budgets]
 # Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
@@ -35,7 +53,6 @@ linux = [
 [hooks]
 # Workspace repair and checks exceed one minute even with warm Cargo caches.
 step_timeout_seconds = 900
-validation_inputs = ["crates/dokime-runtime/dist-report/report.html"]
 
 # === Conventions === #
 

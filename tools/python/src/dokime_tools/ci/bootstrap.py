@@ -26,6 +26,7 @@ import tomllib
 import urllib.parse
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 # Third Party Imports
 # Local Imports
@@ -266,7 +267,7 @@ def prepare_harmos(
         }
     else:
         source_identity = harmos_pin(root)
-    identity = {
+    identity: dict[str, Any] = {
         **source_identity,
         "profile": "dev",
         "platform": platform.system(),

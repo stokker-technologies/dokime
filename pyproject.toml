@@ -20,10 +20,10 @@ dev = [
   "git-cliff==2.14.2",
   "hatchling==1.32.4",
   "mypy==2.4.0",
-  "pyright==1.1.414",
   "pytest==9.1.1",
   "pytest-cov==7.1.0",
   "ruff==0.17.0",
+  "ty==0.0.86",
 ]
 
 [tool.uv]

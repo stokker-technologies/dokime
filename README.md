@@ -668,16 +668,16 @@ mise run test
 mise run ci
 ```
 
-`check` covers every Rust feature combination and the WebAssembly domain build,
-then the Python and TypeScript clients against the bindings the Rust build
-generates. `build` compiles once into binaries, the OBC bundle, the frontend,
-the Python wheel and the test archive; every test layer runs from that archive.
-`test` runs the layers in order, each with its own task:
+`check` covers every Rust feature combination and the WebAssembly domain build.
+`build` compiles once into binaries, the OBC bundle, the frontend, the
+generated clients, the Python wheel and the test archive; every test layer runs
+from those outputs. `test` runs the layers in order, each with its own task:
 
 | Task | Layer |
 | --- | --- |
 | `mise run test:unit` | Curated invariants inside the crates. |
 | `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
+| `mise run test:generated` | The generated Python and TypeScript clients: types, lint and an import smoke. |
 | `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |
 | `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
 
@@ -687,10 +687,10 @@ and needs a display. `mise run ci` runs the same flow as the provider pipeline;
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
-### Client Bindings
+### Generated Clients
 
 The Rust build generates the protobuf descriptors of every public operation;
-`mise run check` regenerates the Python package's contract files from them with
+`mise run build` regenerates the Python package's contract files from them with
 Harmos's `cargo harmos bindings python` exporter and refuses a stale tracked
 copy. The desktop's TypeScript client is generated from the same descriptors
 by the Buf generator after the Cargo build. Ordinary wheel and source-package

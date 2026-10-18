@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:c968d62626734d30c315fb0105122b2789db3c39a410cba81461812c0608c12e
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:e18e5695d7e4340b5ff714b428a20de36ab30523c05e8922071de08b4fda4246
 # === Settings === #
 
 [settings]
@@ -30,6 +30,7 @@ git-cliff = "2.14.2"
 # === Environment === #
 
 [env]
+TMPDIR = { value = '''{{exec(command=`python -c "from pathlib import Path; p = Path('target/tmp'); p.mkdir(parents=True, exist_ok=True); print(p.resolve())"` )}}''', tools = true }
 UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
 SCCACHE_STARTUP_DIR = "{{env.XDG_RUNTIME_DIR | default(value='/tmp')}}"
 
@@ -53,7 +54,7 @@ depends = ["format:toml {% if usage.check %}--check{% endif %}", "format:rust {%
 [tasks."format:python"]
 description = "Format Python"
 usage = 'flag "--check"'
-run = "uv run --locked --project tools/python ruff format{% if usage.check %} --check{% endif %}"
+run = 'uv run --locked --project tools/python ruff format "tools/python"{% if usage.check %} --check{% endif %}'
 
 [tasks."format:rust"]
 description = "Format Rust"
@@ -73,7 +74,10 @@ depends = ["lint:rust", "lint:python"]
 
 [tasks."lint:python"]
 description = "Lint Python"
-run = "uv run --locked --project tools/python ruff check"
+run = [
+  'uv run --locked --project tools/python ruff check "tools/python"',
+  'uv run --locked --project tools/python ty check "tools/python"',
+]
 
 [tasks."lint:rust"]
 description = "Lint Rust"
@@ -82,12 +86,8 @@ run = "uv run --locked --project tools/python python -m project_tools.test.cache
 # === Check === #
 
 [tasks.check]
-description = "Check Every Language And Conventions"
-depends = ["check:rust", "check:python"]
-
-[tasks."check:python"]
-description = "Check Python"
-run = "uv run --locked --project tools/python ty check"
+description = "Check Rust Feature Proofs And Conventions"
+depends = ["check:rust"]
 
 [tasks."check:rust"]
 description = "Check Rust"
@@ -101,7 +101,7 @@ run = [
 [tasks.build]
 description = "Build Binaries, Fixtures, Wheels And The Test Archive"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "uv run --locked --project tools/python python -m project_tools.test.archive --profile {{usage.profile}}"
+run = "uv run --locked --project tools/python python -m project_tools.test.archive --profile {{usage.profile}} -- --all-features"
 
 # === Dev === #
 
@@ -123,6 +123,10 @@ run = "cargo dokime dev"
 description = "Test Every Layer"
 usage = 'flag "--profile <profile>" default="dev"'
 depends = ["test:unit --profile {{usage.profile}}", "test:integration --profile {{usage.profile}}"]
+
+[tasks."test:coverage"]
+description = "Measure Coverage Over Instrumented Lanes"
+run = "uv run --locked --project tools/python python -m project_tools.test.run coverage --language rust"
 
 [tasks."test:unit"]
 description = "Test Unit Layer"
@@ -147,14 +151,6 @@ run = "uv run --locked --project tools/python python -m project_tools.test.run t
 [tasks."test:acceptance:rust"]
 description = "Test Acceptance Rust"
 run = "cargo dokime inspect dist/{{package}}.dokime"
-
-[tasks."test:verify"]
-description = "Verify The Evidence Of One Tree"
-run = "uv run --locked --project tools/python python -m project_tools.test.run verify"
-
-[tasks.coverage]
-description = "Measure Coverage Over Instrumented Lanes"
-run = "uv run --locked --project tools/python python -m project_tools.test.run coverage --language rust"
 
 # === Bench === #
 
@@ -185,15 +181,13 @@ run = [
   { task = "check" },
   { task = "lint" },
   { task = "test --profile {{usage.profile}}" },
-  { task = "package --profile {{usage.profile}}" },
-  { task = "test:verify" },
 ]
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"
 run = [
   { task = "build" },
-  { task = "coverage" },
+  { task = "test:coverage" },
 ]
 
 # === Release === #
@@ -222,7 +216,7 @@ fi
 
 [tasks."release:publish:dry"]
 description = "Dry-Run Every Publication"
-run = "cargo publish --workspace --dry-run"
+run = "uv run --locked --project tools/python python -m project_tools.test.publish --rust"
 
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"

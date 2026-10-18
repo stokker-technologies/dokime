@@ -26,25 +26,19 @@ packages = ["src/dokime"]
 [tool.hatch.build.targets.sdist]
 include = ["src/dokime", "examples", "README.md", "pyproject.toml", "LICENSE-APACHE"]
 
-[tool.pyright]
+[tool.ty.environment]
+python-version = "3.13"
+python = "../../.venv"
+extra-paths = ["src"]
+
+[tool.ty.src]
 include = ["src/dokime", "tests", "examples"]
-typeCheckingMode = "standard"
-pythonVersion = "3.13"
-venvPath = "../.."
-venv = ".venv"
-reportMissingImports = "warning"
-reportAttributeAccessIssue = "warning"
-executionEnvironments = [
-  { root = "src", extraPaths = [
-    "src",
-  ] },
-  { root = "tests", extraPaths = [
-    "src",
-  ] },
-  { root = "examples", extraPaths = [
-    "src",
-  ] },
-]
+
+[tool.ty.rules]
+unresolved-import = "warn"
+unresolved-attribute = "warn"
+# Generated protobuf classes are typed as `type[Message]`, whose stub constructor declares no fields.
+unknown-argument = "warn"
 
 [tool.pytest.ini_options]
 addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib", "--timeout-method=thread"]

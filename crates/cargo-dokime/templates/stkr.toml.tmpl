@@ -8,6 +8,13 @@
 name = "{{package}}"
 profile = "plugin"
 visibility = "public"
+platforms = ["linux", "windows"]
+
+[languages.rust]
+roots = ["src", "tests"]
+
+[languages.python]
+roots = ["tools/python"]
 
 # === Repository === #
 

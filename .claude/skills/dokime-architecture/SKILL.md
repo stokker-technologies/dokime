@@ -2,7 +2,7 @@
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:47fcab68c13be9c6e79a15a0e35cd8328fdae65fb0004938e6995c9a6884192b -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:2de2f8a5d28606e07ccfa4fbff1bd6def21687aee4d808b79e8db866c4379546 -->
 
 # Dokime Architecture
 
@@ -14,6 +14,6 @@ Organize declarations kind-first: `model/`, `operations/`, `transactions/`, `sta
 
 Records select by envelope identity: scope is the cycle, item is the execution (or cycle for cycle context), source is the provider/process epoch. Use typed reads for records and retain columnar queries for plots and telemetry derivations. Lifecycle capture references the durable frozen execution revision rather than duplicating it.
 
-Packaging depends on portable domains and Harmos packaging, never the runtime. Build scripts request only enabled bindings (`bindings-proto`, `bindings-python`, `bindings-typescript`); `grpc` implies proto. The thin cargo tool uses the canonical CLI and packaging instead of embedding a second runtime.
+Packaging depends on portable domains and Harmos packaging, never the runtime. Build scripts request only enabled generators (`generate-proto`, `generate-python`, `generate-typescript`); `grpc` implies proto. The thin cargo tool uses the canonical CLI and packaging instead of embedding a second runtime.
 
 Storage is development v1. A clean schema break may require a fresh storage root; never silently reset existing data. Plugin installation and enablement become active after a full app restart; development reload remains an explicit separate lifecycle.

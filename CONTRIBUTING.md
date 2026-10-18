@@ -67,18 +67,26 @@ mise run build
 mise run test
 ```
 
-`mise run ci` runs that sequence plus evidence verification and the publication
-dry run. `build` compiles the workspace once into binaries, the OBC bundle, the
-frontend, the Python wheel and the Nextest test archive under `dist/build/`;
-the test layers (`test:unit`, `test:integration`, `test:acceptance`,
-`test:system`) run from that archive and never rebuild. Each lane takes
-`--profile dev|release` and writes its evidence under `.stkr/tests/`.
+`mise run ci` runs that sequence on the current tree; a failing lane fails the
+run, and that is the whole verdict. `build` compiles the workspace once into
+binaries, the OBC bundle, the frontend, the generated GUI client and the
+Nextest test archive under `dist/build/<platform>/`, and the Python wheel under
+`target/wheels/`; the test layers (`test:unit`, `test:integration`,
+`test:generated`, `test:acceptance`, `test:system`) run from those outputs and
+never rebuild. Each lane takes `--profile dev|release` and keeps its JUnit
+report under `target/tests/`. `test:generated` checks the generated Python and
+TypeScript clients (types, lint and an import smoke). `mise run package
+--profile dev` bundles an unsigned development installer through the Tauri
+bundler in debug mode, with the CLI and server as companions, beside the
+client wheel and the plugin bundle under `target/package/<platform>/`.
 
-`.github/workflows/ci.yml` is rendered from the shared pipeline shape: a Source
-job (format, lint, binding-free checks), one Build job, a job per test layer and
-language consuming the Build artifact, and a Gate job that is the required
-check. `nightly.yml` runs coverage and benches; `release.yml` publishes a tag
-through trusted publishing. `mise.toml` owns every recipe the workflows call.
+`.github/workflows/ci.yml` is rendered from the shared pipeline shape: the
+Check, Build, Validate, Package and Publish stages, with Rust, Build, test lane
+and package jobs on both the Linux and Windows legs. A pull request runs Check,
+`Build / Dev` and Validate; pushes to `dev` add `Package / Dev` and
+`Publish / Dry`; tags build, package and publish the release profile.
+`nightly.yml` runs coverage and benches. `mise.toml` owns every recipe the
+workflows call.
 
 Cut `release/<version>` from published `dev` and run `mise run release:prepare`
 to prepare the stable patch version, changelog and screenshots. The changelog

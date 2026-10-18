@@ -18,7 +18,6 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.test import archive
 
 # Type Checking Imports
 
@@ -34,12 +33,11 @@ from dokime_tools.test import archive
 # === Public Functions === #
 
 
-def executables(root: Path, producer: dict, names: Sequence[str]) -> dict[str, Path]:
-    """Select Non-Test Binaries And Verify Their Original Producer Hashes."""
+def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
+    """Select The Non-Test Binaries One Cargo Build Reported."""
     selected: dict[str, set[Path]] = {name: set() for name in names}
-    messages = root / producer["messages"]["path"]
     for line in messages.read_text(encoding="utf-8").splitlines():
-        item = json.loads(line)
+        item = json.loads(line) if line.startswith("{") else {}
         target = item.get("target", {})
         name = target.get("name")
         if (
@@ -55,21 +53,7 @@ def executables(root: Path, producer: dict, names: Sequence[str]) -> dict[str, P
         if len(paths) != 1:
             raise ValueError(f"Cargo must report exactly one {name} executable")
         result[name] = next(iter(paths))
-    archive.verify_outputs(producer, list(result.values()))
     return result
-
-
-def exports(producer: dict, source: Path, destination: Path) -> dict[Path, Path]:
-    """Project Only Files Declared By The Original Native Producer."""
-    source = source.absolute()
-    projection: dict[Path, Path] = {}
-    for name in producer.get("exports", {}):
-        path = Path(name)
-        if path.is_relative_to(source):
-            projection[path] = destination / path.relative_to(source)
-    if not projection:
-        raise ValueError(f"the producer exported no files under {source}")
-    return projection
 
 
 # === Private Functions === #

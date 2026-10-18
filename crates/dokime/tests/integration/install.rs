@@ -426,7 +426,10 @@ async fn refusal_never_retries() {
 
 /* === Tests === */
 
-/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn cli_executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_dokime").unwrap_or_else(|_| env!("CARGO_BIN_EXE_dokime").to_owned())
+    std::env::var("NEXTEST_BIN_EXE_dokime")
+        .ok()
+        .or_else(|| option_env!("CARGO_BIN_EXE_dokime").map(str::to_owned))
+        .expect("workspace executable")
 }

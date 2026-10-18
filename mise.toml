@@ -52,12 +52,13 @@ PYTHONDONTWRITEBYTECODE = "1"
 # === Variables === #
 
 [vars]
-platform = "{% if os() == 'windows' %}windows{% else %}linux{% endif %}"
 python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
 lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
 # The Cargo selection the development and bench archives are built with (dokime_tools.build.run): the runtime's story hooks.
 stories = "--archive-argument=--features --archive-argument=dokime-runtime/fault-injection"
+# The generated client modules; protoc's wire output stays excluded by the package's ruff configuration.
+generated_python = "packages/dokime/src/dokime/_wire packages/dokime/src/dokime/operation.py packages/dokime/src/dokime/dynamic.py packages/dokime/src/dokime/__init__.py packages/dokime/src/dokime/__init__.pyi"
 
 # === Prepare === #
 
@@ -123,7 +124,13 @@ depends = ["lint:rust", "lint:python", "lint:typescript"]
 
 [tasks."lint:python"]
 description = "Lint Python"
-run = ["{{vars.python}} ruff check packages/dokime", "{{vars.python}} ruff check tools/python"]
+depends = ["prepare"]
+run = [
+  "{{vars.python}} ruff check packages/dokime",
+  "{{vars.python}} ruff check tools/python",
+  # The Repository Tooling Reads No Generated Client, So Its Types Are Checked Before Any Build.
+  "{{vars.python}} ty check --project tools/python",
+]
 
 [tasks."lint:rust"]
 description = "Lint Rust"
@@ -139,35 +146,22 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 [tasks.check]
 description = "Check Every Language And Conventions"
-run = [{ task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
-
-[tasks."check:python"]
-description = "Check Python"
-depends = ["prepare"]
-run = ["{{vars.python}} pyright --project packages/dokime/pyproject.toml", "{{vars.python}} pyright --project tools/python/pyproject.toml"]
+depends = ["check:rust"]
 
 [tasks."check:rust"]
 description = "Check Rust"
-# The binding check generates the Python client with the pinned Harmos authoring tool.
-depends = ["prepare:report", "prepare:harmos"]
+# The runtime embeds the report viewer, so every feature proof needs it first.
+depends = ["prepare:report"]
 run = [
-  'python -c "from pathlib import Path; Path(\"target/contracts\").mkdir(parents=True, exist_ok=True)"',
-  "cargo check --locked --workspace --all-targets --all-features --message-format json-render-diagnostics > target/contracts/check.jsonl",
+  "cargo check --locked --workspace --all-targets --all-features",
   "cargo check --locked --workspace --lib --bins --no-default-features",
   "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
-  "{{vars.tools}} dokime_tools.prepare.bindings --build-json target/contracts/check.jsonl --check",
-  "node crates/dokime-gui/tools/bindings.mjs target/contracts/check.jsonl --check",
 ]
-
-[tasks."check:typescript"]
-description = "Check TypeScript"
-depends = ["prepare"]
-run = "pnpm --dir crates/dokime-gui run typecheck"
 
 # === Build === #
 
 [tasks.build]
-description = "Build Binaries, Bundles, Frontend, Wheel And The Test Archive"
+description = "Build Binaries, Bundles, Frontend, Generated Clients, Wheel And The Test Archive"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "build:rust --profile {{usage.profile}}" },
@@ -190,7 +184,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run rust --profile {{usage.profile}}"
 
 [tasks."build:typescript"]
-description = "Build The GUI Bindings And Frontend"
+description = "Build The Generated GUI Client And Frontend"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run typescript --profile {{usage.profile}}"
@@ -217,19 +211,55 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "test:unit --profile {{usage.profile}}" },
   { task = "test:integration --profile {{usage.profile}}" },
+  { task = "test:generated" },
   { task = "test:acceptance --profile {{usage.profile}}" },
   { task = "test:system --profile {{usage.profile}}" },
 ]
 
-[tasks."test:unit"]
-description = "Test Unit Layer"
+[tasks."test:acceptance"]
+description = "Test Acceptance Layer"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "test:unit:rust --profile {{usage.profile}}" }]
+run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
 
-[tasks."test:unit:rust"]
-description = "Test Unit Rust"
+[tasks."test:acceptance:python"]
+description = "Test Acceptance Python"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust {{vars.stories}}"
+run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime"
+
+[tasks."test:acceptance:rust"]
+description = "Test Acceptance Rust"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  # The desktop/Python matrix drives the installed client wheel from the Rust lane.
+  "{{vars.tools}} dokime_tools.test.archive --install-wheels",
+  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
+]
+
+[tasks."test:generated"]
+description = "Test The Generated Clients"
+depends = ["test:generated:python", "test:generated:typescript"]
+
+[tasks."test:generated:python"]
+description = "Test The Generated Python Client"
+depends = ["prepare"]
+run = [
+  "{{vars.python}} ty check --project packages/dokime --exit-zero-on-warning",
+  "{{vars.python}} ruff check --force-exclude {{vars.generated_python}}",
+  "{{vars.tools}} dokime_tools.test.archive --install-wheels",
+  "{{vars.python}} python -c \"import dokime, dokime.client\"",
+]
+
+[tasks."test:generated:typescript"]
+description = "Test The Generated TypeScript Client"
+depends = ["prepare"]
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated",
+  "pnpm --dir crates/dokime-gui run typecheck",
+  "pnpm --dir crates/dokime-gui exec biome lint --vcs-use-ignore-file=false .generated",
+  "node crates/dokime-gui/tools/smoke.mjs",
+]
 
 [tasks."test:integration"]
 description = "Test Integration Layer"
@@ -242,42 +272,22 @@ run = [
 
 [tasks."test:integration:python"]
 description = "Test Integration Python"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime",
-]
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime"
 
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust {{vars.stories}}"
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust"
 
 [tasks."test:integration:typescript"]
 description = "Test Integration TypeScript"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}"
-
-[tasks."test:acceptance"]
-description = "Test Acceptance Layer"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
-
-[tasks."test:acceptance:python"]
-description = "Test Acceptance Python"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime",
-]
-
-[tasks."test:acceptance:rust"]
-description = "Test Acceptance Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  # The desktop/Python matrix drives the installed client wheel from the Rust lane.
-  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust {{vars.stories}}",
+  "{{vars.tools}} dokime_tools.prepare.generated",
+  "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 
 [tasks."test:system"]
@@ -287,17 +297,25 @@ run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test
 
 [tasks."test:system:rust"]
 description = "Test System Rust"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust {{vars.stories}}"
+run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust"
 
 [tasks."test:system:typescript"]
 description = "Test System TypeScript"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --junit {junit}"
 
-[tasks."test:verify"]
-description = "Verify The Evidence Of One Tree"
-run = "{{vars.tools}} dokime_tools.test.run verify"
+[tasks."test:unit"]
+description = "Test Unit Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [{ task = "test:unit:rust --profile {{usage.profile}}" }]
+
+[tasks."test:unit:rust"]
+description = "Test Unit Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
 
 [tasks.coverage]
 description = "Measure Coverage Over Instrumented Lanes"
@@ -325,19 +343,27 @@ run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rus
 
 # === Package === #
 
+[tasks.package]
+description = "Package Every Language"
+usage = 'flag "--profile <profile>" default="dev"'
+depends = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}}"]
+
+[tasks."package:python"]
+description = "Package The Built Client Wheel"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.package.installer wheel --profile {{usage.profile}}"
+
+[tasks."package:rust"]
+description = "Package The Desktop Installer With Its CLI And Server Companions And The Plugin Bundle"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}}"
+
 # === CI === #
 
 [tasks.ci]
 description = "Run The CI Flow Locally"
-run = [
-  { task = "format --check" },
-  { task = "lint" },
-  { task = "check" },
-  { task = "build" },
-  { task = "test" },
-  { task = "test:verify" },
-  { task = "release:publish:dry" },
-]
+run = [{ task = "format --check" }, { task = "lint" }, { task = "check" }, { task = "build" }, { task = "test" }]
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"
@@ -372,7 +398,7 @@ run = "cargo publish --locked --workspace --dry-run"
 
 [tasks."release:publish:python"]
 description = "Publish The Python Client"
-run = "uv publish --trusted-publishing always dist/build/{{vars.platform}}/python/*"
+run = "uv publish --trusted-publishing always target/wheels/*"
 
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"

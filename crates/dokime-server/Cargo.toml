@@ -81,7 +81,7 @@ dokime-domain = { path = "../dokime-domain" }
 
 # Git
 harmos = { workspace = true }
-harmos-packaging = { workspace = true, features = ["bindings-proto"] }
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local

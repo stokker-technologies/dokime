@@ -7,14 +7,21 @@
  * ***
  */
 
-// Full-capture stories: each reads a 20 000-row capture several times per report.
+// Full-Capture Stories Read A 20 000-Row Capture Several Times Per Report.
 
 /* === Modules === */
+
 pub(crate) mod sampling;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 
 /* === Constants === */
 

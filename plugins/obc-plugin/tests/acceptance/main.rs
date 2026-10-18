@@ -777,7 +777,10 @@ async fn samples_keep_context() {
     bench.runtime.stop().await.unwrap();
 }
 
-/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_obc-plugin").unwrap_or_else(|_| env!("CARGO_BIN_EXE_obc-plugin").to_owned())
+    std::env::var("NEXTEST_BIN_EXE_obc-plugin")
+        .ok()
+        .or_else(|| option_env!("CARGO_BIN_EXE_obc-plugin").map(str::to_owned))
+        .expect("workspace executable")
 }

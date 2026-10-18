@@ -39,7 +39,7 @@ const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Every locked package with its version, whatever source the lock names.
+// Every locked package with its version, whatever source the lock names.
 fn pins(lock: &str) -> Vec<(String, String)> {
     let document = lock.parse::<toml_edit::DocumentMut>().unwrap();
     let mut pins = document["package"]
@@ -54,6 +54,11 @@ fn pins(lock: &str) -> Vec<(String, String)> {
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
+}
+
+// The offline closure the build stages beside its other outputs, so a lane runner's artifact carries it.
+fn dependencies() -> PathBuf {
+    workspace().join("dist/build").join(if cfg!(windows) { "windows" } else { "linux" }).join("dependencies")
 }
 
 fn task(plugin: &Path, name: &str) {
@@ -79,7 +84,7 @@ fn run(plugin: &Path, program: &str, arguments: &[&str]) {
         .env_remove("UV_WORKING_DIR")
         .env("UV_OFFLINE", "true")
         .env("UV_CONFIG_FILE", plugin.join("uv.toml"))
-        .env("UV_FIND_LINKS", workspace().join("target/dependencies/wheels"))
+        .env("UV_FIND_LINKS", dependencies().join("wheels"))
         .env("UV_CACHE_DIR", plugin.join("target/uv-cache"))
         .env("CARGO_NET_OFFLINE", "true")
         .env_remove("CARGO_TARGET_DIR")
@@ -129,7 +134,7 @@ pub(super) fn generated_plugin_tasks() {
     // Build It Against This Tree, Offline
     let sdk = workspace().join("crates/dokime-runtime");
     std::fs::create_dir(plugin.join(".cargo")).unwrap();
-    let dependencies = workspace().join("target/dependencies");
+    let dependencies = dependencies();
     assert!(dependencies.join("wheels").is_dir(), "build stages the locked starter wheelhouse");
     let mut cargo = std::fs::read_to_string(dependencies.join("cargo-config.toml"))
         .expect("build exports the locked Cargo source closure")
