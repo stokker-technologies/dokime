@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bbd7519d09ea0980d4a00eb3945432f0c92bba46e5dcf5963390b45266bff8d3
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:b648821c625050e70578bd4ad7d2fe7bbf44865538d53cb813bf1b6a22eee17a
 name: CI
 "on":
   push:
@@ -398,10 +398,17 @@ jobs:
           build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
           matrix.os }}
     - name: Extract Build
-      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      shell: bash
       run: >-
         tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
         'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - run: >-
         mise run test:unit:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}
@@ -476,10 +483,17 @@ jobs:
           build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
           matrix.os }}
     - name: Extract Build
-      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      shell: bash
       run: >-
         tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
         'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - run: >-
         mise run test:integration:rust --profile ${{ startsWith(github.ref,
         'refs/tags/v') && 'release' || 'dev' }}
@@ -554,10 +568,17 @@ jobs:
           build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
           matrix.os }}
     - name: Extract Build
-      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      shell: bash
       run: >-
         tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
         'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - run: >-
         mise run test:acceptance:rust --profile ${{ startsWith(github.ref,
         'refs/tags/v') && 'release' || 'dev' }}
@@ -638,10 +659,17 @@ jobs:
           build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
           matrix.os }}
     - name: Extract Build
-      shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
+      shell: bash
       run: >-
         tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
         'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - run: >-
         mise run package:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}
