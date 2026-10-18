@@ -1252,18 +1252,28 @@ async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &Te
 async fn replay_sample_inputs(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, replayed: &mut BTreeMap<harmos::Identifier, u64>,
 ) -> Result<(), ProviderExecutionFailure> {
+    let diagnostic_started = std::time::Instant::now();
+    eprintln!("settlement diagnostic {}: replay begins", execution.test_execution_id);
     // The run's own evidence is fixed once its publications are flushed. Each
     // stream is one query against that cut, read through its own pages. The
     // positions outlive this call: a settling page the run sends again after
     // its call ran out of time resumes each stream instead of starting over.
     let storage = context.runtime.storage();
     let cut = storage.flush().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    eprintln!("settlement diagnostic {}: replay storage flushed at {:?}", execution.test_execution_id, diagnostic_started.elapsed());
     let mut at = storage.cursor_saved();
     at.sequence = cut.sequence;
     let contracts = context.runtime.state_read().telemetry_contracts();
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
         let position = replayed.entry(contract.stream.clone()).or_default();
         replay_stream(context, target, execution, &at, contract, position).await?;
+        eprintln!(
+            "settlement diagnostic {}: stream {} replayed through {} at {:?}",
+            execution.test_execution_id,
+            contract.stream,
+            position,
+            diagnostic_started.elapsed()
+        );
     }
     Ok(())
 }
@@ -1273,6 +1283,7 @@ async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
     contract: &crate::telemetry::TelemetryContract, replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
+    let diagnostic_started = std::time::Instant::now();
     use harmos::storage::operations::Query;
     use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
     let samples_failure = |error: harmos::storage::Error| failure("sidecar_samples", error.to_string());
@@ -1308,6 +1319,13 @@ async fn replay_stream(
             continue;
         };
         let raw = batch.as_record_batch();
+        eprintln!(
+            "settlement diagnostic {}: stream {} read {} rows at {:?}",
+            execution.test_execution_id,
+            contract.stream,
+            raw.num_rows(),
+            diagnostic_started.elapsed()
+        );
         let positions = raw
             .column_by_name("_storage")
             .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
@@ -1316,6 +1334,13 @@ async fn replay_stream(
             .ok_or_else(|| failure("sidecar_samples", "storage positions are missing"))?;
         let entries =
             crate::storage::telemetry::decode_batch(&codec, &batch).map_err(|error| samples_failure(replay_codec_error(error)))?;
+        eprintln!(
+            "settlement diagnostic {}: stream {} decoded {} rows at {:?}",
+            execution.test_execution_id,
+            contract.stream,
+            entries.len(),
+            diagnostic_started.elapsed()
+        );
         for (index, entry) in entries.into_iter().enumerate() {
             let captured =
                 entry.sample.scope.as_ref().ok_or_else(|| failure("sidecar_samples", "captured sample has no execution scope"))?;

@@ -324,6 +324,8 @@ async fn finalize_record_inputs(
 }
 
 async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>) -> Result<(), Diagnostic> {
+    let diagnostic_started = std::time::Instant::now();
+    eprintln!("settlement diagnostic {token}: child begins settlement");
     if let Some(state) = lock(executions).get_mut(token) {
         state.begin_record_settle();
     }
@@ -337,7 +339,10 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
     loop {
         let progress = match lock(executions).get(token) {
             None => return Ok(()),
-            Some(state) if state.record_subscriptions_settled() => return Ok(()),
+            Some(state) if state.record_subscriptions_settled() => {
+                eprintln!("settlement diagnostic {token}: child settled after {:?}", diagnostic_started.elapsed());
+                return Ok(());
+            }
             Some(state) => state.staged_samples(),
         };
         if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
@@ -345,6 +350,7 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
+            eprintln!("settlement diagnostic {token}: child stalled after {:?}, staged={progress}", diagnostic_started.elapsed());
             return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
         }
         tokio::select! {
