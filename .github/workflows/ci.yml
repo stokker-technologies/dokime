@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:e32018c15f0bf32c253bbe088d9a0f631f5ec5d05af8dff0761d03ef8db7a6b4
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:78f0fcac54906ff0dcdd8f336c7e941a2194ccf781418a5f07b5319467925ff1
 name: CI
 "on":
   push:
@@ -40,8 +40,6 @@ jobs:
     - run: mise run format:rust --check
     - run: mise run format:toml --check
     - run: mise run format:typescript --check
-    - run: mise run check:python
-    - run: mise run check:typescript
     - run: mise run lint:python
     - run: mise run lint:typescript
     env:
@@ -66,15 +64,18 @@ jobs:
         cache: false
         mise_dir: ${{ github.workspace }}/.cache/mise
     - run: mise run build
+    - run: mise run check:python
+    - run: mise run check:typescript
     - run: mise run test:unit
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
         name: build-${{ github.sha }}
         path: |-
-          target/nextest/
-          target/fixtures/
-          dist/
+          crates/dokime-runtime/dist-report/report.html
+          dist
+          target/fixtures
+          target/nextest
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -100,7 +101,7 @@ jobs:
     name: Test / Integration / Python
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 11
     needs:
     - build
     steps:
@@ -136,7 +137,7 @@ jobs:
     name: Test / Integration / Rust
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 15
     needs:
     - build
     steps:
@@ -208,7 +209,7 @@ jobs:
     name: Test / Acceptance / Python
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 11
     needs:
     - build
     - test_integration_python
@@ -247,7 +248,7 @@ jobs:
     name: Test / Acceptance / Rust
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     needs:
     - build
     - test_integration_python
@@ -286,7 +287,7 @@ jobs:
     name: Test / System / Rust
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 13
     needs:
     - build
     - test_integration_python
@@ -325,7 +326,7 @@ jobs:
     name: Test / System / TypeScript
     runs-on:
     - ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     needs:
     - build
     - test_integration_python

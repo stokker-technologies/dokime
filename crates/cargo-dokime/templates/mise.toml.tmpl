@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:9881496954cd6f0b2f7bbb09320d820f7beb1dd07a5c7f77194048aeeeaf16e1
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:c968d62626734d30c315fb0105122b2789db3c39a410cba81461812c0608c12e
 # === Settings === #
 
 [settings]
@@ -181,9 +181,9 @@ run = [
   { task = "format:toml --check" },
   { task = "format:rust --check" },
   { task = "format:python --check" },
+  { task = "build --profile {{usage.profile}}" },
   { task = "check" },
   { task = "lint" },
-  { task = "build --profile {{usage.profile}}" },
   { task = "test --profile {{usage.profile}}" },
   { task = "package --profile {{usage.profile}}" },
   { task = "test:verify" },
