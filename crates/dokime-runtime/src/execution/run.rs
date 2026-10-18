@@ -324,33 +324,26 @@ async fn finalize_record_inputs(
 }
 
 async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut watch::Receiver<bool>) -> Result<(), Diagnostic> {
-    let diagnostic_started = std::time::Instant::now();
-    eprintln!("settlement diagnostic {token}: child begins settlement");
     if let Some(state) = lock(executions).get_mut(token) {
         state.begin_record_settle();
     }
     let was_cancelled = *cancel.borrow();
     let bound = if was_cancelled { Duration::from_secs(1) } else { Duration::from_secs(35) };
-    // The host settles by handing the whole capture back, which takes as long
-    // as the capture is long; the bound is on a host that stops making
-    // progress, not on the length of what it is replaying.
+    // The host settles by handing captured records and samples back. Bound
+    // idle time between accepted inputs, rather than total replay duration.
     let mut deadline = tokio::time::Instant::now() + bound;
     let mut staged = None;
     loop {
         let progress = match lock(executions).get(token) {
             None => return Ok(()),
-            Some(state) if state.record_subscriptions_settled() => {
-                eprintln!("settlement diagnostic {token}: child settled after {:?}", diagnostic_started.elapsed());
-                return Ok(());
-            }
-            Some(state) => state.staged_samples(),
+            Some(state) if state.record_subscriptions_settled() => return Ok(()),
+            Some(state) => state.staged_inputs(),
         };
         if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
             deadline = tokio::time::Instant::now() + bound;
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
-            eprintln!("settlement diagnostic {token}: child stalled after {:?}, staged={progress}", diagnostic_started.elapsed());
             return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
         }
         tokio::select! {
