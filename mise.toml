@@ -68,6 +68,11 @@ run = [
   "pnpm --dir crates/dokime-gui install --frozen-lockfile",
 ]
 
+[tasks."prepare:harmos"]
+description = "Prepare The Pinned Harmos Authoring Tool"
+depends = ["prepare"]
+run = "{{vars.tools}} dokime_tools.ci.bootstrap --harmos-tools"
+
 [tasks."prepare:report"]
 description = "Prepare The Embedded Report Viewer"
 depends = ["prepare"]
@@ -142,7 +147,8 @@ run = ["{{vars.python}} pyright --project packages/dokime/pyproject.toml", "{{va
 
 [tasks."check:rust"]
 description = "Check Rust"
-depends = ["prepare:report"]
+# The binding check generates the Python client with the pinned Harmos authoring tool.
+depends = ["prepare:report", "prepare:harmos"]
 run = [
   'python -c "from pathlib import Path; Path(\"target/contracts\").mkdir(parents=True, exist_ok=True)"',
   "cargo check --locked --workspace --all-targets --all-features --message-format json-render-diagnostics > target/contracts/check.jsonl",
@@ -171,7 +177,7 @@ run = [
 
 [tasks."build:python"]
 description = "Build The Python Client Wheel"
-depends = ["prepare"]
+depends = ["prepare:harmos"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run python --profile {{usage.profile}}"
 
