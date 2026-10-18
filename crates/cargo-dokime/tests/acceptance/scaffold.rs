@@ -150,8 +150,16 @@ pub(super) fn generated_plugin_tasks() {
         }
     }
     assert!(redirected, "the exported source configuration names its vendor directory");
-    let patched = format!("{cargo}\n[patch.{REPOSITORY:?}]\ndokime-runtime = {{ path = {:?} }}\n", sdk.display().to_string(),);
-    std::fs::write(plugin.join(".cargo/config.toml"), patched).unwrap();
+    std::fs::write(plugin.join(".cargo/config.toml"), cargo.to_string()).unwrap();
+    // The SDK Comes From This Tree: A `[patch]` Would Still Resolve The Published Git Source First,
+    // Which An Offline Runner Without A Cached Checkout Cannot Do.
+    let manifest = plugin.join("Cargo.toml");
+    let mut authored = std::fs::read_to_string(&manifest).unwrap().parse::<toml_edit::DocumentMut>().unwrap();
+    assert_eq!(authored["dependencies"]["dokime-runtime"]["git"].as_str(), Some(REPOSITORY), "the starter depends on the published SDK");
+    let mut local = toml_edit::InlineTable::new();
+    local.insert("path", sdk.display().to_string().into());
+    authored["dependencies"]["dokime-runtime"] = toml_edit::value(local);
+    std::fs::write(&manifest, authored.to_string()).unwrap();
     std::fs::write(plugin.join("uv.toml"), "no-index = true\n").unwrap();
     // The Staged Wheels Replace The Public Index: Rebind The Shipped Lock To Them Without Moving A Pin.
     let lock = plugin.join("tools/python/uv.lock");

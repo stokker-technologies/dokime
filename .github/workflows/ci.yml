@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:3ff4ffa9a666ff9ed0acbc9ac4e9641ba7201fb77f51a616d7cd1117610d8d86
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:13674bc3ac63aebf32ded26acb4f76f47af9908d0c38aac4d30e4f16b4798bf1
 name: CI
 "on":
   push:
@@ -9,6 +9,7 @@ name: CI
     tags:
     - v*
   pull_request: {}
+  workflow_dispatch: {}
   schedule:
   - cron: 0 2 * * *
 permissions:
@@ -1384,7 +1385,7 @@ jobs:
     runs-on: >-
       ${{
       fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 10
+    timeout-minutes: 21
     needs:
     - build_dev
     - build_release
@@ -1896,9 +1897,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
-      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
+      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
+      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
     strategy:
       fail-fast: false
       matrix:
@@ -2032,9 +2033,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
-      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
+      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
+      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2123,8 +2124,8 @@ jobs:
     - run: sccache --show-stats
       if: always()
     if: >-
-      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-      startsWith(github.ref, 'refs/heads/release/v'))
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"

@@ -2472,7 +2472,8 @@ async function main() {
     throw new Error("Driving the native WebView needs a running display session.");
   }
   await mkdir(targetRoot, { recursive: true });
-  evidence = await mkdtemp(join(targetRoot, "native-desktop-e2e-"));
+  // A lane keeps the evidence beside its JUnit report, which CI uploads with it.
+  evidence = await mkdtemp(join(options.junit ? dirname(resolve(options.junit)) : targetRoot, "native-desktop-e2e-"));
   work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
   if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");

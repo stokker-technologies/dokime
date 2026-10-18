@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/registry.py; sha256:fbf0425d9801f91a0a7fd35348f9ecb4affcf5e2e221d65ce8acdeae8bdad66d
+# Rendered by stkr project update from templates/python/release/registry.py; sha256:806749ff6f39ac62c811121b7add17dc84e12dc40a8b1aabd2d2ba838f5b4c1e
 # ***
 #
 # Dokime
@@ -83,7 +83,11 @@ def request(
         }
         if upload:
             base = settings.get("upload_url", "https://uploads.github.com")
-        url = f"{base}/repos/{repository}/{endpoint}"
+        url = (
+            os.environ.get("GITHUB_GRAPHQL_URL", base.rstrip("/").removesuffix("/v3") + "/graphql")
+            if graphql
+            else f"{base}/repos/{repository}/{endpoint}"
+        )
     elif provider == "gitlab":
         base = os.environ.get("CI_API_V4_URL", settings.get("api_url", "https://gitlab.com/api/v4"))
         if not isinstance(base, str) or not base:

@@ -304,7 +304,8 @@ env = { CARGO_INCREMENTAL = "0" }
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust"
+# The compile contracts run only in the build tree (test:compile); every other test binary is integration.
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration:typescript"]
