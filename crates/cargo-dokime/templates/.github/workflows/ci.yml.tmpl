@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:f5bb6a7829d7d954251c7ce11fd0716b888927eab4b213a38c81d7f53cee00e6
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:e2b67f3181f8d47ba294f8bfbed37c10a0ec5f17a820447194feab970a6b8b7c
 name: CI
 "on":
   push:
@@ -53,14 +53,23 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run format:toml --check
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     env:
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,cargo:cargo-llvm-cov,taplo
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,cargo:cargo-llvm-cov,sccache,taplo
   check_python:
     name: Check / Python
     runs-on:
@@ -90,6 +99,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run format:python --check
     - run: mise run lint:python
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -97,7 +109,12 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_rust:
     name: Check / Rust
@@ -133,6 +150,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run format:rust --check
     - run: mise run lint:rust
     - run: >-
@@ -143,6 +163,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     strategy:
       fail-fast: false
       matrix:
@@ -150,7 +172,10 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
   build_dev:
     name: Build / Dev
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -185,6 +210,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run build --profile dev
     - run: mise run test:unit --profile dev
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -204,6 +232,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: "!startsWith(github.ref, 'refs/tags/v')"
     strategy:
       fail-fast: false
@@ -212,7 +242,10 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
   build_release:
     name: Build / Release
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -247,6 +280,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run build --profile release
     - run: mise run test:unit --profile release
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -266,6 +302,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -274,7 +312,10 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
   validate_test_unit_rust:
     name: Validate / Unit / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -306,6 +347,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
       run: exit 1
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -330,6 +374,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -338,6 +384,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_rust:
     name: Validate / Integration / Rust
@@ -370,6 +419,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
       run: exit 1
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -394,6 +446,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -402,6 +456,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_rust:
     name: Validate / Acceptance / Rust
@@ -434,6 +491,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
       run: exit 1
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -458,6 +518,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -466,6 +528,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_rust:
     name: Package / Rust
@@ -504,6 +569,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: >-
@@ -531,6 +599,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
@@ -543,6 +613,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_dry:
     name: Publish / Dry
@@ -583,16 +656,24 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: steps.tools.outputs.cache-hit != 'true'
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: >-
       github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
       startsWith(github.ref, 'refs/heads/release/v'))
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_release:
     name: Publish / Release
@@ -625,6 +706,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: package-release-*
@@ -640,6 +724,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: startsWith(github.ref, 'refs/tags/v')
     environment: release
     permissions:
@@ -647,6 +733,9 @@ jobs:
       actions: read
       id-token: write
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_coverage:
     name: Validate / Coverage

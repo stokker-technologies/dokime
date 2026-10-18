@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:20b02246fbdcf2a99cc8dc8183556b9f21296970eb9ed46843fb48e1a1210f6a
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:0d89e36c20b87286472519e0abfcda338cf99e6c1a43810ca8eedb5941443e14
 name: CI
 "on":
   push:
@@ -67,6 +67,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -81,7 +84,12 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,protoc,taplo,aqua:rhysd/actionlint
   check_python:
@@ -127,6 +135,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -142,7 +153,12 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_typescript:
     name: Check / TypeScript
@@ -187,6 +203,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -202,7 +221,12 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_rust:
     name: Check / Rust
@@ -254,6 +278,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -281,6 +308,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     strategy:
       fail-fast: false
       matrix:
@@ -288,6 +317,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_dev:
@@ -340,6 +372,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -380,6 +415,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: "!startsWith(github.ref, 'refs/tags/v')"
     strategy:
       fail-fast: false
@@ -388,6 +425,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_release:
@@ -440,6 +480,9 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -480,6 +523,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -488,6 +533,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   validate_generated:
@@ -536,6 +584,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -559,8 +610,13 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_unit_rust:
     name: Validate / Unit / Rust
@@ -609,6 +665,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -649,6 +708,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -657,6 +718,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_python:
     name: Validate / Integration / Python
@@ -704,6 +768,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -734,8 +801,13 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_rust:
     name: Validate / Integration / Rust
@@ -784,6 +856,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -824,6 +899,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -832,6 +909,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_typescript:
     name: Validate / Integration / TypeScript
@@ -879,6 +959,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -909,8 +992,13 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_python:
     name: Validate / Acceptance / Python
@@ -958,6 +1046,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -988,8 +1079,13 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_rust:
     name: Validate / Acceptance / Rust
@@ -1038,6 +1134,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1078,6 +1177,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -1086,6 +1187,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_rust:
     name: Validate / System / Rust
@@ -1134,6 +1238,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1174,6 +1281,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     strategy:
       fail-fast: false
@@ -1182,6 +1291,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_typescript:
     name: Validate / System / TypeScript
@@ -1229,6 +1341,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -1259,8 +1374,13 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: always()
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_rust:
     name: Package / Rust
@@ -1322,6 +1442,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1365,6 +1488,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
@@ -1377,6 +1502,9 @@ jobs:
         - linux
         - windows
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_python:
     name: Package / Python
@@ -1437,6 +1565,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -1470,12 +1601,17 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
       'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
       'refs/heads/release/v'))))
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_dry:
     name: Publish / Dry
@@ -1538,6 +1674,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -1552,10 +1691,15 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: >-
       github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
       startsWith(github.ref, 'refs/heads/release/v'))
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_release:
     name: Publish / Release
@@ -1603,6 +1747,9 @@ jobs:
         cache-targets: false
         cache-bin: false
         save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.16.0
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -1626,6 +1773,8 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
     if: startsWith(github.ref, 'refs/tags/v')
     environment: release
     permissions:
@@ -1633,6 +1782,9 @@ jobs:
       actions: read
       id-token: write
     env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   build_bench:
     name: Build / Bench
