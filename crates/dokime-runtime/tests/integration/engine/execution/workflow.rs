@@ -1797,17 +1797,10 @@ async fn capture_declared_scope() {
 async fn settlement_record_progress() {
     let workflow = workflow();
     let token = "record-progress";
-    let rows = Arc::new(PublishedExecutionRows(
-        std::sync::Mutex::new(Vec::new()),
-        workflow.clone(),
-        std::sync::Mutex::new(captured(execution())),
-    ));
+    let rows =
+        Arc::new(PublishedExecutionRows(std::sync::Mutex::new(Vec::new()), workflow.clone(), std::sync::Mutex::new(captured(execution()))));
     workflow
-        .start_on(
-            start_request(token, serde_json::json!({"samples": 0})),
-            Some(SampleOutput::Embedded(rows)),
-            Caller::default(),
-        )
+        .start_on(start_request(token, serde_json::json!({"samples": 0})), Some(SampleOutput::Embedded(rows)), Caller::default())
         .unwrap();
     let mut cursor = 0;
     loop {
@@ -1839,17 +1832,10 @@ async fn settlement_record_progress() {
 async fn settlement_duplicate_idle() {
     let workflow = workflow();
     let token = "duplicate-idle";
-    let rows = Arc::new(PublishedExecutionRows(
-        std::sync::Mutex::new(Vec::new()),
-        workflow.clone(),
-        std::sync::Mutex::new(captured(execution())),
-    ));
+    let rows =
+        Arc::new(PublishedExecutionRows(std::sync::Mutex::new(Vec::new()), workflow.clone(), std::sync::Mutex::new(captured(execution()))));
     workflow
-        .start_on(
-            start_request(token, serde_json::json!({"samples": 0})),
-            Some(SampleOutput::Embedded(rows)),
-            Caller::default(),
-        )
+        .start_on(start_request(token, serde_json::json!({"samples": 0})), Some(SampleOutput::Embedded(rows)), Caller::default())
         .unwrap();
     let mut cursor = 0;
     loop {
