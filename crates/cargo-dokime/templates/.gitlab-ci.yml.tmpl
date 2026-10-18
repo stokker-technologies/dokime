@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:2107a33449dbf9bfbf21532bfd2a968260f2eac0fc65f431ec6e0b737be0d1be
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:953adc23450f837e64653acb9230779ae57608f4b5d66858ef3d02a1abd025c4
 stages:
 - Check
 - Build
@@ -674,7 +674,7 @@ Build / Dev (windows):
     New-Item -ItemType Directory -Force target/tmp | Out-Null
     $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
     if (!$outputs) { throw 'No build outputs found' }
-    tar -cf "target/tmp/build-dev-windows.tar.zst" --use-compress-program "zstd -T0" -- @outputs
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-dev-windows.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   rules:
   - if: >-
@@ -758,7 +758,7 @@ Build / Release (windows):
     New-Item -ItemType Directory -Force target/tmp | Out-Null
     $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
     if (!$outputs) { throw 'No build outputs found' }
-    tar -cf "target/tmp/build-release-windows.tar.zst" --use-compress-program "zstd -T0" -- @outputs
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-release-windows.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   rules:
   - if: >-
