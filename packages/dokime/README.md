@@ -21,7 +21,7 @@ python -m pip install dokime-0.1.0.tar.gz
 ```
 
 The source package uses Hatchling and requires no Rust compiler or contract
-generation. Runtime dependencies are `grpcio` and `protobuf`; install their
+generation. Runtime dependencies are `grpcio`, `protobuf` and `python-dotenv`; install their
 compatible platform wheels as usual.
 
 ## Named Backend Profiles
@@ -29,7 +29,7 @@ compatible platform wheels as usual.
 Read a saved profile explicitly, supplying its bearer token separately:
 
 ```python
-async with DokimeClient.from_profile("lab", token=token) as client:
+async with DokimeClient.from_profile("lab", key_file="remote.key") as client:
     backend = await client.connect()
 ```
 
@@ -39,7 +39,19 @@ OS configuration location. The Rust CLI manages these profiles through
 `dokime backend add/list/show/use/remove`. Python keeps the selected endpoint,
 CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
-Profiles marked `keyring` require the Python caller to supply a token.
+Profiles marked `keyring` require a key supplied by the Python caller.
+
+Credential precedence is explicit `key_file=`, process `DOKIME_KEY`, then the
+key in an explicitly selected `env_file=`. Selected files are validated before
+any connection, even when a higher-priority source supplies the key. Keys are
+UTF-8 text with 32–4096 visible ASCII characters. Dotenv files are bounded to
+64 KiB, never searched for automatically, and never overwrite process values.
+Constructor arguments read these local files; they open no network channel.
+
+```python
+async with DokimeClient(endpoint, env_file=".env", ca_certificate="server.pem") as client:
+    backend = await client.connect()
+```
 
 ## Creating Cycles
 
@@ -48,7 +60,7 @@ appended. Suites and templates are named by their readable IDs, and appended
 cases continue the cycle's numbering:
 
 ```python
-async with DokimeClient(endpoint, token=token) as client:
+async with DokimeClient(endpoint, key_file="remote.key") as client:
     cycle_id = await client.create_cycle(label="Campaign 1", description="Bench A")
     await client.append_cases(
         cycle_id,
@@ -90,7 +102,7 @@ and telemetry callbacks after its durable outcome:
 ```sh
 python examples/remote_control.py \
   --endpoint https://dokime.example:8765 \
-  --token-file /path/to/token \
+  --key-file /path/to/remote.key \
   --ca-certificate /path/to/ca.pem \
   --execution REGISTERED_EXECUTION_UUID \
   --request-key UNIQUE_REQUEST_KEY
@@ -106,7 +118,7 @@ async def record(item):
 
 async with DokimeClient(
     "https://dokime.example:8765",
-    token=token,
+    key_file="remote.key",
     ca_certificate="/path/to/ca.pem",
 ) as client:
     execution = await client.execution(execution_id)
@@ -137,7 +149,7 @@ owner/operation permission on the server's existing bearer grant; see
 Unlisted plugin operations are denied in both discovery and invocation.
 
 ```python
-async with DokimeClient(endpoint, token=token) as client:
+async with DokimeClient(endpoint, key_file="remote.key") as client:
     providers = await client.operations()
     provider = await client.show("acme.sensor.read", owner="acme.sensor")
     request = provider.operation.request()

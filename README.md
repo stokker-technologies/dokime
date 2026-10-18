@@ -236,7 +236,7 @@ The CLI connects to an existing server. Save and select a backend with:
 ```sh
 dokime backend add lab --endpoint https://dokime.example:8765 --expected-backend BACKEND_ID --ca /path/to/ca.pem --keyring
 dokime backend use lab
-dokime auth login --backend lab --token-file /path/to/token
+dokime auth login --backend lab --key-file /path/to/remote.key
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
@@ -321,8 +321,20 @@ matching default and retains OS credentials. `auth login` negotiates backend
 identity and the operations available to the caller with the supplied bearer, then saves it for
 that endpoint and marks the selected profile for keyring lookup. It refuses a
 profile whose target changed during login. `auth logout` removes the local
-credential; it sends no revocation request. Use `--token-file` on individual
+credential; it sends no revocation request. Use `--key-file` on individual
 commands for headless connections when an OS store is unavailable.
+
+Credential precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
+from an explicitly selected `--env-file`. Dotenv values fill absent process
+variables; they never override them or search parent directories. Selected
+files must be valid UTF-8 regular files, even when another source supplies the
+key. Keys contain 32–4096 visible ASCII characters; dotenv input is bounded to
+64 KiB. Copy [.env.example](.env.example) to the ignored `.env`, replace its
+placeholder and select it explicitly:
+
+```sh
+dokime status --endpoint https://dokime.example:8765 --ca server.pem --env-file .env
+```
 
 `status` and `auth status` perform a bounded live check. JSON distinguishes
 `ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
@@ -358,7 +370,7 @@ fields, duplicate names, unsupported versions, invalid endpoints and dangling
 defaults are refused. Files are limited to 1 MiB and 128 profiles. CLI edits lock
 and atomically replace the file; contention refuses the edit for retry. Tokens
 stay outside JSON. Python reads explicitly named profiles with
-`DokimeClient.from_profile("lab", token=token)`; it uses the same configuration
+`DokimeClient.from_profile("lab", key_file="remote.key")`; it uses the same configuration
 location and accepts an explicit `path` override.
 
 ## Planning And Creating Cycles

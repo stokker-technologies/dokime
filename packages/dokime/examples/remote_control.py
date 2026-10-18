@@ -37,10 +37,10 @@ from dokime.client import DokimeClient, Record, Sample
 
 
 async def run(arguments: argparse.Namespace) -> int:
-    token = arguments.token_file.read_text(encoding="utf-8").strip()
     async with DokimeClient(
         arguments.endpoint,
-        token=token,
+        key_file=arguments.key_file,
+        env_file=arguments.env_file,
         ca_certificate=arguments.ca_certificate,
         rpc_timeout=arguments.rpc_timeout,
     ) as client:
@@ -74,7 +74,8 @@ async def run(arguments: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="Authenticated HTTPS listener")
-    parser.add_argument("--token-file", required=True, type=Path)
+    parser.add_argument("--key-file", type=Path)
+    parser.add_argument("--env-file", type=Path)
     parser.add_argument("--ca-certificate", type=Path)
     parser.add_argument("--execution", required=True, help="Existing planned execution ID")
     parser.add_argument("--request-key", required=True, help="Retain this key for recovery")

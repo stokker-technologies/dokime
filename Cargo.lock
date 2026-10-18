@@ -1939,6 +1939,7 @@ dependencies = [
  "criterion",
  "dokime-client",
  "dokime-domain",
+ "dotenvy",
  "harmos",
  "harmos-packaging",
  "indicatif",

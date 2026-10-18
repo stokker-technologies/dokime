@@ -35,7 +35,7 @@ mod status;
 /* === Enums === */
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(about = "Validate And Save The Bearer From --token-file.")]
+    #[command(about = "Validate And Save The Key From --key-file Or DOKIME_KEY.")]
     Login(login::Args),
     #[command(about = "Check Authentication And Backend Readiness With A Deadline.")]
     Status(status::Args),

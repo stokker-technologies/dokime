@@ -65,7 +65,7 @@ class Transport:
         if token is not None and (not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)):
             raise ValueError("bearer token must contain 32–4096 visible ASCII characters")
         if self._remote and not token:
-            raise ValueError("HTTPS endpoints require a bearer token")
+            raise ValueError("HTTPS endpoints require a remote key supplied by the caller using key_file or DOKIME_KEY")
         if expected_backend_id is not None and (
             not expected_backend_id
             or len(expected_backend_id.encode("utf-8")) > 256

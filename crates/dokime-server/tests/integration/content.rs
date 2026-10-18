@@ -325,7 +325,7 @@ async fn artifact_transfer(message_bytes: usize) {
             "dokime.content.download_artifact",
             "--endpoint",
             &endpoint,
-            "--token-file",
+            "--key-file",
             token_file.to_str().unwrap(),
             "--json",
             cli_request,

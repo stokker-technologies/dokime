@@ -50,7 +50,7 @@ pub(super) async fn run(args: Args) -> crate::Result<()> {
 pub(super) async fn check(connection: crate::connection::Args, json: bool) -> crate::Result<()> {
     let resolved = connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint();
-    let result = connection.connect_selected(&resolved, connection.provided_token()?).await;
+    let result = connection.connect_selected(&resolved, resolved.token.clone()).await;
     match result {
         Ok(client) => {
             let backend = client.backend().clone();

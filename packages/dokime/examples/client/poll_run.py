@@ -75,8 +75,7 @@ async def main() -> None:
     if not math.isfinite(POLL_INTERVAL) or POLL_INTERVAL <= 0:
         raise ValueError("POLL_INTERVAL must be finite and greater than zero")
 
-    token = TOKEN_FILE.read_text(encoding="utf-8").strip() if TOKEN_FILE else None
-    client = DokimeClient(ENDPOINT, token=token, ca_certificate=CA_CERTIFICATE)
+    client = DokimeClient(ENDPOINT, key_file=TOKEN_FILE, ca_certificate=CA_CERTIFICATE)
 
     try:
         cycle = await client.new_cycle(suite=SUITE, template=TEMPLATE, parameters=PARAMETERS)

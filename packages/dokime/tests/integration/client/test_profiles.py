@@ -74,7 +74,9 @@ def test_profile_secret_supplied(tmp_path, monkeypatch):
     monkeypatch.setenv("DOKIME_PROFILES_FILE", str(path))
     with pytest.raises(ValueError, match="supplied by the caller"):
         DokimeClient.from_profile("local")
-    certificate = DokimeClient.from_profile("local", token="x" * 32)._transport._ca
+    key_file = tmp_path / "remote.key"
+    key_file.write_text("x" * 32)
+    certificate = DokimeClient.from_profile("local", key_file=key_file)._transport._ca
     assert certificate is not None
     assert certificate.startswith(b"-----BEGIN CERTIFICATE-----")
 

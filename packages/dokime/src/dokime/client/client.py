@@ -25,6 +25,7 @@ from ..operation import Operation, ResponseStream
 # Local Imports
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
+from .credentials import load_key
 from .errors import ProtocolError, RpcError
 from .execution import Cycle, RunRequest, TestExecutionHandle
 from .execution.request import _identity
@@ -42,7 +43,7 @@ from .models import Backend, Suite, Template, Value
 
 
 class DokimeClient:
-    """One async connection. Construct without IO; close explicitly when done.
+    """One async connection. Read explicit local inputs before any connection.
 
     A client is used on one asyncio loop. Closing it never stops admitted work.
     Local trusted listeners may use HTTP; remote listeners require HTTPS and a
@@ -53,12 +54,14 @@ class DokimeClient:
         self,
         endpoint: str = "http://127.0.0.1:8765",
         *,
-        token: str | None = None,
+        key_file: str | Path | None = None,
+        env_file: str | Path | None = None,
         ca_certificate: str | Path | None = None,
         rpc_timeout: float = 30,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
     ) -> None:
+        token = load_key(key_file=key_file, env_file=env_file)
         self._transport = Transport(
             endpoint,
             token,
@@ -74,22 +77,25 @@ class DokimeClient:
         name: str,
         *,
         path: str | Path | None = None,
-        token: str | None = None,
+        key_file: str | Path | None = None,
+        env_file: str | Path | None = None,
         rpc_timeout: float = 30,
     ) -> Self:
         """Read a named profile once; callers provide secrets separately."""
         from .profiles import load
 
         profile = load(name, path=path)
-        if profile.credential == "keyring" and token is None:
-            raise ValueError("this profile requires a bearer token supplied by the caller")
-        return cls(
+        client = cls(
             profile.endpoint,
-            token=token,
+            key_file=key_file,
+            env_file=env_file,
             rpc_timeout=rpc_timeout,
             expected_backend_id=profile.expected_backend_id,
             ca_certificate_pem=profile.ca_certificate_pem,
         )
+        if profile.credential == "keyring" and not client._transport._metadata:
+            raise ValueError("This profile requires --key-file or DOKIME_KEY supplied by the caller.")
+        return client
 
     async def connect(self) -> Backend:
         """Negotiate API identity and the operations available to the caller (also done lazily)."""

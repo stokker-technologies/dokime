@@ -265,8 +265,7 @@ async fn credentials_precede_operations() {
     assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "http://127.0.0.1", "--timeout-seconds", "0"]).is_err());
     let login = Cli::try_parse_from(["dokime", "auth", "login", "--endpoint", "http://127.0.0.1"]).unwrap();
     assert!(matches!(login.run().await, Err(Error::Input(_))));
-    let logout =
-        Cli::try_parse_from(["dokime", "auth", "logout", "--endpoint", "http://127.0.0.1", "--token-file", "missing-token"]).unwrap();
+    let logout = Cli::try_parse_from(["dokime", "auth", "logout", "--endpoint", "http://127.0.0.1", "--key-file", "missing-key"]).unwrap();
     assert!(matches!(logout.run().await, Err(Error::Input(_))));
     let check = Error::Check(Box::new(Error::Client(dokime_client::Error::IncompatibleApi)));
     assert_eq!(check.exit_code(), std::process::ExitCode::from(1));

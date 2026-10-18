@@ -45,8 +45,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(super) async fn run(args: Args) -> crate::Result<()> {
-    let token = args.connection.provided_token()?.ok_or_else(|| crate::Error::Input("Login requires --token-file".into()))?;
     let resolved = args.connection.resolve()?;
+    let token = resolved.token.clone().ok_or_else(|| crate::Error::Input("Login requires --key-file or DOKIME_KEY.".into()))?;
     let client = args.connection.connect_selected(&resolved, Some(token.clone())).await?;
     let backend = client.backend().clone();
     client.close_and_wait().await;

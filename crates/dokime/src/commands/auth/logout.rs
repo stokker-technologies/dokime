@@ -45,8 +45,8 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(super) async fn run(args: Args) -> crate::Result<()> {
-    if args.connection.has_token_file() {
-        return Err(crate::Error::Input("Logout does not use --token-file".into()));
+    if args.connection.has_key_file() {
+        return Err(crate::Error::Input("Logout does not use --key-file".into()));
     }
     let resolved = args.connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint().to_owned();
