@@ -130,10 +130,7 @@ impl State {
         let result = self.call(move |connection| Ok(write(connection, &root, &history, &prepared))).await?;
 
         if started.elapsed() > std::time::Duration::from_millis(500) {
-            eprintln!(
-                "SQLite write diagnostic: first={first}, rows={count}, encoded={encoded:?}, total={:?}",
-                started.elapsed()
-            );
+            eprintln!("SQLite write diagnostic: first={first}, rows={count}, encoded={encoded:?}, total={:?}", started.elapsed());
         }
         result
     }
