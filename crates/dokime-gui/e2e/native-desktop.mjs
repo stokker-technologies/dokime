@@ -1467,14 +1467,24 @@ async function cycleJourney(session, cycleId) {
   );
   await session.dump(`listening-${cycleId}`, await session.execute("return globalThis.__dokimeStreams"));
 
-  /* Each execution row selects its own evidence directly. */
-  const executionRowsBefore = await session.execute(`
-    const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
-    const terminal = rows.find(row => /Passed|Failed|Blocked/.test(row.innerText));
-    if (!terminal) throw new Error('No execution row has a terminal status');
-    terminal.querySelector('button').click();
-    return { count: rows.length, selectedIndex: rows.indexOf(terminal) };
-  `);
+  /* Each execution row selects its own evidence directly. The prompting case
+     is the one re-run below: its re-run holds at the startup prompt, so it is
+     still running, and its plots still accept settings, however slow the machine. */
+  const executionRowsBefore = await until(
+    "the prompting case's execution to finish",
+    () =>
+      session.execute(
+        `
+        const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
+        const terminal = rows.find(row => row.innerText.includes(arguments[0]) && /Passed|Failed|Blocked/.test(row.innerText));
+        if (!terminal) return null;
+        terminal.querySelector('button').click();
+        return { count: rows.length, selectedIndex: rows.indexOf(terminal) };
+      `,
+        [STARTUP_TEMPLATE],
+      ),
+    60000,
+  );
   const selection = await until(
     "execution selected in the URL",
     async () => {
