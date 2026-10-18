@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:18a1d92b5f3a89d0681e38b8740a7369eaaf5bc4cd5e271ef129f7b8326ce545
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:16a3c8aee6afbf055f316c02955e691d8160b7d6079aa30c0b96452eefaeb22c
 name: CI
 "on":
   push:
@@ -759,7 +759,7 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
   publish_release:
     name: Publish / Release
     runs-on:
@@ -823,7 +823,7 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
   validate_coverage:
     name: Validate / Coverage
     runs-on:

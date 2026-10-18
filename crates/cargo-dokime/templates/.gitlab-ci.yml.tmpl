@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:953adc23450f837e64653acb9230779ae57608f4b5d66858ef3d02a1abd025c4
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:ec63c64ee194f8b7b4dbe66f5a55ca41e84b64b8f6ff428d55864ffcc28a0aa0
 stages:
 - Check
 - Build
@@ -1108,7 +1108,7 @@ Publish / Dry:
     - .cache/cargo/git/
     policy: pull
   variables:
-    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+    MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
 Publish / Release:
   stage: Publish
   tags: []
@@ -1141,7 +1141,7 @@ Publish / Release:
     - .cache/cargo/git/
     policy: pull
   variables:
-    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+    MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
 Validate / Coverage:
   stage: Validate
   tags: []
@@ -1201,4 +1201,4 @@ Publish / Prepare:
     - .cache/cargo/git/
     policy: pull
   variables:
-    MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+    MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab

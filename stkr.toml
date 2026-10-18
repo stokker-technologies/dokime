@@ -69,10 +69,6 @@ step_timeout_seconds = 900
 
 # === Conventions === #
 
-[conventions.testing]
-# The successful pool-refusal acceptance story took 465 s on Windows; keep headroom without extending guards for the diagnosed hangs.
-deadlines = { unit = 10, integration = 120, acceptance = 900, system = 900 }
-
 [conventions.testing.limits]
 unit = 512
 integration = 256

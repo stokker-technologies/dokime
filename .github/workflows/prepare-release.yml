@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:729e9275a0f3f6496ca449a3a3d9176b8d6ec1dd2c0f6d149254bf9ee1b601d4
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:e67a91325a5b5cec1adafad2b261742c77a8d0cbcbbcc4e2deb841e81ce3b21f
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -59,3 +59,5 @@ jobs:
     - run: mise run release:prepare
     - run: "git -c user.name=\"${{ github.actor }}\" -c user.email=\"${{ github.actor }}@users.noreply.github.com\" commit -am \"chore: prepare release v${{ inputs.version }}\""
     - run: git push origin "release/v${{ inputs.version }}"
+    env:
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab

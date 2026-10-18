@@ -327,7 +327,6 @@ fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, Stri
                 break;
             }
         }
-        eprintln!("install PTY: answered {answered} cursor queries; drained {} bytes", output.len());
         Ok(output)
     });
 
