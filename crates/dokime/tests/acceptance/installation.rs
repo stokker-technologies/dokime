@@ -85,7 +85,8 @@ fn refused(output: std::process::Output) -> String {
 // the server beside the CLI answers its identity through serve.
 
 fn server_beside_cli() {
-    let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
+    let cli = cli_executable();
+    let cli = Path::new(&cli);
     let installed = installation(&[cli, &server()]);
 
     let output = dokime(installed.path()).args(["serve", "--", "version", "--json"]).output().unwrap();
@@ -98,7 +99,8 @@ fn server_beside_cli() {
 // DOKIME_HOME supplies the server when none is installed beside the CLI.
 
 fn home_supplies_server() {
-    let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
+    let cli = cli_executable();
+    let cli = Path::new(&cli);
     let installed = installation(&[cli]);
     let home = installation(&[&server()]);
 
@@ -109,7 +111,8 @@ fn home_supplies_server() {
 // a missing program names the installer and the explicit overrides.
 
 fn missing_programs_refused() {
-    let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
+    let cli = cli_executable();
+    let cli = Path::new(&cli);
     let installed = installation(&[cli]);
 
     let refusal = refused(dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT]).output().unwrap());
@@ -126,7 +129,8 @@ fn missing_programs_refused() {
 
 #[cfg(unix)]
 fn gui_receives_endpoint() {
-    let cli = Path::new(env!("CARGO_BIN_EXE_dokime"));
+    let cli = cli_executable();
+    let cli = Path::new(&cli);
     let installed = installation(&[cli]);
     let arguments = installed.path().join("arguments");
 
@@ -163,4 +167,9 @@ fn installation_contract() {
         eprintln!("Scenario: gui_receives_endpoint");
         gui_receives_endpoint();
     }
+}
+
+/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+fn cli_executable() -> String {
+    std::env::var("NEXTEST_BIN_EXE_dokime").unwrap_or_else(|_| env!("CARGO_BIN_EXE_dokime").to_owned())
 }

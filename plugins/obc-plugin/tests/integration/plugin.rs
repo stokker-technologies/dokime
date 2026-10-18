@@ -24,7 +24,6 @@
 use obc_plugin::ObcPlugin;
 
 /* === Constants === */
-const EXECUTABLE: &str = env!("CARGO_BIN_EXE_obc-plugin");
 
 /* === Macros === */
 
@@ -61,7 +60,7 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
-    let declared = dokime_runtime::__harmos::sidecar::Executable::at(EXECUTABLE)
+    let declared = dokime_runtime::__harmos::sidecar::Executable::at(executable())
         .expect("the obc-plugin executable declares itself")
         .declaration()
         .clone();
@@ -111,4 +110,9 @@ fn executable_declares_routes() {
         ]
     );
     assert_eq!("obc-plugin", declared.id);
+}
+
+/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+fn executable() -> String {
+    std::env::var("NEXTEST_BIN_EXE_obc-plugin").unwrap_or_else(|_| env!("CARGO_BIN_EXE_obc-plugin").to_owned())
 }

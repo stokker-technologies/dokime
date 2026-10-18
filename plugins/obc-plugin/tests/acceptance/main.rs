@@ -38,7 +38,6 @@ use harmos::plugin::{
 use obc_plugin::ObcPlugin;
 
 /* === Constants === */
-const EXECUTABLE: &str = env!("CARGO_BIN_EXE_obc-plugin");
 
 /* === Macros === */
 
@@ -380,7 +379,7 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(EXECUTABLE).expect("OBC executable has a valid declaration");
+            let executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
             let resident = Resident::new(executable, handler);
             let _ = self.hosting.resident.set(resident.clone());
             let _ = self.hosting.operations.set(self.operations.clone());
@@ -506,7 +505,7 @@ impl PluginLifecycle for Host {
 
 impl Bench {
     async fn new() -> Self {
-        let path = std::path::PathBuf::from(EXECUTABLE);
+        let path = std::path::PathBuf::from(executable());
         let bytes = std::fs::read(&path).unwrap();
         let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
         let configuration = serde_json::to_vec(&dokime_runtime::plugin::Configuration::declared::<obc_plugin::BenchSettings>()).unwrap();
@@ -776,4 +775,9 @@ async fn samples_keep_context() {
         assert_eq!(indices, &(0..indices.len() as i64).collect::<Vec<_>>());
     }
     bench.runtime.stop().await.unwrap();
+}
+
+/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+fn executable() -> String {
+    std::env::var("NEXTEST_BIN_EXE_obc-plugin").unwrap_or_else(|_| env!("CARGO_BIN_EXE_obc-plugin").to_owned())
 }

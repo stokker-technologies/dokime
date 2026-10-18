@@ -279,7 +279,7 @@ fn review_bundle(schema: u32) -> Bundle {
 fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, String> {
     let pair =
         native_pty_system().openpty(PtySize { rows: 24, cols: 120, pixel_width: 0, pixel_height: 0 }).map_err(|error| error.to_string())?;
-    let mut command = CommandBuilder::new(env!("CARGO_BIN_EXE_dokime"));
+    let mut command = CommandBuilder::new(cli_executable());
     command.args(["--color", "never", "plugin", "install"]);
     command.arg(bundle);
     command.args(["--endpoint", endpoint]);
@@ -425,3 +425,8 @@ async fn refusal_never_retries() {
 }
 
 /* === Tests === */
+
+/// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+fn cli_executable() -> String {
+    std::env::var("NEXTEST_BIN_EXE_dokime").unwrap_or_else(|_| env!("CARGO_BIN_EXE_dokime").to_owned())
+}
