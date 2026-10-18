@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -16,12 +15,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::plugin::testing::Harness;
 
 // Local Imports
-use dokime::host::ToolConnectionAcquired;
-use dokime::plugin::testing::Harness;
 use {{crate}}::bench::Sensor;
-use {{crate}}::operations::chamber::{ChamberReading, ReadChamber};
+use {{crate}}::domain::model::chamber::ChamberReading;
+use {{crate}}::domain::operations::ReadChamber;
 
 /* === Constants === */
 
@@ -40,9 +40,9 @@ use {{crate}}::operations::chamber::{ChamberReading, ReadChamber};
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn chamber() -> impl Fn(()) -> ChamberReading + Send + Sync + 'static {
+fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
-    move |()| ChamberReading {
+    move |_| ChamberReading {
         celsius: sensor.read_celsius().expect("the simulated sensor reads"),
         sensor: sensor.describe(),
     }
@@ -126,8 +126,8 @@ async fn unreachable_target_run() {
 /* === Tests === */
 #[test]
 fn soak_document_wraps() {
-    use dokime::definition::DeclaredTemplate;
-    use dokime::document::{DocumentCardBody, DocumentNode};
+    use dokime_runtime::definition::DeclaredTemplate;
+    use dokime_runtime::document::{DocumentCardBody, DocumentNode};
 
     let declaration = <{{crate}}::suites::soak::Hold as DeclaredTemplate>::declaration();
     let document = declaration

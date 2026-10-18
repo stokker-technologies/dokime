@@ -7,148 +7,142 @@
  * ***
  */
 
-/* The console's live tail.
+/* Streams the console's records into the session-scoped buffer store.
  *
- * One subscription, opened when the drawer is open and closed the moment it is
- * not: a console nobody is reading must not hold a stream. The scope is the
- * route's — the cycle, and the attempt when the operator picked one — so the
- * rows always belong to what is on screen.
+ * The hook owns the subscription, never the rows: a route change that moves
+ * the drawer to another scope only swaps which buffer it reads and resumes,
+ * and closing the drawer stops the stream without forgetting what it showed.
  */
 
 /* === External Imports === */
-
-import { useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
+import { useStore } from "zustand";
 
 /* === Local Imports === */
-
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
-import { openNativeRecordStream } from "@/lib/api/native-evidence";
-import {
-  type InstanceLogLevel,
-  instanceLogRecord,
-  instanceLogsSupported,
-  openInstanceLogStream,
-} from "@/lib/api/native-logs";
-import type { HubRecord } from "@/lib/types";
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
+import { consoleBufferKey, consoleRecordsStore, type ConsoleRecords, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
 /* === Constants === */
 
-/** The tail the drawer keeps in memory; older rows leave the window. */
-const RETAINED_RECORDS = 5_000;
-
-const NO_RECORDS: HubRecord[] = [];
-
 /* === Hooks === */
-
 export function useConsoleRecords({
   cycleId,
   enabled,
   executionId,
+  level,
 }: {
   cycleId: string | null;
   enabled: boolean;
   executionId: string | null;
-}): HubRecord[] {
+  level: TraceLevel;
+}): ConsoleRecords {
   const session = useNativeSessionOptional();
-  const [records, setRecords] = useState<HubRecord[]>(NO_RECORDS);
+  const generation = session?.identity.generation ?? null;
+  const key = consoleBufferKey({ cycleId, executionId, level });
+  const buffer = useStore(consoleRecordsStore, (state) => state.buffers.get(key) ?? EMPTY_CONSOLE_BUFFER);
 
   useEffect(() => {
-    setRecords(NO_RECORDS);
-    if (!enabled || !session || !cycleId) return undefined;
+    consoleRecordsStore.getState().bindSession(generation);
+  }, [generation]);
 
+  useEffect(() => {
+    if (!enabled || !session) return undefined;
+    const store = consoleRecordsStore.getState;
+    store().bindSession(session.identity.generation);
+    const held = store().buffers.get(key) ?? EMPTY_CONSOLE_BUFFER;
     let active = true;
     let retry: number | undefined;
-    let stream: Awaited<ReturnType<typeof openNativeRecordStream>> | undefined;
+    let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
+    let afterSequence = held.afterSequence;
+    let epoch = held.epoch;
+    let reconnectDelay = 1_000;
+    let priorDropped = held.dropped;
+    let streamDropped = 0n;
 
     const connect = async () => {
       if (!active || !session.identity.isCurrent()) return;
+      let reconnect = true;
       try {
-        stream = await openNativeRecordStream(
-          { ...session.identity, own: session.own },
-          { test_cycle_id: cycleId, test_execution_id: executionId },
-        );
-        for await (const page of stream) {
-          if (!active || !session.identity.isCurrent()) break;
-          if (page.length === 0) continue;
-          setRecords((current) => [...current, ...page].slice(-RETAINED_RECORDS));
+        const opened = await openTraceStream(session.identity, {
+          cycleId,
+          executionId,
+          minLevel: level,
+          afterSequence,
+          epoch,
+        });
+        stream = opened;
+        if (!active || !session.identity.isCurrent()) {
+          await opened.cancel();
+          return;
         }
-      } catch {
-        /* A dropped subscription is not the operator's problem: reconnect. */
+        priorDropped += streamDropped;
+        streamDropped = 0n;
+        for await (const page of opened) {
+          if (!active || !session.identity.isCurrent()) break;
+          afterSequence = page.nextSequence;
+          epoch = page.epoch;
+          streamDropped = page.dropped;
+          reconnectDelay = 1_000;
+          store().receive(key, page, priorDropped + streamDropped);
+        }
+        if (active) store().setError(key, "Trace stream ended; reconnecting.");
+      } catch (failure) {
+        if (!active || !session.identity.isCurrent()) return;
+        const code = grpcCode(failure);
+        if (code === 11) {
+          afterSequence = 0n;
+          epoch = undefined;
+          priorDropped = 0n;
+          streamDropped = 0n;
+          store().rewind(key);
+          store().setError(key, "Trace history expired; replaying retained events.");
+        } else if (code === 12 || unavailable(failure)) {
+          reconnect = false;
+          store().setError(key, "Tracing is not available for this connection.");
+        } else if (code === 3 || code === 7 || code === 16 || code === 8) {
+          reconnect = false;
+          store().setError(key, "Trace subscription was refused by the backend.");
+        } else {
+          store().setError(key, "Trace stream unavailable; reconnecting.");
+        }
       } finally {
+        const closing = stream;
         stream = undefined;
-        if (active && session.identity.isCurrent()) {
-          retry = window.setTimeout(() => void connect(), 1_000);
+        await closing?.cancel().catch(() => undefined);
+        if (reconnect && active && session.identity.isCurrent()) {
+          retry = window.setTimeout(() => void connect(), reconnectDelay);
+          reconnectDelay = Math.min(30_000, reconnectDelay * 2);
         }
       }
     };
-
     void connect();
-
     return () => {
       active = false;
       if (retry !== undefined) window.clearTimeout(retry);
       void stream?.cancel().catch(() => undefined);
     };
-  }, [cycleId, enabled, executionId, session]);
+  }, [cycleId, enabled, executionId, key, level, session]);
 
-  return records;
+  const clear = useCallback(() => consoleRecordsStore.getState().clear(key), [key]);
+
+  return { clear, dropped: buffer.dropped, error: buffer.error, records: buffer.records };
 }
 
-/**
- * The backend's own log, as console rows.
- *
- * The level is part of the subscription, not a filter over it, so changing it
- * re-opens the stream; `dropped` is carried out rather than swallowed so the
- * drawer can say how much of the tail it never saw.
- */
-export function useInstanceLogs({
-  enabled,
-  level,
-}: {
-  enabled: boolean;
-  level: InstanceLogLevel;
-}): { dropped: number; records: HubRecord[]; supported: boolean } {
-  const session = useNativeSessionOptional();
-  const [records, setRecords] = useState<HubRecord[]>(NO_RECORDS);
-  const [dropped, setDropped] = useState(0);
-  const supported = instanceLogsSupported();
+/* === Private Functions === */
+function grpcCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) return undefined;
+  const detail = error.detail;
+  return detail && typeof detail === "object" && "code" in detail && typeof detail.code === "number" ? detail.code : undefined;
+}
 
-  useEffect(() => {
-    if (!enabled || !supported || !session) {
-      setRecords(NO_RECORDS);
-      setDropped(0);
-      return undefined;
-    }
-    let cancelled = false;
-    let sequence = 0;
-    let close: (() => Promise<void>) | null = null;
-    setRecords(NO_RECORDS);
-    setDropped(0);
-    void (async () => {
-      try {
-        const stream = await openInstanceLogStream(session.identity, { minLevel: level });
-        close = stream.cancel;
-        if (cancelled) {
-          await stream.cancel().catch(() => undefined);
-          return;
-        }
-        for await (const frame of stream) {
-          if (cancelled) return;
-          // `dropped` is cumulative, so it is the count and not an increment.
-          setDropped(frame.dropped);
-          const record = instanceLogRecord(frame, sequence++);
-          setRecords((current) => [...current, record].slice(-RETAINED_RECORDS));
-        }
-      } catch {
-        // An unavailable capability is reported by `supported`, not by a throw
-        // the drawer would have to render as an error over an empty list.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      void close?.().catch(() => undefined);
-    };
-  }, [enabled, level, session, supported]);
-
-  return { dropped, records, supported };
+function unavailable(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "session" || !("detail" in error)) return false;
+  const detail = error.detail;
+  return (
+    !!detail &&
+    typeof detail === "object" &&
+    "kind" in detail &&
+    (detail.kind === "permission_denied" || detail.kind === "unauthenticated" || detail.kind === "authentication_required")
+  );
 }

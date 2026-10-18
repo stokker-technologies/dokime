@@ -38,8 +38,7 @@ use crate::{Error, Result};
 
 /* === Public Functions === */
 pub fn run_bounded(command: Command, timeout: Duration) -> Result<String> {
-    let output = crate::collectors::run_command_bounded(command, timeout)
-        .map_err(|error| Error::Command(error.to_string()))?;
+    let output = crate::collectors::run_command_bounded(command, timeout).map_err(|error| Error::Command(error.to_string()))?;
     text_output(output)
 }
 
@@ -50,11 +49,7 @@ fn text_output(output: Output) -> Result<String> {
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-    Err(Error::Command(if stderr.is_empty() {
-        format!("command exited with status {}", output.status)
-    } else {
-        stderr
-    }))
+    Err(Error::Command(if stderr.is_empty() { format!("command exited with status {}", output.status) } else { stderr }))
 }
 
 /* === Tests === */

@@ -13,15 +13,10 @@
 /* === Types === */
 
 /** Attaching to a caller-owned listener never starts a runtime. */
-export type ConnectionTarget =
-  | { kind: "local"; endpoint: string }
-  | { kind: "remote"; endpoint: string; caCertificatePem: string | null };
+export type ConnectionTarget = { kind: "local"; endpoint: string } | { kind: "remote"; endpoint: string; caCertificatePem: string | null };
 
 /** Input-only credentials. Secrets never appear in a connection snapshot. */
-export type ConnectionCredentials =
-  | { kind: "none" }
-  | { kind: "saved" }
-  | { kind: "bearer"; token: string; remember: boolean };
+export type ConnectionCredentials = { kind: "none" } | { kind: "saved" } | { kind: "bearer"; token: string; remember: boolean };
 
 export type ConnectRequest = {
   target: ConnectionTarget;
@@ -81,3 +76,16 @@ export type ConnectionError =
   | { kind: "superseded" }
   | { kind: "not_connected" }
   | { kind: "generation_exhausted" };
+
+/** Secret-Free Shared Profile Document. */
+export type BackendProfiles = {
+  version: 1;
+  default: string | null;
+  profiles: {
+    name: string;
+    endpoint: string;
+    expected_backend_id: string | null;
+    ca_certificate_pem: string | null;
+    credential: "none" | "keyring";
+  }[];
+};

@@ -27,9 +27,7 @@ function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>)
 const DialogTrigger = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Trigger>
->(({ ...props }, ref) => (
-  <DialogPrimitive.Trigger data-slot="dialog-trigger" ref={ref} {...props} />
-));
+>(({ ...props }, ref) => <DialogPrimitive.Trigger data-slot="dialog-trigger" ref={ref} {...props} />);
 
 DialogTrigger.displayName = DialogPrimitive.Trigger.displayName;
 
@@ -44,10 +42,7 @@ const DialogClose = React.forwardRef<
 
 DialogClose.displayName = DialogPrimitive.Close.displayName;
 
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
@@ -94,9 +89,7 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />
-  );
+  return <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />;
 }
 
 function DialogFooter({
@@ -110,10 +103,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
-        className,
-      )}
+      className={cn("-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end", className)}
       {...props}
     >
       {children}
@@ -136,17 +126,11 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   );
 }
 
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn(
-        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className,
-      )}
+      className={cn("text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground", className)}
       {...props}
     />
   );

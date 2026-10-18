@@ -15,101 +15,65 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-[features]
-default = ["native", "derive"]
-native = ["harmos/sidecar", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber"]
-# The authoring attributes, the way serde ships its derives. Traits are the API
-# and the attributes are the derive path, so a plugin that writes `impl
-# dokime::Observer` by hand compiles without them.
-derive = ["dep:dokime-macros"]
-
-client = [
-  "harmos/grpc",
-  "dep:base64",
-  "dep:dokime-filesystem",
-  "dep:sha2",
-  "dep:tokio-stream",
-  "dep:dokime-protocol",
-  "dep:rustls",
-  "dep:tokio",
-  "dep:tokio-util",
-  "dep:tonic",
-  "dep:url",
-  "dep:zeroize",
-]
-
-storage = [
-  "dep:base64",
-  "dep:dokime-filesystem",
-  "dep:futures-util",
-  "dep:rusqlite",
-  "dep:sha2",
-  "dep:tempfile",
-  "dep:tokio",
-  "dep:uuid",
-]
-
 [dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract" }
-dokime-filesystem = { path = "../dokime-filesystem", optional = true }
-dokime-macros = { path = "../dokime-macros", optional = true }
-dokime-protocol = { path = "../dokime-protocol", optional = true }
+dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
+dokime-client = { path = "../dokime-client" }
 
 # Git
-harmos = { workspace = true, features = ["runtime", "derive", "artifact"] }
+harmos = { workspace = true, features = ["plugin"] }
+harmos-packaging = { workspace = true }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
-tracing-error = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true, default-features = true, optional = true }
+tracing = { workspace = true }
 
 # Utilities
-sha2 = { workspace = true, default-features = true, optional = true }
-time = { workspace = true, default-features = true }
-uuid = { workspace = true, default-features = true, optional = true }
-zeroize = { workspace = true, default-features = true, optional = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
 
 # Serialization
-base64 = { workspace = true, default-features = true, optional = true }
-prost = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true, features = ["float_roundtrip"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true, optional = true }
+tempfile = { workspace = true }
 
 # Async
-futures-util = { workspace = true, default-features = true, optional = true }
-tokio = { workspace = true, default-features = true, optional = true }
-tokio-stream = { workspace = true, default-features = true, features = ["sync"], optional = true }
-tokio-util = { workspace = true, default-features = true, features = ["rt"], optional = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
 
-# Networking
-rustls = { workspace = true, features = ["ring", "std"], optional = true }
-tonic = { workspace = true, features = [
-  "channel",
-  "tls-ring",
-  "tls-native-roots",
-], optional = true }
-url = { workspace = true, default-features = true, optional = true }
+# UI
+anstream = { workspace = true }
+anstyle = { workspace = true }
+indicatif = { workspace = true }
 
-# Storage
-rusqlite = { workspace = true, optional = true }
+[[bin]]
+name = "dokime"
+path = "src/main.rs"
+doc = false
 
 [dev-dependencies]
 # Git
-harmos = { workspace = true, features = ["sidecar-host"] }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
 
-# Serialization
-arrow-schema = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+# Networking
+tonic = { workspace = true }
+
+# Utilities
+time = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 
-# Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
+# Testing
+criterion = { workspace = true }
+
+# UI
+portable-pty = { workspace = true }

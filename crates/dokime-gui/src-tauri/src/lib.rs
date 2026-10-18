@@ -28,6 +28,7 @@ pub use error::Error;
 // Local Imports
 
 /* === Constants === */
+pub const PRODUCT: &str = env!("DOKIME_BRAND_LABEL");
 
 /* === Macros === */
 

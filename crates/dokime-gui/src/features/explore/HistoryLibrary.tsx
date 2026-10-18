@@ -9,36 +9,28 @@
 
 /* === External Imports === */
 
-import { Cloud, Database, GitCompare, HardDrive, Search } from "lucide-react";
+import { ArchiveRestore, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { useMemo } from "react";
 
 /* === Local Imports === */
 
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  type ExploreEntry,
-  type ExploreSource,
-  type ExploreTarget,
-  exploreEntryKey,
-} from "@/features/explore/explore-contracts";
+import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
 
 type HistoryLibraryProps = {
+  /** The Archived view: archived rows only, each with Unarchive. */
+  archived: boolean;
   cycles: ExploreEntry[];
   loading: boolean;
   onCompare: () => void;
+  onToggleArchived: () => void;
+  onUnarchive: (entry: ExploreEntry) => void;
   onOpenEntry: (target: ExploreTarget) => void;
   onQueryChange: (query: string) => void;
   onToggleSelected: (entryKey: string) => void;
@@ -47,6 +39,46 @@ type HistoryLibraryProps = {
   selectedIds: Set<string>;
 };
 
+/* === Constants === */
+
+const column = dataTableColumns<ExploreEntry>();
+
+const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
+  column.accessor("title", {
+    cell: ({ row }) => <EntryTitle entry={row.original} />,
+    header: "Execution / Cycle",
+    meta: { label: "Execution / Cycle", primary: true },
+  }),
+  column.accessor("failed_count", {
+    cell: ({ row }) => <ResultPills failed={row.original.failed_count} passed={row.original.passed_count} />,
+    header: "Result",
+    meta: { label: "Result", width: "w-36" },
+  }),
+  column.accessor("lifecycle", {
+    cell: ({ row }) => <span className="text-sm capitalize">{row.original.lifecycle}</span>,
+    header: "Lifecycle",
+    meta: { filter: "facet", label: "Lifecycle", width: "w-32" },
+  }),
+  column.accessor((entry) => entry.owner ?? undefined, {
+    cell: ({ row }) => <span className="text-sm">{row.original.owner ?? "—"}</span>,
+    header: "Owner",
+    id: "owner",
+    meta: { filter: "facet", label: "Owner", truncate: true, width: "w-32" },
+  }),
+  column.accessor((entry) => entry.source.label, {
+    cell: ({ row }) => <SourceBadge source={row.original.source} />,
+    header: "Source",
+    id: "source",
+    meta: { filter: "facet", label: "Source", width: "w-36" },
+  }),
+  column.accessor((entry) => Date.parse(entry.updated_at) || undefined, {
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updated_at)}</span>,
+    header: "Updated",
+    id: "updated",
+    meta: { align: "end", label: "Updated", width: "w-28" },
+  }),
+]);
+
 /* === Private Functions === */
 
 function formatDate(iso: string): string {
@@ -54,12 +86,19 @@ function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
 }
 
+function entryKey(entry: ExploreEntry): string {
+  return exploreEntryKey(entry.target);
+}
+
 /* === Components === */
 
 export function HistoryLibrary({
+  archived,
   cycles,
   loading,
   onCompare,
+  onToggleArchived,
+  onUnarchive,
   onOpenEntry,
   onQueryChange,
   onToggleSelected,
@@ -68,112 +107,103 @@ export function HistoryLibrary({
 }: HistoryLibraryProps) {
   /* No client-side narrowing: `filter.text` is matched server-side against an
      entry's title, its execution identifier and its suite label, so the rows
-     that arrived are the rows that matched. */
-  const filtered = cycles;
+     that arrived are the rows that matched. The table only renders the box. */
+  const search = useMemo(() => ({ label: "Filter Executions", onChange: onQueryChange, value: query }), [onQueryChange, query]);
+  const selection = useMemo<DataTableSelection<ExploreEntry>>(
+    () => ({
+      isSelected: (entry) => selectedIds.has(entryKey(entry)),
+      label: (entry) => `Select ${entry.title} for comparison`,
+      onToggle: (entry) => onToggleSelected(entryKey(entry)),
+    }),
+    [onToggleSelected, selectedIds],
+  );
+
+  const columns = useMemo(
+    () =>
+      archived
+        ? column.columns([
+            ...COLUMNS,
+            column.display({
+              cell: ({ row }) => (
+                <Button
+                  className="h-[var(--control-height)]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onUnarchive(row.original);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArchiveRestore data-icon="inline-start" />
+                  Unarchive
+                </Button>
+              ),
+              header: "",
+              id: "unarchive",
+              meta: { align: "end", label: "Unarchive", width: "w-36" },
+            }),
+          ])
+        : COLUMNS,
+    [archived, onUnarchive],
+  );
+
+  /* The view toggle sits on the toolbar beside Compare: pressed, the table
+     lists only what was archived. */
+  const toggle = (
+    <Button
+      aria-pressed={archived}
+      className="h-[var(--control-height)]"
+      onClick={onToggleArchived}
+      size="sm"
+      type="button"
+      variant={archived ? "secondary" : "outline"}
+    >
+      Archived
+    </Button>
+  );
+
+  const compare = (
+    <Button
+      className="h-[var(--control-height)]"
+      disabled={selectedIds.size < 2}
+      onClick={onCompare}
+      size="sm"
+      title={selectedIds.size < 2 ? "Select at least two entries to compare" : undefined}
+    >
+      <GitCompare />
+      {selectedIds.size < 2 ? `Compare (Select ${2 - selectedIds.size} More)` : `Compare Selected (${selectedIds.size})`}
+    </Button>
+  );
 
   return (
-    <div className="grid content-start">
-      {/* One grid, one row: the search measure flexes and Compare keeps its
-          intrinsic column so they stay on one baseline. The old All/Storage
-          control is gone — `ExecutionFilter` carries no source or
-          availability field, and every merged entry reports the one Storage
-          source, so it offered a single option and selected nothing. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--shell-gap)] border-b px-[var(--shell-inset)] py-[var(--shell-gap)]">
-        <div className="relative min-w-48">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Filter Executions"
-            className="h-[var(--control-height)] pl-8"
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Filter Executions"
-            value={query}
-          />
-        </div>
-        <Button
-          className="h-[var(--control-height)]"
-          disabled={selectedIds.size < 2}
-          onClick={onCompare}
-          size="sm"
-          title={selectedIds.size < 2 ? "Select at least two entries to compare" : undefined}
-        >
-          <GitCompare />
-          {selectedIds.size < 2
-            ? `Compare (Select ${2 - selectedIds.size} More)`
-            : `Compare Selected (${selectedIds.size})`}
-        </Button>
-      </div>
+    <DataTable
+      actions={
+        <>
+          {toggle}
+          {compare}
+        </>
+      }
+      columns={columns}
+      data={cycles}
+      emptyText={loading ? "Loading history…" : archived ? "No archived history." : "No history matches."}
+      getRowId={entryKey}
+      onRowClick={(entry) => onOpenEntry(entry.target)}
+      search={search}
+      selection={selection}
+    />
+  );
+}
 
-      <div>
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow>
-              <TableHead className="w-10" />
-              <TableHead>Execution / Cycle</TableHead>
-              <TableHead>Result</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead className="text-right">Updated</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((cycle) => {
-              const selected = selectedIds.has(exploreEntryKey(cycle.target));
-              return (
-                <TableRow
-                  className="cursor-pointer"
-                  data-state={selected ? "selected" : undefined}
-                  key={exploreEntryKey(cycle.target)}
-                  onClick={() => onOpenEntry(cycle.target)}
-                >
-                  <TableCell
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleSelected(exploreEntryKey(cycle.target));
-                    }}
-                  >
-                    <Checkbox
-                      aria-label={`Select ${cycle.title} for comparison`}
-                      checked={selected}
-                      onClick={(event) => event.stopPropagation()}
-                      onCheckedChange={() => onToggleSelected(exploreEntryKey(cycle.target))}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{cycle.title}</div>
-                    {cycle.target.kind === "execution" ? (
-                      <Badge variant="outline">Standalone execution</Badge>
-                    ) : null}
-                    {cycle.lifecycle !== "completed" ? (
-                      <Badge variant="outline">{cycle.lifecycle}</Badge>
-                    ) : null}
-                    {/* Secondary detail only when it adds information: the
-                        raw id here simply repeated the title. */}
-                    {cycle.suite_name ? (
-                      <div className="text-xs text-muted-foreground">{cycle.suite_name}</div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <ResultPills failed={cycle.failed_count} passed={cycle.passed_count} />
-                  </TableCell>
-                  <TableCell className="text-sm">{cycle.owner ?? "—"}</TableCell>
-                  <TableCell>
-                    <SourceBadge source={cycle.source} />
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-muted-foreground">
-                    {formatDate(cycle.updated_at)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        {filtered.length === 0 ? (
-          <p className="p-6 text-center text-sm text-muted-foreground">
-            {loading ? "Loading history…" : "No history matches."}
-          </p>
-        ) : null}
-      </div>
-    </div>
+/* === Private Components === */
+
+/** One line: the title, then its qualifier. */
+function EntryTitle({ entry }: { entry: ExploreEntry }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate">{entry.title}</span>
+      {entry.target.kind === "execution" ? <Badge variant="outline">Standalone Execution</Badge> : null}
+    </span>
   );
 }
 
@@ -181,9 +211,7 @@ function ResultPills({ failed, passed }: { failed: number; passed: number }) {
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium">
       <span className="text-success">{passed} passed</span>
-      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>
-        {failed} failed
-      </span>
+      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} failed</span>
     </div>
   );
 }

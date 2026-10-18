@@ -28,24 +28,22 @@
 /* === External Imports === */
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  History as HistoryIcon,
-  Library,
-  ListChecks,
-  type LucideIcon,
-  Settings,
-} from "lucide-react";
+import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
 
 /* === Local Imports === */
 
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
 import { useCycleDetailQuery } from "@/features/cycle/cycle-queries";
+import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
+import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
-import { useBrand } from "@/lib/brand";
+import { recordLevelVariant } from "@/lib/record-display";
 import { cn } from "@/lib/utils";
-import { BrandMark } from "@/shell/BrandMark";
+import { SidebarFrame } from "./SidebarFrame";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
@@ -55,10 +53,10 @@ import { useSidebarState } from "@/shell/use-sidebar-state";
 export type SidebarProps =
   | { live?: true }
   | {
-      caseId: string | undefined;
+      selection: { caseId?: string; executionId?: string };
       cycleId: string;
       live: false;
-      onSelectCase: (caseId: string | undefined) => void;
+      onSelect: (selection: { caseId?: string; executionId?: string }) => void;
     };
 
 type Destination = {
@@ -83,54 +81,16 @@ const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
 /* === Components === */
 
 export function Sidebar(props: SidebarProps) {
-  const { label } = useBrand();
-  const { collapsed, width } = useSidebarState();
-  const frozen = props.live === false ? props : null;
-
   return (
-    <nav
-      aria-label="Navigation"
-      className="grid min-h-0 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-r bg-card"
-      data-collapsed={collapsed || undefined}
-      style={{ width }}
-    >
-      {/* The mark and the product name, once, as one centred block at the top
-          of the one sidebar.
-          The block is the page bar's height plus the air the mark asks for
-          (24px above and below, 32px at touch), so its rule sits below the
-          page bar's rather than on it. The two bands are deliberately not one
-          line here: a mark crowded against a 48px bar reads as a toolbar icon,
-          and the sidebar's own rule is what the destination rows align to.
-          The height is fixed, so the first destination starts on the same y
-          whether the rail is open or collapsed. */}
-      <div
-        className="grid place-items-center border-b px-[var(--shell-gap)]"
-        style={{
-          minHeight:
-            "calc(var(--page-bar-height) + 2 * var(--sidebar-brand-pad, 1.5rem) - 2 * var(--bar-pad-y))",
-        }}
-      >
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <BrandMark />
-          {collapsed ? null : (
-            <span className="truncate font-heading font-semibold tracking-wide">{label}</span>
-          )}
-        </div>
-      </div>
-
-      {frozen ? (
+    <SidebarFrame>
+      {props.live === false ? (
         <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
-          <CycleSidebarCases
-            caseId={frozen.caseId}
-            cycleId={frozen.cycleId}
-            live={false}
-            onSelectCase={frozen.onSelectCase}
-          />
+          <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
         </ul>
       ) : (
         <DestinationTree />
       )}
-    </nav>
+    </SidebarFrame>
   );
 }
 
@@ -140,9 +100,9 @@ export function Sidebar(props: SidebarProps) {
 function DestinationTree() {
   const navigate = useNavigate();
   const { collapsed } = useSidebarState();
-  const { caseId, pathname } = useRouterState({
+  const { selection, pathname } = useRouterState({
     select: (state) => ({
-      caseId: (state.location.search as { caseId?: string }).caseId,
+      selection: state.location.search as { caseId?: string; executionId?: string },
       pathname: state.location.pathname,
     }),
   });
@@ -153,14 +113,17 @@ function DestinationTree() {
 
   const cycleId = cycleIdOfPathname(pathname);
   const onSettings = isCurrent(pathname, "/settings");
-  const settingsSection = onSettings
-    ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION)
-    : null;
+  const settingsSection = onSettings ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION) : null;
 
   // The one read is the shared query of the surface it describes, so the tree
   // adds no traffic beyond the destination the operator is actually in.
   const cycleDetail = useCycleDetailQuery(cycleId ?? "", cycleId !== null);
   const caseCount = cycleDetail.data?.plan?.cases.length ?? 0;
+
+  // Every open prompt, whichever cycle asked it: the same read the status bar
+  // makes, so the Cycles entry says an operator is needed before they look.
+  const pendingPrompts = usePendingPromptsQuery().data ?? [];
+  const promptLevel = highestPromptLevel(pendingPrompts);
 
   const childCount = (destination: Destination): number => {
     if (destination.to === "/settings") return SETTINGS_SECTIONS.length;
@@ -168,9 +131,7 @@ function DestinationTree() {
     return 0;
   };
 
-  const activeIndex = DESTINATIONS.findIndex((destination) =>
-    isCurrent(pathname, destination.prefix),
-  );
+  const activeIndex = DESTINATIONS.findIndex((destination) => isCurrent(pathname, destination.prefix));
   const active = activeIndex >= 0 ? (DESTINATIONS[activeIndex] ?? null) : null;
 
   const destinationRow = (destination: Destination) => {
@@ -185,7 +146,18 @@ function DestinationTree() {
         level="destination"
         onSelect={() => void navigate({ to: destination.to })}
         title={destination.label}
-      />
+      >
+        {destination.to === "/cycles" && promptLevel ? (
+          <Badge
+            aria-label={pendingPromptCountLabel(pendingPrompts.length)}
+            className={STATUS_PILL_CLASS}
+            data-testid="navigation-prompt-count"
+            variant={recordLevelVariant(promptLevel)}
+          >
+            {pendingPrompts.length}
+          </Badge>
+        ) : null}
+      </SidebarRow>
     );
     if (!collapsed) return row;
     return (
@@ -193,6 +165,7 @@ function DestinationTree() {
         <TooltipTrigger asChild>{row}</TooltipTrigger>
         <TooltipContent side="right">
           {childCountLabel(destination, childCount(destination))}
+          {destination.to === "/cycles" && pendingPrompts.length > 0 ? ` · ${pendingPromptCountLabel(pendingPrompts.length)}` : null}
         </TooltipContent>
       </Tooltip>
     );
@@ -206,14 +179,12 @@ function DestinationTree() {
         key={section.id}
         label={section.label}
         level="overview"
-        onSelect={() =>
-          void navigate({ params: { section: section.id }, to: "/settings/$section" })
-        }
+        onSelect={() => void navigate({ params: { section: section.id }, to: "/settings/$section" })}
         title={section.label}
       />
     ));
   } else if (!collapsed && active?.to === "/cycles" && cycleId) {
-    children = <CycleSidebarCases caseId={caseId} cycleId={cycleId} />;
+    children = <CycleSidebarCases selection={selection} cycleId={cycleId} />;
   }
 
   return (
@@ -224,10 +195,7 @@ function DestinationTree() {
         <li className={cn("flex flex-col gap-0.5", children ? "min-h-0" : "shrink-0")}>
           <ul className="shrink-0">{destinationRow(active)}</ul>
           {children ? (
-            <ChildRegion
-              offsets={scrollOffsets}
-              storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}
-            >
+            <ChildRegion offsets={scrollOffsets} storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}>
               {children}
             </ChildRegion>
           ) : null}

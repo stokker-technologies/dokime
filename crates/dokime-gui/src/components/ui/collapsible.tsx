@@ -19,15 +19,11 @@ function Collapsible({ ...props }: React.ComponentProps<typeof CollapsiblePrimit
 const CollapsibleTrigger = React.forwardRef<
   React.ElementRef<typeof CollapsiblePrimitive.CollapsibleTrigger>,
   React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.CollapsibleTrigger>
->(({ ...props }, ref) => (
-  <CollapsiblePrimitive.CollapsibleTrigger data-slot="collapsible-trigger" ref={ref} {...props} />
-));
+>(({ ...props }, ref) => <CollapsiblePrimitive.CollapsibleTrigger data-slot="collapsible-trigger" ref={ref} {...props} />);
 
 CollapsibleTrigger.displayName = CollapsiblePrimitive.CollapsibleTrigger.displayName;
 
-function CollapsibleContent({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
+function CollapsibleContent({ ...props }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
   return <CollapsiblePrimitive.CollapsibleContent data-slot="collapsible-content" {...props} />;
 }
 

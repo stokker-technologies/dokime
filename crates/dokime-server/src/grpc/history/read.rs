@@ -13,53 +13,71 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
-use tokio::sync::watch;
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
+
 // Local Imports
-use super::super::chunked::{self, ArtifactFrames};
-use dokime_app::runtime::ArtifactReader;
-use dokime_protocol::v1;
+use super::super::{content, value};
+use super::wire;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::operations::history;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(super) type ArtifactStream = chunked::FrameStream<v1::ArtifactFrame>;
 
 /* === Structs === */
+struct Resources {
+    runtime: RuntimeHandle,
+    maximum: usize,
+}
+struct Download {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl Operation for Download {
+    type Declaration = history::DownloadCheckpointArtifact;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut history::DownloadCheckpointArtifact, output: &mut Self::Endpoints,
+    ) -> Result<Response<()>, Status> {
+        value::text(&request.artifact_id)?;
+        let checkpoint = wire::checkpoint(request.checkpoint.take())?;
+        let artifact_id =
+            ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
+        let reader = self.resources.runtime.checkpoint_artifact(checkpoint, &artifact_id).await.map_err(wire::checkpoint_failure)?;
+        content::artifacts::deliver(reader, self.resources.maximum, (64 * 1024).min(self.resources.maximum.saturating_sub(1024)), output)
+            .await?;
+        Ok(().into())
+    }
+}
 
 /* === Public Functions === */
-pub(super) fn checkpoint_artifact(
-    reader: ArtifactReader,
-    metadata: v1::ArtifactMetadata,
-    max_message_bytes: usize,
-    stopping: watch::Receiver<bool>,
-) -> Result<ArtifactStream, Status> {
-    chunked::Download {
-        size_bytes: metadata.size_bytes,
-        sha256: Some(metadata.sha256.clone()),
-        frames: ArtifactFrames(metadata),
-        source: chunked::Source::artifact(reader),
-        noun: "artifact",
-        // The runtime combines storage and integrity failures; do not claim
-        // every read failure is corruption.
-        read_failure: "artifact content could not be verified",
-        chunk_bytes: (64 * 1024).min(max_message_bytes.saturating_sub(1024)),
-        message_limit: max_message_bytes,
-        stopping,
-    }
-    .stream()
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<Download>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
+    )?;
+    Ok(())
 }
 
 /* === Private Functions === */
-
 /* === Tests === */

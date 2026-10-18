@@ -22,11 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /* === Types === */
 
-export type AutosaveState =
-  | { kind: "error"; message: string }
-  | { kind: "idle" }
-  | { kind: "saved" }
-  | { kind: "saving" };
+export type AutosaveState = { kind: "error"; message: string } | { kind: "idle" } | { kind: "saved" } | { kind: "saving" };
 
 export type Autosave<T> = {
   /** Writes after the debounce; use for text and number inputs. */
@@ -44,10 +40,7 @@ const SAVED_MS = 2_000;
 
 /* === Public Functions === */
 
-export function useAutosave<T>(
-  save: (value: T) => Promise<unknown>,
-  message: (error: unknown) => string = describeError,
-): Autosave<T> {
+export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (error: unknown) => string = describeError): Autosave<T> {
   const [state, setState] = useState<AutosaveState>({ kind: "idle" });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const last = useRef<T | null>(null);

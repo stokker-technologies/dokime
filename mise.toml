@@ -6,583 +6,376 @@
 #
 # ***
 
-[tools]
-taplo = "0.10.0"
-git-cliff = "2.13.1"
-gh = "2.102.0"
-"aqua:jedisct1/minisign" = { version = "0.12", os = ["linux"] }
-"aqua:rhysd/actionlint" = "1.7.12"
-node = "24.21.0"
-# The aqua backend bundled with older mise releases predates pnpm's
-# `pnpm-win32-x64.zip` asset name; npm resolves the same release on Windows.
-pnpm = { version = "11.27.1", os = ["linux", "macos"] }
-"npm:pnpm" = { version = "11.27.1", os = ["windows"] }
-python = "3.13.15"
-rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools-preview" }
-"cargo:cargo-nextest" = "0.9.146"
-"cargo:cargo-llvm-cov" = "0.9.1"
-sccache = "0.16.0"
-"aqua:boyter/scc" = "3.7.0"
-uv = "0.11.33"
+# === Settings === #
 
 [settings]
 lockfile = true
-github_attestations = false
-locked_verify_provenance = false
-python.github_attestations = false
+
+# === Tools === #
+
+[tools]
+# Languages And Runtimes
+node = "26.11.1"
+python = "3.15.0"
+rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools-preview" }
+
+# Package Managers
+pnpm = { version = "12.11.2", os = ["linux", "macos"] }
+"npm:pnpm" = { version = "12.11.2", os = ["windows"] }
+uv = "0.13.0"
+
+# Rust Toolchain
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
+"aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
+protoc = "36.2"
+
+# Formatting And Linting
+taplo = "0.10.0"
+"aqua:rhysd/actionlint" = "1.7.12"
+
+# Release And Signing
+git-cliff = "2.14.2"
+gh = "2.102.0"
+"aqua:jedisct1/minisign" = { version = "0.12", os = ["linux"] }
+
+# Project Statistics
+"aqua:boyter/scc" = "4.1.0"
+
+# === Environment === #
 
 [env]
 UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
-CARGO_NET_GIT_FETCH_WITH_CLI = "true"
-NODE_OPTIONS = "--use-system-ca"
-PYO3_NO_PYTHON = "1"
-# Cache Linux Compiler Outputs Without Sharing Target Directories Across Jobs.
-# Windows Uses Cargo's Native Artifact Cache Within Each Job.
-RUSTC_WRAPPER = "{% if os() == 'windows' %}{% else %}sccache{% endif %}"
-UV_PYTHON = "3.13.15"
-UV_SYSTEM_CERTS = "true"
-DOKIME_TEST_HOST = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/runtime/dokime{% if os() == 'windows' %}.exe{% endif %}"
-DOKIME_TEST_TOOL = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/runtime/cargo-dokime{% if os() == 'windows' %}.exe{% endif %}"
-DOKIME_PYTHON_TEST_WHEEL_DIR = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/python"
-DOKIME_CLIENT_NATIVE_BUNDLE = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/plugins/mini-sidecar.dokime"
+TMPDIR = "{{config_root}}/target/tmp"
+PYTHONDONTWRITEBYTECODE = "1"
 
-# Every task below that declares `depends = ["prepare:report"]` reaches
-# `dokime-app`, which embeds the report's single-file HTML entry: directly, or
-# through `dokime-cli`, `dokime-gui`, `dokime-python`'s maturin build, `dokime`'s
-# own dev-dependency, or a fixture binary. The build is idempotent, so a fresh
-# one is a no-op; the dependency exists so a clean checkout compiles at all.
+# === Variables === #
 
-# === === Tasks | Set-Up === === #
+[vars]
+platform = "{% if os() == 'windows' %}windows{% else %}linux{% endif %}"
+python = "uv run --locked --project tools/python"
+tools = "uv run --locked --project tools/python python -m"
+lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
+# The Cargo selection the development and bench archives are built with (dokime_tools.build.run): the runtime's story hooks.
+stories = "--archive-argument=--features --archive-argument=dokime-runtime/fault-injection"
 
-[tasks.sync]
-depends = ["prepare:tools"]
-description = "Synchronize the Rust Toolchain, Python and GUI Dependencies."
+# === Prepare === #
+
+[tasks.prepare]
+description = "Prepare Tools And Inputs"
 run = [
-  "uv run --no-sync python -m dokime_tools.sync.rust",
-  "cargo fetch --locked",
-  "uv run --no-sync python -m dokime_tools.environment.uv sync --locked --no-install-project --no-install-package dokime",
-  "pnpm install --frozen-lockfile",
+  'python -c "from pathlib import Path; Path(\"target/tmp\").mkdir(parents=True, exist_ok=True)"',
+  "uv sync --locked --all-groups --no-install-package dokime",
+  "pnpm --dir crates/dokime-gui install --frozen-lockfile",
 ]
-
-[tasks."sync:harmos"]
-depends = ["prepare:tools"]
-description = "Move the Harmos Revision Pin to the Current Tip of Its Main Branch and Re-lock."
-run = "uv run --no-sync python -m dokime_tools.sync.harmos"
-
-# === === Tasks | Linting === === #
-
-[tasks."check:rust"]
-description = "Check / Rust"
-# Native validation needs no staged installer payload.
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-depends = ["prepare:report"]
-run = [
-  "cargo check --workspace --all-targets --features dokime-protocol/export",
-  # The updater-disabled compilation path is distinct; runtime behavior is shared.
-  { task = "check:rust:plain" },
-]
-
-[tasks."check:rust:plain"]
-description = "Check The Desktop Without The Updater"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-depends = ["prepare:report"]
-run = "cargo check --locked -p dokime-gui --lib --no-default-features"
-
-[tasks."check:wasm"]
-description = "Check / Wasm"
-# The contract crate is what every party compiles, including a wasm guest. A
-# gate, a host-only dependency, or a stray `std` assumption fails here rather
-# than in a plugin author's build.
-run = "cargo check -p dokime-contract --target wasm32-unknown-unknown"
-
-[tasks.check]
-description = "Run Read-Only Repository Checks"
-run = [
-  { task = "format:check" },
-  { task = "lint" },
-  { task = "check:types" },
-  # Clippy above also type-checks every default-feature workspace target.
-  { task = "check:rust:plain" },
-  { task = "check:wasm" },
-  { task = "check:bundles" },
-  { task = "bindings:check" },
-  { task = "bindings:python:check" },
-  { task = "check:python:bindings" },
-  { task = "version:check" },
-  { task = "installer:check" },
-]
-
-[tasks.lint]
-description = "Lint Rust, Python, And JavaScript Without Changes"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-depends = ["prepare:tools", "prepare:report"]
-run = [
-  "cargo clippy --workspace --all-targets --features dokime-protocol/export -- -D warnings",
-  "uv run --no-sync ruff check crates/dokime-python",
-  "uv run --no-sync ruff check tools/python",
-  { task = "lint:web" },
-]
-
-[tasks."lint:fix"]
-description = "Repair Rust, Python, And JavaScript Lint Issues"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-depends = ["prepare:tools", "prepare:report"]
-run = [
-  "cargo clippy --fix --workspace --all-targets --features dokime-protocol/export --allow-dirty --allow-staged --allow-no-vcs -- -D warnings",
-  "uv run --no-sync ruff check crates/dokime-python --fix",
-  "uv run --no-sync ruff check tools/python --fix",
-  "pnpm --dir crates/dokime-gui exec biome lint --write ../../",
-]
-
-[tasks."check:types"]
-depends = ["prepare:tools"]
-description = "Check Python And TypeScript Types"
-run = [
-  "uv run --no-sync pyright",
-  "uv run --no-sync --group test pyright --project tools/python/pyproject.toml",
-  "pnpm --dir crates/dokime-gui run typecheck",
-]
-
-[tasks."check:bundles"]
-depends = ["prepare:tools"]
-description = "Reject Tracked Plugin Bundles"
-run = "uv run --no-sync python -m dokime_tools.check.bundles"
-
-# === === Tasks | Formatting === === #
-
-[tasks."format:toml"]
-description = "Format Maintained TOML"
-run = "taplo fmt"
-
-[tasks."format:toml:check"]
-description = "Check Maintained TOML Formatting"
-run = "taplo fmt --check"
-
-[tasks.format]
-depends = ["prepare:tools"]
-description = "Format Rust, Python, and GUI Sources in Place."
-run = [
-  { task = "format:toml" },
-  "cargo fmt --all",
-  "uv run --no-sync ruff format crates/dokime-python",
-  "uv run --no-sync ruff format tools/python",
-  "pnpm --dir crates/dokime-gui exec biome format --write ../../",
-]
-
-# === === Tasks | Versioning === === #
-
-[tasks."version:check"]
-depends = ["prepare:tools"]
-description = "Verify Committed Version Metadata Without Rewriting Files."
-run = "uv run --no-sync python -m dokime_tools.version check"
-
-[tasks."version:sync"]
-depends = ["prepare:tools"]
-description = "Update Version Files for the Current Git State Without Committing."
-run = "uv run --no-sync python -m dokime_tools.version sync"
-
-[tasks."bindings:generate"]
-description = "Generate the Native Protobuf RPC Bindings."
-run = "node tools/node/gui/generate-rpc.mjs"
-
-[tasks."bindings:python:generate"]
-depends = ["prepare:tools"]
-description = "Generate Private Python gRPC Bindings"
-run = "uv run --no-sync python -m dokime_tools.bindings"
-
-[tasks."bindings:python:check"]
-depends = ["prepare:tools"]
-description = "Verify Private Python gRPC Bindings"
-run = "uv run --no-sync python -m dokime_tools.bindings --check"
-
-[tasks."build:python:dev"]
-depends = ["prepare:report"]
-description = "Build The Dokime Python Wheel"
-run = "uv build --package dokime --wheel --out-dir dist/python-dev"
-
-[tasks."build:python:release"]
-depends = ["prepare:tools", "prepare:report"]
-description = "Build The Dokime Python Wheel And Source Archive"
-run = [
-  "uv build --sdist --clear --package dokime --out-dir dist/python --config-setting maturin.build-args=--locked",
-  "uv run --no-sync python -m dokime_tools.package.sdist dist/python",
-
-  "uv run --no-sync python -m dokime_tools.check.package",
-]
-
-[tasks."bindings:check"]
-description = "Check the Generated Protobuf RPC Bindings Without Modifying Source Files."
-run = "node tools/node/gui/generate-rpc.mjs --check"
-
-# === === Tasks | Development === === #
-
-[tasks."dev:desktop:dev"]
-description = "Start the Native Tauri Cycle Workspace with an Owned Local Backend."
-# The owned session spawns the companion `dokime`, so it is built first;
-# plugins reach it through the plugin store, never from the build tree.
-depends = ["bindings:generate", "build:cli:dev"]
-run = "pnpm --dir crates/dokime-gui run tauri:dev"
-
-# === === Tasks | Build === === #
 
 [tasks."prepare:report"]
-depends = ["prepare:tools"]
-description = "Build the Report's Single-file HTML Entry That `dokime-app` Embeds. Idempotent: a Fresh Build Is a No-op."
-run = "uv run --no-sync python -m dokime_tools.frontend report"
+description = "Prepare The Embedded Report Viewer"
+depends = ["prepare"]
+run = "{{vars.tools}} dokime_tools.build.frontend report"
 
-[tasks."build:cli:dev"]
-description = "Build / CLI"
+# === Format === #
+
+[tasks.format]
+description = "Format Every Language"
+usage = 'flag "--check"'
+depends = [
+  "format:toml {% if usage.check %}--check{% endif %}",
+  "format:rust {% if usage.check %}--check{% endif %}",
+  "format:python {% if usage.check %}--check{% endif %}",
+  "format:typescript {% if usage.check %}--check{% endif %}",
+]
+
+[tasks."format:python"]
+description = "Format Python"
+usage = 'flag "--check"'
+run = [
+  "{{vars.python}} ruff format packages/dokime{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
+]
+
+[tasks."format:rust"]
+description = "Format Rust"
+usage = 'flag "--check"'
+run = "cargo fmt --all{% if usage.check %} --check{% endif %}"
+
+[tasks."format:toml"]
+description = "Format TOML"
+usage = 'flag "--check"'
+run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --option column_width=140{% if usage.check %} --check{% endif %}"
+
+[tasks."format:typescript"]
+description = "Format TypeScript"
+depends = ["prepare"]
+usage = 'flag "--check"'
+run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
+
+# === Lint === #
+
+[tasks.lint]
+description = "Lint Every Language"
+depends = ["lint:rust", "lint:python", "lint:typescript"]
+
+[tasks."lint:python"]
+description = "Lint Python"
+run = ["{{vars.python}} ruff check packages/dokime", "{{vars.python}} ruff check tools/python"]
+
+[tasks."lint:rust"]
+description = "Lint Rust"
 depends = ["prepare:report"]
-run = "cargo build --timings -p dokime-cli --bin dokime"
+run = "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
 
-[tasks."fixtures:prepare"]
-description = "Compile Complete Native Test Bundles With The Packaged Tool"
-depends = ["prepare:tools", "ci:artifacts:verify"]
-run = "uv run --no-sync python -m dokime_tools.fixtures"
+[tasks."lint:typescript"]
+description = "Lint TypeScript"
+depends = ["prepare"]
+run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
-[tasks."build:plugins:dev"]
-description = "Build Development Demo Plugin Packages"
-run = "cargo run --locked -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime"
+# === Check === #
 
-[tasks."build:desktop:dev"]
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-description = "Build Desktop Development Assets And Binary"
+[tasks.check]
+description = "Check Every Language And Conventions"
+run = [{ task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
+
+[tasks."check:python"]
+description = "Check Python"
+depends = ["prepare"]
+run = ["{{vars.python}} pyright --project packages/dokime/pyproject.toml", "{{vars.python}} pyright --project tools/python/pyproject.toml"]
+
+[tasks."check:rust"]
+description = "Check Rust"
 depends = ["prepare:report"]
 run = [
-  "pnpm --dir crates/dokime-gui run build",
-  "cargo build -p dokime-gui",
+  'python -c "from pathlib import Path; Path(\"target/contracts\").mkdir(parents=True, exist_ok=True)"',
+  "cargo check --locked --workspace --all-targets --all-features --message-format json-render-diagnostics > target/contracts/check.jsonl",
+  "cargo check --locked --workspace --lib --bins --no-default-features",
+  "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
+  "{{vars.tools}} dokime_tools.prepare.bindings --build-json target/contracts/check.jsonl --check",
+  "node crates/dokime-gui/tools/bindings.mjs target/contracts/check.jsonl --check",
 ]
 
-[tasks."build:dev"]
-description = "Build All Development Targets"
+[tasks."check:typescript"]
+description = "Check TypeScript"
+depends = ["prepare"]
+run = "pnpm --dir crates/dokime-gui run typecheck"
+
+# === Build === #
+
+[tasks.build]
+description = "Build Binaries, Bundles, Frontend, Wheel And The Test Archive"
+usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  { task = "build:cli:dev" },
-  { task = "build:desktop:dev" },
-  { task = "build:plugins:dev" },
-  { task = "build:python:dev" },
+  { task = "build:rust --profile {{usage.profile}}" },
+  { task = "build:typescript --profile {{usage.profile}}" },
+  { task = "build:python --profile {{usage.profile}}" },
+  "{{vars.tools}} dokime_tools.build.run stamp --profile {{usage.profile}}",
 ]
 
-# === === Tasks | Screenshots === === #
+[tasks."build:python"]
+description = "Build The Python Client Wheel"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.run python --profile {{usage.profile}}"
 
-[tasks."screenshots:build"]
-description = "Build the Backend, Desktop Shell and Mini Charger Plugin Bundle the Screenshot Capture Drives."
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
+[tasks."build:rust"]
+description = "Build The Workspace Archive, Executables And Plugin Bundle"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.run rust --profile {{usage.profile}}"
+
+[tasks."build:typescript"]
+description = "Build The GUI Bindings And Frontend"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.run typescript --profile {{usage.profile}}"
+
+# === Dev === #
+
+[tasks.dev]
+description = "Start The Native Desktop Shell With An Owned Local Backend And The OBC Plugin"
+depends = ["prepare:report"]
+env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
-  "cargo build -p dokime-cli --bin dokime",
-  "cargo run -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime",
-  "pnpm --dir crates/dokime-gui run build",
-  # `tauri/custom-protocol` embeds the built frontend, so the shell runs under
-  # WebKitWebDriver without a Vite development server beside it.
-  "cargo build -p dokime-gui --features tauri/custom-protocol",
+  'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
+  "cargo build --locked -p dokime-server --bin dokime-server --message-format json-render-diagnostics > target/contracts/dev.jsonl",
+  "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
+  "cargo run --locked -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
+  "pnpm --dir crates/dokime-gui run tauri:dev",
 ]
 
-[tasks."screenshots:capture"]
-description = "Capture the Published Product Screenshots from the Running Desktop Shell."
-run = "node tools/node/gui/capture-screenshots.mjs"
-
-
-# === === Tasks | Tests === === #
+# === Test === #
 
 [tasks.test]
-env.UV_NO_SYNC = "1"
-description = "Test Integration And Acceptance Contracts"
+description = "Test Every Layer"
+usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  { task = "ci:artifacts:verify" },
-  { task = "test:integration" },
-  { task = "test:acceptance" },
-  { task = "ci:artifacts:validate" },
+  { task = "test:unit --profile {{usage.profile}}" },
+  { task = "test:integration --profile {{usage.profile}}" },
+  { task = "test:acceptance --profile {{usage.profile}}" },
+  { task = "test:system --profile {{usage.profile}}" },
 ]
+
+[tasks."test:unit"]
+description = "Test Unit Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [{ task = "test:unit:rust --profile {{usage.profile}}" }]
+
+[tasks."test:unit:rust"]
+description = "Test Unit Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust {{vars.stories}}"
 
 [tasks."test:integration"]
-description = "Test Public Library And Tooling Workflows"
-depends = ["test:integration:rust", "test:integration:python", "test:integration:javascript"]
-
-[tasks."test:integration:rust"]
-# The evidence runner holds one lock, so evidence tasks run one at a time.
-description = "Test Rust Runtime And Persistence Workflows"
-depends = ["prepare:python"]
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-env.TOKIO_WORKER_THREADS = "2"
-# Bound concurrent persistent stores and child-process fixtures.
-env.NEXTEST_TEST_THREADS = "4"
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration rust --features dokime-protocol/export"
+description = "Test Integration Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  { task = "test:integration:rust --profile {{usage.profile}}" },
+  { task = "test:integration:python --profile {{usage.profile}}" },
+  { task = "test:integration:typescript --profile {{usage.profile}}" },
+]
 
 [tasks."test:integration:python"]
-env.UV_NO_SYNC = "1"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-env.TOKIO_WORKER_THREADS = "2"
-# The evidence runner holds one lock, so evidence tasks run one at a time.
-wait_for = ["test:integration:rust"]
-description = "Test Python Libraries And Repository Tooling"
-depends = ["prepare:tools", "prepare:python"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration python"
+description = "Test Integration Python"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime",
+]
 
-[tasks."test:integration:javascript"]
-# The evidence runner holds one lock, so evidence tasks run one at a time.
-wait_for = ["test:integration:python"]
-description = "Test Frontend Generator Contracts"
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration javascript"
+[tasks."test:integration:rust"]
+description = "Test Integration Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust {{vars.stories}}"
+
+[tasks."test:integration:typescript"]
+description = "Test Integration TypeScript"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}"
 
 [tasks."test:acceptance"]
-description = "Test Built Interfaces And Installed Distributions"
-depends = ["test:acceptance:rust", "test:acceptance:python"]
-
-[tasks."test:acceptance:rust"]
-wait_for = ["test:integration:javascript"]
-description = "Test CLI, Plugin, And Cross-Language Workflows"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-env.TOKIO_WORKER_THREADS = "2"
-# Bound concurrent persistent stores and child-process fixtures.
-env.NEXTEST_TEST_THREADS = "2"
-depends = ["prepare:python"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run acceptance rust --features dokime-protocol/export"
+description = "Test Acceptance Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
 
 [tasks."test:acceptance:python"]
-env.UV_NO_SYNC = "1"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-env.TOKIO_WORKER_THREADS = "2"
-wait_for = ["test:acceptance:rust"]
-description = "Test Installed Python Packages Against Native Interfaces"
-depends = ["prepare:python"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run acceptance python"
+description = "Test Acceptance Python"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime",
+]
 
-[tasks."prepare:python"]
-description = "Prepare The Installed Python Wheel For Cross-Language Acceptance"
-depends = ["prepare:tools", "fixtures:prepare"]
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-run = "uv run --no-sync python -m dokime_tools.environment.native"
+[tasks."test:acceptance:rust"]
+description = "Test Acceptance Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  # The desktop/Python matrix drives the installed client wheel from the Rust lane.
+  "{{vars.tools}} dokime_tools.prepare.wheel --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust {{vars.stories}}",
+]
 
 [tasks."test:system"]
-description = "Test Explicit Desktop And Hardware Prerequisites"
-depends = ["test:system:rust", "test:system:javascript"]
+description = "Test System Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test:system:typescript --profile {{usage.profile}}" }]
 
 [tasks."test:system:rust"]
-description = "Test Explicit Native Hardware Prerequisites"
-env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run system rust --features dokime-protocol/export"
+description = "Test System Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust {{vars.stories}}"
 
-[tasks."test:system:javascript"]
-description = "Drive The Desktop Through A Real Linux WebView"
-run = "node crates/dokime-gui/e2e/native-desktop.mjs"
+[tasks."test:system:typescript"]
+description = "Test System TypeScript"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --junit {junit}"
 
-[tasks."check:python:bindings"]
-depends = ["prepare:tools"]
-description = "Check PyO3 Declarations Against Python Stubs Without Compiling"
-run = "uv run --no-sync python -m dokime_tools.check.bindings"
+[tasks."test:verify"]
+description = "Verify The Evidence Of One Tree"
+run = "{{vars.tools}} dokime_tools.test.run verify"
 
-# === === Tasks | Performance Benches === === #
+[tasks.coverage]
+description = "Measure Coverage Over Instrumented Lanes"
+run = ["{{vars.tools}} dokime_tools.test.run coverage --language rust", "{{vars.tools}} dokime_tools.test.run coverage --language python"]
+
+# === Bench === #
 
 [tasks.bench]
-description = "Run Rust Performance Benchmarks"
-run = [{ task = "bench:rust" }]
+description = "Measure Every Bench Layer"
+run = [{ task = "bench:unit:rust" }, { task = "bench:integration:rust" }, { task = "bench:system:rust" }]
 
-[tasks."bench:rust"]
-description = "Measure Runtime, Storage, Host Collection, And Shutdown"
-depends = ["prepare:tools", "prepare:report"]
-run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence bench rust"
+[tasks."bench:integration:rust"]
+description = "Bench Integration Rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category integration --language rust {{vars.stories}}"
 
-# === === Tasks | Stats === === #
+[tasks."bench:system:rust"]
+description = "Bench System Rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust {{vars.stories}}"
 
-[tasks.stats]
-description = "Project Statistics"
-run = "scc --include-ext rs --avg-wage 100000 --cocomo-project-type semi-detached"
+[tasks."bench:unit:rust"]
+description = "Bench Unit Rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust {{vars.stories}}"
 
-# === === Tasks | Product === === #
+# === Docs === #
 
-[tasks."installer:check"]
-depends = ["prepare:tools"]
-description = "Validate Tauri Installer Configuration Without Building Platform Packages."
-run = "uv run --no-sync python -m dokime_tools.installer check"
+# === Package === #
 
-[tasks."installer:release"]
-description = "Build Windows NSIS or Linux DEB/RPM Packages, and Dokime'S Native Product Package."
-depends = ["prepare:report"]
-run = "uv run --no-sync python -m dokime_tools.installer build"
-# Verifies the collected desktop release artifacts once the NSIS build lands.
-run_windows = [
-  "uv run --no-sync python -m dokime_tools.installer build",
-  "uv run --no-sync python -m dokime_tools.installer package",
-]
+# === CI === #
 
-[tasks."installer:dev"]
-description = "Build a Dev-profile Windows NSIS or Linux DEB/RPM Package for Fast Local Iteration on the Installer. Lands Beside, and Never Overwrites, the Release Artifact."
-depends = ["prepare:report"]
-run = "uv run --no-sync python -m dokime_tools.installer build --profile dev"
-
-[tasks."build:release"]
-description = "Build All Release Targets"
+[tasks.ci]
+description = "Run The CI Flow Locally"
 run = [
-  { task = "build:cli:release" },
-  { task = "build:desktop:release" },
-  { task = "build:plugins:release" },
-  { task = "build:python:release" },
-  { task = "protocol:archive" },
-  { task = "ci:artifacts:build" },
+  { task = "format --check" },
+  { task = "lint" },
+  { task = "check" },
+  { task = "build" },
+  { task = "test" },
+  { task = "test:verify" },
+  { task = "release:publish:dry" },
 ]
 
-[tasks."build:cli:release"]
-description = "Build Release CLI"
-depends = ["prepare:report"]
-run = [
-  "cargo build --timings --locked --release -p dokime-cli",
-  "cargo build --timings --locked --release -p cargo-dokime",
-]
+[tasks."ci:nightly"]
+description = "Run The Nightly Coverage And Bench Flow"
+run = [{ task = "build" }, { task = "coverage" }, { task = "build --profile bench" }, { task = "bench" }]
 
-[tasks."build:desktop:release"]
-description = "Build Release Desktop Installers"
-run = [{ task = "installer:release" }]
+# === Release === #
 
-[tasks."build:plugins:release"]
-description = "Build Release Demo Plugin Packages"
-run = [
-  "cargo run --release --locked -p cargo-dokime -- build --package mini-sidecar --profile release --output target/release/plugins/mini-sidecar.dokime",
-]
-
-[tasks."protocol:archive"]
-description = "Export the Deterministic Portable Protobuf Archive."
-run = "cargo run --locked -p dokime-protocol --no-default-features --features export --bin export_protocol --"
-
-[tasks."tauri:resources:release"]
-depends = ["prepare:tools"]
-hide = true
-# Invoked by Tauri's own `beforeBuildCommand` (tauri.conf.json), not by any
-# other mise task -- it needs a real, directly runnable mise entry.
-description = "Stage Desktop Branding and the Companion CLI."
-run = "uv run --no-sync python -m dokime_tools.installer resources --profile release"
-
-[tasks."tauri:resources:dev"]
-depends = ["prepare:tools"]
-hide = true
-# Invoked by the generated dev-profile installer plan's `beforeBuildCommand`
-# (dokime_tools.installer), not by any
-# other mise task -- it needs a real, directly runnable mise entry.
-description = "Stage Desktop Branding and the Companion CLI for a Dev-profile Installer Build."
-run = "uv run --no-sync python -m dokime_tools.installer resources --profile dev"
-
-# === === Tasks | CI === === #
-
-[tasks."ci:bootstrap"]
-description = "Prepare Native Platform Prerequisites"
-run = "python tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"
-run_windows = "python tools/python/src/dokime_tools/ci/bootstrap.py"
-
-[tasks."ci:check"]
-description = "Validate Native GitHub Actions Workflows"
-run = "actionlint -shellcheck= -pyflakes="
-
-[tasks."ci:protocol:archive"]
-# Reads the pipeline commit itself so the CI line is identical in bash and pwsh.
-description = "CI / Export the Protobuf Archive Stamped with GITHUB_SHA."
-run = "cargo run --locked -p dokime-protocol --no-default-features --features export --bin export_protocol -- target/protocol/dokime-protocol.tar {{ env.GITHUB_SHA }}"
-
-[tasks."format:check"]
-depends = ["prepare:tools"]
-description = "Check Formatting Without Changes"
-run = [
-  { task = "format:toml:check" },
-  "cargo fmt --all --check",
-  "uv run --no-sync ruff format --check crates/dokime-python",
-  "uv run --no-sync ruff format --check tools/python",
-  "pnpm --dir crates/dokime-gui exec biome format ../../",
-]
-
-[tasks."lint:web"]
-description = "Lint Frontend And Node Tooling"
-run = "pnpm --dir crates/dokime-gui exec biome lint ../../"
-
-[tasks."lint:tools:web"]
-description = "Lint Node Repository Automation"
-run = "pnpm --dir crates/dokime-gui exec biome lint ../../tools/node --diagnostic-level=error"
+[tasks.release]
+description = "Prepare And Validate A Release"
+run = [{ task = "release:prepare" }, { task = "ci" }, { task = "build --profile release" }]
 
 [tasks."release:prepare"]
-depends = ["prepare:tools"]
-description = "Prepare A Stable Patch Candidate And Native Locks"
-run = "uv run --no-sync python -m dokime_tools.version prepare"
-
-[tasks."release:assemble"]
-depends = ["prepare:tools"]
-description = "Assemble Exact Current-Run Native Products"
-run = "uv run --no-sync python -m dokime_tools.ci.artifacts assemble"
-
-[tasks."release:verify"]
-depends = ["prepare:tools"]
-description = "Verify Published Remote Bytes And Updater Signature"
-run = "uv run --no-sync python -m dokime_tools.package.finalize --verify-only"
-
-[tasks."release:publish:python"]
-depends = ["prepare:tools"]
-description = "Reconcile And Publish Validated Native Python Distributions"
-run = "uv run --no-sync python -m dokime_tools.package.publish"
-
-[tasks."release:publish:assets"]
-depends = ["prepare:tools"]
-description = "Reconcile And Publish Durable Native Release Assets"
-run = "uv run --no-sync python -m dokime_tools.package.assets"
-
-[tasks."release:finalize"]
-depends = ["prepare:tools"]
-description = "Finalize The Verified Native Release Inventory"
-run = "uv run --no-sync python -m dokime_tools.package.finalize"
+description = "Prepare The Release Branch"
+run = "{{vars.tools}} dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
-description = "Publish And Reconcile The Complete Native Release"
+description = "Publish A Tagged Release"
+run = [{ task = "release:publish:rust" }, { task = "release:publish:python" }, { task = "release:publish:assets" }]
+
+[tasks."release:publish:assets"]
+description = "Publish Signed Release Assets"
 run = [
-  { task = "release:assemble" },
-  { task = "release:publish:python" },
-  { task = "release:publish:assets" },
-  { task = "release:finalize" },
-  { task = "release:verify" },
+  "{{vars.tools}} dokime_tools.release.run stage",
+  "{{vars.tools}} dokime_tools.release.run validate",
+  "{{vars.tools}} dokime_tools.release.run publish",
+  "{{vars.tools}} dokime_tools.release.run finalize",
 ]
 
-[tasks."prepare:tools"]
-description = "Synchronize The Shared Python Workspace Without Rebuilding The Native Wheel"
-run = "uv sync --locked --all-groups --no-install-package dokime"
+[tasks."release:publish:dry"]
+description = "Dry-Run Every Publication"
+run = "cargo publish --locked --workspace --dry-run"
 
-[tasks."ci:route"]
-description = "Admit Stabilization And Declared Hotfix Promotion"
-env.PYTHONPATH = "{{config_root}}/tools/python/src"
-run = "python -m dokime_tools.ci.route"
+[tasks."release:publish:python"]
+description = "Publish The Python Client"
+run = "uv publish --trusted-publishing always dist/build/{{vars.platform}}/python/*"
 
-[tasks."ci:artifacts:build"]
-depends = ["prepare:tools"]
-description = "Collect Immutable Native Build Outputs"
-run = "uv run --no-sync python -m dokime_tools.package.artifacts collect"
+[tasks."release:publish:rust"]
+description = "Publish Rust Crates"
+run = "cargo publish --locked --workspace"
 
-[tasks."ci:artifacts:verify"]
-depends = ["prepare:tools"]
-description = "Verify Exact Native Build Outputs"
-run = "uv run --no-sync python -m dokime_tools.package.artifacts verify"
+# === Housekeeping === #
 
-[tasks."ci:artifacts:validate"]
-depends = ["prepare:tools"]
-description = "Associate Successful Evidence With Exact Packages"
-run = "uv run --no-sync python -m dokime_tools.package.artifacts validate"
+[tasks.housekeeping]
+description = "Clean Owned Build Outputs And State"
+run = "stkr project housekeeping"
 
-[tasks."ci:artifacts:catalog"]
-depends = ["prepare:tools"]
-description = "Associate All Native Platform Job Artifacts"
-run = "uv run --no-sync python -m dokime_tools.ci.artifacts catalog"
-
-[tasks."ci:artifacts:reuse"]
-depends = ["prepare:tools"]
-description = "Retrieve Original Validated Native Packages Without Rebuilding"
-run = "uv run --no-sync python -m dokime_tools.ci.artifacts reuse"
-
-[tasks."ci:mirror"]
-description = "Mirror Published GitHub Branch To GitLab"
-run = """
-set -eu
-case "${GITHUB_REF_NAME:?}" in dev|main) ;; *) exit 1 ;; esac
-test "${GITHUB_REPOSITORY:?}" = "stokker-technologies/dokime"
-test "$(git rev-parse HEAD)" = "${GITHUB_SHA:?}"
-git push --no-force --no-follow-tags git@gitlab.com:stokker-technologies/open-source/dokime.git "HEAD:refs/heads/${GITHUB_REF_NAME}"
-"""
-
-[tasks."ci:artifacts:restore"]
-description = "Restore Exact Native Products Without Rebuilding"
-run = "uv run --no-sync python -m dokime_tools.ci.artifacts restore --platform {% if os() == 'windows' %}windows{% else %}linux{% endif %}"
-
-[tasks."ci:gate"]
-description = "Require Complete Validation Of The Proposed Integration Tree"
-env.PYTHONPATH = "{{config_root}}/tools/python/src"
-run = "python -m dokime_tools.ci.gate"
+[tasks."housekeeping:stats"]
+description = "Count Source Lines"
+run = "scc"

@@ -17,11 +17,7 @@
 
 // Local Imports
 
-import {
-  createPlanSelection,
-  type TestCyclePlanSelectionDraft,
-  type TestcaseFormDraft,
-} from "@/components/start-cycle-form-model";
+import { createPlanSelection, type TestCyclePlanSelectionDraft, type TestcaseFormDraft } from "@/components/start-cycle-form-model";
 
 import { reviveNativeValues } from "@/lib/api/native-values";
 
@@ -57,6 +53,9 @@ export type TestSuiteRow = {
   suite: TestSuiteEntry;
 };
 
+/** Additional searchable text for a suite, such as its registering plugin's label. */
+export type SuiteSearchExtra = (suite: TestSuiteEntry) => unknown[];
+
 export type DiagramStep = {
   description?: string | null;
   key: string;
@@ -74,15 +73,10 @@ export function selectionDraftKey(suiteId: string, templateId: string): string {
 
 export function templateSelectionId(template: SuiteTemplateEntry): string {
   const identifier = template.metadata.identifier;
-  return typeof identifier === "string" && identifier.length > 0
-    ? identifier
-    : template.template_id;
+  return typeof identifier === "string" && identifier.length > 0 ? identifier : template.template_id;
 }
 
-export function matchesTemplateSelection(
-  template: SuiteTemplateEntry,
-  selectionId: string,
-): boolean {
+export function matchesTemplateSelection(template: SuiteTemplateEntry, selectionId: string): boolean {
   return template.template_id === selectionId || templateSelectionId(template) === selectionId;
 }
 
@@ -109,19 +103,17 @@ export function suiteDiagramSteps(template: SuiteTemplateEntry): DiagramStep[] {
   }));
 }
 
-export function filterTestSuites(suites: TestSuiteEntry[], query: string): TestSuiteRow[] {
+export function filterTestSuites(suites: TestSuiteEntry[], query: string, extra?: SuiteSearchExtra): TestSuiteRow[] {
   const tokens = searchTokens(query);
   if (!tokens.length) {
     return suites.map((suite) => ({ suite, members: suite.members }));
   }
   return suites
     .map((suite) => {
-      const suiteMatches = matchesTokens(suiteSearchText(suite), tokens);
+      const suiteMatches = matchesTokens(suiteSearchText(suite, extra), tokens);
       const members = suiteMatches
         ? suite.members
-        : suite.members.filter((template) =>
-            matchesTokens(templateSearchText(template, suite), tokens),
-          );
+        : suite.members.filter((template) => matchesTokens(templateSearchText(template, suite, extra), tokens));
       return { suite, members };
     })
     .filter((row) => row.members.length > 0);
@@ -150,9 +142,7 @@ export function readSuiteDraftStore(suites: TestSuiteEntry[]): SuiteDraftStore {
     return empty;
   }
   try {
-    const parsed = reviveNativeValues(
-      JSON.parse(window.localStorage.getItem(SUITE_DRAFT_STORAGE_KEY) ?? "null"),
-    );
+    const parsed = reviveNativeValues(JSON.parse(window.localStorage.getItem(SUITE_DRAFT_STORAGE_KEY) ?? "null"));
     if (!isSuiteDraftStore(parsed)) {
       return empty;
     }
@@ -165,17 +155,10 @@ export function readSuiteDraftStore(suites: TestSuiteEntry[]): SuiteDraftStore {
     const planDrafts = Object.fromEntries(
       Object.entries(parsed.planDrafts)
         .filter(([key, draft]) => validKeys.has(key) && isSelectionDraft(draft))
-        .map(([key, draft]) => [
-          key,
-          sanitizePlanSelection(suites, draft as TestCyclePlanSelectionDraft),
-        ]),
+        .map(([key, draft]) => [key, sanitizePlanSelection(suites, draft as TestCyclePlanSelectionDraft)]),
     );
     const planSelections = parsed.planSelections
-      .filter(
-        (draft) =>
-          isSelectionDraft(draft) &&
-          validKeys.has(selectionDraftKey(draft.suite_id, draft.template_id)),
-      )
+      .filter((draft) => isSelectionDraft(draft) && validKeys.has(selectionDraftKey(draft.suite_id, draft.template_id)))
       .map((draft) => sanitizePlanSelection(suites, draft));
     return {
       schema_version: 1,
@@ -188,11 +171,7 @@ export function readSuiteDraftStore(suites: TestSuiteEntry[]): SuiteDraftStore {
   }
 }
 
-export function sanitizeFormDraft(
-  suites: TestSuiteEntry[],
-  key: string,
-  value: unknown,
-): TestcaseFormDraft {
+export function sanitizeFormDraft(suites: TestSuiteEntry[], key: string, value: unknown): TestcaseFormDraft {
   if (!isRecord(value)) {
     return { files: {}, parameters: {} };
   }
@@ -218,10 +197,7 @@ export function sanitizeFormDraft(
   };
 }
 
-export function sanitizePlanSelection(
-  suites: TestSuiteEntry[],
-  draft: TestCyclePlanSelectionDraft,
-): TestCyclePlanSelectionDraft {
+export function sanitizePlanSelection(suites: TestSuiteEntry[], draft: TestCyclePlanSelectionDraft): TestCyclePlanSelectionDraft {
   const match = templateForSelection(suites, draft.suite_id, draft.template_id);
   if (!match) {
     return draft;
@@ -243,10 +219,7 @@ export function sanitizePlanSelection(
   });
 }
 
-export function templateForSelectionKey(
-  suites: TestSuiteEntry[],
-  key: string,
-): SuiteTemplateEntry | null {
+export function templateForSelectionKey(suites: TestSuiteEntry[], key: string): SuiteTemplateEntry | null {
   for (const suite of suites) {
     for (const template of suite.members) {
       if (
@@ -266,27 +239,16 @@ export function templateForSelection(
   templateId: string,
 ): { suite: TestSuiteEntry; template: SuiteTemplateEntry } | null {
   const suite = suites.find((candidate) => candidate.suite_id === suiteId);
-  const template = suite?.members.find((candidate) =>
-    matchesTemplateSelection(candidate, templateId),
-  );
+  const template = suite?.members.find((candidate) => matchesTemplateSelection(candidate, templateId));
   return suite && template ? { suite, template } : null;
 }
 
-export function normalizeParameterArrays(
-  record: Record<string, unknown>,
-): Record<string, unknown[]> {
-  return Object.fromEntries(
-    Object.entries(record).map(([key, value]) => [key, Array.isArray(value) ? value : [value]]),
-  );
+export function normalizeParameterArrays(record: Record<string, unknown>): Record<string, unknown[]> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, Array.isArray(value) ? value : [value]]));
 }
 
 export function normalizeFiles(record: Record<string, unknown>): Record<string, string | null> {
-  return Object.fromEntries(
-    Object.entries(record).map(([key, value]) => [
-      key,
-      typeof value === "string" && value.trim() ? value : null,
-    ]),
-  );
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, typeof value === "string" && value.trim() ? value : null]));
 }
 
 export function writeSuiteDraftStore(store: SuiteDraftStore): void {
@@ -294,11 +256,7 @@ export function writeSuiteDraftStore(store: SuiteDraftStore): void {
     return;
   }
   try {
-    if (
-      !Object.keys(store.formDrafts).length &&
-      !Object.keys(store.planDrafts).length &&
-      !store.planSelections.length
-    ) {
+    if (!Object.keys(store.formDrafts).length && !Object.keys(store.planDrafts).length && !store.planSelections.length) {
       window.localStorage.removeItem(SUITE_DRAFT_STORAGE_KEY);
       return;
     }
@@ -335,12 +293,7 @@ export function isSuiteDraftStore(value: unknown): value is SuiteDraftStore {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return (
-    record.schema_version === 1 &&
-    isRecord(record.formDrafts) &&
-    isRecord(record.planDrafts) &&
-    Array.isArray(record.planSelections)
-  );
+  return record.schema_version === 1 && isRecord(record.formDrafts) && isRecord(record.planDrafts) && Array.isArray(record.planSelections);
 }
 
 export function isSelectionDraft(value: unknown): value is TestCyclePlanSelectionDraft {
@@ -374,22 +327,14 @@ function matchesTokens(text: string, tokens: string[]): boolean {
   return tokens.every((token) => text.includes(token));
 }
 
-function suiteSearchText(suite: TestSuiteEntry): string {
-  return searchableText([
-    suite.suite_id,
-    suite.suite_id,
-    suite.name,
-    suite.description,
-    suite.product,
-    suite.path,
-    suite.tags,
-  ]);
+function suiteSearchText(suite: TestSuiteEntry, extra: SuiteSearchExtra | undefined): string {
+  return searchableText([suite.suite_id, suite.source, extra?.(suite), suite.name, suite.description, suite.path, suite.tags]);
 }
 
-function templateSearchText(template: SuiteTemplateEntry, suite: TestSuiteEntry): string {
+function templateSearchText(template: SuiteTemplateEntry, suite: TestSuiteEntry, extra: SuiteSearchExtra | undefined): string {
   return searchableText([
-    suiteSearchText(suite),
-    template.template_id,
+    suiteSearchText(suite, extra),
+    template.identifier,
     templateSelectionId(template),
     template.name,
     template.description,

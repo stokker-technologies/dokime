@@ -39,15 +39,7 @@ type SettingsRowProps = {
 
 /* === Components === */
 
-export function SettingsRow({
-  children,
-  className,
-  control,
-  description,
-  htmlFor,
-  label,
-  status,
-}: SettingsRowProps) {
+export function SettingsRow({ children, className, control, description, htmlFor, label, status }: SettingsRowProps) {
   return (
     <div
       className={cn(
@@ -73,9 +65,7 @@ export function SettingsRow({
         ) : null}
       </div>
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex min-w-0 max-w-[var(--settings-value-max)] flex-1 items-center gap-2">
-          {control ?? children}
-        </div>
+        <div className="flex min-w-0 max-w-[var(--settings-value-max)] flex-1 items-center gap-2">{control ?? children}</div>
         {status ? <div className="shrink-0">{status}</div> : null}
       </div>
     </div>

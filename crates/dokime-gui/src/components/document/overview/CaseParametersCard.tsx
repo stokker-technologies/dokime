@@ -23,8 +23,7 @@ export function CaseParametersCard({
   layout?: DocumentCardLayout;
   testCase?: TestCase;
 }) {
-  const parameterCount =
-    Object.keys(testCase?.parameters ?? {}).length + Object.keys(environment ?? {}).length;
+  const parameterCount = Object.keys(testCase?.parameters ?? {}).length + Object.keys(environment ?? {}).length;
 
   return (
     <CollapsibleSection

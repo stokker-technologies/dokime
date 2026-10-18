@@ -9,38 +9,21 @@
 
 /* === Local Imports === */
 
-import type { ArtifactRecord, ExecutionFileTextRead } from "@/lib/types";
+import type { ArtifactRecord } from "@/lib/types";
 
 /* === Constants === */
 
-export const TEXT_FILE_PREVIEW_MAX_BYTES = 256 * 1024;
+/** Total bytes a non-following preview retains, read in contract-bounded pages. */
+export const TEXT_FILE_PREVIEW_BUDGET_BYTES = 256 * 1024;
+/** How far back from the live end a follow starts when the file is larger. */
 export const TEXT_FILE_FOLLOW_TAIL_BYTES = 64 * 1024;
-export const TEXT_FILE_FOLLOW_POLL_MS = 1_000;
 export const TEXT_FILE_BUFFER_MAX_CHARS = 1_000_000;
 
 /* === Types === */
 
-export type TextFileBuffer = {
-  text: string;
-  startOffset: number;
-  nextOffset: number;
-  sizeBytes: number;
-  truncated: boolean;
-  rotated: boolean;
-};
-
 export type TextArtifactLanguage = "json" | "log" | "text";
 
-export type TextHighlightKind =
-  | "boolean"
-  | "key"
-  | "level"
-  | "null"
-  | "number"
-  | "plain"
-  | "punctuation"
-  | "string"
-  | "timestamp";
+export type TextHighlightKind = "boolean" | "key" | "level" | "null" | "number" | "plain" | "punctuation" | "string" | "timestamp";
 
 export type TextHighlightToken = {
   kind: TextHighlightKind;
@@ -49,51 +32,17 @@ export type TextHighlightToken = {
 
 /* === Public Functions === */
 
-export function emptyTextFileBuffer(): TextFileBuffer {
-  return {
-    text: "",
-    startOffset: 0,
-    nextOffset: 0,
-    sizeBytes: 0,
-    truncated: false,
-    rotated: false,
-  };
+/** Append decoded text, keeping only the newest `TEXT_FILE_BUFFER_MAX_CHARS`. */
+export function appendBoundedText(current: string, addition: string): string {
+  const text = `${current}${addition}`;
+  return text.length > TEXT_FILE_BUFFER_MAX_CHARS ? text.slice(text.length - TEXT_FILE_BUFFER_MAX_CHARS) : text;
 }
 
-export function applyExecutionFileRead(
-  current: TextFileBuffer,
-  read: ExecutionFileTextRead,
-): TextFileBuffer {
-  const reset = read.rotated || read.offset < current.nextOffset;
-  const gap = read.offset > current.nextOffset;
-  const text =
-    reset || read.offset > current.nextOffset ? read.text : `${current.text}${read.text}`;
-  const trimmedText =
-    text.length > TEXT_FILE_BUFFER_MAX_CHARS
-      ? text.slice(text.length - TEXT_FILE_BUFFER_MAX_CHARS)
-      : text;
-  const startOffset = reset || gap ? read.offset : current.startOffset;
-  const trimmed = trimmedText.length < text.length;
-
-  return {
-    text: trimmedText,
-    startOffset,
-    nextOffset: read.nextOffset,
-    sizeBytes: read.sizeBytes,
-    truncated: read.truncated || startOffset > 0 || read.nextOffset < read.sizeBytes || trimmed,
-    rotated: read.rotated || reset,
-  };
-}
-
-export function shouldFollowArtifact(
-  artifact: Pick<ArtifactRecord, "stream_state"> | null | undefined,
-): boolean {
+export function shouldFollowArtifact(artifact: Pick<ArtifactRecord, "stream_state"> | null | undefined): boolean {
   return artifact?.stream_state === "streaming";
 }
 
-export function isPreviewableTextArtifact(
-  artifact: Pick<ArtifactRecord, "content_kind" | "media_type" | "path">,
-): boolean {
+export function isPreviewableTextArtifact(artifact: Pick<ArtifactRecord, "content_kind" | "media_type" | "path">): boolean {
   if (artifact.content_kind === "text") {
     return true;
   }
@@ -112,9 +61,7 @@ export function isPreviewableTextArtifact(
   return /\.(log|txt|jsonl?|csv|md|toml|ya?ml|xml)$/iu.test(artifact.path);
 }
 
-export function detectTextArtifactLanguage(
-  artifact: Pick<ArtifactRecord, "media_type" | "path"> | null | undefined,
-): TextArtifactLanguage {
+export function detectTextArtifactLanguage(artifact: Pick<ArtifactRecord, "media_type" | "path"> | null | undefined): TextArtifactLanguage {
   const mediaType = artifact?.media_type?.toLowerCase() ?? "";
   const path = artifact?.path.toLowerCase() ?? "";
   if (mediaType === "application/json" || /\.json$/u.test(path)) {
@@ -126,10 +73,7 @@ export function detectTextArtifactLanguage(
   return "text";
 }
 
-export function formatTextArtifactContent(
-  text: string,
-  artifact: Pick<ArtifactRecord, "media_type" | "path"> | null | undefined,
-): string {
+export function formatTextArtifactContent(text: string, artifact: Pick<ArtifactRecord, "media_type" | "path"> | null | undefined): string {
   const normalized = text.replace(/\r\n?/gu, "\n");
   if (detectTextArtifactLanguage(artifact) !== "json") {
     return normalized;
@@ -141,10 +85,7 @@ export function formatTextArtifactContent(
   }
 }
 
-export function highlightTextLine(
-  line: string,
-  language: TextArtifactLanguage,
-): TextHighlightToken[] {
+export function highlightTextLine(line: string, language: TextArtifactLanguage): TextHighlightToken[] {
   if (language === "json") {
     return highlightJsonLine(line);
   }
@@ -158,8 +99,7 @@ export function highlightTextLine(
 
 function highlightJsonLine(line: string): TextHighlightToken[] {
   const tokens: TextHighlightToken[] = [];
-  const regex =
-    /"(?:\\.|[^"\\])*"(?=\s*:)|"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}[\],:]/giu;
+  const regex = /"(?:\\.|[^"\\])*"(?=\s*:)|"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}[\],:]/giu;
   let cursor = 0;
   for (const match of line.matchAll(regex)) {
     const index = match.index ?? 0;

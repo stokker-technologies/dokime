@@ -52,9 +52,7 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
   const entry = entries[selected] ?? entries[0];
   if (!entry?.schema) return <p role="alert">Analysis output has no declared presentation.</p>;
   const { series, output, schema } = entry;
-  const displayIndices = output.displayIndices?.length
-    ? output.displayIndices
-    : output.axis.map((_, index) => index);
+  const displayIndices = output.displayIndices?.length ? output.displayIndices : output.axis.map((_, index) => index);
   const label = `${series.label} · ${schema.label}`;
   return (
     <section className="grid gap-2" aria-label={title}>

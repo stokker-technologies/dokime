@@ -6,14 +6,16 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 
 /* === Local Imports === */
 
-import type { RpcError } from "../desktop/rpc";
-import { normalizeRpcError } from "./errors";
 import {
-  type ArtifactMetadata,
-  ArtifactMetadataSchema,
-  UploadArtifactHeaderSchema,
-} from "./generated/dokime/v1/content_pb";
-import { invokeOwned, requestBytes, responseBytes, type SessionIdentity } from "./transport";
+  type Row2 as ArtifactMetadata,
+  Row2Schema as ArtifactMetadataSchema,
+  Row15Schema as UploadArtifactHeaderSchema,
+} from "../../../.generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb";
+import type { RpcError } from "../desktop/rpc";
+import type { Wire } from "./canonical";
+import { normalizeRpcError } from "./errors";
+import { invokeOwned, requestBytes, responseBytes } from "./ipc";
+import type { SessionIdentity } from "./transport";
 
 /* === Public Types === */
 
@@ -21,7 +23,7 @@ export interface NativeArtifactUpload {
   /** Send one bounded raw slice in order. */
   write(slice: Uint8Array): Promise<void>;
   /** Close the upload and await its verified, server-issued metadata. */
-  finish(): Promise<ArtifactMetadata>;
+  finish(): Promise<Wire<ArtifactMetadata>>;
   /** Cancel the upload and release the native sink. */
   cancel(): Promise<void>;
 }
@@ -46,10 +48,7 @@ export async function openNativeArtifactUpload(
     await invokeOwned<ArrayBuffer>(
       session,
       "artifact_upload_open",
-      requestBytes(
-        session,
-        toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header)),
-      ),
+      requestBytes(session, toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header))),
     ),
     16,
   );
@@ -100,21 +99,14 @@ export async function openNativeArtifactUpload(
       writing = false;
     }
   };
-  const finish = async (): Promise<ArtifactMetadata> => {
+  const finish = async (): Promise<Wire<ArtifactMetadata>> => {
     if (inputClosed || settled || cancellationRequested) fail({ kind: "unknown_stream" });
     if (writing) fail({ kind: "busy" });
     inputClosed = true;
     try {
-      const result = await invokeOwned<ArrayBuffer>(
-        session,
-        "artifact_upload_finish",
-        handlePayload(),
-      );
+      const result = await invokeOwned<ArrayBuffer>(session, "artifact_upload_finish", handlePayload());
       if (cancellationRequested) fail({ kind: "cancelled" });
-      const metadata = fromBinary(
-        ArtifactMetadataSchema,
-        responseBytes(session, result, 8).subarray(8),
-      );
+      const metadata = fromBinary(ArtifactMetadataSchema, responseBytes(session, result, 8).subarray(8));
       settled = true;
       return metadata;
     } catch (error) {
@@ -158,10 +150,7 @@ export async function openNativeRecording(
   const response = await invokeOwned<ArrayBuffer>(
     session,
     "recording_open",
-    requestBytes(
-      session,
-      toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header)),
-    ),
+    requestBytes(session, toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header))),
   );
   responseBytes(session, response, 8);
   let writing = false;
@@ -182,11 +171,7 @@ export async function openNativeRecording(
     if (cancelled) return;
     cancelled = true;
     if (session.isCurrent()) {
-      await invokeOwned<void>(
-        session,
-        "recording_cancel",
-        requestBytes(session, new Uint8Array(0)),
-      ).catch(() => undefined);
+      await invokeOwned<void>(session, "recording_cancel", requestBytes(session, new Uint8Array(0))).catch(() => undefined);
     }
   };
   return { write, cancel };

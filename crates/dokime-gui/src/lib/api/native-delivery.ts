@@ -13,13 +13,9 @@
 
 /* === Local Imports === */
 
-import type {
-  ArtifactSource,
-  DeliveryAction,
-  DesktopSaveDocument,
-  DesktopSaveKind,
-} from "@/lib/desktop/delivery";
+import type { ArtifactSource, DeliveryAction, DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { normalizeDeliveryError } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { NativeApiUnsupportedError } from "./native-values";
 
@@ -42,15 +38,9 @@ export type NativeDeliveryRequest = {
  * the byte bound to stop an oversized request before base64 encoding and IPC
  * allocation.
  */
-export async function openNativeDocument(
-  session: SessionIdentity,
-  request: NativeDeliveryRequest,
-): Promise<boolean> {
+export async function openNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): Promise<boolean> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Open native document",
-      "desktop_open_document (native document cache)",
-    );
+    throw new NativeApiUnsupportedError("Open native document", "desktop_open_document (native document cache)");
   }
   const document = prepareNativeDocument(session, request);
   const { commands } = await import("@/lib/desktop/commands");
@@ -60,21 +50,16 @@ export async function openNativeDocument(
 }
 
 /**
- * Save verified bytes through the main-window native picker.
+ * Save verified bytes through the main-window native picker, and say where
+ * they landed: the saved path, or `null` when the operator cancels.
  *
  * The desktop command owns extension, encoded-size preflight, private filesystem
  * publication, and generation checks. This adapter repeats the byte bound to stop
  * an oversized request before base64 encoding and IPC allocation.
  */
-export async function saveNativeDocument(
-  session: SessionIdentity,
-  request: NativeDeliveryRequest,
-): Promise<boolean> {
+export async function saveNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): Promise<string | null> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Save native document",
-      "desktop_save_document (native file picker)",
-    );
+    throw new NativeApiUnsupportedError("Save native document", "desktop_save_document (native file picker)");
   }
   const document = prepareNativeDocument(session, request);
   const { commands } = await import("@/lib/desktop/commands");
@@ -94,23 +79,15 @@ export async function saveNativeDocument(
  * this is the one save whose *path* the caller needs: the row offers the
  * folder the operator chose, and only the shell knows what that was.
  */
-export async function saveNativeDiagnosticsBundle(
-  session: SessionIdentity,
-  request: Omit<NativeDeliveryRequest, "kind">,
-): Promise<string> {
+export async function saveNativeDiagnosticsBundle(session: SessionIdentity, request: Omit<NativeDeliveryRequest, "kind">): Promise<string> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Save diagnostics bundle",
-      "desktop_save_diagnostics_bundle (native file picker)",
-    );
+    throw new NativeApiUnsupportedError("Save diagnostics bundle", "desktop_save_diagnostics_bundle (native file picker)");
   }
   /* The shell requires the extension rather than appending it, so a filename
      the backend named something else is refused here, with the reason, rather
      than by an IPC error. */
   if (!request.filename.trim().toLowerCase().endsWith(".zip")) {
-    throw new Error(
-      `The diagnostics bundle must be saved as a .zip archive; the backend named it "${request.filename}".`,
-    );
+    throw new Error(`The diagnostics bundle must be saved as a .zip archive; the backend named it "${request.filename}".`);
   }
   const document = prepareNativeDocument(session, { ...request, kind: "diagnostics_bundle" });
   const { commands } = await import("@/lib/desktop/commands");
@@ -134,26 +111,24 @@ export type NativeArtifactDeliveryRequest = {
  * pulls the content straight from the server, scaling to the full 2 GiB
  * artifact/cycle-bundle bound instead of the 32 MiB base64 JSON cap.
  */
-export async function deliverNativeArtifact(
-  session: SessionIdentity,
-  request: NativeArtifactDeliveryRequest,
-): Promise<boolean> {
+export async function deliverNativeArtifact(session: SessionIdentity, request: NativeArtifactDeliveryRequest): Promise<boolean> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Deliver native artifact",
-      "desktop_artifact_deliver (native verified content delivery)",
-    );
+    throw new NativeApiUnsupportedError("Deliver native artifact", "desktop_artifact_deliver (native verified content delivery)");
   }
   const filename = request.filename.trim();
   if (!filename) throw new Error("Native artifact delivery requires a filename.");
   assertCurrent(session);
   const { commands } = await import("@/lib/desktop/commands");
-  const delivered = await commands.desktopArtifactDeliver(session.generation, {
-    source: request.source,
-    kind: request.kind,
-    filename,
-    action: request.action,
-  });
+  const delivered = await commands
+    .desktopArtifactDeliver(session.generation, {
+      source: request.source,
+      kind: request.kind,
+      filename,
+      action: request.action,
+    })
+    .catch((error: unknown) => {
+      throw normalizeDeliveryError(error);
+    });
   assertCurrent(session);
   return delivered;
 }
@@ -163,15 +138,9 @@ export async function deliverNativeArtifact(
  * preview cache and return its path (`"<generation>/<key>"`, not a URL: the
  * caller turns it into one with `convertFileSrc(path, "dokime-media")`).
  */
-export async function prepareNativeMedia(
-  session: SessionIdentity,
-  source: ArtifactSource,
-): Promise<string> {
+export async function prepareNativeMedia(session: SessionIdentity, source: ArtifactSource): Promise<string> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Prepare native media preview",
-      "desktop_media_prepare (native media preview cache)",
-    );
+    throw new NativeApiUnsupportedError("Prepare native media preview", "desktop_media_prepare (native media preview cache)");
   }
   assertCurrent(session);
   const { commands } = await import("@/lib/desktop/commands");
@@ -193,10 +162,7 @@ export async function releaseNativeMedia(generation: string): Promise<void> {
 
 /* === Private Functions === */
 
-function prepareNativeDocument(
-  session: SessionIdentity,
-  request: NativeDeliveryRequest,
-): DesktopSaveDocument {
+function prepareNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): DesktopSaveDocument {
   const filename = request.filename.trim();
   if (!filename) throw new Error("Native document delivery requires a filename.");
   if (request.bytes.byteLength > NATIVE_HTML_DOCUMENT_BYTES) {

@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -67,7 +66,7 @@ pub enum BenchError {
 
 /* === Implementations === */
 impl Sensor {
-                        pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
+    pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
         let port = port.into();
         let chamber = Arc::clone(registry().entry(port.clone()).or_insert_with(|| {
             Arc::new(Mutex::new(Chamber {
@@ -80,7 +79,7 @@ impl Sensor {
         Self { port, chamber }
     }
 
-                            pub fn read_celsius(&self) -> Result<f64, BenchError> {
+    pub fn read_celsius(&self) -> Result<f64, BenchError> {
         let mut chamber = self.chamber.lock().unwrap_or_else(PoisonError::into_inner);
         let target = if chamber.powered {
             chamber.target_c
@@ -92,21 +91,21 @@ impl Sensor {
         Ok(chamber.celsius)
     }
 
-        pub fn port(&self) -> &str {
+    pub fn port(&self) -> &str {
         &self.port
     }
 
-        pub fn describe(&self) -> String {
+    pub fn describe(&self) -> String {
         format!("simulated sensor on {}", self.port)
     }
 
-        pub fn close(&self) {
+    pub fn close(&self) {
         rest(&self.chamber);
     }
 }
 
 impl Heater {
-                                pub async fn open(port: impl Into<String>) -> Result<Self, BenchError> {
+    pub async fn open(port: impl Into<String>) -> Result<Self, BenchError> {
         let port = port.into();
         let chamber = registry()
             .get(&port)
@@ -116,7 +115,7 @@ impl Heater {
         Ok(Self { port, chamber })
     }
 
-        pub async fn identity(&self) -> Result<Identity, BenchError> {
+    pub async fn identity(&self) -> Result<Identity, BenchError> {
         Ok(Identity {
             serial: format!(
                 "SIM-{}",
@@ -126,7 +125,7 @@ impl Heater {
         })
     }
 
-                        pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {
+    pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {
         if !celsius.is_finite() || celsius > MAXIMUM_C {
             return Err(BenchError::Unreachable { celsius });
         }
@@ -137,7 +136,7 @@ impl Heater {
         Ok(())
     }
 
-        pub async fn off(&self) -> Result<(), BenchError> {
+    pub async fn off(&self) -> Result<(), BenchError> {
         rest(&self.chamber);
 
         Ok(())
@@ -159,3 +158,37 @@ fn rest(chamber: &Mutex<Chamber>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn refused_target_unchanged() {
+        let sensor = Sensor::open("unit/refused-target", 22.0);
+        let heater = Heater::open(sensor.port()).await.unwrap();
+        heater.set_target(80.0).await.unwrap();
+        let before = {
+            let chamber = sensor.chamber.lock().unwrap();
+            (chamber.target_c, chamber.powered, chamber.celsius)
+        };
+        for refused in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 151.0] {
+            assert!(matches!(heater.set_target(refused).await, Err(BenchError::Unreachable { .. })));
+            let chamber = sensor.chamber.lock().unwrap();
+            assert_eq!((chamber.target_c, chamber.powered, chamber.celsius), before);
+        }
+        heater.off().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn closed_heater_steady() {
+        let sensor = Sensor::open("unit/heater-off", 22.0);
+        let heater = Heater::open(sensor.port()).await.unwrap();
+        heater.set_target(80.0).await.unwrap();
+        let warmed = sensor.read_celsius().unwrap();
+        assert!(warmed > 22.0 && warmed < 80.0);
+        heater.off().await.unwrap();
+        assert_eq!(sensor.read_celsius().unwrap(), warmed);
+        assert_eq!(sensor.read_celsius().unwrap(), warmed);
+    }
+}

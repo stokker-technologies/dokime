@@ -9,12 +9,14 @@
 
 /* === External Imports === */
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type uPlot from "uplot";
 
 /* === Local Imports === */
 
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
+import { nearestDrawnPoint, type SeriesSummary, seriesLegendColumns, seriesLegendRows, toggleTrace } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
   DocumentPlotStyle,
@@ -29,7 +31,10 @@ import { isNumber } from "@/lib/utils";
 import { formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotViewportMode } from "@/plots/types";
+import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Constants === */
 
@@ -53,6 +58,7 @@ const TOUCH_PLOT_FONT_SCALE = 1.3;
 const POINT_MARK_RENDER_LIMIT = 600;
 const DENSE_POINT_MARK_SIZE = 3;
 const DEFAULT_POINT_MARK_SIZE = 5;
+const EMPTY_TRACES: ReadonlySet<string> = new Set();
 
 /* === Types === */
 
@@ -84,12 +90,21 @@ type CartesianPlotProps = {
   cycleStartedAt?: number | null;
   resetKey?: string;
   lockYZoom?: boolean;
+  /** Per-plot controls the host places beside the follow button. */
+  actions?: ReactNode;
   badge?: string;
   stateLabel?: string;
   stateDetail?: string;
   contextSummary?: string;
   liveWindowS?: number | null;
   viewportMode?: PlotViewportMode;
+  /**
+   * Replaces the canvas legend with the trace statistics table: one clickable
+   * row per trace with the backend's statistics of the shown window.
+   */
+  legend?: { summaries: SeriesSummary[]; pending: boolean } | null;
+  /** Reports the x range a zoom holds, or `null` once the plot follows again. */
+  onViewportChange?: (window: { from: number; to: number } | null) => void;
 };
 
 type IntervalRange = {
@@ -140,16 +155,28 @@ export const CartesianPlot = memo(function CartesianPlot({
   runStartedAt = null,
   cycleStartedAt = null,
   resetKey,
+  actions,
   badge,
   stateLabel,
   stateDetail,
   contextSummary,
   liveWindowS = null,
   viewportMode = "fit",
+  legend = null,
+  onViewportChange,
 }: CartesianPlotProps) {
   const { zoom } = usePlotInteraction();
+  const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
+  const [traceColors, setTraceColors] = useState<string[]>([]);
+  const [cursorX, setCursorX] = useState<number | null>(null);
+  const cursorFrameRef = useRef<number | null>(null);
+  const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
+  hiddenTracesRef.current = hiddenTraces;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+  const tableLegend = legend !== null;
   const [following, setFollowing] = useState(true);
-  const heldRangeRef = useRef<{ x: PlotViewportRange; y: PlotViewportRange } | null>(null);
+  const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
   const markersRef = useRef<PlotMarker[]>(markers);
@@ -171,18 +198,11 @@ export const CartesianPlot = memo(function CartesianPlot({
   // sibling card in the same boundary. The plot is built only once the root
   // has been measured.
   const [laidOut, setLaidOut] = useState(false);
-  const renderedSeries = useMemo(() => limitRenderedSeries(series), [series]);
-  const backendCartesian = useMemo(
-    () => usableCartesianFrame(cartesian, renderedSeries, series),
-    [cartesian, renderedSeries, series],
-  );
-  const chartFrame = useMemo(
-    () => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null),
-    [backendCartesian],
-  );
+  const renderedSeries = useMemo(() => limitRenderedSeries(series, cartesian), [series, cartesian]);
+  const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
+  const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
   const seriesKey = useMemo(
-    () =>
-      renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
+    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
     [renderedSeries, series],
   );
   const colorsKey = colors.join("|");
@@ -199,10 +219,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     runStartedAt: runStartedAt ?? null,
     cycleStartedAt: cycleStartedAt ?? null,
   });
-  const intervalRanges = useMemo(
-    () => intervalRangeData(renderedSeries, { xScale, yScale }),
-    [renderedSeries, xScale, yScale],
-  );
+  const intervalRanges = useMemo(() => intervalRangeData(renderedSeries, { xScale, yScale }), [renderedSeries, xScale, yScale]);
   const yReferenceValues = useMemo(
     () => referenceYValues(referenceLines, referenceBands, yScale),
     [referenceBands, referenceLines, yScale],
@@ -210,12 +227,9 @@ export const CartesianPlot = memo(function CartesianPlot({
   const yReferenceKey = yReferenceValues.join("|");
   const hasData = Boolean(chartFrame && chartFrame.pointCount > 0);
   const hasTimeline =
-    renderedSeries.some((item) => item.points.length > 0) ||
-    Boolean(backendCartesian?.series.some((item) => item.x.length > 0));
+    renderedSeries.some((item) => item.points.length > 0) || Boolean(backendCartesian?.series.some((item) => item.x.length > 0));
   const frameError =
-    (cartesian != null || hasTimeline) && !backendCartesian
-      ? "The plot data could not be rendered. Reload the plot to try again."
-      : null;
+    (cartesian != null || hasTimeline) && !backendCartesian ? "The plot data could not be rendered. Reload the plot to try again." : null;
   const displayError = plotLoadError ?? frameError;
   const chartMode = chartFrame?.mode ?? null;
   const dataSignature = chartFrame?.signature ?? null;
@@ -223,10 +237,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   // Structural, not per-sample: crossing the render limit switches the point
   // mark style, everything below it is a plain data update.
   const densePoints = renderedPointCount > POINT_MARK_RENDER_LIMIT;
-  const liveXRange = useMemo(
-    () => liveCartesianXRange(backendCartesian, liveWindowS),
-    [backendCartesian, liveWindowS],
-  );
+  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, liveWindowS), [backendCartesian, liveWindowS]);
 
   useEffect(() => {
     let cancelled = false;
@@ -273,11 +284,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
     const resolvedSeriesColors = renderedSeries.map((item) => {
       const index = series.indexOf(item);
-      return resolvePlotCssColor(
-        colors[index] ?? themeColors.palette[index % themeColors.palette.length],
-        root,
-        fallbackSeriesColor,
-      );
+      return resolvePlotCssColor(colors[index] ?? themeColors.palette[index % themeColors.palette.length], root, fallbackSeriesColor);
     });
     const faceted = chartFrame.mode === "faceted";
     const chartHeight = 230;
@@ -299,22 +306,15 @@ export const CartesianPlot = memo(function CartesianPlot({
     };
     const xAxisValues: uPlot.Axis.Values | undefined = xElapsedUnit
       ? (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-          splits.map((split) =>
-            split == null ? "" : formatElapsedTick(split, xElapsedUnit, foundIncr),
-          )
+          splits.map((split) => (split == null ? "" : formatElapsedTick(split, xElapsedUnit, foundIncr)))
       : timeAxis
         ? xFormat
-          ? (_plot, splits) =>
-              splits.map((split) => (split == null ? "" : formatTime(split, xFormat, timeOrigin)))
+          ? (_plot, splits) => splits.map((split) => (split == null ? "" : formatTime(split, xFormat, timeOrigin)))
           : undefined
         : (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-            splits.map((split) =>
-              split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr }),
-            );
+            splits.map((split) => (split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr })));
     const yAxisValues: uPlot.Axis.Values = (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-      splits.map((split) =>
-        split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr }),
-      );
+      splits.map((split) => (split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr })));
     const seriesLegendValue =
       (format: ValueFormat | null): uPlot.Series.Value =>
       (_plot, rawValue) =>
@@ -326,20 +326,29 @@ export const CartesianPlot = memo(function CartesianPlot({
       hooks: {
         setSelect: [
           (plot) => {
-            if (plot.select.width <= 0 || plot.select.height <= 0) return;
-            const x = [
-              plot.posToVal(plot.select.left, "x"),
-              plot.posToVal(plot.select.left + plot.select.width, "x"),
-            ];
-            const y = [
-              plot.posToVal(plot.select.top, "y"),
-              plot.posToVal(plot.select.top + plot.select.height, "y"),
-            ];
-            heldRangeRef.current = {
-              x: { min: Math.min(...x), max: Math.max(...x) },
-              y: { min: Math.min(...y), max: Math.max(...y) },
-            };
+            const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
+              plot.posToVal(position, axis),
+            );
+            if (!held) return;
+            heldRangeRef.current = held;
             setFollowing(false);
+            // A y-only zoom returns x to its live follow, so the statistics
+            // return to the window too.
+            onViewportChangeRef.current?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+          },
+        ],
+        setCursor: [
+          (plot) => {
+            const left = plot.cursor.left;
+            if (!tableLegend || left == null || left < 0) return;
+            const x = plot.posToVal(left, "x");
+            if (cursorFrameRef.current !== null) {
+              window.cancelAnimationFrame(cursorFrameRef.current);
+            }
+            cursorFrameRef.current = window.requestAnimationFrame(() => {
+              cursorFrameRef.current = null;
+              setCursorX(x);
+            });
           },
         ],
         drawClear: [
@@ -349,24 +358,22 @@ export const CartesianPlot = memo(function CartesianPlot({
         ],
         draw: [
           (plot) => {
-            drawIntervalRanges(
-              plot,
-              intervalRangesRef.current,
-              resolvedSeriesColors[0] ?? fallbackSeriesColor,
-            );
+            drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
             drawMarkers(plot, markersRef.current, root, themeColors.foreground);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
       },
-      // A selected box becomes a held viewport while data continues arriving.
+      // A dragged box is drawn as the selection and becomes a held viewport
+      // while data continues arriving; a mostly horizontal or vertical drag
+      // zooms that axis alone, a double click returns to the full view.
       cursor: {
-        drag: { x: true, y: true, setScale: true },
+        drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
       },
       select: { show: true, left: 0, top: 0, width: 0, height: 0 },
       legend: {
-        show: true,
+        show: !tableLegend,
         live: true,
       },
       scales: {
@@ -383,10 +390,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                   paddedYRange(
                     dataMin,
                     dataMax,
-                    [
-                      ...yReferenceValues,
-                      ...intervalRangesRef.current.flatMap((range) => [range.low, range.high]),
-                    ],
+                    [...yReferenceValues, ...intervalRangesRef.current.flatMap((range) => [range.low, range.high])],
                     yScale,
                   )
               : undefined,
@@ -420,8 +424,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           ? null
           : xElapsedUnit
             ? {
-                value: (_plot, rawValue) =>
-                  rawValue == null ? "--" : formatElapsedTick(rawValue, xElapsedUnit),
+                value: (_plot, rawValue) => (rawValue == null ? "--" : formatElapsedTick(rawValue, xElapsedUnit)),
               }
             : {},
         ...renderedSeries.map((item, index) => ({
@@ -438,13 +441,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           width: lineWidth,
           points: faceted ? { show: false } : { show: showPoints, size: pointSize },
           paths: faceted
-            ? facetedSeriesPaths(
-                style,
-                showPoints,
-                pointSize,
-                resolvedSeriesColors[index] ?? fallbackSeriesColor,
-                themeColors.background,
-              )
+            ? facetedSeriesPaths(style, showPoints, pointSize, resolvedSeriesColors[index] ?? fallbackSeriesColor, themeColors.background)
             : style === "step"
               ? uPlotConstructor.paths.stepped?.({ align: 1 })
               : undefined,
@@ -465,11 +462,15 @@ export const CartesianPlot = memo(function CartesianPlot({
     if (resetKeyRef.current !== resetKey || viewportModeRef.current !== viewportMode) {
       heldRangeRef.current = null;
       setFollowing(true);
+      onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      plot.setScale("x", heldRangeRef.current.x);
-      plot.setScale("y", heldRangeRef.current.y);
+      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => setLiveXScale(plot, liveXRange, xScale, timeAxis));
     }
+    renderedSeries.forEach((item, index) => {
+      if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
+    });
+    setTraceColors((current) => (current.join("|") === resolvedSeriesColors.join("|") ? current : resolvedSeriesColors));
     plotRef.current = plot;
     dataSignatureRef.current = dataSignature;
     resetKeyRef.current = resetKey;
@@ -499,9 +500,12 @@ export const CartesianPlot = memo(function CartesianPlot({
     const observer = new ResizeObserver(scheduleResize);
     observer.observe(root);
     window.addEventListener("resize", scheduleResize);
+    /* uPlot's own double click already auto-scaled both axes; the hold is
+       dropped so the next frame follows the run again instead of re-pinning. */
     const resume = () => {
       heldRangeRef.current = null;
       setFollowing(true);
+      onViewportChangeRef.current?.(null);
     };
     root.addEventListener("dblclick", resume);
     return () => {
@@ -519,6 +523,10 @@ export const CartesianPlot = memo(function CartesianPlot({
       if (updateFrameRef.current !== null) {
         window.cancelAnimationFrame(updateFrameRef.current);
         updateFrameRef.current = null;
+      }
+      if (cursorFrameRef.current !== null) {
+        window.cancelAnimationFrame(cursorFrameRef.current);
+        cursorFrameRef.current = null;
       }
       plot.destroy();
       plotRef.current = null;
@@ -550,7 +558,36 @@ export const CartesianPlot = memo(function CartesianPlot({
     yReferenceKey,
     chartMode,
     formatsKey,
+    tableLegend,
   ]);
+
+  // Visibility is this card's own state: toggling a trace shows or hides its
+  // series in place, without rebuilding the plot.
+  useEffect(() => {
+    const plot = plotRef.current;
+    if (!plot) return;
+    renderedSeries.forEach((item, index) => {
+      const show = !hiddenTraces.has(item.key);
+      if (plot.series[index + 1]?.show !== show) plot.setSeries(index + 1, { show });
+    });
+  }, [hiddenTraces, renderedSeries]);
+
+  const legendRows = useMemo(() => {
+    if (!legend) return null;
+    const frame = backendCartesian;
+    const cursorPoints = cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
+    return seriesLegendRows({
+      cursorPoints,
+      hidden: hiddenTraces,
+      summaries: legend.summaries,
+      traces: renderedSeries.map((item, index) => ({
+        key: item.key,
+        label: item.label,
+        color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
+      })),
+    });
+  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, renderedSeries, series, traceColors]);
+  const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {
     markersRef.current = markers;
@@ -584,9 +621,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
         if (heldRangeRef.current && !resetChanged && !viewportModeChanged) {
-          plot.setData(chartFrame.data, false);
-          plot.setScale("x", heldRangeRef.current.x);
-          plot.setScale("y", heldRangeRef.current.y);
+          applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => {
+            if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
+          });
           dataSignatureRef.current = dataSignature;
           return;
         }
@@ -613,24 +650,15 @@ export const CartesianPlot = memo(function CartesianPlot({
   }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale]);
 
   if (displayError || !hasData) {
-    return (
-      <div className="plot-empty grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
-        <strong>{title}</strong>
-        {description ? <span className="text-xs">{description}</span> : null}
-        <span>
-          {displayError
-            ? "Plot Unavailable"
-            : (stateLabel ?? (hasTimeline ? "Unavailable" : "Waiting For Samples"))}
-        </span>
-        <span className="text-xs">
-          {displayError ??
-            stateDetail ??
-            (hasTimeline
-              ? "The stream is active, but this signal is unavailable in the selected window."
-              : "No plottable data recorded.")}
-        </span>
-      </div>
-    );
+    const placeholder = displayError
+      ? plotUnavailableText(displayError)
+      : hasTimeline
+        ? plotPlaceholderText(
+            { stateLabel: stateLabel ?? "Unavailable", stateDetail },
+            "The stream is active, but this signal is unavailable in the selected window.",
+          )
+        : plotPlaceholderText({ stateLabel, stateDetail });
+    return <PlotPlaceholder actions={actions} description={description} title={title} {...placeholder} />;
   }
 
   return (
@@ -638,14 +666,11 @@ export const CartesianPlot = memo(function CartesianPlot({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <strong className="block truncate">{title}</strong>
-          {description ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-          ) : null}
-          {contextSummary ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p>
-          ) : null}
+          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
+          {contextSummary ? <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
         <div className="flex items-center gap-2">
+          {actions}
           <button
             type="button"
             aria-pressed={following}
@@ -653,6 +678,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             onClick={() => {
               heldRangeRef.current = null;
               setFollowing(true);
+              onViewportChangeRef.current?.(null);
               const plot = plotRef.current;
               if (plot && chartFrame) {
                 plot.setData(chartFrame.data, true);
@@ -665,19 +691,24 @@ export const CartesianPlot = memo(function CartesianPlot({
           <span className="text-xs text-muted-foreground">
             {renderedPointCount} points
             {downsampledLabel(renderedSeries)}
-            {series.length > renderedSeries.length
-              ? ` - ${renderedSeries.length} of ${series.length} series`
-              : ""}
+            {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
             {unit ? ` - ${unit}` : ""}
             {xScale === "log" || yScale === "log" ? " - log" : ""}
             {badge ? ` - ${badge}` : ""}
           </span>
         </div>
       </div>
-      <div
-        ref={rootRef}
-        className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden"
-      />
+      <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
+      {legend && legendRows ? (
+        <StatsSummaryTable
+          legend={{
+            columns: legendColumns,
+            rows: legendRows,
+            pending: legend.pending,
+            onToggle: (key) => setHiddenTraces((current) => toggleTrace(current, key)),
+          }}
+        />
+      ) : null}
     </article>
   );
 });
@@ -749,10 +780,7 @@ function measureTextWidth(text: string, font: string): number {
  * is sized from the lines uPlot is about to draw.
  */
 function xAxisGutter(values: string[] | null | undefined, font: string): number {
-  const lines = (values ?? []).reduce(
-    (most, value) => Math.max(most, value ? value.split("\n").length : 1),
-    1,
-  );
+  const lines = (values ?? []).reduce((most, value) => Math.max(most, value ? value.split("\n").length : 1), 1);
   const size = X_AXIS_TICK_ROOM + Math.ceil(lines * plotFontPx(font) * AXIS_LINE_GAP);
   return Math.min(X_AXIS_MAX_GUTTER, Math.max(X_AXIS_MIN_GUTTER, size));
 }
@@ -761,9 +789,7 @@ function xAxisGutter(values: string[] | null | undefined, font: string): number 
 function xAxisRightPad(plot: uPlot, font: string): number {
   const values = (plot?.axes?.[0] as { _values?: string[] } | undefined)?._values ?? [];
   const last = values.at(-1) ?? "";
-  const widest = last
-    .split("\n")
-    .reduce((width, line) => Math.max(width, measureTextWidth(line, font)), 0);
+  const widest = last.split("\n").reduce((width, line) => Math.max(width, measureTextWidth(line, font)), 0);
   return Math.max(X_AXIS_MIN_RIGHT_PAD, Math.ceil(widest / 2) + 2);
 }
 
@@ -782,14 +808,8 @@ function plotFontPx(font: string): number {
  * plus its tick marks and gap.
  */
 function yAxisGutter(values: string[] | null | undefined, font: string): number {
-  const widest = (values ?? []).reduce(
-    (width, value) => Math.max(width, value ? measureTextWidth(value, font) : 0),
-    0,
-  );
-  return Math.min(
-    Y_AXIS_MAX_GUTTER,
-    Math.max(Y_AXIS_MIN_GUTTER, Math.ceil(widest) + Y_AXIS_LABEL_PADDING),
-  );
+  const widest = (values ?? []).reduce((width, value) => Math.max(width, value ? measureTextWidth(value, font) : 0), 0);
+  return Math.min(Y_AXIS_MAX_GUTTER, Math.max(Y_AXIS_MIN_GUTTER, Math.ceil(widest) + Y_AXIS_LABEL_PADDING));
 }
 
 /* === Private Functions === */
@@ -802,10 +822,7 @@ export function usableCartesianFrame(
   if (!cartesian || !Array.isArray(cartesian.series)) {
     return null;
   }
-  if (
-    cartesian.series.length !== allSeries.length ||
-    !cartesian.series.every((series) => series.x.length === series.y.length)
-  ) {
+  if (cartesian.series.length !== allSeries.length || !cartesian.series.every((series) => series.x.length === series.y.length)) {
     return null;
   }
 
@@ -821,12 +838,8 @@ export function usableCartesianFrame(
   }
   const selected = indices.map((index) => cartesian.series[index]);
   return {
-    mode: cartesian.mode,
+    ...cartesian,
     series: selected,
-    point_count: selected.reduce(
-      (total, series) => total + series.y.filter((value) => value !== null).length,
-      0,
-    ),
     signature: `${cartesian.signature}:${indices.join(",")}`,
   };
 }
@@ -835,14 +848,8 @@ function chartFrameFromCartesian(cartesian: PlotCartesianFrame): ChartFrame {
   return {
     data:
       cartesian.mode === "faceted"
-        ? ([
-            null,
-            ...cartesian.series.map((series) => [series.x, series.y]),
-          ] as unknown as uPlot.AlignedData)
-        : ([
-            cartesian.series[0]?.x ?? [],
-            ...cartesian.series.map((series) => series.y),
-          ] as uPlot.AlignedData),
+        ? ([null, ...cartesian.series.map((series) => [series.x, series.y])] as unknown as uPlot.AlignedData)
+        : ([cartesian.series[0]?.x ?? [], ...cartesian.series.map((series) => series.y)] as uPlot.AlignedData),
     mode: cartesian.mode,
     pointCount: cartesian.point_count,
     signature: cartesian.signature,
@@ -853,14 +860,16 @@ export function liveCartesianXRange(
   cartesian: PlotCartesianFrame | null | undefined,
   windowS: number | null | undefined,
 ): PlotViewportRange | null {
-  const values =
-    cartesian?.series.flatMap((series) => series.x).filter((value) => Number.isFinite(value)) ?? [];
-  if (!values.length) {
-    return null;
+  // A loop, not a spread: a retained frame can exceed the engine's argument limit.
+  let earliest = Number.POSITIVE_INFINITY;
+  let latest = Number.NEGATIVE_INFINITY;
+  for (const series of cartesian?.series ?? []) {
+    for (const value of series.x) {
+      if (!Number.isFinite(value)) continue;
+      if (value < earliest) earliest = value;
+      if (value > latest) latest = value;
+    }
   }
-
-  const latest = Math.max(...values);
-  const earliest = Math.min(...values);
   if (!Number.isFinite(latest) || !Number.isFinite(earliest)) {
     return null;
   }
@@ -889,12 +898,7 @@ export function liveCartesianXRange(
  * explicit range one ulp wide gives uPlot an increment its tick loop cannot
  * advance by, and that loop pushes splits until the array overflows.
  */
-function setLiveXScale(
-  plot: uPlot,
-  range: PlotViewportRange | null,
-  xScale: DocumentAxisScale,
-  timeAxis: boolean,
-): void {
+function setLiveXScale(plot: uPlot, range: PlotViewportRange | null, xScale: DocumentAxisScale, timeAxis: boolean): void {
   if (!timeAxis || !range || !isUsableSpan(range.min, range.max)) {
     return;
   }
@@ -902,6 +906,18 @@ function setLiveXScale(
     return;
   }
   plot.setScale("x", range);
+}
+
+/**
+ * Re-pins a held viewport over fresh data: the axes are auto-ranged first so
+ * an axis the drag left alone keeps ranging with the data, then each held
+ * axis is set back, and an unheld x axis follows the run on a live surface.
+ */
+function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedData, followX: () => void): void {
+  plot.setData(data, true);
+  if (held.x) plot.setScale("x", held.x);
+  else followX();
+  if (held.y) plot.setScale("y", held.y);
 }
 
 /** Whether `[min, max]` is finite and wider than float noise around its bounds. */
@@ -918,10 +934,7 @@ function plotFailureMessage(error: unknown): string {
   return `The plot could not be drawn: ${text}`;
 }
 
-function intervalRangeData(
-  series: PlotSeries[],
-  scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale },
-): IntervalRange[] {
+function intervalRangeData(series: PlotSeries[], scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale }): IntervalRange[] {
   return series.flatMap((item) =>
     item.points
       .map((point, index) => {
@@ -945,13 +958,17 @@ function intervalRangeData(
   );
 }
 
-export function limitRenderedSeries(series: PlotSeries[]): PlotSeries[] {
+/** The series with the most samples, ranked by the cartesian frame that holds them when present. */
+export function limitRenderedSeries(series: PlotSeries[], cartesian?: PlotCartesianFrame | null): PlotSeries[] {
   if (series.length <= MAX_RENDERED_SERIES) {
     return series;
   }
-  return [...series]
-    .sort((left, right) => right.points.length - left.points.length)
-    .slice(0, MAX_RENDERED_SERIES);
+  const sampleCount = (item: PlotSeries) => {
+    const frame = cartesian?.series[series.indexOf(item)];
+    return frame ? frame.y.filter((value) => value != null).length : item.points.length;
+  };
+  const counts = new Map(series.map((item) => [item, sampleCount(item)]));
+  return [...series].sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0)).slice(0, MAX_RENDERED_SERIES);
 }
 
 /**
@@ -1103,10 +1120,7 @@ function facetedSeriesPaths(
   };
 }
 
-function facetedSeriesData(
-  plot: uPlot,
-  seriesIdx: number,
-): [number[], Array<number | null>] | null {
+function facetedSeriesData(plot: uPlot, seriesIdx: number): [number[], Array<number | null>] | null {
   const data = plot.data[seriesIdx] as unknown;
   if (!Array.isArray(data) || !Array.isArray(data[0]) || !Array.isArray(data[1])) {
     return null;
@@ -1173,12 +1187,7 @@ function drawMarkers(plot: uPlot, markers: PlotMarker[], element: Element, fallb
   ctx.restore();
 }
 
-function drawReferenceLines(
-  plot: uPlot,
-  lines: DocumentReferenceLine[],
-  element: Element,
-  fallbackColor: string,
-) {
+function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottom = bbox.top + bbox.height;
   const right = bbox.left + bbox.width;
@@ -1211,12 +1220,7 @@ function drawReferenceLines(
   ctx.restore();
 }
 
-function drawReferenceBands(
-  plot: uPlot,
-  bands: DocumentReferenceBand[],
-  element: Element,
-  fallbackColor: string,
-) {
+function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottomEdge = bbox.top + bbox.height;
   const rightEdge = bbox.left + bbox.width;
@@ -1246,11 +1250,7 @@ function drawReferenceBands(
   ctx.restore();
 }
 
-function referenceYValues(
-  lines: DocumentReferenceLine[],
-  bands: DocumentReferenceBand[],
-  yScale: DocumentAxisScale,
-): number[] {
+function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
   const values = [
     ...lines.filter((line) => line.axis === "y").map((line) => line.value),
     ...bands.filter((band) => band.axis === "y").flatMap((band) => [band.min, band.max]),

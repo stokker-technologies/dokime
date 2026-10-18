@@ -12,10 +12,7 @@
 /* === Local Imports === */
 
 import { Badge } from "@/components/ui/badge";
-import {
-  type InstalledPluginRuntimeKind,
-  RUNTIME_LABELS,
-} from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { type InstalledPluginRuntimeKind, RUNTIME_LABELS } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -37,10 +34,7 @@ const STATUS_DISPLAY: Record<string, { className: string; label: string }> = {
 export function InstalledPluginRuntimeBadge({ runtime }: { runtime: string }) {
   const kind = runtime as InstalledPluginRuntimeKind;
   return (
-    <Badge
-      className={cn("h-5 rounded px-1.5 text-[0.7rem] font-medium", RUNTIME_CLASS[kind])}
-      variant="secondary"
-    >
+    <Badge className={cn("h-5 rounded px-1.5 text-[0.7rem] font-medium", RUNTIME_CLASS[kind])} variant="secondary">
       {RUNTIME_LABELS[kind]}
     </Badge>
   );
@@ -49,10 +43,7 @@ export function InstalledPluginRuntimeBadge({ runtime }: { runtime: string }) {
 export function InstalledPluginStatusBadge({ status }: { status: string }) {
   const display = STATUS_DISPLAY[status] ?? { className: "text-muted-foreground", label: status };
   return (
-    <Badge
-      className={cn("h-5 rounded px-1.5 text-[0.7rem] font-medium", display.className)}
-      variant="outline"
-    >
+    <Badge className={cn("h-5 rounded px-1.5 text-[0.7rem] font-medium", display.className)} variant="outline">
       {display.label}
     </Badge>
   );

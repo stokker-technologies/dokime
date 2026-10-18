@@ -1,0 +1,83 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package ===
+
+[package]
+name = "dokime-client"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+# === Package Targets ===
+
+# === Features ===
+
+# === Dependencies ===
+
+[dependencies]
+# Local
+dokime-domain = { path = "../dokime-domain" }
+
+# Git
+harmos = { workspace = true, features = ["grpc"] }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Utilities
+keyring = { workspace = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
+
+# Serialization
+prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["rt"] }
+
+# Networking
+rustls = { workspace = true, features = ["ring", "std"] }
+tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
+url = { workspace = true }
+
+
+# === Build Dependencies ===
+
+
+# === Dev Dependencies ===
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+# === Target Dependencies ===
+
+# === Test Targets ===
+
+# === Bench Targets ===
+
+# === Example Targets ===
+
+
+# === Workspace Lints ===
+
+# === Lints ===
+
+# === Profiles ===
+
+# === Patches ===
+
+# === Other ===

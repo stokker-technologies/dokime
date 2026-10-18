@@ -58,9 +58,7 @@ export function readMetricFlowOrder(storageKey: string): string[] {
   }
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string")
-      : [];
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
   } catch {
     return [];
   }
@@ -89,39 +87,25 @@ export function removeMetricFlowOrder(storageKey: string) {
   }
 }
 
-export function orderMetricGroups(
-  groups: OverviewMetricGroup[],
-  savedOrder: string[],
-): OverviewMetricGroup[] {
+export function orderMetricGroups(groups: OverviewMetricGroup[], savedOrder: string[]): OverviewMetricGroup[] {
   if (!savedOrder.length) {
     return groups;
   }
 
   const byId = new Map(groups.map((group) => [group.groupId, group]));
-  const ordered = savedOrder
-    .map((groupId) => byId.get(groupId))
-    .filter((group): group is OverviewMetricGroup => Boolean(group));
+  const ordered = savedOrder.map((groupId) => byId.get(groupId)).filter((group): group is OverviewMetricGroup => Boolean(group));
   const knownIds = new Set(ordered.map((group) => group.groupId));
   return [...ordered, ...groups.filter((group) => !knownIds.has(group.groupId))];
 }
 
-export function moveMetricGroup(
-  groupIds: string[],
-  sourceGroupId: string,
-  targetGroupId: string,
-  insertAfter: boolean,
-): string[] {
+export function moveMetricGroup(groupIds: string[], sourceGroupId: string, targetGroupId: string, insertAfter: boolean): string[] {
   const withoutSource = groupIds.filter((groupId) => groupId !== sourceGroupId);
   const targetIndex = withoutSource.indexOf(targetGroupId);
   if (targetIndex === -1) {
     return groupIds;
   }
   const insertIndex = targetIndex + (insertAfter ? 1 : 0);
-  return [
-    ...withoutSource.slice(0, insertIndex),
-    sourceGroupId,
-    ...withoutSource.slice(insertIndex),
-  ];
+  return [...withoutSource.slice(0, insertIndex), sourceGroupId, ...withoutSource.slice(insertIndex)];
 }
 
 export function metricGroupWidthRem(metricCount: number): number {

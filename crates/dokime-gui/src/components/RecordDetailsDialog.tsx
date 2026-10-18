@@ -33,15 +33,7 @@ type RecordDetailsDialogProps = {
 
 /* === Constants === */
 
-const STACKTRACE_KEYS = new Set([
-  "stack",
-  "stacktrace",
-  "stack_trace",
-  "traceback",
-  "trace",
-  "exception_stack",
-  "error_stack",
-]);
+const STACKTRACE_KEYS = new Set(["stack", "stacktrace", "stack_trace", "traceback", "trace", "exception_stack", "error_stack"]);
 
 /* === Components === */
 
@@ -54,9 +46,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
   const stacktrace = recordStacktrace(record);
   const rawRecord = JSON.stringify(record, null, 2);
   const title = recordTitle(record);
-  const detailEntries = Object.entries(record.details).filter(
-    ([key]) => !STACKTRACE_KEYS.has(key.toLowerCase()),
-  );
+  const detailEntries = Object.entries(record.details).filter(([key]) => !STACKTRACE_KEYS.has(key.toLowerCase()));
 
   return (
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
@@ -80,12 +70,8 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
                   <span className="text-xs text-muted-foreground">#{record.sequence}</span>
                 ) : null}
               </div>
-              <DialogTitle className="text-xl font-semibold leading-tight [overflow-wrap:anywhere]">
-                {title}
-              </DialogTitle>
-              <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                {record.record_type}
-              </p>
+              <DialogTitle className="text-xl font-semibold leading-tight [overflow-wrap:anywhere]">{title}</DialogTitle>
+              <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{record.record_type}</p>
             </div>
           </div>
         </header>
@@ -104,6 +90,9 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
               <RecordMeta label="Timestamp" value={absoluteTimestampLabel(record.timestamp)} />
               <RecordMeta label="Session" value={record.session_id ?? "-"} />
               <RecordMeta label="Record ID" value={record.record_id} />
+              <RecordMeta label="Cycle" value={record.scope?.test_cycle_id ?? "-"} />
+              <RecordMeta label="Execution" value={record.scope?.test_execution_id ?? "-"} />
+              <RecordMeta label="Case" value={record.scope?.test_case_id ?? "-"} />
             </dl>
 
             {detailEntries.length ? (
@@ -111,12 +100,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
                 <h3 className="text-sm font-semibold">Details</h3>
                 <dl className="grid gap-2 text-sm sm:grid-cols-2">
                   {detailEntries.map(([key, value]) => (
-                    <RecordMeta
-                      key={key}
-                      label={key}
-                      rawValue={value}
-                      value={formatDetailValue(value)}
-                    />
+                    <RecordMeta key={key} label={key} rawValue={value} value={formatDetailValue(value)} />
                   ))}
                 </dl>
               </section>
@@ -131,15 +115,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
   );
 }
 
-function RecordMeta({
-  label,
-  rawValue,
-  value,
-}: {
-  label: string;
-  rawValue?: unknown;
-  value: string;
-}) {
+function RecordMeta({ label, rawValue, value }: { label: string; rawValue?: unknown; value: string }) {
   return (
     <div className="grid min-w-0 gap-1.5 rounded-md border bg-muted/20 p-2">
       <dt className="truncate text-xs font-semibold uppercase text-muted-foreground">{label}</dt>
@@ -162,12 +138,7 @@ function RawBlock({ label, value }: { label: string; value: string }) {
           <Braces className="shrink-0" size={15} />
           <span className="truncate">{label}</span>
         </h3>
-        <Button
-          aria-label={`Copy ${label.toLowerCase()}`}
-          size="sm"
-          variant="outline"
-          onClick={() => void copyValue()}
-        >
+        <Button aria-label={`Copy ${label.toLowerCase()}`} size="sm" variant="outline" onClick={() => void copyValue()}>
           <Clipboard size={14} />
           Copy
         </Button>
@@ -216,10 +187,7 @@ function findStacktrace(value: unknown): string | null {
 function looksLikeStacktrace(value: string): boolean {
   const lowered = value.toLowerCase();
   return (
-    lowered.includes("traceback") ||
-    lowered.includes("stack trace") ||
-    lowered.includes("\n    at ") ||
-    lowered.includes('\n  file "')
+    lowered.includes("traceback") || lowered.includes("stack trace") || lowered.includes("\n    at ") || lowered.includes('\n  file "')
   );
 }
 

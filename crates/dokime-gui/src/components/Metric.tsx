@@ -29,25 +29,13 @@ type MetricProps = {
 
 /* === Components === */
 
-export function Metric({
-  label,
-  value,
-  rawValue,
-  detail,
-  presentation = "value",
-  state = null,
-}: MetricProps) {
+export function Metric({ label, value, rawValue, detail, presentation = "value", state = null }: MetricProps) {
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;
 
   return (
-    <Card
-      className={cn("min-h-18 min-w-0 rounded-lg bg-muted/35 py-2", stateClass(state))}
-      size="sm"
-    >
+    <Card className={cn("min-h-18 min-w-0 rounded-lg bg-muted/35 py-2", stateClass(state))} size="sm">
       <CardContent className="grid min-w-0 grid-rows-[1.35rem_minmax(1.45rem,auto)_0.85rem] gap-1 px-3">
-        <span className="min-w-0 self-end truncate text-xs font-bold uppercase leading-tight text-muted-foreground">
-          {label}
-        </span>
+        <span className="min-w-0 self-end truncate text-xs font-bold uppercase leading-tight text-muted-foreground">{label}</span>
         {progress === null ? (
           <strong className="min-w-0 text-lg leading-tight">
             <MetricValue forceBadge={presentation === "badge"} state={state} value={value} />
@@ -56,10 +44,7 @@ export function Metric({
           <ProgressValue percent={progress} state={state} />
         )}
         {detail ? (
-          <small
-            className="min-w-0 truncate text-xs leading-tight text-muted-foreground"
-            title={detail}
-          >
+          <small className="min-w-0 truncate text-xs leading-tight text-muted-foreground" title={detail}>
             {detail}
           </small>
         ) : null}
@@ -72,28 +57,14 @@ function ProgressValue({ percent, state }: { percent: number; state?: MetricStat
   return (
     <div className="grid min-w-0 gap-1 self-center">
       <div className="h-2 overflow-hidden rounded-full bg-background ring-1 ring-border">
-        <div
-          className={cn(
-            "h-full rounded-full transition-[width] duration-500",
-            progressClass(state),
-          )}
-          style={{ width: `${percent}%` }}
-        />
+        <div className={cn("h-full rounded-full transition-[width] duration-500", progressClass(state))} style={{ width: `${percent}%` }} />
       </div>
       <span className="text-xs font-semibold tabular-nums">{percent.toFixed(0)}%</span>
     </div>
   );
 }
 
-function MetricValue({
-  forceBadge = false,
-  state,
-  value,
-}: {
-  forceBadge?: boolean;
-  state?: MetricState | null;
-  value: string;
-}) {
+function MetricValue({ forceBadge = false, state, value }: { forceBadge?: boolean; state?: MetricState | null; value: string }) {
   const normalized = value.trim().toLowerCase();
   const status = stateVariant(state) ?? statusVariant(normalized);
   if (status) {
@@ -115,18 +86,14 @@ function MetricValue({
   }
   const compact = value.length > 10;
   return (
-    <span
-      className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`}
-      title={value}
-    >
+    <span className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`} title={value}>
       {value}
     </span>
   );
 }
 
 function progressValue(rawValue: unknown, formatted: string): number | null {
-  const candidate =
-    typeof rawValue === "number" ? rawValue : Number.parseFloat(formatted.replace("%", ""));
+  const candidate = typeof rawValue === "number" ? rawValue : Number.parseFloat(formatted.replace("%", ""));
   if (!Number.isFinite(candidate)) {
     return null;
   }
@@ -146,9 +113,7 @@ function statusVariant(value: string): "default" | "secondary" | "destructive" |
   return null;
 }
 
-function stateVariant(
-  state?: MetricState | null,
-): "default" | "secondary" | "destructive" | "success" | "warning" | null {
+function stateVariant(state?: MetricState | null): "default" | "secondary" | "destructive" | "success" | "warning" | null {
   if (state === "ok") return "success";
   if (state === "warning") return "warning";
   if (state === "critical") return "destructive";

@@ -49,9 +49,7 @@ export function applyDensity(density: DensityPreference): void {
   document.documentElement.dataset.density = density;
 }
 
-export function themeCornerRadiusVariables(
-  cornerRadii: ThemeCornerRadii | null | undefined,
-): ThemeVariableMap {
+export function themeCornerRadiusVariables(cornerRadii: ThemeCornerRadii | null | undefined): ThemeVariableMap {
   const variables: ThemeVariableMap = {};
   for (const [key, variable] of cornerRadiusVariables) {
     const value = cornerRadii?.[key];

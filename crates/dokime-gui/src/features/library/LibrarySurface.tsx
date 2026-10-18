@@ -15,25 +15,25 @@ import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import {
-  filterTestSuites,
-  selectionDraftKey,
-  templateSelectionId,
-} from "@/components/suite-picker/model";
+import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
+import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
+import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { usePageChrome } from "@/shell/page-chrome";
 
 /* === Types === */
 
 type LibrarySurfaceProps = {
-  /** When set, materialized cases join that cycle instead of a new one. */
+  /** The active cycle materialized cases join; without one nothing is added. */
   appendTo?: string;
 };
 
@@ -45,26 +45,40 @@ type OpenTemplate = {
 /* === Constants === */
 
 /* Suite and template rows share one grid so the count pill, the tag column and
-   the action sit on the same verticals down the whole list. */
-const ROW_COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-[var(--shell-gap)]";
+   the action sit on the same verticals down the whole list. A row's second
+   line puts the identifier under the label and the plugin provenance under the
+   tags, on those same columns. */
+const ROW_COLUMNS = "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
+
+/* Within the title column the name takes the width and the identifier sits
+   right-aligned on the same row. */
+const TITLE_COLUMNS = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[var(--shell-gap)]";
+
+/* A template's title column starts on the suite label's text edge (after the
+   chevron, size-4 + gap-2), not under the chevron. */
+const SUITE_IDENTIFIER_INSET = "pl-6";
 
 /* === Components === */
 
 /**
- * Suite and template selection. Cases enter a cycle through the template
- * dialog and nowhere else (concept 11), so this surface only has to make the
- * catalog scannable and hand one template to that dialog.
+ * Suite and template selection. Cases enter the active cycle through the
+ * template dialog and nowhere else (concept 11), so this surface only has to
+ * make the catalog scannable, hand one template to that dialog, and offer New
+ * Cycle when there is no cycle to add to.
  */
 export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
+  const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
   const cycleLabelQuery = useCycleLabelQuery(appendTo);
   const suites = suitesQuery.data ?? null;
+  const pluginsQuery = useInstalledPluginsQuery();
+  const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openTemplate, setOpenTemplate] = useState<OpenTemplate | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const actions = useMemo(
     () =>
@@ -77,15 +91,19 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         >
           Open Cycle
         </Button>
-      ) : null,
+      ) : (
+        <Button className="h-[var(--control-height)]" onClick={() => setCreating(true)} type="button">
+          New Cycle
+        </Button>
+      ),
     [appendTo, navigate],
   );
 
   usePageChrome({ actions, title: "Library" });
 
   const suiteRows = useMemo(
-    () => filterTestSuites(suites ?? [], suiteSearch),
-    [suiteSearch, suites],
+    () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
+    [brand.label, plugins, suiteSearch, suites],
   );
   const hasSearch = suiteSearch.trim().length > 0;
 
@@ -93,10 +111,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     <div className="grid content-start gap-4 p-[var(--shell-inset)]">
       {appendTo ? (
         <p className="text-muted-foreground">
-          Cases materialized here are added to{" "}
-          <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
+          Cases materialized here are added to <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
         </p>
-      ) : null}
+      ) : (
+        <p className="text-muted-foreground">No cycle is active. Create one, or add cases from a cycle, to materialize templates.</p>
+      )}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
         <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)] border-b">
@@ -104,15 +123,12 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
             Suites
           </h2>
           <div className="relative w-full sm:w-80">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
+            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Filter Templates"
               className="h-[var(--bar-control-height)] pl-8"
               onChange={(event) => setSuiteSearch(event.target.value)}
-              placeholder="Filter Templates"
+              placeholder="Filter by name, identifier, or plugin"
               value={suiteSearch}
             />
           </div>
@@ -125,43 +141,41 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         ) : suites === null ? (
           <p className="text-muted-foreground">Loading suites…</p>
         ) : suiteRows.length === 0 ? (
-          <p className="text-muted-foreground">
-            No suite matches this filter. Search by path, tag, suite, template, or id.
-          </p>
+          <p className="text-muted-foreground">No suite matches this filter. Search by name, tag, identifier, or plugin.</p>
         ) : (
           <ul className="grid gap-4">
             {suiteRows.map(({ members, suite }) => {
               const isExpanded = expanded.has(suite.suite_id) || hasSearch;
               return (
                 <li className="grid gap-2" key={suite.suite_id}>
-                  {/* One crisp row on shared columns: label, template count,
-                      tags. The identifier stays in the accessible name. */}
+                  {/* Shared columns: label with its identifier right-aligned,
+                      template count, tags; plugin provenance beneath. */}
                   <div className={ROW_COLUMNS}>
-                    <button
-                      className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() =>
-                        setExpanded((current) => {
-                          const next = new Set(current);
-                          if (!next.delete(suite.suite_id)) {
-                            next.add(suite.suite_id);
-                          }
-                          return next;
-                        })
-                      }
-                      title={suite.suite_id}
-                      type="button"
-                    >
-                      <ChevronRight
-                        aria-hidden
-                        className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                      />
-                      <span className="truncate font-medium">{suite.name}</span>
-                    </button>
+                    <div className={TITLE_COLUMNS}>
+                      <button
+                        className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() =>
+                          setExpanded((current) => {
+                            const next = new Set(current);
+                            if (!next.delete(suite.suite_id)) {
+                              next.add(suite.suite_id);
+                            }
+                            return next;
+                          })
+                        }
+                        type="button"
+                      >
+                        <ChevronRight aria-hidden className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        <span className="truncate font-medium">{suite.name}</span>
+                      </button>
+                      <CatalogIdentifier subject="suite" value={suite.suite_id} />
+                    </div>
                     <Badge className="justify-self-start" variant="outline">
                       {templateCountLabel(members.length)}
                     </Badge>
                     <SuiteTags tags={suite.tags} />
                     <span />
+                    <SuiteProvenance className="col-start-3" plugin={plugins.get(suite.source)} source={suite.source} />
                   </div>
 
                   {isExpanded ? (
@@ -172,19 +186,30 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                           data-testid={`suite-template-${templateSelectionId(template)}`}
                           key={selectionDraftKey(suite.suite_id, templateSelectionId(template))}
                         >
-                          {/* The whole row opens the dialog; Configure names
-                              the same outcome for anyone scanning for a verb. */}
+                          {/* The same columns as the suite row above it, so
+                              identifiers, counts and tags line up down the
+                              list. The title opens the dialog. */}
                           <div className={ROW_COLUMNS}>
-                            <button
-                              className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              onClick={() => setOpenTemplate({ suite, template })}
-                              title={templateSelectionId(template)}
-                              type="button"
-                            >
-                              {template.name}
-                            </button>
+                            <div className={`${TITLE_COLUMNS} ${SUITE_IDENTIFIER_INSET}`}>
+                              <button
+                                className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setOpenTemplate({ suite, template })}
+                                type="button"
+                              >
+                                {template.name}
+                              </button>
+                              {template.identifier ? <CatalogIdentifier subject="template" value={template.identifier} /> : null}
+                            </div>
                             <span />
                             <SuiteTags tags={template.tags} />
+                            <span />
+                          </div>
+                          {/* One paragraph, then the full-width timeline. */}
+                          {template.description ? <p className="min-w-0 text-xs text-muted-foreground">{template.description}</p> : null}
+                          {template.steps.length ? <TemplateStepTimeline template={template} /> : null}
+                          {/* The action closes the block: Configure names the
+                              outcome for anyone scanning for a verb. */}
+                          <div className="flex justify-end">
                             <Button
                               className="h-[var(--control-height)]"
                               onClick={() => setOpenTemplate({ suite, template })}
@@ -195,15 +220,6 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                               Configure
                             </Button>
                           </div>
-                          {/* One paragraph, then the full-width timeline. */}
-                          {template.description ? (
-                            <p className="min-w-0 text-xs text-muted-foreground">
-                              {template.description}
-                            </p>
-                          ) : null}
-                          {template.steps.length ? (
-                            <TemplateStepTimeline template={template} />
-                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -217,20 +233,26 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
       {openTemplate ? (
         <TemplateDialog
-          appendTo={appendTo}
-          key={selectionDraftKey(
-            openTemplate.suite.suite_id,
-            templateSelectionId(openTemplate.template),
-          )}
+          cycleId={appendTo}
+          cycleLabel={cycleLabelQuery.data}
+          key={selectionDraftKey(openTemplate.suite.suite_id, templateSelectionId(openTemplate.template))}
           onOpenChange={(next) => {
             if (!next) setOpenTemplate(null);
           }}
           open
+          onNewCycle={() => setCreating(true)}
           suite={openTemplate.suite}
-          targetCycleLabel={cycleLabelQuery.data}
           template={openTemplate.template}
         />
       ) : null}
+
+      {/* A cycle created here becomes the active one: the Library stays put,
+          and an open template dialog can add to it at once. */}
+      <NewCycleDialog
+        onCreated={(cycleId) => void navigate({ search: { appendTo: cycleId }, to: "/library" })}
+        onOpenChange={setCreating}
+        open={creating}
+      />
     </div>
   );
 }

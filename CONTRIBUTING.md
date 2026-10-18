@@ -21,10 +21,27 @@ Dokime supports Windows and Linux. Install
 ```sh
 mise trust
 mise install --locked
-mise run sync
+mise run prepare
 ```
 
-Start the desktop application with `mise dev`. The repository layout and other
+Development and test builds leave host media capture out, so its operations
+refuse with "capture not available in this build". The release build
+(`mise run build --profile release`) enables the `media-native` feature to capture
+screenshots, camera photos and audio. On Linux it links the system ALSA library
+and generates V4L2 camera bindings with Clang; screenshots go through the
+desktop portal and need no further libraries. Install the build packages first:
+
+```sh
+# Debian and Ubuntu
+sudo apt install libasound2-dev linux-libc-dev libclang-dev
+# Fedora
+sudo dnf install alsa-lib-devel kernel-headers clang
+```
+
+The installed server then needs only `libasound.so.2` at runtime, plus a
+running `xdg-desktop-portal` for screenshots.
+
+Start the desktop application with `mise run dev`. The repository layout and other
 entry points are described in [`README.md`](README.md).
 
 ## Make A Change
@@ -39,76 +56,36 @@ entry points are described in [`README.md`](README.md).
 - Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
   execution evidence` or `docs: clarify sidecar setup`.
 
-Run the matching checks while iterating, then the main gates before opening a
-merge request:
+Run the matching checks while iterating, then the local CI flow before opening a
+pull request:
 
 ```sh
+mise run format --check
+mise run lint
 mise run check
-mise run build:release
+mise run build
 mise run test
 ```
 
-`check` runs read-only formatting, lint, and the remaining checks sequentially.
-`build:release` collects uninstrumented native products under `dist/build/`.
-Linux release wheel builds require a running Docker daemon. The Python stage
-builds the prepared source archive in a digest-pinned manylinux 2.28 image,
-using the repository-pinned Rust, Python, uv, and Maturin versions. Container
-native libraries, compiler outputs, and Python caches remain separate from
-the host build. The download archive includes the image/tool/package receipt
-bound to both the wheel and source-archive hashes; native ABI3 and Linux
-portability audits remain mandatory.
-`test` requires those exact host, plugin tool, and Python wheel artifacts; it
-compiles test harnesses and fixtures but does not rebuild missing products.
-Set `STKR_COVERAGE=1` when running `test` to include coverage for the same suites.
-Test and coverage evidence lives under `.stkr/tests/`.
+`mise run ci` runs that sequence plus evidence verification and the publication
+dry run. `build` compiles the workspace once into binaries, the OBC bundle, the
+frontend, the Python wheel and the Nextest test archive under `dist/build/`;
+the test layers (`test:unit`, `test:integration`, `test:acceptance`,
+`test:system`) run from that archive and never rebuild. Each lane takes
+`--profile dev|release` and writes its evidence under `.stkr/tests/`.
 
-CI bootstraps the latest stable mise release, verifies its published SHA-256,
-and logs the actual tools. Other tool versions and dependency resolutions stay
-locked. `.github/workflows/` owns native Linux and Windows jobs; `mise.toml`
-owns recipes. Feature pushes run `check`; an open pull request suppresses the
-duplicate push check. Pull requests into `dev` and `main` additionally require approval
-through the `full-validation` environment, native release builds, and dependent
-full tests with `STKR_COVERAGE=1`. `Ci Gate / Full Validation Gate` rejects missing, failed,
-cancelled, or skipped required jobs and target advances that change the tested
-integration tree. A green check-only run does not satisfy that gate.
-
-Each native download archive in `dist/downloads/` contains `installers/`,
-`python/`, `reports/`, `licenses/`, and, after successful validation, `tests/`.
-Runtime, plugins, and protocol files retain their own product directories. The
-catalog records both platforms' original native build/test jobs, run attempt,
-artifact IDs, and archive hashes. Dependency and tool caches live in `.cache/`;
-instrumented Cargo output is cached separately from release packages. JUnit,
-Cobertura, and Cargo timing reports are retained as native workflow artifacts.
+`.github/workflows/ci.yml` is rendered from the shared pipeline shape: a Source
+job (format, lint, binding-free checks), one Build job, a job per test layer and
+language consuming the Build artifact, and a Gate job that is the required
+check. `nightly.yml` runs coverage and benches; `release.yml` publishes a tag
+through trusted publishing. `mise.toml` owns every recipe the workflows call.
 
 Cut `release/<version>` from published `dev` and run `mise run release:prepare`
-to prepare the stable patch version, changelog, and native lockfiles. Prerelease
-version modes are not supported. Commit the
-candidate before validation. Promote the stabilization branch into `main`
-without squashing, then incorporate its history into `dev`. Only stabilization
-branches and `fix/` branches with declared `[release.hotfix]` context may target
-`main`; a hotfix starts from an actual published stable tag and increments its
-patch version.
-
-Every new commit SHA requires fresh build and validation, including identical
-source trees after squash, merge, or rebase. `VALIDATED_RUN_ARTIFACT_ID` supports
-explicit recovery of intact successful artifacts for the same SHA and resolved
-inputs only; pull requests always run native build and test jobs. Caches
-accelerate builds but do not supply validation evidence.
-
-An approved stabilization or hotfix merge into protected `main` automatically
-builds and tests both platforms on the final commit, then publishes through the
-protected `release` environment without another manual approval. Configure that
-environment for protected `main`, with no required reviewers, and provide the
-Windows Tauri signing key there. Missing signing material blocks publication.
-The tag created for that validated SHA does not trigger another workflow.
-Publication consumes original packages and archives without rebuilding or
-restamping. GitHub draft assets include Python distributions, native installers,
-platform manifests, `release-manifest.json`, and `SHA256SUMS`. Finalization
-downloads every remote asset, verifies its bytes and the Windows updater
-signature, then publishes the draft. `mise run release:verify` repeats published
-remote verification and records the machine receipt. Conflicting tags or assets
-fail; corrections require a new patch. Retire a stabilization branch only after
-verified publication and history incorporation into published `dev`.
+to prepare the stable patch version, changelog and screenshots. The changelog
+is rendered by git-cliff from history; do not edit `CHANGELOG.md` by hand.
+Promote the stabilization branch into `main` without squashing, then
+incorporate its history into `dev`. Publication tasks live under
+`release:publish:*`.
 
 ## Pull Requests
 

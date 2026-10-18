@@ -8,24 +8,26 @@
  */
 
 /* === Modules === */
+pub(super) mod projection;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 // Standard Library Imports
-use std::collections::HashMap;
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
-use prost::Message;
-use tonic::{Request, Response, Status};
+use crate::grpc::transcode::Transcode;
+use harmos::operations::{Context, Operation, Response};
+use tonic::Status;
 // Local Imports
-use super::{plots, value};
-use dokime_app::{
-    RuntimeHandle,
-    capabilities::evidence::{ScopeSelection, TelemetrySelection},
-    core::{Identifier, Timestamp},
-    telemetry::TelemetrySample,
-};
-use dokime_protocol::v1::{self, telemetry_server::Telemetry};
+use super::value::{self, canonical};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::wire as common;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::operations::telemetry as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::domains::evidence::ScopeSelection;
+use dokime_runtime::domains::evidence::TelemetrySelection;
 
 /* === Constants === */
 const DEFAULT_LIMIT: usize = 500;
@@ -36,9 +38,13 @@ const MAX_LIMIT: usize = 5_000;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Service {
+struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
+}
+
+struct List {
+    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -46,106 +52,137 @@ pub(super) struct Service {
 /* === Traits === */
 
 /* === Implementations === */
-#[tonic::async_trait]
-impl Telemetry for Service {
-    async fn list_samples(
-        &self,
-        request: Request<v1::ListTelemetrySamplesRequest>,
-    ) -> Result<Response<v1::TelemetrySamplesReply>, Status> {
-        let request = request.into_inner();
+impl Operation for List {
+    type Declaration = wire::ListSamples;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut wire::ListSamples, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
         let limit = bounded_limit(request.limit)?;
-        let after_stream_cursors = bounded_cursors(request.after_stream_cursors)?;
+        let after_stream_cursors = bounded_cursors(std::mem::take(&mut request.after_stream_cursors))?;
         if request.latest && !after_stream_cursors.is_empty() {
-            return Err(Status::invalid_argument(
-                "latest telemetry windows cannot be continued with after_stream_cursors",
-            ));
+            return Err(Status::invalid_argument("latest telemetry windows cannot be continued with after_stream_cursors"));
         }
         let selection = TelemetrySelection {
             after_stream_cursors: after_stream_cursors.clone(),
             limit: Some(limit),
-            streams: request
-                .streams
-                .into_iter()
-                .map(stream)
-                .collect::<Result<_, _>>()?,
-            schema_versions: bounded_schema_versions(request.schema_versions)?,
-            sources: bounded_texts(request.sources, "telemetry source")?,
-            signals: bounded_texts(request.signals, "telemetry signal")?,
-            scope: scope_selection(request.scope)?,
-            start: timestamp(request.start, "telemetry start")?,
-            end: timestamp(request.end, "telemetry end")?,
+            streams: std::mem::take(&mut request.streams).into_iter().map(stream).collect::<Result<_, _>>()?,
+            schema_versions: bounded_schema_versions(std::mem::take(&mut request.schema_versions))?,
+            sources: bounded_texts(std::mem::take(&mut request.sources), "telemetry source")?,
+            signals: bounded_texts(std::mem::take(&mut request.signals), "telemetry signal")?,
+            scope: scope_selection(request.scope.take())?,
+            start: timestamp(request.start.take(), "telemetry start")?,
+            end: timestamp(request.end.take(), "telemetry end")?,
             latest: request.latest,
         };
-        let samples = self
+        let mut samples = self
+            .resources
             .runtime
             .try_selected_telemetry(selection)
             .await
-            .map_err(|error| {
-                Status::unavailable(format!("telemetry query unavailable: {error}"))
-            })?;
-        let sample_count = samples.len();
-        let mut through_stream_cursors: HashMap<_, _> = if request.latest {
-            HashMap::new()
-        } else {
-            after_stream_cursors.into_iter().collect()
-        };
-        if !request.latest {
-            for sample in &samples {
-                let stream = dokime_app::capabilities::telemetry::telemetry_stream_id(
-                    sample.scope.as_ref(),
-                    &sample.stream,
-                );
-                through_stream_cursors
-                    .entry(stream)
-                    .and_modify(|cursor| *cursor = (*cursor).max(sample.sequence))
-                    .or_insert(sample.sequence);
-            }
-        }
-        let samples = samples
-            .into_iter()
-            .map(sample)
-            .collect::<Result<Vec<_>, _>>()?;
-        let reply = v1::TelemetrySamplesReply {
+            .map_err(|error| Status::unavailable(format!("telemetry query unavailable: {error}")))?;
+        let selected = samples.len();
+        let (through_stream_cursors, _) = fit_page(&mut samples, request.latest, after_stream_cursors, self.resources.max_message_bytes)?;
+        // A clamped page is never complete: forward pages continue from the
+        // returned cursors, a latest window asks again with a smaller limit.
+        let clamped = samples.len() < selected;
+        let samples = samples.iter().map(projection::sample).collect::<Result<Vec<_>, _>>()?;
+        let reply = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
             samples,
-            through_stream_cursors,
-            complete: request_is_complete(request.latest, sample_count, limit),
+            through_stream_cursors: through_stream_cursors
+                .into_iter()
+                .map(|(key, value)| dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry { key, value })
+                .collect(),
+            complete: !clamped && request_is_complete(request.latest, selected, limit),
         };
-        if reply.encoded_len() > self.max_message_bytes {
-            return Err(Status::resource_exhausted(
-                "telemetry sample response exceeds transport limit",
-            ));
+        if reply.wire_len()? > self.resources.max_message_bytes {
+            return Err(Status::resource_exhausted("telemetry sample response exceeds transport limit"));
         }
-        Ok(Response::new(reply))
+        Ok(reply.into())
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operation::<List>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
+    )?;
+    Ok(())
+}
 
 /* === Private Functions === */
 fn bounded_limit(value: u32) -> Result<usize, Status> {
     let value = if value == 0 {
         DEFAULT_LIMIT
     } else {
-        usize::try_from(value)
-            .map_err(|_| Status::out_of_range("telemetry limit is unsupported"))?
+        usize::try_from(value).map_err(|_| Status::out_of_range("telemetry limit is unsupported"))?
     };
-    if value > MAX_LIMIT {
-        return Err(Status::resource_exhausted(
-            "telemetry limit exceeds 5000 samples",
-        ));
+    // Asking for more than one page holds is never refused; the page clamps.
+    Ok(value.min(MAX_LIMIT))
+}
+
+fn fit_page(
+    samples: &mut Vec<dokime_runtime::telemetry::TelemetrySample>, latest: bool, after_stream_cursors: BTreeMap<String, u64>, budget: usize,
+) -> Result<(BTreeMap<String, u64>, usize), Status> {
+    let cursor = |key: &str| {
+        key.len().saturating_add(
+            4 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry>(),
+        )
+    };
+    let mut through = if latest { BTreeMap::new() } else { after_stream_cursors };
+    let mut required =
+        through.keys().fold(std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>(), |bytes, key| {
+            bytes.saturating_add(cursor(key))
+        });
+    let order: Box<dyn Iterator<Item = usize>> = if latest { Box::new((0..samples.len()).rev()) } else { Box::new(0..samples.len()) };
+    let mut kept = 0;
+    for index in order {
+        let sample = &samples[index];
+        let mut bytes =
+            projection::memory(sample)?.saturating_add(3 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>());
+        let stream = (!latest).then(|| dokime_runtime::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream));
+        if let Some(stream) = &stream
+            && !through.contains_key(stream)
+        {
+            bytes = bytes.saturating_add(cursor(stream));
+        }
+        if required.saturating_add(bytes) > budget {
+            break;
+        }
+        required = required.saturating_add(bytes);
+        if let Some(stream) = stream {
+            through.entry(stream).and_modify(|through| *through = (*through).max(sample.sequence)).or_insert(sample.sequence);
+        }
+        kept += 1;
     }
-    Ok(value)
+    if kept == 0 && !samples.is_empty() {
+        return Err(Status::resource_exhausted("one telemetry sample exceeds the message budget"));
+    }
+    if latest {
+        samples.drain(..samples.len() - kept);
+    } else {
+        samples.truncate(kept);
+    }
+    Ok((through, required))
 }
 
 fn bounded_cursors(
-    values: std::collections::HashMap<String, u64>,
+    values: Vec<dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry>,
 ) -> Result<std::collections::BTreeMap<String, u64>, Status> {
     value::collection(values.len())?;
     values
         .into_iter()
-        .map(|(key, value)| {
-            value::text(&key)?;
-            Ok((key, value))
+        .map(|entry| {
+            value::text(&entry.key)?;
+            Ok((entry.key, entry.value))
         })
         .collect()
 }
@@ -171,23 +208,16 @@ fn bounded_texts(values: Vec<String>, label: &str) -> Result<Vec<String>, Status
 
 fn stream(value: String) -> Result<Identifier, Status> {
     value::text(&value)?;
-    Identifier::new(value)
-        .map_err(|error| Status::invalid_argument(format!("invalid telemetry stream: {error}")))
+    Identifier::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream: {error}")))
 }
 
-fn scope_selection(scope: Option<v1::EvidenceScope>) -> Result<ScopeSelection, Status> {
+fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelection, Status> {
     let Some(scope) = scope else {
         return Ok(ScopeSelection::default());
     };
-    let scope = plots::record_scope(scope)?;
-    if scope.session_id.is_some()
-        || scope.step_id.is_some()
-        || scope.criterion_id.is_some()
-        || scope.suite_id.is_some()
-    {
-        return Err(Status::invalid_argument(
-            "telemetry scope supports cycle, case, execution, and template identifiers",
-        ));
+    let scope = canonical::decoded_scope(&scope)?;
+    if scope.session_id.is_some() || scope.step_id.is_some() || scope.criterion_id.is_some() || scope.suite_id.is_some() {
+        return Err(Status::invalid_argument("telemetry scope supports cycle, case, execution, and template identifiers"));
     }
     Ok(ScopeSelection {
         test_cycle_id: scope.test_cycle_id,
@@ -197,43 +227,8 @@ fn scope_selection(scope: Option<v1::EvidenceScope>) -> Result<ScopeSelection, S
     })
 }
 
-fn timestamp(
-    value: Option<prost_types::Timestamp>,
-    label: &str,
-) -> Result<Option<Timestamp>, Status> {
-    value
-        .map(|value| {
-            if !(0..1_000_000_000).contains(&value.nanos) {
-                return Err(Status::invalid_argument(format!(
-                    "{label} has invalid nanoseconds",
-                )));
-            }
-            let time = time::OffsetDateTime::from_unix_timestamp(value.seconds)
-                .map_err(|_| Status::invalid_argument(format!("{label} is out of range")))?
-                .replace_nanosecond(value.nanos as u32)
-                .map_err(|_| Status::invalid_argument(format!("{label} is out of range")))?;
-            let text = time
-                .format(&time::format_description::well_known::Rfc3339)
-                .map_err(|_| Status::invalid_argument(format!("{label} is invalid")))?;
-            Ok(Timestamp::new(text))
-        })
-        .transpose()
-}
-
-fn sample(value: TelemetrySample) -> Result<v1::TelemetrySample, Status> {
-    Ok(v1::TelemetrySample {
-        sample_id: value.sample_id.to_string(),
-        stream: value.stream.to_string(),
-        schema_version: value.schema_version,
-        sequence: value.sequence,
-        timestamp: Some(value::timestamp(&value.timestamp)?),
-        received_at: Some(value::timestamp(&value.received_at)?),
-        source: value.source,
-        scope: value.scope.as_ref().map(value::scope),
-        values: Some(plots::values(&value.values)?),
-        summary: Some(plots::values(&value.summary)?),
-        metadata: Some(plots::values(&value.metadata)?),
-    })
+fn timestamp(value: Option<common::Timestamp>, _: &str) -> Result<Option<Timestamp>, Status> {
+    value.map(canonical::decoded_timestamp).transpose()
 }
 
 fn request_is_complete(latest: bool, sample_count: usize, limit: usize) -> bool {

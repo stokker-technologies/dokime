@@ -24,14 +24,15 @@ import { useState } from "react";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
   useInstalledPluginCredentialMutation,
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { SettingsCard } from "@/features/settings/SettingsCard";
+import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -55,42 +56,42 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const cards = settings.frame?.cards.filter((card) => card.section_id === sectionId) ?? [];
 
   return (
-    <div className="grid w-full max-w-[1040px] gap-[var(--shell-gap)] p-[var(--shell-inset)]">
-      {settings.loading && !settings.frame ? (
-        <SettingsCard title="Settings">
-          <SettingsRow label="Status">
-            <span className="text-sm text-muted-foreground" role="status">
-              Reading the settings frame.
-            </span>
-          </SettingsRow>
-        </SettingsCard>
-      ) : settings.error ? (
-        <SettingsCard title="Settings">
-          <SettingsRow label="Status">
-            <span className="text-sm text-destructive" role="alert">
-              {settings.error}
-            </span>
-            <Button onClick={settings.retry} size="sm" variant="outline">
-              Try Again
-            </Button>
-          </SettingsRow>
-        </SettingsCard>
-      ) : (
-        <>
-          {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-          {cards.length ? (
-            <PluginSettingsCards cards={cards} />
-          ) : pluginId ? null : (
-            <SettingsCard title="Settings">
-              <SettingsRow label="Status">
-                <span className="text-sm text-muted-foreground">
-                  This plugin contributes no settings.
-                </span>
-              </SettingsRow>
-            </SettingsCard>
-          )}
-        </>
-      )}
+    <div className="p-[var(--shell-inset)]">
+      <SettingsGrid>
+        {settings.loading && !settings.frame ? (
+          <SettingsCard title="Settings">
+            <SettingsRow label="Status">
+              <span className="text-sm text-muted-foreground" role="status">
+                Reading the settings frame.
+              </span>
+            </SettingsRow>
+          </SettingsCard>
+        ) : settings.error ? (
+          <SettingsCard title="Settings">
+            <SettingsRow label="Status">
+              <span className="text-sm text-destructive" role="alert">
+                {settings.error}
+              </span>
+              <Button onClick={settings.retry} size="sm" variant="outline">
+                Try Again
+              </Button>
+            </SettingsRow>
+          </SettingsCard>
+        ) : (
+          <>
+            {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
+            {cards.length ? (
+              <PluginSettingsCards cards={cards} />
+            ) : pluginId ? null : (
+              <SettingsCard title="Settings">
+                <SettingsRow label="Status">
+                  <span className="text-sm text-muted-foreground">This plugin contributes no settings.</span>
+                </SettingsRow>
+              </SettingsCard>
+            )}
+          </>
+        )}
+      </SettingsGrid>
     </div>
   );
 }
@@ -147,9 +148,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground">
-            This program changed. Reload Plugins to view its current settings.
-          </span>
+          <span className="text-sm text-muted-foreground">This program changed. Reload Plugins to view its current settings.</span>
         </SettingsRow>
       </SettingsCard>
     );

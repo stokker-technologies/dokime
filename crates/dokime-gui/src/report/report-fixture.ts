@@ -22,8 +22,8 @@
 
 import type { DocumentNode } from "@/lib/document-contracts";
 import type { DocumentCapturePayload } from "@/lib/document-normalizer";
-import type { ReportArtifactLink, ReportPayload } from "@/lib/report-types";
-import type { HubRecord, TestCyclePlan, TestExecution } from "@/lib/types";
+import type { ReportPayload } from "@/lib/report-types";
+import type { ArtifactRecord, HubRecord, StepExecutionRecord, TestCyclePlan, TestExecution } from "@/lib/types";
 
 /* === Constants === */
 
@@ -46,14 +46,10 @@ export const FIXTURE_ARTIFACT_NAME = "startup-summary.json";
 
 export function reportFixturePayload(): ReportPayload {
   return {
-    artifact_links: [artifactLink()],
-    box_summaries: {},
     case_runs: [
       {
-        box_summaries: {},
         case_id: FIXTURE_CASE_ID,
         documents: { default: reportDocument(FIXTURE_EXECUTION_ID) },
-        histograms: {},
         plots: {},
         queue_item_id: "queue-1",
         test_execution_id: FIXTURE_EXECUTION_ID,
@@ -62,11 +58,10 @@ export function reportFixturePayload(): ReportPayload {
     cycle_summary: null,
     documents: { default: reportDocument(null) },
     generated_at: "2026-09-30T12:34:00.000Z",
-    histograms: {},
     plots: {},
     schema_version: 1,
     snapshot: {
-      artifacts: [],
+      artifacts: [artifact()],
       health: [],
       notes: [],
       pending_prompts: [],
@@ -88,7 +83,6 @@ export function reportFixturePayload(): ReportPayload {
     },
     test_cycle_plan: plan(),
     test_executions: [execution()],
-    test_steps: [],
     warnings: [],
   };
 }
@@ -142,7 +136,28 @@ function execution(): TestExecution {
     metadata: {},
     queue_item_id: "queue-1",
     status: "passed",
-    steps: [],
+    steps: [step("step"), step("criterion")],
+    template_id: "template-1",
+    test_cycle_id: FIXTURE_CYCLE_ID,
+    test_execution_id: FIXTURE_EXECUTION_ID,
+  };
+}
+
+/* Step and criterion rows arrive under the execution that recorded them. */
+function step(recordType: "step" | "criterion"): StepExecutionRecord {
+  return {
+    case_id: FIXTURE_CASE_ID,
+    duration_s: recordType === "step" ? 1 : 0,
+    finished_at: "2026-09-30T10:00:01.000Z",
+    metadata: {},
+    method_name: recordType === "step" ? "protection.trip" : "protection.trip_time",
+    order: 0,
+    queue_item_id: "queue-1",
+    record_type: recordType,
+    result: { details: {}, status: "passed" },
+    started_at: "2026-09-30T10:00:00.000Z",
+    status: "passed",
+    step_id: "step-1",
     template_id: "template-1",
     test_cycle_id: FIXTURE_CYCLE_ID,
     test_execution_id: FIXTURE_EXECUTION_ID,
@@ -163,7 +178,8 @@ function record(): HubRecord {
   } as HubRecord;
 }
 
-function artifactLink(): ReportArtifactLink {
+function artifact(): ArtifactRecord {
+  const href = "data:application/json;base64,eyJhY2NlcHRlZCI6IHRydWV9";
   return {
     artifact_id: "artifact-1",
     description: "Execution artifact",
@@ -171,13 +187,14 @@ function artifactLink(): ReportArtifactLink {
     group_label: "Execution Artifacts",
     /* The generator inlines the bytes, so the row is reachable from the file
        itself and needs no backend to open. */
-    href: "data:application/json;base64,eyJhY2NlcHRlZCI6IHRydWV9",
+    downloadHref: href,
+    href,
     label: FIXTURE_ARTIFACT_NAME,
     media_type: "application/json",
     path: FIXTURE_ARTIFACT_NAME,
     scope: scope(),
     size_bytes: 19,
-  };
+  } as ArtifactRecord;
 }
 
 function scope() {
@@ -216,11 +233,7 @@ function reportDocument(executionId: string | null): DocumentCapturePayload {
       layout: {
         nodes: [
           documentSectionNode("cycle.events", "Records", "cycle.events.timeline"),
-          documentSectionNode(
-            "cycle.traceability.artifacts",
-            "Artifacts",
-            "cycle.traceability.artifacts",
-          ),
+          documentSectionNode("cycle.traceability.artifacts", "Artifacts", "cycle.traceability.artifacts"),
         ],
       },
       metadata: documentMetadata("default", FIXTURE_CYCLE_TITLE),

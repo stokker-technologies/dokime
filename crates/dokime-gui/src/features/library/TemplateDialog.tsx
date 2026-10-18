@@ -10,74 +10,42 @@
 /* The materialization dialog (concept 11).
  *
  * Two steps and one outcome: edit the template's parameters, read the cases
- * they generate, then add them to a cycle. This is the only way cases enter a
- * cycle, so the dialog owns the whole transaction and keeps entered values
- * through validation and RPC failures. */
+ * they generate, then append them to the active cycle. A single case at its
+ * defaults skips the reading (`summaryNeeded`). This is the only way cases
+ * enter a cycle, so the dialog owns the whole transaction and keeps entered
+ * values through validation and RPC failures. Without an active cycle it adds
+ * nothing and offers New Cycle. */
 
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
-import {
-  type EditorParameterRow,
-  editorProblemCount,
-  editorRow,
-  parameterValueType,
-  seedEditorRows,
-} from "@/components/parameter-editor/model";
+import { type EditorParameterRow, editorProblemCount, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
   buildPayload,
   createPlanSelection,
   type FileRowState,
-  formatPreview,
   initialFileRows,
   registeredParameterRaw,
   titleCaseIdentifier,
 } from "@/components/start-cycle-form-model";
 import { apiSelection } from "@/components/suite-picker/model";
-import {
-  useAppendTestCycleMutation,
-  useCreateTestCycleMutation,
-  usePreviewTestCycleMutation,
-} from "@/components/suite-picker/server-state";
+import { useAppendTestCycleMutation, usePreviewTestCycleMutation } from "@/components/suite-picker/server-state";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type {
-  FileDefinition,
-  ParameterDefinition,
-  PreviewTestCycleResponse,
-  StartTestCycleRequest,
-  SuiteTemplateEntry,
-  TestSuiteEntry,
-} from "@/lib/types";
+import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
+import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import {
-  useParameterOverridesStatus,
-  useParameterOverridesStore,
-} from "@/stores/parameter-overrides-store";
+import { useParameterOverridesStatus, useParameterOverridesStore } from "@/stores/parameter-overrides-store";
 
 /* === Constants === */
 
@@ -89,13 +57,15 @@ const STEP_LABELS: { key: DialogStep; label: string }[] = [
 /* === Types === */
 
 type TemplateDialogProps = {
-  /** The cycle the cases join; absent means the dialog creates one. */
-  appendTo?: string;
+  /** The active cycle the cases join; absent, the dialog adds nothing. */
+  cycleId?: string;
+  /** The active cycle's label, shown on the summary step. */
+  cycleLabel?: string;
+  /** Opens New Cycle, for when there is no active cycle to add to. */
+  onNewCycle: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   suite: TestSuiteEntry;
-  /** The label of the cycle named by `appendTo`, shown on the summary step. */
-  targetCycleLabel?: string;
   template: SuiteTemplateEntry;
 };
 
@@ -103,14 +73,7 @@ type DialogStep = "parameters" | "summary";
 
 /* === Components === */
 
-export function TemplateDialog({
-  appendTo,
-  onOpenChange,
-  open,
-  suite,
-  targetCycleLabel,
-  template,
-}: TemplateDialogProps) {
+export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, open, suite, template }: TemplateDialogProps) {
   const navigate = useNavigate();
   const touch = useTouchDensity();
   const templateId = template.template_id;
@@ -119,12 +82,8 @@ export function TemplateDialog({
   const { ready: parametersReady, error: parametersError } = useParameterOverridesStatus();
   const overrides = useParameterOverridesStore((state) => state.overrides[templateId]);
   const setParameterOverride = useParameterOverridesStore((state) => state.setParameterOverride);
-  const resetParameterOverride = useParameterOverridesStore(
-    (state) => state.resetParameterOverride,
-  );
-  const clearTemplateOverrides = useParameterOverridesStore(
-    (state) => state.clearTemplateOverrides,
-  );
+  const resetParameterOverride = useParameterOverridesStore((state) => state.resetParameterOverride);
+  const clearTemplateOverrides = useParameterOverridesStore((state) => state.clearTemplateOverrides);
 
   /* Seeded once per opening: the persisted override where there is one, the
      registered default otherwise. Row state lives above the step switch so
@@ -140,7 +99,6 @@ export function TemplateDialog({
   const [busy, setBusy] = useState(false);
 
   const { mutateAsync: previewTestCycle } = usePreviewTestCycleMutation();
-  const { mutateAsync: createTestCycle } = useCreateTestCycleMutation();
   const { mutateAsync: appendTestCycle } = useAppendTestCycleMutation();
   const { mutateAsync: uploadArtifact } = useOperatorArtifactUploadMutation();
 
@@ -155,34 +113,27 @@ export function TemplateDialog({
     [fileRows, rows],
   );
 
-  const request = useCallback(
-    (): StartTestCycleRequest => ({
-      continue_on_failure: true,
-      force: true,
-      parameters: {},
-      selections: [
-        apiSelection(
-          createPlanSelection({
-            files: payload.files,
-            suiteId: suite.suite_id,
-            suiteName: suite.name,
-            template,
-            values: payload.values,
-          }),
-        ),
-      ],
-      title: suite.name,
-    }),
+  const selections = useMemo(
+    (): TestCycleSelection[] => [
+      apiSelection(
+        createPlanSelection({
+          files: payload.files,
+          suiteId: suite.suite_id,
+          suiteName: suite.name,
+          template,
+          values: payload.values,
+        }),
+      ),
+    ],
     [payload.files, payload.values, suite.name, suite.suite_id, template],
   );
+  const append = caseAppend(cycleId, selections);
 
   function changeRaw(name: string, raw: string) {
     setError(null);
     const definition = rows.find((row) => row.name === name)?.definition;
     if (!definition) return;
-    setRows((current) =>
-      current.map((row) => (row.name === name ? editorRow(row.definition, raw) : row)),
-    );
+    setRows((current) => current.map((row) => (row.name === name ? editorRow(row.definition, raw) : row)));
     /* Typing a value back to its registered default is not an override: a
        stored copy of the default would silently outrank a later change to it. */
     if (definition && raw === registeredParameterRaw(definition)) {
@@ -197,9 +148,7 @@ export function TemplateDialog({
     const definition = rows.find((row) => row.name === name)?.definition;
     if (!definition) return;
     setRows((current) =>
-      current.map((row) =>
-        row.name === name ? editorRow(row.definition, registeredParameterRaw(row.definition)) : row,
-      ),
+      current.map((row) => (row.name === name ? editorRow(row.definition, registeredParameterRaw(row.definition)) : row)),
     );
     resetParameterOverride(templateId, definition.parameter_id);
   }
@@ -207,20 +156,14 @@ export function TemplateDialog({
   function resetAll() {
     if (fileRows.some((row) => row.uploading)) return;
     setError(null);
-    setRows((current) =>
-      current.map((row) => editorRow(row.definition, registeredParameterRaw(row.definition))),
-    );
+    setRows((current) => current.map((row) => editorRow(row.definition, registeredParameterRaw(row.definition))));
     clearTemplateOverrides(templateId);
     setFileRows(initialFileRows(template));
   }
 
   async function uploadFile(definition: FileDefinition, file: File | undefined) {
     if (!file) return;
-    setFileRows((current) =>
-      current.map((row) =>
-        row.name === definition.name ? { ...row, error: null, uploading: true } : row,
-      ),
-    );
+    setFileRows((current) => current.map((row) => (row.name === definition.name ? { ...row, error: null, uploading: true } : row)));
     try {
       const artifact = await uploadArtifact({
         description: definition.description ?? undefined,
@@ -232,32 +175,31 @@ export function TemplateDialog({
         mediaType: file.type || "application/octet-stream",
       });
       setFileRows((current) =>
-        current.map((row) =>
-          row.name === definition.name
-            ? { ...row, error: null, path: artifact.path, uploading: false }
-            : row,
-        ),
+        current.map((row) => (row.name === definition.name ? { ...row, error: null, path: artifact.path, uploading: false } : row)),
       );
     } catch (failure: unknown) {
       setFileRows((current) =>
-        current.map((row) =>
-          row.name === definition.name
-            ? { ...row, error: messageOf(failure), uploading: false }
-            : row,
-        ),
+        current.map((row) => (row.name === definition.name ? { ...row, error: messageOf(failure), uploading: false } : row)),
       );
     }
   }
 
   /* Next expands the selection through Planning.PreviewSelection with the
-     edited values; a failure keeps the operator on step 1 with their input. */
-  async function goToSummary() {
-    if (problems || busy) return;
+     edited values; a failure keeps the operator on step 1 with their input.
+     A preview with nothing to review (`summaryNeeded`) adds at once. */
+  async function next() {
+    if (problems || busy || !append) return;
     setBusy(true);
     setError(null);
     try {
-      setPreview(await previewTestCycle({ parameters: {}, selections: request().selections }));
-      setStep("summary");
+      const expanded = await previewTestCycle({
+        cycle_id: append.cycleId,
+        parameters: {},
+        selections: append.selections,
+      });
+      setPreview(expanded);
+      if (summaryNeeded(expanded, rows)) setStep("summary");
+      else await add(expanded);
     } catch (failure: unknown) {
       setError(messageOf(failure));
     } finally {
@@ -270,25 +212,7 @@ export function TemplateDialog({
     setBusy(true);
     setError(null);
     try {
-      const count = preview.case_count;
-      if (appendTo) {
-        const response = await appendTestCycle({ cycleId: appendTo, request: request() });
-        /* The cases are in the cycle: the dialog has finished, and closes
-           before anything that only reports what happened. Announcing first
-           left a successful add behind an open dialog whenever the toast or
-           the navigation threw. */
-        onOpenChange(false);
-        announce(
-          count,
-          response.plan?.test_cycle?.title ?? targetCycleLabel ?? suite.name,
-          appendTo,
-        );
-      } else {
-        const created = await createTestCycle(request());
-        onOpenChange(false);
-        announce(count, suite.name, created.cycleId);
-        await navigate({ search: { appendTo: created.cycleId }, to: "/library" });
-      }
+      await add(preview);
     } catch (failure: unknown) {
       setError(messageOf(failure));
     } finally {
@@ -296,12 +220,20 @@ export function TemplateDialog({
     }
   }
 
-  function announce(count: number, cycleLabel: string, cycleId: string) {
-    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} to ${cycleLabel}`, {
+  async function add(planned: PreviewTestCycleResponse) {
+    if (!append) throw new Error(NO_ACTIVE_CYCLE);
+    const count = planned.case_count;
+    const response = await appendTestCycle(append);
+    /* The cases are in the cycle: the dialog has finished, and closes before
+       anything that only reports what happened. Announcing first left a
+       successful add behind an open dialog whenever the toast threw. */
+    onOpenChange(false);
+    const label = response.plan?.test_cycle?.title ?? cycleLabel ?? append.cycleId;
+    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} to ${label}`, {
       action: {
         label: "Open Cycle",
         onClick: () => {
-          void navigate({ params: { cycleId }, to: "/cycles/$cycleId" });
+          void navigate({ params: { cycleId: append.cycleId }, to: "/cycles/$cycleId" });
         },
       },
     });
@@ -315,11 +247,7 @@ export function TemplateDialog({
             <div role="status">
               {parametersError ?? "Loading remembered parameters…"}
               {parametersError ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => void useParameterOverridesStore.persist.rehydrate()}
-                >
+                <Button type="button" variant="ghost" onClick={() => void useParameterOverridesStore.persist.rehydrate()}>
                   Retry
                 </Button>
               ) : null}
@@ -332,9 +260,7 @@ export function TemplateDialog({
               onChangeRaw={changeRaw}
               onFileChange={(definition, file) => void uploadFile(definition, file)}
               onFilePathChange={(name, path) =>
-                setFileRows((current) =>
-                  current.map((row) => (row.name === name ? { ...row, error: null, path } : row)),
-                )
+                setFileRows((current) => current.map((row) => (row.name === name ? { ...row, error: null, path } : row)))
               }
               onResetAll={resetAll}
               onResetFile={(name) =>
@@ -343,9 +269,7 @@ export function TemplateDialog({
                     row.name === name && !row.uploading
                       ? {
                           ...row,
-                          path:
-                            template.file_definitions.find((definition) => definition.name === name)
-                              ?.default ?? "",
+                          path: template.file_definitions.find((definition) => definition.name === name)?.default ?? "",
                           error: null,
                         }
                       : row,
@@ -358,12 +282,15 @@ export function TemplateDialog({
           </fieldset>
         </div>
       ) : (
-        <SummaryStep
-          preview={preview}
-          rows={rows}
-          target={appendTo ? (targetCycleLabel ?? appendTo) : "New Cycle — Created On Add"}
-          title={title}
-        />
+        <SummaryStep preview={preview} rows={rows} target={cycleLabel ?? cycleId ?? ""} title={title} />
+      )}
+      {append ? null : (
+        <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2" role="status">
+          <p className="text-sm text-muted-foreground">{NO_ACTIVE_CYCLE}</p>
+          <Button onClick={onNewCycle} size="sm" type="button" variant="outline">
+            New Cycle
+          </Button>
+        </div>
       )}
       {error ? (
         <p className="px-4 text-sm text-destructive" role="alert">
@@ -388,8 +315,8 @@ export function TemplateDialog({
         <span className="grid justify-items-stretch gap-0.5">
           <Button
             className="h-9 w-full"
-            disabled={Boolean(problems) || busy || !parametersReady}
-            onClick={() => void goToSummary()}
+            disabled={Boolean(problems) || busy || !parametersReady || !append}
+            onClick={() => void next()}
             type="button"
           >
             Next
@@ -401,12 +328,7 @@ export function TemplateDialog({
           ) : null}
         </span>
       ) : (
-        <Button
-          className="h-9 w-full"
-          disabled={busy || !preview}
-          onClick={() => void finishAndAdd()}
-          type="button"
-        >
+        <Button className="h-9 w-full" disabled={busy || !preview || !append} onClick={() => void finishAndAdd()} type="button">
           Finish And Add
         </Button>
       )}
@@ -417,8 +339,8 @@ export function TemplateDialog({
     <>
       <div className="grid gap-1 text-xs">
         {[
-          { label: "Suite ID", value: suite.suite_id },
-          { label: "Template ID", value: templateId },
+          { label: "Suite", value: suite.suite_id },
+          { label: "Template", value: template.identifier ?? templateId },
         ].map(({ label, value }) => (
           <div className="flex min-w-0 items-center justify-between gap-2" key={label}>
             <span className="shrink-0 text-muted-foreground">{label}</span>
@@ -428,8 +350,7 @@ export function TemplateDialog({
       </div>
       <StepIndicator step={step} />
       <span className="sr-only">
-        Step {step === "parameters" ? 1 : 2} of 2:{" "}
-        {step === "parameters" ? "Parameters" : "Summary"}
+        Step {step === "parameters" ? 1 : 2} of 2: {step === "parameters" ? "Parameters" : "Summary"}
       </span>
     </>
   );
@@ -439,6 +360,7 @@ export function TemplateDialog({
       <Sheet modal onOpenChange={onOpenChange} open={open}>
         <SheetContent
           className="inset-x-0 grid max-w-none grid-rows-[auto_minmax(0,1fr)_auto] p-0"
+          onOpenAutoFocus={focusContent}
           side="right"
         >
           <SheetHeader className="grid gap-2 text-center">
@@ -456,12 +378,13 @@ export function TemplateDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       {/* A pinned top, not a centred box: the header keeps its place while the
           body grows or shrinks between the two steps. */}
-      <DialogContent className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-[720px]">
+      <DialogContent
+        className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-[720px]"
+        onOpenAutoFocus={focusContent}
+      >
         <DialogHeader className="items-center gap-2 text-center">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Edit this template's parameters, then review the cases it generates.
-          </DialogDescription>
+          <DialogDescription className="sr-only">Edit this template's parameters, then review the cases it generates.</DialogDescription>
           {heading}
         </DialogHeader>
         {body}
@@ -498,31 +421,13 @@ function StepIndicator({ step }: { step: DialogStep }) {
   );
 }
 
-function StepSlot({
-  done,
-  entry,
-  step,
-}: {
-  done: boolean;
-  entry: (typeof STEP_LABELS)[number] | undefined;
-  step: DialogStep;
-}) {
+function StepSlot({ done, entry, step }: { done: boolean; entry: (typeof STEP_LABELS)[number] | undefined; step: DialogStep }) {
   if (!entry) return null;
   const current = entry.key === step;
   return (
     <li className="flex items-center justify-center gap-1.5">
       {done ? <Check aria-hidden className="size-3.5 text-primary" /> : null}
-      <span
-        className={cn(
-          current
-            ? "font-semibold text-primary"
-            : done
-              ? "text-foreground"
-              : "text-muted-foreground",
-        )}
-      >
-        {entry.label}
-      </span>
+      <span className={cn(current ? "font-semibold text-primary" : done ? "text-foreground" : "text-muted-foreground")}>{entry.label}</span>
     </li>
   );
 }
@@ -569,16 +474,11 @@ function SummaryStep({
               className="grid min-h-[var(--list-row-height)] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-3 border-b border-border/60 py-1.5"
               key={item.case_id}
             >
-              <span className="min-w-0 text-sm font-medium">
-                {ordinals ? `${title} ${index + 1}` : title}
-              </span>
+              <span className="min-w-0 text-sm font-medium">{ordinals ? `${title} ${index + 1}` : title}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {deltas.length ? (
                   deltas.map((delta) => (
-                    <span
-                      className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                      key={delta}
-                    >
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" key={delta}>
                       {delta}
                     </span>
                   ))
@@ -624,38 +524,15 @@ function readTouchDensity(): boolean {
 }
 
 /**
- * The values of one planned case that differ from what the template registered.
+ * Opening focuses the dialog itself rather than its first tabbable control.
  *
- * The comparison is against the definition, not against the operator's edit
- * list: an expanded parameter gives every case a different value, and a case
- * whose value happens to match the default must not claim a change. A
- * parameter the preview names but the template does not define is dropped
- * rather than printed as a raw key.
+ * The first control is a copy button under the title; focusing it opened its
+ * tooltip over the title on every open. Tab still reaches it, and hover still
+ * shows its tooltip.
  */
-function caseDeltas(parameters: Record<string, unknown>, rows: EditorParameterRow[]): string[] {
-  const deltas: string[] = [];
-  for (const row of rows) {
-    if (!(row.name in parameters)) continue;
-    const valueType = parameterValueType(row.definition);
-    const actual = valueText(parameters[row.name], valueType);
-    if (actual === registeredValueText(row.definition, valueType)) continue;
-    const unit = row.definition.unit?.trim();
-    const label = row.definition.label ?? titleCaseIdentifier(row.name);
-    deltas.push(`${label}: ${actual}${unit ? ` ${unit}` : ""}`);
-  }
-  return deltas;
-}
-
-function valueText(value: unknown, valueType: string): string {
-  return formatPreview(Array.isArray(value) ? value : [value], valueType);
-}
-
-/** The registered value, formatted the same way a case's value is. */
-function registeredValueText(definition: ParameterDefinition, valueType: string): string {
-  const single = (definition.expansion?.kind ?? "single") === "single";
-  return single && definition.list
-    ? valueText(definition.values[0], valueType)
-    : valueText(definition.values, valueType);
+function focusContent(event: Event) {
+  event.preventDefault();
+  (event.currentTarget as HTMLElement).focus();
 }
 
 function messageOf(failure: unknown): string {

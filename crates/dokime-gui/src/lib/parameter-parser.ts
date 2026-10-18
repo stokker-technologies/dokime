@@ -7,12 +7,7 @@
  * ***
  */
 
-import {
-  NativeIntegerValue,
-  NativeNumberValue,
-  parseNativeInteger,
-  reviveNativeValues,
-} from "@/lib/api/native-values";
+import { NativeIntegerValue, NativeNumberValue, parseNativeInteger, reviveNativeValues } from "@/lib/api/native-values";
 import { numericValue } from "@/lib/utils";
 
 /* === Types === */
@@ -86,9 +81,7 @@ export function parseParameterInput(raw: string, definition: ParameterDefinition
 
   if ((definition.expansion?.kind ?? "single") !== "single" && trimmed.startsWith("[")) {
     const parsed = parseListInput(trimmed, { element_type: valueType, min_items: 1 });
-    return parsed.ok
-      ? boundedResult({ ok: true, values: parsed.values[0] as unknown[] }, definition)
-      : parsed;
+    return parsed.ok ? boundedResult({ ok: true, values: parsed.values[0] as unknown[] }, definition) : parsed;
   }
 
   if (NUMERIC_TYPES.has(valueType)) {
@@ -99,10 +92,7 @@ export function parseParameterInput(raw: string, definition: ParameterDefinition
   }
 
   // Expanded scalars accept comma-separated candidates; single text preserves commas.
-  const parts =
-    (definition.expansion?.kind ?? "single") === "single"
-      ? [trimmed]
-      : splitCommaPreservingDecimals(trimmed);
+  const parts = (definition.expansion?.kind ?? "single") === "single" ? [trimmed] : splitCommaPreservingDecimals(trimmed);
   const values: unknown[] = [];
   for (const part of parts) {
     const item = part.trim();
@@ -120,25 +110,18 @@ export function parseParameterInput(raw: string, definition: ParameterDefinition
 }
 
 /** Checks inclusive bounds for a scalar or every element of a numeric list. */
-export function numericBoundsError(
-  value: unknown,
-  bounds: { min?: number | null; max?: number | null },
-): string | null {
+export function numericBoundsError(value: unknown, bounds: { min?: number | null; max?: number | null }): string | null {
   for (const original of Array.isArray(value) ? value : [value]) {
     if (original instanceof NativeIntegerValue) {
       const integer = BigInt(original.decimal);
-      if (bounds.min != null && integer < BigInt(Math.ceil(bounds.min)))
-        return `Must be at least ${bounds.min}; ${original} entered.`;
-      if (bounds.max != null && integer > BigInt(Math.floor(bounds.max)))
-        return `Must be at most ${bounds.max}; ${original} entered.`;
+      if (bounds.min != null && integer < BigInt(Math.ceil(bounds.min))) return `Must be at least ${bounds.min}; ${original} entered.`;
+      if (bounds.max != null && integer > BigInt(Math.floor(bounds.max))) return `Must be at most ${bounds.max}; ${original} entered.`;
       continue;
     }
     const item = numericValue(original);
     if (typeof item !== "number") continue;
-    if (bounds.min != null && item < bounds.min)
-      return `Must be at least ${bounds.min}; ${item} entered.`;
-    if (bounds.max != null && item > bounds.max)
-      return `Must be at most ${bounds.max}; ${item} entered.`;
+    if (bounds.min != null && item < bounds.min) return `Must be at least ${bounds.min}; ${item} entered.`;
+    if (bounds.max != null && item > bounds.max) return `Must be at most ${bounds.max}; ${item} entered.`;
   }
   return null;
 }
@@ -252,9 +235,7 @@ export function listCandidates(raw: string, elementType: string, expanded: boole
 
 /** The candidates as a flat chip list, in reading order. */
 export function listChips(candidates: unknown[][]): ListChip[] {
-  return candidates.flatMap((values, candidate) =>
-    values.map((value, index) => ({ candidate, index, value })),
-  );
+  return candidates.flatMap((values, candidate) => values.map((value, index) => ({ candidate, index, value })));
 }
 
 /**
@@ -269,11 +250,7 @@ export function formatListCandidates(candidates: unknown[][], expanded: boolean)
   if (!expanded) {
     return formatListRaw(candidates[0] ?? []);
   }
-  return formatListRaw(
-    candidates
-      .filter((values) => values.length > 0)
-      .map((values) => (values.length === 1 ? values[0] : values)),
-  );
+  return formatListRaw(candidates.filter((values) => values.length > 0).map((values) => (values.length === 1 ? values[0] : values)));
 }
 
 /** The default element for a newly added list row. */
@@ -386,10 +363,7 @@ function parseListInput(raw: string, list: ParameterListDefinition): ParseResult
   return { ok: true, values: [items] };
 }
 
-function coerceListItem(
-  item: unknown,
-  elementType: string,
-): { ok: true; value: unknown } | { ok: false; error: string } {
+function coerceListItem(item: unknown, elementType: string): { ok: true; value: unknown } | { ok: false; error: string } {
   if (item === null || item === undefined) {
     return { ok: false, error: "value is missing." };
   }
@@ -400,8 +374,7 @@ function coerceListItem(
     return coerceSingle(String(item), elementType);
   }
   if (NUMERIC_TYPES.has(elementType)) {
-    if (item instanceof NativeIntegerValue || item instanceof NativeNumberValue)
-      return { ok: true, value: item };
+    if (item instanceof NativeIntegerValue || item instanceof NativeNumberValue) return { ok: true, value: item };
     if (typeof item === "number") {
       if ((elementType === "int" || elementType === "integer") && !Number.isSafeInteger(item))
         return {
@@ -411,10 +384,7 @@ function coerceListItem(
       return Number.isFinite(item)
         ? {
             ok: true,
-            value:
-              elementType === "int" || elementType === "integer"
-                ? item
-                : new NativeNumberValue(item),
+            value: elementType === "int" || elementType === "integer" ? item : new NativeNumberValue(item),
           }
         : { ok: false, error: "value is not a valid number." };
     }
@@ -433,21 +403,15 @@ function coerceListItem(
 
 function tryNumericExpansion(input: string, valueType: string): ParseResult | null {
   // linspace(start, stop, n)
-  const linspace = input.match(
-    /^linspace\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/i,
-  );
+  const linspace = input.match(/^linspace\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/i);
   if (linspace) {
     const start = Number(linspace[1]);
     const stop = Number(linspace[2]);
     const n = Number(linspace[3]);
-    if (
-      (valueType === "int" || valueType === "integer") &&
-      ![start, stop].every(Number.isSafeInteger)
-    ) {
+    if ((valueType === "int" || valueType === "integer") && ![start, stop].every(Number.isSafeInteger)) {
       return {
         ok: false,
-        error:
-          "Integer ranges require exact safe integer endpoints; enter wider integers individually.",
+        error: "Integer ranges require exact safe integer endpoints; enter wider integers individually.",
       };
     }
     if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
@@ -471,9 +435,7 @@ function tryNumericExpansion(input: string, valueType: string): ParseResult | nu
   }
 
   // arange(start, stop[, step]) - half-open
-  const arange = input.match(
-    /^arange\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*,\s*(-?\d+(?:\.\d+)?))?\s*\)$/i,
-  );
+  const arange = input.match(/^arange\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*,\s*(-?\d+(?:\.\d+)?))?\s*\)$/i);
   if (arange) {
     const start = Number(arange[1]);
     const stop = Number(arange[2]);
@@ -482,9 +444,7 @@ function tryNumericExpansion(input: string, valueType: string): ParseResult | nu
   }
 
   // start..stop[:step] - inclusive arithmetic range (Julia/MATLAB-ish)
-  const range = input.match(
-    /^(-?\d+(?:\.\d+)?)\s*\.\.\s*(-?\d+(?:\.\d+)?)(?:\s*:\s*(-?\d+(?:\.\d+)?))?$/,
-  );
+  const range = input.match(/^(-?\d+(?:\.\d+)?)\s*\.\.\s*(-?\d+(?:\.\d+)?)(?:\s*:\s*(-?\d+(?:\.\d+)?))?$/);
   if (range) {
     const start = Number(range[1]);
     const stop = Number(range[2]);
@@ -495,22 +455,12 @@ function tryNumericExpansion(input: string, valueType: string): ParseResult | nu
   return null;
 }
 
-function expandRange(opts: {
-  start: number;
-  stop: number;
-  step: number;
-  valueType: string;
-  inclusive: boolean;
-}): ParseResult {
+function expandRange(opts: { start: number; stop: number; step: number; valueType: string; inclusive: boolean }): ParseResult {
   const { start, stop, step, valueType, inclusive } = opts;
-  if (
-    (valueType === "int" || valueType === "integer") &&
-    ![start, stop, step].every(Number.isSafeInteger)
-  ) {
+  if ((valueType === "int" || valueType === "integer") && ![start, stop, step].every(Number.isSafeInteger)) {
     return {
       ok: false,
-      error:
-        "Integer ranges require exact safe integer endpoints and steps; enter wider integers individually.",
+      error: "Integer ranges require exact safe integer endpoints and steps; enter wider integers individually.",
     };
   }
   if (step === 0 || !Number.isFinite(step)) {
@@ -566,10 +516,7 @@ function coerceNumber(value: number, valueType: string): number | NativeNumberVa
   return new NativeNumberValue(Number(value.toFixed(12)));
 }
 
-function coerceSingle(
-  raw: string,
-  valueType: string,
-): { ok: true; value: unknown } | { ok: false; error: string } {
+function coerceSingle(raw: string, valueType: string): { ok: true; value: unknown } | { ok: false; error: string } {
   if (NUMERIC_TYPES.has(valueType)) {
     if (valueType === "int" || valueType === "integer") {
       try {

@@ -45,17 +45,10 @@ enum Entry {
 
 /* === Implementations === */
 impl Discovery<'_> {
-    fn visit(
-        &mut self,
-        path: &Path,
-        depth: usize,
-        inspect: &impl Fn(&Path) -> std::io::Result<Entry>,
-    ) -> Result<(), Error> {
+    fn visit(&mut self, path: &Path, depth: usize, inspect: &impl Fn(&Path) -> std::io::Result<Entry>) -> Result<(), Error> {
         self.visited += 1;
         if self.visited > self.maximum.saturating_mul(2).saturating_add(1) || depth > 32 {
-            return Err(Error::Invalid(
-                "asset tree exceeds entry or depth limit".into(),
-            ));
+            return Err(Error::Invalid("asset tree exceeds entry or depth limit".into()));
         }
 
         match inspect(path)? {
@@ -75,14 +68,10 @@ impl Discovery<'_> {
                     .to_str()
                     .ok_or_else(|| Error::Invalid("asset paths must be UTF-8".into()))?
                     .replace(std::path::MAIN_SEPARATOR, "/");
-                self.paths
-                    .push((format!("assets/{relative}"), path.to_owned()));
+                self.paths.push((format!("assets/{relative}"), path.to_owned()));
             }
             Entry::Other => {
-                return Err(Error::Invalid(format!(
-                    "{} is not a regular asset or directory (no links)",
-                    path.display()
-                )));
+                return Err(Error::Invalid(format!("{} is not a regular asset or directory (no links)", path.display())));
             }
         }
         Ok(())
@@ -92,16 +81,9 @@ impl Discovery<'_> {
 /* === Public Functions === */
 pub fn read(path: &Path, limit: usize) -> Result<Vec<u8>, Error> {
     if !std::fs::symlink_metadata(path)?.file_type().is_file() {
-        return Err(Error::Invalid(format!(
-            "{} must be a regular file (no links)",
-            path.display()
-        )));
+        return Err(Error::Invalid(format!("{} must be a regular file (no links)", path.display())));
     }
-    bounded(
-        std::fs::File::open(path)?,
-        limit,
-        &path.display().to_string(),
-    )
+    bounded(std::fs::File::open(path)?, limit, &path.display().to_string())
 }
 
 pub fn assets(root: &Path, maximum: usize) -> Result<Vec<(String, PathBuf)>, Error> {
@@ -134,17 +116,8 @@ fn inspect(path: &Path) -> std::io::Result<Entry> {
     }
 }
 
-fn discover(
-    root: &Path,
-    maximum: usize,
-    inspect: &impl Fn(&Path) -> std::io::Result<Entry>,
-) -> Result<Vec<(String, PathBuf)>, Error> {
-    let mut discovery = Discovery {
-        root,
-        paths: Vec::new(),
-        maximum,
-        visited: 0,
-    };
+fn discover(root: &Path, maximum: usize, inspect: &impl Fn(&Path) -> std::io::Result<Entry>) -> Result<Vec<(String, PathBuf)>, Error> {
+    let mut discovery = Discovery { root, paths: Vec::new(), maximum, visited: 0 };
     discovery.visit(root, 0, inspect)?;
     discovery.paths.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(discovery.paths)

@@ -18,14 +18,11 @@
 // Third Party Imports
 
 // Local Imports
-import type {
-  DocumentCardLayout,
-  TelemetrySummaryTilePayload_Serialize,
-} from "./document-contracts";
+import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
-  DocumentViewCard,
   DocumentDataExpression,
+  DocumentViewCard,
   DocumentViewLayout,
   DocumentViewMetric,
   DocumentViewPayload,
@@ -47,10 +44,7 @@ type SummaryTile = Omit<TelemetrySummaryTilePayload_Serialize, "value" | "stat" 
   stat?: TelemetrySummaryTilePayload_Serialize["stat"];
 };
 
-type PlotDeclaration = Omit<
-  Partial<DocumentViewPlot>,
-  "fft" | "interval" | "histogram" | "reference_lines" | "reference_bands"
-> &
+type PlotDeclaration = Omit<Partial<DocumentViewPlot>, "fft" | "interval" | "histogram" | "reference_lines" | "reference_bands"> &
   Pick<DocumentViewPlot, "plot_id" | "plot_type"> & {
     fft?: Partial<DocumentViewPlot["fft"]> | null;
     interval?: {
@@ -105,8 +99,6 @@ export function documentCard(
     region: "main",
     groups: [],
     plots: [],
-    histograms: [],
-    box_summaries: [],
     rows: [],
     show_report_outcome: true,
     max_items: null,
@@ -145,9 +137,7 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     available_streams?.map(nonEmptyString).find(Boolean) ??
     nonEmptyString(input.z_stream) ??
     input.plot_id;
-  const fields = input.y?.length
-    ? input.y
-    : yExpressions.map(expressionField).filter((field): field is string => field !== null);
+  const fields = input.y?.length ? input.y : yExpressions.map(expressionField).filter((field): field is string => field !== null);
 
   return {
     ...declaration,
@@ -183,7 +173,6 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     z_stream: input.z_stream ?? null,
     z_field: input.z_field ?? null,
     unit: input.unit ?? null,
-    group: nonEmptyString(input.group) ?? "Plots",
     description: input.description ?? null,
     marker_record_types: input.marker_record_types ?? [],
     filters: input.filters ?? [],
@@ -202,13 +191,12 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     x_format: input.x_format ?? null,
     y_format: input.y_format ?? null,
     x_axis: input.x_axis ?? null,
+    display_points: input.display_points ?? null,
+    downsample: input.downsample ?? null,
   };
 }
 
-export function documentText(
-  metadata: Metadata,
-  markdown: string,
-): DocumentViewCard["groups"][number] {
+export function documentText(metadata: Metadata, markdown: string): DocumentViewCard["groups"][number] {
   return {
     group_id: `${metadata.identifier}-text`,
     title: metadata.label,
@@ -224,29 +212,16 @@ export function documentText(
   };
 }
 
-export function validateSummaryResult(tile: {
-  value?: unknown;
-  state?: unknown;
-  unavailable?: string | null;
-}): void {
+export function validateSummaryResult(tile: { value?: unknown; state?: unknown; unavailable?: string | null }): void {
   const reason = unavailableReason(tile.unavailable);
-  if (
-    reason &&
-    ((tile.value !== undefined && tile.value !== null) ||
-      (tile.state !== undefined && tile.state !== null))
-  ) {
+  if (reason && ((tile.value !== undefined && tile.value !== null) || (tile.state !== undefined && tile.state !== null))) {
     throw new Error("Invalid summary unavailable result");
   }
 }
 
 export function unavailableReason(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (
-    typeof value !== "string" ||
-    !value.trim() ||
-    value.length > 512 ||
-    new TextEncoder().encode(value).byteLength > 512
-  ) {
+  if (typeof value !== "string" || !value.trim() || value.length > 512 || new TextEncoder().encode(value).byteLength > 512) {
     throw new Error("Invalid document unavailable reason");
   }
   return value;
@@ -281,15 +256,10 @@ export function documentSummaryTile(tile: SummaryTile): DocumentViewMetric {
   };
 }
 
-export function documentTableRows(
-  cardId: string,
-  rows: readonly Record<string, unknown>[],
-): DocumentViewTableRow[] {
+export function documentTableRows(cardId: string, rows: readonly Record<string, unknown>[]): DocumentViewTableRow[] {
   return rows.map((row, index) => ({
     row_id: `${cardId}-${index}`,
-    cells: Object.fromEntries(
-      Object.entries(row).map(([field, value]) => [field, documentValue(value)]),
-    ),
+    cells: Object.fromEntries(Object.entries(row).map(([field, value]) => [field, documentValue(value)])),
   }));
 }
 
@@ -302,9 +272,7 @@ function nonEmptyString(value: string | null | undefined): string | null {
 
 function expressionStream(expression?: DocumentDataExpression | null): string | null {
   const source = expression?.source;
-  return isRecord(source) && source.type === "telemetry" && typeof source.stream === "string"
-    ? nonEmptyString(source.stream)
-    : null;
+  return isRecord(source) && source.type === "telemetry" && typeof source.stream === "string" ? nonEmptyString(source.stream) : null;
 }
 
 function expressionField(expression: DocumentDataExpression): string | null {
@@ -318,9 +286,7 @@ function expressionField(expression: DocumentDataExpression): string | null {
 }
 
 function telemetryField(expression?: DocumentDataExpression | null): string | null {
-  return expression && isRecord(expression.source) && expression.source.type === "telemetry"
-    ? expressionField(expression)
-    : null;
+  return expression && isRecord(expression.source) && expression.source.type === "telemetry" ? expressionField(expression) : null;
 }
 
 function documentValue(value: unknown): string {

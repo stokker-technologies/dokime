@@ -17,21 +17,15 @@
 // Third Party Imports
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Error, ImplItem, ImplItemFn, ItemImpl};
+use syn::{Error, ImplItem, ImplItemFn, ItemImpl, Meta, Token};
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
-const ARGUMENTS: &[&str] = &[
-    "id",
-    "label",
-    "description",
-    "product",
-    "tags",
-    "templates",
-    "records",
-];
+const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", "records"];
 
 /* === Macros === */
 
@@ -60,12 +54,13 @@ pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
 /* === Private Functions === */
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
+    refuse_product(&attribute)?;
     let arguments = Arguments::read(attribute, "a suite", ARGUMENTS)?;
     let block: ItemImpl = syn::parse2(item.clone())?;
-    if let Some((_, path, _)) = &block.trait_ {
+    if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
-            "`#[dokime::suite]` declares the suite's own inherent impl, not a trait implementation",
+            "`#[dokime_runtime::suite]` declares the suite's own inherent impl, not a trait implementation",
         ));
     }
     let suite = block.self_ty.clone();
@@ -75,27 +70,13 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         None => arguments.identifier(arguments::type_name(&suite)?)?,
     };
     let label = arguments.required("label", "an operator reads the suite by its label")?;
-    let metadata = arguments::metadata(
-        &identifier,
-        label,
-        arguments.value("description"),
-        &block.attrs,
-    );
-    let tags = arguments
-        .value("tags")
-        .map(arguments::elements)
-        .transpose()?
-        .unwrap_or_default();
+    let metadata = arguments::metadata(&identifier, label, arguments.value("description"), &block.attrs);
+    let tags = arguments.value("tags").map(arguments::elements).transpose()?.unwrap_or_default();
     let tags = quote!(::std::vec![#(::std::string::ToString::to_string(#tags)),*]);
 
     let templates = crate::catalog::argument(&arguments, "templates")?;
     let declarations = quote!(<#templates as #sdk::catalog::Catalog<#sdk::catalog::Templates>>::ENTRIES
         .iter().map(|entry| (entry.declaration)()).collect());
-    let product = arguments.value("product").map(|product| {
-        quote!(definition.product = ::core::option::Option::Some(
-            ::std::string::ToString::to_string(#product)
-        );)
-    });
     let workflow = quote! {
         definition.workflow = ::core::option::Option::Some(
             ::std::string::ToString::to_string(#identifier)
@@ -113,8 +94,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             definition.record_contracts.extend((entry.records)());
         }
     };
-    let telemetry = declared(&block, "telemetry")
-        .map(|_| quote!(definition.telemetry_contracts = <Self>::telemetry();));
+    let telemetry = declared(&block, "telemetry").map(|_| quote!(definition.telemetry_contracts = <Self>::telemetry();));
     let stream_contracts = quote! {
         for entry in <#templates as #sdk::catalog::Catalog<#sdk::catalog::Templates>>::ENTRIES {
             definition.telemetry_contracts.extend((entry.streams)());
@@ -125,8 +105,19 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         None => quote!(::std::vec::Vec::new()),
     };
 
+    // A template is referenced as `<suite id>.<segment>`; the suite owns the
+    // prefix, so the check runs here, once per suite, while the plugin builds.
+    let identities = quote! {
+        const _: () = #sdk::definition::authoring::assert_template_identifiers(
+            #identifier,
+            &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateIdentifiers>>::ENTRIES,
+        );
+    };
+
     Ok(quote! {
         #block
+
+        #identities
 
         #[automatically_derived]
         impl #suite {
@@ -154,7 +145,6 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                         "suite `{}` is not declarable: {}", #identifier, refusal
                     ),
                 };
-                #product
                 definition.tags = #tags;
                 #workflow
                 #records
@@ -169,12 +159,14 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         impl #sdk::definition::DeclaredSuite for #suite {
             const OPERATIONS: &'static [#sdk::catalog::Node<#sdk::__harmos::operations::WireDeclaration>] =
                 &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateOperations>>::ENTRIES;
+            const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] =
+                &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateStreams>>::ENTRIES;
 
             fn definition() -> #sdk::domains::TestSuiteDefinition {
                 <Self>::definition()
             }
 
-            fn bind<__DokimePlugin: #sdk::__harmos::artifact::plugin::Declared>(
+            fn bind<__DokimePlugin: #sdk::__harmos::plugin::Declared>(
                 table: &mut #sdk::__harmos::sidecar::operations::WireTable<#sdk::Supervisor>,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
@@ -196,6 +188,20 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         }
 
     })
+}
+
+// Suites no longer carry a product label; name the removal rather than list
+// the accepted arguments so an author knows the field went away on purpose.
+fn refuse_product(attribute: &TokenStream) -> Result<(), Error> {
+    let entries = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute.clone())?;
+    match entries.iter().find(|entry| entry.path().is_ident("product")) {
+        Some(entry) => Err(Error::new(
+            entry.path().span(),
+            "`product` was removed from suites: name the device under test in the suite's \
+             `label`, `description` or `tags` instead",
+        )),
+        None => Ok(()),
+    }
 }
 
 fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {

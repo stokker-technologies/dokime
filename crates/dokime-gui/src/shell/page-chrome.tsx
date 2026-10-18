@@ -9,15 +9,7 @@
 
 /* === External Imports === */
 
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 /* === Types === */
 
@@ -38,9 +30,7 @@ type PageChromeInput = {
 const EMPTY_CHROME: PageChrome = { actions: null, title: "" };
 
 const PageChromeStateContext = createContext<PageChrome>(EMPTY_CHROME);
-const PageChromePublishContext = createContext<(chrome: PageChrome | null) => void>(
-  () => undefined,
-);
+const PageChromePublishContext = createContext<(chrome: PageChrome | null) => void>(() => undefined);
 
 /* === Components === */
 
@@ -53,9 +43,7 @@ export function PageChromeProvider({ children }: { children: ReactNode }) {
   const publish = useCallback((next: PageChrome | null) => {
     setChrome((current) => {
       const resolved = next ?? EMPTY_CHROME;
-      return current.title === resolved.title && current.actions === resolved.actions
-        ? current
-        : resolved;
+      return current.title === resolved.title && current.actions === resolved.actions ? current : resolved;
     });
   }, []);
 

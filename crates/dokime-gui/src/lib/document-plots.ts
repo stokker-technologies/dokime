@@ -10,9 +10,9 @@
 /* === Local Imports === */
 
 export {
-  buildDocumentPlotGroups,
   documentPlotGroupDescription,
+  documentPlotSpec,
   documentPlotsKey,
   plotColor,
 } from "@/plots/grouping";
-export type { PlotCardSpec, PlotTopicGroup } from "@/plots/types";
+export type { PlotCardSpec } from "@/plots/types";

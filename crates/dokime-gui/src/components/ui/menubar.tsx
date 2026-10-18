@@ -29,10 +29,7 @@ function MenubarRadioGroup({ ...props }: React.ComponentProps<typeof MenubarPrim
   return <MenubarPrimitive.RadioGroup data-slot="menubar-radio-group" {...props} />;
 }
 
-function MenubarTrigger({
-  className,
-  ...props
-}: React.ComponentProps<typeof MenubarPrimitive.Trigger>) {
+function MenubarTrigger({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Trigger>) {
   return (
     <MenubarPrimitive.Trigger
       data-slot="menubar-trigger"
@@ -167,27 +164,15 @@ function MenubarLabel({
   );
 }
 
-function MenubarSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof MenubarPrimitive.Separator>) {
-  return (
-    <MenubarPrimitive.Separator
-      data-slot="menubar-separator"
-      className={cn("-mx-1 my-1 h-px bg-border", className)}
-      {...props}
-    />
-  );
+function MenubarSeparator({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Separator>) {
+  return <MenubarPrimitive.Separator data-slot="menubar-separator" className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
 }
 
 function MenubarShortcut({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="menubar-shortcut"
-      className={cn(
-        "ml-auto text-xs tracking-widest text-muted-foreground group-focus/menubar-item:text-accent-foreground",
-        className,
-      )}
+      className={cn("ml-auto text-xs tracking-widest text-muted-foreground group-focus/menubar-item:text-accent-foreground", className)}
       {...props}
     />
   );
@@ -221,10 +206,7 @@ function MenubarSubTrigger({
   );
 }
 
-function MenubarSubContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
+function MenubarSubContent({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
   return (
     <MenubarPrimitive.SubContent
       data-slot="menubar-sub-content"

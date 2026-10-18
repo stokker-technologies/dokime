@@ -16,6 +16,7 @@
 use std::{
     collections::BTreeMap,
     ffi::c_void,
+    ops::RangeInclusive,
     ptr::{addr_of, null_mut},
     slice, thread,
     time::Duration,
@@ -25,22 +26,17 @@ use windows::{
     Win32::{
         Foundation::HANDLE,
         NetworkManagement::WiFi::{
-            DOT11_AUTH_ALGO_80211_OPEN, DOT11_AUTH_ALGO_80211_SHARED_KEY, DOT11_AUTH_ALGO_OWE,
-            DOT11_AUTH_ALGO_RSNA, DOT11_AUTH_ALGO_RSNA_PSK, DOT11_AUTH_ALGO_WPA,
-            DOT11_AUTH_ALGO_WPA_NONE, DOT11_AUTH_ALGO_WPA_PSK, DOT11_AUTH_ALGO_WPA3,
-            DOT11_AUTH_ALGO_WPA3_ENT, DOT11_AUTH_ALGO_WPA3_SAE, DOT11_AUTH_ALGORITHM,
-            DOT11_CIPHER_ALGO_CCMP, DOT11_CIPHER_ALGO_CCMP_256, DOT11_CIPHER_ALGO_GCMP,
-            DOT11_CIPHER_ALGO_GCMP_256, DOT11_CIPHER_ALGO_NONE, DOT11_CIPHER_ALGO_TKIP,
-            DOT11_CIPHER_ALGO_WEP, DOT11_CIPHER_ALGO_WEP40, DOT11_CIPHER_ALGO_WEP104,
-            DOT11_CIPHER_ALGORITHM, DOT11_PHY_TYPE, DOT11_SSID, WLAN_API_VERSION_2_0,
-            WLAN_BSS_ENTRY, WLAN_BSS_LIST, WLAN_CONNECTION_ATTRIBUTES, WLAN_INTERFACE_INFO,
-            WLAN_INTERFACE_INFO_LIST, WLAN_INTERFACE_STATE, WlanCloseHandle, WlanEnumInterfaces,
-            WlanFreeMemory, WlanGetNetworkBssList, WlanOpenHandle, WlanQueryInterface, WlanScan,
-            dot11_BSS_type_any, wlan_interface_state_ad_hoc_network_formed,
-            wlan_interface_state_associating, wlan_interface_state_authenticating,
-            wlan_interface_state_connected, wlan_interface_state_disconnected,
-            wlan_interface_state_disconnecting, wlan_interface_state_discovering,
-            wlan_interface_state_not_ready, wlan_intf_opcode_current_connection,
+            DOT11_AUTH_ALGO_80211_OPEN, DOT11_AUTH_ALGO_80211_SHARED_KEY, DOT11_AUTH_ALGO_OWE, DOT11_AUTH_ALGO_RSNA,
+            DOT11_AUTH_ALGO_RSNA_PSK, DOT11_AUTH_ALGO_WPA, DOT11_AUTH_ALGO_WPA_NONE, DOT11_AUTH_ALGO_WPA_PSK, DOT11_AUTH_ALGO_WPA3,
+            DOT11_AUTH_ALGO_WPA3_ENT, DOT11_AUTH_ALGO_WPA3_SAE, DOT11_AUTH_ALGORITHM, DOT11_CIPHER_ALGO_CCMP, DOT11_CIPHER_ALGO_CCMP_256,
+            DOT11_CIPHER_ALGO_GCMP, DOT11_CIPHER_ALGO_GCMP_256, DOT11_CIPHER_ALGO_NONE, DOT11_CIPHER_ALGO_TKIP, DOT11_CIPHER_ALGO_WEP,
+            DOT11_CIPHER_ALGO_WEP40, DOT11_CIPHER_ALGO_WEP104, DOT11_CIPHER_ALGORITHM, DOT11_PHY_TYPE, DOT11_SSID, WLAN_API_VERSION_2_0,
+            WLAN_BSS_ENTRY, WLAN_BSS_LIST, WLAN_CONNECTION_ATTRIBUTES, WLAN_INTERFACE_INFO, WLAN_INTERFACE_INFO_LIST, WLAN_INTERFACE_STATE,
+            WlanCloseHandle, WlanEnumInterfaces, WlanFreeMemory, WlanGetNetworkBssList, WlanOpenHandle, WlanQueryInterface, WlanScan,
+            dot11_BSS_type_any, wlan_interface_state_ad_hoc_network_formed, wlan_interface_state_associating,
+            wlan_interface_state_authenticating, wlan_interface_state_connected, wlan_interface_state_disconnected,
+            wlan_interface_state_disconnecting, wlan_interface_state_discovering, wlan_interface_state_not_ready,
+            wlan_intf_opcode_current_connection, wlan_intf_opcode_rssi,
         },
     },
     core::GUID,
@@ -49,6 +45,7 @@ use windows::{
 use crate::{Error, HostOptions, Result};
 
 /* === Constants === */
+const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 /* === Macros === */
 
@@ -68,6 +65,7 @@ pub struct WifiLink {
     pub channel: Option<u32>,
     pub band: Option<String>,
     pub signal_percent: Option<f64>,
+    pub rssi_dbm: Option<f64>,
     pub rx_phy_mbps: Option<f64>,
     pub tx_phy_mbps: Option<f64>,
 }
@@ -99,6 +97,15 @@ struct WifiInterface {
 /* === Traits === */
 
 /* === Implementations === */
+impl WifiLink {
+    pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
+        let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
+        let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
+
+        RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm)
+    }
+}
+
 impl Drop for WlanClient {
     fn drop(&mut self) {
         unsafe {
@@ -111,14 +118,7 @@ impl WlanClient {
     fn open() -> Result<Self> {
         let mut negotiated_version = 0;
         let mut handle = HANDLE::default();
-        let code = unsafe {
-            WlanOpenHandle(
-                WLAN_API_VERSION_2_0,
-                None,
-                &mut negotiated_version,
-                &mut handle,
-            )
-        };
+        let code = unsafe { WlanOpenHandle(WLAN_API_VERSION_2_0, None, &mut negotiated_version, &mut handle) };
         if code != 0 {
             return Err(Error::Probe(format!("WlanOpenHandle failed with {code}")));
         }
@@ -130,9 +130,7 @@ impl WlanClient {
         let mut list: *mut WLAN_INTERFACE_INFO_LIST = null_mut();
         let code = unsafe { WlanEnumInterfaces(self.handle, None, &mut list) };
         if code != 0 {
-            return Err(Error::Probe(format!(
-                "WlanEnumInterfaces failed with {code}"
-            )));
+            return Err(Error::Probe(format!("WlanEnumInterfaces failed with {code}")));
         }
         if list.is_null() {
             return Ok(Vec::new());
@@ -145,8 +143,7 @@ impl WlanClient {
                 .iter()
                 .map(|interface| WifiInterface {
                     guid: interface.InterfaceGuid,
-                    description: wide_string(&interface.strInterfaceDescription)
-                        .unwrap_or_else(|| "WiFi".to_owned()),
+                    description: wide_string(&interface.strInterfaceDescription).unwrap_or_else(|| "WiFi".to_owned()),
                     state: interface.isState,
                 })
                 .collect::<Vec<_>>()
@@ -158,22 +155,11 @@ impl WlanClient {
         Ok(interfaces)
     }
 
-    fn current_connection(
-        &self,
-        interface: &WifiInterface,
-    ) -> Result<Option<WLAN_CONNECTION_ATTRIBUTES>> {
+    fn current_connection(&self, interface: &WifiInterface) -> Result<Option<WLAN_CONNECTION_ATTRIBUTES>> {
         let mut data_size = 0;
         let mut data: *mut c_void = null_mut();
         let code = unsafe {
-            WlanQueryInterface(
-                self.handle,
-                &interface.guid,
-                wlan_intf_opcode_current_connection,
-                None,
-                &mut data_size,
-                &mut data,
-                None,
-            )
+            WlanQueryInterface(self.handle, &interface.guid, wlan_intf_opcode_current_connection, None, &mut data_size, &mut data, None)
         };
         if code != 0 || data.is_null() {
             return Ok(None);
@@ -187,11 +173,25 @@ impl WlanClient {
         Ok(Some(attributes))
     }
 
-    fn bss_entries(
-        &self,
-        interface: &WifiInterface,
-        request_scan: bool,
-    ) -> Result<Vec<WLAN_BSS_ENTRY>> {
+    fn rssi_dbm(&self, interface: &WifiInterface) -> Option<f64> {
+        let mut data_size = 0;
+        let mut data: *mut c_void = null_mut();
+        let code =
+            unsafe { WlanQueryInterface(self.handle, &interface.guid, wlan_intf_opcode_rssi, None, &mut data_size, &mut data, None) };
+        if code != 0 || data.is_null() {
+            return None;
+        }
+
+        let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), data_size as usize) };
+        let rssi_dbm = WifiLink::rssi_dbm_from_query(bytes);
+        unsafe {
+            WlanFreeMemory(data);
+        }
+
+        rssi_dbm
+    }
+
+    fn bss_entries(&self, interface: &WifiInterface, request_scan: bool) -> Result<Vec<WLAN_BSS_ENTRY>> {
         if request_scan {
             let scan = unsafe { WlanScan(self.handle, &interface.guid, None, None, None) };
             if scan != 0 {
@@ -201,21 +201,9 @@ impl WlanClient {
         }
 
         let mut list: *mut WLAN_BSS_LIST = null_mut();
-        let code = unsafe {
-            WlanGetNetworkBssList(
-                self.handle,
-                &interface.guid,
-                None,
-                dot11_BSS_type_any,
-                false,
-                None,
-                &mut list,
-            )
-        };
+        let code = unsafe { WlanGetNetworkBssList(self.handle, &interface.guid, None, dot11_BSS_type_any, false, None, &mut list) };
         if code != 0 {
-            return Err(Error::Probe(format!(
-                "WlanGetNetworkBssList failed with {code}"
-            )));
+            return Err(Error::Probe(format!("WlanGetNetworkBssList failed with {code}")));
         }
         if list.is_null() {
             return Ok(Vec::new());
@@ -255,6 +243,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
             channel: None,
             band: None,
             signal_percent: None,
+            rssi_dbm: None,
             rx_phy_mbps: None,
             tx_phy_mbps: None,
         }));
@@ -266,6 +255,8 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let association = attributes.wlanAssociationAttributes;
     let security = attributes.wlanSecurityAttributes;
     let bssid = mac_string(&association.dot11Bssid);
+    // Read The Signal Before The Interface Gives Up Its Description
+    let rssi_dbm = client.rssi_dbm(&interface);
     Ok(Some(WifiLink {
         adapter: Some(interface.description),
         state,
@@ -278,6 +269,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
         channel: None,
         band: None,
         signal_percent: Some(f64::from(association.wlanSignalQuality)),
+        rssi_dbm,
         rx_phy_mbps: Some(association.ulRxRate as f64 / 1_000.0),
         tx_phy_mbps: Some(association.ulTxRate as f64 / 1_000.0),
     }))
@@ -312,10 +304,7 @@ pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOc
         });
         item.network_count += 1;
         let signal = f64::from(entry.uLinkQuality);
-        item.max_signal_percent = Some(
-            item.max_signal_percent
-                .map_or(signal, |max| max.max(signal)),
-        );
+        item.max_signal_percent = Some(item.max_signal_percent.map_or(signal, |max| max.max(signal)));
     }
 
     Ok(channels.into_values().collect())
@@ -325,24 +314,14 @@ pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOc
 fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Option<WifiInterface> {
     if let Some(adapter) = &options.wifi_adapter_name {
         let adapter = adapter.to_lowercase();
-        return interfaces
-            .iter()
-            .find(|interface| interface.description.to_lowercase().contains(&adapter))
-            .cloned();
+        return interfaces.iter().find(|interface| interface.description.to_lowercase().contains(&adapter)).cloned();
     }
 
-    interfaces
-        .iter()
-        .find(|interface| interface.state == wlan_interface_state_connected)
-        .or_else(|| interfaces.first())
-        .cloned()
+    interfaces.iter().find(|interface| interface.state == wlan_interface_state_connected).or_else(|| interfaces.first()).cloned()
 }
 
 fn wide_string(value: &[u16]) -> Option<String> {
-    let len = value
-        .iter()
-        .position(|item| *item == 0)
-        .unwrap_or(value.len());
+    let len = value.iter().position(|item| *item == 0).unwrap_or(value.len());
     if len == 0 {
         return None;
     }
@@ -351,9 +330,7 @@ fn wide_string(value: &[u16]) -> Option<String> {
 }
 
 fn ssid_string(value: &DOT11_SSID) -> Option<String> {
-    let len = usize::try_from(value.uSSIDLength)
-        .ok()?
-        .min(value.ucSSID.len());
+    let len = usize::try_from(value.uSSIDLength).ok()?.min(value.ucSSID.len());
     if len == 0 {
         return None;
     }
@@ -362,10 +339,7 @@ fn ssid_string(value: &DOT11_SSID) -> Option<String> {
 }
 
 fn mac_string(value: &[u8; 6]) -> String {
-    format!(
-        "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-        value[0], value[1], value[2], value[3], value[4], value[5]
-    )
+    format!("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", value[0], value[1], value[2], value[3], value[4], value[5])
 }
 
 fn channel_from_frequency(value: u32) -> Option<u32> {
@@ -388,11 +362,7 @@ fn wifi_band(channel: u32) -> Option<String> {
     }
 }
 
-fn active_channel_from_scan(
-    client: &WlanClient,
-    interface: &WifiInterface,
-    entries: &[WLAN_BSS_ENTRY],
-) -> Result<Option<u32>> {
+fn active_channel_from_scan(client: &WlanClient, interface: &WifiInterface, entries: &[WLAN_BSS_ENTRY]) -> Result<Option<u32>> {
     if interface.state != wlan_interface_state_connected {
         return Ok(None);
     }

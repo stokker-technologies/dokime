@@ -15,52 +15,13 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  AnalysisSelectionSchema,
-  ArtifactDataSourceSchema,
-  AxisScale,
-  type DataExpression,
-  DataExpressionSchema,
-  type DataTransform,
-  DataTransformSchema,
-  DimensionDataSourceSchema,
-  DownsampleTechnique,
-  FftDetrend,
-  FftWindow,
-  FilterOperator,
-  FrequencyLevelUnit,
-  type AnalysisComputation as NativeAnalysisComputation,
-  type AnalysisDefinition as NativeAnalysisDefinition,
-  type PlotAnalysis as NativePlotAnalysis,
-  type PlotCartesianFrame as NativePlotCartesianFrame,
-  type PlotMarker as NativePlotMarker,
-  type PlotPayload as NativePlotPayload,
-  type PlotPayloadDiagnostics as NativePlotPayloadDiagnostics,
-  type PlotPoint as NativePlotPoint,
-  type PlotSeries as NativePlotSeries,
-  ParameterDataSourceSchema,
-  PlotCartesianMode,
-  type PlotCursor,
-  PlotCursorSchema,
-  type PlotEnvelope,
-  PlotFftOptionsSchema,
-  PlotFilterSchema,
-  PlotHistogramOptionsSchema,
-  PlotIntervalOptionsSchema,
-  type PlotRequest,
-  PlotRequestSchema,
-  type PlotStreamFrame,
-  PlotStreamKind,
-  PlotType,
-  RecordDataSourceSchema,
-  TelemetryDataSourceSchema,
-} from "@/lib/rpc/generated/dokime/v1/plots_pb";
-import type { TelemetrySample as NativeTelemetrySample } from "@/lib/rpc/generated/dokime/v1/telemetry_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentAxisScale,
   DocumentDataExpression,
+  DocumentDownsampleTechnique,
   DocumentFftOptions,
   DocumentHistogramOptions,
   DocumentPlotType,
@@ -82,6 +43,10 @@ import type {
   RecordScope,
   TelemetrySampleRecord,
 } from "@/lib/types";
+import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
+import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
+import { aggregateMessage } from "./native-aggregate";
 import { mapParameter } from "./native-catalog";
 import {
   jsonToNativeValue,
@@ -95,10 +60,44 @@ import {
   timestampIso,
 } from "./native-values";
 
+/* === Canonical Types === */
+
+type PlotRequest = Wire<plotWire.Row3>;
+type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsQuerySnapshots>>>["envelopes"][number];
+type DataExpression = NonNullable<PlotRequest["xExpression"]>;
+type DataTransform = DataExpression["transforms"][number];
+type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
+type NativeAnalysisComputation = NonNullable<NativePlotPayload["computed"]>;
+type NativeAnalysisDefinition = NonNullable<NativeAnalysisComputation["definition"]>;
+type NativePlotAnalysis = NonNullable<NativePlotPayload["analysis"]>;
+type NativePlotCartesianFrame = NonNullable<NativePlotPayload["cartesian"]>;
+type NativePlotMarker = NativePlotPayload["markers"][number];
+type NativePlotPayloadDiagnostics = NonNullable<PlotEnvelope["diagnostics"]>;
+type NativePlotSeries = NativePlotPayload["series"][number];
+type NativePlotPoint = NativePlotSeries["points"][number];
+type PlotCursor = NonNullable<PlotEnvelope["cursor"]>;
+type PlotType = NonNullable<PlotRequest["plotType"]>;
+type AxisScale = NonNullable<PlotRequest["xScale"]>;
+type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
+type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
+type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
+const AnalysisSelectionSchema = plotWire.Row15Schema;
+const DataExpressionSchema = plotWire.Row8Schema;
+const DataTransformSchema = plotWire.Row44Schema;
+const PlotCursorSchema = plotWire.Row10Schema;
+const PlotFftOptionsSchema = plotWire.Row12Schema;
+const PlotFilterSchema = plotWire.Row7Schema;
+const PlotHistogramOptionsSchema = plotWire.Row14Schema;
+const PlotIntervalOptionsSchema = plotWire.Row13Schema;
+const PlotRequestSchema = plotWire.Row3Schema;
+const PlotWindowSchema = plotWire.Row16Schema;
+type PlotStreamFrame = Wire<WatchFrame>;
+type PlotStreamKind = PlotStreamFrame["kind"];
+type NativeTelemetrySample = Wire<Awaited<ReturnType<typeof rpc.telemetryListSamples>>>["samples"][number];
+
 /* === Constants === */
 
 export const NATIVE_PLOT_MAX_REQUESTS = 32;
-export const NATIVE_PLOT_MAX_POINTS = 100_000;
 export const NATIVE_TELEMETRY_MAX_LIMIT = 5_000;
 const MAX_PLOT_TRANSFORMS = 32;
 
@@ -128,7 +127,11 @@ export type PlotPayloadRequestInput = {
   zField?: string | null;
   unit?: string | null;
   maxPoints?: number;
+  /** Absent is the host default (`auto`). */
+  technique?: DocumentDownsampleTechnique | null;
   windowS?: number | null;
+  /** The x range a zoomed time series or scatter plot summarizes. */
+  summaryWindow?: { from: number; to: number } | null;
   scope?: RecordScope | null;
   /** Legacy cursors are accepted only when they carry native epoch identity. */
   cursor?: PlotPayloadCursor | null;
@@ -181,10 +184,7 @@ export type NativePlotWatchOptions = NativePlotReadOptions & {
 /* === Public API === */
 
 /** Build one typed protobuf plot request from the document-facing input. */
-export function toNativePlotRequest(
-  input: PlotPayloadRequestInput,
-  cursor?: PlotCursor,
-): PlotRequest {
+export function toNativePlotRequest(input: PlotPayloadRequestInput, cursor?: PlotCursor): PlotRequest {
   const nativeCursor = cursor ?? nativeCursorFromInput(input.cursor);
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
@@ -193,14 +193,7 @@ export function toNativePlotRequest(
       ? create(AnalysisSelectionSchema, {
           id: input.analysis.id,
           version: input.analysis.version,
-          parameters: {
-            fields: Object.fromEntries(
-              Object.entries(input.analysis.parameters).map(([key, value]) => [
-                key,
-                jsonToNativeValue(value),
-              ]),
-            ),
-          },
+          parameters: jsonToNativeValue(input.analysis.parameters),
         })
       : undefined,
     plotType: plotType(input.plotType),
@@ -212,13 +205,19 @@ export function toNativePlotRequest(
       : {
           fft: create(PlotFftOptionsSchema, {
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
-            window: input.fft.window === "rectangular" ? FftWindow.RECTANGULAR : FftWindow.HANN,
-            detrend: input.fft.detrend === "none" ? FftDetrend.NONE : FftDetrend.MEAN,
+            window:
+              input.fft.window === "rectangular"
+                ? { HarmosVariant: { case: "Rectangular" as const, value: {} } }
+                : { HarmosVariant: { case: "Hann" as const, value: {} } },
+            detrend:
+              input.fft.detrend === "none"
+                ? { HarmosVariant: { case: "None" as const, value: {} } }
+                : { HarmosVariant: { case: "Mean" as const, value: {} } },
             levelUnit: {
-              linear: FrequencyLevelUnit.LINEAR,
-              dB: FrequencyLevelUnit.DB,
-              dBu: FrequencyLevelUnit.DBU,
-              dBm: FrequencyLevelUnit.DBM,
+              linear: { HarmosVariant: { case: "Linear" as const, value: {} } },
+              dB: { HarmosVariant: { case: "Db" as const, value: {} } },
+              dBu: { HarmosVariant: { case: "Dbu" as const, value: {} } },
+              dBm: { HarmosVariant: { case: "Dbm" as const, value: {} } },
             }[input.fft.level_unit],
             includeDc: input.fft.include_dc,
             minFrequencyHz: input.fft.min_frequency_hz ?? undefined,
@@ -250,17 +249,16 @@ export function toNativePlotRequest(
     ...(input.seriesBy == null ? {} : { seriesBy: input.seriesBy }),
     ...(input.xExpression == null ? {} : { xExpression: dataExpression(input.xExpression) }),
     yExpressions: (input.yExpressions ?? []).map(dataExpression),
-    ...(input.seriesByExpression == null
-      ? {}
-      : { seriesByExpression: dataExpression(input.seriesByExpression) }),
+    ...(input.seriesByExpression == null ? {} : { seriesByExpression: dataExpression(input.seriesByExpression) }),
     ...(input.zStream == null ? {} : { zStream: input.zStream }),
     ...(input.zField == null ? {} : { zField: input.zField }),
     ...(input.unit == null ? {} : { unit: input.unit }),
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
+    ...(input.summaryWindow == null ? {} : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     ...(nativeCursor ? { cursor: nativeCursor } : {}),
-    technique: DownsampleTechnique.RAW,
+    technique: downsampleTechnique(input.technique),
   });
 }
 
@@ -274,9 +272,7 @@ export async function queryNativePlotPayloads(
   ensureActive(session, options.signal);
   try {
     const reply = await rpc.plotsQuerySnapshots(session, {
-      requests: requests.map((request, index) =>
-        toNativePlotRequest(request, options.cursors?.[index]),
-      ),
+      requests: requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index])),
     });
     ensureActive(session, options.signal);
     return reply.envelopes.map(mapNativePlotEnvelope);
@@ -303,9 +299,7 @@ export async function fetchNativePlotPayloadBatch(
   requests: readonly PlotPayloadRequestInput[],
   options: NativePlotReadOptions = {},
 ): Promise<PlotPayload[]> {
-  return (await queryNativePlotPayloads(session, requests, options)).map(
-    (envelope) => envelope.payload,
-  );
+  return (await queryNativePlotPayloads(session, requests, options)).map((envelope) => envelope.payload);
 }
 
 /**
@@ -320,9 +314,7 @@ export async function openNativePlotStream(
 ): Promise<NativePlotStream> {
   boundedRequestCount(requests.length, "Plots.Watch");
   ensureActive(session, options.signal);
-  const nativeRequests = requests.map((request, index) =>
-    toNativePlotRequest(request, options.cursors?.[index]),
-  );
+  const nativeRequests = requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index]));
 
   let source: Awaited<ReturnType<typeof rpc.plotsWatch>> | null = null;
   try {
@@ -406,11 +398,14 @@ export async function listNativeTelemetrySamples(
       sources: [],
       signals: [],
       ...(nativeEvidenceScope(options.scope) ? { scope: nativeEvidenceScope(options.scope) } : {}),
-      afterStreamCursors,
+      afterStreamCursors: Object.entries(afterStreamCursors).map(([key, value]) => ({
+        key,
+        value,
+      })),
       latest,
     });
     ensureActive(session, options.signal);
-    const throughStreamCursors = { ...reply.throughStreamCursors };
+    const throughStreamCursors = Object.fromEntries(reply.throughStreamCursors.map(({ key, value }) => [key, value]));
     return {
       samples: reply.samples.map(mapNativeTelemetrySample),
       throughStreamCursors,
@@ -448,13 +443,44 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
   };
 }
 
-/** Map one protobuf stream frame into the renderer's append/replace model. */
+/**
+ * Map one protobuf stream frame into the renderer's append/replace model.
+ *
+ * An error frame reports one plot's failure while the watch stays open, so it
+ * may carry no payload, cursor or diagnostics; it maps to an empty payload
+ * with its warnings rather than ending the whole stream on a mapping throw.
+ */
 export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
+  const kind = plotStreamKind(frame.kind);
+  if (kind === "error") {
+    return {
+      ...mapNativePlotErrorEnvelope(frame.envelope),
+      kind,
+    };
+  }
   const envelope = mapNativePlotEnvelope(frame.envelope);
   return {
     ...envelope,
-    kind: plotStreamKind(frame.kind),
+    kind,
+  };
+}
+
+function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
+  if (envelope.cursor && envelope.payload && envelope.diagnostics) {
+    return mapNativePlotEnvelope(envelope);
+  }
+  const cursor = envelope.cursor ?? create(PlotCursorSchema, {});
+  return {
+    plot_id: envelope.plotId,
+    revision: safeNumber(envelope.revision, "Plots envelope revision"),
+    cursor: mapPlotCursor(cursor),
+    nativeCursor: cursor,
+    payload: envelope.payload
+      ? mapNativePlotPayload(envelope.payload)
+      : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
+    ...(envelope.diagnostics ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) } : {}),
+    warnings: envelope.warnings.length ? [...envelope.warnings] : ["Plot stream returned an error."],
   };
 }
 
@@ -464,43 +490,53 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
   const input = object(value, "data expression");
   const source = object(input.source, "data expression source");
   const sourceType = requiredText(source.type, "data expression source type");
-  const wireSource: DataExpression["source"] = (() => {
+  const wireSource: NonNullable<DataExpression["source"]>["HarmosVariant"] = (() => {
     switch (sourceType) {
       case "telemetry":
         return {
-          case: "telemetry",
-          value: create(TelemetryDataSourceSchema, {
-            stream: requiredText(source.stream, "telemetry expression stream"),
-            field: requiredText(source.field, "telemetry expression field"),
-          }),
+          case: "Telemetry",
+          value: {
+            field0: {
+              stream: requiredText(source.stream, "telemetry expression stream"),
+              field: requiredText(source.field, "telemetry expression field"),
+            },
+          },
         };
       case "parameter":
         return {
-          case: "parameter",
-          value: create(ParameterDataSourceSchema, {
-            name: requiredText(source.name, "parameter name"),
-          }),
+          case: "Parameter",
+          value: {
+            field0: {
+              name: requiredText(source.name, "parameter name"),
+            },
+          },
         };
       case "dimension":
         return {
-          case: "dimension",
-          value: create(DimensionDataSourceSchema, {
-            name: requiredText(source.name, "dimension name"),
-          }),
+          case: "Dimension",
+          value: {
+            field0: {
+              name: requiredText(source.name, "dimension name"),
+            },
+          },
         };
       case "record":
         return {
-          case: "record",
-          value: create(RecordDataSourceSchema, {
-            recordType: requiredText(source.record_type, "record type"),
-          }),
+          case: "Record",
+          value: {
+            field0: {
+              recordType: requiredText(source.record_type, "record type"),
+            },
+          },
         };
       case "artifact":
         return {
-          case: "artifact",
-          value: create(ArtifactDataSourceSchema, {
-            artifact: requiredText(source.artifact, "artifact"),
-          }),
+          case: "Artifact",
+          value: {
+            field0: {
+              artifact: requiredText(source.artifact, "artifact"),
+            },
+          },
         };
       default:
         throw new Error(`Unsupported data expression source: ${sourceType}`);
@@ -512,44 +548,50 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
   }
   const transforms = (rawTransforms ?? []).map(dataTransform);
   if (transforms.length > MAX_PLOT_TRANSFORMS) {
-    throw new NativeApiLimitError(
-      "Plots expression",
-      `more than ${MAX_PLOT_TRANSFORMS} transforms`,
-    );
+    throw new NativeApiLimitError("Plots expression", `more than ${MAX_PLOT_TRANSFORMS} transforms`);
   }
-  return create(DataExpressionSchema, { source: wireSource, transforms });
+  return create(DataExpressionSchema, { source: { HarmosVariant: wireSource }, transforms });
 }
 
 function dataTransform(value: unknown): DataTransform {
   const input = object(value, "data transform");
   const kind = requiredText(input.type, "data transform type");
   switch (kind) {
-    case "count":
-      return create(DataTransformSchema, { kind: { case: "count", value: {} } });
-    case "mean":
-      return create(DataTransformSchema, { kind: { case: "mean", value: {} } });
-    case "median":
-      return create(DataTransformSchema, { kind: { case: "median", value: {} } });
-    case "min":
-      return create(DataTransformSchema, { kind: { case: "min", value: {} } });
-    case "max":
-      return create(DataTransformSchema, { kind: { case: "max", value: {} } });
+    case "aggregate":
+      return create(DataTransformSchema, {
+        kind: {
+          HarmosVariant: {
+            case: "Aggregate",
+            value: {
+              field0: { aggregate: aggregateMessage(requiredText(input.aggregate, "aggregate")) },
+            },
+          },
+        },
+      });
     case "time_between":
       return create(DataTransformSchema, {
         kind: {
-          case: "timeBetween",
-          value: {
-            previousRecordType: requiredText(input.previous_record_type, "previous record type"),
+          HarmosVariant: {
+            case: "TimeBetween",
+            value: {
+              field0: {
+                previousRecordType: requiredText(input.previous_record_type, "previous record type"),
+              },
+            },
           },
         },
       });
     case "telemetry_at_or_before":
       return create(DataTransformSchema, {
         kind: {
-          case: "telemetryAtOrBefore",
-          value: {
-            stream: requiredText(input.stream, "telemetry-at-or-before stream"),
-            field: requiredText(input.field, "telemetry-at-or-before field"),
+          HarmosVariant: {
+            case: "TelemetryAtOrBefore",
+            value: {
+              field0: {
+                stream: requiredText(input.stream, "telemetry-at-or-before stream"),
+                field: requiredText(input.field, "telemetry-at-or-before field"),
+              },
+            },
           },
         },
       });
@@ -568,20 +610,19 @@ function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]) {
 
 function nativeCursorFromInput(cursor?: PlotPayloadCursor | null): PlotCursor | undefined {
   if (!cursor) return undefined;
-  const candidate = cursor as PlotPayloadCursor & { epoch?: unknown; selection?: unknown };
+  if (!("epoch" in cursor) || !("selection" in cursor)) {
+    throw new Error("Native plot cursors must come from a current native envelope.");
+  }
+  const candidate = cursor;
   if (typeof candidate.epoch !== "string" || typeof candidate.selection !== "string") {
     throw new Error("Native plot cursors must come from a current native envelope.");
   }
   return create(PlotCursorSchema, {
-    telemetryStreams: Object.fromEntries(
-      Object.entries(cursor.telemetry_streams ?? {}).map(([key, value]) => [
-        key,
-        boundedUint64(value, "plot cursor telemetry sequence"),
-      ]),
-    ),
-    ...(cursor.record_sequence == null
-      ? {}
-      : { recordSequence: boundedUint64(cursor.record_sequence, "plot cursor record sequence") }),
+    telemetryStreams: Object.entries(cursor.telemetry_streams ?? {}).map(([key, value]) => ({
+      key,
+      value: boundedUint64(value, "plot cursor telemetry sequence"),
+    })),
+    ...(cursor.record_sequence == null ? {} : { recordSequence: boundedUint64(cursor.record_sequence, "plot cursor record sequence") }),
     epoch: candidate.epoch,
     selection: candidate.selection,
   });
@@ -591,33 +632,46 @@ function plotType(value?: DocumentPlotType | null): PlotType {
   switch (value) {
     case undefined:
     case null:
-      return PlotType.UNSPECIFIED;
+      return { HarmosVariant: { case: "Unspecified" as const, value: {} } };
     case "time_series":
-      return PlotType.TIME_SERIES;
+      return { HarmosVariant: { case: "TimeSeries" as const, value: {} } };
     case "bar":
-      return PlotType.BAR;
+      return { HarmosVariant: { case: "Bar" as const, value: {} } };
     case "xy_scatter":
-      return PlotType.XY_SCATTER;
+      return { HarmosVariant: { case: "XyScatter" as const, value: {} } };
     case "xy_line":
-      return PlotType.XY_LINE;
+      return { HarmosVariant: { case: "XyLine" as const, value: {} } };
     case "xy_interval":
-      return PlotType.XY_INTERVAL;
+      return { HarmosVariant: { case: "XyInterval" as const, value: {} } };
     case "trajectory":
-      return PlotType.TRAJECTORY;
+      return { HarmosVariant: { case: "Trajectory" as const, value: {} } };
     case "heatmap":
-      return PlotType.HEATMAP;
+      return { HarmosVariant: { case: "Heatmap" as const, value: {} } };
     case "xy_value_heatmap":
-      return PlotType.XY_VALUE_HEATMAP;
+      return { HarmosVariant: { case: "XyValueHeatmap" as const, value: {} } };
     case "wifi_channel_occupancy":
-      return PlotType.WIFI_CHANNEL_OCCUPANCY;
+      return { HarmosVariant: { case: "WifiChannelOccupancy" as const, value: {} } };
     case "frequency_series":
-      return PlotType.FREQUENCY_SERIES;
+      return { HarmosVariant: { case: "FrequencySeries" as const, value: {} } };
     case "histogram":
-      return PlotType.HISTOGRAM;
+      return { HarmosVariant: { case: "Histogram" as const, value: {} } };
     case "box_summary":
-      return PlotType.BOX_SUMMARY;
+      return { HarmosVariant: { case: "BoxSummary" as const, value: {} } };
     default:
       throw new Error(`Unsupported document plot type: ${String(value)}`);
+  }
+}
+
+function downsampleTechnique(value?: DocumentDownsampleTechnique | null): DownsampleTechnique {
+  switch (value) {
+    case "raw":
+      return { HarmosVariant: { case: "Raw" as const, value: {} } };
+    case "min_max":
+      return { HarmosVariant: { case: "MinMax" as const, value: {} } };
+    case "lttb":
+      return { HarmosVariant: { case: "Lttb" as const, value: {} } };
+    default:
+      return { HarmosVariant: { case: "Auto" as const, value: {} } };
   }
 }
 
@@ -626,34 +680,32 @@ function axisScale(value?: DocumentAxisScale | null): AxisScale {
     case undefined:
     case null:
     case "linear":
-      return AxisScale.LINEAR;
+      return { HarmosVariant: { case: "Linear" as const, value: {} } };
     case "log":
-      return AxisScale.LOG;
+      return { HarmosVariant: { case: "Log" as const, value: {} } };
     default:
       throw new Error(`Unsupported plot axis scale: ${String(value)}`);
   }
 }
 
-function filterOperator(
-  value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"],
-): FilterOperator {
+function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
   switch (value) {
     case "eq":
-      return FilterOperator.EQ;
+      return { HarmosVariant: { case: "Eq" as const, value: {} } };
     case "ne":
-      return FilterOperator.NE;
+      return { HarmosVariant: { case: "Ne" as const, value: {} } };
     case "gt":
-      return FilterOperator.GT;
+      return { HarmosVariant: { case: "Gt" as const, value: {} } };
     case "gte":
-      return FilterOperator.GTE;
+      return { HarmosVariant: { case: "Gte" as const, value: {} } };
     case "lt":
-      return FilterOperator.LT;
+      return { HarmosVariant: { case: "Lt" as const, value: {} } };
     case "lte":
-      return FilterOperator.LTE;
+      return { HarmosVariant: { case: "Lte" as const, value: {} } };
     case "contains":
-      return FilterOperator.CONTAINS;
+      return { HarmosVariant: { case: "Contains" as const, value: {} } };
     case "exists":
-      return FilterOperator.EXISTS;
+      return { HarmosVariant: { case: "Exists" as const, value: {} } };
     default:
       throw new Error(`Unsupported plot filter operator: ${String(value)}`);
   }
@@ -664,15 +716,9 @@ function filterOperator(
 function mapPlotCursor(cursor: PlotCursor): PlotPayloadCursor {
   return {
     telemetry_streams: Object.fromEntries(
-      Object.entries(cursor.telemetryStreams).map(([key, value]) => [
-        key,
-        safeNumber(value, "Plots cursor telemetry sequence"),
-      ]),
+      cursor.telemetryStreams.map(({ key, value }) => [key, safeNumber(value, "Plots cursor telemetry sequence")]),
     ),
-    record_sequence:
-      cursor.recordSequence === undefined
-        ? null
-        : safeNumber(cursor.recordSequence, "Plots cursor record sequence"),
+    record_sequence: cursor.recordSequence === undefined ? null : safeNumber(cursor.recordSequence, "Plots cursor record sequence"),
   };
 }
 
@@ -693,20 +739,34 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     x_format: mapNativeValueFormat(payload.xFormat),
     run_started_at: payload.runStartedAt ?? null,
     cycle_started_at: payload.cycleStartedAt ?? null,
+    summaries: payload.summaries.map((summary) => ({
+      series_id: summary.seriesId,
+      count: safeNumber(summary.count, "plot summary count"),
+      min: summary.min ?? null,
+      max: summary.max ?? null,
+      mean: summary.mean ?? null,
+      median: summary.median ?? null,
+      std: summary.std ?? null,
+      rms: summary.rms ?? null,
+      window: summary.window ? { from: summary.window.from, to: summary.window.to } : null,
+    })),
   };
 }
 
 function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | null {
-  const result = analysis?.result;
+  const result = analysis?.result?.HarmosVariant;
   if (!result?.case) return null;
+  if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
 
   switch (result.case) {
-    case "error":
-      return { kind: "error", message: result.value.message };
-    case "histogram":
+    case "Error":
+      if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
+      return { kind: "error", message: result.value.field0.message };
+    case "Histogram":
+      if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
       return {
         kind: "histogram",
-        series: result.value.series.map((series) => ({
+        series: result.value.field0.series.map((series) => ({
           key: series.key,
           count: safeNumber(series.count, "histogram count"),
           ...(series.statistics
@@ -728,10 +788,11 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           })),
         })),
       };
-    case "boxSummary":
+    case "BoxSummary":
+      if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
       return {
         kind: "box_summary",
-        series: result.value.series.map((series) => ({
+        series: result.value.field0.series.map((series) => ({
           key: series.key,
           label: series.label,
           count: safeNumber(series.count, "box summary count"),
@@ -744,11 +805,13 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           upper_whisker: series.upperWhisker,
           outliers: [...series.outliers],
         })),
+        total: safeNumber(result.value.field0.total, "box summary total"),
       };
-    case "sigmaInterval":
+    case "SigmaInterval":
+      if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
       return {
         kind: "sigma_interval",
-        series: result.value.series.map((series) => ({
+        series: result.value.field0.series.map((series) => ({
           key: series.key,
           bins: series.bins.map((bin) => ({
             x: bin.x,
@@ -757,8 +820,38 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
             lower: bin.lower,
             upper: bin.upper,
           })),
+          raw_points: safeNumber(series.rawPoints, "interval raw_points"),
         })),
       };
+    case "WifiOccupancy": {
+      const occupancy = result.value.field0;
+      if (!occupancy) throw new Error("Native plot analysis is missing its result.");
+      return {
+        kind: "wifi_occupancy",
+        channels: occupancy.channels.map((channel) => safeNumber(channel, "wifi channel")),
+        occupied_channels: occupancy.occupiedChannels.map((channel) => safeNumber(channel, "wifi occupied channel")),
+        bands: occupancy.bands.map((band) => ({
+          band: band.band,
+          occupied_channels: safeNumber(band.occupiedChannels, "wifi band occupied channels"),
+        })),
+        scans: occupancy.scans.map((scan) => ({
+          time: scan.time,
+          channels: scan.channels.map((entry) => ({
+            channel: safeNumber(entry.channel, "wifi scan channel"),
+            count: safeNumber(entry.count, "wifi scan count"),
+          })),
+          bands: scan.bands.map((band) => ({
+            band: band.band,
+            occupied_channels: safeNumber(band.occupiedChannels, "wifi scan band occupied"),
+            total_networks: safeNumber(band.totalNetworks, "wifi scan band networks"),
+            peak_count: safeNumber(band.peakCount, "wifi scan band peak"),
+          })),
+          occupied_channels: safeNumber(scan.occupiedChannels, "wifi scan occupied channels"),
+          total_networks: safeNumber(scan.totalNetworks, "wifi scan networks"),
+          peak_count: safeNumber(scan.peakCount, "wifi scan peak"),
+        })),
+      };
+    }
   }
 }
 
@@ -815,9 +908,7 @@ function nativeDomain(value?: { min: number; max: number }): { min: number; max:
   return { min: value.min, max: value.max };
 }
 
-function mapNativePlotDiagnostics(
-  diagnostics: NativePlotPayloadDiagnostics,
-): PlotPayloadDiagnostics {
+function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): PlotPayloadDiagnostics {
   return {
     series_count: safeNumber(diagnostics.seriesCount, "Plots diagnostics series_count"),
     point_count: safeNumber(diagnostics.pointCount, "Plots diagnostics point_count"),
@@ -844,25 +935,25 @@ function mapNativeTelemetrySample(sample: NativeTelemetrySample): TelemetrySampl
 }
 
 function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"] {
-  switch (value) {
-    case PlotStreamKind.SNAPSHOT:
+  switch (value?.HarmosVariant.case) {
+    case "Snapshot":
       return "snapshot";
-    case PlotStreamKind.APPEND:
+    case "Append":
       return "append";
-    case PlotStreamKind.REPLACE:
+    case "Replace":
       return "replace";
-    case PlotStreamKind.ERROR:
+    case "Error":
       return "error";
     default:
       throw new Error("Native plot stream returned an unspecified kind.");
   }
 }
 
-function cartesianMode(value: PlotCartesianMode): PlotCartesianFrame["mode"] {
-  switch (value) {
-    case PlotCartesianMode.ALIGNED:
+function cartesianMode(value: PlotCartesianMode | undefined): PlotCartesianFrame["mode"] {
+  switch (value?.HarmosVariant.case) {
+    case "Aligned":
       return "aligned";
-    case PlotCartesianMode.FACETED:
+    case "Faceted":
       return "faceted";
     default:
       throw new Error("Native Cartesian frame returned an unspecified mode.");
@@ -879,10 +970,7 @@ function boundedRequestCount(count: number, operation: string): void {
 
 function boundedTelemetryLimit(value: number): number {
   if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_TELEMETRY_MAX_LIMIT) {
-    throw new NativeApiLimitError(
-      "Telemetry.ListSamples",
-      `limit must be an integer between 0 and ${NATIVE_TELEMETRY_MAX_LIMIT}`,
-    );
+    throw new NativeApiLimitError("Telemetry.ListSamples", `limit must be an integer between 0 and ${NATIVE_TELEMETRY_MAX_LIMIT}`);
   }
   return value;
 }
@@ -896,12 +984,16 @@ function boundedUint64(value: number, label: string): bigint {
 
 function boundedPlotPoints(value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_PLOT_MAX_POINTS) {
-    throw new NativeApiLimitError(
-      "Plots request",
-      `max_points must be an integer between 0 and ${NATIVE_PLOT_MAX_POINTS}`,
-    );
+    throw new NativeApiLimitError("Plots request", `max_points must be an integer between 0 and ${NATIVE_PLOT_MAX_POINTS}`);
   }
   return BigInt(value);
+}
+
+function summaryWindow(window: { from: number; to: number }): { from: number; to: number } {
+  if (!Number.isFinite(window.from) || !Number.isFinite(window.to) || window.from > window.to) {
+    throw new Error("Native plot summary_window must be a finite range with from <= to.");
+  }
+  return { from: window.from, to: window.to };
 }
 
 function boundedWindow(value: number): number {
@@ -929,36 +1021,13 @@ function ensureActive(session: SessionIdentity, signal?: AbortSignal): void {
   if (signal?.aborted || !session.isCurrent()) throw abortError();
 }
 
-function normalizeCancellation(
-  error: unknown,
-  session: SessionIdentity,
-  signal?: AbortSignal,
-): unknown {
+function normalizeCancellation(error: unknown, session: SessionIdentity, signal?: AbortSignal): unknown {
   if (signal?.aborted || !session.isCurrent()) return abortError();
   return error;
 }
 
 function abortError(): DOMException {
   return new DOMException("Native plot request cancelled.", "AbortError");
-}
-
-/** Read one bounded page; callers explicitly request further pages. */
-export async function listNativeAnalyses(
-  session: SessionIdentity,
-  afterId = "",
-  signal?: AbortSignal,
-): Promise<{ definitions: EvidenceAnalysisDefinition[]; nextAfterId?: string }> {
-  ensureActive(session, signal);
-  try {
-    const reply = await rpc.plotsListAnalyses(session, { limit: 64, afterId });
-    ensureActive(session, signal);
-    return {
-      definitions: reply.definitions.map(mapNativeAnalysisDefinition),
-      nextAfterId: reply.nextAfterId,
-    };
-  } catch (error) {
-    throw normalizeCancellation(error, session, signal);
-  }
 }
 
 function mapNativeAnalysisDefinition(value: NativeAnalysisDefinition): EvidenceAnalysisDefinition {
@@ -995,12 +1064,7 @@ function mapNativeComputation(value?: NativeAnalysisComputation): EvidenceAnalys
       epoch: value.source.epoch,
       stream: value.source.stream,
       scope: recordScopeFromNative(value.source.scope),
-      telemetryStreams: Object.fromEntries(
-        Object.entries(value.source.telemetryStreams).map(([key, cursor]) => [
-          key,
-          cursor.toString(),
-        ]),
-      ),
+      telemetryStreams: Object.fromEntries(value.source.telemetryStreams.map(({ key, value: cursor }) => [key, cursor.toString()])),
       recordSequence: value.source.recordSequence?.toString(),
       windowS: value.source.windowS,
       fields: [...value.source.fields],

@@ -17,9 +17,11 @@ import { useQuery } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import { Readiness } from "@/lib/rpc/generated/dokime/v1/backend_pb";
+
+type Readiness = Wire<Awaited<ReturnType<typeof rpc.backendGetHealth>>>["readiness"];
 
 /* === Types === */
 
@@ -65,13 +67,13 @@ function connectionState(readiness: Readiness | undefined, failed: boolean): Con
   if (failed) {
     return "disconnected";
   }
-  switch (readiness) {
-    case Readiness.READY:
+  switch (readiness?.HarmosVariant.case) {
+    case "Ready":
       return "connected";
-    case Readiness.STARTING:
-    case Readiness.DEGRADED:
+    case "Starting":
+    case "Degraded":
       return "reconnecting";
-    case Readiness.STOPPING:
+    case "Stopping":
       return "disconnected";
     default:
       return "unknown";

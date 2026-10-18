@@ -1,0 +1,526 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::collections::BTreeMap;
+
+// Third Party Imports
+use harmos::signal::{Series, Summary};
+use serde::Serialize;
+
+// Local Imports
+use super::{PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp};
+use crate::document::PlotType;
+#[cfg(feature = "fft")]
+use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
+
+/* === Constants === */
+const WIFI_BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HistogramBin {
+    pub lower: f64,
+    pub upper: f64,
+    pub count: usize,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HistogramSeries {
+    pub key: String,
+    pub bins: Vec<HistogramBin>,
+    pub count: usize,
+    pub statistics: Option<HistogramStatistics>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HistogramStatistics {
+    pub mean: f64,
+    pub median: f64,
+    pub std: f64,
+    pub rms: f64,
+    pub min: f64,
+    pub max: f64,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct BoxSummary {
+    pub key: String,
+    pub label: String,
+    pub count: usize,
+    pub min: f64,
+    pub q1: f64,
+    pub median: f64,
+    pub q3: f64,
+    pub max: f64,
+    pub lower_whisker: f64,
+    pub upper_whisker: f64,
+    pub outliers: Vec<f64>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SigmaBin {
+    pub x: f64,
+    pub count: usize,
+    pub mean: f64,
+    pub lower: f64,
+    pub upper: f64,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SigmaSeries {
+    pub key: String,
+    pub bins: Vec<SigmaBin>,
+    pub raw_points: usize,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiChannelCount {
+    pub channel: i64,
+    pub count: usize,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiBandScan {
+    pub band: String,
+    pub occupied_channels: usize,
+    pub total_networks: usize,
+    pub peak_count: usize,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiScan {
+    pub time: String,
+    pub channels: Vec<WifiChannelCount>,
+    pub bands: Vec<WifiBandScan>,
+    pub occupied_channels: usize,
+    pub total_networks: usize,
+    pub peak_count: usize,
+}
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiBandWindow {
+    pub band: String,
+    pub occupied_channels: usize,
+}
+
+/* === Enums === */
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PlotAnalysis {
+    Error { message: String },
+    Histogram { series: Vec<HistogramSeries> },
+    BoxSummary { series: Vec<BoxSummary>, total: usize },
+    SigmaInterval { series: Vec<SigmaSeries> },
+    WifiOccupancy { channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<WifiBandWindow>, scans: Vec<WifiScan> },
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
+    if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
+        return Some(PlotAnalysis::Error { message: "Z expressions must select a scalar field without transforms".into() });
+    }
+    match request.plot_type.as_ref()? {
+        PlotType::FrequencySeries => {
+            for entry in series {
+                if let Err(message) = fft(entry, request) {
+                    return Some(PlotAnalysis::Error { message });
+                }
+            }
+            None
+        }
+        PlotType::Histogram => {
+            if request.y_keys.is_empty() && request.y_expressions.is_empty() {
+                return Some(PlotAnalysis::Error { message: "histogram plots bin one x field or x expression; none was declared".into() });
+            }
+            if let Some(unit) = &request.histogram.unit {
+                for entry in series.iter_mut() {
+                    entry.unit = Some(unit.clone());
+                }
+            }
+            Some(PlotAnalysis::Histogram { series: series.iter().map(|entry| histogram(entry, request.histogram.bins)).collect() })
+        }
+        PlotType::BoxSummary => {
+            let boxes: Vec<BoxSummary> = series.iter().flat_map(|entry| grouped_boxes(entry, request)).collect();
+            let total = boxes.iter().map(|summary| summary.count).sum();
+            Some(PlotAnalysis::BoxSummary { series: boxes, total })
+        }
+        PlotType::XyInterval => Some(PlotAnalysis::SigmaInterval { series: series.iter().map(|entry| interval(entry, request)).collect() }),
+        PlotType::WifiChannelOccupancy => Some(wifi_occupancy(series)),
+        _ => None,
+    }
+}
+
+pub(super) fn summarize(series: &[PlotSeries], request: &PlotPayloadRequest) -> Vec<PlotSeriesSummary> {
+    if !summarizes(request) {
+        return Vec::new();
+    }
+    let inside = |x: f64| request.summary_window.is_none_or(|window| window.from <= x && x <= window.to);
+    let shown = |entry: &PlotSeries| {
+        entry.points.iter().filter_map(|point| Some((point_x(point)?, point.y?))).filter(|(x, _)| inside(*x)).collect::<Vec<_>>()
+    };
+    let rows = series.iter().map(shown).collect::<Vec<_>>();
+    let window = request.summary_window.or_else(|| {
+        let mut xs = rows.iter().flatten().map(|(x, _)| *x);
+        let first = xs.next()?;
+        let (from, to) = xs.fold((first, first), |(from, to), x| (from.min(x), to.max(x)));
+        Some(PlotWindow { from, to })
+    });
+    series
+        .iter()
+        .zip(rows)
+        .map(|(entry, rows)| {
+            let series = Series::from(rows.into_iter().map(|(_, y)| y).collect::<Vec<_>>());
+            // One pass answers the moments; the median alone needs the order.
+            let summary = series.summary();
+            PlotSeriesSummary {
+                series_id: entry.key.clone(),
+                count: summary.count() as usize,
+                min: summary.min(),
+                max: summary.max(),
+                mean: summary.mean(),
+                median: series.median(),
+                std: summary.std(),
+                rms: summary.rms(),
+                window,
+            }
+        })
+        .collect()
+}
+
+pub(super) fn summarizes(request: &PlotPayloadRequest) -> bool {
+    request.analysis.is_none() && matches!(request.plot_type, Some(PlotType::TimeSeries | PlotType::XyScatter))
+}
+
+pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoint>, bool) {
+    if max_points == 0 || points.len() <= max_points {
+        return (points, false);
+    }
+    let magnitudes = points.iter().map(|point| point.y.filter(|value| value.is_finite()).unwrap_or(f64::NEG_INFINITY)).collect::<Vec<_>>();
+    let mut selected = harmos::signal::extrema(&magnitudes, (max_points / 2).max(1));
+    selected.sort_unstable();
+    selected.dedup();
+    let reduced = selected.into_iter().filter_map(|index| points.get(index).cloned()).collect();
+    (reduced, true)
+}
+
+/* === Private Functions === */
+fn values(entry: &PlotSeries) -> Vec<f64> {
+    entry.points.iter().filter_map(|point| point.y.filter(|value| value.is_finite())).collect()
+}
+
+fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
+    let values = values(entry);
+    let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
+    let max = values.iter().copied().reduce(f64::max).unwrap_or(0.0);
+    let bins = bins.max(1);
+    let width = if min == max { 1.0 } else { (max - min) / bins as f64 };
+    let mut result = (0..bins)
+        .map(|i| HistogramBin { lower: min + i as f64 * width, upper: min + (i + 1) as f64 * width, count: 0 })
+        .collect::<Vec<_>>();
+    for value in &values {
+        result[(((value - min) / width).floor() as usize).min(bins - 1)].count += 1;
+    }
+    HistogramSeries { key: entry.key.clone(), bins: result, count: values.len(), statistics: histogram_statistics(values) }
+}
+
+fn histogram_statistics(values: Vec<f64>) -> Option<HistogramStatistics> {
+    let series = Series::from(values);
+    Some(HistogramStatistics {
+        mean: series.mean()?,
+        median: series.median()?,
+        std: series.std()?,
+        rms: series.rms()?,
+        min: series.min()?,
+        max: series.max()?,
+    })
+}
+
+fn grouped_boxes(entry: &PlotSeries, request: &PlotPayloadRequest) -> Vec<BoxSummary> {
+    if request.x_expression.is_none() && request.x_key.as_deref().is_none_or(|key| key == "timestamp") {
+        return box_summary(entry).into_iter().collect();
+    }
+    let mut groups = BTreeMap::<String, Vec<PlotPoint>>::new();
+    for point in &entry.points {
+        let label = point.x.as_str().map(ToOwned::to_owned).unwrap_or_else(|| point.x.to_string());
+        groups.entry(label).or_default().push(point.clone());
+    }
+    groups
+        .into_iter()
+        .filter_map(|(label, points)| {
+            let group = PlotSeries {
+                key: serde_json::json!([entry.key, label]).to_string(),
+                label: format!("{} / {label}", entry.label),
+                points,
+                ..entry.clone()
+            };
+            box_summary(&group)
+        })
+        .collect()
+}
+
+fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
+    let mut series = Series::from(values(entry));
+    series.sort();
+    let q1 = series.percentile(25.0)?;
+    let median = series.median()?;
+    let q3 = series.percentile(75.0)?;
+    let values = series.values();
+    let iqr = q3 - q1;
+    let lower = values.iter().copied().find(|value| *value >= q1 - 1.5 * iqr)?;
+    let upper = values.iter().rev().copied().find(|value| *value <= q3 + 1.5 * iqr)?;
+    Some(BoxSummary {
+        key: entry.key.clone(),
+        label: entry.label.clone(),
+        count: values.len(),
+        min: values[0],
+        max: values[values.len() - 1],
+        q1,
+        q3,
+        median,
+        lower_whisker: lower,
+        upper_whisker: upper,
+        outliers: values.iter().copied().filter(|value| *value < lower || *value > upper).collect(),
+    })
+}
+
+pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
+    point
+        .x
+        .as_f64()
+        .or_else(|| {
+            point
+                .x
+                .as_str()
+                .and_then(|text| parse_timestamp(text).map(|value| value.unix_timestamp_nanos() as f64 / 1e9).or_else(|| text.parse().ok()))
+        })
+        .filter(|value| value.is_finite())
+}
+
+fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
+    let options = &request.interval;
+    let mut groups = BTreeMap::<i64, Vec<f64>>::new();
+    if options.bin_width.is_finite() && options.bin_width > 0.0 && options.sigma.is_finite() && options.sigma > 0.0 {
+        for point in &entry.points {
+            if let (Some(x), Some(y)) = (point_x(point), point.y.filter(|value| value.is_finite())) {
+                groups.entry((x / options.bin_width).floor() as i64).or_default().push(y);
+            }
+        }
+    }
+    let bins: Vec<SigmaBin> = groups
+        .into_iter()
+        .map(|(index, values)| {
+            let count = values.len();
+            let summary = Summary::of(&values);
+            let mean = summary.mean().unwrap_or(0.0);
+            let sigma = summary.std().unwrap_or(0.0);
+            let mut lower = mean - options.sigma * sigma;
+            let mut upper = mean + options.sigma * sigma;
+            if options.clip_to_observed {
+                lower = lower.max(summary.min().unwrap_or(mean));
+                upper = upper.min(summary.max().unwrap_or(mean));
+            }
+            SigmaBin { x: (index as f64 + 0.5) * options.bin_width, count, mean, lower, upper }
+        })
+        .collect();
+    SigmaSeries { key: entry.key.clone(), raw_points: bins.iter().map(|bin| bin.count).sum(), bins }
+}
+
+fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
+    // Whole second -> (x as carried, channel -> largest reading).
+    let mut scans = BTreeMap::<i64, (String, BTreeMap<i64, usize>)>::new();
+    let mut channels = Vec::new();
+    for entry in series {
+        let Some(channel) = series_channel(entry) else {
+            continue;
+        };
+        channels.push(channel);
+        for point in &entry.points {
+            let Some(second) = point_x(point).map(|x| x.floor() as i64) else {
+                continue;
+            };
+            let count = point.y.filter(|value| value.is_finite()).map_or(0, |value| value.round().max(0.0) as usize);
+            let time = point.x.as_str().map_or_else(|| point.x.to_string(), ToOwned::to_owned);
+            let (_, counts) = scans.entry(second).or_insert_with(|| (time, BTreeMap::new()));
+            let slot = counts.entry(channel).or_default();
+            *slot = (*slot).max(count);
+        }
+    }
+    channels.sort_unstable();
+    channels.dedup();
+    let mut occupied = scans
+        .values()
+        .flat_map(|(_, counts)| counts.iter())
+        .filter(|(_, count)| **count > 0)
+        .map(|(channel, _)| *channel)
+        .collect::<Vec<_>>();
+    occupied.sort_unstable();
+    occupied.dedup();
+    let bands = WIFI_BANDS
+        .iter()
+        .filter_map(|band| {
+            let occupied_channels = occupied.iter().filter(|channel| wifi_band(**channel) == Some(*band)).count();
+            (occupied_channels > 0).then(|| WifiBandWindow { band: (*band).to_owned(), occupied_channels })
+        })
+        .collect();
+    let scans = scans
+        .into_values()
+        .map(|(time, counts)| {
+            let (occupied_channels, total_networks, peak_count) = occupancy(counts.values());
+            WifiScan {
+                time,
+                bands: WIFI_BANDS
+                    .iter()
+                    .filter_map(|band| {
+                        let in_band = counts
+                            .iter()
+                            .filter(|(channel, _)| wifi_band(**channel) == Some(*band))
+                            .map(|(_, count)| count)
+                            .collect::<Vec<_>>();
+                        if in_band.is_empty() {
+                            return None;
+                        }
+                        let (occupied_channels, total_networks, peak_count) = occupancy(in_band.into_iter());
+                        Some(WifiBandScan { band: (*band).to_owned(), occupied_channels, total_networks, peak_count })
+                    })
+                    .collect(),
+                channels: counts.into_iter().map(|(channel, count)| WifiChannelCount { channel, count }).collect(),
+                occupied_channels,
+                total_networks,
+                peak_count,
+            }
+        })
+        .collect();
+    PlotAnalysis::WifiOccupancy { channels, occupied_channels: occupied, bands, scans }
+}
+
+fn occupancy<'a>(counts: impl Iterator<Item = &'a usize>) -> (usize, usize, usize) {
+    counts.fold((0, 0, 0), |(occupied, total, peak), count| (occupied + usize::from(*count > 0), total + count, peak.max(*count)))
+}
+
+fn series_channel(entry: &PlotSeries) -> Option<i64> {
+    let channel =
+        |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
+    channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
+}
+
+fn wifi_band(channel: i64) -> Option<&'static str> {
+    match channel {
+        1..=14 => Some(WIFI_BANDS[0]),
+        32..=177 => Some(WIFI_BANDS[1]),
+        1_001..=1_233 if (channel - 1_000) % 4 == 1 => Some(WIFI_BANDS[2]),
+        _ => None,
+    }
+}
+
+#[cfg(feature = "fft")]
+pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Result<(), String> {
+    let options = &request.fft;
+    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
+        match entry.unit.as_deref() {
+            Some("V" | "volt" | "volts") => 1.0,
+            Some("mV") => 0.001,
+            _ => {
+                entry.points.clear();
+                return Err("dBu and dBm spectra require voltage samples in V or mV; dBm uses a 50-ohm load".into());
+            }
+        }
+    } else {
+        1.0
+    };
+    let samples = values(entry).into_iter().map(|value| value * scale).collect::<Vec<_>>();
+    let n = samples.len();
+    let rate = options.sample_rate_hz.or_else(|| {
+        let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
+        let times = entry
+            .points
+            .iter()
+            .map(|point| {
+                if let Some(origin) = origin {
+                    Some((parse_timestamp(point.x.as_str()?)? - origin).as_seconds_f64())
+                } else {
+                    point_x(point)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if times.len() != n || n < 2 {
+            return None;
+        }
+        let step = (times[n - 1] - times[0]) / (n - 1) as f64;
+        // A Fourier spectrum needs uniform sampling. Missing/irregular rows must not silently compress time.
+        if step <= 0.0 || times.windows(2).any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9) {
+            return None;
+        }
+        Some(1.0 / step)
+    });
+    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len()) else {
+        entry.points.clear();
+        return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps".into());
+    };
+    let size = n.next_power_of_two();
+    let mean = if matches!(options.detrend, FftDetrend::Mean) { samples.iter().sum::<f64>() / n as f64 } else { 0.0 };
+    let mut windowed = vec![0.0; size];
+    let mut gain = 0.0;
+    for (index, sample) in samples.into_iter().enumerate() {
+        let weight = match options.window {
+            FftWindow::Rectangular => 1.0,
+            FftWindow::Hann => 0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos()),
+        };
+        gain += weight;
+        windowed[index] = (sample - mean) * weight;
+    }
+    // Window Before Padding; Preserve The Original Sample Coherent Gain.
+    let spectrum = harmos::signal::transform(&windowed, rate, harmos::signal::Taper::Rectangular);
+    entry.points = spectrum
+        .real
+        .iter()
+        .zip(&spectrum.imag)
+        .enumerate()
+        .take(size / 2 + 1)
+        .filter_map(|(index, (&real, &imaginary))| {
+            let frequency = index as f64 * rate / size as f64;
+            if (index == 0 && !options.include_dc)
+                || options.min_frequency_hz.is_some_and(|min| frequency < min)
+                || options.max_frequency_hz.is_some_and(|max| frequency > max)
+            {
+                return None;
+            }
+            let amplitude = real.hypot(imaginary) * size as f64 / gain;
+            let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
+            let level = match options.level_unit {
+                FrequencyLevelUnit::Linear => amplitude,
+                FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
+                FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
+                // Voltage amplitude into the conventional 50-ohm reference load.
+                FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
+            };
+            Some(PlotPoint { x: frequency.into(), y: Some(level), z: None })
+        })
+        .collect();
+    entry.unit = match options.level_unit {
+        FrequencyLevelUnit::Linear => entry.unit.clone(),
+        FrequencyLevelUnit::Db => Some("dB".into()),
+        FrequencyLevelUnit::Dbu => Some("dBu".into()),
+        FrequencyLevelUnit::Dbm => Some("dBm".into()),
+    };
+    Ok(())
+}
+
+#[cfg(not(feature = "fft"))]
+pub(super) fn fft(entry: &mut PlotSeries, _: &PlotPayloadRequest) -> Result<(), String> {
+    entry.points.clear();
+    Err("FFT analysis is unavailable in this build".into())
+}
+
+/* === Tests === */

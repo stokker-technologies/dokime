@@ -11,22 +11,10 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type AnnotationOwner,
-  AnnotationOwnerSchema,
-  type AnnotationSelection,
-  AnnotationSelectionSchema,
-  ExecutionNoteOwnerSchema,
-  type HealthItem as NativeHealthItem,
-  type OperatorNote as NativeOperatorNote,
-  NotePublication,
-  PlannedCaseNoteOwnerSchema,
-} from "@/lib/rpc/generated/dokime/v1/notes_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, HealthItem, OperatorNote, RecordScope } from "@/lib/types";
 import {
@@ -39,12 +27,17 @@ import {
   timestampIso,
 } from "./native-values";
 
+/* === Types === */
+
+type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.notesCreateNote>[1]["owner"]>>;
+type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.notesListNotes>[1]["selection"]>>;
+type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.notesListNotes>>["notes"][number]>;
+type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.healthListHealth>>["items"][number]>;
+type NotePublication = Wire<Awaited<ReturnType<typeof rpc.notesCreateNote>>>["publication"];
+
 /* === Public API === */
 
-export async function fetchNativeNotes(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<OperatorNote[]> {
+export async function fetchNativeNotes(session: SessionIdentity, scope: RecordScope): Promise<OperatorNote[]> {
   const selection = annotationSelection(scope);
   const notes: NativeOperatorNote[] = [];
   let afterId = "";
@@ -68,10 +61,7 @@ export async function fetchNativeNotes(
   throw new NativeApiLimitError("Notes.ListNotes", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function fetchNativeHealth(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<HealthItem[]> {
+export async function fetchNativeHealth(session: SessionIdentity, scope: RecordScope): Promise<HealthItem[]> {
   const selection = annotationSelection(scope);
   const items: NativeHealthItem[] = [];
   let afterId = "";
@@ -127,6 +117,14 @@ export async function createNativeNote(
   };
 }
 
+export async function editNativeNote(session: SessionIdentity, epoch: string, noteId: string, text: string): Promise<OperatorNote> {
+  const message = text.trim();
+  if (!message) throw new Error("A note cannot be empty.");
+  const reply = await rpc.notesEditNote(session, { epoch, noteId, message });
+  if (!reply.note) throw new Error(`Native note ${noteId} returned no edited note.`);
+  return mapNativeNote(reply.note);
+}
+
 /* === Mapping === */
 
 function mapNativeNote(note: NativeOperatorNote): OperatorNote {
@@ -134,6 +132,7 @@ function mapNativeNote(note: NativeOperatorNote): OperatorNote {
   if (!timestamp) throw new Error(`Native note ${note.noteId} has no valid creation timestamp.`);
   return {
     note_id: note.noteId,
+    author: note.author ?? null,
     text: note.message,
     timestamp,
     scope: recordScopeFromNative(note.scope),
@@ -142,8 +141,7 @@ function mapNativeNote(note: NativeOperatorNote): OperatorNote {
 
 function mapNativeHealth(item: NativeHealthItem): HealthItem {
   const createdAt = timestampIso(item.observedAt);
-  if (!createdAt)
-    throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
+  if (!createdAt) throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
   return {
     health_id: item.healthItemId,
     level: mapNativeSeverity(item.severity),
@@ -156,12 +154,12 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
 }
 
 function notePublicationName(value: NotePublication): string {
-  switch (value) {
-    case NotePublication.NO_EXISTING_DATASETS:
+  switch (value?.HarmosVariant.case) {
+    case "NoExistingDatasets":
       return "no_existing_datasets";
-    case NotePublication.CONFIRMED:
+    case "Confirmed":
       return "confirmed";
-    case NotePublication.UNCONFIRMED:
+    case "Unconfirmed":
       return "unconfirmed";
     default:
       return "unspecified";
@@ -174,31 +172,24 @@ export function annotationOwner(scope?: RecordScope | null): AnnotationOwner {
     throw new Error("Native notes require a cycle-scoped owner.");
   }
   if (scope.test_execution_id) {
-    return create(AnnotationOwnerSchema, {
+    return {
       owner: {
-        case: "execution",
-        value: create(ExecutionNoteOwnerSchema, {
-          cycleId,
-          executionId: scope.test_execution_id,
-        }),
+        HarmosVariant: {
+          case: "Execution",
+          value: { field0: { cycleId, executionId: scope.test_execution_id } },
+        },
       },
-    });
+    };
   }
   const caseId = scope.test_case_id;
   if (caseId) {
-    return create(AnnotationOwnerSchema, {
-      owner: {
-        case: "plannedCase",
-        value: create(PlannedCaseNoteOwnerSchema, { cycleId, caseId }),
-      },
-    });
+    return {
+      owner: { HarmosVariant: { case: "PlannedCase", value: { field0: { cycleId, caseId } } } },
+    };
   }
-  return create(AnnotationOwnerSchema, { owner: { case: "cycleId", value: cycleId } });
+  return { owner: { HarmosVariant: { case: "CycleId", value: { field0: cycleId } } } };
 }
 
 function annotationSelection(scope: RecordScope): AnnotationSelection {
-  return create(AnnotationSelectionSchema, {
-    owner: annotationOwner(scope),
-    includeContext: false,
-  });
+  return { owner: annotationOwner(scope), includeContext: false };
 }

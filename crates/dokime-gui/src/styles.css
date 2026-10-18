@@ -23,6 +23,17 @@
 /* Variants */
 
 @theme inline {
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
   @keyframes accordion-down {
     from {
       height: 0;
@@ -155,11 +166,21 @@
   --text-7xl: var(--brand-text-7xl);
 }
 
+/* Layout Breakpoints */
+
+@theme {
+  /* From here settings cards pair up in two columns: at 1600px the content
+     column beside the open sidebar still gives each card a full label column
+     and a usable value. A 1366px tablet stays one column. */
+  --breakpoint-wide: 100rem;
+}
+
 /* Theme Values */
 
 :root {
-  --app-bar-height: 3rem;
-  --workflow-nav-height: 3.5rem;
+  /* The application menu bar: one thin row of menu titles above the shell,
+     28px on a desk and 40px at touch. */
+  --menu-bar-height: 1.75rem;
   --status-bar-height: 1.75rem;
   --settings-row-py: 0.75rem;
   /* The settings content column: one label width and one value measure so
@@ -171,12 +192,19 @@
   /* Live shell rhythm. Every shell region shares the same inset and gap so the
      sidebar, page bar and status bar read as one grid. */
   --nav-rail-width: 12.5rem;
-  /* The one contextual sidebar: 280px open, 56px collapsed to icons. */
-  --sidebar-width: 22rem;
+  /* The one contextual sidebar: a quarter of the window when open, never
+     wider than 352px nor narrower than its longest destination; 56px
+     collapsed to icons. */
+  --sidebar-width: clamp(14rem, 24vw, 22rem);
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-indent: 0.75rem;
   /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
   --sidebar-row-height: 2.25rem;
+  /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with
+     the same width for every trailing action column and one indent step. */
+  --tree-row-height: 1.75rem;
+  --tree-action-width: 1.5rem;
+  --tree-indent: 1rem;
   /* A bar is its control plus air above and below, and a bar's controls sit
      12px apart. Every bar that hosts a button — the page bar, the Cycles and
      Library filter rows, the evidence toolbar — reads these three, so none of
@@ -184,12 +212,20 @@
   --bar-control-height: 2rem;
   --bar-pad-y: 0.5rem;
   --bar-gap: 0.75rem;
-  /* The air above and below the sidebar's mark. */
-  --sidebar-brand-pad: 1.5rem;
+  /* The one top-bar height. The sidebar's brand bar, the page title bar and
+     any bar that sits beside them read it, so their bottom edges are one line
+     at every density. */
   --page-bar-height: 3rem;
   --shell-inset: 1rem;
   --shell-gap: 0.5rem;
   --shell-text-base: 0.875rem;
+  /* Page content. Every page fills the main column inside the one shell
+     inset; cards and sections sit one inset apart, so the gutter between two
+     cards matches the margin around them. Only running prose takes a reading
+     measure; lists, tables and cards take the whole content width. The column
+     breakpoint is `--breakpoint-wide` in the `@theme` block above. */
+  --section-gap: var(--shell-inset);
+  --prose-measure: 72ch;
   --control-height: 2rem;
   --control-height-primary: 2.25rem;
   --list-row-height: 2.25rem;
@@ -205,15 +241,12 @@
 }
 
 :root[data-density="compact"] {
-  --app-bar-height: 2.5rem;
-  --workflow-nav-height: 3rem;
   --status-bar-height: 1.5rem;
   --settings-row-py: 0.5rem;
   --settings-row-height: 2.25rem;
   --bar-control-height: 1.75rem;
   --bar-pad-y: 0.375rem;
   --bar-gap: 0.625rem;
-  --sidebar-brand-pad: 1.25rem;
   --page-bar-height: 2.5rem;
   --shell-inset: 0.75rem;
   --shell-gap: 0.375rem;
@@ -229,20 +262,21 @@
 /* Touch: 56px primary run controls, 48px for every other control, list row,
    and the status bar; 12px gaps; a 16px base; a 56px page bar. */
 :root[data-density="touch"] {
-  --app-bar-height: 3.5rem;
-  --workflow-nav-height: 4rem;
+  --menu-bar-height: 2.5rem;
   --status-bar-height: 3rem;
   --settings-row-py: 1rem;
   --settings-row-height: 3rem;
   --nav-rail-width: 6rem;
-  --sidebar-width: 24rem;
+  --sidebar-width: clamp(16rem, 28vw, 24rem);
   --sidebar-indent: 0.875rem;
   --sidebar-row-height: 3rem;
+  --tree-row-height: 2.75rem;
+  --tree-action-width: 2.75rem;
+  --tree-indent: 1.25rem;
   /* 48px control with 8px above and below. */
   --bar-control-height: 3rem;
   --bar-pad-y: 0.5rem;
   --bar-gap: 0.75rem;
-  --sidebar-brand-pad: 2rem;
   --page-bar-height: 4rem;
   --shell-inset: 1rem;
   --shell-gap: 0.75rem;
@@ -306,11 +340,22 @@
   width: var(--control-height);
 }
 
-:root[data-density="touch"]
-  :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not(
-    [class*="h-["]
-  ) {
+:root[data-density="touch"] :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not([class*="h-["]) {
   height: var(--control-height);
+}
+
+/* A checkbox stays a box, but at touch it grows to 28px and its hit area to
+   44px around it, so a tablet operator can tick a prompt field. */
+:root[data-density="touch"] [data-slot="checkbox"] {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+:root[data-density="touch"] [data-slot="checkbox"]::after {
+  content: "";
+  position: absolute;
+  inset: -0.5rem;
 }
 
 :root[data-density="touch"] [data-slot="textarea"] {
@@ -494,9 +539,13 @@
     opacity: 0.3;
   }
 
+  /* The box-zoom selection: an accent wash with a crisp edge, readable on a
+     light and a dark canvas alike. */
   .u-select {
     position: absolute;
-    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 80%, transparent);
+    box-sizing: border-box;
     pointer-events: none;
   }
 

@@ -38,14 +38,9 @@ export function diagnosticsBundleSupported(): boolean {
   return typeof rpc.backendCollectDiagnostics === "function";
 }
 
-export async function collectDiagnosticsBundle(
-  session: SessionIdentity,
-): Promise<DiagnosticsBundle> {
+export async function collectDiagnosticsBundle(session: SessionIdentity): Promise<DiagnosticsBundle> {
   if (!diagnosticsBundleSupported()) {
-    throw new NativeApiUnsupportedError(
-      "Collect diagnostics",
-      "Backend.CollectDiagnostics (not available on this backend)",
-    );
+    throw new NativeApiUnsupportedError("Collect diagnostics", "Backend.CollectDiagnostics (not available on this backend)");
   }
   const reader = await rpc.backendCollectDiagnostics(session, {});
   let filename = "";
@@ -57,26 +52,30 @@ export async function collectDiagnosticsBundle(
   try {
     for await (const frame of reader) {
       if (complete) throw new Error("Backend.CollectDiagnostics continued after completion.");
-      switch (frame.payload.case) {
-        case "header":
-          filename = frame.payload.value.filename;
+      const payload = frame.payload?.HarmosVariant;
+      if (!payload) throw new Error("Backend.CollectDiagnostics delivered no payload.");
+      switch (payload.case) {
+        case "Header": {
+          const header = payload.value.field0;
+          if (!header) throw new Error("Backend.CollectDiagnostics delivered no header.");
+          filename = header.filename;
           break;
-        case "chunk": {
-          const chunk = frame.payload.value;
+        }
+        case "Chunk": {
+          const chunk = payload.value.field0;
+          if (!chunk) throw new Error("Backend.CollectDiagnostics delivered no chunk.");
           // The offsets are declared, so a gap or a replay is a corrupt
           // archive rather than something to stitch over.
           if (chunk.offset !== expectedOffset) {
-            throw new Error(
-              `Backend.CollectDiagnostics delivered chunk ${chunk.offset} where ${expectedOffset} was due.`,
-            );
+            throw new Error(`Backend.CollectDiagnostics delivered chunk ${chunk.offset} where ${expectedOffset} was due.`);
           }
           chunks.push(chunk.data);
           total += chunk.data.byteLength;
           expectedOffset += BigInt(chunk.data.byteLength);
           break;
         }
-        case "complete":
-          if (frame.payload.value.sizeBytes !== BigInt(total)) {
+        case "Complete":
+          if (payload.value.field0?.sizeBytes !== BigInt(total)) {
             throw new Error("Backend.CollectDiagnostics delivered an incomplete archive.");
           }
           complete = true;

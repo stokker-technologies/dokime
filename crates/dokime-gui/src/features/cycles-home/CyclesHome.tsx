@@ -9,51 +9,57 @@
 
 /* === External Imports === */
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { ArchiveRestore } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
+import { useNativeSession } from "@/app/native-session/context";
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import {
   applyFrozenOrder,
+  archivedCycleGroups,
   type CycleGroup,
   type CycleRow,
   cycleRows,
   groupCycleRows,
 } from "@/features/cycles-home/cycles-model";
-import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
+import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
-import { cn } from "@/lib/utils";
 import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Constants === */
-
-/** One fixed pill height and measure per density keeps the status column on one
-    baseline and one width, whatever a status is called. */
-const PILL_CLASS = LIST_STATUS_PILL_CLASS;
-
-/** One grid for the column header and every row beneath it. */
-const ROW_GRID =
-  "grid items-center gap-[var(--shell-gap)] grid-cols-[minmax(0,1fr)_6rem_7rem_7rem_6rem]";
 
 /* === Components === */
 
 /**
  * Home. Three fixed groups over every loaded cycle, a filter box, and one way
- * into a cycle: its row.
+ * into a cycle: its row. The Archived view lists the archived cycles instead,
+ * each with Unarchive.
  */
 export function CyclesHome() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("");
-  const [showCleared, setShowCleared] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+  const unarchive = useMutation({
+    mutationFn: (cycleId: string) => setNativeCycleArchived(session.identity, cycleId, false),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }),
+  });
   /* The box types faster than a round trip; the request follows the operator
      rather than every keystroke, and the box itself never lags. */
   const [selection, setSelection] = useState("");
-  const cycles = useCyclesQuery({ includeCleared: showCleared, text: selection });
+  const cycles = useCyclesQuery({ archived: showArchived, text: selection });
   const prompts = usePendingPromptsQuery();
   const [frozenIds, setFrozenIds] = useState<readonly string[]>([]);
   const frozen = useRef(false);
@@ -71,15 +77,11 @@ export function CyclesHome() {
 
   const actions = useMemo(
     () => (
-      <Button
-        className="h-[var(--control-height)]"
-        onClick={() => void navigate({ to: "/library" })}
-        type="button"
-      >
+      <Button className="h-[var(--control-height)]" onClick={() => setCreating(true)} type="button">
         New Cycle
       </Button>
     ),
-    [navigate],
+    [],
   );
   usePageChrome({ actions, title: "Cycles" });
 
@@ -94,16 +96,12 @@ export function CyclesHome() {
     return counts;
   }, [prompts.data]);
 
-  const rows = useMemo(
-    () => cycleRows(cycles.data ?? [], attentionByCycleId),
-    [attentionByCycleId, cycles.data],
-  );
+  const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
-    const grouped = groupCycleRows(rows, selection.trim().length > 0);
-    return frozenIds.length
-      ? grouped.map((group) => ({ ...group, rows: applyFrozenOrder(group.rows, frozenIds) }))
-      : grouped;
-  }, [frozenIds, rows, selection]);
+    const filtered = selection.trim().length > 0;
+    const grouped = showArchived ? archivedCycleGroups(rows, filtered) : groupCycleRows(rows, filtered);
+    return frozenIds.length ? grouped.map((group) => ({ ...group, rows: applyFrozenOrder(group.rows, frozenIds) })) : grouped;
+  }, [frozenIds, rows, selection, showArchived]);
 
   // Row order is frozen while the pointer is down so a refresh cannot move the
   // row out from under the operator mid-click. Only the id sequence is held;
@@ -121,12 +119,7 @@ export function CyclesHome() {
   }, []);
 
   return (
-    <div
-      className="grid content-start gap-6 p-[var(--shell-inset)]"
-      onPointerCancel={release}
-      onPointerDown={freeze}
-      onPointerUp={release}
-    >
+    <div className="grid content-start gap-6 p-[var(--shell-inset)]" onPointerCancel={release} onPointerDown={freeze} onPointerUp={release}>
       {/* A toolbar row: its controls are centred with the bar's own air above
           and below, and the same 12px gap every other bar uses. */}
       <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)]">
@@ -138,13 +131,13 @@ export function CyclesHome() {
           value={filter}
         />
         <Button
-          aria-pressed={showCleared}
+          aria-pressed={showArchived}
           className="h-[var(--bar-control-height)]"
-          onClick={() => setShowCleared((current) => !current)}
+          onClick={() => setShowArchived((current) => !current)}
           type="button"
-          variant="outline"
+          variant={showArchived ? "secondary" : "outline"}
         >
-          {showCleared ? "Hide Cleared" : "Show Cleared"}
+          Archived
         </Button>
       </div>
 
@@ -161,8 +154,27 @@ export function CyclesHome() {
           loading={cycles.isPending}
           now={now}
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
+          onUnarchive={
+            showArchived
+              ? (cycleId) =>
+                  unarchive
+                    .mutateAsync(cycleId)
+                    .then(() => toast.success("Unarchived"))
+                    .catch((error: unknown) =>
+                      toast.error("The archive mark could not be removed.", {
+                        description: error instanceof Error ? error.message : String(error),
+                      }),
+                    )
+              : null
+          }
         />
       ))}
+
+      <NewCycleDialog
+        onCreated={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
+        onOpenChange={setCreating}
+        open={creating}
+      />
     </div>
   );
 }
@@ -172,128 +184,146 @@ function CycleGroupSection({
   loading,
   now,
   onOpen,
+  onUnarchive,
 }: {
   group: CycleGroup;
   loading: boolean;
   now: number;
   onOpen: (cycleId: string) => void;
+  /** Present in the Archived view: each row offers Unarchive. */
+  onUnarchive: ((cycleId: string) => void) | null;
 }) {
-  // An empty group is one quiet line — heading, count, what that means — so the
-  // groups that hold work own the page.
+  const columns = useMemo(() => cycleColumns(now, onUnarchive), [now, onUnarchive]);
+
+  // Every group heads with one row — title and count at the start, the empty
+  // statement at the end — so the three headings align whatever they hold.
+  const heading = (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
+      <p className="flex items-baseline gap-2">
+        <span className="font-heading text-lg font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
+          {group.title}
+        </span>
+        <span className="font-mono text-sm tabular-nums text-muted-foreground">{group.rows.length}</span>
+      </p>
+      {group.rows.length ? null : (
+        <span className="truncate text-right text-sm text-muted-foreground">{loading ? "Loading Cycles" : group.emptyText}</span>
+      )}
+    </div>
+  );
+
   if (!group.rows.length) {
     return (
       <section aria-labelledby={`cycle-group-${group.id}`} className="grid">
-        <p className="flex flex-wrap items-baseline gap-2">
-          <span className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
-            {group.title}
-          </span>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">0</span>
-          <span className="text-sm text-muted-foreground">
-            {loading ? "Loading cycles…" : group.emptyText}
-          </span>
-        </p>
+        {heading}
       </section>
     );
   }
 
+  // The table bleeds to the page edges so a row's hover spans the page while
+  // its text, carried by the table inset, stays on the heading's line.
   return (
     <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
-      <div className="flex items-baseline gap-2">
-        <h2 className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
-          {group.title}
-        </h2>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {group.rows.length}
-        </span>
-      </div>
-      <div
-        aria-hidden
-        className={cn(
-          ROW_GRID,
-          "border-b pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-        )}
-      >
-        <span>Cycle</span>
-        <span>Attention</span>
-        <span>Status</span>
-        <span>Cases</span>
-        <span>Updated</span>
-      </div>
-      <ul className="grid">
-        {group.rows.map((row) => (
-          <li key={row.cycleId}>
-            <CycleRowButton now={now} onOpen={onOpen} row={row} />
-          </li>
-        ))}
-      </ul>
+      {heading}
+      <DataTable
+        className="-mx-[var(--shell-inset)]"
+        columns={columns}
+        data={group.rows}
+        emptyText={group.emptyText}
+        getRowId={rowId}
+        onRowClick={(row) => onOpen(row.cycleId)}
+        stickyHeader={false}
+      />
     </section>
   );
 }
 
-function CycleRowButton({
-  now,
-  onOpen,
-  row,
-}: {
-  now: number;
-  onOpen: (cycleId: string) => void;
-  row: CycleRow;
-}) {
-  // The subtitle says something the title does not: the suite the cycle came
-  // from, or when it was created when the suite repeats the title.
-  const subtitle =
-    row.suiteLabel && row.suiteLabel !== row.label
-      ? row.suiteLabel
-      : row.createdAtIso
-        ? `Created ${new Date(row.createdAtIso).toLocaleString()}`
-        : null;
-
-  return (
-    <button
-      className={cn(
-        "w-full min-h-[var(--list-row-height)] text-left outline-none transition-colors",
-        ROW_GRID,
-        "border-b border-border/60 py-2",
-        "hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
-      )}
-      onClick={() => onOpen(row.cycleId)}
-      type="button"
-    >
-      <span className="grid min-w-0 gap-0.5">
-        <span className="truncate font-medium">{row.label}</span>
-        {subtitle ? (
-          <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
-        ) : null}
-      </span>
-      <span className="flex justify-start">
-        {row.attentionCount ? (
-          <Badge className={PILL_CLASS} variant="warning">
-            {row.attentionCount} prompts
-          </Badge>
-        ) : null}
-      </span>
-      <span className="flex justify-start">
-        <Badge className={PILL_CLASS} variant={badgeVariant(row.statusTone)}>
-          {row.statusLabel}
-        </Badge>
-      </span>
-      <span
-        className="font-mono text-xs tabular-nums text-muted-foreground"
-        title="Cases finished, of the cases this cycle plans"
-      >
-        {row.finishedCount} / {row.caseCount}
-      </span>
-      <span
-        className="font-mono text-xs tabular-nums text-muted-foreground"
-        title={row.updatedAtIso ? new Date(row.updatedAtIso).toLocaleString() : undefined}
-      >
-        {relativeUpdatedLabel(row.updatedAtIso, now)}
-      </span>
-    </button>
-  );
+/** One line: the cycle's own label. When it was created lives on the Updated
+    tooltip. */
+function CycleTitle({ row }: { row: CycleRow }) {
+  return <span className="block truncate">{row.label}</span>;
 }
 
 /* === Private Functions === */
+
+function rowId(row: CycleRow): string {
+  return row.cycleId;
+}
+
+/** The five columns every group shares; `now` ages the Updated column. The
+    Archived view adds Unarchive as the last column. */
+function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
+  const column = dataTableColumns<CycleRow>();
+  const unarchive = onUnarchive
+    ? [
+        column.display({
+          cell: ({ row }) => (
+            <Button
+              className="h-[var(--control-height)]"
+              onClick={(event) => {
+                event.stopPropagation();
+                onUnarchive(row.original.cycleId);
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <ArchiveRestore data-icon="inline-start" />
+              Unarchive
+            </Button>
+          ),
+          header: "",
+          id: "unarchive",
+          meta: { align: "end", label: "Unarchive", width: "w-36" },
+        }),
+      ]
+    : [];
+  return column.columns([
+    column.accessor("label", {
+      cell: ({ row }) => <CycleTitle row={row.original} />,
+      header: "Cycle",
+      meta: { filter: "text", label: "Cycle", primary: true },
+    }),
+    column.accessor("attentionCount", {
+      cell: ({ row }) =>
+        row.original.attentionCount ? (
+          <Badge className={LIST_STATUS_PILL_CLASS} variant="warning">
+            {row.original.attentionCount} prompts
+          </Badge>
+        ) : null,
+      header: "Attention",
+      meta: { label: "Attention", width: "w-32" },
+    }),
+    column.accessor("statusLabel", {
+      cell: ({ row }) => (
+        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
+          {row.original.statusLabel}
+        </Badge>
+      ),
+      header: "Status",
+      meta: { filter: "facet", label: "Status", width: "w-36" },
+    }),
+    column.accessor("finishedCount", {
+      cell: ({ row }) => (
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases finished, of the cases this cycle plans">
+          {row.original.finishedCount} / {row.original.caseCount}
+        </span>
+      ),
+      header: "Cases",
+      meta: { align: "end", label: "Cases", width: "w-28" },
+    }),
+    column.accessor((row) => row.updatedAtMs ?? undefined, {
+      cell: ({ row }) => (
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title={instantsLabel(row.original)}>
+          {relativeUpdatedLabel(row.original.updatedAtIso, now)}
+        </span>
+      ),
+      header: "Updated",
+      id: "updated",
+      meta: { align: "end", label: "Updated", width: "w-28" },
+    }),
+    ...unarchive,
+  ]);
+}
 
 /**
  * How long ago the cycle last moved.
@@ -301,6 +331,15 @@ function CycleRowButton({
  * "5s" alone reads as a duration; "5s Ago" says which way it points. The
  * absolute instant stays available on the cell's title.
  */
+/** The absolute instants behind the relative age: updated, then created. */
+function instantsLabel(row: CycleRow): string | undefined {
+  const instants = [
+    row.updatedAtIso ? `Updated ${new Date(row.updatedAtIso).toLocaleString()}` : null,
+    row.createdAtIso ? `Created ${new Date(row.createdAtIso).toLocaleString()}` : null,
+  ].filter(Boolean);
+  return instants.length ? instants.join("\n") : undefined;
+}
+
 function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
   const age = compactAgeLabel(updatedAtIso, now);
   return age === "-" ? age : `${age} Ago`;

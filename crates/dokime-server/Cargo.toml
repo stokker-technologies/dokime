@@ -15,91 +15,103 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[features]
+default = []
+# Host screenshot, camera and audio capture, enabled by the release server build;
+# see dokime-runtime for the system packages it links.
+media-native = ["dokime-runtime/media-native"]
+
 [dependencies]
 # Local
+dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
+dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
 dokime = { path = "../dokime" }
-dokime-app = { path = "../dokime-app" }
-dokime-contract = { path = "../dokime-contract" }
-dokime-protocol = { path = "../dokime-protocol", default-features = false, features = ["server"] }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing-appender = { workspace = true }
+tracing-chrome = { workspace = true }
+tracing-error = { workspace = true }
+tracing-flame = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
 
 # Utilities
-sha2 = { workspace = true, default-features = true }
+sha2 = { workspace = true }
 subtle = { workspace = true }
 sysinfo = { workspace = true }
-time = { workspace = true, default-features = true }
-uuid = { workspace = true, default-features = true }
-zeroize = { workspace = true, default-features = true }
+time = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
 
 # Serialization
-prost = { workspace = true, default-features = true }
-prost-types = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
+dotenv = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 zip = { workspace = true }
 
 # Async
-futures-util = { workspace = true, default-features = true }
-tokio = { workspace = true, default-features = true }
-tokio-stream = { workspace = true, default-features = true, features = ["net"] }
-tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
 rustls = { workspace = true, features = ["ring", "std"] }
-tonic = { workspace = true, features = ["server", "router", "tls-ring"] }
-tonic-prost = { workspace = true, default-features = true }
-tonic-types = { workspace = true, default-features = true }
-tower = { workspace = true, default-features = true }
-
-[dev-dependencies]
-# Local
-dokime = { path = "../dokime", features = ["client"] }
-dokime-host = { path = "../dokime-host" }
-dokime-protocol = { path = "../dokime-protocol", features = ["client"] }
-
-# Error Handling
-anyhow = { workspace = true, default-features = true }
-
-# Logging
-tracing-subscriber = { workspace = true, default-features = true }
-
-# Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
-
-# Networking
-rcgen = { workspace = true, default-features = true }
-tonic = { workspace = true, features = ["channel"] }
-
-# Testing
-criterion = { workspace = true, default-features = true }
+tonic = { workspace = true, features = ["server", "tls-ring"] }
+tonic-prost = { workspace = true }
+tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-contract = { path = "../dokime-contract" }
-dokime-protocol = { path = "../dokime-protocol", default-features = false }
+dokime-domain = { path = "../dokime-domain" }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
+harmos = { workspace = true }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
 
-# Serialization
-prost = { workspace = true, default-features = true }
-prost-types = { workspace = true, default-features = true }
+[dev-dependencies]
+# Local
+dokime-client = { path = "../dokime-client" }
+dokime-host = { path = "../dokime-host" }
+
+# Git
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
+
+# Error Handling
+anyhow = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["process", "test-util"] }
 
 # Networking
-tonic-prost-build = { workspace = true, default-features = true }
+rcgen = { workspace = true }
+tonic = { workspace = true, features = ["channel"] }
+
+# Testing
+criterion = { workspace = true }
 
 [[bench]]
-name = "grpc"
-path = "benches/grpc/main.rs"
+name = "system-server"
+path = "benches/system/main.rs"
 harness = false
+
+[[bin]]
+name = "dokime-server"
+path = "src/main.rs"
+doc = false

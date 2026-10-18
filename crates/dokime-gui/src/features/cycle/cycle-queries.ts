@@ -25,31 +25,37 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import {
-  downloadNativeCycleBundle,
-  fetchNativeCycleFolderPath,
-  nativeContentSession,
-} from "@/lib/api/native-content";
-import {
-  clearNativeTestCycle,
   deleteNativeTestCycleCases,
   fetchNativeTestCycleDetail,
   pauseNativeTestCycle,
   pauseNativeTestExecution,
+  renameNativeTestCycle,
+  renameNativeTestExecution,
   reopenNativeTestCycle,
   rerunNativeTestCase,
+  rerunNativeTestCycle,
   resumeNativeTestCycle,
   resumeNativeTestExecution,
-  runNativeQueuedTestExecution,
   runNativeQueuedTestCycle,
+  runNativeQueuedTestExecution,
+  setNativeCycleArchived,
+  setNativeExecutionArchived,
   stopNativeTestCycle,
   stopNativeTestExecution,
   updateNativeTestCyclePolicy,
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import { downloadNativeCycleReport, downloadNativeReport } from "@/lib/api/native-reports";
+import {
+  downloadNativeCycleReport,
+  downloadNativeExecutionReport,
+  downloadNativeReport,
+  type NativeReportHtml,
+  openNativeReport,
+} from "@/lib/api/native-reports";
+import { createdExecutionId, reportFilename } from "./cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
@@ -129,10 +135,30 @@ export function useCycleCommands(cycleId: string) {
      says so of run admission in particular — and a workspace that refuses to
      re-read after an error is the one that keeps showing the state before it. */
   const invalidateAll = () => invalidateWorkflowResourceQueries(queryClient);
+  const readReport = (executionId: string | null): Promise<NativeReportHtml> => {
+    const owner = { ...session().identity, own: session().own };
+    return executionId ? downloadNativeExecutionReport(owner, executionId) : downloadNativeCycleReport(owner, cycleId);
+  };
 
   return {
-    clearCycle: useMutation({
-      mutationFn: () => clearNativeTestCycle(session().identity, cycleId),
+    archiveCycle: useMutation({
+      mutationFn: (archived: boolean) => setNativeCycleArchived(session().identity, cycleId, archived),
+      onSettled: invalidateAll,
+    }),
+    archiveExecution: useMutation({
+      mutationFn: ({ archived, executionId }: { archived: boolean; executionId: string }) =>
+        setNativeExecutionArchived(session().identity, executionId, archived),
+      onSettled: invalidateAll,
+    }),
+    /* A rename refreshes on settling like every command: lists, tabs and the
+       sidebar read the label the runtime now holds. */
+    renameCycle: useMutation({
+      mutationFn: (label: string) => renameNativeTestCycle(session().identity, cycleId, label),
+      onSettled: invalidateAll,
+    }),
+    renameExecution: useMutation({
+      mutationFn: ({ executionId, label }: { executionId: string; label: string }) =>
+        renameNativeTestExecution(session().identity, executionId, label),
       onSettled: invalidateAll,
     }),
     copyCycle: useMutation({
@@ -140,25 +166,31 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     deleteCase: useMutation({
-      mutationFn: (caseId: string) =>
-        deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
+      mutationFn: (caseId: string) => deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
       onSettled: invalidateAll,
     }),
-    downloadBundle: useMutation({
-      mutationFn: () =>
-        downloadNativeCycleBundle(nativeContentSession(session().identity, session().own), cycleId),
+    /* Saves the report Open Report would open, named after its node. */
+    downloadReport: useMutation({
+      mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
+        downloadNativeReport(await readReport(executionId), reportFilename(label), session().identity),
     }),
-    openFolder: useMutation({
-      mutationFn: () => fetchNativeCycleFolderPath(session().identity, cycleId),
+    /* The report the cycle, or one execution, has now: the runtime renders
+       one from the run so far, reads the sealed one, or renders the sealed
+       one again when its file is gone. Opening it never fails for want of a
+       seal. */
+    openReport: useMutation({
+      mutationFn: async (executionId: string | null) => {
+        const resource = await readReport(executionId);
+        await openNativeReport(resource, session().identity);
+        return resource.report.origin?.HarmosVariant.case;
+      },
     }),
     pauseExecution: useMutation({
-      mutationFn: (executionId: string) =>
-        pauseNativeTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => pauseNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     resumeExecution: useMutation({
-      mutationFn: (executionId: string) =>
-        resumeNativeTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => resumeNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     stopExecution: useMutation({
@@ -174,12 +206,15 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     runCase: useMutation({
-      mutationFn: (executionId: string) =>
-        runNativeQueuedTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => runNativeQueuedTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     runQueued: useMutation({
       mutationFn: () => runNativeQueuedTestCycle(session().identity, cycleId),
+      onSettled: invalidateAll,
+    }),
+    rerunCycle: useMutation({
+      mutationFn: (caseIds: readonly string[]) => rerunNativeTestCycle(session().identity, cycleId, caseIds),
       onSettled: invalidateAll,
     }),
     scheduleRerun: useMutation({
@@ -191,25 +226,32 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({
-      mutationFn: (continueOnFailure: boolean) =>
-        updateNativeTestCyclePolicy(session().identity, cycleId, continueOnFailure),
+      mutationFn: (continueOnFailure: boolean) => updateNativeTestCyclePolicy(session().identity, cycleId, continueOnFailure),
       onSettled: invalidateAll,
-    }),
-    writeReport: useMutation({
-      mutationFn: async () => {
-        const resource = await downloadNativeCycleReport(
-          { ...session().identity, own: session().own },
-          cycleId,
-          "cycle.summary",
-        );
-        return downloadNativeReport(
-          resource,
-          `${resource.report.identifier}.html`,
-          session().identity,
-        );
-      },
     }),
   };
 }
 
 export type CycleCommands = ReturnType<typeof useCycleCommands>;
+
+/**
+ * Re-run a case and hand back the execution the re-run created.
+ *
+ * Neither scheduling nor run admission names the new execution, so the
+ * executions known before the request are remembered and the first execution
+ * of the case outside them, once the detail is read again, is the re-run.
+ * `null` means the refreshed detail did not show it yet.
+ */
+export function useRerunCase(cycleId: string) {
+  const commands = useCycleCommands(cycleId);
+  const detailQuery = useCycleDetailQuery(cycleId);
+  return {
+    pending: commands.scheduleRerun.isPending,
+    rerun: async (caseId: string): Promise<string | null> => {
+      const known = new Set((detailQuery.data?.executions ?? []).map((execution) => execution.test_execution_id));
+      await commands.scheduleRerun.mutateAsync(caseId);
+      const refreshed = await detailQuery.refetch();
+      return createdExecutionId(refreshed?.data?.executions ?? [], caseId, known);
+    },
+  };
+}

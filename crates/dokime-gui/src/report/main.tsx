@@ -14,7 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 /* === Local Imports === */
 
-import { BrandProvider } from "@/lib/brand";
+import { BrandProvider, defaultBrand } from "@/lib/brand";
 import { ReportApp } from "./ReportApp";
 import { applyReportAppearance } from "./report-appearance";
 import { readReportPayload } from "./report-data";
@@ -38,7 +38,7 @@ function reportRoot(): Root {
 
   const rootElement = document.getElementById("root");
   if (!rootElement) {
-    throw new Error("Missing Dokime report root element.");
+    throw new Error(`Missing ${defaultBrand.label} report root element.`);
   }
 
   window.__dokimeReportRoot__ = createRoot(rootElement);

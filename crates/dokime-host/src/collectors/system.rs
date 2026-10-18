@@ -16,8 +16,15 @@
 use std::{collections::BTreeMap, process::Command};
 // Third Party Imports
 use starship_battery::{
-    Manager as BatteryManager, State as BatteryState,
-    units::{ratio::percent, thermodynamic_temperature::degree_celsius},
+    Battery, Manager as BatteryManager, State as BatteryState,
+    units::{
+        electric_potential::volt,
+        energy::watt_hour,
+        power::watt,
+        ratio::{percent, ratio},
+        thermodynamic_temperature::degree_celsius,
+        time::second,
+    },
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
 // Local Imports
@@ -25,7 +32,7 @@ use crate::{
     HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -39,14 +46,6 @@ pub struct SystemCollector {
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
-}
-
-#[derive(Default)]
-struct BatteryContext {
-    percent: Option<f64>,
-    state: Option<String>,
-    power_plugged: Option<bool>,
-    temperature_c: Option<f64>,
 }
 
 #[derive(Default)]
@@ -80,19 +79,13 @@ impl SystemCollector {
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {
         self.sample_index += 1;
-        self.system
-            .refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
-        self.system
-            .refresh_memory_specifics(MemoryRefreshKind::everything());
+        self.system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
+        self.system.refresh_memory_specifics(MemoryRefreshKind::everything());
         self.components.refresh(true);
 
         let total_memory = self.system.total_memory();
         let used_memory = self.system.used_memory();
-        let memory_pressure = if total_memory > 0 {
-            Some((used_memory as f64 / total_memory as f64) * 100.0)
-        } else {
-            None
-        };
+        let memory_pressure = if total_memory > 0 { Some((used_memory as f64 / total_memory as f64) * 100.0) } else { None };
         let temperatures = self
             .components
             .list()
@@ -101,149 +94,46 @@ impl SystemCollector {
             .filter(|temperature| temperature.is_finite())
             .map(f64::from)
             .collect::<Vec<_>>();
-        let battery = battery_context(self.battery_manager.as_ref());
+        let battery = first_battery(self.battery_manager.as_ref());
         let power = power_profile_context();
         let first_cpu = self.system.cpus().first();
 
         let mut values = BTreeMap::from([
-            (
-                "sample_index".to_owned(),
-                Value::Integer(self.sample_index as i64),
-            ),
+            ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
             ("probe_status".to_owned(), Value::from("ok")),
-            (
-                "cpu_load_percent".to_owned(),
-                Value::from(f64::from(self.system.global_cpu_usage())),
-            ),
+            ("cpu_load_percent".to_owned(), Value::from(f64::from(self.system.global_cpu_usage()))),
             ("memory_total_bytes".to_owned(), integer(total_memory)),
             ("memory_used_bytes".to_owned(), integer(used_memory)),
-            (
-                "system_uptime_s".to_owned(),
-                Value::from(System::uptime() as f64),
-            ),
-            (
-                "temperature_sensor_count".to_owned(),
-                Value::Integer(temperatures.len() as i64),
-            ),
-            (
-                "cpu_architecture".to_owned(),
-                Value::from(std::env::consts::ARCH),
-            ),
-            (
-                "logical_cpu_count".to_owned(),
-                Value::Integer(self.system.cpus().len() as i64),
-            ),
+            ("system_uptime_s".to_owned(), Value::from(System::uptime() as f64)),
+            ("temperature_sensor_count".to_owned(), Value::Integer(temperatures.len() as i64)),
+            ("cpu_architecture".to_owned(), Value::from(std::env::consts::ARCH)),
+            ("logical_cpu_count".to_owned(), Value::Integer(self.system.cpus().len() as i64)),
         ]);
-        maybe_insert(
-            &mut values,
-            "physical_cpu_count",
-            System::physical_core_count().map(|count| Value::Integer(count as i64)),
-        );
-        maybe_insert(
-            &mut values,
-            "cpu_name",
-            first_cpu
-                .map(|cpu| cpu.name().trim())
-                .filter(|value| !value.is_empty())
-                .map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "cpu_brand",
-            first_cpu
-                .map(|cpu| cpu.brand().trim())
-                .filter(|value| !value.is_empty())
-                .map(Value::from),
-        );
+        maybe_insert(&mut values, "physical_cpu_count", System::physical_core_count().map(|count| Value::Integer(count as i64)));
+        maybe_insert(&mut values, "cpu_name", first_cpu.map(|cpu| cpu.name().trim()).filter(|value| !value.is_empty()).map(Value::from));
+        maybe_insert(&mut values, "cpu_brand", first_cpu.map(|cpu| cpu.brand().trim()).filter(|value| !value.is_empty()).map(Value::from));
         maybe_insert(
             &mut values,
             "cpu_vendor_id",
-            first_cpu
-                .map(|cpu| cpu.vendor_id().trim())
-                .filter(|value| !value.is_empty())
-                .map(Value::from),
+            first_cpu.map(|cpu| cpu.vendor_id().trim()).filter(|value| !value.is_empty()).map(Value::from),
         );
-        maybe_insert(
-            &mut values,
-            "cpu_frequency_mhz",
-            first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)),
-        );
-        maybe_insert(
-            &mut values,
-            "host_name",
-            System::host_name().map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "user",
-            std::env::var("USERNAME")
-                .or_else(|_| std::env::var("USER"))
-                .ok()
-                .map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "git_user_name",
-            git_config_value("user.name").map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "git_user_email",
-            git_config_value("user.email").map(Value::from),
-        );
+        maybe_insert(&mut values, "cpu_frequency_mhz", first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)));
+        maybe_insert(&mut values, "host_name", System::host_name().map(Value::from));
+        maybe_insert(&mut values, "user", std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok().map(Value::from));
+        maybe_insert(&mut values, "git_user_name", git_config_value("user.name").map(Value::from));
+        maybe_insert(&mut values, "git_user_email", git_config_value("user.email").map(Value::from));
         maybe_insert(&mut values, "os_name", System::name().map(Value::from));
-        maybe_insert(
-            &mut values,
-            "os_version",
-            System::long_os_version().map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "kernel_version",
-            System::kernel_version().map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "memory_pressure_percent",
-            memory_pressure.map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "max_temperature_c",
-            temperatures.into_iter().reduce(f64::max).map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "battery_percent",
-            battery.percent.map(Value::from),
-        );
-        maybe_insert(&mut values, "battery_state", battery.state.map(Value::from));
-        maybe_insert(
-            &mut values,
-            "battery_power_plugged",
-            battery.power_plugged.map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "battery_temperature_c",
-            battery.temperature_c.map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "power_plan_name",
-            power.plan_name.map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "power_plan_guid",
-            power.plan_guid.map(Value::from),
-        );
+        maybe_insert(&mut values, "os_version", System::long_os_version().map(Value::from));
+        maybe_insert(&mut values, "kernel_version", System::kernel_version().map(Value::from));
+        maybe_insert(&mut values, "memory_pressure_percent", memory_pressure.map(Value::from));
+        maybe_insert(&mut values, "max_temperature_c", temperatures.into_iter().reduce(f64::max).map(Value::from));
+        for (key, value) in battery_values(battery.as_ref()) {
+            maybe_insert(&mut values, key, value);
+        }
+        maybe_insert(&mut values, "power_plan_name", power.plan_name.map(Value::from));
+        maybe_insert(&mut values, "power_plan_guid", power.plan_guid.map(Value::from));
         maybe_insert(&mut values, "power_mode", power.mode.map(Value::from));
-        maybe_insert(
-            &mut values,
-            "power_mode_performance_bias",
-            power.performance_bias.map(Value::from),
-        );
+        maybe_insert(&mut values, "power_mode_performance_bias", power.performance_bias.map(Value::from));
 
         Ok(HostStreamSample::new(HostTelemetryStream::System, values))
     }
@@ -253,10 +143,7 @@ impl SystemCollector {
 
 /* === Private Functions === */
 fn git_config_value(key: &str) -> Option<String> {
-    let output = Command::new("git")
-        .args(["config", "--get", key])
-        .output()
-        .ok()?;
+    let output = Command::new("git").args(["config", "--get", key]).output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -265,26 +152,38 @@ fn git_config_value(key: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_owned())
 }
 
-fn battery_context(manager: Option<&BatteryManager>) -> BatteryContext {
-    let Some(manager) = manager else {
-        return BatteryContext::default();
-    };
-    let Ok(mut batteries) = manager.batteries() else {
-        return BatteryContext::default();
-    };
-    let Some(Ok(battery)) = batteries.next() else {
-        return BatteryContext::default();
+fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
+    manager?.batteries().ok()?.next()?.ok()
+}
+
+fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>)> {
+    let Some(battery) = battery else {
+        return Vec::new();
     };
     let state = battery.state();
+    let number = |value: f32| value.is_finite().then(|| Value::from(f64::from(value)));
+    let text = |value: Option<&str>| value.map(Value::from);
 
-    BatteryContext {
-        percent: Some(f64::from(battery.state_of_charge().get::<percent>())),
-        state: Some(state.to_string()),
-        power_plugged: Some(matches!(state, BatteryState::Charging | BatteryState::Full)),
-        temperature_c: battery
-            .temperature()
-            .map(|temperature| f64::from(temperature.get::<degree_celsius>())),
-    }
+    vec![
+        ("battery_percent", number(battery.state_of_charge().get::<percent>())),
+        ("battery_state", Some(Value::from(state.to_string()))),
+        ("battery_power_plugged", Some(Value::from(matches!(state, BatteryState::Charging | BatteryState::Full)))),
+        ("battery_temperature_c", battery.temperature().and_then(|temperature| number(temperature.get::<degree_celsius>()))),
+        ("battery_vendor", text(battery.vendor())),
+        ("battery_model", text(battery.model())),
+        ("battery_serial_number", text(battery.serial_number())),
+        ("battery_technology", Some(Value::from(battery.technology().to_string()))),
+        ("battery_state_of_charge_ratio", number(battery.state_of_charge().get::<ratio>())),
+        ("battery_energy_wh", number(battery.energy().get::<watt_hour>())),
+        ("battery_energy_full_wh", number(battery.energy_full().get::<watt_hour>())),
+        ("battery_energy_full_design_wh", number(battery.energy_full_design().get::<watt_hour>())),
+        ("battery_energy_rate_w", number(battery.energy_rate().get::<watt>())),
+        ("battery_voltage_v", number(battery.voltage().get::<volt>())),
+        ("battery_state_of_health_ratio", number(battery.state_of_health().get::<ratio>())),
+        ("battery_time_to_full_s", battery.time_to_full().and_then(|time| number(time.get::<second>()))),
+        ("battery_time_to_empty_s", battery.time_to_empty().and_then(|time| number(time.get::<second>()))),
+        ("battery_cycle_count", battery.cycle_count().map(|count| Value::Integer(i64::from(count)))),
+    ]
 }
 
 fn power_profile_context() -> PowerProfileContext {
@@ -319,12 +218,7 @@ fn parse_windows_power_scheme(text: &str) -> PowerProfileContext {
     let mode = plan_name.as_deref().map(power_mode_label);
     let performance_bias = plan_name.as_deref().map(power_performance_bias);
 
-    PowerProfileContext {
-        plan_name,
-        plan_guid,
-        mode,
-        performance_bias,
-    }
+    PowerProfileContext { plan_name, plan_guid, mode, performance_bias }
 }
 
 #[cfg(windows)]

@@ -24,6 +24,7 @@ export type RuntimeInstalledPluginRecord = {
     | {
         kind: "bundle";
         package: string;
+        path: string | null;
         installation: string | null;
         content_digest?: string;
       }
@@ -39,8 +40,8 @@ export type RuntimeInstalledPluginRecord = {
 import type { RuntimePluginSettings as PluginRuntimeSettings } from "@/lib/types/view-contracts";
 
 export type {
-  PluginRuntimeCredentialBindings,
   CredentialBackendKind,
+  PluginRuntimeCredentialBindings,
   RedactedCredentialBinding,
   RuntimePluginSettings as PluginRuntimeSettings,
   SecretReference,

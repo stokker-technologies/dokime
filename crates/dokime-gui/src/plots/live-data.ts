@@ -13,47 +13,26 @@ import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "rea
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
-import {
-  type NativePlotStream,
-  openNativePlotStream,
-  type PlotPayloadRequestInput,
-} from "@/lib/api/native-plots";
-import type {
-  DocumentViewPlot,
-  PlotCartesianFrame,
-  PlotMarker,
-  PlotPayload,
-  PlotPayloadCursor,
-  PlotPayloadDiagnostics,
-  PlotPayloadStreamMessage,
-  PlotPoint,
-  RecordScope,
-} from "@/lib/types";
-import { xValue } from "@/plots/axis";
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
+import { NativeApiLimitError } from "@/lib/api/native-values";
+import { summaryInFlight } from "@/lib/statistics";
+import type { DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
+import { applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS, type ReduceTechnique } from "@/plots/reduce";
+import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 
-export const LIVE_PLOT_MAX_POINTS = 800;
-
 const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
-const MAX_RETAINED_MARKERS = 500;
+/** How long a plot may wait for its first frame before the wait is reported. */
+const FIRST_FRAME_TIMEOUT_MS = 15_000;
+const RECONNECT_INITIAL_MS = 1_000;
+const RECONNECT_MAX_MS = 10_000;
 
 /* === Types === */
 
-export type LivePlotStatus = "idle" | "loading" | "live" | "stale" | "error";
-
-export type LivePlotState = {
-  payload: PlotPayload | null;
-  cursor: PlotPayloadCursor | null;
-  diagnostics: PlotPayloadDiagnostics | null;
-  revision: number;
-  status: LivePlotStatus;
-  error: string | null;
-  droppedBatches: number;
-};
-
-export type LivePlotStateMap = Record<string, LivePlotState>;
+type TechniqueByPlot = Record<string, ReduceTechnique>;
 
 /* === Public Functions === */
 
@@ -77,7 +56,18 @@ export function useLivePlotPayloads({
   }
   const streamEnabled = enabled && pageVisible;
   const [state, setState] = useState<LivePlotStateMap>({});
+  // The retained frames live here and are committed to React state whole, so
+  // a frame is applied exactly once and its arrays can grow in place.
+  const modelRef = useRef<LivePlotStateMap>({});
   const plotRequestKey = useMemo(() => plots.map(documentPlotRequestKey).join(";"), [plots]);
+  // A zoom changes which rows a plot's statistics cover, not the rows it
+  // draws: the stream reopens for it while the drawn frame stays on screen.
+  const summaryWindows = useSummaryWindowStore((store) => store.windows);
+  const summaryKey = useMemo(
+    () => JSON.stringify(Object.fromEntries(plots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
+    [plots, summaryWindows],
+  );
+  const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
   const scopeFields = useMemo(
     () => ({
       test_case_id: scope?.test_case_id ?? null,
@@ -103,25 +93,15 @@ export function useLivePlotPayloads({
   const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
   const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
   const scopeWindowKey = useMemo(
-    () =>
-      [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join(
-        "|",
-      ),
+    () => [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join("|"),
     [scopeKey, windowS],
   );
-  const dataKey = useMemo(
-    () => [plotRequestKey, scopeWindowKey].join("|"),
-    [plotRequestKey, scopeWindowKey],
-  );
-  const _descriptorKey = useMemo(
-    () => [dataKey, streamEnabled ? "enabled" : "disabled"].join("|"),
-    [dataKey, streamEnabled],
-  );
+  const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
+  const _descriptorKey = useMemo(() => [dataKey, streamEnabled ? "enabled" : "disabled"].join("|"), [dataKey, streamEnabled]);
 
   const plotsRef = useRef(plots);
   plotsRef.current = plots;
   const dataKeyRef = useRef<string | null>(null);
-  const latestRevisionRef = useRef<Record<string, number>>({});
   const pendingMessagesRef = useRef<PlotPayloadStreamMessage[]>([]);
   const flushFrameRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
@@ -132,7 +112,10 @@ export function useLivePlotPayloads({
   }, [renderActive]);
 
   useEffect(() => {
-    latestRevisionRef.current = {};
+    const commit = (update: (current: LivePlotStateMap) => LivePlotStateMap) => {
+      modelRef.current = update(modelRef.current);
+      setState(modelRef.current);
+    };
     pendingMessagesRef.current = [];
     clearScheduledFlush(flushFrameRef, flushTimerRef);
     const activePlots = plotsRef.current;
@@ -141,31 +124,25 @@ export function useLivePlotPayloads({
 
     const testCycleId = requestScope?.test_cycle_id;
     if (!enabled || !testCycleId || activePlots.length === 0) {
-      setState((current) => {
+      commit((current) => {
         if (!testCycleId || activePlots.length === 0) {
           return {};
         }
         return Object.fromEntries(
           activePlots.map((plot) => {
             const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [
-              plot.plot_id,
-              currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot,
-            ];
+            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
           }),
         );
       });
       return;
     }
     if (!pageVisible) {
-      setState((current) =>
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
             const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [
-              plot.plot_id,
-              currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot,
-            ];
+            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
           }),
         ),
       );
@@ -178,24 +155,33 @@ export function useLivePlotPayloads({
 
     const controller = new AbortController();
     const requests = activePlots.map((plot) =>
-      plotRequestForDocumentPlot(plot, { scope: requestScope, windowS }),
+      plotRequestForDocumentPlot(plot, {
+        scope: requestScope,
+        windowS,
+        summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
+      }),
     );
+    const techniques: TechniqueByPlot = Object.fromEntries(activePlots.map((plot) => [plot.plot_id, reduceTechnique(plot.downsample)]));
     let active = true;
     let stream: NativePlotStream | null = null;
     let releaseStream: (() => void) | undefined;
+    let reopenTimer: number | null = null;
+    let reopenDelayMs = RECONNECT_INITIAL_MS;
+    let firstFrameTimer: number | null = null;
 
-    setState((current) =>
+    // A new watch numbers its frames from its own origin.
+    commit((current) =>
       Object.fromEntries(
         activePlots.map((plot) => {
-          const currentPlot = dataChanged
-            ? emptyLivePlotState()
-            : (current[plot.plot_id] ?? emptyLivePlotState());
+          const currentPlot = dataChanged ? emptyLivePlotState() : (current[plot.plot_id] ?? emptyLivePlotState());
           return [
             plot.plot_id,
             {
               ...currentPlot,
+              revision: 0,
               error: null,
               status: currentPlot.payload ? "stale" : "loading",
+              summaryInFlight: summaryInFlight("requested"),
             },
           ];
         }),
@@ -210,29 +196,20 @@ export function useLivePlotPayloads({
       if (!messages.length || !active) {
         return;
       }
-      setState((current) => applyPlotStreamMessagesById(current, messages, latestRevisionRef));
+      commit((current) => applyMessagesById(current, messages, techniques));
     };
 
     const enqueue = (message: PlotPayloadStreamMessage) => {
       if (!active) {
         return;
       }
-      const latestRevision = latestRevisionRef.current[message.plot_id] ?? 0;
-      if (message.revision < latestRevision) {
-        setState((current) => ({
-          ...current,
-          [message.plot_id]: {
-            ...(current[message.plot_id] ?? emptyLivePlotState()),
-            droppedBatches: (current[message.plot_id]?.droppedBatches ?? 0) + 1,
-          },
-        }));
-        return;
-      }
+      // A frame of any kind proves the watch is healthy again.
+      reopenDelayMs = RECONNECT_INITIAL_MS;
       pendingMessagesRef.current.push(message);
       if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
         return;
       }
-      if (message.kind === "snapshot" || message.kind === "replace") {
+      if (message.kind === "snapshot" || message.kind === "replace" || message.kind === "error") {
         flushTimerRef.current = window.setTimeout(flush, 0);
         return;
       }
@@ -247,7 +224,7 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
-      setState((current) =>
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
             const plotState = current[plot.plot_id] ?? emptyLivePlotState();
@@ -256,6 +233,7 @@ export function useLivePlotPayloads({
               {
                 ...plotState,
                 status: plotState.status === "error" ? "error" : ("stale" as const),
+                summaryInFlight: plotState.summaryInFlight && summaryInFlight("ended"),
               },
             ];
           }),
@@ -263,25 +241,48 @@ export function useLivePlotPayloads({
       );
     };
 
+    /**
+     * A failed watch keeps the last frame on screen and reopens cursorless with
+     * backoff; only an admission refusal is terminal, since no retry changes it.
+     */
     const markStreamError = (error: unknown) => {
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
-      setState((current) =>
+      const terminal = error instanceof NativeApiLimitError;
+      console.error(`Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`);
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => [
             plot.plot_id,
             {
               ...(current[plot.plot_id] ?? emptyLivePlotState()),
-              error: String(error),
-              status: "error" as const,
+              error: errorMessage(error),
+              status: terminal ? ("error" as const) : ("reconnecting" as const),
             },
           ]),
         ),
       );
+      if (!terminal) scheduleReopen();
+    };
+
+    const scheduleReopen = () => {
+      if (!active || reopenTimer !== null || !nativeSession.identity.isCurrent()) {
+        return;
+      }
+      reopenTimer = window.setTimeout(() => {
+        reopenTimer = null;
+        // The reopened watch resends snapshots from its own revision origin.
+        commit((current) => Object.fromEntries(Object.entries(current).map(([plotId, plot]) => [plotId, { ...plot, revision: 0 }])));
+        void consumeStream();
+      }, reopenDelayMs);
+      reopenDelayMs = Math.min(reopenDelayMs * 2, RECONNECT_MAX_MS);
     };
 
     const consumeStream = async () => {
+      if (!active || controller.signal.aborted) {
+        return;
+      }
       try {
         // Cursorless watch requests receive initial snapshots from the server
         // after subscription, avoiding a snapshot/watch race.
@@ -313,33 +314,60 @@ export function useLivePlotPayloads({
       }
     };
 
+    /**
+     * A plot still without a frame after the deadline reports why: the stream
+     * error when there is one, the silence otherwise. A later frame recovers it.
+     */
+    firstFrameTimer = window.setTimeout(() => {
+      firstFrameTimer = null;
+      if (!active) return;
+      commit((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([plotId, plot]) => [
+            plotId,
+            plot.payload || (plot.status !== "loading" && plot.status !== "reconnecting")
+              ? plot
+              : {
+                  ...plot,
+                  status: "error" as const,
+                  error: plot.error ?? `No plot frame arrived within ${FIRST_FRAME_TIMEOUT_MS / 1_000} s.`,
+                },
+          ]),
+        ),
+      );
+    }, FIRST_FRAME_TIMEOUT_MS);
+
     void consumeStream();
 
     return () => {
       active = false;
       controller.abort();
+      if (firstFrameTimer !== null) {
+        window.clearTimeout(firstFrameTimer);
+        firstFrameTimer = null;
+      }
+      if (reopenTimer !== null) {
+        window.clearTimeout(reopenTimer);
+        reopenTimer = null;
+      }
       releaseStream?.();
       releaseStream = undefined;
       if (stream) void stream.cancel().catch(() => undefined);
       clearScheduledFlush(flushFrameRef, flushTimerRef);
       pendingMessagesRef.current = [];
     };
-  }, [
-    dataKey,
-    requestScope?.test_cycle_id,
-    enabled,
-    requestScope,
-    windowS,
-    pageVisible,
-    nativeSession,
-  ]);
+  }, [dataKey, requestedSummaryWindows, requestScope?.test_cycle_id, enabled, requestScope, windowS, pageVisible, nativeSession]);
 
   return state;
 }
 
 export function plotRequestForDocumentPlot(
   plot: DocumentViewPlot,
-  options: { scope: RecordScope | null; windowS?: number | null },
+  options: {
+    scope: RecordScope | null;
+    windowS?: number | null;
+    summaryWindow?: SummaryWindow | null;
+  },
 ): PlotPayloadRequestInput {
   return {
     plotId: plot.plot_id,
@@ -367,70 +395,25 @@ export function plotRequestForDocumentPlot(
     // cannot resolve more points than this, and an unbounded request made the
     // full-range window ship every retained raw sample (slow payload, slow
     // render) instead of a server-downsampled frame.
-    maxPoints: LIVE_PLOT_MAX_POINTS,
+    maxPoints: displayPointBudget(plot.display_points),
+    technique: plot.downsample ?? "auto",
     windowS: options.windowS === undefined ? plot.live_window_s : options.windowS,
+    summaryWindow: options.summaryWindow ?? null,
     scope: options.scope,
   };
 }
 
+/** The request budget a plot's declared `display_points` resolves to. */
+export function displayPointBudget(displayPoints: number | null | undefined): number {
+  if (typeof displayPoints !== "number" || !Number.isFinite(displayPoints)) {
+    return DEFAULT_PLOT_MAX_POINTS;
+  }
+  return Math.min(Math.max(0, Math.trunc(displayPoints)), NATIVE_PLOT_MAX_POINTS);
+}
+
 /* === Private Functions === */
 
-export function emptyLivePlotState(): LivePlotState {
-  return {
-    payload: null,
-    cursor: null,
-    diagnostics: null,
-    revision: 0,
-    status: "idle",
-    error: null,
-    droppedBatches: 0,
-  };
-}
-
-function applyPlotStreamMessages(
-  current: LivePlotState,
-  messages: PlotPayloadStreamMessage[],
-  latestRevisionRef: MutableRefObject<number>,
-): LivePlotState {
-  let next = current;
-  for (const message of messages) {
-    if (message.kind === "error") {
-      next = {
-        ...next,
-        error: message.warnings[0] ?? "Plot stream returned an error.",
-        status: "error",
-      };
-      continue;
-    }
-    if (message.revision <= latestRevisionRef.current) {
-      next = {
-        ...next,
-        droppedBatches: next.droppedBatches + 1,
-      };
-      continue;
-    }
-    latestRevisionRef.current = message.revision;
-    next = {
-      payload:
-        message.kind === "append" && next.payload
-          ? appendPlotPayload(next.payload, message.payload)
-          : message.payload,
-      cursor: message.cursor,
-      diagnostics: message.diagnostics ?? next.diagnostics,
-      revision: message.revision,
-      status: "live",
-      error: null,
-      droppedBatches: next.droppedBatches,
-    };
-  }
-  return next;
-}
-
-function applyPlotStreamMessagesById(
-  current: LivePlotStateMap,
-  messages: PlotPayloadStreamMessage[],
-  latestRevisionRef: MutableRefObject<Record<string, number>>,
-): LivePlotStateMap {
+function applyMessagesById(current: LivePlotStateMap, messages: PlotPayloadStreamMessage[], techniques: TechniqueByPlot): LivePlotStateMap {
   const messagesByPlot = new Map<string, PlotPayloadStreamMessage[]>();
   for (const message of messages) {
     const plotMessages = messagesByPlot.get(message.plot_id);
@@ -440,204 +423,21 @@ function applyPlotStreamMessagesById(
       messagesByPlot.set(message.plot_id, [message]);
     }
   }
-  if (messagesByPlot.size === 0) {
-    return current;
-  }
+
   const next = { ...current };
   messagesByPlot.forEach((plotMessages, plotId) => {
-    const latestForPlot = {
-      get current() {
-        return latestRevisionRef.current[plotId] ?? 0;
-      },
-      set current(value: number) {
-        latestRevisionRef.current[plotId] = value;
-      },
-    } as MutableRefObject<number>;
-    next[plotId] = applyPlotStreamMessages(
-      next[plotId] ?? emptyLivePlotState(),
-      plotMessages,
-      latestForPlot,
-    );
+    const previous = next[plotId] ?? emptyLivePlotState();
+    try {
+      next[plotId] = applyPlotMessages(previous, plotMessages, techniques[plotId] ?? "auto");
+    } catch (failure) {
+      next[plotId] = { ...previous, status: "error", error: errorMessage(failure) };
+    }
   });
-
   return next;
 }
 
-export function appendPlotPayload(current: PlotPayload, update: PlotPayload): PlotPayload {
-  const incoming = new Map(update.series.map((series) => [series.key, series]));
-  const maxPoints = plotPointBudget(update.max_points, current.max_points);
-  const windowS = update.window_s ?? current.window_s ?? null;
-  const series = current.series.map((existing) => {
-    const appended = incoming.get(existing.key);
-    if (!appended) {
-      return existing;
-    }
-    const points = trimPlotPoints([...existing.points, ...appended.points], maxPoints, windowS);
-    incoming.delete(existing.key);
-    return {
-      ...existing,
-      points,
-      raw_points: existing.raw_points + appended.raw_points,
-      downsampled:
-        existing.downsampled ||
-        appended.downsampled ||
-        (maxPoints !== null && points.length >= maxPoints),
-    };
-  });
-  incoming.forEach((appended) => {
-    series.push({
-      ...appended,
-      points: trimPlotPoints(appended.points, maxPoints, windowS),
-    });
-  });
-
-  return {
-    ...current,
-    generated_at: update.generated_at,
-    analysis: update.analysis ?? current.analysis,
-    context: { ...(current.context ?? {}), ...(update.context ?? {}) },
-    markers: trimPlotMarkers([...(current.markers ?? []), ...(update.markers ?? [])], windowS),
-    max_points: maxPoints ?? 0,
-    window_s: windowS,
-    series,
-    cartesian: appendCartesianFrame(current.cartesian, update.cartesian, maxPoints, windowS),
-  };
-}
-
-function appendCartesianFrame(
-  current: PlotCartesianFrame | null | undefined,
-  update: PlotCartesianFrame | null | undefined,
-  maxPoints: number | null,
-  windowS: number | null,
-): PlotCartesianFrame | null | undefined {
-  if (!current || !update) {
-    return update ?? current;
-  }
-  if (current.mode !== update.mode || current.series.length !== update.series.length) {
-    return update;
-  }
-
-  const series = current.series.map((existing, index) =>
-    trimCartesianSeries(
-      {
-        x: [...existing.x, ...update.series[index].x],
-        y: [...existing.y, ...update.series[index].y],
-      },
-      maxPoints,
-      windowS,
-    ),
-  );
-  return {
-    ...update,
-    series,
-    x_domain: numericDomain(series.flatMap((item) => item.x)),
-    y_domain: numericDomain(
-      series.flatMap((item) => item.y.filter((value): value is number => Number.isFinite(value))),
-    ),
-    point_count: series.reduce(
-      (count, item) => count + item.y.filter((value) => Number.isFinite(value)).length,
-      0,
-    ),
-    signature: cartesianSignature(series),
-  };
-}
-
-function trimCartesianSeries(
-  series: PlotCartesianFrame["series"][number],
-  maxPoints: number | null,
-  windowS: number | null,
-): PlotCartesianFrame["series"][number] {
-  const start = maxPoints === null ? 0 : Math.max(0, series.x.length - maxPoints);
-  let x = series.x.slice(start);
-  let y = series.y.slice(start);
-  if (!windowS || x.length < 2) {
-    return { x, y };
-  }
-
-  const latest = Math.max(...x.filter(Number.isFinite));
-  if (!Number.isFinite(latest)) {
-    return { x, y };
-  }
-  const cutoff = latest - windowS;
-  const pairs = x
-    .map((value, index) => ({ x: value, y: y[index] ?? null }))
-    .filter((point) => point.x >= cutoff);
-  if (!pairs.length) {
-    return {
-      x: x.slice(-1),
-      y: y.slice(-1),
-    };
-  }
-  x = pairs.map((point) => point.x);
-  y = pairs.map((point) => point.y);
-  return { x, y };
-}
-
-function numericDomain(values: number[]): { min: number; max: number } | null {
-  const finite = values.filter(Number.isFinite);
-  if (!finite.length) {
-    return null;
-  }
-  return {
-    min: Math.min(...finite),
-    max: Math.max(...finite),
-  };
-}
-
-function cartesianSignature(series: PlotCartesianFrame["series"]): string {
-  return JSON.stringify(series.map(({ x, y }) => [x, y]));
-}
-
-function trimPlotPoints(
-  points: PlotPoint[],
-  maxPoints: number | null,
-  windowS: number | null,
-): PlotPoint[] {
-  const byBudget =
-    maxPoints !== null && points.length > maxPoints ? points.slice(-maxPoints) : points;
-  if (!windowS || byBudget.length < 2) {
-    return byBudget;
-  }
-  const latest = Math.max(
-    ...byBudget.map((point, index) => xValue(point.x, index)).filter(Number.isFinite),
-  );
-  if (!Number.isFinite(latest)) {
-    return byBudget;
-  }
-  const cutoff = latest - windowS;
-  const windowed = byBudget.filter((point, index) => xValue(point.x, index) >= cutoff);
-  return windowed.length ? windowed : byBudget.slice(-1);
-}
-
-function plotPointBudget(...candidates: Array<number | null | undefined>): number | null {
-  for (const candidate of candidates) {
-    if (typeof candidate !== "number") {
-      continue;
-    }
-    if (candidate <= 0) {
-      return null;
-    }
-    if (Number.isFinite(candidate)) {
-      return Math.max(1, candidate);
-    }
-  }
-  return LIVE_PLOT_MAX_POINTS;
-}
-
-function trimPlotMarkers(markers: PlotMarker[], windowS: number | null): PlotMarker[] {
-  const byBudget =
-    markers.length > MAX_RETAINED_MARKERS ? markers.slice(-MAX_RETAINED_MARKERS) : markers;
-  if (!windowS || byBudget.length < 2) {
-    return byBudget;
-  }
-  const latest = Math.max(
-    ...byBudget.map((marker, index) => xValue(marker.x, index)).filter(Number.isFinite),
-  );
-  if (!Number.isFinite(latest)) {
-    return byBudget;
-  }
-  const cutoff = latest - windowS;
-  return byBudget.filter((marker, index) => xValue(marker.x, index) >= cutoff);
+function reduceTechnique(value: DocumentDownsampleTechnique | null | undefined): ReduceTechnique {
+  return value ?? "auto";
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
@@ -659,6 +459,8 @@ function documentPlotRequestKey(plot: DocumentViewPlot): string {
     plot.unit ?? "",
     plot.series_by ?? "",
     plot.live_window_s ?? "",
+    plot.display_points ?? "",
+    plot.downsample ?? "",
     plot.y.join(","),
     (plot.marker_record_types ?? []).join(","),
   ].join(":");
@@ -709,10 +511,18 @@ function isAbortError(value: unknown): boolean {
   return value instanceof DOMException && value.name === "AbortError";
 }
 
-function clearScheduledFlush(
-  flushFrameRef: MutableRefObject<number | null>,
-  flushTimerRef: MutableRefObject<number | null>,
-): void {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** The gRPC status code a normalized native RPC error carries, when it does. */
+function grpcStatusCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const candidate = error as { kind?: unknown; detail?: { code?: unknown } };
+  return candidate.kind === "grpc" && typeof candidate.detail?.code === "number" ? candidate.detail.code : null;
+}
+
+function clearScheduledFlush(flushFrameRef: MutableRefObject<number | null>, flushTimerRef: MutableRefObject<number | null>): void {
   if (flushFrameRef.current !== null) {
     window.cancelAnimationFrame(flushFrameRef.current);
     flushFrameRef.current = null;

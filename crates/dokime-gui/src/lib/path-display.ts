@@ -24,11 +24,7 @@ export function isPathLike(value: string, key = ""): boolean {
   if (PATH_KEY_PATTERN.test(key) && hasPathSeparator(trimmed)) {
     return true;
   }
-  return (
-    WINDOWS_PATH_PATTERN.test(trimmed) ||
-    UNC_PATH_PATTERN.test(trimmed) ||
-    POSIX_PATH_PATTERN.test(trimmed)
-  );
+  return WINDOWS_PATH_PATTERN.test(trimmed) || UNC_PATH_PATTERN.test(trimmed) || POSIX_PATH_PATTERN.test(trimmed);
 }
 
 export function compactPath(value: string): string {

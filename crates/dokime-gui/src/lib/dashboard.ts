@@ -14,13 +14,7 @@ import { numericValue } from "@/lib/utils";
 import { formatNumber } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
 import { durationLabel, parseTimestampMs } from "./time-format";
-import type {
-  ExecutionResultSummary,
-  HubRecord,
-  JsonObject,
-  Severity,
-  TelemetryStream,
-} from "./types";
+import type { ExecutionResultSummary, HubRecord, JsonObject, Severity, TelemetryStream } from "./types";
 
 /* === Types === */
 
@@ -134,13 +128,7 @@ export function artifactLabel(label: string): string {
 export function fallbackResultSummary(status: string | undefined): ExecutionResultSummary {
   const label = status ? runStatusLabel(status) : "No Result Yet";
   return {
-    outcome:
-      status === "completed" ||
-      status === "failed" ||
-      status === "interrupted" ||
-      status === "stopped"
-        ? status
-        : "unknown",
+    outcome: status === "completed" || status === "failed" || status === "interrupted" || status === "stopped" ? status : "unknown",
     headline: label,
     warnings: [],
     evidence: [],
@@ -193,8 +181,12 @@ function titleCaseArtifactWord(word: string): string {
 }
 
 /* Dashboard facts read as fixed columns: two decimals until the integer part
- * takes three digits, then none. */
+ * takes three digits, then none. A value too small for two decimals keeps its
+ * significant digits instead: a 1 ms sample interval is not "0.00 s". */
 function dashboardNumber(value: number): string {
+  if (value !== 0 && Math.abs(value) < 0.005) {
+    return String(Number(value.toPrecision(3)));
+  }
   return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
 }
 
@@ -219,11 +211,7 @@ function runStatusLabel(status: string): string {
   return labels[normalized] ?? titleFromIdentifier(status);
 }
 
-function compactLifecycleMessage(
-  message: string,
-  record: HubRecord,
-  fallbackSubject: string,
-): string {
+function compactLifecycleMessage(message: string, record: HubRecord, fallbackSubject: string): string {
   const match = /^(?<prefix>[^:]+:\s*)(?<label>.+)$/u.exec(message);
   const prefix = match?.groups?.prefix ?? `${fallbackSubject}: `;
   const label = match?.groups?.label ?? message;

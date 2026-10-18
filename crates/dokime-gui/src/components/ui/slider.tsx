@@ -18,14 +18,7 @@ import { cn } from "@/lib/utils";
 
 /* === Components === */
 
-function Slider({
-  className,
-  defaultValue,
-  value,
-  min = 0,
-  max = 100,
-  ...props
-}: React.ComponentProps<typeof SliderPrimitive.Root>) {
+function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   const ariaLabel = props["aria-label"];
   const ariaValueText = props["aria-valuetext"];
   const values = React.useMemo(
@@ -40,16 +33,10 @@ function Slider({
       value={value}
       min={min}
       max={max}
-      className={cn(
-        "relative flex w-full touch-none items-center select-none data-disabled:opacity-50",
-        className,
-      )}
+      className={cn("relative flex w-full touch-none items-center select-none data-disabled:opacity-50", className)}
       {...props}
     >
-      <SliderPrimitive.Track
-        data-slot="slider-track"
-        className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted"
-      >
+      <SliderPrimitive.Track data-slot="slider-track" className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted">
         <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-primary" />
       </SliderPrimitive.Track>
       {values.map((_, index) => (

@@ -77,19 +77,10 @@ pub struct AdmissionIssue {
 
 /* === Enums === */
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {
-    Local {
-        endpoint: String,
-    },
-    Remote {
-        endpoint: String,
-        ca_certificate_pem: Option<String>,
-    },
+    Local { endpoint: String },
+    Remote { endpoint: String, ca_certificate_pem: Option<String> },
 }
 
 #[derive(Deserialize)]
@@ -112,9 +103,7 @@ pub enum ConnectionPhase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectionError {
-    InvalidTarget {
-        message: String,
-    },
+    InvalidTarget { message: String },
     CredentialsUnavailable,
     AuthenticationRequired,
     Unauthenticated,
@@ -123,11 +112,7 @@ pub enum ConnectionError {
     IncompatibleApi,
     IdentityChanged,
     BackendUnavailable,
-    ExecutionRejected {
-        code: String,
-        message: String,
-        issues: Vec<AdmissionIssue>,
-    },
+    ExecutionRejected { code: String, message: String, issues: Vec<AdmissionIssue> },
     WaitTimedOut,
     Superseded,
     NotConnected,

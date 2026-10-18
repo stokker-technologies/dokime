@@ -7,35 +7,27 @@
  * ***
  */
 
-/* The cycle workspace's fixed header: what this cycle is, how far it has got,
- * and every command that acts on the cycle as a whole.
+/* The cycle cockpit: the full-width band above the cycle document that says
+ * what the cycle is and asks what its run needs.
  *
- * One grid owns the whole bar — title block, progress, Cases, run controls,
- * overflow — so the pieces keep their columns whatever the data says. The bar
- * stays above the evidence scroll and outside the Cases panel, so Stop remains
- * reachable while that panel or a prompt form is open.
+ * 1. Identity — one row on `--page-bar-height`: the title with its rename
+ *    pencil, the status pill and case progress, and the cycle's own "…" menu.
+ * 2. Prompts — the questions the run is waiting on, full width, answered in
+ *    place.
  *
- * With `live={false}` the bar keeps the identity, the status and the progress
- * — everything a reader needs to know what they are looking at — and drops the
- * run controls and the overflow, which a file cannot honour.
+ * The execution page has no cockpit: its title is the plain header of its
+ * sections and its prompts lead its Control section (`ExecutionSections`). It
+ * borrows only the node menu from here, so both pages offer one menu of one
+ * size. The run controls are not here: the workspace publishes the cycle's
+ * into the page bar's action slot, beside Focus. With `live={false}` the
+ * cockpit keeps the identity and drops the menu and the prompts, which a file
+ * cannot honour.
  */
 
 /* === External Imports === */
 
-import {
-  Copy,
-  Download,
-  Ellipsis,
-  FileText,
-  FolderOpen,
-  ListChecks,
-  Pause,
-  Play,
-  Plus,
-  Settings2,
-  Square,
-  Trash2,
-} from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
+import { type ComponentProps, Fragment, type ReactNode } from "react";
 
 /* === Local Imports === */
 
@@ -49,297 +41,218 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { useSidebarState } from "@/shell/use-sidebar-state";
-import { CycleSidebarCases } from "./CycleSidebarCases";
-import {
-  type CycleLifecycle,
-  cycleStatusLabel,
-  cycleStatusVariant,
-  type RunControlAvailability,
-  type RunControlVisibility,
-  STATUS_PILL_CLASS,
-} from "./cycle-workspace-model";
-
-/* === Constants === */
-
-/** One height and one measure for every control in the bar. */
-const CONTROL_CLASS = "h-9 w-full [[data-density=touch]_&]:h-14";
-
-/**
- * One slot per run control, whether or not the lifecycle fills it.
- *
- * The slots keep their width so the title, the progress and the overflow menu
- * do not shift sideways the moment a cycle starts or finishes.
- */
-const SLOT_CLASS = "w-32 [[data-density=touch]_&]:w-44";
+import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-workspace-model";
+import { EditableLabel } from "./EditableLabel";
 
 /* === Types === */
 
-export type CycleWorkspaceHeaderProps = {
-  availability: RunControlAvailability;
-  /** False in the frozen report: no run controls, no overflow menu. */
-  live?: boolean;
-  /** The case and step the progress stream reports while the cycle runs. */
-  activity: string | null;
-  caseTotal: number;
-  /** The selected case, so the Cases sheet opens on the operator's place. */
-  caseId?: string | undefined;
-  /** The open cycle. Required for the Cases sheet a collapsed sidebar needs. */
-  cycleId?: string;
-  finishedCases: number;
-  /** When on, a new attempt of the selected case becomes the shown evidence. */
+/** One node's identity: what the cockpit row states about it. */
+export type CockpitIdentity = {
+  title: string;
+  /** The cycle's lifecycle pill and case progress. The execution row carries
+   *  neither: the sidebar glyph states its status and the Steps card its
+   *  progress. */
+  status?: {
+    label: string;
+    variant: ComponentProps<typeof Badge>["variant"];
+    progress: string;
+    /** The case and step the progress stream reports while the node runs. */
+    activity?: string | null;
+  };
+};
+
+/** Archive or Unarchive, as the node's menu offers it. */
+export type ArchiveAction = {
+  archived: boolean;
+  onToggle: () => void;
+  /** Why the node cannot be archived yet; archiving waits for a terminal run. */
+  refusal?: string;
+};
+
+/** The cycle page's "…" menu. */
+export type CycleMenu = {
+  kind: "cycle";
+  archive: ArchiveAction;
   followActive: boolean;
-  label: string;
-  /** Each control waits only on its own command, so Stop never waits on another. */
-  pending: RunControlAvailability;
-  /** Why the runtime refuses every queued case, when it does. */
-  runRefusal?: string | null;
-  /** Hidden for a remote backend, which has no folder this machine can open. */
-  showOpenFolder: boolean;
-  status: CycleLifecycle;
-  /** Which of the three run-control slots the lifecycle fills. */
-  visibility: RunControlVisibility;
   onAddCases: () => void;
-  onClearCycle: () => void;
   onCopyCycle: () => void;
-  onDownloadBundle: () => void;
-  onOpenFolder: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onRunQueued: () => void;
+  /** Opens the report the cycle has now: current or sealed. */
+  onOpenReport: () => void;
   onRuntimePolicy: () => void;
-  onStop: () => void;
   onToggleFollowActive: () => void;
-  onWriteReport: () => void;
+};
+
+/** The execution page's "…" menu. */
+export type ExecutionMenu = {
+  kind: "execution";
+  /** `null` for a case that has not run, which has no execution to archive. */
+  archive: ArchiveAction | null;
+  /** Opens the report the execution has now: current or sealed;
+   *  `null` for a case that has not run, which has no report of its own. */
+  onOpenReport: (() => void) | null;
+  /** Re-Run the execution's case; `null` while the attempt has not ended. */
+  onRerun: (() => void) | null;
+  /** Why the runtime refuses the re-run, when it does. */
+  rerunRefusal?: string;
+};
+
+export type CycleWorkspaceHeaderProps = {
+  identity: CockpitIdentity;
+  /** False in the frozen report: no menu, no prompts. */
+  live?: boolean;
+  menu: CycleMenu | ExecutionMenu | null;
+  /** Renames the node; absent once it sealed or archived, or with
+   *  `live={false}`, the title is plain. */
+  onRename?: (label: string) => Promise<unknown>;
+  /** The prompt band, full width under the identity row. */
+  prompts?: ReactNode;
 };
 
 /* === Components === */
 
-export function CycleWorkspaceHeader({
-  availability,
-  activity,
-  live = true,
-  caseTotal,
-  caseId,
-  cycleId,
-  finishedCases,
-  followActive,
-  label,
-  pending,
-  runRefusal,
-  showOpenFolder,
-  status,
-  visibility,
-  onAddCases,
-  onClearCycle,
-  onCopyCycle,
-  onDownloadBundle,
-  onOpenFolder,
-  onPause,
-  onResume,
-  onRunQueued,
-  onRuntimePolicy,
-  onStop,
-  onToggleFollowActive,
-  onWriteReport,
-}: CycleWorkspaceHeaderProps) {
+export function CycleWorkspaceHeader({ identity, live = true, menu, onRename, prompts }: CycleWorkspaceHeaderProps) {
   return (
-    <header className="grid min-h-16 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-4 border-b bg-background px-[var(--shell-inset)] py-2 [[data-density=touch]_&]:min-h-20">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <h1 className="truncate font-heading text-lg leading-6 font-semibold" title={label}>
-          {label}
-        </h1>
-        <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(status)}>
-          {cycleStatusLabel(status)}
-        </Badge>
-      </div>
-
-      {/* Collapsed, the sidebar's case rows are behind a rail the operator has
-          to restore to reach. At touch that is the only route to a case, so
-          the header offers the same rows in a sheet instead. */}
-      {live && cycleId ? <CasesSheet caseId={caseId} cycleId={cycleId} /> : null}
-
-      <div className="hidden grid-flow-col items-center gap-3 text-xs leading-6 text-muted-foreground sm:grid">
-        <span className="tabular-nums">
-          {finishedCases} of {caseTotal} cases finished
-        </span>
-        {activity ? (
-          <span aria-live="polite" className="hidden max-w-80 truncate lg:inline">
-            {activity}
-          </span>
-        ) : null}
-      </div>
-
-      {/* A lifecycle that offers nothing shows nothing: the slots exist to
-          keep the group stable while a cycle runs, not to reserve room for
-          buttons a finished cycle can never regain. */}
-      {live && (visibility.run || visibility.pauseResume || visibility.stop) ? (
-        <fieldset className="grid grid-flow-col items-center gap-2">
-          <legend className="sr-only">Run Controls</legend>
-          <div className={SLOT_CLASS}>
-            {visibility.run ? (
-              <Button
-                className={CONTROL_CLASS}
-                disabled={pending.run || !availability.run}
-                onClick={onRunQueued}
-                size="lg"
-                title={availability.run ? undefined : (runRefusal ?? undefined)}
-                variant="default"
-              >
-                <Play data-icon="inline-start" />
-                Run Queued
-              </Button>
-            ) : null}
-          </div>
-          <div className={SLOT_CLASS}>
-            {visibility.pauseResume === "pause" ? (
-              <Button
-                className={CONTROL_CLASS}
-                disabled={pending.pause || !availability.pause}
-                onClick={onPause}
-                size="lg"
-                variant="outline"
-              >
-                <Pause data-icon="inline-start" />
-                Pause
-              </Button>
-            ) : visibility.pauseResume === "resume" ? (
-              <Button
-                className={CONTROL_CLASS}
-                disabled={pending.resume || !availability.resume}
-                onClick={onResume}
-                size="lg"
-                variant="outline"
-              >
-                <Play data-icon="inline-start" />
-                Resume
-              </Button>
-            ) : null}
-          </div>
-          <div className={SLOT_CLASS}>
-            {visibility.stop ? (
-              <Button
-                className={CONTROL_CLASS}
-                disabled={pending.stop || !availability.stop}
-                onClick={onStop}
-                size="lg"
-                variant="danger"
-              >
-                <Square data-icon="inline-start" />
-                {status === "stopping" ? "Stopping" : "Stop"}
-              </Button>
-            ) : null}
-          </div>
-        </fieldset>
-      ) : (
-        <span />
-      )}
-
-      {live ? (
-        <div className="grid grid-flow-col items-center gap-2">
-          <Separator className="h-6" orientation="vertical" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label="Cycle Actions"
-                className="size-9 [[data-density=touch]_&]:size-14"
-                size="icon-lg"
-                variant="outline"
-              >
-                <Ellipsis />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onSelect={onCopyCycle}>
-                <Copy />
-                Copy Cycle
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onAddCases}>
-                <Plus />
-                Add Cases
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onRuntimePolicy}>
-                <Settings2 />
-                Runtime Policy
-              </DropdownMenuItem>
-              <DropdownMenuCheckboxItem
-                checked={followActive}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  onToggleFollowActive();
-                }}
-              >
-                Follow Active
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              {showOpenFolder ? (
-                <DropdownMenuItem onSelect={onOpenFolder}>
-                  <FolderOpen />
-                  Open Folder
-                </DropdownMenuItem>
+    <section aria-label="Execution Cockpit" className="grid min-w-0 border-b bg-background">
+      {/* One row on the shell's bar token: its bottom edge lines up with the
+          sidebar brand bar and the page bar at every density, and like them
+          it carries no rule of its own. The title gives way first, so the
+          progress always reads whole. */}
+      <div className="grid min-h-[var(--page-bar-height)] min-w-0 grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_auto] items-center gap-x-3 px-[var(--shell-inset)] py-[var(--bar-pad-y)]">
+        <EditableLabel
+          label={identity.title}
+          onRename={live && onRename ? onRename : null}
+          subject={menu?.kind === "execution" ? "Execution" : "Cycle"}
+        />
+        {identity.status ? (
+          <>
+            <Badge className={STATUS_PILL_CLASS} variant={identity.status.variant}>
+              {identity.status.label}
+            </Badge>
+            <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
+              <span className="whitespace-nowrap tabular-nums">{identity.status.progress}</span>
+              {identity.status.activity ? (
+                <span aria-live="polite">
+                  {" · "}
+                  {identity.status.activity}
+                </span>
               ) : null}
-              <DropdownMenuItem onSelect={onDownloadBundle}>
-                <Download />
-                Download Bundle
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onWriteReport}>
-                <FileText />
-                Write Report
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onClearCycle} variant="destructive">
-                <Trash2 />
-                Clear Cycle
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : (
-        <span />
-      )}
-    </header>
+            </p>
+          </>
+        ) : (
+          <>
+            <span />
+            <span />
+          </>
+        )}
+        {live && menu ? <NodeMenu menu={menu} /> : <span />}
+      </div>
+
+      {live && prompts ? <div className="min-w-0 px-[var(--shell-inset)] pb-3">{prompts}</div> : null}
+    </section>
+  );
+}
+
+/** The selected node's own menu, behind one trigger of one size on both pages. */
+export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label={menu.kind === "cycle" ? "Cycle Actions" : "Execution Actions"}
+          className="size-[var(--bar-control-height)]"
+          size="icon"
+          variant="outline"
+        >
+          <Ellipsis />
+        </Button>
+      </DropdownMenuTrigger>
+      {/* The groups and their order are the model's, so a test can read
+          what each page's menu offers without rendering it. */}
+      <DropdownMenuContent align="end" className="w-52">
+        {nodeMenuGroups(menu.kind, menu.archive?.archived ?? false).map((group, index) => (
+          <Fragment key={group[0]}>
+            {index > 0 ? <DropdownMenuSeparator /> : null}
+            {group.map((item) => (
+              <NodeMenuEntry item={item} key={item} menu={menu} />
+            ))}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 /* === Private Components === */
 
-/**
- * The cycle's cases, reachable while the sidebar is a rail.
- *
- * The sheet holds the sidebar's own rows — the same component, the same
- * selection, the same pills — so there is one list of a cycle's cases and this
- * is a second door to it, not a second copy of it.
- */
-function CasesSheet({ caseId, cycleId }: { caseId: string | undefined; cycleId: string }) {
-  const { collapsed } = useSidebarState();
-  if (!collapsed) return null;
-
-  return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button className={CONTROL_CLASS} size="lg" variant="outline">
-          <ListChecks data-icon="inline-start" />
-          Cases
-        </Button>
-      </SheetTrigger>
-      <SheetContent className="w-[22rem] max-w-full" side="left">
-        <SheetHeader>
-          <SheetTitle>Cases</SheetTitle>
-          <SheetDescription>Select a case to show its evidence.</SheetDescription>
-        </SheetHeader>
-        <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-2 pb-4">
-          <CycleSidebarCases caseId={caseId} cycleId={cycleId} />
-        </ul>
-      </SheetContent>
-    </Sheet>
-  );
+/** One menu entry, wired to the handler its node supplies. */
+function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {
+  switch (item) {
+    case "Archive":
+    case "Unarchive":
+      return (
+        <DropdownMenuItem
+          disabled={!menu.archive || Boolean(menu.archive.refusal)}
+          onSelect={() => menu.archive?.onToggle()}
+          title={menu.archive?.refusal}
+        >
+          {item === "Archive" ? <Archive /> : <ArchiveRestore />}
+          {item}
+        </DropdownMenuItem>
+      );
+    case "Open Report":
+      return (
+        <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
+          <FileText />
+          Open Report
+        </DropdownMenuItem>
+      );
+    case "Re-Run":
+      if (menu.kind !== "execution") return null;
+      return (
+        <DropdownMenuItem
+          disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
+          onSelect={() => menu.onRerun?.()}
+          title={menu.rerunRefusal}
+        >
+          <RotateCcw />
+          Re-Run
+        </DropdownMenuItem>
+      );
+  }
+  if (menu.kind !== "cycle") return null;
+  switch (item) {
+    case "Copy Cycle":
+      return (
+        <DropdownMenuItem onSelect={menu.onCopyCycle}>
+          <Copy />
+          Copy Cycle
+        </DropdownMenuItem>
+      );
+    case "Add Cases":
+      return (
+        <DropdownMenuItem onSelect={menu.onAddCases}>
+          <Plus />
+          Add Cases
+        </DropdownMenuItem>
+      );
+    case "Runtime Policy":
+      return (
+        <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
+          <Settings2 />
+          Runtime Policy
+        </DropdownMenuItem>
+      );
+    case "Follow Active":
+      return (
+        <DropdownMenuCheckboxItem
+          checked={menu.followActive}
+          onSelect={(event) => {
+            event.preventDefault();
+            menu.onToggleFollowActive();
+          }}
+        >
+          Follow Active
+        </DropdownMenuCheckboxItem>
+      );
+  }
 }

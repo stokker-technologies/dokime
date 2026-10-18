@@ -39,21 +39,12 @@ type SettingsPathFieldProps = {
 
 /* === Components === */
 
-export function SettingsPathField({
-  id,
-  openable = false,
-  placeholder = "Not set",
-  value,
-}: SettingsPathFieldProps) {
+export function SettingsPathField({ id, openable = false, placeholder = "Not set", value }: SettingsPathFieldProps) {
   const [copied, setCopied] = useState(false);
 
   return (
     <div className="flex h-[var(--control-height)] w-full min-w-0 items-center gap-1 rounded-md border bg-background pr-1 pl-2">
-      <span
-        className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]"
-        id={id}
-        title={value ?? undefined}
-      >
+      <span className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]" id={id} title={value ?? undefined}>
         {value ? (
           /* bdi keeps the path readable while the box truncates from the left. */
           <bdi>{value}</bdi>

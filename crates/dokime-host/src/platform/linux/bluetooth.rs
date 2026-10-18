@@ -19,7 +19,7 @@ use std::{collections::BTreeMap, process::Command, time::Duration};
 // Local Imports
 use crate::HostOptions;
 use crate::collectors::maybe_insert;
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -39,69 +39,31 @@ use dokime_contract::core::Value;
 /* === Functions === */
 
 #[cfg(not(windows))]
-pub(crate) fn linux_bluetooth_snapshot(
-    options: &HostOptions,
-) -> Result<BTreeMap<String, Value>, String> {
+pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap<String, Value>, String> {
     let show_output = bluetoothctl_output(&["show"])?;
     let controller = parse_linux_controller(&show_output);
-    if let Some(filter) = options
-        .bluetooth_adapter_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|filter| !filter.is_empty())
-    {
-        let matches_filter = controller
-            .iter()
-            .any(|value| value.eq_ignore_ascii_case(filter));
+    if let Some(filter) = options.bluetooth_adapter_name.as_deref().map(str::trim).filter(|filter| !filter.is_empty()) {
+        let matches_filter = controller.iter().any(|value| value.eq_ignore_ascii_case(filter));
         if !matches_filter {
             let mut values = BTreeMap::new();
             values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(0));
-            values.insert(
-                "bluetooth_connected_device_count".to_owned(),
-                Value::Integer(0),
-            );
-            values.insert(
-                "bluetooth_present_device_count".to_owned(),
-                Value::Integer(0),
-            );
+            values.insert("bluetooth_connected_device_count".to_owned(), Value::Integer(0));
+            values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(0));
             values.insert("bluetooth_device_names".to_owned(), Value::Array(vec![]));
             return Ok(values);
         }
     }
 
-    let devices = bluetoothctl_output(&["devices"])
-        .map(|output| parse_linux_device_names(&output))
-        .unwrap_or_default();
-    let connected_devices = bluetoothctl_output(&["devices", "Connected"])
-        .map(|output| parse_linux_device_names(&output))
-        .unwrap_or_default();
+    let devices = bluetoothctl_output(&["devices"]).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
+    let connected_devices =
+        bluetoothctl_output(&["devices", "Connected"]).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
     let mut values = BTreeMap::new();
-    maybe_insert(
-        &mut values,
-        "bluetooth_adapter",
-        controller.first().cloned().map(Value::from),
-    );
-    values.insert(
-        "bluetooth_adapter_count".to_owned(),
-        Value::Integer(if controller.is_empty() { 0 } else { 1 }),
-    );
-    values.insert(
-        "bluetooth_connected_device_count".to_owned(),
-        Value::Integer(connected_devices.len() as i64),
-    );
-    values.insert(
-        "bluetooth_present_device_count".to_owned(),
-        Value::Integer(devices.len() as i64),
-    );
-    maybe_insert(
-        &mut values,
-        "bluetooth_radio_state",
-        parse_linux_radio_state(&show_output).map(Value::from),
-    );
-    values.insert(
-        "bluetooth_device_names".to_owned(),
-        Value::Array(devices.into_iter().map(Value::from).collect()),
-    );
+    maybe_insert(&mut values, "bluetooth_adapter", controller.first().cloned().map(Value::from));
+    values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(if controller.is_empty() { 0 } else { 1 }));
+    values.insert("bluetooth_connected_device_count".to_owned(), Value::Integer(connected_devices.len() as i64));
+    values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(devices.len() as i64));
+    maybe_insert(&mut values, "bluetooth_radio_state", parse_linux_radio_state(&show_output).map(Value::from));
+    values.insert("bluetooth_device_names".to_owned(), Value::Array(devices.into_iter().map(Value::from).collect()));
     Ok(values)
 }
 
@@ -114,14 +76,9 @@ fn bluetoothctl_output(args: &[&str]) -> Result<String, String> {
         .map_err(|error| format!("bluetoothctl could not be started: {error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        return Err(if stderr.is_empty() {
-            format!("bluetoothctl exited with status {}", output.status)
-        } else {
-            stderr
-        });
+        return Err(if stderr.is_empty() { format!("bluetoothctl exited with status {}", output.status) } else { stderr });
     }
-    String::from_utf8(output.stdout)
-        .map_err(|error| format!("bluetoothctl output was not UTF-8: {error}"))
+    String::from_utf8(output.stdout).map_err(|error| format!("bluetoothctl output was not UTF-8: {error}"))
 }
 
 #[cfg(not(windows))]
@@ -143,11 +100,7 @@ fn parse_linux_controller(output: &str) -> Vec<String> {
 fn parse_linux_radio_state(output: &str) -> Option<String> {
     for line in output.lines().map(str::trim) {
         if let Some(powered) = line.strip_prefix("Powered: ") {
-            return Some(if powered.eq_ignore_ascii_case("yes") {
-                "powered".to_owned()
-            } else {
-                "off".to_owned()
-            });
+            return Some(if powered.eq_ignore_ascii_case("yes") { "powered".to_owned() } else { "off".to_owned() });
         }
     }
     None

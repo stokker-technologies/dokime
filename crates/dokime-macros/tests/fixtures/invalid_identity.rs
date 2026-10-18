@@ -23,6 +23,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -32,24 +33,29 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Structs === */
 struct Uppercase;
 
-struct Frobnicate;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "uppercase.frobnicate", version = 1, description = "Invalid.", policy = POLICY, response = ())]
+struct Frobnicate {}
+
+struct FrobnicateHandler;
 
 /* === Enums === */
 #[sdk::catalog]
 enum UppercaseOperations {
-    Frobnicate(Frobnicate),
+    Frobnicate(FrobnicateHandler),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "uppercase.frobnicate", version = 1, description = "Invalid.", policy = POLICY)]
-impl Frobnicate {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+#[sdk::operation]
+impl FrobnicateHandler {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut Frobnicate) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 }
@@ -79,13 +85,12 @@ impl sdk::Plugin for Uppercase {
     }
 
     fn bind_operations(
-        &self,
-        table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         table.bind_operations::<UppercaseOperations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 

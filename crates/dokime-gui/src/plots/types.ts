@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import type { SeriesSummary } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
   DocumentFftOptions,
@@ -24,6 +25,7 @@ import type {
   PlotSeries,
   ValueFormat,
 } from "@/lib/types";
+import type { HistogramAxes } from "@/plots/histogram-axes";
 
 /* === Types === */
 
@@ -43,6 +45,8 @@ export type PlotCardSpec = {
   yScale: DocumentAxisScale;
   fft: DocumentFftOptions;
   histogram?: DocumentHistogramOptions | null;
+  /** A histogram's axes: the declared value on x, the host's count on y. */
+  histogramAxes?: HistogramAxes | null;
   timeAxis: boolean;
   unit?: string | null;
   colors: string[];
@@ -59,12 +63,10 @@ export type PlotCardSpec = {
   yFormat?: ValueFormat | null;
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
-};
-
-export type PlotTopicGroup = {
-  title: string;
-  description: string;
-  plots: PlotCardSpec[];
+  /** The backend's statistics of each trace over the shown window. */
+  summaries?: SeriesSummary[] | null;
+  /** A new window's statistics are in flight, so the shown ones are dimmed. */
+  summaryPending?: boolean;
 };
 
 export type PlotViewportMode = "fit" | "live";

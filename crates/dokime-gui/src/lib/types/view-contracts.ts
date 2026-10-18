@@ -6,12 +6,17 @@
  * server API types.
  */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import type {
-  StorageCursor as NativeStorageCursor,
-  StoreHistory as NativeStoreHistory,
-  ExecutionCheckpoint as NativeExecutionCheckpoint,
-} from "@/lib/rpc/generated/dokime/v1/checkpoint_pb";
+  Row13 as GeneratedNativeExecutionCheckpoint,
+  Row35 as GeneratedNativeStorageCursor,
+  Row53 as GeneratedNativeStoreHistory,
+} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
+
+type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
+type NativeStoreHistory = Wire<GeneratedNativeStoreHistory>;
+type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 
 export type ActorId = string;
 
@@ -44,8 +49,6 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
-  suite_id: string | null;
-  suite_name: string | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;
@@ -148,6 +151,28 @@ export type ExecutionBrowseEntry = {
   metadata: ExecutionMetadata;
   checkpoint: ExecutionCheckpoint | null;
   availability: ExecutionAvailability;
+  /** The execution, or its whole cycle, is archived. */
+  archived: boolean;
+};
+
+/** One cycle's totals over the whole browse selection, as the backend folded them. */
+export type ExecutionBrowseCycle = {
+  cycle_id: TestCycleId;
+  /** The cycle's own label; null once its header is no longer readable. */
+  label: string | null;
+  lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
+  result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
+  case_count: number;
+  execution_count: number;
+  /** Planned executions that never started; every other count excludes them. */
+  unrun_count: number;
+  queued_count: number;
+  running_count: number;
+  passed_count: number;
+  failed_count: number;
+  blocked_count: number;
+  started_at: string | null;
+  finished_at: string | null;
 };
 
 export type ExecutionBrowseIssue = {
@@ -164,12 +189,11 @@ export type ExecutionBrowsePage = {
   omitted_conflicts: number;
   issues: ExecutionBrowseIssue[];
   omitted_issues: number;
+  /** Totals of every cycle the entries belong to, over the whole selection. */
+  cycles: ExecutionBrowseCycle[];
 };
 
-export type ExecutionCheckpoint = Pick<
-  NativeExecutionCheckpoint,
-  "executionIdentifier" | "version"
-> & {
+export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
   position: CheckpointCursor;
   evidenceThrough: CheckpointCursor;
 };
@@ -258,15 +282,7 @@ export type InstalledPluginErrorRecord = {
   recorded_at: Timestamp;
 };
 
-export type InstalledPluginPhase =
-  | "entrypoint"
-  | "action"
-  | "sidecar"
-  | "provider"
-  | "initialize"
-  | "run"
-  | "finalize"
-  | "interrupt";
+export type InstalledPluginPhase = "entrypoint" | "action" | "sidecar" | "provider" | "initialize" | "run" | "finalize" | "interrupt";
 
 export type Metadata = {
   uuid?: string;
@@ -423,9 +439,7 @@ export type PluginIdentity = {
   description: string;
 };
 
-export type PluginLastBoot =
-  | { state: "loaded"; at: Timestamp }
-  | { state: "failed"; error: string; at: Timestamp };
+export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; error: string; at: Timestamp };
 
 export type PluginMetadata = {
   identity: PluginIdentity;
@@ -508,13 +522,7 @@ export type RuntimeSettingsCard = {
   order: number;
 };
 
-export type RuntimeSettingsCardState =
-  | "ready"
-  | "disabled"
-  | "disconnected"
-  | "stale"
-  | "error"
-  | "permission_denied";
+export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
 
 export type RuntimeSettingsFrame = {
   sections: RuntimeSettingsSection[];
@@ -529,9 +537,7 @@ export type RuntimeSettingsSection = {
   order: number;
 };
 
-export type RuntimeSettingsSectionOwner =
-  | { kind: "app" }
-  | { kind: "installed_plugin"; plugin_id: Identifier };
+export type RuntimeSettingsSectionOwner = { kind: "app" } | { kind: "installed_plugin"; plugin_id: Identifier };
 
 export type RuntimeThemeFamily = {
   plugin_id: Identifier;
@@ -545,9 +551,7 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference =
-  | { kind: "environment"; variable: string }
-  | { kind: "stored_credential"; credential_id: string };
+export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string };
 
 export type SecretSetting = {
   id: string;
@@ -580,10 +584,7 @@ export type Settings = {
   contributions?: SettingsEntry[];
 };
 
-export type SettingsCardRefreshPolicy =
-  | { kind: "manual" }
-  | { kind: "cached"; max_age_ms: number }
-  | { kind: "on_demand" };
+export type SettingsCardRefreshPolicy = { kind: "manual" } | { kind: "cached"; max_age_ms: number } | { kind: "on_demand" };
 
 export type SettingsEntry =
   | ({
@@ -660,12 +661,4 @@ export type Timestamp = string;
 
 export type TraceId = string;
 
-export type Value =
-  | "Null"
-  | boolean
-  | number
-  | number
-  | null
-  | string
-  | Value[]
-  | { [key in string]: Value };
+export type Value = "Null" | boolean | number | number | null | string | Value[] | { [key in string]: Value };

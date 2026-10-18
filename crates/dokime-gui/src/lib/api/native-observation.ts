@@ -12,42 +12,15 @@
 /* === Local Imports === */
 
 import { defaultBrand } from "@/lib/brand";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type DiagnosticCheckStatus,
-  DiagnosticCheckStatusSchema,
-  type DiagnosticFileFormat,
-  DiagnosticFileFormatSchema,
-  type DiagnosticPathKey,
-  DiagnosticPathKeySchema,
-  type DiagnosticPathScope,
-  DiagnosticPathScopeSchema,
-  type InstalledPluginPhase,
-  InstalledPluginPhaseSchema,
-  type DiagnosticsResponse as NativeDiagnosticsResponse,
-  type StartupDoctorCheckKey,
-  StartupDoctorCheckKeySchema,
-} from "@/lib/rpc/generated/dokime/v1/backend_pb";
-import type {
-  Cursor,
-  EvidenceScope,
-  TraceabilitySnapshot as NativeTraceabilitySnapshot,
-} from "@/lib/rpc/generated/dokime/v1/common_pb";
-import { CycleStatus, ResultStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import type {
-  ExecutionProgressFrame,
-  RuntimeShellSnapshot,
-  RuntimeStateFrame,
-} from "@/lib/rpc/generated/dokime/v1/observation_pb";
+export type RuntimeStateFrame = Wire<
+  Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame> ? Frame : never
+>;
+
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
-import type {
-  ExecutionResultSummary,
-  HubLiveState,
-  RecordScope,
-  RunStatus,
-  TraceabilitySnapshot,
-} from "@/lib/types";
+import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
 import type { DiagnosticsResponse, DiagnosticsSnapshot } from "@/lib/types/view-contracts";
 import {
   enumTail,
@@ -63,12 +36,28 @@ import {
   timestampIso,
 } from "./native-values";
 
+/* === Types === */
+
+type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
+type ExecutionProgressFrame = Wire<
+  Awaited<ReturnType<typeof rpc.observationWatchExecutionProgress>> extends NativeStream<infer Frame> ? Frame : never
+>;
+type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]>;
+type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
+type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
+type NativeDiagnosticsResponse = Wire<Awaited<ReturnType<typeof rpc.backendGetDiagnostics>>>;
+type DiagnosticRuntime = NonNullable<NativeDiagnosticsResponse["runtime"]>;
+type DiagnosticCheckStatus = NonNullable<DiagnosticRuntime["startupDoctor"]>["status"];
+type StartupDoctorCheckKey = NonNullable<DiagnosticRuntime["startupDoctor"]>["checks"][number]["key"];
+type DiagnosticPathKey = DiagnosticRuntime["pathConventions"][number]["key"];
+type DiagnosticPathScope = DiagnosticRuntime["pathConventions"][number]["scope"];
+type DiagnosticFileFormat = DiagnosticRuntime["pathConventions"][number]["format"];
+type InstalledPluginPhase = DiagnosticRuntime["installedPluginErrors"][number]["phase"];
+type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
+
 /* === Runtime shell === */
 
-export async function fetchNativeRuntimeShell(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<HubLiveState> {
+export async function fetchNativeRuntimeShell(session: SessionIdentity, cycleId: string): Promise<HubLiveState> {
   const cycleSnapshots = await fetchRuntimeShellCycles(session);
   return mapRuntimeShell(cycleSnapshots, cycleId);
 }
@@ -87,10 +76,7 @@ async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<Runtim
     const nextAfterCycleId = snapshot.nextAfterCycleId ?? "";
     if (!nextAfterCycleId) return snapshots;
     if (nextAfterCycleId === afterCycleId) {
-      throw new NativeApiLimitError(
-        "Observation.GetRuntimeShell",
-        "cycle pagination did not advance",
-      );
+      throw new NativeApiLimitError("Observation.GetRuntimeShell", "cycle pagination did not advance");
     }
     afterCycleId = nextAfterCycleId;
     cursor = snapshot.observedCursor;
@@ -98,16 +84,10 @@ async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<Runtim
       throw new NativeApiLimitError("Observation.GetRuntimeShell", "cycle page omitted its cursor");
     }
   }
-  throw new NativeApiLimitError(
-    "Observation.GetRuntimeShell",
-    `more than ${NATIVE_MAX_PAGES} cycle pages`,
-  );
+  throw new NativeApiLimitError("Observation.GetRuntimeShell", `more than ${NATIVE_MAX_PAGES} cycle pages`);
 }
 
-export function mapRuntimeShell(
-  snapshots: readonly RuntimeShellSnapshot[],
-  cycleId: string,
-): HubLiveState {
+export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycleId: string): HubLiveState {
   const first = snapshots[0];
   if (!first) throw new Error("Native runtime shell returned no snapshot.");
   const cycles = snapshots.flatMap((snapshot) => snapshot.cycleSummaries);
@@ -142,9 +122,7 @@ export function mapRuntimeShell(
     pending_prompts: [],
     notes: [],
     health: [],
-    result_summary: cycle?.result
-      ? mapResult(cycle.result, { test_cycle_id: cycle.cycleId })
-      : null,
+    result_summary: cycle?.result ? mapResult(cycle.result, { test_cycle_id: cycle.cycleId }) : null,
     traceability: null,
     artifacts: [],
     installed_plugins: [],
@@ -156,10 +134,7 @@ export function mapRuntimeShell(
 type NativeTraceabilityPage = Awaited<ReturnType<typeof rpc.observationGetTraceability>>;
 
 /** Read the current traceability projection through exact, generation-bound pages. */
-export async function fetchNativeTraceability(
-  session: SessionIdentity,
-  scope?: RecordScope | null,
-): Promise<TraceabilitySnapshot> {
+export async function fetchNativeTraceability(session: SessionIdentity, scope?: RecordScope | null): Promise<TraceabilitySnapshot> {
   const operation = "Observation.GetTraceability";
   const requestedScope = nativeEvidenceScope(scope);
   const items: NativeTraceabilitySnapshot[] = [];
@@ -178,13 +153,7 @@ export async function fetchNativeTraceability(
     });
     assertTraceabilitySession(session, operation);
 
-    validateTraceabilityPage(
-      response,
-      requestedScope,
-      cursor,
-      hostTraceabilityFingerprint,
-      operation,
-    );
+    validateTraceabilityPage(response, requestedScope, cursor, hostTraceabilityFingerprint, operation);
     cursor ??= response.cursor;
     hostTraceabilityFingerprint ??= response.hostTraceabilityFingerprint;
     items.push(...response.snapshots);
@@ -239,20 +208,11 @@ function validateTraceabilityPage(
   if (expectedCursor && !sameNativeCursor(expectedCursor, response.cursor)) {
     throw new NativeApiLimitError(operation, "response cursor changed during pagination");
   }
-  if (
-    typeof response.hostTraceabilityFingerprint !== "string" ||
-    !response.hostTraceabilityFingerprint.trim()
-  ) {
+  if (typeof response.hostTraceabilityFingerprint !== "string" || !response.hostTraceabilityFingerprint.trim()) {
     throw new NativeApiLimitError(operation, "response omitted its host traceability fingerprint");
   }
-  if (
-    expectedHostTraceabilityFingerprint &&
-    expectedHostTraceabilityFingerprint !== response.hostTraceabilityFingerprint
-  ) {
-    throw new NativeApiLimitError(
-      operation,
-      "response host traceability fingerprint changed during pagination",
-    );
+  if (expectedHostTraceabilityFingerprint && expectedHostTraceabilityFingerprint !== response.hostTraceabilityFingerprint) {
+    throw new NativeApiLimitError(operation, "response host traceability fingerprint changed during pagination");
   }
   if (!sameNativeScope(requestedScope, response.scope)) {
     throw new NativeApiLimitError(operation, "response scope did not match the requested scope");
@@ -315,9 +275,7 @@ function mapNativeTraceability(
       created_at: createdAt,
     };
   });
-  const result = traceabilitySnapshotFromItems(items, (value) =>
-    recordScopeFromNative(value ?? undefined),
-  );
+  const result = traceabilitySnapshotFromItems(items, (value) => recordScopeFromNative(value ?? undefined));
   if (responseScope || requestedScope) {
     result.scope = recordScopeFromNative(responseScope ?? requestedScope);
   }
@@ -325,19 +283,10 @@ function mapNativeTraceability(
 }
 
 function sameNativeCursor(left: Cursor | undefined, right: Cursor | undefined): boolean {
-  return Boolean(
-    left &&
-      right &&
-      left.epoch === right.epoch &&
-      left.stream === right.stream &&
-      left.position === right.position,
-  );
+  return Boolean(left && right && left.epoch === right.epoch && left.stream === right.stream && left.position === right.position);
 }
 
-function sameNativeScope(
-  left: EvidenceScope | undefined,
-  right: EvidenceScope | undefined,
-): boolean {
+function sameNativeScope(left: EvidenceScope | undefined, right: EvidenceScope | undefined): boolean {
   if (!left || !right) return left === right;
   return (
     (left.sessionId ?? null) === (right.sessionId ?? null) &&
@@ -447,9 +396,7 @@ export async function openNativeExecutionProgressStream(
 
 /* === Diagnostics === */
 
-export async function fetchNativeDiagnostics(
-  session: SessionIdentity,
-): Promise<DiagnosticsResponse> {
+export async function fetchNativeDiagnostics(session: SessionIdentity): Promise<DiagnosticsResponse> {
   const response: NativeDiagnosticsResponse = await rpc.backendGetDiagnostics(session, {});
   if (!response.server || !response.runtime) throw new Error("Native diagnostics are incomplete.");
   return mapDiagnostics(response);
@@ -509,23 +456,11 @@ function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsRespons
     counts: {
       test_suites: safeNumber(runtime.counts?.testSuites ?? 0n, "diagnostic suite count"),
       cycles: safeNumber(runtime.counts?.cycles ?? 0n, "diagnostic cycle count"),
-      installed_plugin_errors: safeNumber(
-        runtime.counts?.installedPluginErrors ?? 0n,
-        "diagnostic artifact error count",
-      ),
+      installed_plugin_errors: safeNumber(runtime.counts?.installedPluginErrors ?? 0n, "diagnostic artifact error count"),
       state_cycles: safeNumber(runtime.counts?.stateCycles ?? 0n, "diagnostic state cycle count"),
-      state_executions_total: safeNumber(
-        runtime.counts?.stateExecutionsTotal ?? 0n,
-        "diagnostic execution count",
-      ),
-      state_record_count: safeNumber(
-        runtime.counts?.stateRecordCount ?? 0n,
-        "diagnostic record count",
-      ),
-      telemetry_cursor_entries: safeNumber(
-        runtime.counts?.telemetryCursorEntries ?? 0n,
-        "diagnostic telemetry cursor count",
-      ),
+      state_executions_total: safeNumber(runtime.counts?.stateExecutionsTotal ?? 0n, "diagnostic execution count"),
+      state_record_count: safeNumber(runtime.counts?.stateRecordCount ?? 0n, "diagnostic record count"),
+      telemetry_cursor_entries: safeNumber(runtime.counts?.telemetryCursorEntries ?? 0n, "diagnostic telemetry cursor count"),
     },
     installed_plugin_errors: runtime.installedPluginErrors.map((item) => ({
       plugin_id: item.pluginId,
@@ -561,10 +496,7 @@ function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsRespons
       process: {
         pid: server.process?.pid ?? 0,
         cpu_percent: server.process?.cpuPercent ?? null,
-        memory_bytes:
-          server.process?.memoryBytes === undefined
-            ? null
-            : safeNumber(server.process.memoryBytes, "diagnostic memory bytes"),
+        memory_bytes: server.process?.memoryBytes === undefined ? null : safeNumber(server.process.memoryBytes, "diagnostic memory bytes"),
         virtual_memory_bytes:
           server.process?.virtualMemoryBytes === undefined
             ? null
@@ -577,18 +509,18 @@ function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsRespons
 /* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
-  switch (status) {
-    case CycleStatus.RUNNING:
+  switch (status?.HarmosVariant.case) {
+    case "Running":
       return "running";
-    case CycleStatus.PAUSED:
+    case "Paused":
       return "paused";
-    case CycleStatus.STOPPING:
+    case "Stopping":
       return "stopping";
-    case CycleStatus.COMPLETED:
+    case "Completed":
       return "completed";
-    case CycleStatus.FAILED:
+    case "Failed":
       return "failed";
-    case CycleStatus.STOPPED:
+    case "Stopped":
       return "stopped";
     default:
       return "idle";
@@ -596,13 +528,7 @@ function mapRunStatus(status?: CycleStatus): RunStatus {
 }
 
 function isTerminalCycle(status: CycleStatus): boolean {
-  return [
-    CycleStatus.COMPLETED,
-    CycleStatus.FAILED,
-    CycleStatus.BLOCKED,
-    CycleStatus.STOPPED,
-    CycleStatus.CLEARED,
-  ].includes(status);
+  return ["Completed", "Failed", "Blocked", "Stopped"].includes(status?.HarmosVariant.case ?? "");
 }
 
 function mapResult(
@@ -611,14 +537,14 @@ function mapResult(
 ): ExecutionResultSummary {
   return {
     outcome:
-      result.status === ResultStatus.PASSED
+      result.status?.HarmosVariant.case === "Passed"
         ? "completed"
-        : result.status === ResultStatus.FAILED
+        : result.status?.HarmosVariant.case === "Failed"
           ? "failed"
-          : result.status === ResultStatus.BLOCKED
+          : result.status?.HarmosVariant.case === "Blocked"
             ? "unknown"
             : "unknown",
-    headline: result.status === ResultStatus.PASSED ? "passed" : "failed",
+    headline: result.status?.HarmosVariant.case === "Passed" ? "passed" : "failed",
     warnings: [],
     evidence: [
       {
@@ -652,43 +578,29 @@ function revisions(revision: number): HubLiveState["revisions"] {
 }
 
 function mapDiagnosticStatus(value?: DiagnosticCheckStatus): "ok" | "warning" | "failed" {
-  return enumTail(DiagnosticCheckStatusSchema, value, "ok");
+  return enumTail(undefined, value, "ok");
 }
 
 function mapStartupKey(value: StartupDoctorCheckKey): "storage_root" | "shutdown_state" {
-  return enumTail(StartupDoctorCheckKeySchema, value, "storage_root");
+  return enumTail(undefined, value, "storage_root");
 }
 
 function mapPathKey(
   value: DiagnosticPathKey,
-):
-  | "hub_log"
-  | "startup_doctor"
-  | "diagnostics_snapshot"
-  | "collect_bundle"
-  | "cycle_log_pattern"
-  | "execution_log_pattern" {
-  return enumTail(DiagnosticPathKeySchema, value, "hub_log");
+): "hub_log" | "startup_doctor" | "diagnostics_snapshot" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern" {
+  return enumTail(undefined, value, "hub_log");
 }
 
 function mapPathScope(value: DiagnosticPathScope): "root" | "cycle_pattern" | "execution_pattern" {
-  return enumTail(DiagnosticPathScopeSchema, value, "root");
+  return enumTail(undefined, value, "root");
 }
 
 function mapPathFormat(value: DiagnosticFileFormat): "json" | "jsonl" | "zip" {
-  return enumTail(DiagnosticFileFormatSchema, value, "json");
+  return enumTail(undefined, value, "json");
 }
 
 function mapArtifactPhase(
   value: InstalledPluginPhase,
-):
-  | "entrypoint"
-  | "action"
-  | "sidecar"
-  | "provider"
-  | "initialize"
-  | "run"
-  | "finalize"
-  | "interrupt" {
-  return enumTail(InstalledPluginPhaseSchema, value, "entrypoint");
+): "entrypoint" | "action" | "sidecar" | "provider" | "initialize" | "run" | "finalize" | "interrupt" {
+  return enumTail(undefined, value, "entrypoint");
 }

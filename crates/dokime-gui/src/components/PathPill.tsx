@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Clipboard } from "lucide-react";
+import { Clipboard, ExternalLink } from "lucide-react";
 
 /* === Local Imports === */
 
@@ -22,11 +22,15 @@ type PathPillProps = {
   align?: "left" | "right";
   copy?: boolean;
   compact?: boolean;
+  /** Opens the path with the system handler; shows an open button beside copy. */
+  onOpen?: () => void;
 };
 
 /* === Components === */
 
-export function PathPill({ value, align = "left", copy = true, compact = false }: PathPillProps) {
+export function PathPill({ value, align = "left", copy = true, compact = false, onOpen }: PathPillProps) {
+  const action = `${compact ? "size-4" : "size-5"} grid shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40`;
+
   async function copyPath() {
     await navigator.clipboard?.writeText(value);
   }
@@ -40,7 +44,7 @@ export function PathPill({ value, align = "left", copy = true, compact = false }
       {copy ? (
         <button
           aria-label="Copy full path"
-          className={`${compact ? "size-4" : "size-5"} grid shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40`}
+          className={action}
           title="Copy full path"
           type="button"
           onClick={(event) => {
@@ -49,6 +53,20 @@ export function PathPill({ value, align = "left", copy = true, compact = false }
           }}
         >
           <Clipboard size={12} />
+        </button>
+      ) : null}
+      {onOpen ? (
+        <button
+          aria-label="Open with default application"
+          className={action}
+          title="Open with default application"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
+          <ExternalLink size={12} />
         </button>
       ) : null}
     </span>

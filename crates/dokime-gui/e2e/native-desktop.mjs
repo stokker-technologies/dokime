@@ -6,10 +6,10 @@
 //
 // ***
 
-// Real Linux WebView ownership gate for the redesigned shell. No HTTP facade,
+// Real Native WebView Gate For Development And Installed Release Shells. No HTTP facade,
 // no mocked domain IPC, no browser fixtures.
 //
-// The gate starts a throwaway backend with the Mini charger testbench plugin,
+// The gate starts a throwaway backend with the OBC charger testbench plugin,
 // attaches the desktop shell to it with `--endpoint`, and drives the redesigned
 // routes -- `/cycles`, `/library`, `/cycles/$cycleId`, `/history`, `/settings`
 // -- through the application itself. Elements are addressed by accessible name,
@@ -22,21 +22,29 @@
 //   a. startup      the connection screen, then Cycles with empty groups
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
-//   d. cycles-home  the groups after a run, Show Cleared, the filter box
+//   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
+//   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
-//   g. report       Write Report, then the written file loaded in this WebView
-//   h. touch        the same surfaces at touch density: collapsed rail, Cases sheet
+//   g. report       Download Report, then the saved file rendered in headless Chrome
+//   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
+//
+// Windows Requires An Interactive Account, WebView2 And A Version-
+// Matched Microsoft Edge Driver. --release Requires A Disposable Account And
+// DOKIME_E2E_INSTALLER Selects The Native NSIS
+// Artifact; DOKIME_E2E_{INSTALLER,SHELL,BACKEND,CLI}_SHA256 Bind Its Installed
+// Executables To The Candidate. DOKIME_E2E_PLUGIN And DOKIME_E2E_PLUGIN_SHA256
+// Select And Verify Its Prepared OBC Fixture.
+// The Optional --junit Path Is Supplied By The Repository Evidence Runner.
 //
 // Two deliberate substitutions, both of the operating system rather than of the
 // product:
 //
-//   * `xdg-open` is a no-op script on PATH, so "Open Folder" cannot spawn a file
-//     manager over the session.
+//   * `xdg-open` is a no-op script on PATH, so Open Report and "Open Folder"
+//     cannot spawn a browser or a file manager over the session.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
-//     session can reach, which would hang the gate on Download Bundle and Write
-//     Report. The gate taps that one command at the Tauri IPC boundary and
-//     writes the bytes the application produced into `<evidence>/downloads`
+//     session can reach, which would hang the gate on Download Report. The gate
+//     taps that one command at the Tauri IPC boundary and writes the bytes the application produced into `<evidence>/downloads`
 //     itself, which is what the picker would have done. Every domain RPC still
 //     crosses the real transport, and so does `desktop_save_diagnostics_bundle`,
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
@@ -49,24 +57,24 @@
 import assert from "node:assert/strict";
 
 import { execFile, spawn } from "node:child_process";
-
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 
-import { existsSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 
-import { mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 
 import http from "node:http";
 
 import net from "node:net";
 
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 import { setTimeout as delay } from "node:timers/promises";
 
 import { fileURLToPath } from "node:url";
 
-import { promisify } from "node:util";
+import { parseArgs, promisify } from "node:util";
 
 // Third Party Imports
 
@@ -80,13 +88,12 @@ const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 
-/** The dev-built binaries and the bundle the gate drives, all overridable. */
-const backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime");
-
-const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
-
-const pluginBundle =
-  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/mini-sidecar.dokime");
+/** The Single Build Stages The Development Candidates Together. */
+const built = join(workspace, "dist/build", process.platform === "win32" ? "windows" : "linux");
+const executableSuffix = process.platform === "win32" ? ".exe" : "";
+let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
+let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
 
 /** A shell built without `tauri/custom-protocol` loads this origin. */
 const configuredOrigin = process.env.DOKIME_E2E_DEV_URL;
@@ -96,7 +103,7 @@ const densities = {
   touch: { density: "touch", height: 1200, width: 1920 },
 };
 
-/** The suites and templates the Mini charger plugin registers, by rendered label. */
+/** The suites and templates the OBC charger plugin registers, by rendered label. */
 const PROTECTION_SUITE = "Overcurrent Protection";
 
 const PROTECTION_TEMPLATE = "Overcurrent Protection";
@@ -112,6 +119,9 @@ const LIST_PARAMETER = "load_steps";
 const NUMBER_PARAMETER = "frequency_hz";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
+
+/** The startup template's question, which the OBC plugin raises to Warning. */
+const STARTUP_PROMPT = "Inspect Powered Charger";
 
 /** The WebDriver code points for the named keys this gate presses. */
 const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004" };
@@ -145,21 +155,37 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
+const { values: options } = parseArgs({
+  options: { junit: { type: "string" }, release: { type: "boolean", default: false } },
+});
+const releaseValidation = options.release;
+const windows = process.platform === "win32";
+const results = [];
 const failures = [];
 const passedJourneys = [];
 
 const notes = [];
+
+/** What the prompt banner and its counts showed before each prompt was answered. */
+const promptSightings = [];
 
 /** The journey whose WebView died, once one has: everything after it is moot. */
 let webviewGone = null;
 
 let session;
 
+let driverProcess;
+
 let backend;
 
 let work;
 
 let evidence;
+
+let installation;
+
+let installerAttempted = false;
+let frontendServer;
 
 /* === Types === */
 
@@ -228,13 +254,13 @@ function hasText(body, expected) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
-async function startBackend(work, evidence) {
-  const port = await unusedPort();
-  const log = await open(join(evidence, "backend.log"), "w");
+async function startBackend(work, evidence, endpoint, label = "backend") {
+  const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
+  const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
     backendBinary,
     [
-      "serve",
+      "--shutdown-stdin",
       "--plugin",
       pluginBundle,
       "--port",
@@ -247,16 +273,32 @@ async function startBackend(work, evidence) {
     {
       cwd: work,
       detached: true,
-      env: { ...process.env, DOKIME_TEST_HUB_OPERATOR: "Gate Operator", HOME: work },
-      stdio: ["ignore", log.fd, log.fd],
+      env: {
+        ...process.env,
+        DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
+        ...(!windows ? { HOME: work } : {}),
+      },
+      stdio: ["pipe", log.fd, log.fd],
     },
   );
-  await until("backend listening", () => listening(`http://127.0.0.1:${port}`), 180000);
-  return { child, endpoint: `http://127.0.0.1:${port}`, log };
+  child.on("error", (error) => {
+    child.startupError = error;
+  });
+  backend = { child, endpoint: `http://127.0.0.1:${port}`, log };
+  await until(
+    "backend listening",
+    () => {
+      if (child.startupError) throw child.startupError;
+      if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
+      return listening(backend.endpoint);
+    },
+    180000,
+  );
+  return backend;
 }
 
 /**
- * One WebKitWebDriver session over one attached shell.
+ * One Native WebDriver Session Over One Attached Shell.
  *
  * Every helper here is user-like: navigate, read text, click a named control,
  * type into a named field. The session keeps one request in flight because
@@ -270,32 +312,40 @@ async function startSession(work, endpoint, evidence) {
     await mkdir(join(home, directory), { recursive: true });
   }
   await mkdir(downloads, { recursive: true });
-  await writeFile(join(home, "bin", "xdg-open"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  /* `desktop_save_diagnostics_bundle` resolves the Downloads folder through
-     Tauri's path API, which reads xdg-user-dirs rather than the
-     `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
-     home has no Downloads folder and the command fails before it writes. */
-  await writeFile(
-    join(home, "config", "user-dirs.dirs"),
-    `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`,
-  );
+  if (!windows) {
+    await writeFile(join(home, "bin", "xdg-open"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    /* `desktop_save_diagnostics_bundle` resolves the Downloads folder through
+       Tauri's path API, which reads xdg-user-dirs rather than the
+       `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
+       home has no Downloads folder and the command fails before it writes. */
+    await writeFile(join(home, "config", "user-dirs.dirs"), `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`);
+  }
 
   const port = await unusedPort();
-  const webdriver = spawn("WebKitWebDriver", ["--host=127.0.0.1", `--port=${port}`], {
+  const driver = process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
+  driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {
     detached: true,
     env: {
       ...process.env,
-      HOME: home,
-      PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
       TAURI_WEBVIEW_AUTOMATION: "true",
-      XDG_CACHE_HOME: join(home, "cache"),
-      XDG_CONFIG_HOME: join(home, "config"),
-      XDG_DATA_HOME: join(home, "data"),
-      XDG_DOWNLOAD_DIR: downloads,
-      XDG_STATE_HOME: join(home, "state"),
+      DOKIME_APPLICATION_ROOT: join(home, "application"),
+      ...(windows
+        ? {
+            WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+          }
+        : {
+            HOME: home,
+            PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
+            XDG_CACHE_HOME: join(home, "cache"),
+            XDG_CONFIG_HOME: join(home, "config"),
+            XDG_DATA_HOME: join(home, "data"),
+            XDG_DOWNLOAD_DIR: downloads,
+            XDG_STATE_HOME: join(home, "state"),
+          }),
     },
     stdio: ["ignore", "ignore", "inherit"],
   });
+  const webdriver = driverProcess;
   const base = `http://127.0.0.1:${port}`;
 
   async function request(method, path, body) {
@@ -309,28 +359,39 @@ async function startSession(work, endpoint, evidence) {
     });
     const result = (await response.json()).value;
     if (!response.ok || result?.error) {
-      throw new Error(
-        `WebDriver ${path}: ${result?.error ?? response.status}: ${result?.message ?? ""}`,
-      );
+      throw new Error(`WebDriver ${path}: ${result?.error ?? response.status}: ${result?.message ?? ""}`);
     }
     return result;
   }
 
-  await until("WebKitWebDriver startup", async () => {
-    if (webdriver.exitCode !== null) throw new Error("WebKitWebDriver exited before startup");
+  webdriver.on("error", (error) => {
+    webdriver.startupError = error;
+  });
+  await until("native WebDriver startup", async () => {
+    if (webdriver.startupError) throw webdriver.startupError;
+    if (webdriver.exitCode !== null) throw new Error("Native WebDriver exited before startup");
     await request("GET", "/status");
     return true;
   });
 
   const created = await request("POST", "/session", {
     capabilities: {
-      alwaysMatch: {
-        browserName: "wry",
-        "webkitgtk:browserOptions": {
-          args: ["--endpoint", endpoint],
-          binary: resolve(shellBinary),
-        },
-      },
+      alwaysMatch: windows
+        ? {
+            browserName: "webview2",
+            "ms:edgeChromium": true,
+            "ms:edgeOptions": {
+              binary: resolve(shellBinary),
+              args: endpoint ? ["--endpoint", endpoint] : [],
+            },
+          }
+        : {
+            browserName: "wry",
+            "webkitgtk:browserOptions": {
+              args: endpoint ? ["--endpoint", endpoint] : [],
+              binary: resolve(shellBinary),
+            },
+          },
     },
   });
 
@@ -347,10 +408,8 @@ async function startSession(work, endpoint, evidence) {
     queue = queued.catch(() => undefined);
     return queued;
   };
-  session.execute = (script, args = []) =>
-    session.request("POST", "/execute/sync", { args, script });
-  session.executeAsync = (script, args = []) =>
-    session.request("POST", "/execute/async", { args, script });
+  session.execute = (script, args = []) => session.request("POST", "/execute/sync", { args, script });
+  session.executeAsync = (script, args = []) => session.request("POST", "/execute/async", { args, script });
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
@@ -359,8 +418,7 @@ async function startSession(work, endpoint, evidence) {
   };
   session.find = (using, value) => session.request("POST", "/element", { using, value });
   session.findAll = (using, value) => session.request("POST", "/elements", { using, value });
-  session.textOf = (element) =>
-    session.execute("return arguments[0].innerText || arguments[0].textContent || '';", [element]);
+  session.textOf = (element) => session.execute("return arguments[0].innerText || arguments[0].textContent || '';", [element]);
   /**
    * Click as a pointer would, and only fall back when something covers the
    * control. A transient toast overlays the bottom of the page for a few
@@ -391,8 +449,7 @@ async function startSession(work, endpoint, evidence) {
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
-  session.clickCss = async (selector) =>
-    session.click(await until(selector, () => session.find("css selector", selector)));
+  session.clickCss = async (selector) => session.click(await until(selector, () => session.find("css selector", selector)));
   session.exists = async (role, name) => {
     try {
       await session.named(role, name, { enabled: false });
@@ -459,8 +516,7 @@ async function startSession(work, endpoint, evidence) {
       [key],
     );
   };
-  session.resize = (width, height) =>
-    session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
+  session.resize = (width, height) => session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
   session.viewport = () => session.execute("return [window.innerWidth, window.innerHeight]");
   session.screenshot = async (label) => {
     const bytes = await session.request("GET", "/screenshot");
@@ -502,19 +558,10 @@ async function startSession(work, endpoint, evidence) {
     `);
   /** The connected shell, which a full reload has to reach again. */
   session.connected = () =>
-    until(
-      "connected shell",
-      () =>
-        session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"),
-      180000,
-    );
+    until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
   session.load = async (url) => {
     await session.request("POST", "/url", { url });
-    await until(
-      `load ${url}`,
-      async () => (await session.execute("return document.body.innerText.length")) > 20,
-      120000,
-    );
+    await until(`load ${url}`, async () => (await session.execute("return document.body.innerText.length")) > 20, 120000);
   };
   /**
    * Go to a route by loading it.
@@ -527,11 +574,7 @@ async function startSession(work, endpoint, evidence) {
     await session.load(path.startsWith("file:") ? path : session.origin + path);
     if (path.startsWith("file:")) return;
     await session.connected();
-    await until(
-      `route ${path}`,
-      async () => (await session.location()).pathname === new URL(session.origin + path).pathname,
-      30000,
-    );
+    await until(`route ${path}`, async () => (await session.location()).pathname === new URL(session.origin + path).pathname, 30000);
     await installSaveTap(session);
   };
   session.close = async () => {
@@ -584,7 +627,7 @@ async function sizeViewport(session, target) {
  * as `writable: false, configurable: false`, so assignment fails silently and
  * `Object.defineProperty` throws on both; the previous shim never installed
  * and every save this gate ever made reached a real GTK dialog that never
- * returns, which is what hung Write Report in every run. One layer down,
+ * returns, which is what hung the report save in every run. One layer down,
  * `ipc-protocol.js` sends each command as `POST` to
  * `convertFileSrc(cmd, 'ipc')` and reads the reply's `Tauri-Response` header,
  * and `window.fetch` is an ordinary writable property. So the tap answers that
@@ -595,14 +638,12 @@ async function sizeViewport(session, target) {
  * answers with the path, so the gate lets it run and reads the folder.
  */
 async function installSaveTap(session) {
-  await until(
-    "Tauri IPC bridge",
-    () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"),
-    60000,
-  );
+  await until("Tauri IPC bridge", () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"), 60000);
   const state = await session.execute(`
     globalThis.__dokimeSavedDocuments = globalThis.__dokimeSavedDocuments ?? [];
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
+    globalThis.__dokimeStreams = globalThis.__dokimeStreams ?? [];
+    globalThis.__dokimeStreamReads = globalThis.__dokimeStreamReads ?? 0;
     if (!globalThis.fetch.__dokimeTap) {
       const original = globalThis.fetch.bind(globalThis);
       const saved = globalThis.__dokimeSavedDocuments;
@@ -614,7 +655,42 @@ async function installSaveTap(session) {
       const shim = function (input, init) {
         const url = String(typeof input === 'string' ? input : (input && input.url) || '');
         const command = decodeURIComponent(url.split('/').pop() || '');
-        if (!url.includes('ipc')) return original(input, init);
+        /* The WebView reaches the backend only through the IPC bridge; any
+           other request is a regression this gate names rather than serves. */
+        if (!url.includes('ipc')) {
+          if (/^(https?|wss?):/i.test(url)) globalThis.__dokimeNetwork = (globalThis.__dokimeNetwork ?? 0) + 1;
+          return original(input, init);
+        }
+        /* Each bridge stream delivers on its own Tauri channel. Wrapping that
+           channel's registered callback counts what the application actually
+           received, frame by frame, before its transport decodes it. */
+        if (command === 'rpc_stream_open') {
+          const headers = (init && init.headers) || {};
+          const header = (name) => (typeof headers.get === 'function' ? headers.get(name) : headers[name]);
+          const channel = Number(String(header('dokime-rpc-channel') || '').split(':')[1]);
+          const callbacks = globalThis.__TAURI_INTERNALS__.callbacks;
+          const deliver = callbacks && callbacks.get(channel);
+          if (deliver) {
+            const streams = globalThis.__dokimeStreams;
+            if (streams.length >= 128) streams.shift();
+            const stream = { path: header('dokime-rpc-path'), reads: 0, bytes: 0, done: false };
+            streams.push(stream);
+            const open = streams.filter((entry) => !entry.done).length;
+            globalThis.__dokimeStreamPeak = Math.max(globalThis.__dokimeStreamPeak ?? 0, open);
+            callbacks.set(channel, (data) => {
+              const frame = data && data.message instanceof ArrayBuffer ? new Uint8Array(data.message) : null;
+              if (frame && frame.length > 8) {
+                if (frame[8] === 0) {
+                  stream.reads += 1;
+                  stream.bytes += frame.length - 9;
+                  globalThis.__dokimeStreamReads += 1;
+                } else stream.done = true;
+              }
+              if (data && data.end) stream.done = true;
+              return deliver(data);
+            });
+          }
+        }
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
         ledger.push(entry);
@@ -634,8 +710,26 @@ async function installSaveTap(session) {
           });
           entry.state = 'tapped';
           entry.ms = 0;
+          /* The shell answers with the path the operator picked; the gate names
+             one that was never written, and the open that follows is tapped too. */
           return Promise.resolve(
-            new Response('true', {
+            new Response(JSON.stringify('/dokime-gate/saved/' + document.filename), {
+              headers: { 'content-type': 'application/json', 'Tauri-Response': 'ok' },
+              status: 200,
+            }),
+          );
+        }
+        if (command === 'desktop_open_path') {
+          globalThis.__dokimeOpenedPaths = globalThis.__dokimeOpenedPaths ?? [];
+          try {
+            globalThis.__dokimeOpenedPaths.push(JSON.parse(String(init && init.body)).path);
+          } catch (failure) {
+            globalThis.__dokimeOpenedPaths.push('unreadable open payload: ' + String(failure));
+          }
+          entry.state = 'tapped';
+          entry.ms = 0;
+          return Promise.resolve(
+            new Response('null', {
               headers: { 'content-type': 'application/json', 'Tauri-Response': 'ok' },
               status: 200,
             }),
@@ -645,6 +739,12 @@ async function installSaveTap(session) {
           function (value) {
             entry.state = 'settled';
             entry.ms = Date.now() - entry.at;
+            if (command === 'desktop_save_diagnostics_bundle' && value.headers.get('Tauri-Response') === 'ok') {
+              return value.clone().json().then((path) => {
+                globalThis.__dokimeDiagnosticsPath = path;
+                return value;
+              });
+            }
             return value;
           },
           function (error) {
@@ -663,10 +763,7 @@ async function installSaveTap(session) {
       reason: 'window.fetch did not keep the shim',
     };
   `);
-  assert.ok(
-    state?.installed,
-    `The save tap did not take on window.fetch (${JSON.stringify(state)})`,
-  );
+  assert.ok(state?.installed, `The save tap did not take on window.fetch (${JSON.stringify(state)})`);
 }
 
 async function drainSavedDocuments(session) {
@@ -687,9 +784,7 @@ async function drainSavedDocuments(session) {
       );
     }
     if (base64.length !== document.length) {
-      throw new Error(
-        `The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`,
-      );
+      throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
     const target = join(session.downloads, document.filename);
     await writeFile(target, Buffer.from(base64, "base64"));
@@ -734,6 +829,9 @@ async function drainInvokeLedger(session) {
       }
       return {
         recorded: entries.length,
+        streams: globalThis.__dokimeStreams ?? [],
+        peakStreams: globalThis.__dokimeStreamPeak ?? 0,
+        network: globalThis.__dokimeNetwork ?? 0,
         commands: [...rows.values()].sort((left, right) => right.calls - left.calls),
       };
     `)
@@ -749,9 +847,7 @@ async function setDensity(session, variant) {
   await session.clickNamed("radio", variant.density === "touch" ? "Touch" : "Comfortable");
   await until(
     `density ${variant.density}`,
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) ===
-      variant.density,
+    async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
     20000,
   );
   await sizeViewport(session, variant);
@@ -774,8 +870,27 @@ async function settle(session) {
   ).catch(() => undefined);
 }
 
-/** Answer every prompt the open cycle is waiting on, through the banner. */
+/** Answer every prompt the open cycle is waiting on, through the banner or Control. */
 async function answerPendingPrompts(session) {
+  /* The banner is gone the moment a prompt is answered, so what it showed is
+     read here, before Respond, and asserted once the run is over. */
+  const sighting = await session.execute(`
+    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
+    if (!banner) return null;
+    const cards = [...banner.querySelectorAll('li[data-prompt-level]')];
+    return {
+      cards: cards.map((card) => ({
+        level: card.dataset.promptLevel,
+        text: card.innerText,
+        top: card.getBoundingClientRect().top,
+      })),
+      bannerTop: banner.getBoundingClientRect().top,
+      header: document.querySelector('[data-testid="cycle-prompt-count"]')?.innerText ?? null,
+      navigation:
+        document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
+    };
+  `);
+  if (sighting) promptSightings.push(sighting);
   const pending = await session.execute(`
     const banner = document.querySelector('section[aria-label="Pending Prompts"]');
     if (!banner) return 0;
@@ -783,7 +898,11 @@ async function answerPendingPrompts(session) {
       (button) => button.innerText.trim() === 'Respond',
     );
     respond[0]?.click();
-    return respond.length;
+    if (respond.length) return respond.length;
+    /* The execution page prints its prompt open in Control, with no Respond. */
+    return banner.querySelector('[aria-labelledby="active-prompt-title"]')
+      ? banner.querySelectorAll('li[data-prompt-level]').length
+      : 0;
   `);
   if (!pending) return 0;
   await delay(600);
@@ -832,9 +951,7 @@ async function runUntil(session, description, check, timeout) {
     await answerPendingPrompts(session);
     await delay(1200);
   }
-  throw new Error(
-    `Timed out: ${description}. The application said: ${announcement || "nothing at all"}`,
-  );
+  throw new Error(`Timed out: ${description}. The application said: ${announcement || "nothing at all"}`);
 }
 
 /* Journeys */
@@ -890,11 +1007,7 @@ async function openMenu(session, name, attempts = 2) {
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await session.clickNamed("button", name);
-    const menu = await until(
-      `the ${name} menu`,
-      () => session.find("css selector", "[role=menu]"),
-      8000,
-    ).catch((failure) => {
+    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), 8000).catch((failure) => {
       last = failure;
       return null;
     });
@@ -939,16 +1052,12 @@ async function caseRowText(session, fragment) {
 
 /** Whatever a transient notification is saying right now. */
 async function toastText(session) {
-  return session.execute(
-    "return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.innerText).join(' | ');",
-  );
+  return session.execute("return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.innerText).join(' | ');");
 }
 
 /** The sidebar's case rows as one string, which is where status lives. */
 function sidebarText(session) {
-  return session.execute(
-    "const nav = document.querySelector('nav[aria-label=Navigation]'); return nav ? nav.innerText : '';",
-  );
+  return session.execute("const nav = document.querySelector('nav[aria-label=Navigation]'); return nav ? nav.innerText : '';");
 }
 
 /**
@@ -983,37 +1092,53 @@ async function startupJourney(session, notes) {
   for (const heading of ["Cycles", "Needs Attention", "Active", "Recent"]) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
   }
-  for (const empty of [
-    "Nothing is waiting on you.",
-    "No cycle is running.",
-    "No cycles have been loaded yet.",
-  ]) {
+  for (const empty of ["Nothing Is Waiting On You", "No Cycle Is Running", "No Cycles Loaded Yet"]) {
     assert.ok(hasText(body, empty), `An empty group must state "${empty}"`);
   }
   assert.ok(await session.exists("button", "New Cycle"), "Cycles home must offer New Cycle");
-  assert.ok(
-    await session.find("css selector", "nav[aria-label=Navigation]"),
-    "The shell must render the sidebar",
-  );
+  assert.ok(await session.find("css selector", "nav[aria-label=Navigation]"), "The shell must render the sidebar");
 }
 
 /**
  * Library: the only route by which cases enter a cycle.
  *
- * One suite expanded, one template configured, the editor exercised on a number
- * and on a list, the summary read, and the cases materialized twice into the
- * same cycle -- which is what `appendTo` in the URL is for.
+ * The cycle comes first, through New Cycle, and becomes the active cycle that
+ * `appendTo` in the URL names. Then one suite expanded, one template
+ * configured, the editor exercised on a number and on a list, the summary
+ * read, and the cases materialized twice into that same cycle.
  */
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
+  assert.ok(hasText(await session.text(), "No cycle is active"), "Without an active cycle the Library must say so");
+
+  /* New Cycle opens a dialog titled by the moment it opened. */
+  await session.clickNamed("button", "New Cycle");
+  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  const title = await session.execute("return document.querySelector('#new-cycle-title').value");
+  assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
+  assert.ok(hasText(await session.text(), "Continue after a failed case"), "New Cycle must state its failure policy");
+  await session.clickNamed("button", "Create Cycle");
+  const appendTo = await until(
+    "appendTo in the URL",
+    async () => {
+      const location = await session.location();
+      const id = location.searchParams.get("appendTo");
+      return location.pathname === "/library" && id ? id : null;
+    },
+    60000,
+  );
+  await until(
+    "new cycle dialog closed",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    30000,
+  );
+  assert.ok(hasText(await session.text(), "Cases materialized here are added to"), "With an active cycle the Library must name it");
+  assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
   await session.clickNamed("button", PROTECTION_SUITE);
   await until("expanded suite", async () => hasText(await session.text(), "Configure"), 30000);
-  assert.ok(
-    hasText(await session.text(), "Template"),
-    "An expanded suite must state its template count",
-  );
+  assert.ok(hasText(await session.text(), "Template"), "An expanded suite must state its template count");
 
   /* The row itself opens the dialog; Configure is the same outcome named. */
   await session.clickNamed("button", "Configure");
@@ -1021,20 +1146,12 @@ async function libraryJourney(session) {
   const step1 = await session.text();
   assert.ok(hasText(step1, "Parameters"), "Step 1 must be Parameters");
   assert.ok(hasText(step1, "Summary"), "The step indicator must name Summary");
-  assert.ok(
-    hasText(step1, "Values you change are remembered for this template."),
-    "Step 1 must state that edits persist",
-  );
-  await until("parameter grid", () =>
-    session.find("css selector", "[data-testid=parameter-editor-grid]"),
-  );
+  assert.ok(hasText(step1, "Values you change are remembered for this template."), "Step 1 must state that edits persist");
+  await until("parameter grid", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
   assert.ok(await session.exists("button", "Reset All"), "The parameter step must carry Reset All");
 
   /* A number edit reveals that row's Reset affordance and its gilt rule. */
-  const number = await session.find(
-    "css selector",
-    `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`,
-  );
+  const number = await session.find("css selector", `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`);
   await session.type(number, "60");
   await delay(500);
   const edited = await until("edited row reset", () =>
@@ -1059,14 +1176,8 @@ async function libraryJourney(session) {
     );
   const before = await until("list chips", chips);
   assert.ok(before.length >= 1, "A list parameter must render its values as chips");
-  await session.clickCss(
-    `[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`,
-  );
-  await until(
-    "added chip",
-    async () => ((await chips()) ?? []).length === before.length + 1,
-    15000,
-  );
+  await session.clickCss(`[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`);
+  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, 15000);
   await session.execute(
     `const cell = document.querySelector('[data-testid="parameter-chips-' + arguments[0] + '"]');
      const input = [...cell.querySelectorAll('input')].at(-1);
@@ -1092,9 +1203,7 @@ async function libraryJourney(session) {
 
   /* The expression reference is a popover, reachable beside the value. */
   await session.clickNamed("button", "List Expression Help");
-  const reference = await until("expression reference", () =>
-    session.find("css selector", "[data-testid=expression-reference]"),
-  );
+  const reference = await until("expression reference", () => session.find("css selector", "[data-testid=expression-reference]"));
   const referenceText = await session.textOf(reference);
   for (const syntax of ["a, b, c", "1..5", "linspace(start, stop, n)"]) {
     assert.ok(hasText(referenceText, syntax), `The reference must document ${syntax}`);
@@ -1106,14 +1215,8 @@ async function libraryJourney(session) {
   await session.clickNamed("button", "Next");
   await until("summary step", async () => hasText(await session.text(), "Finish And Add"), 60000);
   const summary = await session.text();
-  assert.ok(
-    hasText(summary, "New Cycle"),
-    "Without appendTo the summary must name the cycle it will create",
-  );
-  assert.ok(
-    hasText(summary, "Created On Add"),
-    'The target must read "New Cycle -- Created On Add"',
-  );
+  assert.ok(hasText(summary, "Target Cycle"), "The summary must name the active cycle");
+  assert.ok(hasText(summary, title.trim()) || hasText(summary, appendTo), "The summary target must be the cycle New Cycle created");
   assert.ok(/\d+ Cases?/.test(normalize(summary)), "The summary must state the case count");
   const deltas = await session.execute(`
     const list = document.querySelector('[data-testid="summary-cases"]');
@@ -1125,60 +1228,37 @@ async function libraryJourney(session) {
   );
 
   await session.clickNamed("button", "Finish And Add");
-  const appendTo = await until(
-    "appendTo in the URL",
-    async () => {
-      const location = await session.location();
-      const id = location.searchParams.get("appendTo");
-      return location.pathname === "/library" && id ? id : null;
-    },
+  await until(
+    "first add finished",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     60000,
   );
-  assert.equal(
-    await session.execute("return document.querySelectorAll('[role=dialog]').length"),
-    0,
-    "Finish And Add must close the dialog",
-  );
-  assert.ok(
-    hasText(await session.text(), "Cases materialized here are added to"),
-    "With a target cycle the Library must name it",
-  );
-  assert.ok(
-    await session.exists("button", "Open Cycle"),
-    "With a target cycle the page bar action must become Open Cycle",
-  );
+  assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
   await settle(session);
   await session.clickNamed("button", STARTUP_SUITE);
-  await until(
-    "startup template",
-    async () => hasText(await session.text(), STARTUP_TEMPLATE),
-    30000,
-  );
-  await session.clickCss('[data-testid="suite-template-mini.charger.startup.sequence"] button');
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 30000);
+  await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
   await until("second dialog", () => session.find("css selector", "[role=dialog]"), 30000);
+  /* One case at its registered values has nothing to review: Next adds it at
+     once and closes the dialog, without a summary step. */
   await session.clickNamed("button", "Next");
-  await until("second summary", async () => hasText(await session.text(), "Finish And Add"), 60000);
-  assert.ok(
-    !hasText(await session.text(), "Created On Add"),
-    "With appendTo the summary must name the target cycle, not a new one",
-  );
-  await session.clickNamed("button", "Finish And Add");
   await until(
     "second add finished",
-    async () =>
-      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     60000,
   );
+  const added = await until("second add announced", async () => {
+    const text = await toastText(session);
+    return /Added 1 case to /.test(text) ? text : null;
+  });
+  assert.ok(hasText(added, title.trim()), `The second add must join the same active cycle (got ${normalize(added)})`);
+  assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   await session.clickNamed("button", "Open Cycle");
-  await until(
-    "cycle workspace",
-    async () => (await session.location()).pathname === `/cycles/${appendTo}`,
-    30000,
-  );
-  return appendTo;
+  await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 30000);
+  return { id: appendTo, title: title.trim() };
 }
 
 /**
@@ -1188,7 +1268,9 @@ async function libraryJourney(session) {
  * whole-cycle command, and the evidence pane shows what the URL selects.
  */
 async function cycleJourney(session, cycleId) {
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
+  let listened = false;
   const sidebar = await until(
     "the cycle's case rows in the sidebar",
     async () => {
@@ -1207,40 +1289,43 @@ async function cycleJourney(session, cycleId) {
   if (!hasText(sidebar, "Planned") && !hasText(sidebar, "Queued")) {
     defect(
       "cycle/case-status",
-      `No case of a cycle that has never run reads as planned or queued work. The rows read ${JSON.stringify(
-        [
-          ...new Set(
-            normalize(sidebar).match(/Planned|Queued|Not Run|Skipped|Passed|Failed|Running/g) ?? [],
-          ),
-        ],
-      )}.`,
+      `No case of a cycle that has never run reads as planned or queued work. The rows read ${JSON.stringify([
+        ...new Set(normalize(sidebar).match(/Planned|Queued|Not Run|Skipped|Passed|Failed|Running/g) ?? []),
+      ])}.`,
     );
   }
 
+  // Mount The Selected Execution Listener After Installing The Reader Observation.
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    if (!row) throw new Error('The measuring case is absent');
+    row.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
+  /* The cycle page carries the cycle's progress, status and run controls:
+     select the cycle node, then come back to the measuring case. */
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
-  assert.ok(
-    await session.exists("button", "Cycle Actions"),
-    "The header must carry the overflow menu",
-  );
-  /* Run Queued is the redesign's promise on a Ready cycle. Two things can
+  assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
+  /* Start Cycle is the redesign's promise on a Ready cycle. Two things can
      deny it: a header that does not offer it, and a backend that refuses the
      admission. Either way the cases still have to run for everything behind
      them to be covered, so the gate states what happened and starts the work
      from the row menus instead. */
   let admitted = false;
-  if (await session.exists("button", "Run Queued")) {
-    await session.clickNamed("button", "Run Queued");
+  if (await session.exists("button", "Start Cycle")) {
+    await session.clickNamed("button", "Start Cycle");
     /* The admission's own answer, before anything waits on its effect: the
        workspace toasts every command's outcome with the backend's own text,
        and a refused run is a refusal to state here rather than five silent
        minutes later. */
-    const answer = await until(
-      "the run admission's answer",
-      async () => (await toastText(session)) || null,
-      45000,
-    ).catch(() => "");
+    const answer = await until("the run admission's answer", async () => (await toastText(session)) || null, 45000).catch(() => "");
     /* Silence is not an admission. A command that announced nothing at all is
        the failure this gate exists to catch, so it takes the same route as a
        stated refusal rather than waiting five minutes on an effect nothing
@@ -1249,7 +1334,7 @@ async function cycleJourney(session, cycleId) {
     if (!admitted) {
       defect(
         "cycle/run-queued",
-        `Run Queued did not start the cycle. The application said: ${
+        `Start Cycle did not start the cycle. The application said: ${
           normalize(answer) || "nothing at all"
         }. Started the cases from their row menus instead.`,
       );
@@ -1257,7 +1342,7 @@ async function cycleJourney(session, cycleId) {
   } else {
     defect(
       "cycle/run-queued",
-      `Run Queued is absent on a Ready cycle whose header reads "${
+      `Start Cycle is absent on a Ready cycle whose header reads "${
         /(\d+ of \d+ cases finished)/.exec(normalize(header))?.[1] ?? "n of n cases finished"
       }". Started the cases from their row menus instead.`,
     );
@@ -1271,132 +1356,238 @@ async function cycleJourney(session, cycleId) {
     for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
       if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
     }
-    assert.ok(
-      started.length > 0,
-      "Run Case on a row must start a case when Run Queued does not run one",
-    );
+    assert.ok(started.length > 0, "Run Case on a row must start a case when Start Cycle does not run one");
     if (started.length < 2) {
-      defect(
-        "cycle/run-case",
-        `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`,
-      );
+      defect("cycle/run-case", `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`);
     }
   }
+
+  /* Open Report while the cycle is in flight: no seal yet, so the runtime
+     renders one from the run so far and the shell hands it to the opener
+     (`xdg-open` is a no-op here). It is never disabled and never refused. */
+  const inFlight = await until(
+    "the cycle header to show an in-flight lifecycle",
+    async () => /\b(Running|Paused|Stopping)\b/.test(normalize(await session.text())),
+    30000,
+  ).catch(() => false);
+  if (inFlight) {
+    await openMenu(session, "Cycle Actions");
+    const items = await session.execute(`
+      return [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((item) => ({
+        disabled: item.getAttribute('aria-disabled') === 'true' || item.hasAttribute('data-disabled'),
+        name: item.innerText.trim(),
+      }));
+    `);
+    const open = items.find((item) => item.name === "Open Report");
+    assert.ok(open, "The overflow menu must offer Open Report while the cycle runs");
+    assert.ok(!open.disabled, "Open Report must stay enabled while the cycle is in flight");
+    await session.clickNamed("menuitem", "Open Report");
+    const opened = await until(
+      "the in-flight report to open",
+      async () => /Report Opened/.test(await toastText(session).catch(() => "")),
+      60000,
+    ).catch(() => false);
+    if (!opened) {
+      defect("cycle/open-report", `Open Report did not open a report while the cycle ran: ${await toastText(session).catch(() => "")}`);
+    }
+    await closeAnyMenu(session);
+    assert.equal(
+      await session.execute("return document.body.style.pointerEvents || '';"),
+      "",
+      "A closed overflow menu must leave the page interactive",
+    );
+  } else {
+    defect(
+      "cycle/open-report",
+      "The admitted cycle never showed Running, Paused or Stopping, so Open Report could not be checked while it was in flight.",
+    );
+  }
+
+  /* Back to the measuring case for the streams the run is read through. */
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    row?.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
 
   await runUntil(
     session,
     "cycle completion",
     async () => {
       const rows = await sidebarText(session);
-      if (/\b(Running|Waiting|Finalizing)\b/.test(rows)) return false;
+      if (/\b(Running|Waiting|Finalizing)\b/.test(rows)) {
+        listened ||= await session.execute(
+          `
+          return globalThis.__dokimeStreamReads > arguments[0]
+            && globalThis.__dokimeStreams.some((stream) => !stream.done && stream.reads >= 2);
+        `,
+          [beforeReads],
+        );
+        return false;
+      }
       return /\b(Passed|Failed|Blocked)\b/.test(rows);
     },
     300000,
   );
 
-  /* Selecting a case puts the case and its latest attempt in the URL. */
-  await session.execute(`
-    const rows = [
-      ...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]'),
-    ].filter((row) => /Passed|Failed|Blocked/.test(row.innerText));
-    if (!rows.length) throw new Error('No case row has a terminal status');
-    rows[0].querySelector('button').click();
+  /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */
+  const startupSighting = promptSightings.find((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)));
+  assert.ok(startupSighting, `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`);
+  const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
+  assert.equal(startupCard.level, "warning", "The OBC plugin's startup prompt must render at its declared Warning level");
+  /* The cycle cockpit offers a card with its kind and Respond; the execution
+     page prints the prompt open, under its own "Run Paused" line. */
+  const inlinePrompt = /Run Paused/i.test(startupCard.text) && !/Respond/.test(startupCard.text);
+  assert.ok(
+    inlinePrompt || (/Respond/.test(startupCard.text) && /Form/.test(startupCard.text)),
+    `A banner card must offer its kind and the Respond action, or the prompt must be open (got ${normalize(startupCard.text)})`,
+  );
+  assert.ok(
+    startupSighting.bannerTop < 400,
+    `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
+  );
+  if (!inlinePrompt) {
+    assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The cycle header must count the open prompts");
+  }
+  /* The navigation badge follows its own query, so any sighting of the open
+     prompt may carry it; one must. */
+  assert.ok(
+    promptSightings.some((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)) && /^\d+$/.test(seen.navigation ?? "")),
+    `The Cycles navigation entry must count the open prompts (saw ${JSON.stringify(promptSightings.map((seen) => seen.navigation))})`,
+  );
+
+  assert.ok(listened, "the native application consumes live bridge stream updates while the execution is active");
+  assert.equal(
+    await session.execute("return globalThis.__dokimeNetwork ?? 0"),
+    0,
+    "the WebView reaches its backend only through the IPC bridge",
+  );
+  await session.dump(`listening-${cycleId}`, await session.execute("return globalThis.__dokimeStreams"));
+
+  /* Each execution row selects its own evidence directly. */
+  const executionRowsBefore = await session.execute(`
+    const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
+    const terminal = rows.find(row => /Passed|Failed|Blocked/.test(row.innerText));
+    if (!terminal) throw new Error('No execution row has a terminal status');
+    terminal.querySelector('button').click();
+    return { count: rows.length, selectedIndex: rows.indexOf(terminal) };
   `);
   const selection = await until(
-    "case selected in the URL",
+    "execution selected in the URL",
     async () => {
       const location = await session.location();
-      const caseId = location.searchParams.get("caseId");
-      return caseId ? { caseId, executionId: location.searchParams.get("executionId") } : null;
+      const executionId = location.searchParams.get("executionId");
+      return executionId ? { executionId, caseId: location.searchParams.get("caseId") } : null;
     },
     30000,
   );
-  assert.ok(selection.executionId, "Selecting a case must select its latest attempt");
-  /* The evidence toolbar sets the attempt label in small caps, so what
-     `innerText` reports is the rendered "ATTEMPT 1 OF 1". The copy is what
-     matters here, not the type treatment. */
+  assert.equal(selection.caseId, null, "Execution rows must select solely by executionId");
   const evidence = await until(
-    "attempt evidence",
+    "execution evidence",
     async () => {
       const text = await session.text();
-      return /Attempt \d+ Of \d+/i.test(normalize(text)) ? text : null;
+      return /Execution \d+/i.test(normalize(text)) ? text : null;
     },
     60000,
   );
-  assert.match(normalize(evidence), /Attempt \d+ Of \d+/i);
-  assert.ok(
-    await session.exists("button", "Choose Attempt"),
-    "An attempt must be choosable from the toolbar",
-  );
+  assert.match(normalize(evidence), /Execution \d+/i);
+  assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
-  /* Discovery And Computation Cross The Real Native Plot Routes. */
-  const analysisSummary = await until("analysis controls", () =>
-    session.find("xpath", "//summary[normalize-space(.)='Evidence Analysis']"),
+  /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
+  await session.clickNamed("button", "Re-Run Case");
+  const rerunId = await until(
+    "new re-run execution selected",
+    async () => {
+      const location = await session.location();
+      const id = location.searchParams.get("executionId");
+      const count = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
+      return id && id !== selection.executionId && count === executionRowsBefore.count + 1 ? id : null;
+    },
+    60000,
   );
-  await session.click(analysisSummary);
-  await until("native mean analysis discovery", () =>
-    session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = label && document.getElementById(label.htmlFor);
-    return select && !select.disabled && [...select.options].some(option => option.value === 'dokime.analysis.mean');
-  `),
-  );
-  await session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = document.getElementById(label.htmlFor);
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'dokime.analysis.mean');
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  `);
-  await session.clickNamed("button", "Apply Analysis");
-  const computed = await until(
-    "native scalar analysis result",
+  assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
+  assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
+  /* Plot Settings Persist In The Native Frozen Document. */
+  /* The evidence pane mounts the re-run's own document a moment after the
+     selection moves, which unmounts a dialog opened from the one before it;
+     the gear is pressed again until the dialog it opens is still there. */
+  const settingsText = await until(
+    "plot settings dialog",
     () =>
       session.execute(`
-    const heading = [...document.querySelectorAll('h3')].find(node => node.textContent.includes(' · Mean'));
-    const result = heading?.closest('section');
-    const value = result?.querySelector('dd')?.textContent;
-    const provenance = result?.textContent.match(/([0-9]+) source samples · Version 1/);
-    return value && provenance ? {value: parseFloat(value), samples: Number(provenance[1])} : null;
-  `),
+        const dialog = document.querySelector('[role=dialog][data-state=open]');
+        if (dialog) return dialog.innerText;
+        document.querySelector("button[aria-label^='Plot settings for ']")?.click();
+        return null;
+      `),
+    30000,
+    1000,
+  );
+  assert.match(settingsText, /Display Points|Reduction/);
+  const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
+  await session.type(pointsInput, "2500");
+  await session.clickNamed("button", "Apply");
+  await until(
+    "plot settings accepted by backend",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
     30000,
   );
-  assert.ok(Number.isFinite(computed.value), "The native mean must render a finite scalar");
-  assert.ok(computed.samples > 0, "The analysis must identify its original evidence count");
-  await session.execute(`
-    const heading = [...document.querySelectorAll('h3')].find(node => node.textContent.includes(' · Mean'));
-    heading.closest('section').scrollIntoView({block: 'center'});
-  `);
-  await session.screenshot("analysis-result");
-  await session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = document.getElementById(label.htmlFor);
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, '');
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  `);
-  await session.clickNamed("button", "Use Original Plot");
+  await session.goto("/cycles");
+  await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
+  /* The remounted document can again unmount a dialog opened before it
+     settles, so the gear is pressed until an open dialog shows its budget. */
+  const persistedPoints = await until(
+    "persisted display point budget",
+    () =>
+      session.execute(`
+        const input = document.querySelector('[role=dialog][data-state=open] input[type=number]');
+        if (input) return input.value;
+        document.querySelector("button[aria-label^='Plot settings for ']")?.click();
+        return null;
+      `),
+    30000,
+    1000,
+  );
+  assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
+  await session.clickNamed("button", "Cancel");
+
+  await runUntil(
+    session,
+    "the re-run to settle",
+    async () => {
+      const text = await sidebarText(session);
+      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(text);
+    },
+    300000,
+  );
+  await session.execute(
+    `
+    const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
+    rows[arguments[0]].querySelector('button').click();
+  `,
+    [executionRowsBefore.selectedIndex],
+  );
+  await until(
+    "original execution remains selectable",
+    async () => (await session.location()).searchParams.get("executionId") === selection.executionId,
+    30000,
+  );
 
   /* Focus is a URL flag, so it survives a reload and can be linked. The router
      serializes the flag as `focus=true`; `focusSearchSchema` also accepts the
      `focus=1` a person would type, so both spellings are the flag. */
   await session.clickNamed("button", "Focus");
-  await until(
-    "focus flag set",
-    async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")),
-    20000,
-  );
+  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), 20000);
   assert.ok(await session.exists("button", "Leave Focus"), "Focus view must say how to leave it");
   await session.clickNamed("button", "Leave Focus");
-  await until(
-    "focus flag cleared",
-    async () => (await session.location()).searchParams.get("focus") !== "1",
-    20000,
-  );
+  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", 20000);
 
   /* The console: scopes follow the route, Escape closes the drawer. */
   await session.clickNamed("button", "Open Console");
-  const drawer = await until("console drawer", () =>
-    session.find("css selector", "section[aria-label=Console]"),
-  );
+  const drawer = await until("console drawer", () => session.find("css selector", "section[aria-label=Console]"));
   const consoleText = await session.textOf(drawer);
   for (const scope of ["Instance", "Cycle", "Execution"]) {
     assert.ok(hasText(consoleText, scope), `The console must offer the ${scope} scope`);
@@ -1417,9 +1608,7 @@ async function cycleJourney(session, cycleId) {
      closed, which made every later control in this journey unclickable. */
   await session.clickCss("section[aria-label=Console] [data-slot=select-trigger]");
   await delay(600);
-  const levels = await session.execute(
-    "return [...document.querySelectorAll('[role=option]')].map((item) => item.innerText.trim());",
-  );
+  const levels = await session.execute("return [...document.querySelectorAll('[role=option]')].map((item) => item.innerText.trim());");
   for (const level of ["Trace", "Info", "Error"]) {
     assert.ok(levels.includes(level), `The level selector must offer ${level} (got ${levels})`);
   }
@@ -1428,10 +1617,7 @@ async function cycleJourney(session, cycleId) {
   await session.key("Escape");
   await until(
     "console closed by Escape",
-    async () =>
-      (await session.execute(
-        "return document.querySelectorAll('section[aria-label=Console]').length",
-      )) === 0,
+    async () => (await session.execute("return document.querySelectorAll('section[aria-label=Console]').length")) === 0,
     20000,
   );
   /* A modal layer that closed must give the page back. Stating it here names
@@ -1442,78 +1628,152 @@ async function cycleJourney(session, cycleId) {
     "A closed console must leave the page interactive",
   );
 
-  /* The overflow menu names every whole-cycle command, and Clear Cycle asks.
-     The trigger is pressed again if the first press produced no menu: a real
+  /* The overflow menu names every whole-cycle command; Archive replaces
+     clearing and changes nothing but the archive mark. The trigger is pressed again if the first press produced no menu: a real
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of [
-    "Copy Cycle",
-    "Add Cases",
-    "Runtime Policy",
-    "Follow Active",
-    "Download Bundle",
-    "Write Report",
-    "Clear Cycle",
-  ]) {
+  for (const item of ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active", "Open Report", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
-  await session.clickNamed("menuitem", "Clear Cycle");
-  const confirm = await until("clear confirm", () => session.find("css selector", "[role=dialog]"));
-  assert.ok(
-    hasText(await session.textOf(confirm), "Clearing stops this cycle"),
-    "Clear Cycle must state what it removes",
-  );
-  await session.clickNamed("button", "Cancel");
-  /* Cancelling must leave the cycle where it was and give the page back.
-     Radix keeps a dismissed dialog mounted while its exit animation runs, and
-     in this WebView that node can outlive the animation it waits on — so the
-     open layers are what this counts, and the page's own interactivity is the
-     promise that actually matters. Whatever stays behind is written into the
-     evidence, because a bare timeout names the condition and not the cause. */
-  await until(
-    "confirm cancelled",
-    async () => {
-      const layers = await session.modalLayers();
-      return (
-        layers.pathname === `/cycles/${cycleId}` &&
-        layers.dialogs.every((dialog) => dialog.state !== "open") &&
-        layers.bodyPointerEvents === ""
-      );
-    },
-    20000,
-  ).catch(async (failure) => {
-    const target = await session.dump("cycle-confirm-cancelled", {
-      expectedPathname: `/cycles/${cycleId}`,
-      layers: await session.modalLayers(),
-    });
-    throw new Error(`${failure.message} (layers written to ${target})`);
-  });
-  /* A dismissed dialog that stays in the document is the WebView not
-     delivering the animation end its exit waits on. It holds nothing — the
-     page is interactive and the layer is closed — but it is why counting
-     `[role=dialog]` nodes rather than open ones made this step time out, so
-     each run records whether it happened. */
-  const dismissed = await session.modalLayers();
-  if (dismissed.dialogs.length) {
-    notes.push(
-      `cycle: cancelling Clear Cycle left ${dismissed.dialogs.length} dismissed dialog node(s) in the document (${dismissed.dialogs
-        .map((dialog) => `${dialog.slot || "dialog"}:${dialog.state}`)
-        .join(", ")})`,
-    );
+  for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
+    assert.ok(!hasText(items, item), `The overflow menu must no longer offer ${item}`);
   }
+  await closeAnyMenu(session);
+  assert.equal(
+    await session.execute("return document.body.style.pointerEvents || '';"),
+    "",
+    "A closed overflow menu must leave the page interactive",
+  );
   return selection;
 }
 
-/** Cycles home after the run: the Recent row, Show Cleared, and the filter. */
-async function cyclesHomeJourney(session) {
+/**
+ * Stop one execution of a running copy and keep its siblings running.
+ *
+ * Stop Execution in the page bar is scoped to the selected execution: the
+ * cycle never enters Stopping and every other case still reaches a recorded
+ * outcome. Stop Cycle lives on the cycle page only, labelled as such, and asks
+ * before acting. The copy keeps the measured cycle the later journeys read
+ * untouched.
+ */
+async function executionStopJourney(session, cycleId) {
+  // === Copy The Cycle And Run It === //
+
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await openMenu(session, "Cycle Actions");
+  await session.clickNamed("menuitem", "Copy Cycle");
+  const copyId = await until(
+    "the copied cycle route",
+    async () => {
+      const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
+      return match && match[1] !== cycleId ? match[1] : null;
+    },
+    30000,
+  );
+  await until("Start Cycle on the copy", () => session.exists("button", "Start Cycle"), 30000);
+  await session.clickNamed("button", "Start Cycle");
+
+  // === Select The Running Execution === //
+
+  /* The startup case holds its run open on the operator's inspection prompt,
+     so a stop always lands while it is still running. */
+  let running = null;
+  await runUntil(
+    session,
+    "the copy's startup execution running",
+    async () => {
+      running = await session.execute(
+        `
+        const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .find((candidate) => /\\b(Running|Waiting)\\b/.test(candidate.innerText) && candidate.innerText.includes(arguments[0]));
+        if (!row) return null;
+        const label = row.querySelector('button');
+        label.click();
+        return label.innerText.split('\\n')[0];
+      `,
+        [STARTUP_TEMPLATE],
+      );
+      return running !== null;
+    },
+    300000,
+  );
+
+  // === An Explicit Selection Beats Follow Active === //
+
+  /* Selecting a queued execution while another runs must stay there: Follow
+     Active only moves a selection that is following. The queued attempt shows
+     its planned parameters. Selecting the cycle node selects the cycle. */
+  const queued = await session.execute(`
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\\bQueued\\b/.test(candidate.innerText));
+    if (!row) return null;
+    row.querySelector('button').click();
+    return row.dataset.executionId ?? null;
+  `);
+  if (queued) {
+    await delay(3000);
+    assert.equal(
+      (await session.location()).searchParams.get("executionId"),
+      queued,
+      "A queued execution the operator selected must stay selected while another runs",
+    );
+    assert.ok(hasText(await session.text(), "This case has not run yet"), "A queued execution shows its planned parameters");
+  }
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\\b(Running|Waiting)\\b/.test(candidate.innerText) && candidate.innerText.includes(arguments[0]));
+    row?.querySelector('button').click();
+  `,
+    [STARTUP_TEMPLATE],
+  );
+  assert.ok(!(await session.exists("button", "Stop Cycle")), "The execution page carries the execution's controls, not the cycle's");
+  assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
+  await until("Stop Execution", () => session.exists("button", "Stop Execution"), 30000);
+
+  // === Stop Only That Execution === //
+
+  await session.clickNamed("button", "Stop Execution");
+  await until("the stop acknowledgement", async () => /Execution Stop Requested/.test(await toastText(session)), 20000);
+  const header = normalize(await session.text());
+  assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
+
+  // === Siblings Finish And The Stopped Row Settles === //
+
+  await runUntil(
+    session,
+    "the copy's remaining cases to finish",
+    async () => {
+      const rows = await sidebarText(session);
+      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(rows);
+    },
+    300000,
+  );
+  const rows = await sidebarText(session);
+  const stoppedRow = await caseRowText(session, running);
+  /* Stopped inside its open step (here, the operator prompt), the host
+     interrupts the execution; stopped between steps, it reads Stopped. */
+  assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must read Stopped or Interrupted: ${stoppedRow}`);
+  assert.ok(/\b(Passed|Failed|Blocked)\b/.test(rows), "Sibling executions must still reach a recorded outcome");
+  return copyId;
+}
+
+/** Cycles home after the run: the Recent row, the Archived view, and the filter. */
+async function cyclesHomeJourney(session, cycleTitle) {
   await session.goto("/cycles");
   const body = await until(
     "a cycle row",
     async () => {
       const text = await session.text();
-      return hasText(text, "Recent") && /Completed|Failed|Ready|Stopped/.test(text) ? text : null;
+      /* The stopped copy is the loaded cycle; it lands in whichever group its
+         status selects (a stopped execution leaves it needing attention). */
+      return hasText(text, cycleTitle) && /Completed|Failed|Ready|Stopped|Blocked/.test(text) ? text : null;
     },
     60000,
   );
@@ -1521,61 +1781,46 @@ async function cyclesHomeJourney(session) {
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
   assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
 
-  await session.clickNamed("button", "Show Cleared");
+  /* Nothing is archived yet, so the Archived view is one empty group, and
+     leaving it brings the run's cycle back. */
+  await session.clickNamed("button", "Archived");
   assert.ok(
-    await until("hide cleared", () => session.exists("button", "Hide Cleared")),
-    "Show Cleared must become Hide Cleared",
+    await until("archived view", async () => hasText(await session.text(), "No Archived Cycles")),
+    "The Archived view must say when nothing is archived",
   );
-  await session.clickNamed("button", "Hide Cleared");
+  await session.clickNamed("button", "Archived");
+  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), 20000);
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");
-  await until(
-    "filter excludes every row",
-    async () => hasText(await session.text(), "No cycles match this filter."),
-    20000,
-  );
+  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), 20000);
   await session.type(filter, "");
-  await until(
-    "filter cleared",
-    async () => !hasText(await session.text(), "No cycles match this filter."),
-    20000,
-  );
+  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), 20000);
   assert.ok(
     await session.execute(
       `return [...document.querySelectorAll('button')].some((button) =>
          button.innerText.includes(arguments[0]),
        );`,
-      [PROTECTION_SUITE],
+      [cycleTitle],
     ),
-    "The run's cycle must be one of the rows",
+    `The run's cycle "${cycleTitle}" must be one of the rows`,
   );
 }
 
 /** History: the recorded executions behind the run, and the Back chevron. */
 async function historyJourney(session) {
   await session.goto("/history");
-  await until(
+  /* The empty table is one placeholder row too, so a row counts once it opens
+     something: its primary cell is the control an operator clicks. */
+  const opener = await until(
     "history rows",
-    async () => {
-      const rows = await session.findAll("css selector", "tbody tr");
-      return rows.length ? rows : null;
-    },
+    () => session.find("css selector", "tbody tr.cursor-pointer td button:not([role=checkbox])"),
     120000,
   );
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
-  const rows = await session.findAll("css selector", "tbody tr");
-  await session.click(rows[0]);
-  await until(
-    "history detail",
-    async () => (await session.location()).pathname.startsWith("/history/"),
-    30000,
-  );
-  await until(
-    "inspectable checkpoint",
-    async () => hasText(await session.text(), "Inspect checkpoint"),
-    60000,
-  );
+  await session.click(opener);
+  await until("history detail", async () => (await session.location()).pathname.startsWith("/history/"), 30000);
+  await until("inspectable checkpoint", async () => hasText(await session.text(), "Inspect checkpoint"), 60000);
   /* Each case also carries a pre-dispatch placeholder execution with no
      evidence behind it, so the checkpoint to inspect is a finished one. */
   await session.execute(`
@@ -1599,11 +1844,7 @@ async function historyJourney(session) {
     if (!inspect) throw new Error('No finished execution in this history detail');
     inspect.click();
   `);
-  await until(
-    "captured execution",
-    async () => hasText(await session.text(), "Recorded Steps"),
-    60000,
-  );
+  await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), 60000);
   const captured = await session.text();
   assert.ok(hasText(captured, "Recorded status"), "The checkpoint must state its recorded status");
   for (const view of ["Records", "Telemetry", "Files", "Context"]) {
@@ -1613,9 +1854,7 @@ async function historyJourney(session) {
   await until(
     "captured records",
     async () => {
-      const section = await session
-        .find("css selector", "section[aria-label='Captured records']")
-        .catch(() => null);
+      const section = await session.find("css selector", "section[aria-label='Captured records']").catch(() => null);
       if (!section) return false;
       return !hasText(await session.textOf(section), "No execution records at this checkpoint.");
     },
@@ -1625,15 +1864,11 @@ async function historyJourney(session) {
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
   await session.clickNamed("button", "Back");
-  await until(
-    "back to history",
-    async () => (await session.location()).pathname === "/history",
-    20000,
-  );
+  await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
-async function settingsJourney(session, notes, work) {
+async function settingsJourney(session, notes) {
   const sections = [
     ["general", "General"],
     ["appearance", "Appearance"],
@@ -1654,31 +1889,24 @@ async function settingsJourney(session, notes, work) {
       60000,
     );
     assert.ok(hasText(body, "Settings"), `The ${id} page bar must name Settings`);
-    const rows = await session.execute(
-      "return document.querySelectorAll('main section, main dl > div').length",
-    );
+    const rows = await session.execute("return document.querySelectorAll('main section, main dl > div').length");
     assert.ok(rows > 0, `The ${id} section must render rows`);
   }
 
   /* Appearance: the density radios autosave, with no Save button anywhere. */
   await session.goto("/settings/appearance");
   await until("appearance", async () => hasText(await session.text(), "Density"), 60000);
-  assert.ok(
-    !(await session.exists("button", "Save")),
-    "Settings autosave; no section may carry a Save button",
-  );
+  assert.ok(!(await session.exists("button", "Save")), "Settings autosave; no section may carry a Save button");
   await session.clickNamed("radio", "Touch");
   await until(
     "touch density applied",
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) === "touch",
+    async () => (await session.execute("return document.documentElement.dataset.density")) === "touch",
     20000,
   );
   await session.clickNamed("radio", "Comfortable");
   await until(
     "comfortable density applied",
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
+    async () => (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
     20000,
   );
 
@@ -1704,47 +1932,27 @@ async function settingsJourney(session, notes, work) {
   /* The attached desktop saves policy in the backend's execution root. */
   const interval = await until("backend policy input", () =>
     session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Save Interval (Seconds)');
+      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
      return label?.control ?? null;`,
     ),
   );
-  await session.type(interval, "1.234");
-  await until(
-    "backend policy saved",
-    async () => {
-      try {
-        const saved = JSON.parse(await readFile(join(work, "data/backend-policy.json"), "utf8"));
-        return saved.revision > 0 && saved.policy.saveIntervalMs === 1234;
-      } catch {
-        return false;
-      }
-    },
-    20000,
-  );
-  await until(
-    "policy restart requirement",
-    async () => hasText(await session.text(), "Restart the connected backend"),
-    20000,
-  );
+  await session.type(interval, "2");
+  /* The backend keeps the policy in its own state store: the save is proven by
+     its restart notice and by the value it reads back after navigation. */
+  await until("policy restart requirement", async () => hasText(await session.text(), "Restart the connected backend"), 20000);
   await session.goto("/settings/appearance");
   await session.goto("/settings/general");
   await until("saved backend policy reread", () =>
     session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Save Interval (Seconds)');
-     return label?.control?.value === '1.234';`,
+      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
+     return label?.control?.value === '2';`,
     ),
   );
 
   /* Plugins: rows with a Settings button, and the plugin page behind it. */
   await session.goto("/settings/plugins");
-  await until(
-    "the plugins section",
-    async () => hasText(await session.text(), "Install A Plugin"),
-    60000,
-  );
-  const rows = await session.execute(
-    `return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`,
-  );
+  await until("the plugins section", async () => hasText(await session.text(), "Install A Plugin"), 60000);
+  const rows = await session.execute(`return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`);
   const configurable = await session.execute(
     `return [...document.querySelectorAll('button[aria-label="Plugin Settings"]')].filter(
        (button) => !button.disabled,
@@ -1755,10 +1963,7 @@ async function settingsJourney(session, notes, work) {
        `--plugin`, and the section has to say where its plugins came from
        rather than leaving the list unexplained. */
     assert.ok(
-      hasText(
-        await session.text(),
-        "Loaded from the launch configuration; managed outside the installation store.",
-      ),
+      hasText(await session.text(), "Loaded from the launch configuration; managed outside the installation store."),
       "With no installed plugin the Plugins section must still name the loaded ones",
     );
     notes.push(
@@ -1767,21 +1972,10 @@ async function settingsJourney(session, notes, work) {
   }
   if (configurable) {
     await session.clickNamed("button", "Plugin Settings");
-    await until(
-      "plugin page",
-      async () => (await session.location()).pathname.startsWith("/settings/plugins/"),
-      30000,
-    );
-    assert.ok(
-      hasText(await session.text(), "Plugins"),
-      "The plugin page must carry its breadcrumb",
-    );
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 30000);
+    assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
     await session.clickNamed("button", "Back");
-    await until(
-      "back to plugins",
-      async () => (await session.location()).pathname === "/settings/plugins",
-      20000,
-    );
+    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 20000);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
   }
@@ -1810,36 +2004,35 @@ async function settingsJourney(session, notes, work) {
     "diagnostics bundle saved",
     async () => {
       announcement = (await toastText(session)) || announcement;
-      const listed = await readdir(session.downloads);
-      return listed.find((name) => /^dokime-diagnostics-.*\.zip$/.test(name)) ?? null;
+      const path = await session.execute("return globalThis.__dokimeDiagnosticsPath ?? null");
+      return path && existsSync(path) ? path : null;
     },
     120000,
   ).catch((failure) => {
-    throw new Error(
-      `${failure.message}. The application said: ${announcement || "nothing at all"}`,
-    );
+    throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
-  assert.match(bundle, /^dokime-diagnostics-.*\.zip$/);
+  assert.match(basename(bundle), /^dokime-diagnostics-.*\.zip$/);
+  const retained = join(session.downloads, basename(bundle));
+  if (resolve(bundle) !== resolve(retained)) await copyFile(bundle, retained);
 }
 
 /**
- * The frozen report: written by the application, then read back in this WebView.
+ * The frozen report: saved by the application's Download Report, then read back.
  *
  * The same component set renders it with `live={false}`, so the assertions are
  * about what a file can honour: identity, provenance, the outline and the
  * records -- and the absence of every control that would lie.
  */
 async function reportJourney(session, cycleId) {
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
   await installSaveTap(session);
-  await session.clickNamed("button", "Cycle Actions");
-  await session.clickNamed("menuitem", "Write Report");
-  /* The toast carries the backend's own words when generation fails, and a
-     report that is never written is otherwise five silent minutes. */
+  await session.clickNamed("button", "Download Report");
+  /* The toast carries the backend's own words when the report fails, and a
+     report that is never saved is otherwise five silent minutes. */
   let announcement = "";
   const written = await until(
-    "report written",
+    "report saved",
     async () => {
       announcement = (await toastText(session)) || announcement;
       const saved = await drainSavedDocuments(session);
@@ -1847,9 +2040,7 @@ async function reportJourney(session, cycleId) {
     },
     300000,
   ).catch((failure) => {
-    throw new Error(
-      `${failure.message}. The application said: ${announcement || "nothing at all"}`,
-    );
+    throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
 
   /* wry unwraps `http::Uri::from_str(webview.uri())` for every IPC message,
@@ -1874,7 +2065,7 @@ async function reportJourney(session, cycleId) {
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
   let dom = "";
   try {
-    const chrome = process.env.DOKIME_E2E_CHROME ?? "google-chrome";
+    const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? "msedge.exe" : "google-chrome");
     /* Headless Chrome's virtual time budget is wall-clock blind: under build
        load the bundle may still be hydrating when the budget runs out, so the
        render is retried with a growing budget until the page bar has drawn. */
@@ -1885,11 +2076,15 @@ async function reportJourney(session, cycleId) {
           "--headless=new",
           "--disable-gpu",
           "--no-sandbox",
+          `--user-data-dir=${join(work, "chrome")}`,
           `--virtual-time-budget=${budget}`,
           "--dump-dom",
           served,
         ],
-        { maxBuffer: 64 * 1024 * 1024 },
+        /* Chrome's singleton socket lives under TMPDIR and must fit a Unix
+           socket path; the repository's TMPDIR is too deep in a worktree. The
+           profile itself stays in the run's work directory. */
+        { env: { ...process.env, TMPDIR: windows ? process.env.TMPDIR : "/tmp" }, maxBuffer: 64 * 1024 * 1024 },
       );
       dom = rendered.stdout;
       if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
@@ -1899,11 +2094,11 @@ async function reportJourney(session, cycleId) {
   }
   const report = dom.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
   assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
-  assert.ok(
-    /Frozen Report .{0,3} Generated/.test(normalize(report)),
-    "The report must state when it was generated",
-  );
-  assert.ok(!/Run Queued|Pause|Stop\b/.test(report), "A frozen report renders no run controls");
+  assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
+  /* Step names may say "Start", so the controls are read off the buttons. */
+  const controls = [...dom.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)].map((match) => normalize(match[1].replace(/<[^>]+>/g, " ")));
+  const runControls = controls.filter((label) => /\bStart\b|Run Again|Pause|Stop\b/.test(label));
+  assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
 }
 
@@ -1911,7 +2106,7 @@ async function reportJourney(session, cycleId) {
  * Touch density: the same surfaces, driven through the real Appearance switch.
  *
  * At touch the sidebar is a rail, so the cycle's cases are only reachable
- * through the header's Cases sheet, and the template dialog becomes a
+ * through the header's Executions sheet, and the template dialog becomes a
  * full-width sheet. Those three are what this pass is for.
  */
 async function touchJourney(session, cycleId) {
@@ -1928,30 +2123,29 @@ async function touchJourney(session, cycleId) {
   );
   assert.ok(hasText(home, "Needs Attention"), "The groups keep their order at touch");
 
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("touch workspace", () => session.exists("button", "Cycle Actions"), 60000);
   /* The rail: collapsed at touch, with the children behind it. */
   if (await session.exists("button", "Collapse Sidebar")) {
     await session.clickNamed("button", "Collapse Sidebar");
   }
   await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), 20000);
-  const railChildren = await session.execute(
-    "return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;",
-  );
+  const railChildren = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
-  await session.clickNamed("button", "Cases");
-  const sheet = await until("cases sheet", () =>
-    session.find("css selector", "[data-slot=sheet-content]"),
+  /* The sidebar tree is the one execution switcher: expanding the rail
+     brings the rows back, at the touch row height. */
+  await session.clickNamed("button", "Expand Sidebar");
+  const touchRows = await until("expanded tree", () =>
+    session.execute(`
+      const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case] > div')];
+      return rows.length ? rows.map((row) => Math.round(row.getBoundingClientRect().height)) : null;
+    `),
   );
-  const sheetText = await session.textOf(sheet);
-  assert.ok(hasText(sheetText, "Cases"), "The Cases sheet must name itself");
   assert.ok(
-    hasText(sheetText, PROTECTION_TEMPLATE) || hasText(sheetText, STARTUP_TEMPLATE),
-    "The Cases sheet must hold the cycle's case rows",
+    touchRows.every((height) => height >= 44),
+    `Touch tree rows must be at least 44px tall: ${JSON.stringify(touchRows)}`,
   );
-  await session.key("Escape");
-  await delay(500);
 
   await session.goto("/library");
   await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
@@ -1966,10 +2160,7 @@ async function touchJourney(session, cycleId) {
         : null;
     `),
   );
-  assert.ok(
-    share >= 80,
-    `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`,
-  );
+  assert.ok(share >= 80, `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`);
   await session.key("Escape");
   await delay(500);
 
@@ -1984,20 +2175,24 @@ async function touchJourney(session, cycleId) {
  * filter because everything after them addresses what they establish.
  */
 async function journey(name, run) {
+  const started = Date.now();
   if (selectedJourneys.size && !selectedJourneys.has(name) && !REQUIRED_JOURNEYS.has(name)) {
     process.stdout.write(`\n== ${name}\n   skipped by DOKIME_E2E_JOURNEYS\n`);
+    results.push({ name, seconds: 0, skipped: "Excluded by the journey filter" });
     return { ok: true, skipped: true };
   }
   process.stdout.write(`\n== ${name}\n`);
   if (webviewGone) {
     const reason = `skipped: the WebView process exited during the ${webviewGone} journey`;
     failures.push({ kind: "failure", name, reason });
+    results.push({ name, seconds: 0, failure: reason });
     process.stdout.write(`   ${reason}\n`);
     return { ok: false };
   }
   try {
     const value = await run();
     passedJourneys.push(name);
+    results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");
     return { ok: true, value };
   } catch (failure) {
@@ -2008,21 +2203,16 @@ async function journey(name, run) {
       webviewGone = name;
     }
     failures.push({ kind: "failure", name, reason: failure.message });
+    results.push({ name, seconds: (Date.now() - started) / 1000, failure: failure.message });
     process.stdout.write(`   FAILED: ${failure.message}\n`);
     if (session && !session.closed) {
       try {
         const shot = await session.screenshot(`failure-${name}`);
-        await writeFile(
-          join(evidence, `failure-${name}.txt`),
-          await session.text().catch(() => session.lastBody ?? ""),
-        );
+        await writeFile(join(evidence, `failure-${name}.txt`), await session.text().catch(() => session.lastBody ?? ""));
         /* What the application asked the shell to do, and how long each call
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
-        await writeFile(
-          join(evidence, `invokes-${name}.json`),
-          JSON.stringify(await drainInvokeLedger(session), null, 2),
-        );
+        await writeFile(join(evidence, `invokes-${name}.json`), JSON.stringify(await drainInvokeLedger(session), null, 2));
         process.stdout.write(`   evidence: ${shot}\n`);
       } catch {
         // A dead WebView has no DOM left to photograph.
@@ -2032,36 +2222,268 @@ async function journey(name, run) {
   }
 }
 
-function terminate(pid, signal = "SIGTERM") {
-  if (!pid) return;
+async function terminate(child, signal = "SIGTERM") {
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (windows) {
+    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"]);
+    return;
+  }
   try {
-    process.kill(-pid, signal);
-  } catch {
-    // The process group already exited.
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
   }
 }
 
-async function main() {
-  if (process.platform !== "linux") {
-    throw new Error("This gate requires Linux WebKitWebDriver.");
+async function sha256(path) {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+async function installWindowsCandidate() {
+  if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
+    throw new Error("Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.");
   }
-  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (configuredOrigin || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
+    throw new Error(
+      "Windows acceptance drives the installed shell and backend with bundled frontend assets; development overrides are invalid.",
+    );
+  }
+  const installer = process.env.DOKIME_E2E_INSTALLER;
+  if (!installer || !existsSync(installer)) throw new Error("DOKIME_E2E_INSTALLER must name the candidate NSIS installer.");
+  const checks = [
+    ["installer", installer, process.env.DOKIME_E2E_INSTALLER_SHA256],
+    ["shell", join(work, "installation", "dokime-gui.exe"), process.env.DOKIME_E2E_SHELL_SHA256],
+    ["backend", join(work, "installation", "dokime-server.exe"), process.env.DOKIME_E2E_BACKEND_SHA256],
+    ["cli", join(work, "installation", "dokime.exe"), process.env.DOKIME_E2E_CLI_SHA256],
+  ];
+  for (const [label, , expected] of checks) {
+    if (!/^[a-f0-9]{64}$/.test(expected ?? "")) throw new Error(`Missing candidate SHA-256 for ${label}.`);
+  }
+  if (!process.env.DOKIME_E2E_PLUGIN || !/^[a-f0-9]{64}$/.test(process.env.DOKIME_E2E_PLUGIN_SHA256 ?? "")) {
+    throw new Error("Windows acceptance requires the candidate OBC fixture path and DOKIME_E2E_PLUGIN_SHA256.");
+  }
+  assert.equal(await sha256(pluginBundle), process.env.DOKIME_E2E_PLUGIN_SHA256, "the fixture matches the selected candidate");
+  assert.equal(await sha256(installer), checks[0][2], "installer matches the selected candidate");
+  installation = join(work, "installation");
+  installerAttempted = true;
+  await promisify(execFile)(resolve(installer), ["/S", `/D=${installation}`], {
+    windowsVerbatimArguments: true,
+    timeout: 120000,
+  });
+  const hashes = {};
+  for (const [label, path, expected] of checks.slice(1)) {
+    hashes[label] = await sha256(path);
+    assert.equal(hashes[label], expected, `installed ${label} matches the selected candidate`);
+  }
+  shellBinary = checks[1][1];
+  backendBinary = checks[2][1];
+  await writeFile(
+    join(evidence, "installation.json"),
+    JSON.stringify(
+      {
+        installer: resolve(installer),
+        sha256: checks[0][2],
+        hashes,
+        plugin: { path: resolve(pluginBundle), sha256: process.env.DOKIME_E2E_PLUGIN_SHA256 },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function closeSession() {
+  if (!session) {
+    await terminate(driverProcess);
+    driverProcess = undefined;
+    return;
+  }
+  const owned = session;
+  await owned.close();
+  await owned.request("DELETE", "").catch((error) => {
+    if (!/invalid session id/.test(error.message)) throw error;
+  });
+  await terminate(owned.process);
+  driverProcess = undefined;
+  session = undefined;
+}
+
+async function stopBackend() {
+  if (!backend) return;
+  const owned = backend;
+  if (owned.child.startupError) throw owned.child.startupError;
+  owned.child.stdin.end();
+  const exited =
+    owned.child.exitCode === null ? once(owned.child, "exit") : Promise.resolve([owned.child.exitCode, owned.child.signalCode]);
+  const timer = new AbortController();
+  try {
+    const [code, signal] = await Promise.race([
+      exited,
+      delay(30000, undefined, { signal: timer.signal }).then(() => {
+        throw new Error("Native backend did not drain within its existing 30 second deadline");
+      }),
+    ]);
+    assert.equal(signal, null, "native backend drains without a forced signal");
+    assert.equal(code, 0, "native backend drains successfully");
+  } finally {
+    timer.abort();
+  }
+  await owned.log.close();
+  backend = undefined;
+}
+
+async function ownedStartupJourney() {
+  session = await startSession(work, undefined, evidence);
+  await session.clickNamed("button", "Start Local Backend");
+  await session.connected();
+  const status = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(status.ownership, "owned_local", "the native shell owns its companion backend");
+  assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
+  assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
+  await session.screenshot("owned-startup");
+  await closeSession();
+  await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
+  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
+}
+
+async function restartJourney() {
+  const previous = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.ok(previous.connection?.backend?.epoch, "the first native connection reports its backend epoch");
+  const endpoint = backend.endpoint;
+  await closeSession();
+  assert.ok(await listening(endpoint), "closing the attached shell leaves its backend alive");
+  await stopBackend();
+  backend = await startBackend(work, evidence, endpoint, "backend-restart");
+  session = await startSession(work, endpoint, evidence);
+  await session.connected();
+  const current = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.ok(current.connection?.backend?.epoch, "the restarted native connection reports its backend epoch");
+  assert.notEqual(
+    current.connection.backend.epoch,
+    previous.connection.backend.epoch,
+    "the relaunched shell establishes the restarted backend epoch",
+  );
+  assert.equal(current.ownership, "attached");
+  await session.goto("/history");
+  await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
+  await setDensity(session, densities.desktop);
+  const cycle = await libraryJourney(session);
+  await cycleJourney(session, cycle);
+  await session.screenshot("native-restart");
+}
+
+async function writeJunit() {
+  if (!options.junit) return;
+  const escapeXml = (value) =>
+    [...String(value)]
+      .filter((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 32 || code === 9 || code === 10 || code === 13;
+      })
+      .join("")
+      .replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]);
+  const cases = [...results];
+  for (const failure of failures) {
+    const existing = cases.find((result) => result.name === failure.name);
+    if (existing) existing.failure = failure.reason;
+    else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
+  }
+  const failed = cases.filter((result) => result.failure);
+  const skipped = failed.length === 0 && (cases.length === 0 || cases.some((result) => result.skipped));
+  const seconds = cases.reduce((total, result) => total + result.seconds, 0);
+  const detail = cases
+    .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)
+    .join("\n");
+  const outcome = failed.length
+    ? `<failure message="${escapeXml(`${failed.length} scene(s) failed`)}">${escapeXml(detail)}</failure>`
+    : skipped
+      ? "<skipped/>"
+      : "";
+  const story = `<testcase classname="dokime.native.${process.platform}" name="Desktop Backend Walkthrough" time="${seconds}">${outcome}<system-out>${escapeXml(detail)}</system-out></testcase>`;
+  await mkdir(dirname(resolve(options.junit)), { recursive: true });
+  await writeFile(
+    options.junit,
+    `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites><testsuite name="Native Desktop" tests="1" failures="${failed.length ? 1 : 0}" errors="0" skipped="${skipped ? 1 : 0}" time="${seconds}">${story}</testsuite></testsuites>\n`,
+  );
+}
+
+/** Serve Only The Built Frontend; The Native Shell Still Owns Every IPC Call. */
+async function serveDevelopmentAssets() {
+  const root = join(built, "frontend");
+  assert.ok(existsSync(join(root, "index.html")), "the development artifact supplies verified static frontend assets");
+  const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
+  assert.equal(origin.protocol, "http:");
+  assert.equal(origin.hostname, "127.0.0.1", "the development frontend stays on loopback");
+  const types = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+  };
+  frontendServer = http.createServer(async (request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
+      let file = resolve(root, `.${pathname}`);
+      if (file !== root && !file.startsWith(`${root}${sep}`)) {
+        response.writeHead(403).end();
+        return;
+      }
+      if (!existsSync(file) || file === root || !extname(file)) file = join(root, "index.html");
+      const bytes = await readFile(file);
+      const suffix = extname(file);
+      response.writeHead(200, { "content-type": types[suffix] ?? "application/octet-stream" });
+      response.end(bytes);
+    } catch (error) {
+      response.writeHead(500).end(String(error));
+    }
+  });
+  await new Promise((ready, reject) => {
+    frontendServer.once("error", reject);
+    frontendServer.listen(Number(origin.port || 80), origin.hostname, ready);
+  });
+}
+
+async function main() {
+  if (!windows && process.platform !== "linux") throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
+  if (releaseValidation && selectedJourneys.size) throw new Error("Installed release validation requires every maintained journey.");
+  if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
-  for (const [label, path] of [
-    ["the backend", backendBinary],
-    ["the desktop shell", shellBinary],
-    ["the Mini charger plugin bundle", pluginBundle],
-  ]) {
-    if (!existsSync(path))
-      throw new Error(`Missing ${label} at ${path}. Run "mise run build:dev".`);
-  }
-
   await mkdir(targetRoot, { recursive: true });
   evidence = await mkdtemp(join(targetRoot, "native-desktop-e2e-"));
   work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
+  if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
+  if (!releaseValidation) await serveDevelopmentAssets();
+  if (releaseValidation) {
+    const installed = await journey("installation", installWindowsCandidate);
+    if (!installed.ok) throw new Error("Windows installer acceptance failed");
+  }
+  for (const [label, path] of [
+    ["the backend", backendBinary],
+    ["the desktop shell", shellBinary],
+    ["the OBC charger plugin bundle", pluginBundle],
+  ]) {
+    if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
+  }
 
+  if (windows) {
+    const owned = await journey("owned-startup", ownedStartupJourney);
+    if (!owned.ok) throw new Error("Windows ownership acceptance failed");
+  }
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
@@ -2072,29 +2494,19 @@ async function main() {
   /* The Library is where cases come from, so it runs whatever the home said:
      a wrong count on Cycles is not a reason to certify nothing behind it. */
   const library = await journey("library", () => libraryJourney(session));
-  const cycleId = library.value;
+  const cycleId = library.value?.id;
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));
-    await journey("cycles-home", () => cyclesHomeJourney(session));
-    await journey("history", () => historyJourney(session));
-  } else {
-    for (const name of ["cycle", "cycles-home", "history"]) {
-      failures.push({
-        kind: "failure",
-        name,
-        reason: "skipped: the library journey produced no cycle",
-      });
-    }
-  }
-
-  await journey("settings", () => settingsJourney(session, notes, work));
-
-  if (cycleId) {
+    /* The report and touch journeys read the run's own cycle, which leaves the
+       runtime once its copy starts; History keeps it from then on. */
     await journey("report", () => reportJourney(session, cycleId));
     await journey("touch", () => touchJourney(session, cycleId));
+    await journey("execution-stop", () => executionStopJourney(session, cycleId));
+    await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
+    await journey("history", () => historyJourney(session));
   } else {
-    for (const name of ["report", "touch"]) {
+    for (const name of ["cycle", "report", "touch", "execution-stop", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
         name,
@@ -2102,6 +2514,8 @@ async function main() {
       });
     }
   }
+
+  await journey("settings", () => settingsJourney(session, notes));
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
@@ -2121,6 +2535,7 @@ async function main() {
       "the session must name the endpoint it was attached to",
     );
   });
+  if (windows) await journey("restart", restartJourney);
 }
 
 /* === Entry Point === */
@@ -2131,16 +2546,45 @@ try {
   failures.push({ kind: "failure", name: "harness", reason: failure.message });
   process.stdout.write(`\nHarness failure: ${failure.message}\n`);
 } finally {
-  if (session) {
-    await session.close().catch(() => undefined);
-    await session.request("DELETE", "").catch(() => undefined);
-    terminate(session.process.pid);
+  for (const [name, cleanup] of [
+    ["shell shutdown", closeSession],
+    ["backend shutdown", stopBackend],
+    [
+      "frontend shutdown",
+      async () => {
+        if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
+      },
+    ],
+  ]) {
+    try {
+      await cleanup();
+    } catch (error) {
+      failures.push({ kind: "failure", name, reason: error.message });
+    }
   }
-  if (backend) terminate(backend.child.pid);
-  await delay(1500);
-  if (session) terminate(session.process.pid, "SIGKILL");
-  if (backend) terminate(backend.child.pid, "SIGKILL");
-  if (work) await rm(work, { force: true, recursive: true }).catch(() => undefined);
+  if (driverProcess)
+    await terminate(driverProcess).catch((error) => failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }));
+  if (backend) {
+    await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
+    await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
+  }
+  if (installerAttempted) {
+    try {
+      const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
+      assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
+      await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
+        windowsVerbatimArguments: true,
+        timeout: 120000,
+      });
+    } catch (error) {
+      failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
+    }
+  }
+  if (work && !failures.length)
+    await rm(work, { force: true, recursive: true }).catch((error) =>
+      failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
+    );
+  await writeJunit();
 }
 
 for (const note of notes) process.stdout.write(`\nnote: ${note}\n`);
@@ -2152,9 +2596,7 @@ if (failures.length) {
   for (const kind of ["defect", "failure"]) {
     const group = failures.filter((entry) => entry.kind === kind);
     if (!group.length) continue;
-    process.stdout.write(
-      `\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`,
-    );
+    process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
     for (const entry of group) process.stdout.write(`  - ${entry.name}: ${entry.reason}\n`);
   }
   process.stdout.write(`\nEvidence: ${evidence}\n`);
@@ -2162,5 +2604,5 @@ if (failures.length) {
 } else {
   process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
   process.stdout.write(`Evidence: ${evidence}\n`);
-  if (!process.env.DOKIME_E2E_KEEP) await rm(evidence, { force: true, recursive: true });
+  if (!process.env.DOKIME_E2E_KEEP && !options.junit) await rm(evidence, { force: true, recursive: true });
 }

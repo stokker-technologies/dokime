@@ -19,7 +19,7 @@ export function AboutSection() {
   const brand = useBrand();
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="About">
         <SettingsRow label="Application">{brand.label}</SettingsRow>
         <SettingsRow label="Version">
@@ -29,8 +29,10 @@ export function AboutSection() {
       </SettingsCard>
 
       <SettingsCard title="Legal">
-        <SettingsRow description="© Stokker Technologies. All rights reserved." label="License" />
+        <SettingsRow description="Dokime © Stokker Technologies, licensed under the Apache License, Version 2.0." label="License">
+          Apache License 2.0
+        </SettingsRow>
       </SettingsCard>
-    </div>
+    </>
   );
 }

@@ -9,20 +9,23 @@
 
 /* === External Imports === */
 
-import { Download } from "lucide-react";
-import { useState } from "react";
+import { Download, TriangleAlert } from "lucide-react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsQuery } from "@/features/cycle/server-state";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { useApplicationSettings } from "@/lib/application-settings";
@@ -111,20 +114,21 @@ export function DiagnosticsSection() {
   const { runtime, server } = snapshot;
   const counts = runtime.counts;
   const process = server.process;
+  const resettable = storageResetAvailable({
+    development: import.meta.env.DEV,
+    desktop: isTauriDesktop(),
+    ownership: session?.snapshot.ownership,
+    directory: runtime.storage_root,
+  });
   const rootPaths = runtime.path_conventions.filter(
-    (convention) =>
-      convention.scope === "root" &&
-      convention.absolute_path !== null &&
-      convention.key !== "collect_bundle",
+    (convention) => convention.scope === "root" && convention.absolute_path !== null && convention.key !== "collect_bundle",
   );
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="Server">
         <SettingsRow label="Status">
-          <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>
-            {startupLabel(runtime.startup_doctor.status)}
-          </Badge>
+          <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>{startupLabel(runtime.startup_doctor.status)}</Badge>
         </SettingsRow>
         <SettingsRow label="Version">
           <span className="font-mono text-sm">v{server.version}</span>
@@ -146,27 +150,17 @@ export function DiagnosticsSection() {
         <SettingsRow label="Installed Plugins">
           <span className="text-sm text-muted-foreground">
             {counts.test_suites} suites
-            {counts.installed_plugin_errors
-              ? ` · ${counts.installed_plugin_errors} errors`
-              : " · no errors"}
+            {counts.installed_plugin_errors ? ` · ${counts.installed_plugin_errors} errors` : " · no errors"}
           </span>
         </SettingsRow>
       </SettingsCard>
 
-      <SettingsCard
-        description="Where this installation keeps its state, on the machine running the backend."
-        title="Paths"
-      >
+      <SettingsCard description="Where this installation keeps its state, on the machine running the backend." title="Paths">
         <SettingsRow label="Storage Root">
           <SettingsPathField openable={openable} value={runtime.storage_root} />
         </SettingsRow>
         {rootPaths.map((convention) => (
-          <SettingsRow
-            key={convention.key}
-            label={
-              pathConventionLabels[convention.key as Exclude<DiagnosticPathKey, "collect_bundle">]
-            }
-          >
+          <SettingsRow key={convention.key} label={pathConventionLabels[convention.key as Exclude<DiagnosticPathKey, "collect_bundle">]}>
             <SettingsPathField openable={openable} value={convention.absolute_path} />
           </SettingsRow>
         ))}
@@ -176,7 +170,13 @@ export function DiagnosticsSection() {
           </SettingsRow>
         ) : null}
       </SettingsCard>
-    </div>
+
+      {resettable ? (
+        <SettingsCard description="Shown only in development builds that own their local backend." title="Development">
+          <StorageResetRow directory={runtime.storage_root} />
+        </SettingsCard>
+      ) : null}
+    </>
   );
 }
 
@@ -227,12 +227,7 @@ export function DiagnosticsBundleRow() {
   }
 
   const button = (
-    <Button
-      disabled={!supported || !session || busy}
-      onClick={() => void download()}
-      size="sm"
-      variant="outline"
-    >
+    <Button disabled={!supported || !session || busy} onClick={() => void download()} size="sm" variant="outline">
       <Download data-icon="inline-start" />
       {busy ? "Collecting\u2026" : "Download Bundle"}
     </Button>
@@ -253,6 +248,77 @@ export function DiagnosticsBundleRow() {
           <TooltipContent>Not available on this backend</TooltipContent>
         </Tooltip>
       )}
+    </SettingsRow>
+  );
+}
+
+/**
+ * The only destructive action in the application, behind a typed confirmation.
+ *
+ * The dialog names the directory and arms only on the exact confirmation word.
+ * Confirming hands the session to the connection screen, which shows the
+ * shell's Stopping, Deleting and Starting steps and reconnects with fresh
+ * queries, exactly as after any restart; a backend that refuses the empty root
+ * leaves its diagnostics there like any failed start.
+ */
+function StorageResetRow({ directory }: { directory: string }) {
+  const owner = useNativeSessionController();
+  const inputId = useId();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const armed = storageResetConfirmed(typed);
+
+  function change(next: boolean) {
+    setOpen(next);
+    setTyped("");
+  }
+
+  function confirm(event: FormEvent) {
+    event.preventDefault();
+    if (!armed) return;
+    change(false);
+    void owner.resetLocalStorage(directory);
+  }
+
+  return (
+    <SettingsRow
+      description="Deletes every cycle, execution, record and file in the current data directory, then restarts the backend on an empty root."
+      label="Reset Local Storage"
+    >
+      <Button onClick={() => change(true)} size="sm" variant="destructive">
+        <TriangleAlert data-icon="inline-start" />
+        Reset Local Storage
+      </Button>
+      <Dialog onOpenChange={change} open={open}>
+        <DialogContent className="sm:max-w-lg">
+          <form className="grid gap-4" onSubmit={confirm}>
+            <DialogHeader>
+              <DialogTitle>Reset Local Storage</DialogTitle>
+              <DialogDescription>
+                Every cycle, execution, record and file in this directory is permanently deleted. The backend then restarts on the empty
+                directory. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <code className="block rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
+              {directory}
+            </code>
+            <div className="grid gap-2">
+              <label className="text-sm" htmlFor={inputId}>
+                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span> to confirm.
+              </label>
+              <Input autoComplete="off" id={inputId} onChange={(event) => setTyped(event.target.value)} spellCheck={false} value={typed} />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button onClick={() => change(false)} type="button" variant="outline">
+                Cancel
+              </Button>
+              <Button disabled={!armed} type="submit" variant="destructive">
+                Delete And Restart
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </SettingsRow>
   );
 }

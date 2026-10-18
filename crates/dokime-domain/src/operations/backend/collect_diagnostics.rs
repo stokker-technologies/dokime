@@ -1,0 +1,56 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+use serde::Deserialize;
+use serde::Serialize;
+// Local Imports
+use super::*;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+// Builds one support archive and streams it. Read access, like GetDiagnostics; the archive never carries credential material.
+#[harmos_domain::message]
+#[harmos_domain::operation(response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics", version = 1,
+        policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+        grpc(package = "dokime.v1", service = "Backend", method = "CollectDiagnostics"))]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectDiagnostics {
+    // Ceiling on the hub-log tail copied into the archive. Absent uses 2 MiB and
+    // larger values are clamped to it; zero omits the log entirely. The whole
+    // log is never archived.
+    #[row(
+        description = "Ceiling on the hub-log tail copied into the archive. Absent uses 2 MiB and larger values are clamped to it; zero omits the log entirely. The whole log is never archived."
+    )]
+    pub max_log_tail_bytes: Option<u64>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

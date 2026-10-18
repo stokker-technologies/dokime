@@ -7,10 +7,18 @@
  * ***
  */
 
-import type { ExecutionControls } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-
 import type { JsonObject } from "../types";
 import type { CycleSummaryDefinition } from "./cycle-summary";
+
+type ExecutionControls = {
+  requestId: string;
+  paused: boolean;
+  stopRequested: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  canStop: boolean;
+  mode: "automatic" | "interactive" | null;
+};
 
 /* === Test-domain types ===
    Authoring (Parameter/Step/Measurement/.../FileDefinition + TestCase/TestSuiteEntry),
@@ -145,7 +153,11 @@ export type TestCase = {
 };
 
 export type SuiteTemplateEntry = {
+  /** Internal registered UUID; never shown to people. */
   template_id: string;
+  /** Readable hierarchical identifier (`obc.charger.steady.measurement`) the
+   *  CLI and Python client accept; absent when the catalog does not carry one. */
+  identifier?: string | null;
   name: string;
   description?: string | null;
   path: string[];
@@ -164,7 +176,6 @@ export type TestSuiteEntry = {
   description?: string | null;
   version?: string | null;
   source: string;
-  product?: string | null;
   path: string[];
   tags: string[];
   continue_on_failure: boolean;
@@ -182,18 +193,6 @@ export type TestCycleSelection = {
   template_label?: string | null;
 };
 
-export type StartTestCycleRequest = {
-  suite_id?: string | null;
-  template_id?: string | null;
-  parameters: Record<string, unknown[]>;
-  files?: Record<string, string | null>;
-  selections?: TestCycleSelection[];
-  title?: string | null;
-  continue_on_failure?: boolean;
-  max_cases?: number | null;
-  force?: boolean;
-};
-
 export type StartTestCycleResponse = {
   plan: TestCyclePlan;
 };
@@ -203,6 +202,8 @@ export type DeleteTestCycleCasesRequest = {
 };
 
 export type PreviewTestCycleRequest = {
+  /** The cycle the cases would join; their labels continue its numbering. */
+  cycle_id?: string | null;
   suite_id?: string | null;
   template_id?: string | null;
   parameters: Record<string, unknown[]>;
@@ -222,17 +223,7 @@ export type PreviewTestCycleResponse = {
 export type TestCycle = {
   test_cycle_id: string;
   title: string;
-  suite_id?: string | null;
-  suite_name?: string | null;
-  status:
-    | "planned"
-    | "running"
-    | "paused"
-    | "stopping"
-    | "completed"
-    | "failed"
-    | "stopped"
-    | "interrupted";
+  status: "planned" | "running" | "paused" | "stopping" | "completed" | "failed" | "stopped" | "interrupted";
   case_count: number;
   queue_count: number;
   current_test_execution_id?: string | null;
@@ -244,6 +235,10 @@ export type TestCycle = {
   duration_delta_s?: number | null;
   metadata: JsonObject;
   generated_at: string;
+  /** Hidden from the default lists; orthogonal to the lifecycle. */
+  archived?: boolean;
+  /** The cycle report is sealed, so its label no longer changes. */
+  sealed?: boolean;
 };
 
 /**
@@ -302,9 +297,7 @@ export type ExecutionQueueItem = {
 export type ExecutionPluginIdentity = {
   source: string;
   version?: string;
-  implementation:
-    | { kind: "bundle"; content_digest: string }
-    | { kind: "embedded"; generation: string };
+  implementation: { kind: "bundle"; content_digest: string } | { kind: "embedded"; generation: string };
 };
 
 export type ExecutionInvalidation = {
@@ -313,6 +306,10 @@ export type ExecutionInvalidation = {
 };
 
 export type TestExecution = {
+  /** Hidden from the default lists; orthogonal to the lifecycle. */
+  archived?: boolean;
+  /** The execution report is sealed, so its case label no longer changes. */
+  sealed?: boolean;
   controls?: ExecutionControls | null;
   test_execution_id: string;
   test_cycle_id: string;

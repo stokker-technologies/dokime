@@ -33,8 +33,7 @@ const SCROLLING_STEP_COUNT = 8;
 /* The connector is drawn per cell as two half segments so it stops at the
    node's edge instead of running under the circle. The inset is the node's
    radius; the touch node is larger, so it takes a larger inset. */
-const CONNECTOR =
-  "pointer-events-none absolute top-[1.5rem] border-t [[data-density=touch]_&]:top-[1.625rem]";
+const CONNECTOR = "pointer-events-none absolute top-[1.5rem] border-t [[data-density=touch]_&]:top-[1.625rem]";
 
 /* === Components === */
 
@@ -63,36 +62,16 @@ export function StepDiagram({
     <section aria-label={`Workflow timeline with ${steps.length} steps`} className="grid gap-3">
       <div className={cn("min-w-0", scrolls && "overflow-x-auto")}>
         <ol
-          className={cn(
-            "grid items-start pt-3",
-            scrolls && "w-max min-w-full [--step-node-min:7rem]",
-          )}
+          className={cn("grid items-start pt-3", scrolls && "w-max min-w-full [--step-node-min:7rem]")}
           style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
         >
           {steps.map((step, index) => {
             const active = step.key === selected?.key;
             return (
-              <li
-                className="relative grid min-w-[var(--step-node-min,0)] justify-items-center"
-                key={step.key}
-              >
-                {index > 0 ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      CONNECTOR,
-                      "right-1/2 left-0 mr-3 [[data-density=touch]_&]:mr-3.5",
-                    )}
-                  />
-                ) : null}
+              <li className="relative grid min-w-[var(--step-node-min,0)] justify-items-center" key={step.key}>
+                {index > 0 ? <span aria-hidden className={cn(CONNECTOR, "right-1/2 left-0 mr-3 [[data-density=touch]_&]:mr-3.5")} /> : null}
                 {index < steps.length - 1 ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      CONNECTOR,
-                      "right-0 left-1/2 ml-3 [[data-density=touch]_&]:ml-3.5",
-                    )}
-                  />
+                  <span aria-hidden className={cn(CONNECTOR, "right-0 left-1/2 ml-3 [[data-density=touch]_&]:ml-3.5")} />
                 ) : null}
                 <button
                   aria-current={active ? "step" : undefined}
@@ -132,20 +111,10 @@ export function StepDiagram({
       {/* Description left, template facts right; the panel is only as tall as
           the description makes it and the facts align to its top. */}
       <div className="grid min-h-12 items-start gap-4 rounded-md bg-muted/20 px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="min-w-0 max-w-prose text-sm text-muted-foreground [&_li]:leading-[1.5] [&_p]:leading-[1.5]">
-          {description ? (
-            <MarkdownText text={flowSoftBreaks(description)} />
-          ) : (
-            <p className="text-sm">This step has no description.</p>
-          )}
+        <div className="min-w-0 max-w-[var(--prose-measure)] text-sm text-muted-foreground [&_li]:leading-[1.5] [&_p]:leading-[1.5]">
+          {description ? <MarkdownText text={flowSoftBreaks(description)} /> : <p className="text-sm">This step has no description.</p>}
         </div>
-        {template ? (
-          <TemplateFacts
-            selectedIndex={selectedIndex}
-            stepCount={steps.length}
-            template={template}
-          />
-        ) : null}
+        {template ? <TemplateFacts selectedIndex={selectedIndex} stepCount={steps.length} template={template} /> : null}
       </div>
     </section>
   );
@@ -154,15 +123,7 @@ export function StepDiagram({
 /* === Subcomponents === */
 
 /** What the catalog projection knows about the template, on one label/value grid. */
-function TemplateFacts({
-  selectedIndex,
-  stepCount,
-  template,
-}: {
-  selectedIndex: number;
-  stepCount: number;
-  template: SuiteTemplateEntry;
-}) {
+function TemplateFacts({ selectedIndex, stepCount, template }: { selectedIndex: number; stepCount: number; template: SuiteTemplateEntry }) {
   const facts: [string, string][] = [
     ["Steps", `${selectedIndex + 1} of ${stepCount}`],
     ["Parameters", String(template.parameter_definitions.length)],

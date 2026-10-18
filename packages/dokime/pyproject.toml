@@ -1,0 +1,56 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dokime"
+version = "0.1.0"
+readme = "README.md"
+description = "Async remote control and evidence collection for Dokime."
+requires-python = ">=3.13,<3.16"
+license = "Apache-2.0"
+license-files = ["LICENSE-APACHE"]
+dependencies = ["grpcio>=1.84.0,<2", "protobuf>=7.36.2,<8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dokime"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/dokime", "examples", "README.md", "pyproject.toml", "LICENSE-APACHE"]
+
+[tool.pyright]
+include = ["src/dokime", "tests", "examples"]
+typeCheckingMode = "standard"
+pythonVersion = "3.13"
+venvPath = "../.."
+venv = ".venv"
+reportMissingImports = "warning"
+reportAttributeAccessIssue = "warning"
+executionEnvironments = [
+  { root = "src", extraPaths = [
+    "src",
+  ] },
+  { root = "tests", extraPaths = [
+    "src",
+  ] },
+  { root = "examples", extraPaths = [
+    "src",
+  ] },
+]
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib", "--timeout-method=thread"]
+
+[tool.ruff]
+extend-exclude = ["src/dokime/_wire"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dokime"]

@@ -9,28 +9,23 @@
 
 /* === Modules === */
 mod codec;
-mod generated {
-    include!(concat!(env!("OUT_DIR"), "/dokime.v1.Query.rs"));
-}
 
 /* === Re-Exports === */
-pub(super) use generated::query_server::QueryServer;
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
-use tonic::{Request, Response, Status};
+use harmos::operations::{Context, Operation, Response};
+use tonic::Status;
 // Local Imports
 use super::error::detailed;
-use super::value::{self, Budget};
-use dokime_app::RuntimeHandle;
-use dokime_app::runtime::query::aggregate::{
-    AggregateColumn, AggregateFilter, AggregateFunction, AggregateOperator, AggregateQuery,
-    AggregateSource,
-};
-use dokime_protocol::v1;
-use generated::query_server::Query;
+use super::value::{self, Budget, canonical};
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
+use dokime_domain::operations::query as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
 /* === Constants === */
 
@@ -39,9 +34,13 @@ use generated::query_server::Query;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Service {
+struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
+}
+
+struct Aggregate {
+    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -49,124 +48,104 @@ pub(super) struct Service {
 /* === Traits === */
 
 /* === Implementations === */
-#[tonic::async_trait]
-impl Query for Service {
-    async fn aggregate(
-        &self,
-        request: Request<v1::AggregateRequest>,
-    ) -> Result<Response<super::charged::Bytes>, Status> {
-        let query = decode(request.into_inner())?;
-        let reply = self
-            .runtime
-            .aggregate_projected(query, |outcome, allowance| {
-                codec::encode(outcome, allowance, self.max_message_bytes)
-            })
-            .await
-            .map_err(status)?;
-        Ok(Response::new(reply))
+impl Operation for Aggregate {
+    type Declaration = wire::Aggregate;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut wire::Aggregate, _: &mut (),
+    ) -> Result<Response<dokime_domain::model::query::wire::AggregateReply>, Status> {
+        let query = decode(request)?;
+        self.resources.runtime.aggregate(query).await.map_err(status).and_then(|outcome| {
+            codec::project(&outcome, self.resources.max_message_bytes).map(Into::into).map_err(|error| status(error.into()))
+        })
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operation::<Aggregate>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
+    )?;
+    Ok(())
+}
 
 /* === Private Functions === */
-fn decode(request: v1::AggregateRequest) -> Result<AggregateQuery, Status> {
+fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new();
     value::collection(request.filters.len())?;
     value::collection(request.group_by.len())?;
     value::collection(request.aggregates.len())?;
-    let source = match v1::QuerySource::try_from(request.source) {
-        Ok(v1::QuerySource::Cycles) => AggregateSource::Cycles,
-        Ok(v1::QuerySource::Cases) => AggregateSource::Cases,
-        Ok(v1::QuerySource::Executions) => AggregateSource::Executions,
-        Ok(v1::QuerySource::Steps) => AggregateSource::Steps,
-        Ok(v1::QuerySource::Records) => AggregateSource::Records,
-        Ok(v1::QuerySource::Unspecified) | Err(_) => {
+    let source = match request.source {
+        dokime_domain::model::query::wire::QuerySource::Cycles => AggregateSource::Cycles,
+        dokime_domain::model::query::wire::QuerySource::Cases => AggregateSource::Cases,
+        dokime_domain::model::query::wire::QuerySource::Executions => AggregateSource::Executions,
+        dokime_domain::model::query::wire::QuerySource::Steps => AggregateSource::Steps,
+        dokime_domain::model::query::wire::QuerySource::Records => AggregateSource::Records,
+        dokime_domain::model::query::wire::QuerySource::Unspecified => {
             return Err(Status::invalid_argument("aggregate source is unspecified"));
         }
     };
     let mut filters = Vec::with_capacity(request.filters.len());
-    for filter in request.filters {
+    for filter in std::mem::take(&mut request.filters) {
         value::text(&filter.column)?;
         value::collection(filter.values.len())?;
-        let op = match v1::QueryFilterOperator::try_from(filter.op) {
-            Ok(v1::QueryFilterOperator::Eq) => AggregateOperator::Eq,
-            Ok(v1::QueryFilterOperator::Neq) => AggregateOperator::Neq,
-            Ok(v1::QueryFilterOperator::In) => AggregateOperator::In,
-            Ok(v1::QueryFilterOperator::Gt) => AggregateOperator::Gt,
-            Ok(v1::QueryFilterOperator::Gte) => AggregateOperator::Gte,
-            Ok(v1::QueryFilterOperator::Lt) => AggregateOperator::Lt,
-            Ok(v1::QueryFilterOperator::Lte) => AggregateOperator::Lte,
-            Ok(v1::QueryFilterOperator::IsNull) => AggregateOperator::IsNull,
-            Ok(v1::QueryFilterOperator::Unspecified) | Err(_) => {
-                return Err(Status::invalid_argument(
-                    "aggregate filter operator is unspecified",
-                ));
+        let op = match filter.op {
+            dokime_domain::model::query::wire::QueryFilterOperator::Eq => AggregateOperator::Eq,
+            dokime_domain::model::query::wire::QueryFilterOperator::Neq => AggregateOperator::Neq,
+            dokime_domain::model::query::wire::QueryFilterOperator::In => AggregateOperator::In,
+            dokime_domain::model::query::wire::QueryFilterOperator::Gt => AggregateOperator::Gt,
+            dokime_domain::model::query::wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
+            dokime_domain::model::query::wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
+            dokime_domain::model::query::wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
+            dokime_domain::model::query::wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
+            dokime_domain::model::query::wire::QueryFilterOperator::Unspecified => {
+                return Err(Status::invalid_argument("aggregate filter operator is unspecified"));
             }
         };
-        let values = filter
-            .values
-            .into_iter()
-            .map(|value| value::decode(value, &mut budget, 0))
-            .collect::<Result<_, Status>>()?;
-        filters.push(AggregateFilter {
-            column: filter.column,
-            op,
-            values,
-        });
+        let values = filter.values.into_iter().map(|value| canonical::decode(value, &mut budget, 0)).collect::<Result<_, Status>>()?;
+        filters.push(AggregateFilter { column: filter.column, op, values });
     }
     for column in &request.group_by {
         value::text(column)?;
     }
     let mut aggregates = Vec::with_capacity(request.aggregates.len());
-    for aggregate in request.aggregates {
+    for aggregate in std::mem::take(&mut request.aggregates) {
         if !aggregate.column.is_empty() {
             value::text(&aggregate.column)?;
         }
         value::text(&aggregate.alias)?;
-        let function = match v1::AggregateFunction::try_from(aggregate.function) {
-            Ok(v1::AggregateFunction::Count) => AggregateFunction::Count,
-            Ok(v1::AggregateFunction::Sum) => AggregateFunction::Sum,
-            Ok(v1::AggregateFunction::Mean) => AggregateFunction::Mean,
-            Ok(v1::AggregateFunction::Min) => AggregateFunction::Min,
-            Ok(v1::AggregateFunction::Max) => AggregateFunction::Max,
-            Ok(v1::AggregateFunction::Unspecified) | Err(_) => {
-                return Err(Status::invalid_argument(
-                    "aggregate function is unspecified",
-                ));
-            }
-        };
-        aggregates.push(AggregateColumn {
-            function,
-            column: aggregate.column,
-            alias: aggregate.alias,
-        });
+        if !aggregate.aggregate.answerable() {
+            return Err(Status::invalid_argument("aggregate percentile rank exceeds 100"));
+        }
+        aggregates.push(AggregateColumn { aggregate: aggregate.aggregate, column: aggregate.column, alias: aggregate.alias });
     }
 
-    Ok(AggregateQuery {
-        source,
-        filters,
-        group_by: request.group_by,
-        aggregates,
-        limit: request.limit as usize,
-    })
+    Ok(AggregateQuery { source, filters, group_by: std::mem::take(&mut request.group_by), aggregates, limit: request.limit as usize })
 }
 
-fn status(error: dokime_app::Error) -> Status {
+fn status(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_app::Error::Validation { message, .. } => Status::invalid_argument(message.clone()),
-        dokime_app::Error::NotFound { .. } => Status::not_found("aggregate source was not found"),
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => {
+            Status::invalid_argument(message.clone())
+        }
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }
-        dokime_app::Error::Overload { .. } => {
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("aggregate reads are busy")
         }
-        dokime_app::Error::Unavailable { .. }
-        | dokime_app::Error::ShuttingDown
-        | dokime_app::Error::Interrupted => {
-            Status::unavailable("aggregate query could not be served")
-        }
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
+        | dokime_runtime::runtime::Error::ShuttingDown
+        | dokime_runtime::runtime::Error::Interrupted => Status::unavailable("aggregate query could not be served"),
         _ => Status::internal("aggregate query failed"),
     };
     detailed(status, &error)

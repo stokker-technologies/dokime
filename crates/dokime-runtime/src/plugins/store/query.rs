@@ -1,0 +1,101 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+use super::*;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+pub struct PluginPage {
+    pub entries: Vec<PluginEntry>,
+    pub manifest_sha256: String,
+    pub total: usize,
+    pub next: Option<Uuid>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+impl PluginStore {
+    pub fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
+        let plugin = self.settings.read(|document| document.plugins.get(&id).cloned()).ok_or(PluginError::Unknown(id))?;
+        Ok(self.entry(id, &plugin))
+    }
+
+    pub fn page(&self, after: Option<(Uuid, &str)>, limit: usize) -> Result<PluginPage, PluginError> {
+        if limit == 0 || limit > 100 {
+            return Err(PluginError::Limit);
+        }
+        let plugins = self.settings.read(|document| document.plugins.clone());
+        let identity = digest(&serde_json::to_vec(&plugins).map_err(std::io::Error::other)?);
+        if let Some((id, expected)) = after
+            && (expected != identity || !plugins.contains_key(&id))
+        {
+            return Err(PluginError::Cursor);
+        }
+        let total = plugins.len();
+        let mut selected = plugins.into_iter().filter(|(id, _)| after.is_none_or(|(after, _)| *id > after));
+        let mut entries = Vec::new();
+        // Native verification handles one archive at a time; bound total page IO
+        // independently of the table size and of the per-archive native ceiling.
+        let mut remaining = 512 * 1024 * 1024usize;
+        for (id, plugin) in selected.by_ref().take(limit) {
+            let verified = (|| {
+                let path = self.path(id);
+                if !fs::symlink_metadata(&path)?.file_type().is_file() {
+                    return Err(PluginError::Invalid("bundle must be a regular file".into()));
+                }
+                let native_limit = harmos_packaging::bundle::Limits::default().archive_bytes;
+                let allowed = remaining.min(native_limit);
+                let file = File::open(path)?;
+                let mut bytes = Vec::new();
+                let read = file.take(allowed as u64 + 1).read_to_end(&mut bytes);
+                // Charge actual IO, including partial reads and a possible
+                // concurrent external rewrite, before inspection/metadata copies.
+                remaining = remaining.checked_sub(bytes.len()).ok_or(PluginError::Limit)?;
+                read?;
+                if bytes.len() > native_limit {
+                    return Err(PluginError::Invalid("bundle exceeds byte limit".into()));
+                }
+                if digest(&bytes) != plugin.digest {
+                    return Err(PluginError::Changed(id));
+                }
+                inspect(&bytes)
+            })();
+            if matches!(verified, Err(PluginError::Limit)) {
+                return Err(PluginError::Limit);
+            }
+            entries.push(Self::entry_from_verification(id, &plugin, verified));
+        }
+        let next = selected.next().and_then(|_| entries.last().map(|entry| entry.installation.install_id));
+        Ok(PluginPage { entries, manifest_sha256: identity, total, next })
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

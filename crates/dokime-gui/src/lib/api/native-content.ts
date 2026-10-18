@@ -11,41 +11,41 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
 import type { ArtifactSource } from "@/lib/desktop/delivery";
+import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type ArtifactCursor,
-  type ArtifactFrame,
-  type ArtifactMetadata,
-  type ArtifactScope,
-  ArtifactScopeSchema,
-  ArtifactState,
-  type ExecutionFileDownloadFrame,
-  type ExecutionFileKind,
-  ExecutionFileKindSchema,
-  type ExecutionFileMetadata,
-  ExecutionFileState,
-  type ExecutionFilesCursor,
-} from "@/lib/rpc/generated/dokime/v1/content_pb";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { ArtifactRecord, ExecutionFileTextRead } from "@/lib/types";
+import type {
+  ArtifactRecord,
+  ExecutionFileFollowEvent,
+  ExecutionFileIdentity,
+  ExecutionFileLifecycle,
+  ExecutionFileReadWindow,
+} from "@/lib/types";
+import type { Row3 as ArtifactDownloadFrame } from "../../../.generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
+import type { Row3 as FileDownloadFrame } from "../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb";
+import type { Row3 as FileFollowFrame } from "../../../.generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
 import { deliverNativeArtifact } from "./native-delivery";
-import {
-  enumTail,
-  NATIVE_MAX_PAGES,
-  NativeApiLimitError,
-  nowIso,
-  safeNumber,
-  sha256Hex,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NativeApiLimitError, nowIso, safeNumber, sha256Hex, timestampIso } from "./native-values";
 
-const NATIVE_FILE_WINDOW_BYTES = 64 * 1024;
+/* === Canonical Types === */
+
+type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
+type ArtifactFrame = Wire<ArtifactDownloadFrame>;
+type ExecutionFileDownloadFrame = Wire<FileDownloadFrame>;
+type ExecutionFileFollowFrame = Wire<FileFollowFrame>;
+type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["artifacts"][number];
+type ArtifactCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["cursor"]>;
+type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["files"][number];
+type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["cursor"]>;
+type ExecutionFileKind = ExecutionFileMetadata["kind"];
+type ExecutionFileState = ExecutionFileMetadata["state"];
+type ArtifactState = ArtifactMetadata["state"];
+
 const NATIVE_CONTENT_BYTES = 2 * 1024 * 1024 * 1024;
 const NATIVE_CONTENT_CHUNK_BYTES = 1024 * 1024;
 const NATIVE_UPLOAD_SLICE_BYTES = 1024 * 1024;
@@ -55,17 +55,11 @@ export interface NativeContentSession extends SessionIdentity {
 }
 
 /** Add generation ownership to a connected session for a content transfer. */
-export function nativeContentSession(
-  session: SessionIdentity,
-  own: NativeContentSession["own"],
-): NativeContentSession {
+export function nativeContentSession(session: SessionIdentity, own: NativeContentSession["own"]): NativeContentSession {
   return { ...session, own };
 }
 
-export async function fetchNativeExecutionFiles(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<ArtifactRecord[]> {
+export async function fetchNativeExecutionFiles(session: SessionIdentity, executionId: string): Promise<ArtifactRecord[]> {
   const files: ExecutionFileMetadata[] = [];
   let afterPath = "";
   let cursor: ExecutionFilesCursor | undefined;
@@ -80,55 +74,30 @@ export async function fetchNativeExecutionFiles(
     const next = reply.nextAfterPath;
     if (!next) return files.map((file) => mapExecutionFile(executionId, file));
     if (next === afterPath) {
-      throw new NativeApiLimitError(
-        "Content.ListExecutionFiles",
-        `cursor did not advance at ${next}`,
-      );
+      throw new NativeApiLimitError("Content.ListExecutionFiles", `cursor did not advance at ${next}`);
     }
     afterPath = next;
     cursor = reply.cursor;
   }
-  throw new NativeApiLimitError(
-    "Content.ListExecutionFiles",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Content.ListExecutionFiles", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function fetchNativeExecutionFileText(
+/**
+ * Read one bounded window of a registered execution file. Callers page with
+ * `pageExecutionFile`, which keeps every request within the contract bound.
+ */
+export async function readNativeExecutionFileWindow(
   session: SessionIdentity,
   executionId: string,
   path: string,
-  options: { offset?: number; tailBytes?: number; maxBytes?: number } = {},
-): Promise<ExecutionFileTextRead> {
-  const maxBytes = options.maxBytes ?? NATIVE_FILE_WINDOW_BYTES;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > NATIVE_FILE_WINDOW_BYTES) {
-    throw new NativeApiLimitError(
-      "Content.ReadExecutionFile",
-      `max_bytes must be between 0 and ${NATIVE_FILE_WINDOW_BYTES}`,
-    );
-  }
-  let offset = options.offset ?? 0;
-  if (options.tailBytes !== undefined) {
-    if (!Number.isSafeInteger(options.tailBytes) || options.tailBytes < 0) {
-      throw new NativeApiLimitError("Content.ReadExecutionFile", "tail_bytes is invalid");
-    }
-    const files = await fetchNativeExecutionFiles(session, executionId);
-    const file = files.find((item) => item.path === path);
-    if (!file) throw new Error(`Execution file ${path} was not found.`);
-    offset = Math.max(0, (file.size_bytes ?? 0) - options.tailBytes);
+  offset: number,
+  maxBytes: number,
+): Promise<ExecutionFileReadWindow> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > EXECUTION_FILE_WINDOW_BYTES) {
+    throw new NativeApiLimitError("Content.ReadExecutionFile", `max_bytes must be between 1 and ${EXECUTION_FILE_WINDOW_BYTES}`);
   }
   if (!Number.isSafeInteger(offset) || offset < 0) {
     throw new NativeApiLimitError("Content.ReadExecutionFile", "offset is invalid");
-  }
-  if (maxBytes === 0) {
-    return {
-      text: "",
-      offset,
-      sizeBytes: offset,
-      nextOffset: offset,
-      truncated: false,
-      rotated: false,
-    };
   }
   const window = await rpc.contentReadExecutionFile(session, {
     executionId,
@@ -136,18 +105,49 @@ export async function fetchNativeExecutionFileText(
     offset: BigInt(offset),
     maxBytes,
   });
-  const observedSize = safeNumber(window.observedSizeBytes, "Content.ReadExecutionFile size");
-  const actualOffset = safeNumber(window.offset, "Content.ReadExecutionFile offset");
-  const text = new TextDecoder().decode(window.data);
-  const byteLength = window.data.byteLength;
-  const nextOffset = actualOffset + byteLength;
   return {
-    text,
-    offset: actualOffset,
-    sizeBytes: observedSize,
-    nextOffset,
-    truncated: nextOffset < observedSize,
-    rotated: options.offset !== undefined && actualOffset < options.offset,
+    offset: safeNumber(window.offset, "Content.ReadExecutionFile offset"),
+    observedSizeBytes: safeNumber(window.observedSizeBytes, "Content.ReadExecutionFile size"),
+    data: window.data,
+    state: mapFileState(window.state),
+  };
+}
+
+/**
+ * Follow a registered execution file from `offset`. A nonzero offset resumes
+ * the retained content `identity` names; the first event is always metadata.
+ * Cancelling the returned stream ends this subscription, never the producer.
+ */
+export async function followNativeExecutionFile(
+  session: SessionIdentity,
+  executionId: string,
+  path: string,
+  { identity, offset = 0 }: { identity?: ExecutionFileIdentity | null; offset?: number } = {},
+): Promise<NativeStream<ExecutionFileFollowEvent>> {
+  if (!Number.isSafeInteger(offset) || offset < 0 || (offset > 0 && !identity)) {
+    throw new NativeApiLimitError("Content.FollowExecutionFile", "a resume offset requires the original identity");
+  }
+  const stream = await rpc.contentFollowExecutionFile(session, {
+    executionId,
+    relativePath: path,
+    identity: identity
+      ? {
+          history: { store: identity.store, epoch: identity.epoch },
+          fileId: identity.fileId,
+          executionId: identity.executionId,
+          relativePath: identity.relativePath,
+        }
+      : undefined,
+    offset: BigInt(offset),
+    maxBytes: EXECUTION_FILE_WINDOW_BYTES,
+  });
+  return {
+    cancel: () => stream.cancel(),
+    async *[Symbol.asyncIterator]() {
+      for await (const frame of stream) {
+        yield mapFollowFrame(frame);
+      }
+    },
   };
 }
 
@@ -156,11 +156,7 @@ export async function fetchNativeExecutionFileText(
  * uses this for report and operator artifacts that are identified by an
  * admitted artifact id; no public URL is constructed.
  */
-export async function fetchNativeArtifactText(
-  session: NativeContentSession,
-  artifactId: string,
-  signal?: AbortSignal,
-): Promise<string> {
+export async function fetchNativeArtifactText(session: NativeContentSession, artifactId: string, signal?: AbortSignal): Promise<string> {
   const bytes = await fetchNativeArtifactBytes(session, artifactId, signal);
   return new TextDecoder().decode(bytes);
 }
@@ -211,8 +207,7 @@ export async function fetchNativeExecutionFileBytes(
   const id = executionId.trim();
   const relativePath = path;
   if (!id) throw new Error("Content.DownloadExecutionFile requires an execution ID.");
-  if (!relativePath.trim())
-    throw new Error("Content.DownloadExecutionFile requires a relative path.");
+  if (!relativePath.trim()) throw new Error("Content.DownloadExecutionFile requires a relative path.");
   let reader: NativeStream<ExecutionFileDownloadFrame> | undefined;
   let release: (() => void) | undefined;
   let cancelPromise: Promise<void> | undefined;
@@ -236,11 +231,7 @@ export async function fetchNativeExecutionFileBytes(
       throw new Error("Execution-file transfer cancelled.");
     }
     release = session.own(() => void cancel().catch(() => undefined));
-    return await assembleExecutionFileBytes(
-      reader,
-      relativePath,
-      () => !signal?.aborted && session.isCurrent(),
-    );
+    return await assembleExecutionFileBytes(reader, relativePath, () => !signal?.aborted && session.isCurrent());
   } finally {
     signal?.removeEventListener("abort", abort);
     await cancel().catch(() => undefined);
@@ -248,10 +239,7 @@ export async function fetchNativeExecutionFileBytes(
   }
 }
 
-type NativeContentArtifact = Pick<
-  ArtifactRecord,
-  "artifact_id" | "group_id" | "label" | "path" | "scope"
->;
+type NativeContentArtifact = Pick<ArtifactRecord, "artifact_id" | "group_id" | "label" | "path" | "scope">;
 
 /** Route registry artifacts and execution-file snapshots to their distinct native RPCs. */
 export async function fetchNativeContentBytes(
@@ -261,12 +249,7 @@ export async function fetchNativeContentBytes(
 ): Promise<Uint8Array> {
   if (artifact.group_id === "execution-files") {
     const reference = nativeExecutionFileReference(artifact);
-    return fetchNativeExecutionFileBytes(
-      session,
-      reference.executionId,
-      reference.relativePath,
-      signal,
-    );
+    return fetchNativeExecutionFileBytes(session, reference.executionId, reference.relativePath, signal);
   }
   return fetchNativeArtifactBytes(session, artifact.artifact_id, signal);
 }
@@ -318,12 +301,9 @@ export type NativeArtifactUploadOptions = {
   groupLabel?: string | null;
 };
 
-export async function uploadNativeArtifact(
-  session: NativeContentSession,
-  options: NativeArtifactUploadOptions,
-): Promise<ArtifactRecord> {
+export async function uploadNativeArtifact(session: NativeContentSession, options: NativeArtifactUploadOptions): Promise<ArtifactRecord> {
   const scope = uploadScope(options.scope);
-  const filename = options.filename.trim();
+  const filename = operatorUploadName(options.filename);
   if (!filename || new TextEncoder().encode(filename).byteLength > 255) {
     throw new Error("Native artifact filename must contain 1–255 bytes.");
   }
@@ -333,10 +313,7 @@ export async function uploadNativeArtifact(
   }
   const file = options.file;
   if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > NATIVE_CONTENT_BYTES) {
-    throw new NativeApiLimitError(
-      "Content.UploadArtifact",
-      `payload exceeds ${NATIVE_CONTENT_BYTES} bytes`,
-    );
+    throw new NativeApiLimitError("Content.UploadArtifact", `payload exceeds ${NATIVE_CONTENT_BYTES} bytes`);
   }
   let upload: Awaited<ReturnType<typeof openNativeArtifactUpload>> | undefined;
   let release: (() => void) | undefined;
@@ -360,9 +337,7 @@ export async function uploadNativeArtifact(
     });
     release = session.own(() => void cancel().catch(() => undefined));
     for (let offset = 0; offset < file.size; offset += NATIVE_UPLOAD_SLICE_BYTES) {
-      const slice = new Uint8Array(
-        await file.slice(offset, offset + NATIVE_UPLOAD_SLICE_BYTES).arrayBuffer(),
-      );
+      const slice = new Uint8Array(await file.slice(offset, offset + NATIVE_UPLOAD_SLICE_BYTES).arrayBuffer());
       await upload.write(slice);
     }
     return mapArtifactMetadata(await upload.finish(), options);
@@ -397,42 +372,6 @@ export async function fetchNativeArtifacts(session: SessionIdentity): Promise<Ar
   throw new NativeApiLimitError("Content.ListArtifacts", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-/**
- * Save a generated cycle ZIP through the native file picker.
- *
- * Unlike the deleted `fetchNativeCycleBundle`, the bundle's bytes never
- * cross the webview: `desktop_artifact_deliver` captures the cycle export
- * and streams it straight to the chosen destination, scaling past the
- * 32 MiB base64 JSON bound this used to share with HTML reports.
- */
-export async function downloadNativeCycleBundle(
-  session: NativeContentSession,
-  cycleId: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  const id = cycleId.trim();
-  if (!id) throw new Error("Content.DownloadCycleBundle requires a cycle ID.");
-  if (signal?.aborted) throw new Error("Content.DownloadCycleBundle was cancelled.");
-  await deliverNativeArtifact(session, {
-    source: { kind: "cycle_bundle", cycleId: id },
-    kind: "cycle_bundle",
-    filename: `test-cycle-${id}.zip`,
-    action: "save",
-  });
-}
-
-export async function fetchNativeCycleFolderPath(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<string> {
-  const id = cycleId.trim();
-  if (!id) throw new Error("Content.GetCycleFolderPath requires a cycle ID.");
-  const response = await rpc.contentGetCycleFolderPath(session, { cycleId: id });
-  const path = response.path.trim();
-  if (!path) throw new Error("Content.GetCycleFolderPath returned an empty path.");
-  return path;
-}
-
 /** Shared with `ArtifactUploader.tsx`'s native recording sink, which builds an
  * `UploadArtifactHeader` directly rather than through `uploadNativeArtifact`. */
 export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
@@ -442,17 +381,14 @@ export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
     throw new Error("Native artifact upload requires a cycle and execution scope.");
   }
   const caseId = scope?.test_case_id?.trim();
-  return create(ArtifactScopeSchema, {
+  return {
     cycleId,
     ...(caseId ? { caseId } : {}),
     executionId,
-  });
+  };
 }
 
-function mapArtifactMetadata(
-  metadata: ArtifactMetadata,
-  overrides?: NativeArtifactUploadOptions,
-): ArtifactRecord {
+function mapArtifactMetadata(metadata: ArtifactMetadata, overrides?: NativeArtifactUploadOptions): ArtifactRecord {
   const scope = mapArtifactScope(metadata.scope);
   const filename = metadata.filename || overrides?.filename || metadata.artifactId;
   const contentType = overrides?.mediaType ?? metadata.contentType;
@@ -475,9 +411,13 @@ function mapArtifactMetadata(
   };
 }
 
-function nativeArtifactFilename(
-  artifact: Pick<ArtifactRecord, "artifact_id" | "label" | "path">,
-): string {
+/** A bare operator filename lands in the `upload/` folder; a relative path keeps its own. */
+function operatorUploadName(filename: string): string {
+  const name = filename.trim();
+  return name.includes("/") ? name : `upload/${name}`;
+}
+
+function nativeArtifactFilename(artifact: Pick<ArtifactRecord, "artifact_id" | "label" | "path">): string {
   const path = artifact.path.trim().replaceAll("\\", "/");
   const filename = path.split("/").filter(Boolean).at(-1)?.trim();
   return filename || artifact.label.trim() || artifact.artifact_id.trim();
@@ -496,9 +436,7 @@ function nativeExecutionFileReference(artifact: Pick<ArtifactRecord, "path" | "s
 }
 
 /** Route registry artifacts and execution-file snapshots to their distinct verified pull source. */
-function nativeArtifactSource(
-  artifact: Pick<ArtifactRecord, "artifact_id" | "group_id" | "path" | "scope">,
-): ArtifactSource {
+function nativeArtifactSource(artifact: Pick<ArtifactRecord, "artifact_id" | "group_id" | "path" | "scope">): ArtifactSource {
   if (artifact.group_id === "execution-files") {
     const reference = nativeExecutionFileReference(artifact);
     return {
@@ -520,24 +458,19 @@ function mapArtifactScope(scope?: ArtifactScope): ArtifactRecord["scope"] {
   };
 }
 
-function mapArtifactState(
-  state: ArtifactState,
-): "static" | "streaming" | "finalized" | "interrupted" {
-  switch (state) {
-    case ArtifactState.COMPLETE:
+function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
+  switch (state?.HarmosVariant.case) {
+    case "Complete":
       return "finalized";
-    case ArtifactState.CANCELLED:
-    case ArtifactState.REJECTED:
+    case "Cancelled":
+    case "Rejected":
       return "interrupted";
     default:
       return "static";
   }
 }
 
-function mapContentKind(
-  contentType: string | undefined,
-  filename: string,
-): "text" | "binary" | "media" | "unknown" {
+function mapContentKind(contentType: string | undefined, filename: string): "text" | "binary" | "media" | "unknown" {
   const normalized = contentType?.toLowerCase() ?? "";
   if (
     normalized.startsWith("text/") ||
@@ -546,11 +479,7 @@ function mapContentKind(
   ) {
     return "text";
   }
-  if (
-    normalized.startsWith("image/") ||
-    normalized.startsWith("audio/") ||
-    normalized.startsWith("video/")
-  ) {
+  if (normalized.startsWith("image/") || normalized.startsWith("audio/") || normalized.startsWith("video/")) {
     return "media";
   }
   return "binary";
@@ -577,29 +506,93 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
 }
 
 function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
-  return enumTail(ExecutionFileKindSchema, kind, "unknown");
+  switch (kind?.HarmosVariant.case) {
+    case "Text":
+      return "text";
+    case "Binary":
+      return "binary";
+    case "Media":
+      return "media";
+    default:
+      return "unknown";
+  }
 }
 
-function mapFileState(
-  state: ExecutionFileState,
-): "static" | "streaming" | "finalized" | "interrupted" {
-  switch (state) {
-    case ExecutionFileState.STREAMING:
+function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
+  switch (state?.HarmosVariant.case) {
+    case "Streaming":
       return "streaming";
-    case ExecutionFileState.FINALIZED:
+    case "Finalized":
       return "finalized";
-    case ExecutionFileState.INTERRUPTED:
+    case "Interrupted":
       return "interrupted";
     default:
       return "static";
   }
 }
 
-async function assembleArtifactBytes(
-  reader: NativeStream<ArtifactFrame>,
-  artifactId: string,
-  active: () => boolean,
-): Promise<Uint8Array> {
+function mapFollowFrame(frame: ExecutionFileFollowFrame): ExecutionFileFollowEvent {
+  const payload = frame.payload?.HarmosVariant;
+  switch (payload?.case) {
+    case "Metadata": {
+      const metadata = payload.value.field0;
+      const identity = metadata?.identity;
+      if (!metadata || !identity?.history || !identity.fileId) {
+        throw new Error("Content.FollowExecutionFile metadata has no original identity.");
+      }
+      return {
+        kind: "metadata",
+        identity: {
+          store: identity.history.store,
+          epoch: identity.history.epoch,
+          fileId: identity.fileId,
+          executionId: identity.executionId,
+          relativePath: identity.relativePath,
+        },
+        phase: mapFollowPhase(metadata.phase, ["Producing", "Finished", "Abandoned"]),
+        availableLength: safeNumber(metadata.availableLength, "Content.FollowExecutionFile available length"),
+        offset: safeNumber(metadata.offset, "Content.FollowExecutionFile offset"),
+      };
+    }
+    case "Chunk": {
+      const chunk = payload.value.field0;
+      if (!chunk) throw new Error("Content.FollowExecutionFile chunk is missing.");
+      return {
+        kind: "chunk",
+        offset: safeNumber(chunk.offset, "Content.FollowExecutionFile chunk offset"),
+        data: chunk.data,
+      };
+    }
+    case "Terminal": {
+      const terminal = payload.value.field0;
+      if (!terminal) throw new Error("Content.FollowExecutionFile terminal is missing.");
+      const sha256 = terminal.sealed?.sha256.toLowerCase() ?? null;
+      if (sha256 !== null && !/^[0-9a-f]{64}$/u.test(sha256)) {
+        throw new Error("Content.FollowExecutionFile seal digest is invalid.");
+      }
+      return {
+        kind: "terminal",
+        phase: mapFollowPhase(terminal.phase, ["Finished", "Abandoned"]),
+        length: safeNumber(terminal.length, "Content.FollowExecutionFile length"),
+        sha256,
+      };
+    }
+    default:
+      throw new Error("Content.FollowExecutionFile sent an unknown frame.");
+  }
+}
+
+function mapFollowPhase<const Allowed extends readonly ("Producing" | "Finished" | "Abandoned")[]>(
+  phase: { HarmosVariant: { case: string | undefined } } | undefined,
+  allowed: Allowed,
+): Lowercase<Allowed[number]> {
+  const name = phase?.HarmosVariant.case;
+  const match = allowed.find((candidate) => candidate === name);
+  if (!match) throw new Error(`Content.FollowExecutionFile phase ${name ?? "unset"} is invalid here.`);
+  return match.toLowerCase() as Lowercase<Allowed[number]>;
+}
+
+async function assembleArtifactBytes(reader: NativeStream<ArtifactFrame>, artifactId: string, active: () => boolean): Promise<Uint8Array> {
   let metadataSize: number | undefined;
   let expectedSha: string | undefined;
   let expectedOffset = 0;
@@ -611,9 +604,12 @@ async function assembleArtifactBytes(
   for await (const frame of reader) {
     if (!active()) throw new Error("Artifact transfer cancelled.");
     if (completed) throw new Error("Artifact transfer continued after completion.");
-    switch (frame.payload.case) {
-      case "metadata": {
-        const metadata = frame.payload.value;
+    const payload = frame.payload?.HarmosVariant;
+    if (!payload?.case || !payload.value.field0) throw new Error("Content transfer contained an incomplete frame.");
+    switch (payload.case) {
+      case "Metadata": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+        const metadata = payload.value.field0;
         if (metadata.artifactId !== artifactId || metadataSize !== undefined) {
           throw new Error("Artifact metadata identity is invalid.");
         }
@@ -622,32 +618,32 @@ async function assembleArtifactBytes(
         if (!/^[0-9a-f]{64}$/u.test(expectedSha)) {
           throw new Error("Artifact metadata digest is invalid.");
         }
-        if (metadataSize > NATIVE_CONTENT_BYTES)
-          throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
+        if (metadataSize > NATIVE_CONTENT_BYTES) throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
         break;
       }
-      case "chunk": {
+      case "Chunk": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined) {
           throw new Error("Artifact data arrived before metadata.");
         }
-        const chunk = frame.payload.value;
+        const chunk = payload.value.field0;
         if (chunk.data.byteLength === 0 || chunk.data.byteLength > NATIVE_CONTENT_CHUNK_BYTES) {
           throw new Error("Artifact chunk size is invalid.");
         }
         const offset = safeNumber(chunk.offset, "Content.ArtifactChunk offset");
         if (offset !== expectedOffset) throw new Error("Artifact chunks are not contiguous.");
         total += chunk.data.byteLength;
-        if (total > NATIVE_CONTENT_BYTES)
-          throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
+        if (total > NATIVE_CONTENT_BYTES) throw new NativeApiLimitError("Content.DownloadArtifact", "artifact is too large");
         chunks.push(chunk.data);
         expectedOffset += chunk.data.byteLength;
         break;
       }
-      case "complete": {
+      case "Complete": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined || completeSize !== undefined) {
           throw new Error("Artifact completed before metadata or twice.");
         }
-        const completion = frame.payload.value;
+        const completion = payload.value.field0;
         completeSize = safeNumber(completion.sizeBytes, "Content.ArtifactCompletion size");
         completeSha = completion.sha256.toLowerCase();
         if (!/^[0-9a-f]{64}$/u.test(completeSha)) {
@@ -692,30 +688,28 @@ async function assembleExecutionFileBytes(
   for await (const frame of reader) {
     if (!active()) throw new Error("Content.DownloadExecutionFile was cancelled.");
     if (completed) throw new Error("Content.DownloadExecutionFile continued after completion.");
-    switch (frame.payload.case) {
-      case "metadata": {
-        const metadata = frame.payload.value;
+    const payload = frame.payload?.HarmosVariant;
+    if (!payload?.case || !payload.value.field0) throw new Error("Content transfer contained an incomplete frame.");
+    switch (payload.case) {
+      case "Metadata": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+        const metadata = payload.value.field0;
         if (metadataPath !== undefined || metadata.relativePath !== relativePath) {
           throw new Error("Content.DownloadExecutionFile metadata identity is invalid.");
         }
         metadataPath = metadata.relativePath;
-        metadataSize = safeNumber(
-          metadata.observedSizeBytes,
-          "Content.DownloadExecutionFile observed size",
-        );
+        metadataSize = safeNumber(metadata.observedSizeBytes, "Content.DownloadExecutionFile observed size");
         if (metadataSize > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError(
-            "Content.DownloadExecutionFile",
-            "execution file is too large",
-          );
+          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
         }
         break;
       }
-      case "chunk": {
+      case "Chunk": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined) {
           throw new Error("Content.DownloadExecutionFile sent data before metadata.");
         }
-        const chunk = frame.payload.value;
+        const chunk = payload.value.field0;
         if (chunk.data.byteLength === 0 || chunk.data.byteLength > NATIVE_CONTENT_CHUNK_BYTES) {
           throw new Error("Content.DownloadExecutionFile chunk size is invalid.");
         }
@@ -725,26 +719,21 @@ async function assembleExecutionFileBytes(
         }
         total += chunk.data.byteLength;
         if (total > metadataSize || total > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError(
-            "Content.DownloadExecutionFile",
-            "execution file is too large",
-          );
+          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
         }
         chunks.push(chunk.data);
         expectedOffset = total;
         break;
       }
-      case "complete": {
+      case "Complete": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (metadataSize === undefined || completeSize !== undefined) {
           throw new Error("Content.DownloadExecutionFile completed before metadata or twice.");
         }
-        const completion = frame.payload.value;
+        const completion = payload.value.field0;
         completeSize = safeNumber(completion.sizeBytes, "Content.DownloadExecutionFile size");
         if (completeSize > NATIVE_CONTENT_BYTES) {
-          throw new NativeApiLimitError(
-            "Content.DownloadExecutionFile",
-            "execution file is too large",
-          );
+          throw new NativeApiLimitError("Content.DownloadExecutionFile", "execution file is too large");
         }
         completeSha = completion.sha256.toLowerCase();
         if (!/^[0-9a-f]{64}$/u.test(completeSha)) {

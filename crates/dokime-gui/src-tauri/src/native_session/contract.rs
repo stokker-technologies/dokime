@@ -31,7 +31,18 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 pub struct DesktopSessionSnapshot {
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
+    pub archived_bytes: Option<u64>,
     pub connection: ConnectionSnapshot,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendDiagnostics {
+    pub executable: String,
+    pub exit_code: Option<i32>,
+    pub exit_status: Option<String>,
+    pub tail: String,
+    pub log: Option<String>,
 }
 
 /* === Enums === */
@@ -39,14 +50,16 @@ pub struct DesktopSessionSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {
     OwnedLocal,
+    Profile { name: String },
     Attach { request: ConnectRequest },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendOwnership {
     None,
     OwnedLocal,
+    Profile { name: String },
     Attached,
 }
 
@@ -56,9 +69,21 @@ pub enum DesktopSessionError {
     LocalBackendUnavailable,
     ShuttingDown,
     Superseded,
-    Startup { message: String },
+    Startup { message: String, diagnostics: Option<Box<BackendDiagnostics>> },
     Shutdown { message: String },
     Connection { error: ConnectionError },
+    StorageReset { reason: StorageResetReason, message: String },
+    Archived { archive: String, error: Box<DesktopSessionError> },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageResetReason {
+    DevelopmentOnly,
+    NotOwned,
+    BackendRunning,
+    OutsideRoot,
+    Failed,
 }
 
 /* === Traits === */

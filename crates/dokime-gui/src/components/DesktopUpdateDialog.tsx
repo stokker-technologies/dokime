@@ -16,14 +16,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useBrand } from "@/lib/brand";
 import {
   type GitlabAuthStatus,
   type GitlabUpdateCheck,
@@ -46,6 +40,7 @@ type BusyAction = "checking" | "installing" | "signing-in" | "signing-out" | nul
 /* === Components === */
 
 export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
+  const brand = useBrand();
   const [auth, setAuth] = useState<GitlabAuthStatus | null>(null);
   const [busy, setBusy] = useState<BusyAction>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +137,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitLab Updates</DialogTitle>
-          <DialogDescription>Sign in to check private Dokime releases.</DialogDescription>
+          <DialogDescription>Sign in to check private {brand.label} releases.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3 text-sm">
@@ -150,9 +145,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             <div className="min-w-0">
               <div className="font-medium">GitLab</div>
               <div className="truncate text-xs text-muted-foreground">
-                {auth?.user
-                  ? `${auth.user.name} · ${auth.user.username}`
-                  : (auth?.message ?? "No active sign-in")}
+                {auth?.user ? `${auth.user.name} · ${auth.user.username}` : (auth?.message ?? "No active sign-in")}
               </div>
             </div>
             <Badge variant={auth?.signedIn ? "secondary" : "outline"}>{statusLabel}</Badge>
@@ -161,11 +154,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
           {update ? (
             <div className="grid gap-1 rounded-md border px-3 py-2">
               <div className="flex items-center gap-2 font-medium">
-                {update.status === "available" ? (
-                  <Download className="size-4" />
-                ) : (
-                  <CheckCircle2 className="size-4" />
-                )}
+                {update.status === "available" ? <Download className="size-4" /> : <CheckCircle2 className="size-4" />}
                 {updateTitle(update)}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -175,43 +164,26 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
           ) : null}
 
           {error ? (
-            <div className="rounded-md border border-destructive/35 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
+            <div className="rounded-md border border-destructive/35 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</div>
           ) : null}
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
           <div className="flex gap-2">
             {auth?.signedIn ? (
-              <Button
-                disabled={busy !== null}
-                onClick={() => void handleSignOut()}
-                type="button"
-                variant="outline"
-              >
+              <Button disabled={busy !== null} onClick={() => void handleSignOut()} type="button" variant="outline">
                 <LogOut data-icon="inline-start" />
                 Sign Out
               </Button>
             ) : (
-              <Button
-                disabled={!auth?.configured || busy !== null}
-                onClick={() => void handleSignIn()}
-                type="button"
-                variant="outline"
-              >
+              <Button disabled={!auth?.configured || busy !== null} onClick={() => void handleSignIn()} type="button" variant="outline">
                 <LogIn data-icon="inline-start" />
                 Sign In With GitLab
               </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <Button
-              disabled={!canCheck}
-              onClick={() => void handleCheckForUpdates()}
-              type="button"
-              variant="outline"
-            >
+            <Button disabled={!canCheck} onClick={() => void handleCheckForUpdates()} type="button" variant="outline">
               <RefreshCw data-icon="inline-start" />
               Check For Updates
             </Button>

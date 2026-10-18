@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{HOST_SOURCE_ID, HostTelemetryStream};
-use dokime_contract::core::{Timestamp, Value};
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -41,19 +42,11 @@ pub struct HostStreamSample {
 /* === Implementations === */
 impl HostStreamSample {
     pub fn new(stream: HostTelemetryStream, values: BTreeMap<String, Value>) -> Self {
-        Self::with_timestamp(stream, Timestamp::now_utc(), values)
+        Self::with_timestamp(stream, dokime_domain::model::time::Timestamp::from_system_time(std::time::SystemTime::now()), values)
     }
 
-    pub fn with_timestamp(
-        stream: HostTelemetryStream,
-        timestamp: Timestamp,
-        values: BTreeMap<String, Value>,
-    ) -> Self {
-        Self {
-            stream,
-            timestamp,
-            values,
-        }
+    pub fn with_timestamp(stream: HostTelemetryStream, timestamp: Timestamp, values: BTreeMap<String, Value>) -> Self {
+        Self { stream, timestamp, values }
     }
 }
 

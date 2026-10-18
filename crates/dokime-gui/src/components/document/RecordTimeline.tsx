@@ -16,6 +16,9 @@
  * nothing to narrow towards and nothing more coming, so the search field and
  * the type select — controls that read as live — are absent and the records
  * are simply the records the file holds.
+ *
+ * Expanding a row opens its panel beneath it — age, payload, provenance —
+ * on the row's own column tracks; the row itself stays one line.
  */
 
 /* === External Imports === */
@@ -28,24 +31,19 @@ import { useMemo, useState } from "react";
 import { RecordDetailsDialog } from "@/components/RecordDetailsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { formatValue, recordMessage, recordTitle } from "@/lib/dashboard";
-import {
-  recordClockLabel,
-  recordLevelLabel,
-  recordLevelVariant,
-  recordToneRowClass,
-} from "@/lib/record-display";
-import { absoluteTimestampLabel } from "@/lib/time-format";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { recordMessage, recordTitle } from "@/lib/dashboard";
+import { recordClockLabel, recordLevelLabel, recordLevelVariant, recordToneRowClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/* === Constants === */
+
+/** One control height for every filter, whatever its primitive's own default. */
+const FILTER_CONTROL_CLASS = "h-[var(--bar-control-height)]";
+
+/** The record row's column tracks: time, level, source, message, type. */
+const RECORD_ROW_COLUMNS = "grid grid-cols-[6rem_5.5rem_10rem_minmax(0,1fr)_auto] gap-x-3";
 
 /* === Components === */
 
@@ -59,7 +57,6 @@ export function RecordTimeline({
 }) {
   const [recordType, setRecordType] = useState("all");
   const [query, setQuery] = useState("");
-  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<HubRecord | null>(null);
   const recordSearchId = "record-timeline-search";
   const recordTypeId = "record-timeline-type";
@@ -93,180 +90,100 @@ export function RecordTimeline({
         if (!matcher) {
           return true;
         }
-        return [
-          record.record_type,
-          record.source,
-          recordTitle(record),
-          recordMessage(record),
-          stringifyRecordDetails(record.details),
-        ].some((value) => matcher.test(value));
+        return [record.record_type, record.source, recordTitle(record), recordMessage(record), stringifyRecordDetails(record.details)].some(
+          (value) => matcher.test(value),
+        );
       });
   }, [recordType, records, query]);
 
   return (
     <>
-      <div className="grid gap-4">
-        {/* A plain toolbar, not a second card: the Records card already owns
-            the only border around this filter row. */}
+      <div className="grid gap-2">
+        {/* One toolbar row, the same height as every other list bar: the
+            search box carries its own hint, the type select sits beside it.
+            The Records card already owns the only border around it. */}
         {live ? (
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-            <div className="grid gap-1.5 text-sm">
-              <Label
-                className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground"
-                htmlFor={recordSearchId}
-              >
-                Search Records
-              </Label>
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  size={14}
-                />
-                <Input
-                  id={recordSearchId}
-                  className="pl-9"
-                  placeholder="Search type, source, message, or details; * and ? supported"
-                  value={query}
-                  onChange={(record) => setQuery(record.target.value)}
-                />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Leave blank for all records. Use * for any text or ? for one character.
-              </span>
+          <div className="grid items-center gap-x-3 text-sm sm:grid-cols-[minmax(0,1fr)_14rem]">
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                aria-label="Search Records"
+                className={cn(FILTER_CONTROL_CLASS, "pl-8")}
+                id={recordSearchId}
+                onChange={(record) => setQuery(record.target.value)}
+                placeholder="Search records (* any text, ? one character)"
+                value={query}
+              />
             </div>
-            <div className="grid gap-1.5 text-sm">
-              <Label
-                className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground"
-                htmlFor={recordTypeId}
-              >
-                Record Type
-              </Label>
-              <Select value={recordType} onValueChange={setRecordType}>
-                <SelectTrigger className="bg-background" id={recordTypeId}>
-                  <SelectValue placeholder="All records" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All records</SelectItem>
-                  {recordTypes.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select onValueChange={setRecordType} value={recordType}>
+              <SelectTrigger aria-label="Record Type" className={cn(FILTER_CONTROL_CLASS, "w-full bg-background")} id={recordTypeId}>
+                <SelectValue placeholder="All Records" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Records</SelectItem>
+                {recordTypes.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm text-muted-foreground">
-          <span>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-b pb-1 text-xs text-muted-foreground">
+          <span className="truncate">
             {live
-              ? `Showing ${visibleRecords.length} of ${records.length} records.`
-              : `${records.length} ${records.length === 1 ? "record" : "records"}.`}
+              ? `Showing ${visibleRecords.length} of ${records.length} records`
+              : `${records.length} ${records.length === 1 ? "record" : "records"}`}
           </span>
-          <span>The timeline is ordered newest first.</span>
+          <span className="justify-self-end">Newest first</span>
         </div>
 
         {visibleRecords.length ? (
           /* One dense grid, live and frozen: time, level, source, message, and
              the technical record type where it belongs — at the row's end,
-             muted, for the reader who needs it. The message is printed once;
-             expanding a row reveals the details behind it. */
+             muted, for the reader who needs it. The row keeps its message to
+             one line; opening it shows the whole record in the dialog. */
           /* The Records card already owns the only border around this list;
              a second one here would be a card inside a card. */
           <ol className="grid border-t" data-testid="record-rows">
             {visibleRecords.map((record) => {
-              const expanded = expandedRecordId === record.record_id;
               return (
                 <li
-                  className={cn(
-                    "border-b border-l-2 border-b-border/60 last:border-b-0",
-                    recordToneRowClass(record.display.tone),
-                  )}
+                  className={cn("border-b border-l-2 border-b-border/60 last:border-b-0", recordToneRowClass(record.display.tone))}
                   key={record.record_id}
                 >
                   <button
-                    aria-expanded={expanded}
+                    aria-haspopup="dialog"
                     className={cn(
-                      "grid w-full grid-cols-[6rem_5.5rem_10rem_minmax(0,1fr)_auto] items-start gap-3 px-3 py-1.5 text-left font-mono text-xs tabular-nums hover:bg-muted/40",
+                      RECORD_ROW_COLUMNS,
+                      "w-full items-start px-3 py-1.5 text-left font-mono text-xs tabular-nums hover:bg-muted/40",
                     )}
-                    onClick={() =>
-                      setExpandedRecordId((current) =>
-                        current === record.record_id ? null : record.record_id,
-                      )
-                    }
+                    onClick={() => setSelectedRecord(record)}
                     type="button"
                   >
                     <time className="truncate text-muted-foreground" dateTime={record.timestamp}>
                       {recordClockLabel(record.timestamp)}
                     </time>
-                    <Badge
-                      className="h-4 justify-self-start px-1 text-[0.65rem]"
-                      variant={recordLevelVariant(record.level)}
-                    >
+                    <Badge className="h-4 justify-self-start px-1 text-[0.65rem]" variant={recordLevelVariant(record.level)}>
                       {recordLevelLabel(record.level)}
                     </Badge>
                     <span className="truncate text-muted-foreground">{record.source}</span>
-                    <span
-                      className={cn(
-                        "min-w-0",
-                        expanded ? "break-words whitespace-pre-wrap" : "truncate",
-                      )}
-                    >
-                      {recordLine(record)}
-                    </span>
+                    <span className="min-w-0 truncate">{recordLine(record)}</span>
                     <span className="truncate text-muted-foreground">{record.record_type}</span>
                   </button>
-                  {expanded ? (
-                    <div className="grid gap-3 border-t bg-muted/10 px-3 py-3">
-                      <div className="grid gap-2 lg:grid-cols-2">
-                        <TimelineFact label="Source" value={record.source} />
-                        <TimelineFact
-                          label="Recorded At"
-                          value={formatAbsoluteTimestamp(record.timestamp)}
-                        />
-                        <TimelineFact label="Scope" value={formatScopeSummary(record)} />
-                        {record.sequence ? (
-                          <TimelineFact label="Sequence" value={String(record.sequence)} />
-                        ) : null}
-                      </div>
-                      {Object.keys(record.details).length ? (
-                        <dl className="grid gap-2 rounded-md border bg-background/80 p-3">
-                          {Object.entries(record.details).map(([key, value]) => (
-                            <div
-                              className="grid gap-1 md:grid-cols-[14rem_minmax(0,1fr)] md:gap-3"
-                              key={key}
-                            >
-                              <dt className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                                {key}
-                              </dt>
-                              <dd className="text-sm [overflow-wrap:anywhere]">
-                                {formatValue(value)}
-                              </dd>
-                            </div>
-                          ))}
-                        </dl>
-                      ) : null}
-                      <div className="flex justify-end">
-                        <button
-                          className="text-sm font-semibold text-primary hover:underline"
-                          onClick={() => setSelectedRecord(record)}
-                          type="button"
-                        >
-                          Inspect full record details
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                 </li>
               );
             })}
           </ol>
         ) : (
-          <div className="grid min-h-44 place-content-center gap-2 rounded-md border text-center text-muted-foreground">
-            <strong>No records match the current filters</strong>
-            <span>Adjust the search text or selected record type.</span>
-          </div>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {live && (query.trim() || recordType !== "all") ? "No records match the current filters." : "No records yet."}
+          </p>
         )}
       </div>
       <RecordDetailsDialog selected={selectedRecord} onClose={() => setSelectedRecord(null)} />
@@ -292,26 +209,6 @@ function stringifyRecordDetails(details: Record<string, unknown>): string {
   }
 }
 
-function formatScopeSummary(record: HubRecord): string {
-  const scope = record.scope;
-  if (!scope) {
-    return "Runtime";
-  }
-  return (
-    [
-      scope.test_cycle_id ? `cycle ${scope.test_cycle_id}` : null,
-      scope.test_execution_id ? `execution ${scope.test_execution_id}` : null,
-      scope.test_case_id ? `case ${scope.test_case_id}` : null,
-    ]
-      .filter(Boolean)
-      .join(" / ") || "Runtime"
-  );
-}
-
-function formatAbsoluteTimestamp(timestamp: string): string {
-  return absoluteTimestampLabel(timestamp);
-}
-
 /**
  * The one line a record row prints.
  *
@@ -321,15 +218,4 @@ function formatAbsoluteTimestamp(timestamp: string): string {
  */
 function recordLine(record: HubRecord): string {
   return recordMessage(record) || recordTitle(record);
-}
-
-function TimelineFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid gap-1 rounded-lg border bg-background/80 p-3">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        {label}
-      </span>
-      <strong className="text-sm [overflow-wrap:anywhere]">{value}</strong>
-    </div>
-  );
 }

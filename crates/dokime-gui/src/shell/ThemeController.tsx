@@ -15,12 +15,7 @@ import { useEffect } from "react";
 
 import { useAppearance } from "@/lib/appearance";
 import { useApplicationTheme } from "@/lib/application-theme";
-import {
-  applyDensity,
-  applyThemeStylesheet,
-  applyThemeVariables,
-  type ResolvedTheme,
-} from "@/lib/theme";
+import { applyDensity, applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -40,11 +35,7 @@ export function ThemeController() {
   const resolvedMode: ResolvedTheme = resolvedTheme === "dark" ? "dark" : "light";
 
   useEffect(() => {
-    if (
-      appearance.theme_family_locked &&
-      appearance.active_theme &&
-      themeFamily !== appearance.active_theme
-    ) {
+    if (appearance.theme_family_locked && appearance.active_theme && themeFamily !== appearance.active_theme) {
       setUiState({ themeFamily: appearance.active_theme });
     }
   }, [appearance.active_theme, appearance.theme_family_locked, setUiState, themeFamily]);

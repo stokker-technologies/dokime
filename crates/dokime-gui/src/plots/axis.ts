@@ -120,10 +120,7 @@ export function formatElapsedTick(value: number, unit: string, increment?: numbe
 export function elapsedWindowLabel(seconds: number, unit: string): string {
   const perUnit = UNIT_SECONDS[unit] ?? 1;
   const value = seconds / perUnit;
-  const text =
-    Number.isInteger(value) || Math.abs(value) >= 100
-      ? String(Math.round(value))
-      : String(Number(value.toPrecision(3)));
+  const text = Number.isInteger(value) || Math.abs(value) >= 100 ? String(Math.round(value)) : String(Number(value.toPrecision(3)));
   return `${text} ${unit}`;
 }
 

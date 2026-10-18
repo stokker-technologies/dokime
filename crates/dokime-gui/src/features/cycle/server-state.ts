@@ -13,29 +13,23 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 
 /* === Local Imports === */
 
-import {
-  useNativeSession,
-  useNativeSessionOptional,
-} from "@/app/native-session/NativeSessionProvider";
-import {
-  createNativeNote,
-  fetchNativeHealth,
-  fetchNativeNotes,
-} from "@/lib/api/native-annotations";
-import {
-  fetchNativeArtifacts,
-  fetchNativeCycleFolderPath,
-  fetchNativeExecutionFiles,
-  fetchNativeExecutionFileText,
-} from "@/lib/api/native-content";
+import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
+import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
+import { fetchNativeArtifacts, fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { fetchNativeCycleRecords, fetchNativeRecords } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeCycleHistory } from "@/lib/api/native-history";
 import { fetchNativeDiagnostics, fetchNativeTraceability } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import type { ExecutionFileTextRead, RecordScope } from "@/lib/types";
+import type { RecordScope } from "@/lib/types";
+import { documentRetry, documentRetryDelay } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
+
+/* === Constants === */
+
+/** How long an unobserved evidence read stays cached; records and documents are large. */
+const EVIDENCE_GC_MS = 30_000;
 
 /* === Types === */
 
@@ -50,13 +44,9 @@ type AddNoteVariables = {
   text: string;
 };
 
-export type ExecutionFileTextReadVariables = {
-  executionId: string;
-  maxBytes?: number;
-  offset?: number;
-  path: string;
-  signal?: AbortSignal;
-  tailBytes?: number;
+type EditNoteVariables = {
+  noteId: string;
+  text: string;
 };
 
 /* === Query Keys === */
@@ -65,50 +55,22 @@ export const workflowQueryKeys = {
   all: ["workflow"] as const,
   artifacts: () => [...workflowQueryKeys.all, "artifacts"] as const,
   cycleDetails: () => [...workflowQueryKeys.all, "cycles", "detail"] as const,
-  cycleDetail: (cycleId: string | null = null) =>
-    [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
-  cycleRecords: (cycleId: string | null) =>
-    [...workflowQueryKeys.all, "cycles", "records", cycleId ?? ""] as const,
+  cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
+  cycleRecords: (cycleId: string | null) => [...workflowQueryKeys.all, "cycles", "records", cycleId ?? ""] as const,
   cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
   diagnostics: () => [...workflowQueryKeys.all, "diagnostics"] as const,
   records: (limit = 500) => [...workflowQueryKeys.all, "records", { limit }] as const,
-  executionDocument: ({
-    cycleId,
-    executionId,
-  }: {
-    cycleId: string | null;
-    executionId: string | null;
-  }) =>
+  executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
     [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
   executionDetails: () => [...workflowQueryKeys.all, "execution-detail"] as const,
-  executionDetail: (executionId: string | null = null) =>
-    [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
-  executionFiles: (executionId: string | null) =>
-    [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
-  executionFileText: ({
-    executionId,
-    maxBytes,
-    offset,
-    path,
-    tailBytes,
-  }: Omit<ExecutionFileTextReadVariables, "signal">) =>
-    [
-      ...workflowQueryKeys.all,
-      "execution-file-text",
-      executionId,
-      path,
-      { maxBytes: maxBytes ?? null, offset: offset ?? null, tailBytes: tailBytes ?? null },
-    ] as const,
+  executionDetail: (executionId: string | null = null) => [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
+  executionFiles: (executionId: string | null) => [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
   health: () => [...workflowQueryKeys.all, "health"] as const,
   notes: () => [...workflowQueryKeys.all, "notes"] as const,
   prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
   runtimeShell: () => [...workflowQueryKeys.all, "runtime-shell"] as const,
-  testCycleFolderPath: (cycleId: string | null | undefined) =>
-    [...workflowQueryKeys.all, "test-cycle-folder-path", cycleId ?? "current"] as const,
   traceability: (scope?: RecordScope | null) =>
-    scope
-      ? ([...workflowQueryKeys.all, "traceability", scope] as const)
-      : ([...workflowQueryKeys.all, "traceability"] as const),
+    scope ? ([...workflowQueryKeys.all, "traceability", scope] as const) : ([...workflowQueryKeys.all, "traceability"] as const),
 };
 
 /* === Private Functions === */
@@ -150,6 +112,7 @@ export function useRecordsQuery(enabled: boolean, scope: RecordScope | null) {
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeRecords(identityOf(session), { scope }),
     queryKey: [...workflowQueryKeys.records(), generationOf(session), scope],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.records) : query;
@@ -208,6 +171,7 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
@@ -231,11 +195,7 @@ export function useExecutionDetailQuery(executionId: string | null, enabled: boo
     queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
     staleTime: 1_000,
   });
-  return snapshot
-    ? frozenQuery(
-        snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined,
-      )
-    : query;
+  return snapshot ? frozenQuery(snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined) : query;
 }
 
 export function useCycleRecordsQuery(cycleId: string | null, enabled = true) {
@@ -244,6 +204,7 @@ export function useCycleRecordsQuery(cycleId: string | null, enabled = true) {
     enabled: Boolean(cycleId) && enabled,
     queryFn: () => fetchNativeCycleRecords(session.identity, cycleId ?? ""),
     queryKey: [...workflowQueryKeys.cycleRecords(cycleId), session.identity.generation],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 30_000,
   });
 }
@@ -264,13 +225,7 @@ export function useExecutionFilesQuery(executionId: string | null, enabled: bool
   return snapshot ? frozenQuery(snapshot.executionFiles(executionId)) : query;
 }
 
-export function useExecutionDocumentQuery({
-  cycleId,
-  executionId,
-}: {
-  cycleId: string | null;
-  executionId: string | null;
-}) {
+export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
@@ -286,13 +241,43 @@ export function useExecutionDocumentQuery({
         },
         signal,
       ).then((document) => mapNativeDocument(document)),
-    queryKey: [
-      ...workflowQueryKeys.executionDocument({ cycleId, executionId }),
-      generationOf(session),
-    ],
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)],
+    gcTime: EVIDENCE_GC_MS,
+    retry: documentRetry,
+    retryDelay: documentRetryDelay,
     staleTime: 1_000,
   });
   return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
+}
+
+/**
+ * The cycle's own document: the host-composed records, artifacts, media and
+ * cycle-level plots, read through the same document route with no execution
+ * in its scope. A frozen report answers from its embedded cycle capture.
+ */
+export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) {
+  const snapshot = useCycleSnapshotSource();
+  const session = useNativeSessionOptional();
+  const query = useQuery({
+    enabled: Boolean(cycleId) && enabled && session !== null,
+    queryFn: ({ signal }) =>
+      fetchNativeDocument(
+        nativeDocumentSession(requireSession(session)),
+        {
+          cycleId: cycleId ?? "",
+          documentId: "default",
+          executionId: "",
+          epoch: nativeEpoch(requireSession(session)),
+        },
+        signal,
+      ).then((document) => mapNativeDocument(document)),
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)],
+    gcTime: EVIDENCE_GC_MS,
+    retry: documentRetry,
+    retryDelay: documentRetryDelay,
+    staleTime: 1_000,
+  });
+  return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
 }
 
 /* === Invalidation === */
@@ -314,28 +299,24 @@ export async function invalidateWorkflowResourceQueries(queryClient: QueryClient
 export async function invalidateRuntimeProjectionQueries(queryClient: QueryClient) {
   const keepActiveRefetch = { cancelRefetch: false } as const;
   await Promise.all([
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.cycleDetails() },
-      keepActiveRefetch,
-    ),
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.executionDetails() },
-      keepActiveRefetch,
-    ),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.cycleDetails() }, keepActiveRefetch),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.executionDetails() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.records() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.health() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.artifacts() }, keepActiveRefetch),
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.traceability() },
-      keepActiveRefetch,
-    ),
-    queryClient.invalidateQueries(
-      { queryKey: [...workflowQueryKeys.all, "documents"] },
-      keepActiveRefetch,
-    ),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.traceability() }, keepActiveRefetch),
   ]);
+}
+
+/**
+ * Re-read the open documents. Each read pages every record of its scope and
+ * reassembles the document, so a running cycle refreshes them on a throttle
+ * rather than on every runtime cursor.
+ */
+export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
+  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
@@ -343,45 +324,6 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }),
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
-}
-
-export function fetchExecutionFileTextQuery(
-  queryClient: QueryClient,
-  session: ReturnType<typeof useNativeSession>,
-  variables: ExecutionFileTextReadVariables,
-): Promise<ExecutionFileTextRead> {
-  const { executionId, maxBytes, offset, path, tailBytes } = variables;
-  return queryClient.fetchQuery({
-    queryFn: () =>
-      fetchNativeExecutionFileText(session.identity, executionId, path, {
-        maxBytes,
-        offset,
-        tailBytes,
-      }),
-    queryKey: [
-      ...workflowQueryKeys.executionFileText({
-        executionId,
-        maxBytes,
-        offset,
-        path,
-        tailBytes,
-      }),
-      session.identity.generation,
-    ],
-    staleTime: 0,
-  });
-}
-
-export function fetchTestCycleFolderPathQuery(
-  queryClient: QueryClient,
-  session: ReturnType<typeof useNativeSession>,
-  cycleId: string,
-): Promise<string> {
-  return queryClient.fetchQuery({
-    queryFn: () => fetchNativeCycleFolderPath(session.identity, cycleId),
-    queryKey: [...workflowQueryKeys.testCycleFolderPath(cycleId), session.identity.generation],
-    staleTime: 5_000,
-  });
 }
 
 /* === Mutation Hooks === */
@@ -395,9 +337,7 @@ export function usePromptResponseMutation() {
       respondNativePrompt(session.identity, correlationId, action, values),
     onSuccess: async (_data, variables) => {
       queryClient.setQueryData(workflowQueryKeys.prompts(), (current: unknown) =>
-        Array.isArray(current)
-          ? current.filter((item) => item?.correlation_id !== variables.correlationId)
-          : current,
+        Array.isArray(current) ? current.filter((item) => item?.correlation_id !== variables.correlationId) : current,
       );
       await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() });
     },
@@ -409,13 +349,24 @@ export function useAddNoteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ scope, text }: AddNoteVariables) =>
-      createNativeNote(session.identity, nativeEpoch(session), text, scope),
+    mutationFn: ({ scope, text }: AddNoteVariables) => createNativeNote(session.identity, nativeEpoch(session), text, scope),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }),
       ]);
+    },
+  });
+}
+
+export function useEditNoteMutation() {
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ noteId, text }: EditNoteVariables) => editNativeNote(session.identity, nativeEpoch(session), noteId, text),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() });
     },
   });
 }

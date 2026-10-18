@@ -17,10 +17,9 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use crate::{
-    Host, HostOptions, HostTelemetryConfig, HostTelemetryStream, host_telemetry_contracts,
-};
-use dokime_contract::telemetry::{TelemetryBatch, TelemetryContract};
+use crate::{Host, HostOptions, HostTelemetryConfig, HostTelemetryStream, host_telemetry_contracts};
+use dokime_domain::model::telemetry::TelemetryBatch;
+use dokime_domain::model::telemetry::TelemetryContract;
 
 /* === Constants === */
 
@@ -47,28 +46,20 @@ pub trait HostTelemetryCollector: Send + Sync + 'static {
 /* === Implementations === */
 impl HostTelemetryCollectorImpl {
     fn new(config: HostTelemetryConfig) -> Self {
-        Self {
-            host: Host::new(config.clone()),
-            options: config.options.clone(),
-            config,
-        }
+        Self { host: Host::new(config.clone()), options: config.options.clone(), config }
     }
 }
 
 impl HostTelemetryCollector for HostTelemetryCollectorImpl {
     fn interval(&self, stream: &str) -> std::time::Duration {
         HostTelemetryStream::try_from(stream)
-            .map(|stream| {
-                std::time::Duration::from_millis(self.config.interval_for(stream).0.max(1))
-            })
+            .map(|stream| std::time::Duration::from_millis(self.config.interval_for(stream).0.max(1)))
             .unwrap_or(std::time::Duration::from_secs(1))
     }
 
     fn collect(&self, stream: &str) -> Result<Option<TelemetryBatch>, String> {
         let stream = HostTelemetryStream::try_from(stream).map_err(|error| error.to_string())?;
-        self.host
-            .collect_stream_with_options(stream, &self.options)
-            .map_err(|error| error.to_string())
+        self.host.collect_stream_with_options(stream, &self.options).map_err(|error| error.to_string())
     }
 }
 

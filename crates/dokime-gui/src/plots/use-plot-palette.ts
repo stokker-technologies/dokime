@@ -33,9 +33,6 @@ export function usePlotPalette(): string[] {
   });
 
   return useMemo(() => {
-    return (
-      plotPaletteFromVariables(materializeThemeFamilyVariables(selectedTheme, resolvedMode)) ??
-      resolvePlotThemeColors().palette
-    );
+    return plotPaletteFromVariables(materializeThemeFamilyVariables(selectedTheme, resolvedMode)) ?? resolvePlotThemeColors().palette;
   }, [resolvedMode, selectedTheme]);
 }

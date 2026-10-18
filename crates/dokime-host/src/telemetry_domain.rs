@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::{HostTelemetryCollector, HostTelemetryConfig, telemetry};
-use dokime_contract::domains::InstalledPlugin;
+use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Constants === */
 pub const HOST_SOURCE_ID: &str = "host";

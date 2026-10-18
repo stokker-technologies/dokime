@@ -67,17 +67,11 @@ export function CollapsibleSection({
           <span className="flex min-w-0 items-center gap-2">
             {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
             <span className="min-w-0">
-              {eyebrow ? (
-                <span className="block truncate text-xs font-bold uppercase text-muted-foreground">
-                  {eyebrow}
-                </span>
-              ) : null}
+              {eyebrow ? <span className="block truncate text-xs font-bold uppercase text-muted-foreground">{eyebrow}</span> : null}
               <span className="block truncate text-lg font-semibold">{title}</span>
             </span>
           </span>
-          {summary ? (
-            <span className="block truncate text-xs text-muted-foreground">{summary}</span>
-          ) : null}
+          {summary ? <span className="block truncate text-xs text-muted-foreground">{summary}</span> : null}
         </CollapsibleTrigger>
         <div className="flex items-center gap-1">
           {actions}

@@ -62,6 +62,8 @@ export type { RecordScope } from "./view-contracts";
 
 export type OperatorNote = {
   note_id: string;
+  /** The authenticated identity that filed the note. */
+  author?: string | null;
   text: string;
   timestamp: string;
   elapsed_since_start_label?: string | null;

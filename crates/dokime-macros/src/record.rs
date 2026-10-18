@@ -25,12 +25,7 @@ use crate::arguments::Arguments;
 /* === Constants === */
 const FIELD_ARGUMENTS: &[&str] = &["label", "unit", "format", "message", "description"];
 
-const SEVERITIES: &[(&str, &str)] = &[
-    ("debug", "Debug"),
-    ("info", "Info"),
-    ("warning", "Warning"),
-    ("error", "Error"),
-];
+const SEVERITIES: &[(&str, &str)] = &[("debug", "Debug"), ("info", "Info"), ("warning", "Warning"), ("error", "Error")];
 
 /* === Macros === */
 
@@ -63,43 +58,17 @@ struct FieldArguments {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn record(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    match declare(attribute, &item) {
-        Ok(declared) => crate::facade::contracted(declared),
-        Err(refused) => {
-            let refusal = refused.to_compile_error();
-
-            quote! { #item #refusal }
-        }
-    }
-}
-
-/* === Private Functions === */
-fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
+pub(crate) fn implementation(attribute: TokenStream, input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let input: DeriveInput = syn::parse2(item.clone())?;
-    let arguments = Arguments::read(
-        attribute,
-        "a record",
-        &["id", "label", "severity", "description"],
-    )?;
-    let identifier = arguments
-        .required(
-            "id",
-            "a record declares the id its occurrences are filed under",
-        )?
-        .clone();
-    let label = arguments
-        .required("label", "an operator reads the record by its label")?
-        .clone();
+    let arguments = Arguments::read(attribute, "a record", &["id", "label", "severity", "description"])?;
+    let identifier = arguments.required("id", "a record declares the id its occurrences are filed under")?.clone();
+    let label = arguments.required("label", "an operator reads the record by its label")?.clone();
     let severity = match arguments.value("severity") {
-        Some(written) => declared_severity(written)?,
+        Some(written) => declared_severity(written, "a record is filed")?,
         None => quote!(#sdk::records::RecordSeverity::Info),
     };
-    let described = crate::arguments::description(arguments.value("description"), &input.attrs)
-        .map(|text| quote!(.described(#text)));
-    let fields = declarations(&input)?;
-    let declared = stripped(&input);
+    let described = crate::arguments::description(arguments.value("description"), &input.attrs).map(|text| quote!(.described(#text)));
+    let fields = declarations(input)?;
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
     let contract_fields = fields.iter().map(contract_field);
@@ -115,8 +84,6 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     };
 
     Ok(quote! {
-        #declared
-
         #[automatically_derived]
         impl #generics #name #types #predicates {
             #handles
@@ -141,7 +108,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
 
             fn into_details(self) -> ::std::collections::BTreeMap<
                 ::std::string::String,
-                #sdk::core::Value,
+                #sdk::Value,
             > {
                 let mut details = ::std::collections::BTreeMap::new();
                 #(#details)*
@@ -149,7 +116,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             }
 
             fn from_record(
-                record: &#sdk::records::Record,
+                record: &#sdk::__domain::model::records::Record,
             ) -> #sdk::Result<Self> {
                 if record.record_type.as_str() != <Self as #sdk::records::DeclaredRecord>::RECORD_TYPE {
                     return ::std::result::Result::Err(
@@ -169,7 +136,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             }
 
             fn from_details(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> ::std::result::Result<Self, #sdk::FieldError> {
                 ::std::result::Result::Ok(Self { #(#reads),* })
             }
@@ -194,7 +161,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
 
         #[automatically_derived]
         impl #generics #sdk::Publishable for #name #types #predicates {
-            type Payload = #sdk::records::RecordPublishRequest;
+            type Payload = #sdk::__domain::model::records::RecordPublishRequest;
 
             fn publication(self) -> Self::Payload {
                 <Self as #sdk::records::DeclaredRecord>::request(self)
@@ -203,14 +170,11 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     })
 }
 
-fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
+// A prompt's level reads on the same scale, so it is parsed here once.
+pub(crate) fn declared_severity(value: &Expr, subject: &str) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let written = match value {
-        Expr::Path(path) => path
-            .path
-            .get_ident()
-            .map(ToString::to_string)
-            .unwrap_or_default(),
+        Expr::Path(path) => path.path.get_ident().map(ToString::to_string).unwrap_or_default(),
         Expr::Lit(literal) => match &literal.lit {
             syn::Lit::Str(text) => text.value(),
             _ => String::new(),
@@ -220,14 +184,7 @@ fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
     let Some((_, variant)) = SEVERITIES.iter().find(|(name, _)| *name == written) else {
         return Err(Error::new(
             value.span(),
-            format!(
-                "a record is filed at one of {}",
-                SEVERITIES
-                    .iter()
-                    .map(|(name, _)| *name)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            format!("{subject} at one of {}", SEVERITIES.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ")),
         ));
     };
     let variant = Ident::new(variant, value.span());
@@ -235,6 +192,7 @@ fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
     Ok(quote!(#sdk::records::RecordSeverity::#variant))
 }
 
+/* === Private Functions === */
 fn handles(fields: &[RecordFieldDeclaration], identifier: &Expr) -> TokenStream {
     let sdk = crate::facade::root();
     let accessors = fields.iter().map(|field| {
@@ -267,17 +225,11 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RecordFieldDeclaration>, Erro
     let mut declared = Vec::new();
     let mut message: Option<proc_macro2::Span> = None;
     for field in &named.named {
-        let name = field
-            .ident
-            .clone()
-            .expect("a named field carries an identifier");
+        let name = field.ident.clone().expect("a named field carries an identifier");
         let written = arguments(field)?;
         if written.message {
             if let Some(first) = message {
-                let mut refusal = Error::new(
-                    name.span(),
-                    "a record says one thing: only one field is its message",
-                );
+                let mut refusal = Error::new(name.span(), "a record says one thing: only one field is its message");
                 refusal.combine(Error::new(first, "the message was already marked here"));
                 return Err(refusal);
             }
@@ -303,13 +255,7 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RecordFieldDeclaration>, Erro
 
 fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
     let mut written = FieldArguments::default();
-    let read = crate::arguments::field_arguments(
-        field,
-        "record",
-        "a record field argument",
-        FIELD_ARGUMENTS,
-        &["message"],
-    )?;
+    let read = crate::arguments::field_arguments(field, "record", "a record field argument", FIELD_ARGUMENTS, &["message"])?;
     written.message = read.flag("message");
     for (name, value) in read.values() {
         match name.to_string().as_str() {
@@ -332,8 +278,8 @@ fn contract_field(field: &RecordFieldDeclaration) -> TokenStream {
     let described = &field.described;
     let declaration = quote! {
         #sdk::records::RecordField::new(
-            #sdk::core::Metadata::new(
-                #sdk::core::Identifier::declared(#identifier, "record field"),
+            #sdk::Metadata::new(
+                #sdk::Identifier::declared(#identifier, "record field"),
                 #label,
                 #described,
             ),
@@ -358,11 +304,7 @@ fn contract_field(field: &RecordFieldDeclaration) -> TokenStream {
 
     // An optional field is a fact the occurrence may not have known: saying so
     // is what keeps the host from refusing an honest absence.
-    if crate::row::optional(&field.ty) {
-        quote!(#declaration.nullable())
-    } else {
-        declaration
-    }
+    if crate::row::optional(&field.ty) { quote!(#declaration.nullable()) } else { declaration }
 }
 
 fn detail(field: &RecordFieldDeclaration) -> TokenStream {
@@ -386,7 +328,7 @@ fn read(field: &RecordFieldDeclaration) -> TokenStream {
     quote!(#name: #sdk::records::field(values, #identifier)?)
 }
 
-fn stripped(input: &DeriveInput) -> DeriveInput {
+pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
     crate::arguments::stripped(input, "record")
 }
 
