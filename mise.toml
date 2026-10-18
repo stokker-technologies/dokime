@@ -177,7 +177,8 @@ run = "{{vars.tools}} dokime_tools.build.run python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
 description = "Build The Workspace Archive, Executables And Plugin Bundle"
-depends = ["prepare"]
+# The runtime embeds the report viewer, a declared input of every native capture.
+depends = ["prepare:report"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.run rust --profile {{usage.profile}}"
 
