@@ -29,7 +29,6 @@ use std::{
 use sysinfo::Networks;
 // Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
-use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
