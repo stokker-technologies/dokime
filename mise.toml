@@ -45,8 +45,8 @@ gh = "2.102.0"
 
 [env]
 UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
-# A Fresh Checkout Has No Target Yet; Tools Fail On A Missing Temporary Directory, So Loading The Environment Creates It.
-TMPDIR = "{{config_root}}/target/tmp{{ exec(command='mkdir -p ' ~ config_root ~ '/target/tmp') }}"
+# A Fresh Checkout Has No Target Yet; Loading The Environment Creates The Temporary Directory Portably, Since cmd.exe Has No `mkdir -p`.
+TMPDIR = { value = '''{{exec(command=`python -c "from pathlib import Path; p = Path('target/tmp'); p.mkdir(parents=True, exist_ok=True); print(p.resolve())"` )}}''', tools = true }
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
@@ -169,6 +169,7 @@ run = [
   { task = "build:python --profile {{usage.profile}}" },
   "{{vars.tools}} dokime_tools.build.run stamp --profile {{usage.profile}}",
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."build:python"]
 description = "Build The Python Client Wheel"
@@ -215,17 +216,20 @@ run = [
   { task = "test:acceptance --profile {{usage.profile}}" },
   { task = "test:system --profile {{usage.profile}}" },
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:acceptance"]
 description = "Test Acceptance Layer"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:acceptance:python"]
 description = "Test Acceptance Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:acceptance:rust"]
 description = "Test Acceptance Rust"
@@ -236,10 +240,12 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --install-wheels",
   "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated"]
 description = "Test The Generated Clients"
 depends = ["test:generated:python", "test:generated:typescript"]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated:python"]
 description = "Test The Generated Python Client"
@@ -250,6 +256,7 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --install-wheels",
   "{{vars.python}} python -c \"import dokime, dokime.client\"",
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated:typescript"]
 description = "Test The Generated TypeScript Client"
@@ -260,6 +267,7 @@ run = [
   "pnpm --dir crates/dokime-gui exec biome lint --vcs-use-ignore-file=false .generated",
   "node crates/dokime-gui/tools/smoke.mjs",
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration"]
 description = "Test Integration Layer"
@@ -269,17 +277,20 @@ run = [
   { task = "test:integration:python --profile {{usage.profile}}" },
   { task = "test:integration:typescript --profile {{usage.profile}}" },
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration:python"]
 description = "Test Integration Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration:typescript"]
 description = "Test Integration TypeScript"
@@ -289,33 +300,39 @@ run = [
   "{{vars.tools}} dokime_tools.prepare.generated",
   "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:system"]
 description = "Test System Layer"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test:system:typescript --profile {{usage.profile}}" }]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:system:rust"]
 description = "Test System Rust"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:system:typescript"]
 description = "Test System TypeScript"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --junit {junit}"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:unit"]
 description = "Test Unit Layer"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [{ task = "test:unit:rust --profile {{usage.profile}}" }]
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:unit:rust"]
 description = "Test Unit Rust"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks.coverage]
 description = "Measure Coverage Over Instrumented Lanes"

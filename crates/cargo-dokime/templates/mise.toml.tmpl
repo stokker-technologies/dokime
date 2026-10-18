@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:e18e5695d7e4340b5ff714b428a20de36ab30523c05e8922071de08b4fda4246
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:ac613994e63896658a2fa5eaea58f12c6abc867766c5393bc186ee4626b109d5
 # === Settings === #
 
 [settings]
@@ -100,6 +100,7 @@ run = [
 
 [tasks.build]
 description = "Build Binaries, Fixtures, Wheels And The Test Archive"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.archive --profile {{usage.profile}} -- --all-features"
 
@@ -121,30 +122,36 @@ run = "cargo dokime dev"
 
 [tasks.test]
 description = "Test Every Layer"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 depends = ["test:unit --profile {{usage.profile}}", "test:integration --profile {{usage.profile}}"]
 
 [tasks."test:coverage"]
 description = "Measure Coverage Over Instrumented Lanes"
+env.CARGO_INCREMENTAL = "0"
 run = "uv run --locked --project tools/python python -m project_tools.test.run coverage --language rust"
 
 [tasks."test:unit"]
 description = "Test Unit Layer"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 depends = ["test:unit:rust --profile {{usage.profile}}"]
 
 [tasks."test:unit:rust"]
 description = "Test Unit Rust"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.run test --profile {{usage.profile}} --category unit --language rust"
 
 [tasks."test:integration"]
 description = "Test Integration Layer"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 depends = ["test:integration:rust --profile {{usage.profile}}"]
 
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
+env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.run test --profile {{usage.profile}} --category integration --language rust"
 

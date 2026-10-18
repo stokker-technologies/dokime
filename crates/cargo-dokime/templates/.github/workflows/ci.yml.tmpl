@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:7604df6bd76607faff323aab2729a0f8880dfc5fab83afad3c8e8d15a4e443a9
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:f5bb6a7829d7d954251c7ce11fd0716b888927eab4b213a38c81d7f53cee00e6
 name: CI
 "on":
   push:
@@ -100,8 +100,8 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_rust:
-    name: Check / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Check / Rust
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -149,17 +149,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
   build_dev:
-    name: Build / Dev (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Build / Dev
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -217,17 +211,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
   build_release:
-    name: Build / Release (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Build / Release
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -285,17 +273,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,taplo
   validate_test_unit_rust:
-    name: Validate / Unit / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Unit / Rust
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -355,17 +337,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_rust:
-    name: Validate / Integration / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Integration / Rust
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -425,17 +401,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_rust:
-    name: Validate / Acceptance / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Acceptance / Rust
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -495,17 +465,11 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_rust:
-    name: Package / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Package / Rust
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
     needs:
     - source
@@ -578,12 +542,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner: []
     env:
       MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_dry:

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:cecc145bf301862ace46b838401dc100fa536d663bc153a2c4e3f8c2db55955d
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bc3fbaeee460be6f4d896e1c217758fb04278a55b8f9deaa11f2a2eebc48a71a
 name: CI
 "on":
   push:
@@ -205,8 +205,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_rust:
-    name: Check / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Check / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -285,19 +287,14 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_dev:
-    name: Build / Dev (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Build / Dev
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 50
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -390,19 +387,14 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_release:
-    name: Build / Release (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Build / Release
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 50
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -495,13 +487,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
@@ -578,8 +563,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_unit_rust:
-    name: Validate / Unit / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Unit / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -669,13 +656,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_python:
@@ -758,8 +738,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_rust:
-    name: Validate / Integration / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Integration / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -849,13 +831,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_typescript:
@@ -1017,8 +992,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_rust:
-    name: Validate / Acceptance / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / Acceptance / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -1108,18 +1085,13 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_rust:
-    name: Validate / System / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Validate / System / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
@@ -1209,13 +1181,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_typescript:
@@ -1298,8 +1263,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_rust:
-    name: Package / Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
+    name: Package / Rust
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 30
     needs:
     - source
@@ -1409,13 +1376,6 @@ jobs:
         os:
         - linux
         - windows
-        include:
-        - os: linux
-          runner:
-          - ubuntu-latest
-        - os: windows
-          runner:
-          - windows-latest
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_python:
