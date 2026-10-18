@@ -39,7 +39,6 @@ protoc = "36.2"
 gh = "2.102.0"
 git-cliff = "2.14.2"
 glab = "1.123.0"
-minisign = "0.12"
 
 # Project Statistics
 "aqua:boyter/scc" = "4.1.0"
@@ -245,6 +244,19 @@ run = [
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
+[tasks."test:compile"]
+description = "Test Compile Contracts In The Build Tree"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [{ task = "test:compile:rust --profile {{usage.profile}}" }]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:compile:rust"]
+description = "Test Rust Compile Contracts"
+usage = 'flag "--profile <profile>" default="dev"'
+# The macro stories compile plugin sources with rustc against the built SDK and its dependency closure, which only the build tree has.
+run = "cargo nextest run --locked --workspace --all-targets --cargo-profile {{usage.profile}}{% if usage.profile != 'release' %} --features dokime-runtime/fault-injection{% endif %} -E 'binary_id(dokime-macros::compile)'"
+env = { CARGO_INCREMENTAL = "0" }
+
 [tasks."test:generated"]
 description = "Test The Generated Clients"
 depends = ["test:generated:python", "test:generated:typescript"]
@@ -383,7 +395,7 @@ run = "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.pr
 
 [tasks.ci]
 description = "Run The CI Flow Locally"
-run = [{ task = "format --check" }, { task = "lint" }, { task = "check" }, { task = "build" }, { task = "test" }]
+run = [{ task = "format --check" }, { task = "lint" }, { task = "check" }, { task = "build" }, { task = "test:compile" }, { task = "test" }]
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"

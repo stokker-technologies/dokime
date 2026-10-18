@@ -70,7 +70,9 @@ fn run(plugin: &Path, program: &str, arguments: &[&str]) {
     let mut command = Command::new(program);
     // The Starter Runs As Its Author Would, Outside The Lane That Runs This Story.
     for (variable, _) in std::env::vars_os() {
-        if variable.to_str().is_some_and(|variable| variable.starts_with("NEXTEST") || variable == "VIRTUAL_ENV") {
+        if variable.to_str().is_some_and(|variable| {
+            variable.starts_with("NEXTEST") || matches!(variable, "VIRTUAL_ENV" | "MISE_LOCKED" | "MISE_ENABLE_TOOLS")
+        }) {
             command.env_remove(variable);
         }
     }

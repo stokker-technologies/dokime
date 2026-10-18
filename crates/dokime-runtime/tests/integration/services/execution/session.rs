@@ -332,7 +332,10 @@ async fn ignored_stop(mode: Settlement) {
         tokio::spawn(async move { handle.stop_cycle(cycle_id, CommandContext::default()).await.unwrap() })
     };
     probe.cancelled.notified().await;
-    tokio::time::advance(Duration::from_secs(31)).await;
+    // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
+    // with `advance` also expired storage deadlines of writes still in flight on a slow machine,
+    // failing the journal capture and leaving the run unsettled.
+    tokio::time::sleep(Duration::from_secs(31)).await;
     tokio::time::resume();
     stopping.await.unwrap();
     wait_for_run_settled(&handle, &receipt.command_id).await;

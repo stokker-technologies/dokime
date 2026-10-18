@@ -50,8 +50,11 @@ fn sdk_artifact() -> &'static SdkArtifact {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime-runtime/Cargo.toml").canonicalize().unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
-        // The development build records the compiler messages beside its nextest archive.
-        let messages = target.join("nextest/dev/compiler.json");
+        // The build records its compiler messages beside its nextest archive, under the profile this story was built with.
+        let directory =
+            std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
+        let profile = if directory == "debug" { "dev".into() } else { directory.to_string_lossy().into_owned() };
+        let messages = target.join("nextest").join(profile).join("compiler.json");
         let built = std::fs::read_to_string(&messages)
             .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
         let mut artifacts = Vec::new();
