@@ -81,6 +81,7 @@ pub struct ExecutionBrowsePage {
 pub struct ExecutionBrowseCycle {
     pub cycle_id: TestCycleId,
     pub label: Option<String>,
+    pub phase: Option<dokime_domain::model::execution::result::CyclePhase>,
     pub lifecycle: ExecutionBrowseLifecycle,
     pub result_status: Option<ResultStatus>,
     pub case_count: usize,
@@ -194,6 +195,7 @@ impl CycleFold<'_> {
         ExecutionBrowseCycle {
             cycle_id: cycle_id.clone(),
             label: None,
+            phase: None,
             lifecycle,
             result_status,
             case_count: self.cases.len(),
@@ -268,13 +270,17 @@ impl RuntimeHandle {
         let mut page = browse_page(&stored, &live, &query, &archived, limit)?;
         // Each Group Is Titled By Its Own Cycle, Live Or Sealed In History.
         for cycle in &mut page.cycles {
-            let live = self.state_read().cycles.get(&cycle.cycle_id).map(|header| header.metadata.label.clone());
-            cycle.label = match live {
-                Some(label) => Some(label),
+            let live = self.state_read().cycles.get(&cycle.cycle_id).cloned();
+            let header = match live {
+                Some(header) => Some(header),
                 None => crate::storage::objects::cycle::read(self.storage(), &cycle.cycle_id, harmos::storage::ObjectVersion::Latest)
                     .await?
-                    .map(|revision| revision.value.metadata.label),
+                    .map(|revision| revision.value),
             };
+            if let Some(header) = header {
+                cycle.label = Some(header.metadata.label);
+                cycle.phase = Some(header.phase);
+            }
         }
         Ok(page)
     }

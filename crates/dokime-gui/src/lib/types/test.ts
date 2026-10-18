@@ -223,6 +223,7 @@ export type PreviewTestCycleResponse = {
 export type TestCycle = {
   test_cycle_id: string;
   title: string;
+  phase: "active" | "sealing" | "sealed";
   status: "planned" | "running" | "paused" | "stopping" | "completed" | "failed" | "stopped" | "interrupted";
   case_count: number;
   queue_count: number;

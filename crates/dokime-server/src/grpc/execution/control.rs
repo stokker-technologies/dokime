@@ -93,6 +93,10 @@ struct StopCycle {
     runtime: Arc<RuntimeHandle>,
 }
 
+struct SealCycle {
+    runtime: Arc<RuntimeHandle>,
+}
+
 struct PauseExecution {
     runtime: Arc<RuntimeHandle>,
 }
@@ -121,6 +125,7 @@ enum Operations {
     PauseCycle(PauseCycle),
     ResumeCycle(ResumeCycle),
     StopCycle(StopCycle),
+    SealCycle(SealCycle),
     PauseExecution(PauseExecution),
     ResumeExecution(ResumeExecution),
     StopExecution(StopExecution),
@@ -433,6 +438,26 @@ impl Operation for StopCycle {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.stop_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
+    }
+}
+
+impl Operation for SealCycle {
+    type Declaration = wire::SealCycle;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(runtime: Arc<RuntimeHandle>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { runtime })
+    }
+
+    async fn run<'a>(
+        &mut self, context: Self::Context<'a>, request: &mut wire::SealCycle, _: &mut (),
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
+        let context = command_context(&context, request.context.as_ref())?;
+        self.runtime.seal_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
+        Ok(observed(&self.runtime).into())
     }
 }
 

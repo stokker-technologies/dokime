@@ -23,7 +23,6 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
-import type { Row18 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type {
   Row14 as GeneratedExecutionAvailability,
   Row15 as GeneratedExecutionBrowseLifecycle,
@@ -32,7 +31,6 @@ import type {
   Row6 as GeneratedHistoryIssue,
   Row2 as GeneratedNativeExecutionBrowsePage,
   Row13 as GeneratedNativeExecutionCheckpoint,
-  Row35 as GeneratedNativeStorageCursor,
 } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type {
   Row3 as GeneratedArtifactFrame,
@@ -55,9 +53,10 @@ import type {
 import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
 import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
 import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
+import { mapCyclePhase } from "./native-planning";
 
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
-type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
+type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
 type Severity = Wire<GeneratedSeverity>;
 type ArtifactFrame = Wire<GeneratedArtifactFrame>;
 type ArtifactMetadata = Wire<GeneratedArtifactMetadata>;
@@ -68,7 +67,7 @@ type ExecutionFileMetadata = Wire<GeneratedExecutionFileMetadata>;
 type ExecutionFileWindow = Wire<GeneratedExecutionFileWindow>;
 type CapturedRecord = Wire<GeneratedCapturedRecord>;
 type ExecutionStatus = Wire<GeneratedExecutionStatus>;
-type ResultStatus = Wire<GeneratedResultStatus>;
+type ResultStatus = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>["result"]>["status"];
 type CheckpointContext = Wire<GeneratedCheckpointContext>;
 type CheckpointDocument = Wire<GeneratedCheckpointDocument>;
 type CheckpointEvidence = Wire<GeneratedCheckpointEvidence>;
@@ -277,6 +276,7 @@ function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): Exe
   return {
     cycle_id: cycle.cycleId,
     label: cycle.label ?? null,
+    phase: cycle.phase ? mapCyclePhase(cycle.phase) : null,
     lifecycle: mapBrowseLifecycle(cycle.lifecycle),
     result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
     case_count: count(cycle.caseCount, "case"),

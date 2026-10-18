@@ -392,6 +392,7 @@ pub(super) fn summary(
     Ok(dokime_domain::model::execution::wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
         metadata: Some(canonical::metadata(&cycle.metadata)?),
+        phase: cycle.phase,
         status: match cycle.lifecycle {
             CycleStatus::Ready => dokime_domain::model::execution::wire::CycleStatus::Ready,
             CycleStatus::Running => dokime_domain::model::execution::wire::CycleStatus::Running,

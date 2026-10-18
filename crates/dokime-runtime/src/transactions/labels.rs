@@ -63,18 +63,15 @@ impl Transaction<RuntimeState> for RenameLabel {
         match &self.subject {
             LabelSubject::Cycle(id) => {
                 let cycle = state.cycles.get(id).ok_or("cycle not found")?;
-                if cycle.saved.is_some() {
-                    return Err("cycle is sealed; its report keeps the label it froze".to_owned());
-                }
+                cycle.ensure_active().map_err(str::to_owned)?;
                 if state.archived_cycles.contains(id) {
                     return Err("cycle is archived; unarchive it before renaming".to_owned());
                 }
                 Ok(())
             }
             LabelSubject::Execution(id) => {
-                if !state.executions.contains_key(id) {
-                    return Err("execution not found".to_owned());
-                }
+                let execution = state.executions.get(id).ok_or("execution not found")?;
+                state.cycles.get(&execution.test_cycle_id).ok_or("execution cycle not found")?.ensure_active().map_err(str::to_owned)?;
                 if case_attempts(state, id)
                     .iter()
                     .any(|attempt| state.executions.get(attempt).is_some_and(|execution| execution.saved.is_some()))

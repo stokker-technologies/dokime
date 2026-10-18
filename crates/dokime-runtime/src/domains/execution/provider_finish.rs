@@ -44,16 +44,8 @@ impl RuntimeHandle {
         tokio::spawn(async move { runtime.finish_provider_cycle_inner(finish).await }).await.map_err(|source| Error::Join { source })?
     }
     async fn finish_provider_cycle_inner(&self, mut finish: Finish) -> Result<()> {
-        let request_id = self
-            .state_read()
-            .run_requests
-            .values()
-            .find(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal())
-            .map(|request| request.summary.request_id.clone());
-        let Some(request_id) = request_id else {
-            return self.finish_provider_attempts(finish, true).await;
-        };
-        let selected_execution = self.state_read().run_requests[&request_id].test_execution_id.clone();
+        let request_id = finish.request_id.clone();
+        let selected_executions = self.state_read().run_requests[&request_id].selected_execution_ids.clone();
         let cycle_id = finish.test_cycle_id.clone();
         let ids = std::mem::take(&mut finish.started_execution_ids);
         let mut projections = match &mut finish.outcome {
@@ -63,18 +55,36 @@ impl RuntimeHandle {
                 .collect::<std::collections::BTreeMap<_, _>>(),
             Err(_) => std::collections::BTreeMap::new(),
         };
-        // Each bounded fold retains its original returned evidence. The provider
-        // still owns scheduling and is invoked once for the entire cycle.
+        // Each Bounded Fold Retains The Current Execution's Returned Evidence.
         if ids.is_empty() {
-            self.finish_provider_attempts(finish.clone(), false).await?;
+            self.finish_provider_attempts(finish.clone()).await?;
         }
+        let mut early_failure = None;
         for id in &ids {
             let mut part = finish.clone();
             part.started_execution_ids = vec![id.clone()];
             if let Ok(outcome) = &mut part.outcome {
                 outcome.executions = projections.remove(id.as_str()).into_iter().collect();
             }
-            self.finish_provider_attempts(part, false).await?;
+            self.finish_provider_attempts(part).await?;
+            let current = self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::Operation("execution cycle disappeared".into()))?;
+            let execution = current
+                .test_executions
+                .iter()
+                .find(|execution| &execution.test_execution_id == id)
+                .ok_or_else(|| Error::Operation("finished execution disappeared".into()))?;
+            loop {
+                match self.finish_saved_execution(&current, execution).await {
+                    Ok(()) => break,
+                    Err(error) => match retry_after(&error) {
+                        Some(wait) => tokio::time::sleep(wait).await,
+                        None => {
+                            early_failure = Some(error);
+                            break;
+                        }
+                    },
+                }
+            }
             let summary = self.state_read().run_requests[&request_id].summary.clone();
             loop {
                 match self.request_storage.update(&request_id, |receipt| receipt.summary = summary.clone()).await {
@@ -84,14 +94,10 @@ impl RuntimeHandle {
                 }
             }
         }
-        // A cycle whose cases span several provider execution targets runs one
-        // group per target, sequentially, under this one request. The run only
-        // settles once the last group has finished or the policy stops it.
-        if self.advance_to_next_group(&request_id, &cycle_id).await {
+        // Every Selected Execution Finishes And Seals Before The Next Group.
+        if early_failure.is_none() && self.advance_to_next_group(&request_id, &cycle_id).await {
             return Ok(());
         }
-        let settled =
-            self.state_read().run_requests[&request_id].settled_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         self.commit(crate::transactions::SettleRun { request_id: request_id.clone(), at: finish.finished_at.clone() })
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
@@ -101,41 +107,19 @@ impl RuntimeHandle {
                 .completion_at
                 .clone()
                 .ok_or_else(|| Error::Operation("terminal evidence timestamp is missing".into()))?,
-            sealed_cycle: None,
-            sealed_executions: Vec::new(),
             unsealed: None,
         };
-        let cycle = {
-            use harmos::state::Transaction;
-            let state = self.state_read();
-            let request = state.run_requests.get(&request_id).ok_or_else(|| Error::Operation("report request disappeared".into()))?;
-            let header = state.cycles.get(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-            let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
-            preview.run_requests.insert(request_id.clone(), request.clone());
-            preview.cycles.insert(cycle_id.clone(), header.clone());
-            for id in &header.execution_ids {
-                preview.executions.insert(id.clone(), state.executions[id].clone());
-            }
-            complete.check(&preview).map_err(Error::Operation)?;
-            complete.apply(&mut preview);
-            preview.cycle_view(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?
-        };
+        let cycle = self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
         let mut pending = cycle
             .test_executions
             .iter()
             .filter(|execution| {
-                selected_execution.as_ref().is_none_or(|id| id == &execution.test_execution_id)
-                    && (ids.contains(&execution.test_execution_id)
-                        || settled.contains(&execution.test_execution_id)
-                        || execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped)
+                selected_executions.contains(&execution.test_execution_id) && execution.saved.is_none() && execution.finished_at.is_some()
             })
             .cloned()
             .collect::<Vec<_>>();
-        // An earlier attempt whose report was never produced is still a cycle
-        // member; seal it now so a rerun can seal the cycle.
-        pending.extend(self.unsealed_members(&cycle, &pending).await);
         let mut unsealed = Vec::new();
-        let mut cause = None;
+        let mut cause = early_failure.as_ref().map(|error| unsealed_cause("execution", error));
         while !pending.is_empty() {
             let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
                 Ok(failures) => failures,
@@ -179,66 +163,17 @@ impl RuntimeHandle {
                 tokio::time::sleep(wait).await;
             }
         }
-        let terminal = matches!(
-            cycle.lifecycle,
-            dokime_domain::model::execution::result::CycleStatus::Completed
-                | dokime_domain::model::execution::result::CycleStatus::Failed
-                | dokime_domain::model::execution::result::CycleStatus::Blocked
-                | dokime_domain::model::execution::result::CycleStatus::Stopped
-        );
-        // A cycle whose members are not all sealed can never be sealed itself.
-        let sealed_cycle = if terminal && cause.is_none() {
-            let operation = self.operation_progress().begin("Finalizing Cycle");
-            let mut attempt = 1;
-            loop {
-                match self.finish_saved_cycle(&cycle, &operation).await {
-                    Ok(cycle) => {
-                        operation.finish();
-                        break Some(cycle);
-                    }
-                    Err(error) if self.is_shutting_down() => {
-                        operation.fail(&error);
-                        return Err(error);
-                    }
-                    Err(error) => match retry_after(&error) {
-                        Some(wait) => {
-                            tracing::debug!(%error, %cycle_id, "final cycle save will retry");
-                            attempt += 1;
-                            operation.phase(format!("Retrying (Attempt {attempt})"));
-                            operation.indeterminate();
-                            tokio::time::sleep(wait).await;
-                        }
-                        None => {
-                            tracing::debug!(%error, %cycle_id, "final cycle save failed");
-                            operation.fail(&error);
-                            cause = Some(unsealed_cause("cycle", &error));
-                            break None;
-                        }
-                    },
-                }
-            }
-        } else {
-            None
-        };
-        if let Some(sealed_cycle) = sealed_cycle {
-            complete.sealed_cycle = Some(sealed_cycle.header.clone());
-            complete.sealed_executions = sealed_cycle.executions.clone();
-            self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
-            self.execution_storage.retire_cycle_report(&cycle_id).await;
-        } else {
-            // Report publication failure leaves the frozen inputs available
-            // for retry. It does not change the recorded test outcome.
-            if let Some(cause) = &cause {
-                tracing::error!(%cycle_id, %cause, "final report could not be sealed");
-                complete.unsealed = Some(crate::transactions::Unsealed { cause: cause.clone(), execution_ids: unsealed });
-            }
-            self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
-            loop {
-                match self.execution_storage.save_cycle_header(cycle_id.clone()).await {
-                    Ok(()) => break,
-                    Err(error) if self.is_shutting_down() => return Err(error),
-                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
-                }
+        // A Run Seals Only Its Fixed Selection; The Container Remains Active.
+        if let Some(cause) = &cause {
+            tracing::error!(%cycle_id, %cause, "final execution report could not be sealed");
+            complete.unsealed = Some(crate::transactions::Unsealed { cause: cause.clone(), execution_ids: unsealed });
+        }
+        self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
+        loop {
+            match self.execution_storage.save_cycle_header(cycle_id.clone()).await {
+                Ok(()) => break,
+                Err(error) if self.is_shutting_down() => return Err(error),
+                Err(_) => tokio::time::sleep(RETRY_INTERVAL).await,
             }
         }
         // The durable terminal receipt acknowledges both sealed executions and
@@ -263,6 +198,7 @@ impl RuntimeHandle {
                 Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
             }
         }
+        self.dispatch_next_request().await;
         Ok(())
     }
     async fn advance_to_next_group(
@@ -316,8 +252,7 @@ impl RuntimeHandle {
         true
     }
 
-    async fn finish_provider_attempts(&self, finish: Finish, finalize_cycle: bool) -> Result<()> {
-        let cycle_id = finish.test_cycle_id.clone();
+    async fn finish_provider_attempts(&self, finish: Finish) -> Result<()> {
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
         let effects = prepare_finish_effects(&self.state_read(), &finish);
@@ -346,26 +281,7 @@ impl RuntimeHandle {
         for execution_id in finalize_execution_ids {
             Box::pin(self.finalize_execution_aggregate_outputs(&execution_id)).await;
         }
-        let completed = {
-            let state = self.state_read();
-            state
-                .executions
-                .values()
-                .filter(|execution| execution_ids.contains(&execution.test_execution_id))
-                .filter_map(|execution| state.cycle_view(&execution.test_cycle_id).map(|cycle| (cycle, execution.clone())))
-                .collect::<Vec<_>>()
-        };
-        let mut storage_error = None;
-        for (cycle, execution) in completed.into_iter().filter(|_| finalize_cycle) {
-            if let Err(error) = self.finish_saved_execution(&cycle, &execution).await {
-                storage_error.get_or_insert(error);
-            }
-        }
         self.complete_sampling(&quiescence).await;
-        storage_error.map_or(Ok(()), Err)?;
-        if finalize_cycle {
-            self.execution_storage.save_cycle(cycle_id).await?;
-        }
         Ok(())
     }
 }

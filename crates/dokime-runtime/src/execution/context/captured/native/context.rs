@@ -117,6 +117,7 @@ impl TryFrom<Context> for ExecutionContext {
             test_cycle_id: cycle.test_cycle_id,
             session_id: cycle.session_id,
             metadata: cycle.metadata,
+            phase: cycle.phase,
             lifecycle: cycle.lifecycle,
             created_at: cycle.created_at,
             started_at: cycle.started_at,

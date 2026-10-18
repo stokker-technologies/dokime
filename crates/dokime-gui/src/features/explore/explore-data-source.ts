@@ -124,6 +124,7 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
            on, and then to its identifier. */
         title: totals.label ?? suiteTitle(entries, target.id),
         session_id: null,
+        phase: totals.phase,
         lifecycle: totals.lifecycle,
         result_status: totals.result_status,
         case_count: totals.case_count,

@@ -101,7 +101,7 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        state.cycles.get(&self.test_cycle_id).map(|_| ()).ok_or_else(|| "cycle not found".to_owned())
+        state.cycles.get(&self.test_cycle_id).ok_or("cycle not found")?.ensure_active().map_err(str::to_owned)
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -174,10 +174,10 @@ pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result
 /* === Private Functions === */
 fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Result<(), Error> {
     let CycleControlPlan { cycle, records, settled } = prepare_cycle_control(state, control)?;
-    if let Some(request) = state
+    for request in state
         .run_requests
         .values_mut()
-        .find(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal())
+        .filter(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal())
     {
         match control.action {
             CycleControlAction::Pause => request.summary.paused = true,
@@ -201,6 +201,7 @@ fn prepare_cycle_control(state: &RuntimeState, control: &ControlCycle) -> Result
         return Err(conflict("provider work has settled; execution checkpoints are finishing".into()));
     }
     let mut cycle = state.cycle_view(&control.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+    cycle.ensure_active().map_err(|reason| conflict(reason.into()))?;
     match control.action {
         CycleControlAction::Pause => pause_cycle(&mut cycle, control.occurred_at.clone()),
         CycleControlAction::Resume => resume_cycle(&mut cycle, control.occurred_at.clone()),
@@ -388,11 +389,7 @@ pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) ->
 }
 
 pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
-    if matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping) {
-        Err("cycle cannot be edited in its current state".to_owned())
-    } else {
-        Ok(())
-    }
+    cycle.ensure_active().map_err(str::to_owned)
 }
 
 pub(crate) fn ensure_case_restartable(cycle: &CycleView, test_case_id: &CaseId, operation: &str) -> Result<(), String> {

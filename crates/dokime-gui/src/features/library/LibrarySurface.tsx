@@ -17,7 +17,7 @@ import { useMemo, useState } from "react";
 
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
-import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
+import { useAppendCyclesQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,18 +29,6 @@ import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/
 import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Types === */
-
-type LibrarySurfaceProps = {
-  /** The active cycle materialized cases join; without one nothing is added. */
-  appendTo?: string;
-};
-
-type OpenTemplate = {
-  suite: TestSuiteEntry;
-  template: SuiteTemplateEntry;
-};
 
 /* === Constants === */
 
@@ -58,6 +46,18 @@ const TITLE_COLUMNS = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center 
    chevron, size-4 + gap-2), not under the chevron. */
 const SUITE_IDENTIFIER_INSET = "pl-6";
 
+/* === Types === */
+
+type LibrarySurfaceProps = {
+  /** The explicitly selected destination; closed cycles cannot receive cases. */
+  appendTo?: string;
+};
+
+type OpenTemplate = {
+  suite: TestSuiteEntry;
+  template: SuiteTemplateEntry;
+};
+
 /* === Components === */
 
 /**
@@ -70,7 +70,10 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
-  const cycleLabelQuery = useCycleLabelQuery(appendTo);
+  const appendCyclesQuery = useAppendCyclesQuery();
+  const destination = appendCyclesQuery.data?.find((cycle) => cycle.cycleId === appendTo);
+  const destinationId = destination?.cycleId;
+  const destinationLabel = destination?.metadata?.label || destinationId;
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
@@ -109,12 +112,30 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
   return (
     <div className="grid content-start gap-4 p-[var(--shell-inset)]">
-      {appendTo ? (
+      <label className="grid max-w-lg gap-2">
+        <span>Destination Cycle</span>
+        <select
+          aria-label="Destination Cycle"
+          className="h-[var(--control-height)] rounded-md border bg-background px-3"
+          disabled={appendCyclesQuery.isPending || appendCyclesQuery.isError}
+          onChange={(event) => void navigate({ search: { appendTo: event.target.value || undefined }, to: "/library" })}
+          value={destinationId ?? ""}
+        >
+          <option value="">Select An Active Cycle</option>
+          {appendCyclesQuery.data?.map((cycle) => (
+            <option key={cycle.cycleId} value={cycle.cycleId}>
+              {cycle.metadata?.label || cycle.cycleId} · {cycle.cycleId.slice(0, 8)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {appendCyclesQuery.isError ? <p role="alert">Active cycles could not be read. Reconnect and try again.</p> : null}
+      {destinationId ? (
         <p className="text-muted-foreground">
-          Cases materialized here are added to <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
+          Cases materialized here are added to <span className="text-foreground">{destinationLabel}</span>.
         </p>
       ) : (
-        <p className="text-muted-foreground">No cycle is active. Create one, or add cases from a cycle, to materialize templates.</p>
+        <p className="text-muted-foreground">Select an Active cycle above, or create one, before adding cases.</p>
       )}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
@@ -233,8 +254,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
       {openTemplate ? (
         <TemplateDialog
-          cycleId={appendTo}
-          cycleLabel={cycleLabelQuery.data}
+          cycleId={destinationId}
+          cycleLabel={destinationLabel}
           key={selectionDraftKey(openTemplate.suite.suite_id, templateSelectionId(openTemplate.template))}
           onOpenChange={(next) => {
             if (!next) setOpenTemplate(null);

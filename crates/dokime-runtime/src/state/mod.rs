@@ -83,6 +83,7 @@ pub struct RuntimeState {
     pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
+    pub run_queue: std::collections::VecDeque<dokime_domain::model::identity::CommandId>,
     pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     pub records: EvidenceRecords,
     pub resources: ResourceRegistry,
@@ -179,6 +180,7 @@ impl RuntimeState {
             test_cycle_id: cycle.test_cycle_id.clone(),
             session_id: cycle.session_id.clone(),
             metadata: cycle.metadata.clone(),
+            phase: cycle.phase,
             lifecycle: cycle.lifecycle,
             created_at: cycle.created_at.clone(),
             started_at: cycle.started_at.clone(),
@@ -208,12 +210,20 @@ impl RuntimeState {
     }
 
     pub fn validate_cycle_view(&self, view: &dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
+        use dokime_domain::model::execution::result::CyclePhase;
+        if (view.phase == CyclePhase::Sealed) != view.saved.is_some() {
+            return Err("sealed cycle phase requires its durable seal".into());
+        }
         if self.cycles.get(&view.test_cycle_id).is_some_and(|existing| {
-            existing.saved.is_some()
-                && existing.saved != view.saved
-                && (view.saved.is_some() || view.lifecycle != dokime_domain::model::execution::result::CycleStatus::Ready)
+            (existing.saved.is_some() && existing.saved != view.saved)
+                || (existing.phase != CyclePhase::Active && view.phase == CyclePhase::Active)
         }) {
             return Err("saved cycle closure cannot be changed".into());
+        }
+        if self.cycles.get(&view.test_cycle_id).is_some_and(|existing| existing.saved.is_some())
+            && self.cycle_view(&view.test_cycle_id).as_ref() != Some(view)
+        {
+            return Err("sealed cycle is immutable".into());
         }
         if let Some(saved) = &view.saved {
             saved.validate_view(view).map_err(|error| error.to_string())?;
@@ -228,6 +238,16 @@ impl RuntimeState {
             }
             if self.executions.get(&execution.test_execution_id).is_some_and(|existing| existing.test_cycle_id != view.test_cycle_id) {
                 return Err("execution identity is owned by another cycle".into());
+            }
+            if self.executions.get(&execution.test_execution_id).is_some_and(|existing| existing.saved.is_some() && existing != execution) {
+                return Err("sealed execution is immutable".into());
+            }
+        }
+        for request in
+            self.run_requests.values().filter(|request| request.summary.cycle_id == view.test_cycle_id && !request.summary.phase.terminal())
+        {
+            if request.selected_execution_ids.iter().any(|id| !ids.contains(id)) {
+                return Err("an admitted request still owns this execution membership".into());
             }
         }
         Ok(())
@@ -254,6 +274,7 @@ impl RuntimeState {
                 test_cycle_id: view.test_cycle_id,
                 session_id: view.session_id,
                 metadata: view.metadata,
+                phase: view.phase,
                 lifecycle: view.lifecycle,
                 created_at: view.created_at,
                 started_at: view.started_at,
@@ -283,6 +304,7 @@ impl RuntimeState {
             cycles: BTreeMap::new(),
             executions: BTreeMap::new(),
             run_requests: BTreeMap::new(),
+            run_queue: std::collections::VecDeque::new(),
             cycle_report_finalizations: BTreeMap::new(),
             report_finalizations: BTreeMap::new(),
             note_admissions: BTreeMap::new(),

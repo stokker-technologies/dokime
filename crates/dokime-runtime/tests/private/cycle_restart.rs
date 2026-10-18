@@ -41,6 +41,8 @@ const BEFORE_ADOPTION: i32 = 74;
 /* === Structs === */
 struct CrashAdoption {
     inner: Arc<dyn StateBackend>,
+    root: PathBuf,
+    adoption: bool,
 }
 
 /* === Enums === */
@@ -70,7 +72,11 @@ impl StateBackend for CrashAdoption {
         Box::pin(async move {
             for entry in entries {
                 let payload: serde_json::Value = serde_json::from_slice(&entry.payload).unwrap();
-                if has_cycle_adoption(&payload) {
+                if let Some(intent) = cycle_intent(&payload) {
+                    std::fs::write(self.root.join("intent.json"), serde_json::to_vec(intent).unwrap()).unwrap();
+                }
+                if self.adoption && has_cycle_adoption(&payload) {
+                    std::fs::write(self.root.join("adoption.json"), serde_json::to_vec(&payload).unwrap()).unwrap();
                     // The Native Cycle Seal Is Already Durable. Exit Without
                     // Drop Or Shutdown Flushing This Managed Adoption Entry.
                     std::process::exit(BEFORE_ADOPTION);
@@ -103,6 +109,28 @@ fn has_cycle_adoption(value: &serde_json::Value) -> bool {
     }
 }
 
+fn cycle_intent(value: &serde_json::Value) -> Option<&serde_json::Value> {
+    match value {
+        serde_json::Value::Object(fields) => {
+            let source = fields.get("source");
+            if fields.contains_key("evidence_at") && source.is_some_and(|source| source.get("execution_ids").is_some()) {
+                return Some(value);
+            }
+            fields.values().find_map(cycle_intent)
+        }
+        serde_json::Value::Array(values) => values.iter().find_map(cycle_intent),
+        _ => None,
+    }
+}
+
+fn adopted_cycle(value: &serde_json::Value) -> Option<&serde_json::Value> {
+    match value {
+        serde_json::Value::Object(fields) => fields.get("sealed_cycle").or_else(|| fields.values().find_map(adopted_cycle)),
+        serde_json::Value::Array(values) => values.iter().find_map(adopted_cycle),
+        _ => None,
+    }
+}
+
 #[tokio::test]
 async fn cycle_restart_child() {
     let Some(root) = std::env::var_os(ROOT) else {
@@ -110,17 +138,17 @@ async fn cycle_restart_child() {
     };
     let phase = std::env::var(PHASE).unwrap();
     let adoption = phase == "adoption";
+    let root = PathBuf::from(root);
+    let injected_root = root.clone();
     let fault = Arc::new(if adoption { PublicationFault::new("unused") } else { PublicationFault::crash(".cycle-report", BEFORE_REPORT) });
     let providers = BTreeMap::from([("testdb".to_owned(), Arc::new(PublishingExecutor) as Arc<dyn ExecutionFixture>)]);
     let parts = RuntimeHandle::boot_with_backends(
-        config(PathBuf::from(root)),
+        config(root),
         providers,
         true,
         Box::new(move |mut backends| {
             backends.primary = Arc::new(PublicationBackend::new(backends.primary, fault));
-            if adoption {
-                backends.state = Arc::new(CrashAdoption { inner: backends.state });
-            }
+            backends.state = Arc::new(CrashAdoption { inner: backends.state, root: injected_root, adoption });
             backends
         }),
     )
@@ -132,8 +160,10 @@ async fn cycle_restart_child() {
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    let receipt = runtime.run_cycle_cases(id, CommandContext::default()).await;
+    let receipt = runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
+    crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
+    runtime.seal_cycle(id, CommandContext::default()).await.unwrap();
     tokio::time::timeout(Duration::from_secs(90), std::future::pending::<()>())
         .await
         .expect("the selected backend phase must terminate the child process");
@@ -158,13 +188,14 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
-        let state = runtime.state_read();
-        assert_eq!(state.cycle_report_finalizations.len(), 1);
-        let intent = state.cycle_report_finalizations.values().next().unwrap().clone();
+        let intent: crate::transactions::CycleReportFinalization =
+            serde_json::from_slice(&std::fs::read(root.path().join("intent.json")).unwrap()).unwrap();
         let id = intent.source.test_cycle_id.clone();
         assert_eq!(intent.source.lifecycle, CycleStatus::Completed);
-        assert_eq!(state.run_requests.values().next().unwrap().completion_at.as_ref(), Some(&intent.source.updated_at));
+        let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+        let state = runtime.state_read();
+        assert!(state.cycle_report_finalizations.is_empty(), "startup finishes the frozen seal before admission");
+        assert!(state.run_requests.values().all(|request| request.summary.phase.terminal()));
         assert!(runtime.storage().cursor_saved().covers(&intent.evidence_at).unwrap());
         let children = state.cycles[&id].execution_ids.clone();
         drop(state);
@@ -179,8 +210,14 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
             assert!(intent.evidence_at.covers(&seal.dependencies_saved).unwrap());
         }
         let native = runtime.storage().read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
-        let before = native.value.restore().unwrap().saved;
-        assert_eq!(before.is_some(), phase == "adoption");
+        let sealed_at_startup = native.value.restore().unwrap();
+        assert_eq!(sealed_at_startup.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+        if phase == "adoption" {
+            let payload: serde_json::Value = serde_json::from_slice(&std::fs::read(root.path().join("adoption.json")).unwrap()).unwrap();
+            let before: dokime_domain::model::execution::result::TestCycle =
+                serde_json::from_value(adopted_cycle(&payload).unwrap().clone()).unwrap();
+            assert_eq!(before, sealed_at_startup, "startup adopts the exact durable seal without rerendering");
+        }
         drop(native);
 
         // Introduce A Later Durable Position Before Retrying The Frozen Report.
@@ -203,10 +240,7 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         let opened = runtime.open_cycle_report(&id).await.unwrap();
         let original_html = opened.html.to_vec();
         drop(opened);
-        assert_eq!(runtime.state_read().cycle_report_finalizations[&id], intent);
-        // Recovery Stops The Live Cycle; Stopping It Seals From The Frozen Intent.
-        assert_eq!(runtime.state_read().cycles[&id].lifecycle, CycleStatus::Stopped);
-        runtime.stop_cycle(id.clone(), CommandContext::default()).await.unwrap();
+        runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
         assert!(!runtime.state_read().cycle_report_finalizations.contains_key(&id));
         let native = runtime.storage().read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
         let sealed = native.value.restore().unwrap();
@@ -214,10 +248,9 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         assert_eq!(seal.evidence_through, intent.evidence_at, "retry cannot adopt the later marker boundary");
         let mut header = sealed.clone();
         header.saved = None;
+        header.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
         assert_eq!(header, intent.source, "restart cannot rewrite the frozen terminal lifecycle");
-        if let Some(before) = before {
-            assert_eq!(seal, &before, "durable seal adoption must not rerender or replace artifacts");
-        }
+        assert_eq!(sealed, sealed_at_startup, "an explicit repeat cannot replace the startup seal");
         let opened = runtime.open_cycle_report(&id).await.unwrap();
         assert_eq!(opened.origin, crate::ReportOrigin::Sealed);
         assert_eq!(opened.html.as_slice(), original_html.as_slice());

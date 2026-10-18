@@ -482,14 +482,6 @@ impl ExecutionStorage {
         work.await
     }
 
-    pub(super) async fn has_final_report(&self, execution: &TestExecutionId) -> bool {
-        let Some(owner) = self.acquisition(execution).await else {
-            return false;
-        };
-        let acquisition = owner.lock().await;
-        acquisition.published.is_some() || acquisition.execution.saved.is_some()
-    }
-
     pub(crate) async fn published_final_report(
         &self, execution: &TestExecutionId, at: &StorageCursor,
     ) -> Result<Option<dokime_domain::model::reports::wire::MaterializedReport>> {

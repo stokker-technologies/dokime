@@ -147,6 +147,110 @@ impl RuntimeHandle {
         self.control_cycle(test_cycle_id, Action::Stop, context).await
     }
 
+    pub async fn seal_cycle(&self, test_cycle_id: TestCycleId, context: CommandContext) -> Result<(), Error> {
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            runtime.seal_cycle_inner(test_cycle_id, context).await
+        })
+        .await
+        .map_err(|source| Error::Join { source })?
+    }
+
+    pub(crate) async fn seal_cycle_inner(&self, test_cycle_id: TestCycleId, context: CommandContext) -> Result<(), Error> {
+        let saved = self.state_read().cycles.get(&test_cycle_id).map(|cycle| cycle.saved.is_some());
+        if saved == Some(true) {
+            return Ok(());
+        }
+        if saved.is_none() {
+            let historical =
+                crate::storage::objects::cycle::read(self.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest).await?;
+            return match historical {
+                Some(cycle) if cycle.value.saved.is_some() => Ok(()),
+                _ => Err(Error::not_found("cycle_not_found", "active or sealed cycle not found")),
+            };
+        }
+
+        // Close Admission Before Waiting For Any Provider Or Storage Work.
+        let admission = self.plugin_admission.lock().await;
+        let at = crate::model::time::now_utc();
+        self.commit_with_key(
+            context.idempotency_key,
+            crate::transactions::BeginCycleSeal { test_cycle_id: test_cycle_id.clone(), at: at.clone() },
+        )
+        .await?;
+        let running = self
+            .provider_tasks
+            .lock()
+            .expect("provider task registry is healthy")
+            .iter()
+            .filter(|task| !task.settled.is_cancelled())
+            .map(|task| task.request_id.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        let queued = self
+            .state_read()
+            .run_requests
+            .values()
+            .filter(|request| {
+                request.summary.cycle_id == test_cycle_id
+                    && request.summary.phase == crate::transactions::provider::request::RunPhase::Queued
+                    && request.summary.prepared == 0
+                    && !running.contains(&request.summary.request_id)
+            })
+            .map(|request| request.summary.request_id.clone())
+            .collect::<Vec<_>>();
+        for request_id in queued {
+            self.commit(crate::transactions::StageQueuedStop { request_id, at: at.clone() })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))?;
+        }
+        drop(admission);
+
+        // Group Continuation May Register Its Task Before Its Predecessor Settles.
+        loop {
+            let pending = self
+                .provider_tasks
+                .lock()
+                .expect("provider task registry is healthy")
+                .iter()
+                .filter(|task| task.cycle == test_cycle_id && !task.settled.is_cancelled())
+                .map(|task| task.settled.clone())
+                .collect::<Vec<_>>();
+            if pending.is_empty() {
+                break;
+            }
+            for settled in pending {
+                settled.cancelled().await;
+            }
+        }
+        let cycle = self.state_read().cycle_view(&test_cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "cycle not found"))?;
+        for execution in &cycle.test_executions {
+            if execution.saved.is_none() {
+                self.finish_saved_execution(&cycle, execution).await?;
+            }
+        }
+
+        // A Queued Receipt Becomes Terminal Only After Its Selection Is Sealed.
+        let finishing = self
+            .state_read()
+            .run_requests
+            .values()
+            .filter(|request| request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal())
+            .map(|request| (request.summary.request_id.clone(), request.completion_at.clone()))
+            .collect::<Vec<_>>();
+        for (request_id, at) in finishing {
+            let at = at.ok_or_else(|| Error::Operation("provider work did not settle; cycle remains sealing".into()))?;
+            self.commit(crate::transactions::CompleteRun { request_id: request_id.clone(), at, unsealed: None })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))?;
+            let summary = self.state_read().run_requests[&request_id].summary.clone();
+            self.request_storage.update(&request_id, |receipt| receipt.summary = summary).await?;
+        }
+        self.dispatch_next_request().await;
+        self.seal_settled_cycle(&test_cycle_id).await
+    }
+
     async fn control_cycle(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {
         let runtime = self.clone();
         // The committed transition owns all of its checkpoint work, including
@@ -162,15 +266,6 @@ impl RuntimeHandle {
         // The journal still validates and serializes the control transition;
         // the terminal receipt still waits for the final evidence checkpoint.
         let _admission = admit_control(&action, &self.evidence_admission).await;
-        // A Recovered Cycle Whose Report Intent Is Durable Only Awaits Its Seal.
-        let pending_seal = {
-            let state = self.state_read();
-            state.cycle_report_finalizations.contains_key(&test_cycle_id)
-                && state.cycles.get(&test_cycle_id).is_some_and(|cycle| cycle.saved.is_none())
-        };
-        if matches!(action, Action::Stop) && pending_seal {
-            return self.seal_settled_cycle(&test_cycle_id).await;
-        }
         let occurred_at = crate::model::time::now_utc();
         let transaction = Control { test_cycle_id: test_cycle_id.clone(), action, occurred_at: occurred_at.clone() };
         if matches!(action, Action::Stop) {
@@ -223,13 +318,14 @@ impl RuntimeHandle {
                     .map_err(|error| unavailable_rejection(error.to_string()))?;
             }
         }
-        let request = self
+        let requests = self
             .state_read()
             .run_requests
             .values()
-            .find(|request| request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal())
-            .map(|request| request.summary.clone());
-        if let Some(summary) = request {
+            .filter(|request| request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal())
+            .map(|request| request.summary.clone())
+            .collect::<Vec<_>>();
+        for summary in requests {
             let id = summary.request_id.clone();
             self.request_storage
                 .update(&id, |receipt| {
@@ -238,23 +334,6 @@ impl RuntimeHandle {
                 })
                 .await
                 .map_err(|error| unavailable_rejection(error.to_string()))?;
-        }
-        // A Stop No Run Will Finish Seals The Cycle From Its Persisted Members,
-        // Unless A Never-Started Draft Remains: Drafts Stay Unsealed.
-        if matches!(action, Action::Stop) && !bounded {
-            self.reconcile_sampling().await;
-            self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
-            let drafted = self.state_read().cycle_view(&test_cycle_id).is_some_and(|cycle| {
-                cycle.test_executions.iter().any(|execution| {
-                    execution.saved.is_none()
-                        && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
-                        && execution.finished_at.is_none()
-                })
-            });
-            if !drafted {
-                return self.seal_settled_cycle(&test_cycle_id).await;
-            }
-            return Ok(());
         }
         // Persist cycle state separately from execution evidence. During an
         // active request only running captures need a control-boundary flush;

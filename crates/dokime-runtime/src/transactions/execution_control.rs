@@ -31,7 +31,6 @@ use crate::transactions::{
     provider::request::{RunPhase, RunRequest},
 };
 use dokime_domain::model::execution::result::CycleStatus;
-use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
@@ -58,22 +57,8 @@ pub struct ControlExecution {
 /* === Implementations === */
 impl ControlExecution {
     pub(crate) fn owning_request<'a>(state: &'a RuntimeState, id: &TestExecutionId) -> Option<&'a RunRequest> {
-        let execution = state.executions.get(id)?;
-        state.run_requests.values().find(|request| {
-            if request.summary.phase.terminal() {
-                return false;
-            }
-            match &request.test_execution_id {
-                Some(addressed) => addressed == id,
-                None => {
-                    request.summary.cycle_id == execution.test_cycle_id
-                        && execution.finished_at.is_none()
-                        && (request.pending.contains(id)
-                            || request.groups.iter().any(|group| group.pending.contains(id))
-                            || matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
-                }
-            }
-        })
+        state.executions.get(id)?;
+        state.run_requests.values().find(|request| !request.summary.phase.terminal() && request.selected_execution_ids.contains(id))
     }
 
     pub(crate) fn request<'a>(&self, state: &'a RuntimeState) -> Result<&'a RunRequest, String> {
@@ -188,6 +173,8 @@ impl Transaction<RuntimeState> for ControlExecution {
             }
         }
         cycle.touch_at(self.occurred_at.clone());
+        let cycle_id = cycle.test_cycle_id.clone();
+        super::provider::request::sync_cycle_activity(state, &cycle_id);
         records.apply(state);
         commit_settled_prompts(state, settled);
     }

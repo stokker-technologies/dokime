@@ -19,7 +19,7 @@
 
 /* === External Imports === */
 
-import { Pause, Play, RotateCcw, Square } from "lucide-react";
+import { LockKeyhole, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -37,13 +37,6 @@ import {
   startableCaseCount,
 } from "./cycle-workspace-model";
 
-/* === Types === */
-
-export type CycleRunControlsProps = {
-  cycleId: string;
-  onStop: () => void;
-};
-
 /* === Constants === */
 
 /** Every page-bar control: the bar's own control height, 48px at touch. */
@@ -52,9 +45,17 @@ export const PAGE_BAR_CONTROL_CLASS = "h-[var(--bar-control-height)] px-3";
 /** The controls' row: one grid row, `--bar-gap` apart. */
 export const PAGE_BAR_CONTROLS_CLASS = "grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]";
 
+/* === Types === */
+
+export type CycleRunControlsProps = {
+  cycleId: string;
+  onStop: () => void;
+  onSeal: () => void;
+};
+
 /* === Components === */
 
-export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
+export function CycleRunControls({ cycleId, onStop, onSeal }: CycleRunControlsProps) {
   const detailQuery = useCycleDetailQuery(cycleId);
   const commands = useCycleCommands(cycleId);
   const plan = detailQuery.data?.plan ?? null;
@@ -69,6 +70,8 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
   const terminal = isCycleTerminal(status);
   const rerunCases = rerunnableCaseIds(cases);
   const runAgainRefusal = rerunCases.length === 0 ? "No case of this cycle can be run again." : null;
+  if (plan.test_cycle.phase === "sealed") return <span role="status">Sealed</span>;
+  if (plan.test_cycle.phase === "sealing") return <span role="status">Sealing — Saving Evidence</span>;
 
   /* A command reports what happened, not what was attempted. */
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
@@ -151,6 +154,10 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
           Run Again
         </Button>
       ) : null}
+      <Button className={PAGE_BAR_CONTROL_CLASS} disabled={commands.sealCycle.isPending} onClick={onSeal} variant="outline">
+        <LockKeyhole data-icon="inline-start" />
+        Seal Cycle
+      </Button>
     </fieldset>
   );
 }

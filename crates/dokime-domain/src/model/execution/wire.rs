@@ -43,8 +43,8 @@ use crate::model::values::wire::Value;
 /* === Structs === */
 
 // Correlation is a caller label, never authenticated identity or an idempotency
-// key. Only the run-specific idempotency_key fields support safe retries. Other
-// mutations remain unsafe to replay after an ambiguous transport failure.
+// key. Run-specific idempotency_key fields support safe retries. SealCycle is
+// intrinsically idempotent; other mutations are unsafe to replay after ambiguity.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,7 +52,7 @@ pub struct MutationContext {
     pub correlation_id: Option<String>,
 }
 
-// Creates an empty Ready cycle. Cases join it only through AppendPlannedCases.
+// Creates An Empty Active Cycle. Cases Join Through AppendPlannedCases.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateCycleReply {
@@ -224,6 +224,7 @@ pub struct ValidationIssue {
 pub struct CycleSummary {
     pub cycle_id: String,
     pub metadata: Option<Metadata>,
+    pub phase: super::result::CyclePhase,
     pub status: CycleStatus,
     pub case_count: u64,
     pub execution_count: u64,

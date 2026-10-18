@@ -91,6 +91,7 @@ async fn report_publication_reopens() {
         session_id: None,
         metadata: dokime_runtime::Metadata::new(Identifier::new("report.cycle").unwrap(), "Report Cycle", None),
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Completed,
+        phase: dokime_domain::model::execution::result::CyclePhase::Sealing,
         created_at: at.clone(),
         started_at: None,
         updated_at: at.clone(),

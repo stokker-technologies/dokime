@@ -25,7 +25,7 @@ import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
 export const suiteQueryKeys = {
   all: ["suite"] as const,
-  cycleLabel: (cycleId: string) => [...suiteQueryKeys.all, "cycle-label", cycleId] as const,
+  appendCycles: () => [...suiteQueryKeys.all, "append-cycles"] as const,
   preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
@@ -62,22 +62,15 @@ export function useAppendTestCycleMutation() {
   });
 }
 
-/**
- * The label of the cycle the Library is appending to.
- *
- * One bounded ListCycles read; the cycle's full plan would cost a ListCases
- * and a GetCase per case for a single string.
- */
-export function useCycleLabelQuery(cycleId: string | undefined) {
+/** Active destinations; choosing one remains an explicit operator action. */
+export function useAppendCyclesQuery() {
   const session = useNativeSession();
   return useQuery({
-    enabled: Boolean(cycleId),
     queryFn: async () => {
       const cycles = await listNativeCycles(session.identity);
-      const summary = cycles.find((candidate) => candidate.cycleId === cycleId);
-      return summary?.metadata?.label || (cycleId ?? "");
+      return cycles.filter((cycle) => cycle.phase?.HarmosVariant.case === "Active");
     },
-    queryKey: [...suiteQueryKeys.cycleLabel(cycleId ?? ""), session.identity.generation],
-    staleTime: 30_000,
+    queryKey: [...suiteQueryKeys.appendCycles(), session.identity.generation],
+    staleTime: 1_000,
   });
 }

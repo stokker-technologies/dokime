@@ -107,11 +107,144 @@ pub struct SealCycle {
     pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
 }
 
+#[harmos::transaction(id = "dokime.execution.seal", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SealExecution {
+    pub seal: dokime_domain::model::execution::saved::ExecutionSeal,
+}
+
+#[harmos::transaction(id = "dokime.cycle.sealing.begin", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BeginCycleSeal {
+    pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
+    pub at: Timestamp,
+}
+
+#[harmos::transaction(id = "dokime.execution.request.queued.stop", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StageQueuedStop {
+    pub request_id: dokime_domain::model::identity::CommandId,
+    pub at: Timestamp,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl Transaction<RuntimeState> for BeginCycleSeal {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        state.cycles.get(&self.test_cycle_id).ok_or("cycle not found")?;
+        Ok(())
+    }
+
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        if state.cycles[&self.test_cycle_id].phase == dokime_domain::model::execution::result::CyclePhase::Active {
+            self.prompts(state).0.collect(out);
+        }
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        use dokime_domain::model::execution::result::CyclePhase;
+        if state.cycles[&self.test_cycle_id].phase != CyclePhase::Active {
+            return;
+        }
+        let (records, settled) = self.prompts(state);
+        records.apply(state);
+        commit_settled_prompts(state, settled);
+        let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("checked cycle");
+        cycle.phase = CyclePhase::Sealing;
+        cycle.lifecycle = match cycle.lifecycle {
+            CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping => CycleStatus::Stopping,
+            CycleStatus::Ready => CycleStatus::Stopped,
+            settled => settled,
+        };
+        cycle.touch_at(self.at.clone());
+        for id in &cycle.execution_ids {
+            let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
+            if execution.status != ExecutionStatus::Skipped || execution.finished_at.is_some() {
+                continue;
+            }
+            execution.status = ExecutionStatus::Cancelled;
+            execution.finished_at = Some(self.at.clone());
+            execution.result = Some(dokime_domain::model::execution::result::ResultSummary {
+                passed: 0,
+                failed: 0,
+                blocked: 0,
+                skipped: 1,
+                status: dokime_domain::model::execution::result::ResultStatus::Cancelled,
+            });
+            for step in &mut execution.steps {
+                if step.status == StepStatus::Pending {
+                    step.status = StepStatus::Skipped;
+                    step.finished_at = Some(self.at.clone());
+                }
+            }
+        }
+        for request in state.run_requests.values_mut() {
+            if request.summary.cycle_id == self.test_cycle_id && !request.summary.phase.terminal() {
+                request.summary.stop_requested = true;
+                request.summary.paused = false;
+            }
+        }
+        cycle.result = Some(crate::transactions::provider_finish::summarize(cycle.execution_ids.iter().map(|id| &state.executions[id])));
+    }
+}
+
+impl BeginCycleSeal {
+    fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
+        let mut records = Drafts::new(state);
+        let settled = settle_prompts(state, &mut records, PromptSettlement::Stopped, &self.at, |scope| {
+            scope.test_cycle_id.as_ref() == Some(&self.test_cycle_id)
+        });
+        (records, settled)
+    }
+}
+
+impl Transaction<RuntimeState> for StageQueuedStop {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        let request = state.run_requests.get(&self.request_id).ok_or("queued request not found")?;
+        if request.summary.phase != RunPhase::Queued || request.summary.prepared != 0 || request.summary.provider_started_at.is_some() {
+            return Err("request already owns provider work".into());
+        }
+        if state.cycles[&request.summary.cycle_id].phase != dokime_domain::model::execution::result::CyclePhase::Sealing {
+            return Err("queued cancellation requires a sealing cycle".into());
+        }
+        Ok(())
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        let request = state.run_requests.get_mut(&self.request_id).expect("checked queued request");
+        request.summary.phase = RunPhase::Finishing;
+        request.summary.stop_requested = true;
+        request.summary.paused = false;
+        request.completion_at = Some(self.at.clone());
+    }
+}
+
+impl Transaction<RuntimeState> for SealExecution {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        let id = &self.seal.source.execution.execution_id;
+        let execution = state.executions.get(id).ok_or("execution seal owner is missing")?;
+        if execution.saved.as_ref().is_some_and(|saved| saved != &self.seal) {
+            return Err("execution already has a different immutable seal".into());
+        }
+        self.seal.validate(execution).map_err(|error| error.to_string())
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        let id = &self.seal.source.execution.execution_id;
+        state.executions.get_mut(id).expect("checked execution owner").saved = Some(self.seal.clone());
+        state.report_finalizations.remove(id);
+    }
+}
+
 impl harmos::MemorySize for CycleReportFinalization {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>().saturating_add(self.source.memory_size()).saturating_add(self.evidence_at.memory_size())
@@ -122,7 +255,13 @@ impl Transaction<RuntimeState> for RequestCycleReportFinalization {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let source = &self.intent.source;
+        if let Some(previous) = state.cycle_report_finalizations.get(&source.test_cycle_id) {
+            return if previous == &self.intent { Ok(()) } else { Err("cycle report finalization is already frozen".into()) };
+        }
         let current = state.cycles.get(&source.test_cycle_id).ok_or("cycle report owner is missing")?;
+        if source.phase != dokime_domain::model::execution::result::CyclePhase::Sealing || source != current {
+            return Err("cycle report requires the exact closed container header".into());
+        }
         if source.saved.is_some()
             || current.saved.is_some()
             || source.session_id.is_none()
@@ -134,9 +273,6 @@ impl Transaction<RuntimeState> for RequestCycleReportFinalization {
             || source.session_id != current.session_id
         {
             return Err("cycle report source differs from its terminal owner".into());
-        }
-        if state.cycle_report_finalizations.get(&source.test_cycle_id).is_some_and(|previous| previous != &self.intent) {
-            return Err("cycle report finalization is already frozen".into());
         }
         Ok(())
     }
@@ -152,6 +288,11 @@ impl Transaction<RuntimeState> for SealCycle {
         let sealed = &self.sealed_cycle;
         let current = state.cycles.get(&sealed.test_cycle_id).ok_or("sealed cycle is missing")?;
         let seal = sealed.saved.as_ref().ok_or("sealed cycle has no seal")?;
+        if sealed.phase != dokime_domain::model::execution::result::CyclePhase::Sealed
+            || current.phase == dokime_domain::model::execution::result::CyclePhase::Active
+        {
+            return Err("cycle must close admission before publishing its seal".into());
+        }
         if current.saved.as_ref().is_some_and(|saved| saved != seal) {
             return Err("cycle already has a different immutable report seal".into());
         }
@@ -159,12 +300,10 @@ impl Transaction<RuntimeState> for SealCycle {
         {
             return Err("a run request still owns this cycle".into());
         }
-        if !crate::transactions::archive::cycle_terminal(sealed.lifecycle)
-            || sealed.execution_ids != current.execution_ids
-            || sealed.metadata != current.metadata
-            || sealed.created_at != current.created_at
-            || sealed.started_at != current.started_at
-        {
+        let mut expected = sealed.clone();
+        expected.saved = current.saved.clone();
+        expected.phase = current.phase;
+        if !crate::transactions::archive::cycle_terminal(sealed.lifecycle) || &expected != current {
             return Err("sealed cycle differs from its terminal owner".into());
         }
         seal.validate(sealed).map_err(|source| source.to_string())?;
@@ -307,10 +446,9 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         records.apply(state);
         commit_settled_prompts(state, settled);
 
+        state.run_queue.clear();
         for request in state.run_requests.values_mut() {
-            // A Request Whose Cycle Report Intent Is Durable Has Settled Its
-            // Outcome; Only Its Seal Is Pending, And A Later Stop Completes It.
-            if request.summary.phase.terminal() || state.cycle_report_finalizations.contains_key(&request.summary.cycle_id) {
+            if request.summary.phase.terminal() {
                 continue;
             }
 
@@ -326,17 +464,22 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         // Sealed Cycles Are Served From Native History After A Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
-            // An Unsealed Cycle Report Is Not Resumed: The Live Cycle Stops, And
-            // A Later Stop Seals It From The Persisted Intent's Frozen Source.
-            let mut changed = state.cycle_report_finalizations.contains_key(id);
-            changed |= matches!(cycle.lifecycle, CycleStatus::Ready | CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
+            // Startup Finishes These Containers Before Exposing New Admission.
+            cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
+            if state.cycle_report_finalizations.contains_key(id) {
+                // Every Member Was Already Durable Before This Frozen Intent.
+                continue;
+            }
+            let mut changed =
+                matches!(cycle.lifecycle, CycleStatus::Ready | CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
             for id in &cycle.execution_ids {
                 let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
                 changed |= interrupt_execution(execution, &self.at);
             }
             if changed {
                 cycle.lifecycle = CycleStatus::Stopped;
-                cycle.result = None;
+                cycle.result =
+                    Some(crate::transactions::provider_finish::summarize(cycle.execution_ids.iter().map(|id| &state.executions[id])));
                 cycle.touch_at(self.at.clone());
             }
         }
@@ -358,6 +501,24 @@ fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
         return false;
     }
 
+    if execution.status == ExecutionStatus::Skipped && execution.started_at.is_none() {
+        execution.status = ExecutionStatus::Cancelled;
+        execution.finished_at = Some(at.clone());
+        execution.result = Some(dokime_domain::model::execution::result::ResultSummary {
+            status: dokime_domain::model::execution::result::ResultStatus::Cancelled,
+            passed: 0,
+            failed: 0,
+            blocked: 0,
+            skipped: 1,
+        });
+        for step in &mut execution.steps {
+            if step.status == StepStatus::Pending {
+                step.status = StepStatus::Skipped;
+                step.finished_at = Some(at.clone());
+            }
+        }
+        return true;
+    }
     execution.interrupt_step_attempt(interrupted_step_detail());
     execution.status = ExecutionStatus::Interrupted;
     execution.result = None;
@@ -403,6 +564,7 @@ mod tests {
                 updated_at: None,
             },
             lifecycle: CycleStatus::Stopped,
+            phase: dokime_domain::model::execution::result::CyclePhase::Sealing,
             created_at: at.clone(),
             started_at: Some(at.clone()),
             updated_at: at,

@@ -69,6 +69,11 @@ class BackendFixture:
         self.restart_during: str | None = None
         self.execution_control_calls: list[str] = []
         self.stop_calls = 0
+        self.seal_calls: list[str] = []
+        self.seal_entered = asyncio.Event()
+        self.seal_allowed = asyncio.Event()
+        self.seal_allowed.set()
+        self.cycle_phase = {"Active": {}}
         self.rerun_calls: list[str] = []
         self.case_runs: list[str] = []
         self.run_calls = 0
@@ -152,6 +157,7 @@ class BackendFixture:
                 "GetRunRequest",
                 "GetExecutionCommand",
                 "GetCycle",
+                "SealCycle",
                 "GetExecution",
                 "ListExecutions",
                 "PauseExecution",
@@ -487,6 +493,7 @@ class BackendFixture:
             direction="response",
             path="",
             cycle_id=request.cycle_id,
+            phase=self.cycle_phase,
             observed_cursor=_message(
                 "Evidence",
                 "ListRecords",
@@ -504,6 +511,20 @@ class BackendFixture:
                 status={"Passed": {}},
                 passed=1,
             ),
+        )
+
+    async def SealCycle(self, request: Any, context: Any) -> Any:
+        self.seal_calls.append(request.cycle_id)
+        self.cycle_phase = {"Sealing": {}}
+        self.seal_entered.set()
+        await self.seal_allowed.wait()
+        self.cycle_phase = {"Sealed": {}}
+        return _message(
+            "Execution",
+            "SealCycle",
+            direction="response",
+            path="",
+            observed_cursor={"epoch": self.epoch, "stream": "runtime", "position": 1},
         )
 
     async def GetExecution(self, request: Any, context: Any) -> Any:

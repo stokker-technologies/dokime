@@ -32,10 +32,7 @@ import type {
 } from "@/lib/types";
 import type { Row19 as GeneratedValue } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
 import type { Row2 as GeneratedCaseDetail } from "../../../.generated/dokime/v1/ExecutionMessages/GetCase/messages_pb";
-import type {
-  Row4 as GeneratedCycleStatus,
-  Row2 as GeneratedCycleSummary,
-} from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type { Row3 as GeneratedParameterCursor } from "../../../.generated/dokime/v1/ExecutionMessages/ListCaseParameters/messages_pb";
 import type {
   Row6 as GeneratedCaseStatus,
@@ -74,7 +71,7 @@ type CycleSummary = Wire<GeneratedCycleSummary>;
 type NativeCaseActions = Wire<GeneratedNativeCaseActions>;
 type ParameterCursor = Wire<GeneratedParameterCursor>;
 type Value = Wire<GeneratedValue>;
-type CycleStatus = Wire<GeneratedCycleStatus>;
+type CycleStatus = CycleSummary["status"];
 type CaseStatus = Wire<GeneratedCaseStatus>;
 type ExecutionStatus = Wire<GeneratedExecutionStatus>;
 type StepStatus = Wire<GeneratedStepStatus>;
@@ -114,7 +111,7 @@ export type NewCycleRequest = {
 };
 
 /**
- * Create an empty Ready cycle.
+ * Create an empty Active cycle.
  *
  * Execution.CreateCycle carries no plan: cases join later through
  * Planning and AppendPlannedCases, and running a cycle without cases is
@@ -140,6 +137,8 @@ export async function appendNativeTestCycle(
   cycleId: string,
   selections: TestCycleSelection[],
 ): Promise<StartTestCycleResponse> {
+  const destination = await rpc.executionGetCycle(session, { cycleId });
+  if (destination.phase?.HarmosVariant.case !== "Active") throw new Error("Choose an Active cycle before adding cases.");
   /* The cycle continues each template's case numbering. */
   const plan = await nativeSelectionPlan(session, { parameters: {}, selections }, cycleId);
   const registered = await rpc.planningRegisterSelection(session, {
@@ -207,6 +206,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
     test_cycle: {
       test_cycle_id: summary.cycleId,
       title: summary.metadata?.label || summary.cycleId,
+      phase: mapCyclePhase(summary.phase),
       status: mapCycleStatus(summary.status),
       case_count: mappedCases.length,
       queue_count: mappedCases.length,
@@ -227,6 +227,19 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
     queue,
     generated_at: generatedAt,
   };
+}
+
+export function mapCyclePhase(phase: CycleSummary["phase"]): "active" | "sealing" | "sealed" {
+  switch (phase?.HarmosVariant.case) {
+    case "Active":
+      return "active";
+    case "Sealing":
+      return "sealing";
+    case "Sealed":
+      return "sealed";
+    default:
+      throw new Error("The cycle has no container phase.");
+  }
 }
 
 function mapNativeCase(item: CaseSummary, detail: CaseDetail, parameters: { name: string; value?: Value }[]): TestCase {

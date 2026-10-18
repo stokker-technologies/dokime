@@ -129,6 +129,7 @@ fn browse_cycle(value: &ExecutionBrowseCycle) -> Result<dokime_domain::model::hi
     Ok(dokime_domain::model::history::wire::ExecutionBrowseCycle {
         cycle_id: value.cycle_id.as_str().to_owned(),
         label: value.label.clone(),
+        phase: value.phase,
         lifecycle: match value.lifecycle {
             ExecutionBrowseLifecycle::Running => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Running,
             ExecutionBrowseLifecycle::Interrupted => dokime_domain::model::history::wire::ExecutionBrowseLifecycle::Interrupted,

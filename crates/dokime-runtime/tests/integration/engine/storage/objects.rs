@@ -175,6 +175,7 @@ async fn cycles_reopen_producers() {
         session_id: None,
         metadata,
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Ready,
+        phase: Default::default(),
         created_at: at.clone(),
         started_at: None,
         updated_at: at,

@@ -169,6 +169,9 @@ export const executionRunExecution = (session: SessionIdentity, request: Paramet
 import { Row1Schema as executionScheduleCaseRerunRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 import { Row2Schema as executionScheduleCaseRerunResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 export const executionScheduleCaseRerun = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionScheduleCaseRerunRequest, typeof executionScheduleCaseRerunResponse>>[4]) => unary("/dokime.v1.Execution/ScheduleCaseRerun", executionScheduleCaseRerunRequest, executionScheduleCaseRerunResponse, session, request, 10000);
+import { Row1Schema as executionSealCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SealCycle/messages_pb.js";
+import { Row2Schema as executionSealCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SealCycle/messages_pb.js";
+export const executionSealCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSealCycleRequest, typeof executionSealCycleResponse>>[4]) => unary("/dokime.v1.Execution/SealCycle", executionSealCycleRequest, executionSealCycleResponse, session, request, 300000);
 import { Row1Schema as executionSetCycleArchivedRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
 import { Row2Schema as executionSetCycleArchivedResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
 export const executionSetCycleArchived = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSetCycleArchivedRequest, typeof executionSetCycleArchivedResponse>>[4]) => unary("/dokime.v1.Execution/SetCycleArchived", executionSetCycleArchivedRequest, executionSetCycleArchivedResponse, session, request, 10000);

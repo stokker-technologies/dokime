@@ -66,6 +66,7 @@ use dokime_domain::model::values::Value;
 #[harmos::transaction(id = "dokime.execution.provider.finish", version = 6, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
+    pub request_id: dokime_domain::model::identity::CommandId,
     pub test_cycle_id: TestCycleId,
     pub target: ExecutionProviderTarget,
     pub started_execution_ids: Vec<TestExecutionId>,
@@ -99,10 +100,21 @@ impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        if state.run_requests.values().any(|request| {
-            request.summary.cycle_id == self.test_cycle_id && !request.summary.phase.terminal() && request.completion_at.is_some()
-        }) {
+        let request = state.run_requests.get(&self.request_id).ok_or("provider request not found")?;
+        if request.completion_at.is_some() || request.summary.phase.terminal() {
             return Err("provider work cannot change after completion is staged".into());
+        }
+        if state.run_queue.front() != Some(&self.request_id) {
+            return Err("provider completion does not own the execution lane".into());
+        }
+        if self.started_execution_ids.iter().any(|id| request.settled_execution_ids.contains(id)) {
+            return Err("provider execution already settled".into());
+        }
+        if request.summary.cycle_id != self.test_cycle_id
+            || request.target != self.target
+            || self.started_execution_ids.iter().any(|id| !request.selected_execution_ids.contains(id))
+        {
+            return Err("provider completion differs from its admitted request".into());
         }
         Ok(())
     }
@@ -168,14 +180,10 @@ impl FinishPlan {
                 })
                 .map(|execution| execution.scope.clone())
                 .collect::<Vec<_>>();
-            if let Some(request) = state
-                .run_requests
-                .values_mut()
-                .find(|request| request.summary.cycle_id == cycle.test_cycle_id && !request.summary.phase.terminal())
-            {
-                request.conclusion = Some(request.test_execution_id.as_ref().map_or(cycle.lifecycle, |id| {
-                    lifecycle_for(Some(&summarize(cycle.test_executions.iter().filter(|execution| &execution.test_execution_id == id))))
-                }));
+            if let Some(request) = state.run_requests.get_mut(&finish.request_id) {
+                let selected =
+                    cycle.test_executions.iter().filter(|execution| request.selected_execution_ids.contains(&execution.test_execution_id));
+                request.conclusion = Some(lifecycle_for(Some(&summarize(selected))));
                 // An earlier target group's cause outlives a later group's, so
                 // the run reports why it first went wrong.
                 match &finish.outcome {
@@ -242,15 +250,15 @@ pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecuti
             summary.status = ResultStatus::Cancelled;
         }
     }
-    if summary.status != ResultStatus::Cancelled {
-        summary.status = if summary.failed > 0 {
-            ResultStatus::Failed
-        } else if summary.blocked > 0 {
-            ResultStatus::Blocked
-        } else {
-            ResultStatus::Passed
-        };
-    }
+    summary.status = if summary.failed > 0 {
+        ResultStatus::Failed
+    } else if summary.blocked > 0 {
+        ResultStatus::Blocked
+    } else if summary.status == ResultStatus::Cancelled {
+        ResultStatus::Cancelled
+    } else {
+        ResultStatus::Passed
+    };
     summary
 }
 
@@ -369,7 +377,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         plan.terminal.draft(record, finish.finished_at.clone());
     }
     let succeeded = !stopped && outcome.status == "passed" && !failed;
-    let scope = request_scope(state, &cycle.test_cycle_id);
+    let scope = request_scope(state, finish);
     if !bounded {
         plan.terminal.draft(
             BuiltinDraft {
@@ -419,20 +427,19 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
     plan
 }
 
-fn request_scope(state: &RuntimeState, cycle_id: &TestCycleId) -> RecordScope {
+fn request_scope(state: &RuntimeState, finish: &FinishProvider) -> RecordScope {
     state
         .run_requests
-        .values()
-        .find(|request| request.summary.cycle_id == *cycle_id && !request.summary.phase.terminal())
+        .get(&finish.request_id)
         .and_then(|request| request.test_execution_id.as_ref())
         .and_then(|id| state.executions.get(id))
         .map(|execution| execution.scope.clone())
-        .unwrap_or_else(|| RecordScope::default().with_cycle(cycle_id.clone()))
+        .unwrap_or_else(|| RecordScope::default().with_cycle(finish.test_cycle_id.clone()))
 }
 
 fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: &ProviderExecutionFailure) -> FinishPlan {
     let mut plan = FinishPlan::new(state);
-    let scope = request_scope(state, &finish.test_cycle_id);
+    let scope = request_scope(state, finish);
     let bounded =
         state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
     let mut stopped = false;

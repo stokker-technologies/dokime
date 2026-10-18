@@ -45,7 +45,7 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { archivedCycleGroups, type CycleRow } from "@/features/cycles-home/cycles-model";
+import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
 import { reportFixturePayload } from "@/report/report-fixture";
@@ -66,6 +66,23 @@ function execution(fields: Record<string, unknown>): Execution {
 }
 
 /* === Tests === */
+
+test("Active Containers Outlive Runs", () => {
+  const rows = [
+    { cycleId: "finished-run", phase: "Active", status: "Completed", attentionCount: 0 },
+    { cycleId: "saving-evidence", phase: "Sealing", status: "Stopped", attentionCount: 0 },
+    { cycleId: "history", phase: "Sealed", status: "Completed", attentionCount: 0 },
+  ] as CycleRow[];
+  const groups = groupCycleRows(rows);
+  assert.deepEqual(
+    groups.find((group) => group.id === "active")?.rows.map((row) => row.cycleId),
+    ["finished-run", "saving-evidence"],
+  );
+  assert.deepEqual(
+    groups.find((group) => group.id === "recent")?.rows.map((row) => row.cycleId),
+    ["history"],
+  );
+});
 
 test("Node Menus", () => {
   // Cycle Menu Opens Its Report And Archives, With No Bundle, Folder Or Clearing

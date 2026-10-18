@@ -122,6 +122,7 @@ function plan(): TestCyclePlan {
       generated_at: "2026-09-30T10:00:00.000Z",
       metadata: {},
       queue_count: 1,
+      phase: "sealed",
       status: "completed",
       test_cycle_id: FIXTURE_CYCLE_ID,
       title: FIXTURE_CYCLE_TITLE,

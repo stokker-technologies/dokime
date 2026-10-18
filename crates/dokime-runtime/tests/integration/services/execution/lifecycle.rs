@@ -36,11 +36,6 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn wait_for_cycle_seal(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId) -> dokime_domain::model::execution::result::CycleView {
-    until_state(runtime, |state| state.cycle_views().any(|cycle| &cycle.test_cycle_id == test_cycle_id && cycle.saved.is_some())).await;
-    cycle_snapshot(runtime, test_cycle_id).await
-}
-
 async fn stored_cycle(
     runtime: &RuntimeHandle, test_cycle_id: &TestCycleId,
 ) -> (dokime_domain::model::execution::result::TestCycle, harmos::storage::StorageCursor) {
@@ -72,6 +67,63 @@ async fn label_edits(subscription: &mut dokime_runtime::runtime::RecordSubscript
         }
     }
     edits
+}
+
+#[tokio::test]
+async fn cycle_container_lifecycle() {
+    use dokime_domain::model::execution::result::CyclePhase;
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let first = start_cycle(&runtime, suite.clone(), false).await;
+    let second = start_cycle(&runtime, suite, false).await;
+    assert_eq!(runtime.cycles().await.len(), 2);
+
+    let run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
+    let completed = cycle_snapshot(&runtime, &first).await;
+    assert_eq!(completed.phase, CyclePhase::Active);
+    assert!(completed.saved.is_none());
+    let original = completed.test_executions[0].clone();
+    assert_eq!(original.status, ExecutionStatus::Passed);
+    assert!(original.saved.is_some());
+
+    let case = original.snapshot.case().clone();
+    runtime.append_cycle_cases(first.clone(), vec![case.clone()], CommandContext::default()).await.unwrap();
+    let appended = cycle_snapshot(&runtime, &first).await;
+    let execution = appended.test_executions[1].test_execution_id.clone();
+    let run = runtime.run_execution(execution, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
+    let completed = cycle_snapshot(&runtime, &first).await;
+    assert_eq!(completed.test_executions[0], original);
+    assert!(completed.test_executions[1].saved.is_some());
+    assert_eq!(completed.phase, CyclePhase::Active);
+
+    runtime.seal_cycle(first.clone(), CommandContext::default()).await.unwrap();
+    let sealed = cycle_snapshot(&runtime, &first).await;
+    assert_eq!(sealed.phase, CyclePhase::Sealed);
+    assert!(sealed.saved.is_some());
+    assert!(sealed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    assert_eq!(sealed.test_executions[0], original);
+    runtime.seal_cycle(first.clone(), CommandContext::default()).await.unwrap();
+    assert_eq!(cycle_snapshot(&runtime, &first).await, sealed);
+    assert!(runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.is_err());
+    assert_eq!(cycle_snapshot(&runtime, &second).await.phase, CyclePhase::Active);
+
+    owner.shutdown().await.unwrap();
+    drop(runtime);
+    let (_owner, runtime) = booted(root.path()).await;
+    let (saved, _) = stored_cycle(&runtime, &second).await;
+    assert_eq!(saved.phase, CyclePhase::Sealed);
+    let execution_id = saved.execution_ids[0].clone();
+    let execution =
+        dokime_runtime::storage::objects::execution::read(runtime.storage(), &execution_id, harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap();
+    assert_eq!(execution.value.status, ExecutionStatus::Cancelled);
+    assert!(execution.value.saved.is_some());
 }
 
 #[tokio::test]
@@ -233,7 +285,7 @@ async fn rename_refuses_sealed() {
     // The Sealed Execution Keeps The Label It Ran Under
     runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
-    wait_for_cycle_seal(&runtime, &test_cycle_id).await;
+    runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &first.test_execution_id).await;
     let sealed = crate::service_support::native::open(&runtime, &checkpoint).await;
     assert_eq!(sealed.execution().snapshot.case().metadata.label, "Charger Soak");

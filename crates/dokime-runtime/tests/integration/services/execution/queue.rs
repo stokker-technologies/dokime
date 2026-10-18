@@ -40,6 +40,115 @@ use dokime_runtime::runtime::query::execution_history::ExecutionBrowseLifecycle;
 /* === Private Functions === */
 
 #[tokio::test]
+async fn cycle_container_request_outcomes() {
+    use dokime_domain::model::execution::request::RunPhase;
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(FakePythonExecutor::case_parameter());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor).await;
+    let suite = fixture_suite(&["failed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle = start_cycle(&runtime, suite.clone(), true).await;
+    let failed = runtime.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &failed.command_id).await;
+    let original = cycle_snapshot(&runtime, &cycle).await.test_executions[0].clone();
+    let case = materialized_case("provider:testdb:plt400.ract", Some(&suite), "later.passed", "Later Passed", "passed");
+    runtime.append_cycle_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let passed = runtime.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &passed.command_id).await;
+    let receipt = runtime.run_request(&passed.command_id).await.unwrap().unwrap();
+    assert_eq!(receipt.summary.phase, RunPhase::Completed);
+    assert_eq!((receipt.summary.planned, receipt.summary.failed), (1, 0));
+    let cycle = cycle_snapshot(&runtime, &cycle).await;
+    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert_eq!(cycle.test_executions[0], original);
+    assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
+}
+
+#[tokio::test]
+async fn cycle_container_request_order() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let first = start_cycle(&runtime, suite.clone(), true).await;
+    let other = start_cycle(&runtime, suite, true).await;
+    let first_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    let other_run = runtime.run_cycle_cases(other.clone(), CommandContext::default()).await;
+
+    let before = cycle_snapshot(&runtime, &first).await;
+    let case = before.test_executions[0].snapshot.case().clone();
+    runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let last_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    assert_eq!(first_run.status, CommandStatus::Accepted);
+    assert_eq!(other_run.status, CommandStatus::Accepted);
+    assert_eq!(last_run.status, CommandStatus::Accepted);
+    let snapshot = runtime.watch_state().latest();
+    assert_eq!(snapshot.state().executions.values().filter(|execution| execution.status == ExecutionStatus::Running).count(), 1);
+    drop(snapshot);
+
+    executor.release();
+    for request in [&first_run, &other_run, &last_run] {
+        crate::service_support::waits::wait_for_run_settled(&runtime, &request.command_id).await;
+    }
+    let first = cycle_snapshot(&runtime, &first).await;
+    let other = cycle_snapshot(&runtime, &other).await;
+    let members = &first.test_executions;
+    assert_eq!(members.len(), 3);
+    assert!(members.iter().all(|execution| execution.saved.is_some()));
+    assert!(members[1].finished_at.as_ref().unwrap() <= other.test_executions[0].started_at.as_ref().unwrap());
+    assert!(other.test_executions[1].finished_at.as_ref().unwrap() <= members[2].started_at.as_ref().unwrap());
+    let first_receipt = runtime.run_request(&first_run.command_id).await.unwrap().unwrap();
+    let last_receipt = runtime.run_request(&last_run.command_id).await.unwrap().unwrap();
+    assert_eq!((first_receipt.summary.planned, first_receipt.summary.finished), (2, 2));
+    assert_eq!((last_receipt.summary.planned, last_receipt.summary.finished), (1, 1));
+}
+
+#[tokio::test]
+async fn cycle_container_seal_isolation() {
+    use dokime_domain::model::execution::result::CyclePhase;
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let first = start_cycle(&runtime, suite.clone(), true).await;
+    let other = start_cycle(&runtime, suite, true).await;
+    let first_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    let other_run = runtime.run_cycle_cases(other.clone(), CommandContext::default()).await;
+    let before = cycle_snapshot(&runtime, &first).await;
+    let case = before.test_executions[0].snapshot.case().clone();
+    runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let queued = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+
+    let (first_seal, repeated_seal) = tokio::join!(
+        runtime.seal_cycle(first.clone(), CommandContext::default()),
+        runtime.seal_cycle(first.clone(), CommandContext::default()),
+    );
+    first_seal.unwrap();
+    repeated_seal.unwrap();
+    let sealed = cycle_snapshot(&runtime, &first).await;
+    assert_eq!(sealed.phase, CyclePhase::Sealed);
+    assert!(sealed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    assert!(sealed.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Cancelled));
+    for request in [first_run, queued] {
+        let receipt = runtime.run_request(&request.command_id).await.unwrap().unwrap();
+        assert!(receipt.summary.phase.terminal());
+        assert!(receipt.summary.stop_requested);
+    }
+    assert_eq!(cycle_snapshot(&runtime, &other).await.phase, CyclePhase::Active);
+    executor.release();
+    crate::service_support::waits::wait_for_run_settled(&runtime, &other_run.command_id).await;
+    let other = cycle_snapshot(&runtime, &other).await;
+    assert!(other.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Passed));
+    assert_eq!(other.phase, CyclePhase::Active);
+}
+
+#[tokio::test]
 async fn unavailable_sidecar_context() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;

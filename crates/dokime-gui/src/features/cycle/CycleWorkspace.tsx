@@ -86,7 +86,7 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: CycleSelection) => void;
 };
 
-type PendingConfirm = { kind: "stop" } | null;
+type PendingConfirm = { kind: "stop" | "seal" } | null;
 
 /* === Components === */
 
@@ -157,7 +157,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     () =>
       live ? (
         <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
-          {executionSelected ? null : <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />}
+          {executionSelected ? null : (
+            <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} onSeal={() => setConfirm({ kind: "seal" })} />
+          )}
           {reportSubject ? (
             <CycleReportButton cycleId={cycleId} executionId={reportSubject.executionId} label={reportSubject.label} />
           ) : null}
@@ -331,7 +333,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         identity={{
           status: {
             activity,
-            label: cycleStatusLabel(status),
+            label: `${plan.test_cycle.phase === "active" ? "Active" : plan.test_cycle.phase === "sealing" ? "Sealing" : "Sealed"} · ${cycleStatusLabel(status)}`,
             progress: `${finished} of ${cases.length} cases finished`,
             variant: cycleStatusVariant(status),
           },
@@ -378,9 +380,11 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       <Dialog onOpenChange={(next) => !next && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stop Cycle</DialogTitle>
+            <DialogTitle>{confirm?.kind === "seal" ? "Seal Cycle" : "Stop Cycle"}</DialogTitle>
             <DialogDescription>
-              {`Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`}
+              {confirm?.kind === "seal"
+                ? "Sealing closes this cycle permanently. Its running work stops, unrun executions are cancelled, and all evidence is saved. Other cycles keep running. This can take time while evidence drains."
+                : `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. The cycle stays Active. To stop only one execution, select it and use Stop Execution.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -388,13 +392,21 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               Cancel
             </Button>
             <Button
+              disabled={commands.sealCycle.isPending}
               onClick={() => {
+                if (confirm?.kind === "seal") {
+                  run({ done: "Cycle Sealed", failed: "Cycle Seal Could Not Be Confirmed" }, async () => {
+                    await commands.sealCycle.mutateAsync();
+                    setConfirm(null);
+                  });
+                  return;
+                }
                 setConfirm(null);
                 run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () => commands.stopCycle.mutateAsync());
               }}
               variant="danger"
             >
-              Stop Cycle
+              {commands.sealCycle.isPending ? "Sealing — Saving Evidence" : confirm?.kind === "seal" ? "Seal Cycle" : "Stop Cycle"}
             </Button>
           </DialogFooter>
         </DialogContent>

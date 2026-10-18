@@ -13,6 +13,7 @@ mod create;
 mod request;
 mod rerun;
 mod run;
+mod seal;
 mod stop;
 
 /* === Re-Exports === */
@@ -46,6 +47,9 @@ pub(crate) enum Command {
     Request(request::Args),
     #[command(about = "Request A Stop Of Every Execution In The Cycle Without Waiting For Sealing.")]
     Stop(stop::Args),
+
+    #[command(about = "Close Admission, Stop This Cycle's Work And Wait For Durable Sealing.")]
+    Seal(seal::Args),
     #[command(about = "Append A Case's Next Attempt As A New Execution And Admit It Once.")]
     Rerun(rerun::Args),
 }
@@ -62,6 +66,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Run(args) => run::run(args).await,
         Command::Request(args) => request::run(args).await,
         Command::Stop(args) => stop::run(args).await,
+        Command::Seal(args) => seal::run(args).await,
         Command::Rerun(args) => rerun::run(args).await,
     }
 }

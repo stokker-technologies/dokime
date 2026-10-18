@@ -244,10 +244,16 @@ impl ExecutionSeal {
 
 impl CycleSeal {
     pub fn validate(&self, cycle: &TestCycle) -> Result<()> {
+        if cycle.phase == super::result::CyclePhase::Active {
+            return Err(SavedEvidenceError::Invalid("cycle admission must close before sealing"));
+        }
         self.validate_membership(&cycle.test_cycle_id, cycle.lifecycle, cycle.execution_ids.iter())
     }
 
     pub fn validate_view(&self, cycle: &CycleView) -> Result<()> {
+        if cycle.phase == super::result::CyclePhase::Active {
+            return Err(SavedEvidenceError::Invalid("cycle admission must close before sealing"));
+        }
         if cycle.test_executions.iter().any(|execution| execution.test_cycle_id != cycle.test_cycle_id) {
             return Err(SavedEvidenceError::Invalid("execution belongs to another cycle"));
         }

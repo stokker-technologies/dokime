@@ -93,6 +93,7 @@ impl Transaction<RuntimeState> for CopyCycle {
             session_id: Some(state.session_id.clone()),
             metadata: source.metadata.clone(),
             lifecycle: CycleStatus::Ready,
+            phase: Default::default(),
             created_at: self.occurred_at.clone(),
             started_at: None,
             updated_at: self.occurred_at.clone(),

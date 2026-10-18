@@ -7,16 +7,12 @@
  */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type {
-  Row13 as GeneratedNativeExecutionCheckpoint,
-  Row35 as GeneratedNativeStorageCursor,
-  Row53 as GeneratedNativeStoreHistory,
-} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type { Row13 as GeneratedNativeExecutionCheckpoint } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
-type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
-type NativeStoreHistory = Wire<GeneratedNativeStoreHistory>;
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
+type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
+type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
 
 export type ActorId = string;
 
@@ -49,6 +45,7 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;
@@ -160,6 +157,7 @@ export type ExecutionBrowseCycle = {
   cycle_id: TestCycleId;
   /** The cycle's own label; null once its header is no longer readable. */
   label: string | null;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
   result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
   case_count: number;

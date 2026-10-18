@@ -63,6 +63,23 @@ async with DokimeClient(endpoint, token=token) as client:
 validates the selection before creating anything. Neither call is idempotent:
 after an ambiguous failure, inspect the backend instead of retrying.
 
+Several cycles can remain Active. A run request selects only the unrun
+executions present at admission; later additions need another request. Requests
+run in acceptance order, with one execution running server-wide. Executions seal
+independently, and their cycle remains Active after completion.
+
+Close the container explicitly when the campaign is finished:
+
+```python
+await cycle.seal()
+```
+
+This closes admission, stops this cycle's running work, cancels its unrun
+executions and waits for all evidence and the cycle report to be durably saved.
+Other cycles continue. Repeating `seal()` safely resolves a lost response;
+it never runs device operations again. Shutdown seals Active cycles, and startup
+finishes old cycles before admitting new work.
+
 ## Remote Control And Listening
 
 Use the backend's HTTPS origin, a bearer token issued for that backend, and its

@@ -541,6 +541,7 @@ async fn native_entry_independent() {
             Some("x".repeat(300_000)),
         ),
         lifecycle: CycleStatus::Ready,
+        phase: Default::default(),
         created_at: now.clone(),
         started_at: None,
         updated_at: now,

@@ -280,12 +280,6 @@ impl ProviderExecutorRegistry {
 }
 
 /* === Public Functions === */
-pub(crate) fn provider_target_for_cycle(
-    state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
-) -> Option<ExecutionProviderTarget> {
-    provider_targets_for_cycle(state, test_cycle_id, selected_execution_id).into_iter().next()
-}
-
 pub(crate) fn provider_targets_for_cycle(
     state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
 ) -> Vec<ExecutionProviderTarget> {
@@ -296,9 +290,7 @@ pub(crate) fn provider_targets_for_cycle(
     let resolved = state
         .executions_for_cycle(cycle)
         .filter(|execution| {
-            execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
-                && execution.started_at.is_none()
-                && execution.finished_at.is_none()
+            crate::transactions::provider::execution_available(state, execution)
                 && selected_execution_id.is_none_or(|id| &execution.test_execution_id == id)
         })
         .filter_map(|execution| state.suites.provider_target_for_case(execution.snapshot.case()));

@@ -140,10 +140,9 @@ impl Transaction<RuntimeState> for AppendCycle {
 fn apply_create_cycle(state: &mut RuntimeState, create: &CreateCycle) -> Result<TestCycleId, Error> {
     let (cycle, records) = prepare_create_cycle(state, create)?;
     let cycle_id = cycle.test_cycle_id.clone();
-    // Creating A Cycle Keeps At Most One Sealed Cycle: Retire The Previous One
+    // Historical Seals Stay In Native Storage; Active Containers Stay Live.
     state.retire_sealed_cycles();
     state.replace_cycle(cycle).expect("cycle projection has valid ownership");
-    state.run_parameters.clear();
     let scope = RecordScope::default().with_cycle(cycle_id.clone());
     records.apply(state);
     state.record_health(
@@ -228,6 +227,7 @@ fn empty_cycle(
         test_cycle_id,
         session_id: Some(session_id),
         metadata,
+        phase: Default::default(),
         lifecycle: CycleStatus::Ready,
         created_at: at.clone(),
         started_at: None,
@@ -240,8 +240,9 @@ fn empty_cycle(
 }
 
 fn append_lifecycle(cycle: &CycleView, has_new_cases: bool) -> Result<CycleStatus, String> {
+    cycle.ensure_active().map_err(str::to_owned)?;
     if matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping) {
-        return Err("cycle cannot be modified from its current state".to_owned());
+        return Ok(cycle.lifecycle);
     }
     if has_new_cases { cycle.lifecycle.try_transition(CycleStatus::Ready).map_err(|error| error.to_string()) } else { Ok(cycle.lifecycle) }
 }
@@ -257,7 +258,6 @@ fn append_cases(cycle: &mut CycleView, cases: Vec<TestCase>, at: Timestamp) -> R
         }
     }
     if has_new_cases {
-        cycle.saved = None;
         cycle.lifecycle = lifecycle;
         cycle.result = None;
     }

@@ -254,6 +254,18 @@ impl Runtime {
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
+            let cycles = self
+                .handle
+                .state_read()
+                .cycles
+                .values()
+                .filter(|cycle| cycle.phase != dokime_domain::model::execution::result::CyclePhase::Sealed)
+                .map(|cycle| cycle.test_cycle_id.clone())
+                .collect::<Vec<_>>();
+            for cycle in cycles {
+                self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
+            }
+
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
                     handle: &self.handle,

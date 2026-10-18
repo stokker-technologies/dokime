@@ -100,10 +100,7 @@ impl RuntimeHandle {
                 .or_else(|| {
                     state.cycles.get(&test_cycle_id).and_then(|cycle| {
                         state.executions_for_cycle(cycle).find(|execution| {
-                            execution.test_case_id == test_case_id
-                                && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
-                                && execution.started_at.is_none()
-                                && execution.finished_at.is_none()
+                            execution.test_case_id == test_case_id && crate::transactions::provider::execution_available(&state, execution)
                         })
                     })
                 })
@@ -258,9 +255,6 @@ impl RuntimeHandle {
         }
         let accepted_at = crate::model::time::now_utc();
         let job_id = JobRunId::from_seed(command_id.as_str());
-        let artifact =
-            crate::execution_runtime::provider::provider_target_for_cycle(&self.state_read(), &test_cycle_id, test_execution_id.as_ref())
-                .and_then(|target| self.installed_plugins().get(&target.source).cloned());
         let transaction = RunProvider {
             mode,
             test_cycle_id,
@@ -268,7 +262,6 @@ impl RuntimeHandle {
             context: context.clone(),
             command_id: command_id.clone(),
             accepted_at: accepted_at.clone(),
-            plugin_identity: artifact.as_ref().and_then(|artifact| self.state_read().execution_identity(&artifact.source)),
         };
         let mut planned = (*self.state_read()).clone();
         let job = match crate::execution_runtime::provider::admission::transition(&mut planned, &transaction) {
@@ -292,7 +285,9 @@ impl RuntimeHandle {
         let before = self.state_manager.applied();
         match self.commit_keyed(RequestKey::new(format!("execution-request:{command_id}")), transaction).await {
             Ok(committed) => {
-                job.submit(self.clone(), before);
+                if self.state_read().run_queue.front() == Some(&command_id) {
+                    job.submit(self.clone(), before);
+                }
                 self.accepted_job_receipt(command_id, accepted_at, job_id, &context, committed.frontier, started).await
             }
             Err(error) => {

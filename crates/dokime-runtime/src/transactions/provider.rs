@@ -27,7 +27,6 @@ use dokime_domain::model::execution::CommandContext;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CriterionResult;
 use dokime_domain::model::execution::result::CriterionStatus;
-use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultStatus;
@@ -47,7 +46,6 @@ use dokime_domain::model::values::Value;
 use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
-pub(crate) const CYCLE_NOT_READY: &str = "cycle is not ready to run test cases";
 pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution; schedule a rerun first";
 pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a provider execution binding";
 
@@ -65,8 +63,6 @@ pub struct RunProvider {
     pub context: CommandContext,
     pub command_id: CommandId,
     pub accepted_at: Timestamp,
-    #[serde(default)]
-    pub plugin_identity: Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity>,
 }
 
 pub(super) struct RunPlanGroup {
@@ -109,10 +105,12 @@ impl Transaction<RuntimeState> for RunProvider {
 
 /* === Public Functions === */
 pub(crate) fn ensure_case_runnable(state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
-    if !cycle_admits_run(cycle.lifecycle) {
-        return Err(CYCLE_NOT_READY.to_owned());
-    }
-    let execution = planned_attempt(cycle, test_case_id).ok_or(EXECUTION_NOT_PLANNED)?;
+    cycle.ensure_active().map_err(str::to_owned)?;
+    let execution = cycle
+        .test_executions
+        .iter()
+        .find(|execution| &execution.test_case_id == test_case_id && execution_available(state, execution))
+        .ok_or(EXECUTION_NOT_PLANNED)?;
     if state.suites.provider_target_for_case(execution.snapshot.case()).is_none() {
         return Err(PROVIDER_UNAVAILABLE.to_owned());
     }
@@ -128,8 +126,14 @@ pub(crate) fn planned_attempt<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -
     })
 }
 
-pub(crate) fn cycle_admits_run(lifecycle: CycleStatus) -> bool {
-    lifecycle == CycleStatus::Ready
+pub(crate) fn execution_available(state: &RuntimeState, execution: &TestExecution) -> bool {
+    execution.status == ExecutionStatus::Skipped
+        && execution.started_at.is_none()
+        && execution.finished_at.is_none()
+        && !state
+            .run_requests
+            .values()
+            .any(|request| !request.summary.phase.terminal() && request.selected_execution_ids.contains(&execution.test_execution_id))
 }
 
 pub fn apply_run_provider(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {
@@ -212,9 +216,7 @@ fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<Vec<R
         return Err(Error::conflict("interactive_selection_required", "interactive runs require one explicit execution"));
     }
     let cycle_view = state.cycles.get(&run.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
-    if !cycle_admits_run(cycle_view.lifecycle) {
-        return Err(Error::conflict("conflict", CYCLE_NOT_READY));
-    }
+    cycle_view.ensure_active().map_err(|reason| Error::conflict("cycle_closed", reason))?;
     if cycle_view.execution_ids.is_empty() {
         return Err(Error::conflict("empty_cycle", "cycle has no test cases; append cases before running it"));
     }
@@ -228,10 +230,7 @@ fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<Vec<R
     let selected = members
         .into_iter()
         .filter(|execution| {
-            execution.status == ExecutionStatus::Skipped
-                && execution.started_at.is_none()
-                && execution.finished_at.is_none()
-                && run.test_execution_id.as_ref().is_none_or(|id| &execution.test_execution_id == id)
+            execution_available(state, execution) && run.test_execution_id.as_ref().is_none_or(|id| &execution.test_execution_id == id)
         })
         .collect::<Vec<_>>();
     if selected.is_empty() {
@@ -242,14 +241,12 @@ fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<Vec<R
     }
     let grouped =
         provider_target_groups(selected.iter().map(|execution| state.suites.provider_target_for_case(execution.snapshot.case())))?;
-    if run.plugin_identity.as_ref().is_some_and(|identity| identity.source != grouped[0].0.source) {
-        return Err(Error::conflict("provider_identity_mismatch", "snapshot identity belongs to another provider"));
-    }
     let mut groups = Vec::new();
     for (target, members) in grouped {
+        let identity = state.execution_identity(&target.source);
         let mut execution_ids = Vec::new();
         for original in members.into_iter().map(|index| selected[index]) {
-            if original.snapshot.plugin() != run.plugin_identity.as_ref() {
+            if original.snapshot.plugin() != identity.as_ref() {
                 return Err(Error::conflict("provider_identity_changed", "the materialized execution belongs to another plugin revision"));
             }
             execution_ids.push(original.test_execution_id.clone());
@@ -265,18 +262,8 @@ fn provider_target_groups(
     let mut groups: Vec<(ExecutionProviderTarget, Vec<usize>)> = Vec::new();
     for (index, target) in targets.into_iter().enumerate() {
         let target = target.ok_or_else(|| Error::unavailable("runtime_unavailable", PROVIDER_UNAVAILABLE))?;
-        if let Some((first, _)) = groups.first()
-            && first.source != target.source
-        {
-            return Err(Error::conflict(
-                "conflict",
-                format!("selected cases resolve to different provider sources: {} and {}", first.source, target.source,),
-            ));
-        }
-        match groups.iter_mut().find(|(existing, _)| existing == &target) {
-            Some((_, members)) => members.push(index),
-            None => groups.push((target, vec![index])),
-        }
+        // Each Execution Can Seal Before The Next One Starts.
+        groups.push((target, vec![index]));
     }
 
     if groups.is_empty() {

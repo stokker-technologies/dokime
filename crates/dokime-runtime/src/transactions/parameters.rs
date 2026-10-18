@@ -58,6 +58,12 @@ impl Transaction<RuntimeState> for UpsertScopedParameter {
         if self.scope.test_cycle_id.is_some() && self.scope.test_execution_id.is_none() {
             return Err("parameters belong to an execution, not a cycle".into());
         }
+        if let Some(id) = &self.scope.test_execution_id {
+            let execution = state.executions.get(id).ok_or("parameter execution not found")?;
+            if execution.saved.is_some() {
+                return Err("sealed execution parameters are immutable".into());
+            }
+        }
         Ok(())
     }
 

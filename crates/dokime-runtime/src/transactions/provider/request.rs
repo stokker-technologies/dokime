@@ -25,6 +25,7 @@ use super::*;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::transactions::records::draft::BuiltinDraft;
+use dokime_domain::model::execution::result::CycleStatus;
 
 /* === Constants === */
 
@@ -44,6 +45,7 @@ pub struct RunRequest {
     pub summary: RunSummary,
     pub target: ExecutionProviderTarget,
     pub test_execution_id: Option<TestExecutionId>,
+    pub selected_execution_ids: Vec<TestExecutionId>,
     pub pending: VecDeque<TestExecutionId>,
     #[serde(default)]
     pub groups: VecDeque<RunGroup>,
@@ -100,6 +102,7 @@ impl harmos::MemorySize for RunRequest {
         let fields = [
             (self.summary.memory_size(), std::mem::size_of_val(&self.summary)),
             (self.test_execution_id.memory_size(), std::mem::size_of_val(&self.test_execution_id)),
+            (self.selected_execution_ids.memory_size(), std::mem::size_of_val(&self.selected_execution_ids)),
             (deque_memory(&self.pending), std::mem::size_of_val(&self.pending)),
             (deque_memory(&self.groups), std::mem::size_of_val(&self.groups)),
             (self.settled_execution_ids.memory_size(), std::mem::size_of_val(&self.settled_execution_ids)),
@@ -311,6 +314,7 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
         plan.into_iter().map(|group| RunGroup { target: group.target, pending: group.execution_ids.into() }).collect::<VecDeque<_>>();
     let current = groups.pop_front().expect("admission planned one group");
     let planned = current.pending.len() + groups.iter().map(|group| group.pending.len()).sum::<usize>();
+    let selected_execution_ids = current.pending.iter().chain(groups.iter().flat_map(|group| group.pending.iter())).cloned().collect();
     // Queuing controls the cycle; its canonical executions remain unstarted.
     let summary = RunSummary {
         mode: run.mode,
@@ -331,7 +335,6 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
     let records = queue_records(state, run);
     let target = current.target.clone();
     let cycle = state.cycles.get_mut(&run.test_cycle_id).expect("checked cycle");
-    cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Running).unwrap_or(CycleStatus::Running);
     cycle.touch_at(run.accepted_at.clone());
     state.run_requests.insert(
         run.command_id.clone(),
@@ -339,6 +342,7 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
             summary,
             target: current.target,
             test_execution_id: run.test_execution_id.clone(),
+            selected_execution_ids,
             pending: current.pending,
             groups,
             settled_execution_ids: Vec::new(),
@@ -349,8 +353,27 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
             completion_at: None,
         },
     );
+    state.run_queue.push_back(run.command_id.clone());
+    sync_cycle_activity(state, &run.test_cycle_id);
     records.apply(state);
     Ok(target)
+}
+
+pub(crate) fn sync_cycle_activity(state: &mut RuntimeState, cycle_id: &TestCycleId) {
+    let request = state
+        .run_queue
+        .iter()
+        .filter_map(|id| state.run_requests.get(id))
+        .find(|request| &request.summary.cycle_id == cycle_id && !request.summary.phase.terminal());
+    let Some(request) = request else { return };
+    let activity = if request.summary.stop_requested {
+        CycleStatus::Stopping
+    } else if request.summary.paused {
+        CycleStatus::Paused
+    } else {
+        CycleStatus::Running
+    };
+    state.cycles.get_mut(cycle_id).expect("request cycle exists").lifecycle = activity;
 }
 
 pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::transactions::records::draft::Drafts {
@@ -374,6 +397,9 @@ pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::t
 
 /* === Private Functions === */
 fn active(state: &RuntimeState, request: &RunRequest) -> Result<(), String> {
+    if state.run_queue.front() != Some(&request.summary.request_id) {
+        return Err("an earlier accepted request owns the execution lane".into());
+    }
     if state.shutting_down || request.summary.stop_requested || request.summary.phase.terminal() {
         return Err("run request is stopping or terminal".into());
     }

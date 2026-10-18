@@ -53,6 +53,7 @@ pub struct TestCycle {
     pub test_cycle_id: TestCycleId,
     pub session_id: Option<SessionId>,
     pub metadata: Metadata,
+    pub phase: CyclePhase,
     pub lifecycle: CycleStatus,
     pub created_at: Timestamp,
     pub started_at: Option<Timestamp>,
@@ -72,6 +73,7 @@ pub struct CycleView {
     #[serde(default)]
     pub session_id: Option<SessionId>,
     pub metadata: Metadata,
+    pub phase: CyclePhase,
     #[serde(default)]
     pub lifecycle: CycleStatus,
     pub created_at: Timestamp,
@@ -195,6 +197,17 @@ pub struct ExecutionInvalidation {
 }
 
 /* === Enums === */
+#[harmos_domain::message]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CyclePhase {
+    #[default]
+    Active,
+
+    Sealing,
+    Sealed,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleStatus {
@@ -422,12 +435,20 @@ impl harmos_domain::MemorySize for TestCycle {
 }
 
 impl TestCycle {
+    pub fn ensure_active(&self) -> Result<(), &'static str> {
+        self.phase.ensure_active()
+    }
+
     pub fn touch_at(&mut self, at: Timestamp) {
         self.updated_at = at;
     }
 }
 
 impl CycleView {
+    pub fn ensure_active(&self) -> Result<(), &'static str> {
+        self.phase.ensure_active()
+    }
+
     pub fn cases(&self) -> impl Iterator<Item = &TestCase> {
         let mut seen = BTreeSet::new();
         self.test_executions.iter().filter_map(move |execution| {
@@ -460,6 +481,16 @@ impl CycleStatus {
 
     pub fn try_transition(self, target: CycleStatus) -> Result<CycleStatus, IllegalCycleTransition> {
         if self.allows(target) { Ok(target) } else { Err(IllegalCycleTransition { from: self, to: target }) }
+    }
+}
+
+impl CyclePhase {
+    pub fn ensure_active(self) -> Result<(), &'static str> {
+        match self {
+            Self::Active => Ok(()),
+            Self::Sealing => Err("cycle is sealing; admission is closed"),
+            Self::Sealed => Err("cycle is sealed and immutable"),
+        }
     }
 }
 

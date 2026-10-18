@@ -105,6 +105,19 @@ suites—it is not a copy of one suite. A cycle is created explicitly, starts
 empty and grows only as cases are appended to it; running an empty cycle is
 refused.
 
+Several cycles can stay **Active** at once. An explicit run request selects the
+unrun executions present when it is accepted; later additions need another run
+request. Requests run in acceptance order, with one execution running across the
+server. Each execution saves and seals its own evidence when it finishes, while
+its cycle stays Active. Select the destination cycle in the Library before
+adding cases.
+
+**Seal Cycle** closes admission immediately, stops that cycle's running work,
+cancels unrun executions and waits for every execution and the cycle report to
+be durably saved. The phase advances through **Sealing** to **Sealed**. Other
+cycles continue. Shutdown seals all Active cycles; startup finishes sealing
+previous-session cycles without replaying device operations.
+
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
 points into concrete cases:
@@ -282,6 +295,7 @@ dokime catalog list --backend lab --json
 dokime catalog show REGISTERED_SUITE_ID --backend lab --json
 dokime execution stop EXECUTION_UUID --backend lab --json
 dokime cycle stop CYCLE_UUID --backend lab --json
+dokime cycle seal CYCLE_UUID --backend lab --json
 dokime cycle rerun CYCLE_UUID CASE_UUID --key rerun-1 --backend lab --json
 ```
 
@@ -294,6 +308,10 @@ for a sealed report. `cycle rerun` appends the case's next attempt as a new
 execution, leaving earlier attempts and their evidence untouched, and admits it
 once under the given key. Cancelling a local request wait leaves backend work running;
 query the durable request again to observe settlement.
+
+`cycle seal` waits for the durable cycle seal. Repeating it is safe, including
+after a lost response. `cycle stop` leaves the container Active. The Python
+client provides the same durable boundary with `await cycle.seal()`.
 
 Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
 that configuration's saved default. An explicit endpoint uses only credentials

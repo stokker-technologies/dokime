@@ -29,7 +29,7 @@ export type CaseAppend = { cycleId: string; selections: TestCycleSelection[] };
 
 /* === Constants === */
 
-export const NO_ACTIVE_CYCLE = "Cases join the active cycle. Open a cycle or create one first.";
+export const NO_ACTIVE_CYCLE = "Select an Active destination cycle in the Library, or create one first.";
 
 /* === Public Functions === */
 

@@ -131,6 +131,7 @@ fn cycle(
     Ok(dokime_domain::model::history::wire::HistoricalCycle {
         cycle_id: value.test_cycle_id.as_str().to_owned(),
         metadata: Some(canonical_metadata(&value.metadata)?),
+        phase: value.phase,
         lifecycle: cycle_status(value.lifecycle),
         created_at: Some(canonical::timestamp(&value.created_at)?),
         started_at: value.started_at.as_ref().map(canonical::timestamp).transpose()?,

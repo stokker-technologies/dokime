@@ -140,7 +140,6 @@ fn admitted() -> (RuntimeState, TestCycleId) {
         context: Default::default(),
         command_id: CommandId::from_seed("snapshot.run"),
         accepted_at: now,
-        plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
     run.apply(&mut state);
@@ -183,7 +182,6 @@ fn queued() -> (RuntimeState, TestCycleId, CommandId) {
         context: Default::default(),
         command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
     run.apply(&mut state);
@@ -232,13 +230,7 @@ fn settle_request(state: &mut RuntimeState, id: &CommandId) {
     let settle = dokime_runtime::transactions::SettleRun { request_id: id.clone(), at: dokime_runtime::model::time::now_utc() };
     settle.check(state).unwrap();
     settle.apply(state);
-    let complete = dokime_runtime::transactions::CompleteRun {
-        request_id: id.clone(),
-        at: settle.at,
-        sealed_cycle: None,
-        sealed_executions: Vec::new(),
-        unsealed: None,
-    };
+    let complete = dokime_runtime::transactions::CompleteRun { request_id: id.clone(), at: settle.at, unsealed: None };
     complete.check(state).unwrap();
     complete.apply(state);
 }
@@ -640,7 +632,6 @@ fn admission_freezes_them() {
         context: Default::default(),
         command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
     run.apply(&mut state);
@@ -691,6 +682,7 @@ fn settlement_replay_timestamp() {
     assert_eq!(advance.check(&state).unwrap_err(), "run request completion has already been staged");
     let execution = &state.cycle_view(&cycle_id).unwrap().test_executions[0];
     let finish = dokime_runtime::transactions::FinishProvider {
+        request_id: id.clone(),
         test_cycle_id: cycle_id,
         target: state.run_requests[&id].target.clone(),
         started_execution_ids: vec![execution.test_execution_id.clone()],
@@ -698,13 +690,7 @@ fn settlement_replay_timestamp() {
         finished_at: later.clone(),
     };
     assert_eq!(finish.check(&state).unwrap_err(), "provider work cannot change after completion is staged");
-    let mut complete = dokime_runtime::transactions::CompleteRun {
-        request_id: id,
-        at: later,
-        sealed_cycle: None,
-        sealed_executions: Vec::new(),
-        unsealed: None,
-    };
+    let mut complete = dokime_runtime::transactions::CompleteRun { request_id: id, at: later, unsealed: None };
     assert_eq!(complete.check(&state).unwrap_err(), "completion differs from its staged timestamp");
     complete.at = at;
     complete.check(&state).unwrap();
@@ -747,6 +733,7 @@ fn recovery_completed_outcomes() {
     let execution = before.test_executions[0].clone();
     let target = state.suites.provider_target_for_case(before.cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        request_id: CommandId::from_seed("snapshot.run"),
         test_cycle_id: cycle_id.clone(),
         target,
         started_execution_ids: vec![execution.test_execution_id.clone()],
@@ -814,7 +801,6 @@ fn admission_validates_parameters() {
         context: Default::default(),
         command_id: CommandId::from_seed("validation.run"),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     // Each refused write is measured against the same admitted plan: a null or
     // mistyped required value, a missing required value, and a mistyped
@@ -860,6 +846,7 @@ fn terminal_traceability_history() {
     let first = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     let target = state.suites.provider_target_for_case(state.cycle_view(&cycle_id).unwrap().cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        request_id: CommandId::from_seed("snapshot.run"),
         test_cycle_id: cycle_id.clone(),
         target,
         started_execution_ids: vec![first.test_execution_id.clone()],
@@ -908,7 +895,6 @@ fn terminal_traceability_history() {
         context: Default::default(),
         command_id: CommandId::from_seed("snapshot.rerun"),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     }
     .apply(&mut state);
     dispatch_request(&mut state, &CommandId::from_seed("snapshot.rerun"));
@@ -923,6 +909,7 @@ fn terminal_traceability_history() {
     assert_eq!(projected_status(&state, &cycle_id, &repeated), Value::from("Pending"));
     let target = state.suites.provider_target_for_case(state.cycle_view(&cycle_id).unwrap().cases().next().unwrap()).unwrap();
     dokime_runtime::transactions::FinishProvider {
+        request_id: CommandId::from_seed("snapshot.rerun"),
         test_cycle_id: cycle_id.clone(),
         target,
         started_execution_ids: vec![repeated.test_execution_id.clone()],
@@ -969,7 +956,6 @@ fn large_request_fenced() {
         context: Default::default(),
         command_id: id.clone(),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
     let before = state.record_count;
@@ -1022,6 +1008,7 @@ fn large_request_fenced() {
     let target = state.run_requests[&id].target.clone();
     for execution_id in ids {
         let finish = dokime_runtime::transactions::FinishProvider {
+            request_id: id.clone(),
             test_cycle_id: cycle_id.clone(),
             target: target.clone(),
             started_execution_ids: vec![execution_id],
@@ -1161,7 +1148,6 @@ fn recovery_requires_request() {
         context: Default::default(),
         command_id: CommandId::from_seed("recovery.fresh"),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     assert!(run.check(&state).is_err());
     let execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
@@ -1430,7 +1416,6 @@ fn request_admission_owner() {
         context: Default::default(),
         command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     assert!(run.check(&state).unwrap_err().contains("another cycle"));
     assert_eq!(serde_json::to_value(&state.run_requests).unwrap(), before);
@@ -1454,7 +1439,6 @@ fn execution_selection_attempts() {
         context: Default::default(),
         command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
         accepted_at: dokime_runtime::model::time::now_utc(),
-        plugin_identity: Some(identity("old")),
     };
     run.check(&state).unwrap();
     run.apply(&mut state);
@@ -1491,6 +1475,7 @@ fn execution_selection_attempts() {
     assert_eq!(state.executions[&selected].mode, run.mode);
     assert_eq!(state.executions[&first.test_execution_id], first);
     let finish = dokime_runtime::transactions::FinishProvider {
+        request_id: run.command_id.clone(),
         test_cycle_id: cycle_id.clone(),
         target: state.run_requests[&run.command_id].target.clone(),
         started_execution_ids: vec![selected.clone()],
@@ -1516,6 +1501,7 @@ fn execution_selection_attempts() {
     assert!(control.check(&state).is_err(), "old execution cannot stop the new request");
     dispatch_request(&mut state, &run.command_id);
     let finish = dokime_runtime::transactions::FinishProvider {
+        request_id: run.command_id.clone(),
         test_cycle_id: cycle_id.clone(),
         target: state.run_requests[&run.command_id].target.clone(),
         started_execution_ids: vec![first.test_execution_id.clone()],

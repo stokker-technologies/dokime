@@ -40,6 +40,7 @@ import {
   resumeNativeTestExecution,
   runNativeQueuedTestCycle,
   runNativeQueuedTestExecution,
+  sealNativeTestCycle,
   setNativeCycleArchived,
   setNativeExecutionArchived,
   stopNativeTestCycle,
@@ -223,6 +224,10 @@ export function useCycleCommands(cycleId: string) {
     }),
     stopCycle: useMutation({
       mutationFn: () => stopNativeTestCycle(session().identity, cycleId),
+      onSettled: invalidateAll,
+    }),
+    sealCycle: useMutation({
+      mutationFn: () => sealNativeTestCycle(session().identity, cycleId),
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({

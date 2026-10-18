@@ -198,6 +198,14 @@ impl TestCycleHandle {
         super::transport::value(reply)
     }
 
+    pub async fn seal(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+        use dokime_domain::operations::execution::SealCycle;
+        self.client.verify(true).await?;
+        let reply = self.client.unary::<SealCycle>(SealCycle::PATH, SealCycle { cycle_id: self.id.to_string(), context: None }).await?;
+        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
+        super::transport::value(reply)
+    }
+
     pub async fn run(&self, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;

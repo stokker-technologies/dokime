@@ -41,6 +41,44 @@ use dokime_domain::model;
 
 /* === Tests === */
 #[tokio::test]
+async fn remote_cycle_seal() {
+    use dokime_domain::model::execution::result::CyclePhase;
+
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    let definition = dokime_runtime::transactions::CycleDefinition {
+        metadata: support::metadata("remote.seal", "Remote Campaign"),
+        continue_on_failure: false,
+    };
+    let cycle = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
+    let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let endpoint = server.local_endpoint();
+    let target = dokime_client::Target::local(endpoint.clone()).unwrap();
+    let client = dokime_client::Client::connect(target, None, None).await.unwrap();
+    let reply = client.cycle(cycle.clone()).seal().await.unwrap();
+    assert!(reply.observed_cursor.is_some());
+    let sealed = handle.watch_state().latest().state().cycles[&cycle].clone();
+    assert_eq!(sealed.phase, CyclePhase::Sealed);
+    assert!(sealed.saved.is_some());
+    assert_eq!(handle.watch_state().latest().state().cycles[&other].phase, CyclePhase::Active);
+    client.close_and_wait().await;
+
+    let cycle_id = cycle.to_string();
+    let command = ["dokime", "cycle", "seal", &cycle_id, "--endpoint", &endpoint, "--json"];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    assert_eq!(handle.watch_state().latest().state().cycles[&cycle], sealed);
+
+    // Historical Repeats Remain Safe After The Live Header Retires.
+    handle.create_cycle(definition, Default::default()).await.unwrap();
+    assert!(!handle.watch_state().latest().state().cycles.contains_key(&cycle));
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn operation_response_files() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

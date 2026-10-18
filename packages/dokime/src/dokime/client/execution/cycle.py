@@ -189,6 +189,21 @@ class Cycle:
         cycle = await self._snapshot()
         return _wire.result(cycle.result)
 
+    async def seal(self) -> None:
+        """Close admission, stop this cycle's work and await its durable seal.
+
+        Completed executions keep their original seals. Unrun executions are
+        cancelled. Repeating this request is safe, including after reconnecting
+        to resolve a lost response; it never reruns device operations.
+        """
+        await self._transport.verify(self._backend, live=True)
+        reply = await self._transport.unary(
+            "Execution",
+            "SealCycle",
+            _wire.request("Execution", "SealCycle", cycle_id=self.id),
+        )
+        _cursor(self._backend, reply)
+
     async def document(self) -> dict[str, Any]:
         """Current cycle metadata in protobuf JSON with original field names."""
         cycle = await self._snapshot()

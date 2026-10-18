@@ -74,6 +74,25 @@ def test_explicit_cycle() -> None:
     asyncio.run(scenario())
 
 
+def test_cycle_seal_waits() -> None:
+    async def scenario() -> None:
+        async with serve() as (server, client):
+            cycle = await client.cycle(CYCLE_ID)
+            server.seal_allowed.clear()
+            sealing = asyncio.create_task(cycle.seal())
+            await server.seal_entered.wait()
+            assert not sealing.done(), "sealing waits for the durable reply"
+            assert server.run_calls == server.stop_calls == 0
+            server.seal_allowed.set()
+            await sealing
+            await cycle.seal()
+            assert server.seal_calls == [CYCLE_ID, CYCLE_ID]
+            assert _wire.enum_name((await cycle._snapshot()).phase) == "sealed"
+            assert server.run_calls == server.stop_calls == 0
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("method", ["CreateCycle", "AppendPlannedCases", "GetCycle"])
 def test_cycle_replay(method: str) -> None:
     async def scenario() -> None:

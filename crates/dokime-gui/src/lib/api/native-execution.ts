@@ -182,6 +182,10 @@ export async function stopNativeTestCycle(session: SessionIdentity, cycleId: str
   return controlNativeCycle(session, cycleId, (id) => rpc.executionStopCycle(session, { cycleId: id }));
 }
 
+export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
+  await rpc.executionSealCycle(session, { cycleId });
+}
+
 /** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */
 export async function setNativeCycleArchived(session: SessionIdentity, cycleId: string, archived: boolean): Promise<void> {
   await rpc.executionSetCycleArchived(session, { cycleId, archived });

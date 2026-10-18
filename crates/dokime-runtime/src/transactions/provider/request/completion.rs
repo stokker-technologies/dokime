@@ -33,8 +33,6 @@ use crate::transactions::records::draft::BuiltinDraft;
 pub struct CompleteRun {
     pub request_id: CommandId,
     pub at: Timestamp,
-    pub sealed_cycle: Option<dokime_domain::model::execution::result::TestCycle>,
-    pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
     #[serde(default)]
     pub unsealed: Option<Unsealed>,
 }
@@ -62,58 +60,23 @@ impl Transaction<RuntimeState> for CompleteRun {
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         outcomes_settled(state, &self.request_id)?;
         let request = &state.run_requests[&self.request_id];
-        if !request.summary.phase.terminal() && request.completion_at.is_none() {
+        if request.summary.phase.terminal() {
+            return Ok(());
+        }
+        if request.completion_at.is_none() {
             return Err("terminal evidence has not been staged".into());
         }
-        if !request.summary.phase.terminal() && request.completion_at.as_ref() != Some(&self.at) {
+        if request.completion_at.as_ref() != Some(&self.at) {
             return Err("completion differs from its staged timestamp".into());
         }
-        if self.sealed_cycle.is_none() && !self.sealed_executions.is_empty() {
-            return Err("sealed executions require a sealed cycle".into());
-        }
         if let Some(unsealed) = &self.unsealed {
-            if self.sealed_cycle.is_some() {
-                return Err("an unsealed completion cannot carry a seal".into());
-            }
-            let members = &state.cycles[&request.summary.cycle_id].execution_ids;
+            let members = &request.selected_execution_ids;
             if unsealed.execution_ids.iter().any(|id| !members.contains(id)) {
                 return Err("unsealed executions differ from cycle membership".into());
             }
-        }
-        if let Some(sealed) = &self.sealed_cycle {
-            let current = &state.cycles[&request.summary.cycle_id];
-            let seal = sealed.saved.as_ref().ok_or("completed cycle has no saved seal")?;
-            if current.saved.as_ref().is_some_and(|saved| saved != seal) {
-                return Err("cycle already has a different immutable report seal".into());
-            }
-            seal.validate(sealed).map_err(|source| source.to_string())?;
-            if self.sealed_executions.len() != sealed.execution_ids.len()
-                || self.sealed_executions.iter().zip(&sealed.execution_ids).any(|(seal, id)| &seal.source.execution.execution_id != id)
-            {
-                return Err("sealed executions differ from cycle membership".into());
-            }
-            for (member, seal) in seal.executions.iter().zip(&self.sealed_executions) {
-                if state.executions[&member.execution_id].saved.as_ref().is_some_and(|saved| saved != seal) {
-                    return Err("execution already has a different immutable report seal".into());
-                }
-                if !member.position.covers(&seal.dependencies_saved).map_err(|source| source.to_string())? {
-                    return Err("cycle member is not saved after its dependencies".into());
-                }
-                seal.source.validate(&member.execution_id).map_err(|source| source.to_string())?;
-            }
-            if sealed.test_cycle_id != current.test_cycle_id
-                || sealed.execution_ids != current.execution_ids
-                || sealed.updated_at != self.at
-                || sealed.metadata != current.metadata
-                || sealed.session_id != current.session_id
-                || sealed.created_at != current.created_at
-                || sealed.started_at != current.started_at
-                || sealed.records != current.records
-                || sealed.continue_on_failure != current.continue_on_failure
-                || (request.test_execution_id.is_none() && sealed.lifecycle != conclusion(request))
-            {
-                return Err("cycle changed after saved finalization".into());
-            }
+        } else if request.selected_execution_ids.iter().any(|id| state.executions.get(id).is_none_or(|execution| execution.saved.is_none()))
+        {
+            return Err("completed request requires every selected execution seal".into());
         }
         Ok(())
     }
@@ -127,11 +90,6 @@ impl Transaction<RuntimeState> for CompleteRun {
     fn apply(&self, state: &mut RuntimeState) {
         let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if request.summary.phase.terminal() {
-            if self.sealed_cycle.is_some() {
-                request.publication_failure = None;
-                request.summary.phase = outcome_phase(conclusion(request));
-                self.install_seals(state);
-            }
             return;
         }
         let status = conclusion(request);
@@ -155,53 +113,27 @@ impl Transaction<RuntimeState> for CompleteRun {
         request.pending.clear();
         request.groups.clear();
         let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
-        for id in &cycle.execution_ids {
-            if request.test_execution_id.as_ref().is_some_and(|selected| selected != id) {
-                continue;
-            }
-            let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
-            if self.unsealed.is_none() && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none() {
-                execution.finished_at = Some(self.at.clone());
-                execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
-                for step in &mut execution.steps {
-                    if step.status == StepStatus::Pending {
-                        step.status = StepStatus::Skipped;
-                        step.finished_at = Some(self.at.clone());
-                    }
-                }
-            }
-        }
         cycle.result = Some(crate::transactions::provider_finish::summarize(
             cycle.execution_ids.iter().map(|id| state.executions.get(id).expect("cycle execution owner exists")),
         ));
-        cycle.lifecycle = if request.test_execution_id.is_some()
-            && cycle.execution_ids.iter().any(|id| {
-                let execution = &state.executions[id];
-                execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
-            }) {
+        cycle.lifecycle = if cycle.execution_ids.iter().any(|id| {
+            let execution = &state.executions[id];
+            execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
+        }) {
             CycleStatus::Ready
-        } else if request.test_execution_id.is_some() {
-            crate::transactions::provider_finish::lifecycle_for(cycle.result.as_ref())
+        } else if request.summary.stop_requested {
+            CycleStatus::Stopped
         } else {
-            status
+            crate::transactions::provider_finish::lifecycle_for(cycle.result.as_ref())
         };
         cycle.touch_at(self.at.clone());
-        self.install_seals(state);
+        let cycle_id = cycle.test_cycle_id.clone();
+        state.run_queue.retain(|id| id != &self.request_id);
+        sync_cycle_activity(state, &cycle_id);
     }
 }
 
 impl CompleteRun {
-    fn install_seals(&self, state: &mut RuntimeState) {
-        if let Some(sealed) = &self.sealed_cycle {
-            state.cycles.insert(sealed.test_cycle_id.clone(), sealed.clone());
-            state.cycle_report_finalizations.remove(&sealed.test_cycle_id);
-            for seal in &self.sealed_executions {
-                state.executions.get_mut(&seal.source.execution.execution_id).expect("checked member").saved = Some(seal.clone());
-                state.report_finalizations.remove(&seal.source.execution.execution_id);
-            }
-        }
-    }
-
     fn unsealed_drafts(&self, state: &RuntimeState, unsealed: &Unsealed) -> crate::transactions::records::draft::Drafts {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
@@ -232,24 +164,22 @@ impl CompleteRun {
             return records;
         }
         let status = conclusion(request);
-        let cycle_status = if request.test_execution_id.is_some() {
+        let cycle_status = if matches!(status, CycleStatus::Failed | CycleStatus::Stopped) {
+            status
+        } else {
             crate::transactions::provider_finish::lifecycle_for(Some(&crate::transactions::provider_finish::summarize(
                 state.cycles[&request.summary.cycle_id].execution_ids.iter().map(|id| &state.executions[id]),
             )))
-        } else {
-            status
         };
         let name = match cycle_status {
             CycleStatus::Completed => BuiltinRecordType::TestCycleCompleted,
             CycleStatus::Stopped => BuiltinRecordType::TestCycleStopped,
             _ => BuiltinRecordType::TestCycleFailed,
         };
-        let cycle_complete = request.test_execution_id.as_ref().is_none_or(|selected| {
-            !state.cycles[&request.summary.cycle_id].execution_ids.iter().any(|id| {
-                let execution = &state.executions[id];
-                id != selected && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
-            })
-        });
+        let cycle_complete = state.cycles[&request.summary.cycle_id]
+            .execution_ids
+            .iter()
+            .all(|id| state.executions[id].finished_at.is_some() || request.selected_execution_ids.contains(id));
         if cycle_complete {
             records.draft(
                 BuiltinDraft {
@@ -274,14 +204,7 @@ impl CompleteRun {
                 severity: if status == CycleStatus::Failed { RecordSeverity::Error } else { RecordSeverity::Info },
                 message: Some(request.failure.clone().unwrap_or_else(|| "Cycle provider work settled.".into())),
                 details: BTreeMap::new(),
-                scope: Some(
-                    request
-                        .test_execution_id
-                        .as_ref()
-                        .and_then(|id| state.executions.get(id))
-                        .map(|execution| execution.scope.clone())
-                        .unwrap_or_else(|| RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
-                ),
+                scope: Some(RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
             },
             self.at.clone(),
         );
@@ -296,31 +219,33 @@ impl Transaction<RuntimeState> for SettleRun {
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if state.run_requests[&self.request_id].completion_at.is_none() {
-            CompleteRun {
-                request_id: self.request_id.clone(),
-                at: self.at.clone(),
-                sealed_cycle: None,
-                sealed_executions: Vec::new(),
-                unsealed: None,
-            }
-            .drafts(state)
-            .collect(out);
+            CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state).collect(out);
         }
     }
     fn apply(&self, state: &mut RuntimeState) {
         if state.run_requests[&self.request_id].completion_at.is_some() {
             return;
         }
-        let records = CompleteRun {
-            request_id: self.request_id.clone(),
-            at: self.at.clone(),
-            sealed_cycle: None,
-            sealed_executions: Vec::new(),
-            unsealed: None,
-        }
-        .drafts(state);
+        let records = CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state);
         state.run_requests.get_mut(&self.request_id).expect("checked request").completion_at = Some(self.at.clone());
         records.apply(state);
+        // Unstarted Selected Members Settle Before Their Evidence Is Sealed.
+        let request = &state.run_requests[&self.request_id];
+        for id in &request.selected_execution_ids {
+            let execution = state.executions.get_mut(id).expect("selected execution owner exists");
+            if execution.status != ExecutionStatus::Skipped || execution.finished_at.is_some() {
+                continue;
+            }
+            execution.status = ExecutionStatus::Cancelled;
+            execution.finished_at = Some(self.at.clone());
+            execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
+            for step in &mut execution.steps {
+                if step.status == StepStatus::Pending {
+                    step.status = StepStatus::Skipped;
+                    step.finished_at = Some(self.at.clone());
+                }
+            }
+        }
     }
 }
 
@@ -381,6 +306,7 @@ mod tests {
                 session_id: None,
                 metadata: Metadata::new(Identifier::new("publication.fixture").unwrap(), "Publication", None),
                 lifecycle: CycleStatus::Running,
+                phase: Default::default(),
                 created_at: at.clone(),
                 started_at: Some(at.clone()),
                 updated_at: at.clone(),
@@ -414,6 +340,7 @@ mod tests {
                     binding: crate::domains::SidecarExecutionBinding { workflow: "fixture".into() },
                 },
                 test_execution_id: None,
+                selected_execution_ids: Vec::new(),
                 pending: Default::default(),
                 groups: Default::default(),
                 settled_execution_ids: Vec::new(),
@@ -426,13 +353,7 @@ mod tests {
         );
         (
             state,
-            CompleteRun {
-                request_id,
-                at,
-                sealed_cycle: None,
-                sealed_executions: Vec::new(),
-                unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }),
-            },
+            CompleteRun { request_id, at, unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }) },
         )
     }
 

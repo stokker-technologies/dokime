@@ -99,6 +99,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
             session_id: None,
             metadata: cycle_metadata,
             lifecycle: CycleStatus::Ready,
+            phase: Default::default(),
             created_at: dokime_runtime::model::time::now_utc(),
             started_at: None,
             updated_at: dokime_runtime::model::time::now_utc(),

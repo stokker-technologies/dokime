@@ -123,6 +123,7 @@ async fn report_save_receipt() {
             session_id: None,
             metadata: metadata("fixture.cycle", "Stored Report Cycle"),
             lifecycle: CycleStatus::Stopped,
+            phase: dokime_domain::model::execution::result::CyclePhase::Sealing,
             created_at: finished_at.clone(),
             started_at: None,
             updated_at: finished_at.clone(),

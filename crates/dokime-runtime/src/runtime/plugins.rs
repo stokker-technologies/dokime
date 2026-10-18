@@ -686,6 +686,10 @@ impl Runtime {
                 .await
                 .map_err(operation)?;
         }
+        let cycles = self.handle.state_read().cycles.keys().cloned().collect::<Vec<_>>();
+        for cycle in cycles {
+            self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
+        }
         Ok(())
     }
 }

@@ -34,6 +34,7 @@ mod run_case;
 mod run_cycle;
 mod run_execution;
 mod schedule_case_rerun;
+mod seal_cycle;
 mod set_cycle_archived;
 mod set_execution_archived;
 mod stop_cycle;
@@ -68,6 +69,7 @@ pub use run_case::RunCase;
 pub use run_cycle::RunCycle;
 pub use run_execution::RunExecution;
 pub use schedule_case_rerun::ScheduleCaseRerun;
+pub use seal_cycle::SealCycle;
 pub use set_cycle_archived::SetCycleArchived;
 pub use set_execution_archived::SetExecutionArchived;
 pub use stop_cycle::StopCycle;
@@ -181,6 +183,7 @@ pub enum Operations {
     PauseCycle(PauseCycle),
     ResumeCycle(ResumeCycle),
     StopCycle(StopCycle),
+    SealCycle(SealCycle),
     DeleteCase(DeleteCase),
     ScheduleCaseRerun(ScheduleCaseRerun),
     SetCycleArchived(SetCycleArchived),
@@ -345,6 +348,11 @@ impl Endpoint for RenameCycle {
 
 impl Endpoint for RenameExecution {
     const PATH: &'static str = "/dokime.v1.Execution/RenameExecution";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for SealCycle {
+    const PATH: &'static str = "/dokime.v1.Execution/SealCycle";
     const ACCESS: Access = Access::Control;
 }
 

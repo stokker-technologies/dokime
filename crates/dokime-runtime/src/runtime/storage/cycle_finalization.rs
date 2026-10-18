@@ -218,7 +218,7 @@ impl RuntimeHandle {
             if let Some(completed) = &pending.completed {
                 return Ok(completed.clone());
             }
-            let completed = runtime.seal_cycle(&pending, &operation).await?;
+            let completed = runtime.publish_cycle_seal(&pending, &operation).await?;
             pending.completed = Some(completed.clone());
             Ok(completed)
         })
@@ -271,7 +271,7 @@ impl RuntimeHandle {
     }
 
     // Seal A Cycle Whose Report File Is Published: Save The Seal And The Header.
-    async fn seal_cycle(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
+    async fn publish_cycle_seal(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
         operation.phase("Writing Report");
         operation.indeterminate();
         let report = pending.report.clone().ok_or_else(|| invalid("cycle materialization did not publish a file"))?;
@@ -310,6 +310,7 @@ impl RuntimeHandle {
 
         operation.phase("Saving Seal");
         let mut cycle = (**pending.snapshot.source()).clone();
+        cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealed;
         cycle.saved = Some(seal);
         let receipt = self.storage().write_object(&Cycle::try_from(&cycle)?).await?;
         let saved = self.storage().flush_until(&receipt.position).await?;
@@ -408,6 +409,7 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
         test_cycle_id: cycle.test_cycle_id.clone(),
         session_id: cycle.session_id.clone(),
         metadata: cycle.metadata.clone(),
+        phase: cycle.phase,
         lifecycle: cycle.lifecycle,
         created_at: cycle.created_at.clone(),
         started_at: cycle.started_at.clone(),

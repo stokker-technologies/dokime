@@ -39,6 +39,7 @@ function totals(overrides: Partial<ExecutionBrowseCycle> = {}): ExecutionBrowseC
   return {
     cycle_id: "cycle-a",
     label: null,
+    phase: "active",
     lifecycle: "running",
     result_status: null,
     case_count: 6,
@@ -77,6 +78,7 @@ test("Backend Cycle Totals", () => {
   assert.equal(cycle.target.id, "cycle-a");
   assert.equal(cycle.title, "Charger Suite");
   assert.equal(cycle.lifecycle, "running");
+  assert.equal(cycle.phase, "active");
   assert.equal(cycle.result_status, null);
   assert.equal(cycle.execution_count, 6);
   assert.equal(cycle.running_count, 1);
@@ -103,9 +105,13 @@ test("Backend Cycle Totals", () => {
   });
   const [later] = groupExecutions([page(loaded, [totals()]), page([], [settled])]);
   assert.equal(later.lifecycle, "completed");
+  assert.equal(later.phase, "active", "finished executions do not seal their container");
   assert.equal(later.result_status, "passed");
   assert.equal(later.passed_count, 6);
   assert.equal(later.duration_s, 3600);
+
+  const [sealed] = groupExecutions([page(loaded, [totals({ phase: "sealed", lifecycle: "completed" })])]);
+  assert.equal(sealed.phase, "sealed");
 
   // A Readable Cycle Is Titled By Its Own Label
   const [labelled] = groupExecutions([page(loaded, [totals({ label: "Charger Bench" })])]);

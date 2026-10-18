@@ -153,6 +153,7 @@ pub struct ExecutionBrowseCycle {
     pub finished_at: Option<Timestamp>,
     // The cycle's own label, absent when its header is no longer readable.
     pub label: Option<String>,
+    pub phase: Option<crate::model::execution::result::CyclePhase>,
 }
 
 #[harmos_domain::message]
@@ -457,6 +458,7 @@ pub struct HistoricalCycleContext {
 pub struct HistoricalCycle {
     pub cycle_id: String,
     pub metadata: Option<Metadata>,
+    pub phase: crate::model::execution::result::CyclePhase,
     pub lifecycle: CycleStatus,
     pub created_at: Option<Timestamp>,
     pub started_at: Option<Timestamp>,
