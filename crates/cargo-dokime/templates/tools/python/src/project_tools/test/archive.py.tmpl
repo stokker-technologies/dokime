@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:149ecda636dd53df5337ca280bbf16a73a74ab37383f0afe7d53896f3bff02f8
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:c74912b47fd4d09efac28dbbb6a5feaf74844fb3fba8d32bd0de8fea3f2dc9e2
 # ***
 #
 # {{package}}
@@ -87,7 +87,12 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         result = subprocess.run(command, cwd=directory, stdout=output, check=False)
     if result.returncode:
         path.unlink(missing_ok=True)
-        raise policy.TestError("nextest archive build failed")
+        for line in path.with_name(MESSAGES).read_text(encoding="utf-8").splitlines():
+            message = json.loads(line)
+            diagnostic = message.get("message", {}).get("rendered")
+            if diagnostic:
+                print(diagnostic, file=sys.stderr, end="")
+        raise policy.TestError(f"nextest archive build failed; compiler messages: {path.with_name(MESSAGES)}")
     require(directory, profile)
     files = []
     messages = []
@@ -129,7 +134,8 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
             path.unlink()
 
 
-def binaries(directory: Path, profile: str) -> list[str]:
+def binaries(directory: Path, profile: str) -> dict[str, str]:
+    """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
     path = require(directory, profile)
     listing = Path(tempfile.mkdtemp(prefix="listing-", dir=path.parent))
     command = [
@@ -153,9 +159,7 @@ def binaries(directory: Path, profile: str) -> list[str]:
         shutil.rmtree(listing)
     if result.returncode:
         raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
-    return sorted(
-        {entry["binary-name"] for entry in json.loads(result.stdout).get("rust-binaries", {}).values() if entry.get("kind") == "test"}
-    )
+    return {identity: entry["binary-name"] for identity, entry in json.loads(result.stdout).get("rust-binaries", {}).items()}
 
 
 def require(directory: Path, profile: str) -> Path:

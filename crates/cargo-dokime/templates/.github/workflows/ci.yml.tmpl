@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:16a3c8aee6afbf055f316c02955e691d8160b7d6079aa30c0b96452eefaeb22c
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:656d9f95650f11cc152fabcdd8414d24f976c2fe64ab3a1719d7229ed2a144b5
 name: CI
 "on":
   push:
@@ -9,6 +9,7 @@ name: CI
     tags:
     - v*
   pull_request: {}
+  workflow_dispatch: {}
   schedule:
   - cron: 0 2 * * *
 permissions:
@@ -42,6 +43,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -90,6 +92,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -137,6 +140,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -200,6 +204,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -248,6 +253,14 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-diagnostics-dev-${{ matrix.os }}
+        path: target/nextest/*/compiler.json
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -286,6 +299,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -334,6 +348,14 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-diagnostics-release-${{ matrix.os }}
+        path: target/nextest/*/compiler.json
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -376,6 +398,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -461,6 +484,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -546,6 +570,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -637,6 +662,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -695,9 +721,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
-      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
+      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
+      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
     strategy:
       fail-fast: false
       matrix:
@@ -712,8 +738,7 @@ jobs:
   publish_dry:
     name: Publish / Dry
     runs-on:
-    - self-hosted
-    - linux
+    - ubuntu-latest
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -728,6 +753,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -753,8 +779,8 @@ jobs:
     - run: sccache --show-stats
       if: always()
     if: >-
-      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-      startsWith(github.ref, 'refs/heads/release/v'))
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -780,6 +806,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -846,6 +873,7 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -871,4 +899,6 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
-    if: always()
+    if: >-
+      always() && github.event_name == 'schedule' && !contains(needs.*.result,
+      'failure') && !contains(needs.*.result, 'cancelled')

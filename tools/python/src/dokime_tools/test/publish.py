@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:a44615e0b3bb10805f4ece46e578ea5ec453df7b7bbe032f7bf48562aed488f6
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:5588df36481d9c21a3f7257c3d429f11859b6d955deef930a77289c078e8ee80
 # ***
 #
 # Dokime
@@ -14,6 +14,7 @@
 # Standard Library Imports
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -54,7 +55,12 @@ def main() -> None:
     options = parser.parse_args()
     directory = policy.root()
     for command in commands(directory, options.rust, options.python):
-        subprocess.run(command, cwd=directory, check=True)
+        environment = dict(os.environ)
+        if command[0] == "uv":
+            target = str(directory / "target/publish-dry/cargo")
+            for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+                environment[name] = target
+        subprocess.run(command, cwd=directory, check=True, env=environment)
 
 
 # === Private Functions === #

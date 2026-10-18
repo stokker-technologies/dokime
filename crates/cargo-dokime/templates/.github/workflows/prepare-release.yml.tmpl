@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:db87d494ce186e11a10ccc969f5bc55d6af02f033788858b528e65d2acc20e95
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:fd9a445af7eff81f118511599c0c01ea9e52476c7291e38ed07d1fb668f5893d
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -9,6 +9,7 @@ name: Prepare Release
         type: string
 permissions:
   contents: write
+  actions: write
 env:
   MISE_LOCKED: "1"
   CARGO_INCREMENTAL: "0"
@@ -35,21 +36,18 @@ jobs:
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
         mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Check Runner Group Allowlist
-      run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        project_tools.test.runners
-      env:
-        GITHUB_RUNNER_WORKFLOWS: "{\"ci.yml\":[[\"self-hosted\",\"linux\"]]}"
-        RELEASE_VERSION: ${{ inputs.version }}
-        GH_TOKEN: ${{ secrets.RUNNER_GROUP_READ_TOKEN || github.token }}
-    - run: git switch -c "release/v${{ inputs.version }}"
+    - run: git switch -c "release/v$RELEASE_VERSION"
     - run: mise run release:prepare
-    - run: "git -c user.name=\"${{ github.actor }}\" -c user.email=\"${{ github.actor }}@users.noreply.github.com\" commit -am \"chore: prepare release v${{ inputs.version }}\""
-    - run: git push origin "release/v${{ inputs.version }}"
+    - run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        project_tools.release.run author
+    if: github.ref == 'refs/heads/dev'
     env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
       MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab

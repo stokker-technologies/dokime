@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:5082e8afd3f2c1c33de008b643527af41d1d13da3b93df7c14e35f71932acc77
+# Rendered by stkr project update from templates/python/test/run.py; sha256:4ce42612cd1efce8b353b5e170a8537311286e968103f48190fe46e1d46ece18
 # ***
 #
 # Dokime
@@ -72,9 +72,10 @@ def test(
     cwd = directory / project
     if language == "rust":
         path = archive.require(directory, profile)
-        names = archive.binaries(directory, profile)
+        binaries = archive.binaries(directory, profile)
+        names = sorted(set(binaries.values()))
         expression, rest = nextest.selection(category, extra, names)
-        measured = nextest.overrides(rules, category, recorded, coverage=False, binaries=names)
+        measured = nextest.overrides(rules, category, recorded, coverage=False, binaries=binaries)
         configuration = scratch / "nextest.toml"
         store = (scratch / "store").relative_to(directory).as_posix()
         configuration.write_text(nextest.config(store, deadline, measured), encoding="utf-8")
@@ -127,9 +128,10 @@ def coverage(
 
     # Instrumented Run
     if language == "rust":
-        names = archive.binaries(directory, profile)
+        binaries = archive.binaries(directory, profile)
+        names = sorted(set(binaries.values()))
         expression, rest = nextest.selection(category, extra, names)
-        measured = nextest.overrides(rules, category, {}, coverage=True, binaries=names)
+        measured = nextest.overrides(rules, category, {}, coverage=True, binaries=binaries)
         configuration = scratch / "nextest.toml"
         store = (scratch / "store").relative_to(directory).as_posix()
         configuration.write_text(nextest.config(store, deadline, measured), encoding="utf-8")

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:050573ab1e7b39a297ea3d8e567499fd64e546d415b969f01eaf8e587bda013b
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:9d4802dfeaca05db00ce13008cce8d0929238aeb5072fc84a5a3b24c473cbf01
 name: CI
 "on":
   push:
@@ -9,6 +9,7 @@ name: CI
     tags:
     - v*
   pull_request: {}
+  workflow_dispatch: {}
   schedule:
   - cron: 0 2 * * *
 permissions:
@@ -54,10 +55,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -72,14 +82,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - run: mise run format:toml --check
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
@@ -140,10 +142,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -158,14 +169,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - run: mise run format:python --check
     - run: mise run lint:python
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -227,10 +230,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -245,14 +257,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - run: mise run format:typescript --check
     - run: mise run lint:typescript
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -315,10 +319,27 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+      if: matrix.os == 'linux'
+      shell: bash
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -339,22 +360,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
     - run: mise run format:rust --check
     - run: mise run lint:rust
     - run: mise exec -- cargo check --locked --workspace --lib --bins --no-default-features
@@ -427,10 +432,27 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+      if: matrix.os == 'linux'
+      shell: bash
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -451,22 +473,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
     - run: mise run build --profile dev
     - run: mise run test:compile --profile dev
     - name: Archive Build
@@ -494,6 +500,14 @@ jobs:
         name: build-dev-${{ matrix.os }}
         path: target/tmp/build-dev-${{ matrix.os }}.tar.zst
         if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-diagnostics-dev-${{ matrix.os }}
+        path: target/nextest/*/compiler.json
+        if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -562,10 +576,27 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+      if: matrix.os == 'linux'
+      shell: bash
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -586,22 +617,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
     - run: mise run build --profile release
     - run: mise run test:compile --profile release
     - name: Archive Build
@@ -629,6 +644,14 @@ jobs:
         name: build-release-${{ matrix.os }}
         path: target/tmp/build-release-${{ matrix.os }}.tar.zst
         if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-diagnostics-release-${{ matrix.os }}
+        path: target/nextest/*/compiler.json
+        if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -700,10 +723,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -718,14 +750,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -815,24 +839,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -849,6 +855,25 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
       if: matrix.os == 'linux'
       shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -948,10 +973,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -966,14 +1000,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -1059,24 +1085,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1093,6 +1101,25 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
       if: matrix.os == 'linux'
       shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1192,10 +1219,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -1210,14 +1246,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -1302,10 +1330,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -1320,14 +1357,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -1413,24 +1442,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1447,6 +1458,25 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
       if: matrix.os == 'linux'
       shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1547,24 +1577,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1581,6 +1593,25 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
       if: matrix.os == 'linux'
       shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1680,10 +1711,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -1698,14 +1738,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -1804,24 +1836,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
     - run: sudo apt-get update
       if: matrix.os == 'linux'
       shell: bash
@@ -1838,6 +1852,25 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
       if: matrix.os == 'linux'
       shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1896,9 +1929,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
-      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
+      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
+      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
     strategy:
       fail-fast: false
       matrix:
@@ -1957,10 +1990,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -1975,14 +2017,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
@@ -2032,9 +2066,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
-      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
+      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
+      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2044,8 +2078,7 @@ jobs:
   publish_dry:
     name: Publish / Dry
     runs-on:
-    - self-hosted
-    - linux
+    - ubuntu-latest
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -2072,10 +2105,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -2090,14 +2132,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - run: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
@@ -2123,8 +2157,8 @@ jobs:
     - run: sccache --show-stats
       if: always()
     if: >-
-      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-      startsWith(github.ref, 'refs/heads/release/v'))
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2163,10 +2197,19 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         TEMP: ${{ runner.temp }}
         TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
       with:
         install: true
         cache: false
@@ -2181,14 +2224,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: package-release-*
@@ -2248,14 +2283,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -2264,6 +2291,15 @@ jobs:
         xvfb desktop-file-utils xdg-utils
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
     - run: mise run build --profile bench
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -2313,14 +2349,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -2329,6 +2357,15 @@ jobs:
         xvfb desktop-file-utils xdg-utils
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: build-bench
@@ -2378,14 +2415,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -2394,6 +2423,15 @@ jobs:
         xvfb desktop-file-utils xdg-utils
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: build-bench
@@ -2443,14 +2481,6 @@ jobs:
       with:
         path: .cache/mise/
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -2459,6 +2489,15 @@ jobs:
         xvfb desktop-file-utils xdg-utils
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        TEMP: ${{ runner.temp }}
+        TMP: ${{ runner.temp }}
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: build-bench

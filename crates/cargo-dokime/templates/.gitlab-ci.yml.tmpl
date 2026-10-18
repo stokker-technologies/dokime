@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:ec63c64ee194f8b7b4dbe66f5a55ca41e84b64b8f6ff428d55864ffcc28a0aa0
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:154ca28ff603ad9d7e2d1b98fc63618b03843e6d27db86ce42ffa8261572baea
 stages:
 - Check
 - Build
@@ -1084,7 +1084,8 @@ Package / Rust (windows):
     MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
 Publish / Dry:
   stage: Publish
-  tags: []
+  tags:
+  - saas-linux-medium-amd64
   timeout: 30 minutes
   script:
   - mise run release:publish:dry
