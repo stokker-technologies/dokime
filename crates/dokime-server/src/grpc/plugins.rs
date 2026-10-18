@@ -50,7 +50,6 @@ struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: Arc<Semaphore>,
     pub max_message_bytes: usize,
-    pub local_only: bool,
 }
 
 /* === Enums === */
@@ -360,16 +359,16 @@ impl Operation for ListAdmittedPlugins {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::ListAdmittedPlugins, _: &mut Self::Endpoints,
+        &mut self, context: Self::Context<'a>, request: &mut v1::ListAdmittedPlugins, _: &mut Self::Endpoints,
     ) -> Result<Response<plugins_model::AdmittedPluginPage>, Status> {
-        inventory::page(&self.resources.runtime, request, self.resources.max_message_bytes, self.resources.local_only)
+        let local = context.context().get::<super::access::Principal>().is_some_and(super::access::Principal::is_local);
+        inventory::page(&self.resources.runtime, request, self.resources.max_message_bytes, local)
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize, local_only: bool) -> Result<(), super::Error> {
-    let resources =
-        Arc::new(Resources { runtime: runtime.clone(), admission: Arc::new(Semaphore::new(1)), max_message_bytes: maximum, local_only });
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    let resources = Arc::new(Resources { runtime: runtime.clone(), admission: Arc::new(Semaphore::new(1)), max_message_bytes: maximum });
     runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Stage>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;

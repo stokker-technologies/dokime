@@ -26,6 +26,7 @@ pub mod plugins;
 pub mod process;
 pub mod prompts;
 pub mod query;
+pub mod remote;
 pub mod reports;
 pub mod runtime;
 pub mod settings;
@@ -134,6 +135,8 @@ pub enum Operations {
     Query(query::Operations),
     #[nested]
     Reports(reports::Operations),
+    #[nested]
+    Remote(remote::Operations),
     #[nested]
     Settings(settings::Operations),
     #[nested]

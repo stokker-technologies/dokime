@@ -41,6 +41,168 @@ use dokime_domain::model;
 
 /* === Tests === */
 #[tokio::test]
+async fn remote_security_persistence() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    let security = handle.application_settings().application_root.join("remote/access.json");
+    let server = Server::start(handle, Config::local()).await.unwrap();
+    let client = connect(&server).await;
+    let initial = client.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
+    assert!(!initial.key_configured);
+    assert!(initial.certificate_pem.is_none());
+    assert!(!initial.settings.as_ref().unwrap().enabled);
+
+    let generated = client.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
+    assert_eq!(generated.access_key.len(), 64);
+    assert!(!format!("{generated:?}").contains(&generated.access_key));
+    assert!(generated.listener.as_ref().unwrap().key_configured);
+    let mut settings = initial.settings.unwrap();
+    settings.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
+    let saved = client
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings.clone()) })
+        .await
+        .unwrap()
+        .into_inner();
+    let certificate = saved.certificate_pem.unwrap();
+    assert!(!certificate.contains("PRIVATE KEY"));
+    let first = std::fs::read_to_string(&security).unwrap();
+    assert!(!first.contains(&generated.access_key));
+    assert!(first.contains("PRIVATE KEY"));
+
+    // Identity Changes Are Explicit And Cannot Silently Rotate Existing Trust.
+    let mut invalid = settings.clone();
+    invalid.certificate_names.push("new.example".into());
+    let error =
+        client.unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(invalid) }).await.unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert!(std::fs::read_to_string(&security).unwrap() == first);
+    let rotated = client.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
+    assert!(rotated.access_key != generated.access_key);
+    assert!(rotated.listener.as_ref().unwrap().certificate_pem.as_ref() == Some(&certificate));
+    let second = std::fs::read_to_string(&security).unwrap();
+    assert!(!second.contains(&rotated.access_key));
+    assert!(!second.contains(&generated.access_key));
+    assert!(second != first);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let client = connect(&server).await;
+    let restored = client.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
+    assert!(restored.key_configured);
+    assert_eq!(restored.settings, Some(settings));
+    assert_eq!(restored.certificate_pem, Some(certificate));
+    assert!(std::fs::read_to_string(&security).unwrap() == second);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn listener_policy_isolation() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    let cycle = handle
+        .create_cycle(
+            dokime_runtime::transactions::CycleDefinition {
+                metadata: support::metadata("remote.listeners", "Listener Isolation"),
+                continue_on_failure: false,
+            },
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let service = dokime_server::grpc::Service::new(handle.clone(), Config::local()).await.unwrap();
+    let local = service.listen().await.unwrap();
+    let local_client = connect(&local).await;
+    let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let certificate = generated.cert.pem().into_bytes();
+    let key = generated.signing_key.serialize_pem().into_bytes();
+    let identity = TlsIdentity::from_pem(certificate.clone(), key);
+    let config = Config::remote("0.0.0.0:0".parse().unwrap(), identity.clone(), vec![grant(Role::Admin)]).unwrap();
+    let remote = service.listen_with(config.clone()).await.unwrap();
+    let channel = Endpoint::from_shared(remote.local_endpoint())
+        .unwrap()
+        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let remote_client = WireClient::new(channel);
+
+    assert_eq!(
+        remote_client.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap_err().code(),
+        Code::Unauthenticated
+    );
+    remote_client.unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap();
+    let local_methods = local_client
+        .unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailability {})
+        .await
+        .unwrap()
+        .into_inner()
+        .methods;
+    let remote_methods = remote_client
+        .unary::<contracts::backend::GetAvailability>(authenticated(contracts::backend::GetAvailability {}))
+        .await
+        .unwrap()
+        .into_inner()
+        .methods;
+    assert!(local_methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"));
+    assert!(!remote_methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"));
+    assert_eq!(
+        remote_client
+            .unary::<contracts::files::FileWatch>(authenticated(contracts::files::FileWatch {
+                execution_id: None,
+                source: None,
+                rules: vec![],
+                output: String::new(),
+                policy: model::files::wire::FileWatchPolicy::SnapshotAtStart,
+                poll_interval_ms: None,
+                maximum_seconds: None,
+                maximum_files: None,
+                maximum_bytes: None,
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+
+    // Failed Attach And Remote Teardown Cannot Remove Local Policy Or Runtime State.
+    assert!(service.listen_with(config.with_bind_addr(local.address())).await.is_err());
+    let address = remote.address();
+    remote.shutdown().await.unwrap();
+    local_client.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+    assert_eq!(handle.watch_state().latest().state().cycles[&cycle].phase, model::execution::result::CyclePhase::Active);
+    let replacement = "replacement-key-012345678901234567890123456789";
+    let config =
+        Config::remote(address, identity, vec![BearerGrant::new("replacement".into(), Role::Admin, replacement).unwrap()]).unwrap();
+    let remote = service.listen_with(config).await.unwrap();
+    let channel = Endpoint::from_shared(remote.local_endpoint())
+        .unwrap()
+        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let remote_client = WireClient::new(channel);
+    assert_eq!(
+        remote_client.unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap_err().code(),
+        Code::Unauthenticated
+    );
+    let mut request = Request::new(contracts::backend::GetIdentity {});
+    request.metadata_mut().insert("authorization", format!("Bearer {replacement}").parse().unwrap());
+    remote_client.unary::<contracts::backend::GetIdentity>(request).await.unwrap();
+    local_client.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+
+    remote.shutdown().await.unwrap();
+    local.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn remote_cycle_seal() {
     use dokime_domain::model::execution::result::CyclePhase;
 
@@ -305,10 +467,11 @@ async fn tls_listener_clients() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let config =
-        Config::remote("0.0.0.0:0".parse().unwrap(), TlsIdentity::from_pem(certificate.clone(), key), vec![grant(Role::Read)]).unwrap();
+        Config::remote("0.0.0.0:0".parse().unwrap(), TlsIdentity::from_pem(certificate.clone(), key), vec![grant(Role::Admin)]).unwrap();
     assert!(!format!("{config:?}").contains(TOKEN));
     assert!(!format!("{config:?}").contains("PRIVATE KEY"));
-    let server = Server::start(owner.handle(), config).await.unwrap();
+    let service = dokime_server::grpc::Service::new(owner.handle(), config).await.unwrap();
+    let server = service.listen().await.unwrap();
     let endpoint = Endpoint::from_shared(server.local_endpoint()).unwrap();
     assert!(endpoint.clone().connect().await.is_err(), "untrusted certificate must be rejected");
     let stream = endpoint
@@ -323,6 +486,26 @@ async fn tls_listener_clients() {
         Code::Unauthenticated
     );
     client.unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap();
+    let methods = client
+        .unary::<contracts::backend::GetAvailability>(authenticated(contracts::backend::GetAvailability {}))
+        .await
+        .unwrap()
+        .into_inner()
+        .methods;
+    assert!(
+        !methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"),
+        "remote loopback traffic cannot inherit native host-path access"
+    );
+    server.shutdown().await.unwrap();
+    let server = service.listen().await.unwrap();
+    let channel = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    WireClient::new(channel).unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap();
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

@@ -34,6 +34,7 @@ mod plugins;
 mod prompts;
 mod query;
 pub(crate) mod redaction;
+mod remote;
 mod reports;
 mod server;
 mod settings;

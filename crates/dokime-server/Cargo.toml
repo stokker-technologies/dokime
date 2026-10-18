@@ -42,6 +42,7 @@ tracing-subscriber = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+rand = { workspace = true }
 sha2 = { workspace = true }
 subtle = { workspace = true }
 sysinfo = { workspace = true }
@@ -70,6 +71,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
+rcgen = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "tls-ring"] }
 tonic-prost = { workspace = true }
@@ -100,7 +102,6 @@ async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "test-util"] }
 
 # Networking
-rcgen = { workspace = true }
 tonic = { workspace = true, features = ["channel"] }
 
 # Testing

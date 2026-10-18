@@ -55,7 +55,7 @@ const MAX_JSON_DOCUMENT_BASE64_CHARS: usize = MAX_JSON_DOCUMENT_BYTES.div_ceil(3
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSaveDocument {
     pub kind: DesktopSaveKind,
@@ -79,6 +79,8 @@ pub enum DesktopSaveKind {
     HtmlReport,
     DiagnosticsBundle,
     JsonDocument,
+    RemoteKey,
+    PublicCertificate,
     Artifact,
 }
 
@@ -106,6 +108,12 @@ pub enum DeliveryAction {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl std::fmt::Debug for DesktopSaveDocument {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("DesktopSaveDocument").field("kind", &self.kind).field("filename", &self.filename).finish_non_exhaustive()
+    }
+}
 
 /* === Public Functions === */
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
@@ -149,6 +157,9 @@ pub async fn desktop_open_document(
 ) -> Result<(), String> {
     ensure_main_window(&window)?;
     ensure_picker_kind(document.kind)?;
+    if document.kind == DesktopSaveKind::RemoteKey {
+        return Err("Remote keys can only be saved through the file picker".into());
+    }
     let (filename, bytes, _) = validate_save_document(&generation, &document)?;
     let session = state.inner().clone();
     ensure_document_session(&session, &generation)?;
@@ -301,6 +312,8 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
         DesktopSaveKind::HtmlReport => (MAX_REPORT_BASE64_CHARS, MAX_REPORT_BYTES, "Report HTML"),
         DesktopSaveKind::DiagnosticsBundle => (MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS, MAX_DIAGNOSTICS_BUNDLE_BYTES, "Diagnostics bundle"),
         DesktopSaveKind::JsonDocument => (MAX_JSON_DOCUMENT_BASE64_CHARS, MAX_JSON_DOCUMENT_BYTES, "JSON document"),
+        DesktopSaveKind::RemoteKey => (4098usize.div_ceil(3) * 4, 4098, "Remote key"),
+        DesktopSaveKind::PublicCertificate => ((64usize * 1024).div_ceil(3) * 4, 64 * 1024, "Public certificate"),
         DesktopSaveKind::Artifact => {
             return Err("Artifact is delivered through desktop_artifact_deliver".into());
         }
@@ -308,6 +321,18 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
 
     let filename = sanitize_filename(&document.filename, document.kind)?;
     let bytes = decode_bounded(&document.bytes_base64, max_encoded_chars, max_bytes, label)?;
+    if document.kind == DesktopSaveKind::RemoteKey {
+        let key = std::str::from_utf8(&bytes).map_err(|_| "Remote key must be UTF-8 text")?.trim();
+        if !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()) {
+            return Err("Remote key must contain 32–4096 visible ASCII characters".into());
+        }
+    }
+    if document.kind == DesktopSaveKind::PublicCertificate {
+        let certificate = std::str::from_utf8(&bytes).map_err(|_| "Public certificate must be UTF-8 PEM text")?;
+        if !certificate.contains("-----BEGIN CERTIFICATE-----") || certificate.contains("PRIVATE KEY") {
+            return Err("Public certificate delivery accepts certificate PEM only".into());
+        }
+    }
 
     Ok((filename, bytes, document.kind))
 }
@@ -328,6 +353,8 @@ fn apply_dialog_filter(
         // truthful so a future route cannot pick up a wrong filter by default.
         DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
+        DesktopSaveKind::RemoteKey => dialog.add_filter("Remote key", &["key"]),
+        DesktopSaveKind::PublicCertificate => dialog.add_filter("Public certificate", &["pem"]),
         DesktopSaveKind::Artifact => dialog,
     }
 }
@@ -337,6 +364,8 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
         DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
+        DesktopSaveKind::RemoteKey => ExtensionPolicy::Append(".key"),
+        DesktopSaveKind::PublicCertificate => ExtensionPolicy::Append(".pem"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
 }
@@ -433,6 +462,7 @@ async fn write_document(session: &ConnectionSession, generation: &str, path: Pat
     let session = session.clone();
     let generation = generation.to_owned();
     tauri::async_runtime::spawn_blocking(move || {
+        let bytes = zeroize::Zeroizing::new(bytes);
         ensure_document_session(&session, &generation)?;
         if private && let Some(parent) = path.parent() {
             ensure_private_directory(parent)?;
@@ -460,6 +490,31 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_security_documents_are_bounded_and_redacted() {
+        let mut document = DesktopSaveDocument {
+            kind: DesktopSaveKind::RemoteKey,
+            filename: "dokime-remote".into(),
+            bytes_base64: BASE64.encode("a".repeat(64)),
+        };
+        let (filename, bytes, _) = validate_save_document("7", &document).unwrap();
+        assert_eq!(filename, "dokime-remote.key");
+        assert_eq!(bytes.len(), 64);
+        assert!(!format!("{document:?}").contains(&document.bytes_base64));
+        document.bytes_base64 = BASE64.encode("short");
+        assert!(validate_save_document("7", &document).is_err());
+        document.bytes_base64 = BASE64.encode("a".repeat(4099));
+        assert!(validate_save_document("7", &document).is_err());
+        document.kind = DesktopSaveKind::PublicCertificate;
+        document.filename = "dokime-server".into();
+        document.bytes_base64 = BASE64.encode("-----BEGIN CERTIFICATE-----\npublic\n-----END CERTIFICATE-----");
+        assert_eq!(validate_save_document("7", &document).unwrap().0, "dokime-server.pem");
+        document.bytes_base64 = BASE64.encode("-----BEGIN CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----");
+        assert!(validate_save_document("7", &document).is_err());
+        document.bytes_base64 = "A".repeat((64usize * 1024).div_ceil(3) * 4 + 4);
+        assert!(validate_save_document("7", &document).is_err());
+    }
 
     fn json_document(filename: &str, bytes: &[u8]) -> DesktopSaveDocument {
         serde_json::from_value(serde_json::json!({

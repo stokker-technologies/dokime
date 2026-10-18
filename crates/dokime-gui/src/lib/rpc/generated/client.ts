@@ -325,6 +325,18 @@ export const promptsRespond = (session: SessionIdentity, request: Parameters<typ
 import { Row1Schema as queryAggregateRequest } from "../../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb.js";
 import { Row2Schema as queryAggregateResponse } from "../../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb.js";
 export const queryAggregate = (session: SessionIdentity, request: Parameters<typeof unary<typeof queryAggregateRequest, typeof queryAggregateResponse>>[4]) => unary("/dokime.v1.Query/Aggregate", queryAggregateRequest, queryAggregateResponse, session, request, 10000);
+import { Row1Schema as remoteGenerateKeyRequest } from "../../../../.generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
+import { Row2Schema as remoteGenerateKeyResponse } from "../../../../.generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
+export const remoteGenerateKey = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteGenerateKeyRequest, typeof remoteGenerateKeyResponse>>[4]) => unary("/dokime.v1.Remote/GenerateKey", remoteGenerateKeyRequest, remoteGenerateKeyResponse, session, request, 300000);
+import { Row1Schema as remoteReadListenerRequest } from "../../../../.generated/dokime/v1/RemoteMessages/ReadListener/messages_pb.js";
+import { Row2Schema as remoteReadListenerResponse } from "../../../../.generated/dokime/v1/RemoteMessages/ReadListener/messages_pb.js";
+export const remoteReadListener = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteReadListenerRequest, typeof remoteReadListenerResponse>>[4]) => unary("/dokime.v1.Remote/ReadListener", remoteReadListenerRequest, remoteReadListenerResponse, session, request, 10000);
+import { Row1Schema as remoteRegenerateCertificateRequest } from "../../../../.generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
+import { Row2Schema as remoteRegenerateCertificateResponse } from "../../../../.generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
+export const remoteRegenerateCertificate = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRegenerateCertificateRequest, typeof remoteRegenerateCertificateResponse>>[4]) => unary("/dokime.v1.Remote/RegenerateCertificate", remoteRegenerateCertificateRequest, remoteRegenerateCertificateResponse, session, request, 300000);
+import { Row1Schema as remoteUpdateListenerRequest } from "../../../../.generated/dokime/v1/RemoteMessages/UpdateListener/messages_pb.js";
+import { Row2Schema as remoteUpdateListenerResponse } from "../../../../.generated/dokime/v1/RemoteMessages/UpdateListener/messages_pb.js";
+export const remoteUpdateListener = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteUpdateListenerRequest, typeof remoteUpdateListenerResponse>>[4]) => unary("/dokime.v1.Remote/UpdateListener", remoteUpdateListenerRequest, remoteUpdateListenerResponse, session, request, 300000);
 import { Row1Schema as reportsDownloadCycleReportRequest } from "../../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb.js";
 import { Row3Schema as reportsDownloadCycleReportResponse } from "../../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb.js";
 import { ReportsDownloadCycleReportOutputSchema as reportsDownloadCycleReportEnvelope } from "../../../../.generated/dokime/v1/Reports_pb.js";

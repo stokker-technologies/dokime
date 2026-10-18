@@ -197,9 +197,28 @@ explicit remote configuration, TLS and bearer credentials; browser-origin
 permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
+## Native Remote Access
+
+Settings → Remote Access owns persistent listener settings, one-time key
+generation, public certificate download and explicit key/certificate rotation.
+Management operations are available only through the native local listener.
+The access key is shown once and can be copied or saved through the native
+file picker. The application root's private `remote/access.json` retains its
+SHA-256 verifier and the TLS certificate/private key; it never retains the
+access key. Certificate DNS/IP identities change only through explicit
+regeneration. TLS and authentication are independent choices, with separate
+isolated-lab warnings.
+
+The pinned Harmos runtime permits one attached listener per runtime. The
+desktop's native listener occupies that attachment, so enabling an additional
+remote listener currently fails and preserves the previous settings. The
+management surface does not yet provide a working second-PC connection.
+Full control over request-dependent plugin scopes also requires an upstream
+external-authorization capability; exact scoped plugin grants remain enforced.
+
 ## Plugin Operation Permissions
 
-Remote plugin calls require an explicit permission on the existing server
+Standalone `--auth-file` plugin calls require an explicit permission on the server
 `--auth-file` bearer grant. Product operations keep their declared role policy:
 
 ```json
@@ -221,8 +240,9 @@ Remote plugin calls require an explicit permission on the existing server
 ```
 
 The owner and operation ID are exact; wildcards and duplicate permissions are
-refused. Unlisted plugin operations remain denied, including trusted-local
-connections. Listing an operation grants it; `grants` adds only the scopes a
+refused. Unlisted plugin operations remain denied on these bearer-grant
+connections. Native trusted-local connections admit installed unscoped plugin
+operations through their live contracts. Listing an operation grants it; `grants` adds only the scopes a
 request may resolve to, such as the channel, stream or source it names. Each grant
 names the listed operation and one exact scope; an empty list admits only requests
 that resolve to no scope. The same permission

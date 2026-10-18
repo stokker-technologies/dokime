@@ -2,7 +2,7 @@
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:d32765cba58e9641c73222676f93a8742e1106db1c9955111fb05da3fa1ef903 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:062298342784c5ebf0e8668faa96462e9a6a977acc6922f144689747022e40fe -->
 
 # Dokime Architecture
 
@@ -21,3 +21,5 @@ Storage is development v1. A clean schema break may require a fresh storage root
 ## Accepted Remote Cutover
 
 The remote-streamline implementation is migrating to explicit container phases: Active, Sealing, Sealed. Several cycles may be Active; one server-wide execution lane runs admitted requests in acceptance order. A request captures its complete execution selection at admission, including all provider groups. Later cycle additions do not join that selection. Execution completion seals its evidence independently and leaves the container Active. Sealing closes admission immediately, stops only that cycle's work, cancels unrun members and waits for durable execution and cycle seals. Saved seals are immutable. Startup seals previous-session cycles without replaying device work before accepting new work; shutdown seals all active containers. Aggregate run activity and outcomes do not control container admission. Verify landed source before using these accepted contracts as available APIs.
+
+The accepted remote-access cutover keeps native local and remote listener ownership independent. Receiving listener identity controls local-only operation admission and host-path disclosure; a remote call through loopback never inherits native trust. The server shell owns listener settings, TLS material, key verification and listener restart/rollback. The runtime owns admitted executions, so listener changes and key rotation cannot cancel them. Persist the certificate/private key and key verifier under the application root; expose a generated full-control access key once and the public certificate separately. TLS and authentication are independent explicit choices. Retained certificate identities change only through explicit regeneration, with clients updating trust. Preserve plugin-to-plugin capability requirements when replacing remote user IAM. These contracts require supported Harmos listener and external-authorization capabilities; source-only projections do not establish available or working remote access.

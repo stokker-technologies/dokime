@@ -30,12 +30,13 @@ const OUTPUT_DECODED_FACTOR: usize = 4;
 /* === Type Aliases === */
 
 /* === Structs === */
+#[derive(Clone)]
 pub struct TlsIdentity {
     certificate: Vec<u8>,
     private_key: Zeroizing<Vec<u8>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub(crate) bind_addr: SocketAddr,
     pub(crate) policy: Policy,
@@ -84,6 +85,10 @@ impl Config {
 
     pub fn remote(bind_addr: SocketAddr, tls: TlsIdentity, grants: Vec<BearerGrant>) -> Result<Self, Error> {
         Ok(Self { bind_addr, policy: Policy::bearer(grants)?, tls: Some(tls), max_message_bytes: 1024 * 1024, remote: true, web: None })
+    }
+
+    pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, digest: Option<[u8; 32]>, maximum: usize) -> Self {
+        Self { bind_addr, policy: digest.map_or(Policy::Open, Policy::Key), tls, max_message_bytes: maximum, remote: true, web: None }
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {
@@ -163,8 +168,8 @@ impl Config {
         if !self.remote && !self.bind_addr.ip().is_loopback() {
             return Err(Error::Configuration("non-loopback listeners require explicit remote configuration"));
         }
-        if self.remote && (self.tls.is_none() || !matches!(self.policy, Policy::Bearer(_))) {
-            return Err(Error::Configuration("remote listeners require TLS and bearer authentication"));
+        if self.remote && matches!(self.policy, Policy::TrustedLocal) {
+            return Err(Error::Configuration("remote listeners cannot use native local trust"));
         }
         if self.max_message_bytes == 0 || self.max_message_bytes > 16 * 1024 * 1024 {
             return Err(Error::Configuration("message limit must be between 1 byte and 16 MiB"));

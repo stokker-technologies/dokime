@@ -24,8 +24,8 @@ use harmos::operations::CallContext;
 use harmos::operations::authorization::{Authorizer, Provider, Required};
 
 // Local Imports
-use super::access::{Principal, Role};
-use super::{Config, Error};
+use super::Error;
+use super::access::{Listeners, Principal, Role};
 use dokime_domain::operations::Endpoints;
 use dokime_domain::operations::Operations;
 
@@ -37,7 +37,6 @@ use dokime_domain::operations::Operations;
 
 /* === Structs === */
 struct Authorization {
-    local_only: bool,
     requirements: Vec<Requirement>,
 }
 
@@ -53,7 +52,7 @@ struct Requirement {
 
 /* === Implementations === */
 impl Authorization {
-    fn new(local_only: bool) -> Result<Self, Error> {
+    fn new() -> Result<Self, Error> {
         let mut requirements = Vec::new();
         <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
             requirements.push(Requirement {
@@ -71,7 +70,7 @@ impl Authorization {
         if requirements.windows(2).any(|pair| pair[0].required.contract.operation().id == pair[1].required.contract.operation().id) {
             return Err(Error::Configuration("duplicate declared authorization identity"));
         }
-        Ok(Self { local_only, requirements })
+        Ok(Self { requirements })
     }
 }
 
@@ -83,6 +82,9 @@ impl Authorizer for Authorization {
         // Canonical Product Providers Belong To The Original Dokime Runtime Owner.
         // A Plugin Reusing A Public Operation ID Does Not Inherit Its Role Policy.
         if provider.owner.as_str() != "dokime" {
+            if principal.full_control() {
+                return Ok(Some(Required { contract: provider.contract.clone(), grants: Vec::new() }));
+            }
             let Some(permission) = principal.operation(provider.owner.as_str(), provider.definition.id.as_str()) else {
                 return Ok(None);
             };
@@ -100,7 +102,7 @@ impl Authorizer for Authorization {
         };
         let requirement = &self.requirements[index];
         if principal.role() < requirement.role
-            || (requirement.local_only && !self.local_only)
+            || (requirement.local_only && !principal.is_local())
             || !provider.contract.compatible(&requirement.required.contract)
         {
             return Ok(None);
@@ -110,12 +112,12 @@ impl Authorizer for Authorization {
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle, config: &Config) -> Result<(), Error> {
-    config.validate()?;
-    let authorizer = Arc::new(Authorization::new(config.local_only())?);
+pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
+    let authorizer = Arc::new(Authorization::new()?);
     runtime.operations().register_authorizer(authorizer)?;
-    runtime.grpc().register_middleware(Arc::new(harmos::grpc::authentication::Authenticate::new(Arc::new(config.policy.clone()))))?;
-    Ok(())
+    let listeners = Arc::new(Listeners::default());
+    runtime.grpc().register_middleware(Arc::new(harmos::grpc::authentication::Authenticate::new(listeners.clone())))?;
+    Ok(listeners)
 }
 
 /* === Private Functions === */

@@ -2181,6 +2181,7 @@ dependencies = [
  "harmos-sdk",
  "prost",
  "prost-types",
+ "rand",
  "rcgen",
  "rustls",
  "serde",

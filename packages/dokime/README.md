@@ -143,10 +143,12 @@ before replacing the destination.
 The generated SDK exposes typed operation constants and standard protobuf request
 and response classes from the canonical Harmos catalog. The client also discovers
 caller-authorized operations from separately installed plugins, without requiring
-those plugins in the Python distribution. Their operations require an exact
-owner/operation permission on the server's existing bearer grant; see
+those plugins in the Python distribution. Standalone `--auth-file` connections
+require an exact owner/operation permission on the server's bearer grant; see
 [Plugin Operation Permissions](../../README.md#plugin-operation-permissions).
-Unlisted plugin operations are denied in both discovery and invocation.
+Unlisted plugin operations are denied on those connections. Native trusted-local
+connections admit installed unscoped operations through their live contracts;
+request-dependent scopes still require supported scoped authorization.
 
 ```python
 async with DokimeClient(endpoint, key_file="remote.key") as client:

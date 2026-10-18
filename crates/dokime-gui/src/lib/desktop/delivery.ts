@@ -34,7 +34,7 @@ import type { RpcError } from "./rpc";
  * traceability; it crosses inline under the same bound, and the shell appends
  * `.json` when the name lacks it.
  */
-export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "json_document" | "artifact";
+export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "json_document" | "remote_key" | "public_certificate" | "artifact";
 
 /** A verified document handed to the desktop shell for bounded native delivery. */
 export type DesktopSaveDocument = {

@@ -33,6 +33,7 @@ import { GeneralSection } from "@/features/settings/sections/GeneralSection";
 import { IdentitySection } from "@/features/settings/sections/IdentitySection";
 import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
+import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { DEFAULT_SETTINGS_SECTION, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
@@ -110,6 +111,7 @@ function SectionContent({
       </>
     );
   if (section === "appearance") return <AppearanceSection />;
+  if (section === "remote") return <RemoteSection />;
 
   if (loading) {
     return (
