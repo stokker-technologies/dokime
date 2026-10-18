@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:e2b67f3181f8d47ba294f8bfbed37c10a0ec5f17a820447194feab970a6b8b7c
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:5600228e8f91fc4b9d2cedc14de3b543f8a5d09442d426b99d823fcba9a713fd
 name: CI
 "on":
   push:
@@ -55,7 +55,7 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run format:toml --check
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: steps.tools.outputs.cache-hit != 'true'
@@ -69,7 +69,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
-        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,cargo:cargo-llvm-cov,sccache,taplo
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo
   check_python:
     name: Check / Python
     runs-on:
@@ -101,7 +101,7 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run format:python --check
     - run: mise run lint:python
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -152,7 +152,7 @@ jobs:
         cache-on-failure: false
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run format:rust --check
     - run: mise run lint:rust
     - run: >-
@@ -175,7 +175,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
   build_dev:
     name: Build / Dev
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -212,7 +213,7 @@ jobs:
         cache-on-failure: false
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run build --profile dev
     - run: mise run test:unit --profile dev
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -234,7 +235,6 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
-    if: "!startsWith(github.ref, 'refs/tags/v')"
     strategy:
       fail-fast: false
       matrix:
@@ -245,7 +245,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
   build_release:
     name: Build / Release
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -282,7 +283,7 @@ jobs:
         cache-on-failure: false
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run build --profile release
     - run: mise run test:unit --profile release
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -315,14 +316,14 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,taplo
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
   validate_test_unit_rust:
     name: Validate / Unit / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
     - build_dev
-    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -349,18 +350,11 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
-    - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
-      run: exit 1
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-        merge-multiple: true
-    - run: >-
-        mise run test:unit:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}
+        name: build-dev-${{ matrix.os }}
+    - run: mise run test:unit:rust --profile dev
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -394,7 +388,6 @@ jobs:
     timeout-minutes: 10
     needs:
     - build_dev
-    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -421,18 +414,11 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
-    - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
-      run: exit 1
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-        merge-multiple: true
-    - run: >-
-        mise run test:integration:rust --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
+        name: build-dev-${{ matrix.os }}
+    - run: mise run test:integration:rust --profile dev
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -466,7 +452,6 @@ jobs:
     timeout-minutes: 10
     needs:
     - build_dev
-    - build_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -493,18 +478,11 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
-    - if: needs.build_dev.result != 'success' && needs.build_release.result != 'success'
-      run: exit 1
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-        merge-multiple: true
-    - run: >-
-        mise run test:acceptance:rust --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
+        name: build-dev-${{ matrix.os }}
+    - run: mise run test:acceptance:rust --profile dev
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -571,7 +549,7 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: >-
@@ -658,7 +636,7 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - run: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: steps.tools.outputs.cache-hit != 'true'
@@ -708,7 +686,7 @@ jobs:
         save-if: "false"
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
-        version: v0.16.0
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         pattern: package-release-*
@@ -743,6 +721,8 @@ jobs:
     - self-hosted
     - linux
     timeout-minutes: 180
+    needs:
+    - build_dev
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -760,5 +740,8 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ github.workspace }}/.cache/mise
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-dev-linux
     - run: mise run test:coverage
-    if: github.event_name == 'schedule'
+    if: always() && github.event_name == 'schedule'

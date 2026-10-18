@@ -10,6 +10,8 @@ platforms = ["linux", "windows"]
 
 [languages.rust]
 roots = ["crates", "plugins"]
+# The domain crate also builds for the browser.
+targets = ["wasm32-unknown-unknown"]
 # The GUI's Node dependencies and the starter templates are not workspace Rust sources.
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
@@ -21,6 +23,10 @@ generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/ope
 roots = ["crates/dokime-gui"]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
 generated = ["crates/dokime-gui/.generated", "crates/dokime-gui/src/lib/rpc/generated"]
+
+[features]
+# The build scripts compile the operation contracts with protoc.
+proto = true
 
 # === Repository === #
 
