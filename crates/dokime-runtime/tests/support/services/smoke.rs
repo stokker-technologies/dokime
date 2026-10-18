@@ -22,22 +22,27 @@ use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
-use super::artifacts::Observed;
 use dokime_runtime::InstalledPlugin;
+use dokime_runtime::Refusal;
 use dokime_runtime::execution::Runnable;
+use dokime_runtime::execution::{Caller, ExecutionHost, SampleOutput, SidecarTemplate, Workflow};
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::runtime::Result;
 use dokime_runtime::schema::Described;
+use dokime_runtime::transport::{
+    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution,
+    SidecarExecutionOutcome, SignalReply, TransportFuture,
+};
 
 /* === Constants === */
-pub(crate) const SOURCE: &str = "fixture-suites";
-pub(crate) const SUITE: &str = "fixture.checks";
+pub const SOURCE: &str = "fixture-suites";
+pub const SUITE: &str = "fixture.checks";
 
-pub(crate) const PULSE_STREAM: &str = "fixture-suites.pulse";
+pub const PULSE_STREAM: &str = "fixture-suites.pulse";
 
-pub(crate) const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
+pub const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
 
-pub(crate) const PULSE_DISPLAY_POINTS: u32 = 400;
+pub const PULSE_DISPLAY_POINTS: u32 = 400;
 
 const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 
@@ -46,7 +51,17 @@ const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(crate) struct Behaviour {
+pub struct Observed<T: SidecarTemplate> {
+    pub workflow: Workflow<T>,
+    pub watched: tokio::sync::watch::Sender<bool>,
+}
+
+struct Admitted {
+    host: Arc<dyn ExecutionHost>,
+    watched: tokio::sync::watch::Sender<bool>,
+}
+
+pub struct Behaviour {
     pulse_rows: u32,
     spectrum_rows: u32,
     hold: bool,
@@ -56,7 +71,7 @@ pub(crate) struct Behaviour {
     watched: tokio::sync::watch::Sender<bool>,
 }
 
-pub(crate) struct Smoke {
+pub struct Smoke {
     behaviour: Arc<Behaviour>,
 }
 
@@ -120,7 +135,7 @@ enum Templates {
 
 /* === Implementations === */
 impl Behaviour {
-    pub(crate) fn new(pulse_rows: u32, spectrum_rows: u32, hold: bool) -> Self {
+    pub fn new(pulse_rows: u32, spectrum_rows: u32, hold: bool) -> Self {
         Self {
             pulse_rows,
             spectrum_rows,
@@ -132,23 +147,23 @@ impl Behaviour {
         }
     }
 
-    pub(crate) fn artifacts(mut self, abandoned: bool) -> Self {
+    pub fn artifacts(mut self, abandoned: bool) -> Self {
         self.artifacts = !abandoned;
         self.abandoned = abandoned;
         self
     }
 
-    pub(crate) fn release(&self) {
+    pub fn release(&self) {
         self.released.send_replace(true);
     }
 }
 
 impl Smoke {
-    pub(crate) fn new(behaviour: Behaviour) -> Self {
+    pub fn new(behaviour: Behaviour) -> Self {
         Self { behaviour: Arc::new(behaviour) }
     }
 
-    pub(crate) fn behaviour(&self) -> Arc<Behaviour> {
+    pub fn behaviour(&self) -> Arc<Behaviour> {
         Arc::clone(&self.behaviour)
     }
 }
@@ -277,6 +292,56 @@ impl EmbeddedProvider for Smoke {
     async fn stop(&self) -> Result<()> {
         self.behaviour.release();
         Ok(())
+    }
+}
+
+impl ExecutionHost for Admitted {
+    fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, std::result::Result<EvidenceReceipt, String>> {
+        let watched = batch.artifact_chunks.iter().any(|chunk| chunk.name == "capture/chamber.log" && !chunk.last);
+        Box::pin(async move {
+            let receipt = self.host.push(batch).await?;
+            if watched {
+                self.watched.send_replace(true);
+            }
+            Ok(receipt)
+        })
+    }
+
+    fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, std::result::Result<OperatorAnswer, String>> {
+        self.host.ask(question)
+    }
+
+    fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, std::result::Result<LeaseResolution, String>> {
+        self.host.lease(ask)
+    }
+}
+
+impl<T: SidecarTemplate> Runnable for Observed<T> {
+    fn template_identifier(&self) -> &str {
+        self.workflow.template_identifier()
+    }
+
+    fn run(
+        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller,
+    ) -> TransportFuture<'_, std::result::Result<SidecarExecutionOutcome, Refusal>> {
+        let admitted = Arc::new(Admitted { host, watched: self.watched.clone() });
+        self.workflow.run(request, admitted, output, caller)
+    }
+
+    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, std::result::Result<SignalReply, Refusal>> {
+        Box::pin(async move { self.workflow.signal(signal) })
+    }
+
+    fn take_local_samples(&self, token: &str) -> std::result::Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> {
+        self.workflow.take_local_samples(token)
+    }
+
+    fn interrupt(&self) {
+        self.workflow.interrupt();
+    }
+
+    fn shutdown(&self) -> TransportFuture<'_, ()> {
+        self.workflow.shutdown()
     }
 }
 

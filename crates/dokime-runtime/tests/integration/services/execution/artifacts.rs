@@ -19,15 +19,9 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use super::smoke::{Behaviour, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
-use dokime_runtime::Refusal;
-use dokime_runtime::execution::{Caller, ExecutionHost, Runnable, SampleOutput, SidecarTemplate, Workflow};
+use crate::service_support::smoke::{Behaviour, SOURCE, SUITE, Smoke};
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
-use dokime_runtime::transport::{
-    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution,
-    SidecarExecutionOutcome, SignalReply, TransportFuture,
-};
 
 /* === Constants === */
 const WATCHED_CONTENT: &[u8] = b"the chamber log, rewritten in place\n";
@@ -38,71 +32,11 @@ const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(crate) struct Observed<T: SidecarTemplate> {
-    pub(crate) workflow: Workflow<T>,
-    pub(crate) watched: tokio::sync::watch::Sender<bool>,
-}
-
-struct Admitted {
-    host: Arc<dyn ExecutionHost>,
-    watched: tokio::sync::watch::Sender<bool>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl ExecutionHost for Admitted {
-    fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        let watched = batch.artifact_chunks.iter().any(|chunk| chunk.name == "capture/chamber.log" && !chunk.last);
-        Box::pin(async move {
-            let receipt = self.host.push(batch).await?;
-            if watched {
-                self.watched.send_replace(true);
-            }
-            Ok(receipt)
-        })
-    }
-
-    fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        self.host.ask(question)
-    }
-
-    fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        self.host.lease(ask)
-    }
-}
-
-impl<T: SidecarTemplate> Runnable for Observed<T> {
-    fn template_identifier(&self) -> &str {
-        self.workflow.template_identifier()
-    }
-
-    fn run(
-        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, caller: Caller,
-    ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
-        let admitted = Arc::new(Admitted { host, watched: self.watched.clone() });
-        self.workflow.run(request, admitted, output, caller)
-    }
-
-    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
-        Box::pin(async move { self.workflow.signal(signal) })
-    }
-
-    fn take_local_samples(&self, token: &str) -> Result<Vec<dokime_runtime::telemetry::TelemetrySample>, Refusal> {
-        self.workflow.take_local_samples(token)
-    }
-
-    fn interrupt(&self) {
-        self.workflow.interrupt();
-    }
-
-    fn shutdown(&self) -> TransportFuture<'_, ()> {
-        self.workflow.shutdown()
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

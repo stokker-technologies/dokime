@@ -19,8 +19,8 @@ use std::sync::Arc;
 use tokio::sync::Barrier;
 
 // Local Imports
-use super::smoke::{Behaviour, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
+use crate::service_support::smoke::{Behaviour, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use dokime_domain::model::execution::request::RunPhase;
 use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 

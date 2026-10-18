@@ -21,8 +21,8 @@ use std::sync::Arc;
 use tempfile::tempdir;
 
 // Local Imports
-use super::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use crate::service_support::prelude::*;
+use crate::service_support::smoke::{Behaviour, PULSE_DISPLAY_POINTS, PULSE_PLOT, PULSE_STREAM, SOURCE, SUITE, Smoke};
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::CommandId;

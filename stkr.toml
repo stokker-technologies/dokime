@@ -31,12 +31,6 @@ integration = 256
 acceptance = 128
 system = 64
 
-[[conventions.testing.overrides]]
-category = "integration"
-language = "rust"
-select = "test(/^services::execution::sampling::/)"
-timeout_seconds = 300
-reason = "A debug build reads each 20 000-row capture several times per report and once more to seal it"
 
 [conventions.rust.source_roots]
 # Validate the authored source that this compile-only crate renders and includes.

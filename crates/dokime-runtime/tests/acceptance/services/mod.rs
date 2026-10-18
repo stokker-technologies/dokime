@@ -11,6 +11,7 @@
 
 /* === Modules === */
 pub(crate) mod durability;
+pub(crate) mod execution;
 
 /* === Re-Exports === */
 

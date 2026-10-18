@@ -19,6 +19,7 @@ pub mod native;
 pub mod prompts;
 pub mod publication;
 pub mod reports;
+pub mod smoke;
 pub mod suites;
 pub mod waits;
 
