@@ -28,8 +28,6 @@ from dokime_tools.test import archive
 
 # === Constants === #
 
-EDITABLES = "editables==0.5 --hash=sha256:61e5ffa82629e0d8bfe09bc44a07db3c1ab8ed1ce78a6980732870f19b5e7d4c"
-
 # === Types === #
 
 # === Classes === #
@@ -91,10 +89,9 @@ def wheelhouse(root: Path, producer: dict) -> dict:
             str(requirements),
         ],
     ]
-    # Hatchling Requests `editables` Only For Editable Installs, So No Lock Names It.
-    editables = root / "target/tmp/starter-editables.txt"
-    editables.parent.mkdir(parents=True, exist_ok=True)
-    editables.write_text(f"{EDITABLES}\n", encoding="utf-8")
+    # Hatchling Requests `editables` Only For Editable Installs, So No Lock Names It; The Hash-Checked
+    # Requirement Is Tracked So Every Lane Runner Verifies The Same Declared Input.
+    editables = root / "tools/python/editables.txt"
     commands.append([*commands[1][:-2], "--no-deps", "--requirement", str(editables)])
     return archive.native(
         root,
