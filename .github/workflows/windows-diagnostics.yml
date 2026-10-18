@@ -27,6 +27,13 @@ jobs:
       SCCACHE_GHA_VERSION: windows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check Out Provisional Harmos Repair
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: stokker-technologies/harmos
+          ref: dfd246e6bc4f647c51355d6f635701bd94a2159f
+          path: .cache/tmp/harmos-settlement
+          persist-credentials: false
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .cache/mise/
@@ -53,7 +60,26 @@ jobs:
       - name: Measure Sampling Settlement Under Concurrent Load
         shell: pwsh
         run: |
-          Write-Output "Diagnostic source: $env:GITHUB_SHA; seven current stories concurrently; no reused product binaries or retries"
+          Write-Output "Diagnostic consumer: $env:GITHUB_SHA; provisional Harmos: dfd246e6bc4f647c51355d6f635701bd94a2159f"
+          Write-Output "Seven current stories concurrently; no reused product binaries or retries; this patched graph is not a final delivery candidate"
+          $producer = (Join-Path $env:GITHUB_WORKSPACE '.cache/tmp/harmos-settlement').Replace('\', '/')
+          $packages = @('harmos', 'harmos-domain', 'harmos-macros', 'harmos-packaging', 'harmos-runtime', 'harmos-sdk', 'harmos-sidecar', 'harmos-storage')
+          $cargoConfig = @()
+          foreach ($package in $packages) {
+            $cargoConfig += '--config'
+            $cargoConfig += "patch.`"https://github.com/stokker-technologies/harmos.git`".$package.path=`"$producer/crates/$package`""
+          }
+          mise exec -- cargo @cargoConfig update -p harmos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $metadataJson = mise exec -- cargo @cargoConfig metadata --locked --format-version 1 --filter-platform x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $metadata = $metadataJson | ConvertFrom-Json
+          $resolved = @($metadata.packages | Where-Object { $_.name -in $packages })
+          if ($resolved.Count -ne $packages.Count) { throw 'The diagnostic graph does not contain every patched Harmos package' }
+          foreach ($package in $resolved) {
+            $owned = $package.manifest_path.Replace('\', '/').StartsWith("$producer/", [System.StringComparison]::OrdinalIgnoreCase)
+            if ($null -ne $package.source -or -not $owned) { throw "Unexpected diagnostic source for $($package.name)" }
+          }
           New-Item -ItemType Directory -Force target/tmp/windows-diagnostics | Out-Null
           @'
           [store]
@@ -65,7 +91,7 @@ jobs:
           [profile.diagnostics.junit]
           path = "junit.xml"
           '@ | Set-Content -Encoding utf8 target/tmp/windows-diagnostics/nextest.toml
-          mise exec -- cargo nextest run --locked --cargo-profile dev -p dokime-runtime --test acceptance --features fault-injection --config-file target/tmp/windows-diagnostics/nextest.toml --profile diagnostics --test-threads 7 --success-output immediate --failure-output immediate -E 'test(services::execution::sampling::)' 2>&1 | Tee-Object target/tmp/windows-diagnostics/run.log
+          mise exec -- cargo nextest run @cargoConfig --locked --cargo-profile dev -p dokime-runtime --test acceptance --features fault-injection --config-file target/tmp/windows-diagnostics/nextest.toml --profile diagnostics --test-threads 7 --success-output immediate --failure-output immediate -E 'test(services::execution::sampling::)' 2>&1 | Tee-Object target/tmp/windows-diagnostics/run.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain Native Phase Evidence
         if: always()
