@@ -142,6 +142,7 @@ backend = "core:rust"
 
 [tools.rust.options]
 components = "clippy,llvm-tools-preview,rustfmt"
+targets = "wasm32-unknown-unknown"
 
 [[tools.sccache]]
 version = "0.18.0"
