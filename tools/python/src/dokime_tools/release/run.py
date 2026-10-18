@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:f470b06ceeb55b1036a8f9ef599a44ef3afbfc1850f8bde15bd3ba9ff23a3644
+# Rendered by stkr project update from templates/python/release/run.py; sha256:d911e769d78acce3b1765fe74cb406b8227d9149570f0c6c2f8343730b728dd3
 # ***
 #
 # Dokime
@@ -12,7 +12,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import base64
 import hashlib
 import json
 import os
@@ -299,57 +298,6 @@ def prepare(directory: Path, settings: dict) -> None:
     print(f"Prepared v{planned}; review and commit before building the candidate")
 
 
-def author(directory: Path, settings: dict) -> None:
-    """Commit Prepared GitHub Source With A Verified Signature And Dispatch Candidate CI."""
-    if settings["provider"] != "github" or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
-        raise policy.ToolError("author requires the native GitHub prepare workflow")
-    planned = os.environ.get("RELEASE_VERSION", "")
-    tag_version("v" + planned)
-    branch = "release/v" + planned
-    if policy.execute(directory, ["git", "branch", "--show-current"], capture=True).strip() != branch:
-        raise policy.ToolError("author requires the matching stabilization branch")
-    expected = archive.revision(directory)
-    if not expected or expected != os.environ.get("GITHUB_SHA") or os.environ.get("GITHUB_REF") != "refs/heads/dev":
-        raise policy.ToolError("prepare must start at the dispatched dev revision")
-    if settings.get("tag") != "v" + planned or policy.policy(directory, "version").get("value") != planned:
-        raise policy.ToolError("prepared version differs from the requested candidate")
-    version.run(directory, "check")
-    policy.execute(directory, ["git", "add", "--all"])
-    changed = policy.execute(directory, ["git", "diff", "--cached", "--name-only", "-z", "--no-renames"], capture=True)
-    additions = []
-    deletions = []
-    for relative in filter(None, changed.split("\0")):
-        source = policy.inside(directory, relative)
-        if source.is_symlink():
-            raise policy.ToolError("prepared source cannot introduce symlinks")
-        if source.is_file():
-            additions.append({"path": relative, "contents": base64.b64encode(source.read_bytes()).decode("ascii")})
-        else:
-            deletions.append({"path": relative})
-    if not additions and not deletions:
-        raise policy.ToolError("prepare produced no candidate changes")
-    registry.request(settings, "git/refs", "POST", json.dumps({"ref": "refs/heads/" + branch, "sha": expected}).encode())
-    payload = {
-        "query": "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid signature { isValid } } } }",
-        "variables": {
-            "input": {
-                "branch": {"repositoryNameWithOwner": settings["repository"], "branchName": branch},
-                "expectedHeadOid": expected,
-                "message": {"headline": "chore: prepare release v" + planned},
-                "fileChanges": {"additions": additions, "deletions": deletions},
-            }
-        },
-    }
-    response = json.loads(registry.request(settings, "", "POST", json.dumps(payload).encode(), graphql=True) or b"{}")
-    commit = (response.get("data") or {}).get("createCommitOnBranch") or {}
-    commit = commit.get("commit") or {}
-    if response.get("errors") or not commit.get("oid") or not (commit.get("signature") or {}).get("isValid"):
-        raise policy.ToolError("GitHub did not confirm a signed candidate; inspect the preserved release branch")
-    # GITHUB_TOKEN Pushes Do Not Trigger CI; Explicit Dispatch Does.
-    registry.request(settings, "actions/workflows/ci.yml/dispatches", "POST", json.dumps({"ref": branch}).encode())
-    print(f"Prepared signed candidate {commit['oid']} on {branch}; native CI dispatched")
-
-
 def candidate(directory: Path, settings: dict) -> None:
     """Prepare Or Resume One Stable Candidate From Published Dev And Open Its Review."""
     version = os.environ.get("RELEASE_VERSION", "")
@@ -599,9 +547,6 @@ def run(directory: Path, verb: str) -> None:
     if verb == "prepare":
         prepare(directory, settings)
         return
-    if verb == "author":
-        author(directory, settings)
-        return
     tag_version(settings["tag"])
     if verb == "tag":
         tag(directory, settings)
@@ -691,7 +636,6 @@ if __name__ == "__main__":
             [
                 "guard",
                 "prepare",
-                "author",
                 "candidate",
                 "tag",
                 "stage",

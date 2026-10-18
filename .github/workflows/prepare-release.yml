@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:49e71a51bd73728510410824febe17150568ca32c4ace1f8fcd68dc12f2e5856
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:729e9275a0f3f6496ca449a3a3d9176b8d6ec1dd2c0f6d149254bf9ee1b601d4
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -9,7 +9,6 @@ name: Prepare Release
         type: string
 permissions:
   contents: write
-  actions: write
 env:
   MISE_LOCKED: "1"
   CARGO_INCREMENTAL: "0"
@@ -48,12 +47,15 @@ jobs:
         xvfb desktop-file-utils xdg-utils
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - run: git switch -c "release/v$RELEASE_VERSION"
-    - run: mise run release:prepare
-    - run: >-
+    - name: Check Runner Group Allowlist
+      run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.release.run author
-    if: github.ref == 'refs/heads/dev'
-    env:
-      RELEASE_VERSION: ${{ inputs.version }}
-      GH_TOKEN: ${{ github.token }}
+        dokime_tools.test.runners
+      env:
+        GITHUB_RUNNER_WORKFLOWS: "{\"ci.yml\":[[\"self-hosted\",\"linux\"]]}"
+        RELEASE_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ secrets.RUNNER_GROUP_READ_TOKEN || github.token }}
+    - run: git switch -c "release/v${{ inputs.version }}"
+    - run: mise run release:prepare
+    - run: "git -c user.name=\"${{ github.actor }}\" -c user.email=\"${{ github.actor }}@users.noreply.github.com\" commit -am \"chore: prepare release v${{ inputs.version }}\""
+    - run: git push origin "release/v${{ inputs.version }}"

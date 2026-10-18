@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:13674bc3ac63aebf32ded26acb4f76f47af9908d0c38aac4d30e4f16b4798bf1
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:8370a57bf3d100fb914ab4192d1d4ac8d669e5e6432d59dadd598aa9cf6d7089
 name: CI
 "on":
   push:
@@ -9,7 +9,6 @@ name: CI
     tags:
     - v*
   pull_request: {}
-  workflow_dispatch: {}
   schedule:
   - cron: 0 2 * * *
 permissions:
@@ -488,7 +487,7 @@ jobs:
         New-Item -ItemType Directory -Force target/tmp | Out-Null
         $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/', 'packages/dokime/src/dokime/_wire', 'packages/dokime/src/dokime/operation.py', 'packages/dokime/src/dokime/dynamic.py', 'crates/dokime-gui/.generated', 'crates/dokime-gui/src/lib/rpc/generated') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
         if (!$outputs) { throw 'No build outputs found' }
-        tar -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -T0" --force-local -- @outputs
+        tar -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -T0" -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -623,7 +622,7 @@ jobs:
         New-Item -ItemType Directory -Force target/tmp | Out-Null
         $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/', 'packages/dokime/src/dokime/_wire', 'packages/dokime/src/dokime/operation.py', 'packages/dokime/src/dokime/dynamic.py', 'crates/dokime-gui/.generated', 'crates/dokime-gui/src/lib/rpc/generated') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
         if (!$outputs) { throw 'No build outputs found' }
-        tar -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -T0" --force-local -- @outputs
+        tar -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -T0" -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -864,7 +863,7 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d" --force-local
+        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1108,7 +1107,7 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d" --force-local
+        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1462,7 +1461,7 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d" --force-local
+        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1596,7 +1595,7 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d" --force-local
+        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1853,7 +1852,7 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d" --force-local
+        tar -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1897,9 +1896,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
-      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
-      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
+      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
+      'refs/heads/release/v'))))
     strategy:
       fail-fast: false
       matrix:
@@ -2033,9 +2032,9 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
-      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
-      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || (github.event_name ==
+      'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
+      'refs/heads/release/v'))))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2124,8 +2123,8 @@ jobs:
     - run: sccache --show-stats
       if: always()
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
+      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+      startsWith(github.ref, 'refs/heads/release/v'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
