@@ -41,6 +41,9 @@ windows = ["windows-latest"]
 [ci.budgets]
 # Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
 build = 2400
+# Provisional ceiling: run 39135263053 cancelled Check / Rust (windows) at its fixed 30 minutes in the cold
+# no-default-features check; replace with the measured Windows duration.
+check = 2700
 
 [ci.setup]
 # The desktop shell (Tauri/WebKitGTK) and native media capture compile against these system libraries; the

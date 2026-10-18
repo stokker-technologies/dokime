@@ -254,7 +254,7 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test Rust Compile Contracts"
 usage = 'flag "--profile <profile>" default="dev"'
 # The macro stories compile plugin sources with rustc against the built SDK and its dependency closure, which only the build tree has.
-run = "cargo nextest run --locked --workspace --all-targets --cargo-profile {{usage.profile}}{% if usage.profile != 'release' %} --features dokime-runtime/fault-injection{% endif %} -E 'binary_id(dokime-macros::compile)'"
+run = "cargo nextest run --locked --workspace --all-targets --cargo-profile {{usage.profile}}{% if usage.profile != \"release\" %} --features dokime-runtime/fault-injection{% endif %} -E \"binary_id(dokime-macros::compile)\""
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated"]

@@ -1530,11 +1530,20 @@ async function cycleJourney(session, cycleId) {
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
   await session.type(pointsInput, "2500");
   await session.clickNamed("button", "Apply");
-  await until(
-    "plot settings accepted by backend",
-    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
-    30000,
-  );
+  /* A dialog still open names why the backend has not accepted the settings. */
+  let openDialog = "";
+  try {
+    await until(
+      "plot settings accepted by backend",
+      async () => {
+        openDialog = (await session.execute("return document.querySelector('[role=dialog][data-state=open]')?.innerText ?? ''")) ?? "";
+        return openDialog === "";
+      },
+      30000,
+    );
+  } catch (error) {
+    throw new Error(`${error.message}; the open dialog reads: ${normalize(openDialog)}`);
+  }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
   /* The remounted document can again unmount a dialog opened before it
