@@ -99,6 +99,7 @@ fn environment_precedence_ordered() {
     let root = tempfile::tempdir().unwrap();
     let nested = root.path().join("nested");
     std::fs::create_dir(&nested).unwrap();
+    let nested = nested.canonicalize().unwrap();
     std::fs::write(root.path().join(".env"), "DOKIME_DEV_ROOT=ancestor\n").unwrap();
     let chosen = root.path().join("chosen.env");
     std::fs::write(&chosen, "DOKIME_DEV_ROOT=chosen\nDOKIME_DEV_ROOT=ignored\n").unwrap();
@@ -110,10 +111,12 @@ fn environment_precedence_ordered() {
         if let Some(value) = shell {
             c.env("DOKIME_DEV_ROOT", value);
         }
-        assert!(state(&refusal(c)).starts_with(nested.join(expected)));
+        let output = refusal(c);
+        assert!(state(&output).starts_with(nested.join(expected)), "{output}");
     }
     std::fs::write(nested.join(".env"), "DOKIME_DEV_ROOT=nearest\n").unwrap();
-    assert!(state(&refusal(command(&nested))).starts_with(nested.join("nearest")));
+    let output = refusal(command(&nested));
+    assert!(state(&output).starts_with(nested.join("nearest")), "{output}");
     let mut c = command(&nested);
     c.env("DOKIME_DEV_ROOT", "");
     assert!(refusal(c).contains("DOKIME_DEV_ROOT must not be empty"));

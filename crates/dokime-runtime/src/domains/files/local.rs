@@ -113,7 +113,10 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
             Ok(metadata) => metadata,
             Err(_) => continue,
         };
-        listing.insert(relative, Entry { size: metadata.len(), modified: metadata.modified().ok(), identity: identity(&metadata) });
+        listing.insert(
+            relative,
+            Entry { size: metadata.len(), modified: metadata.modified().ok(), identity: identity(entry.path(), &metadata) },
+        );
     }
     Ok(listing)
 }
@@ -128,13 +131,21 @@ fn relative_path(root: &Path, path: &Path) -> Option<String> {
 }
 
 #[cfg(unix)]
-fn identity(metadata: &std::fs::Metadata) -> Option<(u64, u64)> {
+fn identity(_: &Path, metadata: &std::fs::Metadata) -> Option<(u64, u64)> {
     use std::os::unix::fs::MetadataExt;
     Some((metadata.dev(), metadata.ino()))
 }
 
-#[cfg(not(unix))]
-fn identity(_: &std::fs::Metadata) -> Option<(u64, u64)> {
+#[cfg(windows)]
+fn identity(path: &Path, _: &std::fs::Metadata) -> Option<(u64, u64)> {
+    match file_id::get_low_res_file_id(path).ok()? {
+        file_id::FileId::LowRes { volume_serial_number, file_index } => Some((u64::from(volume_serial_number), file_index)),
+        _ => None,
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn identity(_: &Path, _: &std::fs::Metadata) -> Option<(u64, u64)> {
     None
 }
 

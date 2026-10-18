@@ -277,9 +277,11 @@ fn review_bundle(schema: u32) -> Bundle {
 }
 
 fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, String> {
-    let pair =
-        native_pty_system().openpty(PtySize { rows: 24, cols: 120, pixel_width: 0, pixel_height: 0 }).map_err(|error| error.to_string())?;
-    let mut command = CommandBuilder::new(cli_executable());
+    let terminal = native_pty_system();
+    let size = PtySize { rows: 24, cols: 120, pixel_width: 0, pixel_height: 0 };
+    let pair = terminal.openpty(size).map_err(|error| error.to_string())?;
+    let executable = cli_executable();
+    let mut command = CommandBuilder::new(executable);
     command.args(["--color", "never", "plugin", "install"]);
     command.arg(bundle);
     command.args(["--endpoint", endpoint]);
@@ -287,43 +289,58 @@ fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, Stri
     if consent {
         command.arg("--yes");
     }
-    let mut child = ChildGuard { child: pair.slave.spawn_command(command).map_err(|error| error.to_string())?, reaped: false };
+    let process = pair.slave.spawn_command(command).map_err(|error| error.to_string())?;
+    let mut child = ChildGuard { child: process, reaped: false };
     drop(pair.slave);
 
     let mut reader = pair.master.try_clone_reader().map_err(|error| error.to_string())?;
     let mut writer = pair.master.take_writer().map_err(|error| error.to_string())?;
-    let (sent, received) = std::sync::mpsc::sync_channel(1);
-    let read_task = std::thread::spawn(move || {
+    let read_task = std::thread::spawn(move || -> Result<Vec<u8>, String> {
         let mut output = Vec::new();
         let mut buffer = [0_u8; 4096];
+        let mut answered = 0;
+        let mut declined = consent;
+
         loop {
-            match reader.read(&mut buffer) {
+            let count = match reader.read(&mut buffer) {
                 Ok(0) | Err(_) => break,
-                Ok(count) => {
-                    output.extend_from_slice(&buffer[..count]);
-                    if output.len() > 64 * 1024 {
-                        break;
-                    }
-                }
+                Ok(count) => count,
+            };
+            output.extend_from_slice(&buffer[..count]);
+
+            // Answer Cursor Queries Even During Pseudoconsole Teardown
+            let asked = output.windows(4).filter(|window| window == b"\x1b[6n").count();
+            while answered < asked {
+                writer.write_all(b"\x1b[1;1R").map_err(|error| error.to_string())?;
+                writer.flush().map_err(|error| error.to_string())?;
+                answered += 1;
+            }
+
+            // Decline Only After The CLI Asks For Consent
+            let prompted = output.windows(5).any(|window| window == b"[y/N]");
+            if !declined && prompted {
+                writer.write_all(b"n\r").map_err(|error| error.to_string())?;
+                writer.flush().map_err(|error| error.to_string())?;
+                declined = true;
+            }
+            if output.len() > 64 * 1024 {
+                break;
             }
         }
-        let _ = sent.send(output);
+        eprintln!("install PTY: answered {answered} cursor queries; drained {} bytes", output.len());
+        Ok(output)
     });
-    if !consent {
-        writer.write_all(b"n\r").map_err(|error| error.to_string())?;
-        writer.flush().map_err(|error| error.to_string())?;
-    }
+
     // The lane deadline bounds a CLI that never exits; the guard reaps it.
     let status = child.child.wait().map_err(|error| error.to_string())?;
     child.reaped = true;
-    drop(writer);
     drop(pair.master);
-    let output = received.recv().map_err(|_| "install PTY output did not close")?;
-    read_task.join().map_err(|_| "install PTY reader panicked")?;
+    let output = read_task.join().map_err(|_| "install PTY reader panicked")??;
     if output.len() > 64 * 1024 {
         return Err("install CLI exceeded output budget".into());
     }
-    Ok(Outcome { success: status.success(), output: String::from_utf8_lossy(&output).replace("\r\n", "\n") })
+    let output = String::from_utf8_lossy(&output).replace("\r\n", "\n");
+    Ok(Outcome { success: status.success(), output })
 }
 
 async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Code) -> (Outcome, Vec<&'static str>) {

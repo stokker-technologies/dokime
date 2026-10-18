@@ -32,6 +32,7 @@ host = [
   "dep:blake2",
   "dep:cssparser",
   "dep:dokime-host",
+  "dep:file-id",
   "dep:futures-util",
   "dep:keyring",
   "dep:rustls-platform-verifier",
@@ -130,6 +131,11 @@ url = { workspace = true, optional = true }
 
 # UI
 ashpd = { workspace = true, optional = true, features = ["screenshot"] }
+
+[target."cfg(windows)".dependencies]
+# Filesystem
+# Windows has no inode in std metadata; the volume serial and file index tell a rotated file from a truncated one.
+file-id = { workspace = true, optional = true }
 
 [target."cfg(any(windows, target_os = \"macos\"))".dependencies]
 # UI
