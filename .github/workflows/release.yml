@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:401f151a3449f1fb1a6716db01d414c92d20cbd88ae161fde5ba83fb4a02d1ce
+# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:e827b30af0b73b1472e3f5c645af20cf297e809adf4f77519b8bb2d44da6a52b
 name: Release
 "on":
   push:
@@ -33,6 +33,14 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - run: >-
         gh run download "$(gh run list --branch "release/$GITHUB_REF_NAME" --workflow
         ci.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
@@ -78,6 +86,14 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ github.workspace }}/.cache/mise
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ github.sha }}
