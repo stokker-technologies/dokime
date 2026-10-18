@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bc3fbaeee460be6f4d896e1c217758fb04278a55b8f9deaa11f2a2eebc48a71a
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:20b02246fbdcf2a99cc8dc8183556b9f21296970eb9ed46843fb48e1a1210f6a
 name: CI
 "on":
   push:
@@ -83,7 +83,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,protoc,taplo,aqua:rhysd/actionlint
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,protoc,taplo,aqua:rhysd/actionlint
   check_python:
     name: Check / Python
     runs-on:
@@ -143,7 +143,7 @@ jobs:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_typescript:
     name: Check / TypeScript
     runs-on:
@@ -203,7 +203,7 @@ jobs:
         path: .cache/mise/
         key: ${{ steps.tools.outputs.cache-primary-key }}
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   check_rust:
     name: Check / Rust
     runs-on: >-
@@ -289,7 +289,7 @@ jobs:
         - windows
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_dev:
     name: Build / Dev
     runs-on: >-
@@ -389,7 +389,7 @@ jobs:
         - windows
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   build_release:
     name: Build / Release
     runs-on: >-
@@ -489,7 +489,7 @@ jobs:
         - windows
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,protoc,taplo,aqua:rhysd/actionlint
   validate_generated:
     name: Validate / Generated
     runs-on:
@@ -561,7 +561,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     if: always()
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_unit_rust:
     name: Validate / Unit / Rust
     runs-on: >-
@@ -657,7 +657,7 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_python:
     name: Validate / Integration / Python
     runs-on:
@@ -736,7 +736,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     if: always()
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_rust:
     name: Validate / Integration / Rust
     runs-on: >-
@@ -832,7 +832,7 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_integration_typescript:
     name: Validate / Integration / TypeScript
     runs-on:
@@ -911,7 +911,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     if: always()
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_python:
     name: Validate / Acceptance / Python
     runs-on:
@@ -990,7 +990,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     if: always()
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_acceptance_rust:
     name: Validate / Acceptance / Rust
     runs-on: >-
@@ -1086,7 +1086,7 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_rust:
     name: Validate / System / Rust
     runs-on: >-
@@ -1182,7 +1182,7 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   validate_test_system_typescript:
     name: Validate / System / TypeScript
     runs-on:
@@ -1261,7 +1261,7 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     if: always()
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_rust:
     name: Package / Rust
     runs-on: >-
@@ -1377,7 +1377,7 @@ jobs:
         - linux
         - windows
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   package_python:
     name: Package / Python
     runs-on:
@@ -1476,7 +1476,7 @@ jobs:
       'push' && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
       'refs/heads/release/v'))))
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_dry:
     name: Publish / Dry
     runs-on:
@@ -1556,7 +1556,7 @@ jobs:
       github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
       startsWith(github.ref, 'refs/heads/release/v'))
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   publish_release:
     name: Publish / Release
     runs-on:
@@ -1633,7 +1633,7 @@ jobs:
       actions: read
       id-token: write
     env:
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,npm:pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest
   build_bench:
     name: Build / Bench
     runs-on:

@@ -20,8 +20,7 @@ python = "3.15.0"
 rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools-preview", targets = "wasm32-unknown-unknown" }
 
 # Package Managers
-pnpm = { version = "12.11.2", os = ["linux", "macos"] }
-"npm:pnpm" = { version = "12.11.2", os = ["windows"] }
+pnpm = "12.11.2"
 uv = "0.13.0"
 
 # Rust Toolchain
