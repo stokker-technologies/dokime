@@ -14,6 +14,10 @@ max_workspaces = 5
 
 # === CI === #
 
+[ci.budgets]
+# Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
+build = 2400
+
 [ci.setup]
 # The desktop shell (Tauri/WebKitGTK) and native media capture compile against these system libraries.
 linux = [
