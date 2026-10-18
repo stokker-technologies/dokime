@@ -1804,7 +1804,7 @@ async fn settlement_record_progress() {
     ));
     workflow
         .start_on(
-            start_request(token, serde_json::json!({"samples": 1})),
+            start_request(token, serde_json::json!({"samples": 0})),
             Some(SampleOutput::Embedded(rows)),
             Caller::default(),
         )
@@ -1846,7 +1846,7 @@ async fn settlement_duplicate_idle() {
     ));
     workflow
         .start_on(
-            start_request(token, serde_json::json!({"samples": 1})),
+            start_request(token, serde_json::json!({"samples": 0})),
             Some(SampleOutput::Embedded(rows)),
             Caller::default(),
         )
