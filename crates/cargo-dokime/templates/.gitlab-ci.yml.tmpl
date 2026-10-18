@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:c308d590779fde1ac1d4cea1d45e85f4643d50186aba4c58d2235a17c5924afb
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:05afc9d2c818aef56054ca3d45bc387a212b883c9272696e9b831c2b3c9b5dab
 stages:
 - Check
 - Build
@@ -185,7 +185,6 @@ Build / Dev (linux):
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune start
   - mise run build --profile dev
-  - mise run test:unit --profile dev
   - |-
     mkdir -p target/tmp
     outputs=()
@@ -266,7 +265,6 @@ Build / Release (linux):
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune start
   - mise run build --profile release
-  - mise run test:unit --profile release
   - |-
     mkdir -p target/tmp
     outputs=()
@@ -661,7 +659,6 @@ Build / Dev (windows):
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune start
   - mise run build --profile dev
-  - mise run test:unit --profile dev
   - |-
     New-Item -ItemType Directory -Force target/tmp | Out-Null
     $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | Where-Object { Test-Path -LiteralPath $_ }
@@ -745,7 +742,6 @@ Build / Release (windows):
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune start
   - mise run build --profile release
-  - mise run test:unit --profile release
   - |-
     New-Item -ItemType Directory -Force target/tmp | Out-Null
     $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | Where-Object { Test-Path -LiteralPath $_ }

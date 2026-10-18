@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:b648821c625050e70578bd4ad7d2fe7bbf44865538d53cb813bf1b6a22eee17a
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:4ac0c4f6b44a775c25ff0e4071b4c55a407a56967c40a9972446c772a00e743b
 name: CI
 "on":
   push:
@@ -221,7 +221,6 @@ jobs:
       with:
         version: v0.18.0
     - run: mise run build --profile dev
-    - run: mise run test:unit --profile dev
     - name: Archive Build
       if: matrix.os != 'windows'
       shell: bash
@@ -308,7 +307,6 @@ jobs:
       with:
         version: v0.18.0
     - run: mise run build --profile release
-    - run: mise run test:unit --profile release
     - name: Archive Build
       if: matrix.os != 'windows'
       shell: bash
