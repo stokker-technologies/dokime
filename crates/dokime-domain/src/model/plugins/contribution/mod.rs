@@ -19,6 +19,7 @@ pub use binding::PluginEntrypoint;
 pub use customization::AppCustomizationContribution;
 pub use customization::AppLogoAsset;
 pub use customization::AppThemeContribution;
+pub use customization::LogoVariant;
 pub use customization::OrganizationIdentity;
 pub use customization::ThemeActivationPolicy;
 pub use customization::ThemeCornerRadii;

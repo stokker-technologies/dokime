@@ -105,7 +105,12 @@ async fn appearance_asset_bound() {
     assert_eq!(light_variables, expected.themes[0].light.variables);
     assert_eq!(theme.dark.as_ref().unwrap().plot_palette, expected.themes[0].dark.plot_palette);
     assert_eq!(theme.corner_radii.as_ref().unwrap().four_xl, expected.themes[0].corner_radii.four_xl);
-    let logo = actual.logo.unwrap();
+    assert_eq!(actual.logos.len(), 4);
+    assert_eq!(
+        actual.logos.iter().map(|logo| logo.variant).collect::<Vec<_>>(),
+        expected.logos.iter().map(|logo| logo.variant).collect::<Vec<_>>()
+    );
+    let logo = actual.logos.into_iter().next().unwrap();
     assert_eq!(logo.alt.as_deref(), Some("Dokime"));
     let metadata = logo.asset.unwrap();
     assert_eq!(metadata.size_bytes, bytes.len() as u64);

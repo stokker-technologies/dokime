@@ -911,6 +911,17 @@ and needs a display. `mise run ci` runs the same flow as the provider pipeline;
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
+### Branding
+
+Brand identity is configured in [branding/brand.toml](branding/brand.toml).
+The [logo pack](branding/logos) provides SVG and PNG exports in four categories:
+`transparent-on-light`, `transparent-on-dark`, `contained-on-light`, and
+`contained-on-dark`. The suffix identifies the intended background. The shell
+and captured reports select artwork for the current light or dark surface.
+After changing the pack, run `mise run prepare:branding` and rebuild. Desktop
+icons are regenerated from [the icon master](branding/icons/icon.png), which
+uses the contained light-surface artwork.
+
 ### Generated Clients
 
 The server contract producer generates the protobuf descriptors of every public operation;

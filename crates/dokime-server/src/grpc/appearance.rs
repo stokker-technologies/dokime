@@ -80,16 +80,17 @@ impl Operation for Read {
             .runtime
             .capture_appearance(source_budget(self.resources.max_message_bytes))
             .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-        let logo = match captured.frame.logo.as_ref() {
-            Some(logo) => {
-                let source =
-                    captured.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-                let asset = assets::capture(source, logo.plugin_id.to_string(), logo.asset_id.to_string()).await?;
-                Some(dokime_domain::model::appearance::wire::AppearanceLogo { asset: Some(asset.metadata), alt: logo.alt.clone() })
-            }
-            None => None,
-        };
-        let frame = convert::appearance(captured.frame, logo)
+        let mut logos = Vec::with_capacity(captured.frame.logos.len());
+        for (logo, source) in captured.frame.logos.iter().zip(captured.logos) {
+            let source = source.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+            let asset = assets::capture(source, logo.plugin_id.to_string(), logo.asset_id.to_string()).await?;
+            logos.push(dokime_domain::model::appearance::wire::AppearanceLogo {
+                variant: logo.variant,
+                asset: Some(asset.metadata),
+                alt: logo.alt.clone(),
+            });
+        }
+        let frame = convert::appearance(captured.frame, logos)
             .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         if frame.wire_len()? > self.resources.max_message_bytes {
             return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
@@ -130,7 +131,7 @@ pub(super) fn historical(
     frame: dokime_runtime::domains::installed_plugins::RuntimeAppearanceFrame,
 ) -> Result<dokime_domain::model::appearance::wire::AppearanceSnapshot, Status> {
     convert::historical_memory(&frame).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-    convert::appearance(frame, None).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
+    convert::appearance(frame, Vec::new()).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
 }
 
 /* === Private Functions === */

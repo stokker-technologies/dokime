@@ -39,7 +39,7 @@ use dokime_runtime::domains::{ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 /* === Public Functions === */
 
 pub(super) fn appearance(
-    frame: RuntimeAppearanceFrame, logo: Option<dokime_domain::model::appearance::wire::AppearanceLogo>,
+    frame: RuntimeAppearanceFrame, logos: Vec<dokime_domain::model::appearance::wire::AppearanceLogo>,
 ) -> harmos::Result<dokime_domain::model::appearance::wire::AppearanceSnapshot> {
     let mut themes = canonical::slots(frame.themes.len()).map_err(|_| exhausted())?;
     for source in frame.themes {
@@ -53,7 +53,7 @@ pub(super) fn appearance(
             website: value.website,
         }),
         title_template: frame.title_template,
-        logo,
+        logos,
         themes,
         active_theme: frame.active_theme.map(|id| id.as_str().to_owned()),
         theme_family_locked: frame.theme_family_locked,

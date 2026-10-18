@@ -133,11 +133,14 @@ pub(crate) async fn download(
     let captured = runtime
         .capture_appearance(source_budget(max_message_bytes))
         .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-    let logo = captured.frame.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
-    if logo.plugin_id.as_str() != reference.plugin_id || logo.asset_id.as_str() != reference.asset_id {
-        return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing));
-    }
-    let source = captured.logo.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+    let source = captured
+        .frame
+        .logos
+        .iter()
+        .zip(captured.logos)
+        .find(|(logo, _)| logo.plugin_id.as_str() == reference.plugin_id && logo.asset_id.as_str() == reference.asset_id)
+        .and_then(|(_, source)| source)
+        .ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
     let asset = capture(source, reference.plugin_id.clone(), reference.asset_id.clone()).await?;
     if asset.metadata.reference.as_ref() != Some(&reference) {
         return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetChanged));

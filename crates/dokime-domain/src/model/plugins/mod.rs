@@ -26,6 +26,7 @@ pub use appearance::RuntimeThemeFamily;
 pub use contribution::AppCustomizationContribution;
 pub use contribution::AppLogoAsset;
 pub use contribution::AppThemeContribution;
+pub use contribution::LogoVariant;
 pub use contribution::OptionProviderContribution;
 pub use contribution::OptionProviderOption;
 pub use contribution::OptionProviderSource;

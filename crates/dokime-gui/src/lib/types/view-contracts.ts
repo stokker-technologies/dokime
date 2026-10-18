@@ -486,6 +486,7 @@ export type ResultSummary = {
 };
 
 export type RuntimeAppLogo = {
+  variant: "transparent_on_light" | "transparent_on_dark" | "contained_on_light" | "contained_on_dark";
   plugin_id: Identifier;
   asset_id: Identifier;
   url: string;
@@ -496,7 +497,7 @@ export type RuntimeAppearanceFrame = {
   app_name: string;
   organization?: OrganizationIdentity | null;
   title_template?: string | null;
-  logo?: RuntimeAppLogo | null;
+  logos: RuntimeAppLogo[];
   themes?: RuntimeThemeFamily[];
   active_theme?: Identifier | null;
   theme_family_locked: boolean;

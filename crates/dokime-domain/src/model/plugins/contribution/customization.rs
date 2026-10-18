@@ -65,6 +65,7 @@ pub struct OrganizationIdentity {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppLogoAsset {
+    pub variant: LogoVariant,
     pub asset_id: Identifier,
     pub path: String,
     pub mime_type: String,
@@ -127,6 +128,16 @@ pub struct ThemeVariant {
 }
 
 /* === Enums === */
+
+#[harmos_domain::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogoVariant {
+    TransparentOnLight,
+    TransparentOnDark,
+    ContainedOnLight,
+    ContainedOnDark,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]

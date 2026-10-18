@@ -46,7 +46,7 @@ pub struct RuntimeAppearanceFrame {
     pub title_template: Option<String>,
 
     #[serde(default)]
-    pub logo: Option<RuntimeAppLogo>,
+    pub logos: Vec<RuntimeAppLogo>,
 
     #[serde(default)]
     pub themes: Vec<RuntimeThemeFamily>,
@@ -64,6 +64,7 @@ pub struct RuntimeAppearanceFrame {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeAppLogo {
+    pub variant: super::LogoVariant,
     pub plugin_id: Identifier,
     pub asset_id: Identifier,
     pub url: String,
@@ -106,7 +107,7 @@ impl harmos_domain::MemorySize for RuntimeAppearanceFrame {
             (harmos_domain::MemorySize::memory_size(&self.app_name), std::mem::size_of_val(&self.app_name)),
             (harmos_domain::MemorySize::memory_size(&self.organization), std::mem::size_of_val(&self.organization)),
             (harmos_domain::MemorySize::memory_size(&self.title_template), std::mem::size_of_val(&self.title_template)),
-            (harmos_domain::MemorySize::memory_size(&self.logo), std::mem::size_of_val(&self.logo)),
+            (harmos_domain::MemorySize::memory_size(&self.logos), std::mem::size_of_val(&self.logos)),
             (harmos_domain::MemorySize::memory_size(&self.themes), std::mem::size_of_val(&self.themes)),
             (harmos_domain::MemorySize::memory_size(&self.active_theme), std::mem::size_of_val(&self.active_theme)),
             (harmos_domain::MemorySize::memory_size(&self.source_plugin_id), std::mem::size_of_val(&self.source_plugin_id)),

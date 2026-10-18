@@ -186,7 +186,10 @@ pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame) -> Result
             validate_css(value).map_err(|reason| invalid(&format!("captured theme {}: {reason}", theme.theme_id)))?;
         }
     }
-    if let Some(logo) = &appearance.logo {
+    for (index, logo) in appearance.logos.iter().enumerate() {
+        if appearance.logos[..index].iter().any(|other| other.variant == logo.variant) {
+            return Err(invalid("captured appearance has duplicate logo categories"));
+        }
         validate_logo(&logo.url)?;
     }
     Ok(())

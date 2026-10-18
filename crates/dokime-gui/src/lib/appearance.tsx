@@ -14,7 +14,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo } from "r
 /* === Local Imports === */
 
 import { useNativeAppearance } from "@/app/native-session/context";
-import { type Brand, BrandProvider, defaultBrand } from "@/lib/brand";
+import { brandFromLogos, BrandProvider, defaultBrand } from "@/lib/brand";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 
@@ -41,7 +41,7 @@ const defaultAppearanceFrame: Appearance = {
   app_name: defaultBrand.label,
   organization: null,
   title_template: "{app}",
-  logo: null,
+  logos: [],
   themes: [],
   active_theme: null,
   theme_family_locked: false,
@@ -62,7 +62,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const frame = nativeResource ? appearanceFrameFromNative(nativeResource) : defaultAppearanceFrame;
     return { ...frame, themes: frame.themes ?? [] };
   }, [nativeResource]);
-  const brand = useMemo(() => brandFromAppearance(appearance), [appearance]);
+  const brand = useMemo(
+    () => (nativeResource ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
+    [appearance, nativeResource],
+  );
 
   useEffect(() => {
     const title = titleFromAppearance(appearance);
@@ -88,24 +91,6 @@ export function useAppearance(): Appearance {
 
 /* === Private Functions === */
 
-function brandFromAppearance(appearance: RuntimeAppearanceFrame): Brand {
-  if (!appearance.logo) {
-    return {
-      label: appearance.app_name,
-      logo: defaultBrand.logo,
-    };
-  }
-
-  return {
-    label: appearance.app_name,
-    logo: {
-      kind: "image",
-      src: appearance.logo.url,
-      alt: appearance.logo.alt ?? appearance.app_name,
-    },
-  };
-}
-
 function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
   const template = appearance.title_template?.trim() || "{app}";
   return template.replaceAll("{app}", appearance.app_name);
@@ -123,15 +108,7 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
         }
       : null,
     title_template: snapshot.titleTemplate ?? "{app}",
-    logo:
-      snapshot.logo && resource.logoUrl
-        ? {
-            plugin_id: snapshot.logo.asset?.reference?.pluginId ?? "",
-            asset_id: snapshot.logo.asset?.reference?.assetId ?? "",
-            url: resource.logoUrl,
-            alt: snapshot.logo.alt ?? null,
-          }
-        : null,
+    logos: resource.logos,
     themes: snapshot.themes.map((theme) => ({
       plugin_id: theme.pluginId,
       theme_id: theme.themeId,

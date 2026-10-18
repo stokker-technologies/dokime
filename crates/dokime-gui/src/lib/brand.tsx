@@ -14,24 +14,22 @@ import { createContext, type ReactNode, useContext } from "react";
 /* === Local Imports === */
 
 import defaultBrandData from "../../../../branding/generated/default-brand.json";
+import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 
 /* === Types === */
 
-export type BrandLogo = { kind: "wordmark"; text: string; className?: string } | { kind: "image"; src: string; alt?: string };
+export type LogoVariant = RuntimeAppLogo["variant"];
+export type BrandLogo = { src: string; alt?: string };
 
 export type Brand = {
   label: string;
-  logo: BrandLogo;
+  logos: Partial<Record<LogoVariant, BrandLogo>>;
 };
 
 type DefaultBrandManifest = {
   label: string;
   title: string;
-  logo: {
-    kind: "image";
-    src: string;
-    alt: string;
-  };
+  logos: Partial<Record<LogoVariant, BrandLogo>>;
 };
 
 /* === Constants === */
@@ -45,11 +43,7 @@ const generatedDefaultBrand = defaultBrandData as DefaultBrandManifest;
 
 export const defaultBrand: Brand = {
   label: generatedDefaultBrand.label,
-  logo: {
-    kind: generatedDefaultBrand.logo.kind,
-    src: generatedDefaultBrand.logo.src,
-    alt: generatedDefaultBrand.logo.alt,
-  },
+  logos: generatedDefaultBrand.logos,
 };
 
 const BrandContext = createContext<Brand>(defaultBrand);
@@ -64,4 +58,13 @@ export function BrandProvider({ brand = defaultBrand, children }: { brand?: Bran
 
 export function useBrand(): Brand {
   return useContext(BrandContext);
+}
+
+export function brandFromLogos(label: string, logos: RuntimeAppLogo[]): Brand {
+  return { label, logos: Object.fromEntries(logos.map((logo) => [logo.variant, { src: logo.url, alt: logo.alt ?? label }])) };
+}
+
+export function selectLogo(brand: Brand, treatment: "transparent" | "contained", surface: "light" | "dark"): BrandLogo | undefined {
+  const alternative = treatment === "transparent" ? "contained" : "transparent";
+  return brand.logos[`${treatment}_on_${surface}`] ?? brand.logos[`${alternative}_on_${surface}`];
 }
