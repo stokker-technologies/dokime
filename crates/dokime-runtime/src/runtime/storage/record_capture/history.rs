@@ -122,8 +122,21 @@ impl Source {
 
     // Save Everything Accepted So Far; One Saved Cut Then Covers The Whole History.
     async fn save_accepted(&self, state_manager: &crate::app::StateManager) -> Result<harmos::storage::StorageCursor> {
+        let started = std::time::Instant::now();
         let accepted = self.storage.cursor_accepted();
-        let saved = self.storage.flush_until(&accepted).await?;
+        let files = self.storage.capture_files(Some(&accepted))?;
+        eprintln!(
+            "storage flush diagnostic {}: begin accepted={}, saved={}, files={}",
+            self.epoch,
+            accepted.sequence,
+            self.storage.cursor_saved().sequence,
+            files.is_some()
+        );
+        self.storage.await_durable(&accepted).await?;
+
+        eprintln!("storage flush diagnostic {}: data durable at {:?}", self.epoch, started.elapsed());
+        let saved = self.storage.flush_prepared(&accepted, &files).await?;
+        eprintln!("storage flush diagnostic {}: files durable at {:?}", self.epoch, started.elapsed());
         self.healthy(state_manager)?;
         Ok(saved)
     }

@@ -114,6 +114,7 @@ impl State {
     }
 
     pub(crate) async fn data_write(&self, root: &std::path::Path, batch: StorageBatch<'_>) -> Result<SavedData, Error> {
+        let started = std::time::Instant::now();
         let root = root.to_path_buf();
         let mut prepared = Vec::with_capacity(batch.len());
         for value in batch.entries() {
@@ -122,7 +123,19 @@ impl State {
             prepared.push(Encoded::new(value, length)?);
         }
         let history = batch.first().history.clone();
-        self.call(move |connection| Ok(write(connection, &root, &history, &prepared))).await?
+
+        let encoded = started.elapsed();
+        let first = batch.first().sequence;
+        let count = batch.len();
+        let result = self.call(move |connection| Ok(write(connection, &root, &history, &prepared))).await?;
+
+        if started.elapsed() > std::time::Duration::from_millis(500) {
+            eprintln!(
+                "SQLite write diagnostic: first={first}, rows={count}, encoded={encoded:?}, total={:?}",
+                started.elapsed()
+            );
+        }
+        result
     }
 
     pub(crate) async fn data_object(&self, at: u64, generation: u64, point: ObjectPoint) -> Result<Option<ObjectEntry>, Error> {
@@ -219,6 +232,7 @@ pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
 }
 
 fn write(connection: &mut Connection, root: &std::path::Path, history: &StoreHistory, entries: &[Encoded]) -> Result<SavedData, Error> {
+    let started = std::time::Instant::now();
     let transaction = connection.transaction()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
@@ -259,7 +273,18 @@ fn write(connection: &mut Connection, root: &std::path::Path, history: &StoreHis
         head.sequence = entry.position;
     }
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
+
+    let inserted = started.elapsed();
     transaction.commit()?;
+    if started.elapsed() > std::time::Duration::from_millis(500) {
+        eprintln!(
+            "SQLite transaction diagnostic {}: first={}, rows={}, inserted={inserted:?}, total={:?}",
+            history.epoch,
+            entries.first().map_or(0, |entry| entry.position),
+            entries.len(),
+            started.elapsed()
+        );
+    }
     Ok(head)
 }
 
