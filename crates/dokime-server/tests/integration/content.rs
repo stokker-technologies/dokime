@@ -15,6 +15,7 @@
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
 // Third Party Imports
+use clap::Parser;
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
@@ -310,6 +311,34 @@ async fn artifact_transfer(message_bytes: usize) {
         }
         assert!(completed, "dynamic stream must report completion after final OK status");
         dynamic.close().await;
+
+        // The CLI Saves The Same Streaming Protocol As A Complete JSON Document.
+        let token_file = root.path().join("cli-key.txt");
+        std::fs::write(&token_file, TOKEN).unwrap();
+        let response_file = root.path().join("cli-response.json");
+        let endpoint = server.local_endpoint();
+        let cli_request = std::str::from_utf8(&request_json).unwrap();
+        let command = [
+            "dokime",
+            "operation",
+            "call",
+            "dokime.content.download_artifact",
+            "--endpoint",
+            &endpoint,
+            "--token-file",
+            token_file.to_str().unwrap(),
+            "--json",
+            cli_request,
+            "--output",
+            response_file.to_str().unwrap(),
+        ];
+        dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        let bytes = std::fs::read(&response_file).unwrap();
+        let response: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let events = response.as_array().unwrap();
+        assert_eq!(events.len(), item_count + 1);
+        assert!(events[..item_count].iter().all(|event| event["event"] == "item"));
+        assert_eq!(events[item_count]["event"], "completion");
 
         artifacts.release.notify_one();
         support::wait_for_cycle_lifecycle(

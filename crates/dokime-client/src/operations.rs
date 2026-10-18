@@ -53,7 +53,7 @@ pub enum Error {
     Ambiguous(String),
     #[error("operation {0} has no input stream")]
     InputStream(String),
-    #[error("operation input exceeds its byte limit")]
+    #[error("operation input exceeds its byte or frame limit")]
     InputTooLarge,
     #[error("operation catalog exceeds its client limit")]
     CatalogTooLarge,

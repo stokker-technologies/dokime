@@ -25,7 +25,7 @@ use super::operations::{Error, MAX_INPUT_BYTES, Result};
 use super::{Client, ResponseStream, stream::Input};
 
 /* === Constants === */
-const MAX_INPUT_FRAMES: usize = 4096;
+pub const MAX_INPUT_FRAMES: usize = 4096;
 
 /* === Macros === */
 

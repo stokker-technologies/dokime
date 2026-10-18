@@ -240,13 +240,28 @@ provider explicitly for metadata or a call:
 
 ```sh
 dokime operation show OPERATION_ID --owner OWNER --backend lab --json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --input-stream-file items.jsonl --json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --output response.json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --json '{"enabled":true}'
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --input-stream-file items.jsonl --output response.json
 ```
 
-Inputs use the discovered contract's protobuf JSON shape. Streaming input is one
-item per line; output emits item and completion events. Ctrl+C closes the local
-call. From Rust, `dokime_client::Client::call_operation` uses the same live
+`--input` and `--json` are mutually exclusive request sources; omitting both
+sends `{}`. Inputs use the discovered contract's protobuf JSON shape. Streaming
+input is one item per line. Without `--output`, stdout emits one JSON item or
+completion event per line. A response file contains one JSON array of those
+events, including the final completion; a unary call has only that completion.
+
+Existing response files require `--overwrite`. Predictable output conflicts are
+rejected before dispatch. The complete response is written to a temporary sibling
+and published atomically after successful completion. A failed output write
+never replays the device command. Diagnostics go to stderr and failures return
+nonzero.
+
+Ctrl+C stops waiting locally. A timeout or disconnection after dispatch can leave
+the device outcome unknown, even when no response was received. Check device
+state before manually resending; calls are never retried automatically. Manual
+operations can affect a running test and are not logged into its execution
+evidence. From Rust, `dokime_client::Client::call_operation` uses the same live
 contract discovery and shared Harmos codec:
 
 ```rust

@@ -74,6 +74,7 @@ async fn json_files_connection() {
             "--input-stream-file",
             "frames.jsonl",
             "--json",
+            "{}",
             "--endpoint",
             "http://127.0.0.1:8765",
         ])
@@ -92,7 +93,7 @@ async fn json_files_connection() {
         "dokime.runtime.health",
         "--endpoint",
         "invalid-endpoint",
-        "--input-file",
+        "--input",
         file.path().to_str().unwrap(),
     ])
     .unwrap();
@@ -161,6 +162,67 @@ async fn json_files_connection() {
         let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
         assert!(matches!(args.run().await, Err(Error::Client(_))));
     }
+}
+
+#[tokio::test]
+async fn operation_files() {
+    for arguments in
+        [vec!["--json", "{}", "--input", "request.json"], vec!["--input-file", "request.json"], vec!["--json"], vec!["--overwrite"]]
+    {
+        let command = ["dokime", "operation", "call", "device.enable"];
+        let parsed = Cli::try_parse_from(command.into_iter().chain(arguments));
+        assert!(parsed.is_err());
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let destination = directory.path().join("response.json");
+    std::fs::write(&destination, b"previous response").unwrap();
+    let path = destination.to_str().unwrap();
+    let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "invalid-endpoint", "--json", "{}", "--output", path];
+    let args = Cli::try_parse_from(command).unwrap();
+    let error = args.run().await.unwrap_err();
+    assert!(matches!(error, Error::Input(_)), "existing output must be refused before connection");
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+
+    let args = Cli::try_parse_from(command.into_iter().chain(["--overwrite"])).unwrap();
+    let error = args.run().await.unwrap_err();
+    assert!(matches!(error, Error::Client(_)), "explicit overwrite may proceed to connection");
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1, "failed calls remove their staged output");
+
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "device.enable",
+        "--endpoint",
+        "invalid-endpoint",
+        "--json",
+        "{broken",
+        "--output",
+        path,
+        "--overwrite",
+    ])
+    .unwrap();
+    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+
+    let directory_output = directory.path().join("directory.json");
+    std::fs::create_dir(&directory_output).unwrap();
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "device.enable",
+        "--endpoint",
+        "invalid-endpoint",
+        "--output",
+        directory_output.to_str().unwrap(),
+        "--overwrite",
+    ])
+    .unwrap();
+    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert!(directory_output.is_dir());
 }
 
 #[tokio::test]

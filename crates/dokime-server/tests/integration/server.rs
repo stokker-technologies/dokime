@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use clap::Parser;
 
 // Local Imports
 use super::*;
@@ -39,6 +40,69 @@ use dokime_domain::model;
 /* === Private Functions === */
 
 /* === Tests === */
+#[tokio::test]
+async fn operation_response_files() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    let definition = dokime_runtime::transactions::CycleDefinition {
+        metadata: support::metadata("remote.operations", "Original"),
+        continue_on_failure: false,
+    };
+    let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let endpoint = server.local_endpoint();
+    let destination = root.path().join("response.json");
+    let output = destination.to_str().unwrap();
+    let request = serde_json::json!({"cycleId": cycle.to_string(), "label": "First Call"}).to_string();
+
+    let command =
+        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &request, "--output", output];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let snapshot = handle.watch_state().latest();
+    assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call");
+    let saved = std::fs::read(&destination).unwrap();
+    let response: serde_json::Value = serde_json::from_slice(&saved).unwrap();
+    let events = response.as_array().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["event"], "completion");
+
+    let next = serde_json::json!({"cycleId": cycle.to_string(), "label": "Second Call"}).to_string();
+    let command =
+        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &next, "--output", output];
+    let error = dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+    assert!(matches!(error, dokime::Error::Input(_)));
+    let snapshot = handle.watch_state().latest();
+    assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call", "output conflict must prevent the mutation");
+    assert_eq!(std::fs::read(&destination).unwrap(), saved);
+
+    let command = command.into_iter().chain(["--overwrite"]);
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let snapshot = handle.watch_state().latest();
+    assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "Second Call");
+    let replacement = std::fs::read(&destination).unwrap();
+
+    let request = serde_json::json!({"artifactId": "not-an-artifact-id"}).to_string();
+    let command = [
+        "dokime",
+        "operation",
+        "call",
+        "dokime.content.download_artifact",
+        "--endpoint",
+        &endpoint,
+        "--json",
+        &request,
+        "--output",
+        output,
+        "--overwrite",
+    ];
+    assert!(dokime::Cli::try_parse_from(command).unwrap().run().await.is_err());
+    assert_eq!(std::fs::read(&destination).unwrap(), replacement, "failed streamed response must preserve the prior complete file");
+
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn discovery_shares_independently() {
     use harmos::operations::OperationDeclaration;

@@ -48,6 +48,16 @@ pub enum Error {
     Client(#[from] dokime_client::Error),
     #[error(transparent)]
     Operation(#[from] dokime_client::operations::Error),
+
+    #[error(
+        "The device outcome may be unknown. Check device state before manually resending; this command is never retried automatically. {source}"
+    )]
+    OperationUncertain { source: Box<Error> },
+
+    #[error(
+        "Operation response output failed. The device command will not be replayed; check device state before manually resending. {source}"
+    )]
+    OperationOutput { source: Box<Error> },
 }
 
 /* === Traits === */
