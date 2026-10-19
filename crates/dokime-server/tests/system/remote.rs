@@ -84,8 +84,10 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
     for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
         command.env_remove(name);
     }
-    if extension == "py" && workflow != "device" {
-        command.arg("--directory").arg(directory);
+    if extension == "py" {
+        let flag = if workflow == "device" { "--response-directory" } else { "--directory" };
+        let destination = if workflow == "device" { directory.join("responses") } else { directory.to_owned() };
+        command.arg(flag).arg(destination);
     }
 
     let output = command.output().await.unwrap();
@@ -133,6 +135,12 @@ fn device_responses(extension: &str, stdout: &str, directory: &Path) {
         for (prefix, enabled) in [("Power On: ", true), ("Power Off: ", false), ("After: ", false)] {
             let text = stdout.lines().find_map(|line| line.strip_prefix(prefix)).unwrap();
             let state = serde_json::from_str(text).unwrap();
+            device_state(&state, enabled);
+        }
+        for (name, enabled) in [("power-on", true), ("running", true), ("power-off", false), ("after", false)] {
+            let path = directory.join(format!("responses/{name}.json"));
+            let bytes = std::fs::read(path).unwrap();
+            let state = serde_json::from_slice(&bytes).unwrap();
             device_state(&state, enabled);
         }
         return;

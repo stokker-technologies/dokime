@@ -20,6 +20,7 @@ from pathlib import Path
 
 # Third Party Imports
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.message import Message
 
 from dokime.client import DokimeClient, DokimeError
 
@@ -40,6 +41,10 @@ from dokime.client import DokimeClient, DokimeError
 
 
 async def run(arguments: argparse.Namespace) -> int:
+    directory: Path | None = arguments.response_directory
+    if directory is not None:
+        directory.mkdir(parents=True, exist_ok=False)
+
     async with DokimeClient(
         arguments.endpoint,
         key_file=arguments.key_file,
@@ -51,21 +56,20 @@ async def run(arguments: argparse.Namespace) -> int:
                 print(f"Operation: {selected.operation.id} Provider: {selected.owner}", flush=True)
 
         state = await client.call("obc.device.read", {})
-        print("Before:", json.dumps(MessageToDict(state, always_print_fields_with_no_presence=True)), flush=True)
+        response(state, "Before", "before", directory)
         powered = await client.call("obc.device.set_power", {"enabled": True})
-        print("Power On:", json.dumps(MessageToDict(powered, always_print_fields_with_no_presence=True)), flush=True)
+        response(powered, "Power On", "power-on", directory)
         state = await client.call("obc.device.read", {})
-        observed = MessageToDict(state, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
+        observed = response(state, "Running", "running", directory)
         if observed.get("enabled") is not True or observed.get("voltage_rms_v") != 230.0:
             raise ValueError("manual device did not report the expected powered state")
 
         powered = await client.call("obc.device.set_power", {"enabled": False})
-        print("Power Off:", json.dumps(MessageToDict(powered, always_print_fields_with_no_presence=True)), flush=True)
+        response(powered, "Power Off", "power-off", directory)
         state = await client.call("obc.device.read", {})
-        observed = MessageToDict(state, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
+        observed = response(state, "After", "after", directory)
         if observed.get("enabled") is not False or observed.get("voltage_rms_v") != 0.0:
             raise ValueError("manual device did not report the expected powered-off state")
-        print("After:", json.dumps(observed), flush=True)
         return 0
 
 
@@ -75,6 +79,9 @@ def main() -> int:
     parser.add_argument("--ca-certificate", type=Path)
     parser.add_argument("--key-file", type=Path)
     parser.add_argument("--env-file", type=Path, help="Read this explicit dotenv file; process variables take precedence")
+    parser.add_argument(
+        "--response-directory", type=Path, help="Save Five JSON Replies In A New Directory; Existing Directories Are Refused"
+    )
     arguments = parser.parse_args()
     try:
         return asyncio.run(run(arguments))
@@ -88,6 +95,18 @@ def main() -> int:
 
 
 # === Private Functions === #
+
+
+def response(message: Message, label: str, filename: str, directory: Path | None) -> dict:
+    observed = MessageToDict(message, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
+    text = json.dumps(observed, indent=2) + "\n"
+    print(f"{label}: {json.dumps(observed)}", flush=True)
+    if directory is not None:
+        destination = directory / f"{filename}.json"
+        with destination.open("x", encoding="utf-8", newline="\n") as output:
+            output.write(text)
+    return observed
+
 
 # === Entry Point === #
 

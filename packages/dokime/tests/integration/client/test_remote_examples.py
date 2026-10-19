@@ -14,6 +14,7 @@
 # Standard Library Imports
 import argparse
 import asyncio
+import json
 import runpy
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,6 +42,69 @@ EXECUTION = "00000000-0000-0000-0000-000000000002"
 # === Classes === #
 
 # === Public Functions === #
+
+
+def test_device_response_directory_refuses_existing_data_before_connection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run = runpy.run_path(str(EXAMPLES / "control-device.py"))["run"]
+    existing = tmp_path / "before.json"
+    existing.write_text("original", encoding="utf-8")
+    connect = MagicMock()
+    monkeypatch.setitem(run.__globals__, "DokimeClient", connect)
+    arguments = argparse.Namespace(response_directory=tmp_path)
+
+    with pytest.raises(FileExistsError):
+        asyncio.run(run(arguments))
+    connect.assert_not_called()
+    assert existing.read_text(encoding="utf-8") == "original"
+
+
+@pytest.mark.parametrize("conflict", [False, True])
+def test_device_response_files_capture_each_reply_without_repeating_calls(
+    conflict: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = runpy.run_path(str(EXAMPLES / "control-device.py"))["run"]
+    off = {"enabled": False, "voltage_rms_v": 0.0}
+    on = {"enabled": True, "voltage_rms_v": 230.0}
+    directory = tmp_path / "new responses"
+    replies = iter([off, on, on, off, off])
+
+    async def reply(operation: str, request: dict) -> dict:
+        if conflict and operation == "obc.device.set_power" and request["enabled"]:
+            (directory / "power-on.json").write_text("concurrent output", encoding="utf-8")
+        return next(replies)
+
+    call = AsyncMock(side_effect=reply)
+    client = SimpleNamespace(operations=AsyncMock(return_value=[]), call=call)
+    connection = MagicMock()
+    connection.__aenter__ = AsyncMock(return_value=client)
+    connection.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setitem(run.__globals__, "DokimeClient", MagicMock(return_value=connection))
+    monkeypatch.setitem(run.__globals__, "MessageToDict", lambda message, **_options: message)
+    arguments = argparse.Namespace(
+        endpoint="http://fixture.invalid:8765", ca_certificate=None, key_file=None, env_file=None, response_directory=directory
+    )
+
+    if conflict:
+        with pytest.raises(FileExistsError):
+            asyncio.run(run(arguments))
+        assert (directory / "power-on.json").read_text(encoding="utf-8") == "concurrent output"
+        assert [item.args for item in call.await_args_list] == [
+            ("obc.device.read", {}),
+            ("obc.device.set_power", {"enabled": True}),
+        ]
+        return
+
+    assert asyncio.run(run(arguments)) == 0
+    for name, expected in [("before", off), ("power-on", on), ("running", on), ("power-off", off), ("after", off)]:
+        saved = json.loads((directory / f"{name}.json").read_text(encoding="utf-8"))
+        assert saved == expected
+    assert [item.args for item in call.await_args_list] == [
+        ("obc.device.read", {}),
+        ("obc.device.set_power", {"enabled": True}),
+        ("obc.device.read", {}),
+        ("obc.device.set_power", {"enabled": False}),
+        ("obc.device.read", {}),
+    ]
 
 
 @pytest.mark.parametrize("script", ["control-test", "control-prompt"])

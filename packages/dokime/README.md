@@ -149,6 +149,11 @@ downloaded from the host. Keep the key outside source files. The scripts in
 power, two executions in one cycle, and an execution confirmation. The test
 script follows filtered records and samples concurrently, drains both readers
 after the durable outcome, then exports each execution and the sealed cycle.
+The device script optionally accepts `--response-directory NEW_DIRECTORY` and
+saves the five successful replies as JSON objects with their Protobuf field
+names. It refuses an existing directory before connecting and never overwrites
+a response file. A local write failure can follow a successful device command;
+read the current device state before resending an unconfirmed operation.
 The test and prompt scripts request cancellation on Ctrl+C and save collected
 evidence; a failed connection reports recovery identities without claiming
 cancellation succeeded. Matching first-party release artifacts and the tutorial
