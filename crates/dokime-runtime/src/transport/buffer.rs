@@ -287,8 +287,8 @@ impl ExecutionState {
         self.subscriptions_settled
     }
 
-    pub(crate) fn staged_samples(&self) -> usize {
-        self.stream_rows.len()
+    pub(crate) fn staged_inputs(&self) -> usize {
+        self.stream_rows.len() + self.captured_records.len()
     }
 
     pub(crate) fn settle_record_subscriptions(&mut self) {

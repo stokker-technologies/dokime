@@ -1300,9 +1300,6 @@ async fn replay_stream(
         .await
         .map_err(samples_failure)?;
     let owner = &execution.scope;
-    let mut samples = Vec::new();
-    let mut bytes = 0;
-    let mut through = *replayed;
     while let Some(output) = reader.next().await.map_err(samples_failure)? {
         let QueryArrow::Batch(batch) = output else {
             continue;
@@ -1316,6 +1313,12 @@ async fn replay_stream(
             .ok_or_else(|| failure("sidecar_samples", "storage positions are missing"))?;
         let entries =
             crate::storage::telemetry::decode_batch(&codec, &batch).map_err(|error| samples_failure(replay_codec_error(error)))?;
+        // Deliver Each Source Page Before Reading The Next One. The child
+        // observes actual input progress even when the byte ceiling would
+        // otherwise retain several pages in the host's buffer.
+        let mut samples = Vec::new();
+        let mut bytes = 0;
+        let mut through = *replayed;
         for (index, entry) in entries.into_iter().enumerate() {
             let captured =
                 entry.sample.scope.as_ref().ok_or_else(|| failure("sidecar_samples", "captured sample has no execution scope"))?;
@@ -1338,10 +1341,10 @@ async fn replay_stream(
             samples.push(encoded);
             through = positions.value(index);
         }
+        deliver_replayed(target, execution, &scope_json, samples).await?;
+        *replayed = through;
     }
     reader.completion().map_err(samples_failure)?;
-    deliver_replayed(target, execution, &scope_json, samples).await?;
-    *replayed = through;
     Ok(())
 }
 

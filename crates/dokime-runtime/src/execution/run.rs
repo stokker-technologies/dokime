@@ -329,16 +329,15 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
     }
     let was_cancelled = *cancel.borrow();
     let bound = if was_cancelled { Duration::from_secs(1) } else { Duration::from_secs(35) };
-    // The host settles by handing the whole capture back, which takes as long
-    // as the capture is long; the bound is on a host that stops making
-    // progress, not on the length of what it is replaying.
+    // The host settles by handing captured records and samples back. Bound
+    // idle time between accepted inputs, rather than total replay duration.
     let mut deadline = tokio::time::Instant::now() + bound;
     let mut staged = None;
     loop {
         let progress = match lock(executions).get(token) {
             None => return Ok(()),
             Some(state) if state.record_subscriptions_settled() => return Ok(()),
-            Some(state) => state.staged_samples(),
+            Some(state) => state.staged_inputs(),
         };
         if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
             deadline = tokio::time::Instant::now() + bound;

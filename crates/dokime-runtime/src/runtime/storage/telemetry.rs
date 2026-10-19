@@ -307,7 +307,6 @@ impl super::executions::ExecutionStorage {
                     graph,
                     &harmos::config::SchemaSettings::default(),
                 )?;
-                self.storage.write_schema(codec.schema(), codec.graph()).await?;
                 codecs.insert(key.clone(), codec);
             }
             rows.push(prepare(&entry, &codecs[&key])?);

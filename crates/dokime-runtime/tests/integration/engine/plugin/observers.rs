@@ -437,15 +437,17 @@ impl AwaitEvent {
         let observed = ctx.listen::<Observed>().next().await.expect("the observer publishes");
         assert_eq!(observed.index, 0, "a step does not hear its own publication");
         ctx.publish(Observed { index: 777 }).await;
-        // On the paused clock the window elapses only once every task is idle.
+        // The Observer Owns Another Runtime. Wait For Its Event Before Pausing
+        // This Clock, Then Simulate Only The Duplicate-Delivery Window.
+        tokio::time::pause();
         let mut repeated = ctx.listen::<Observed>().skip(1);
-        tokio::select! {
+        let duplicate = tokio::select! {
             biased;
-            repeated = repeated.next() => {
-                panic!("the observer event is delivered only once: {:?}", repeated.map(|row| row.index))
-            }
-            () = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
+            repeated = repeated.next() => Some(repeated.map(|row| row.index)),
+            () = tokio::time::sleep(Duration::from_millis(10)) => None,
+        };
+        tokio::time::resume();
+        assert!(duplicate.is_none(), "the observer event is delivered only once: {duplicate:?}");
         Ok(())
     }
 
@@ -623,7 +625,7 @@ async fn activation_starts_execution() {
     assert_eq!(probe.checks.load(Ordering::SeqCst), settled);
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
     let checks = Arc::clone(&probe);

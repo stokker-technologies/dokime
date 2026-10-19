@@ -25,6 +25,10 @@ use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::schema::Described;
 use harmos::sidecar::StreamDeclaration;
+use harmos::storage::{
+    operations::Query,
+    query::{RowSlice, SchemaSelection, Source},
+};
 
 /* === Constants === */
 const SOURCE: &str = "fixture.shared";
@@ -186,6 +190,21 @@ async fn shared_stream_publishes() {
     assert!(
         ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );
+
+    // Run Admission Registers The Embedded Stream; Publication Only Appends Rows.
+    let contracts = handle.telemetry_contracts().await;
+    let stream = Identifier::new(Sample::ID).unwrap();
+    let contract = contracts.into_iter().find(|contract| contract.stream == stream);
+    let contract = contract.unwrap();
+    let codec = dokime_runtime::storage::telemetry::codec(&contract).unwrap();
+    let storage = handle.storage();
+    let at = storage.flush().await.unwrap();
+    let schema = codec.schema().clone();
+    let query =
+        Query { at, source: Source::Schemas(SchemaSelection { schema: Some(schema) }), transforms: Vec::new(), slice: RowSlice::default() };
+    let mut schemas = storage.query(query).await.unwrap();
+    while schemas.next().await.unwrap().is_some() {}
+    assert_eq!(schemas.completion().unwrap().rows, 1, "neither template republishes the admitted schema");
 
     drop(handle);
     runtime.shutdown().await.unwrap();
