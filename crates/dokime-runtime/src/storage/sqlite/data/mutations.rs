@@ -59,7 +59,7 @@ impl State {
                     if expires <= now {
                         continue;
                     }
-                    let encoded = entry::encode(&receipt, RECEIPT_BYTES)?;
+                    // Flushes Repeat The Unexpired Receipt Snapshot. Encode Only New Receipts.
                     let prior: Option<Vec<u8>> = transaction
                         .query_row(
                             "SELECT body FROM storage_mutations WHERE window=?1 AND key=?2",
@@ -77,6 +77,7 @@ impl State {
                         }
                         continue;
                     }
+                    let encoded = entry::encode(&receipt, RECEIPT_BYTES)?;
                     match &receipt.value {
                         MutationValue::Cursor(cursor) => {
                             history.check(&cursor.history)?;
