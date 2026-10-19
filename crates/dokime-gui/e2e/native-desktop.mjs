@@ -2628,20 +2628,27 @@ async function ownedStartupJourney() {
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
-  await closeSession();
-  await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
-  session = await startSession(work, undefined, evidence);
-  await session.connected();
-  const reopened = await session.executeAsync(`
+  const closing = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", reopened.connection.endpoint);
+  assert.equal(closing.ownership, "owned_local", "the cycle's current backend remains owned by this shell");
+  assert.ok(closing.connection?.endpoint, "the current owned companion has an endpoint before window close");
+  assert.ok(await listening(closing.connection.endpoint), "the current owned listener is live immediately before window close");
   await closeSession();
-  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
+  await until("owned backend drains on window close", async () => !(await listening(closing.connection.endpoint)), 30000);
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
+  await closeSession();
+  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing }, null, 2));
 }
 
-async function emptyCycleHistory(session, cycleId, title, endpoint) {
+async function emptyCycleHistory(session, cycleId, title, ownership) {
+  const previous = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
   // Discover The Saved Container Through The Mounted History Library
   await session.goto("/history");
   const opener = await until("the empty sealed cycle in History", () =>
@@ -2673,6 +2680,27 @@ async function emptyCycleHistory(session, cycleId, title, endpoint) {
   assert.equal((await session.findAll("css selector", "[role=alert]")).length, 0, "saved report delivery has no failure");
 
   // Verify The Same Sealed Evidence Is Exportable After Restart
+  // A Full Route Load Can Replace The Owned Companion And Its Listener.
+  const current = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(current.ownership, ownership, "history retains its selected backend ownership");
+  assert.ok(current.connection?.backend?.epoch, "the current native session reports a connected backend epoch");
+  const endpoint = current.connection.endpoint;
+  assert.ok(await listening(endpoint), "the current native backend accepts connections before export");
+  await writeFile(
+    join(evidence, `empty-cycle-${cycleId}-connection.json`),
+    JSON.stringify(
+      {
+        ownership: current.ownership,
+        before: { endpoint: previous.connection?.endpoint, epoch: previous.connection?.backend?.epoch },
+        after: { endpoint, epoch: current.connection.backend.epoch },
+      },
+      null,
+      2,
+    ),
+  );
   const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
   const result = await promisify(execFile)(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
     cwd: work,
@@ -2711,7 +2739,7 @@ async function restartJourney() {
     "the relaunched shell establishes the restarted backend epoch",
   );
   assert.equal(current.ownership, "attached");
-  await emptyCycleHistory(session, activeCycleId, "Server Restart Evidence", endpoint);
+  await emptyCycleHistory(session, activeCycleId, "Server Restart Evidence", "attached");
   await session.goto("/history");
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
