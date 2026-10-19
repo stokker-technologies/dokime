@@ -47,6 +47,8 @@ check = 2700
 # Measured on run 39135263053: the Linux acceptance lane spent about 10 minutes (download, extraction and
 # 58 stories) before the default 10-minute job budget cancelled it.
 "test:acceptance:rust" = 660
+# Successful hosted desktop job 117791229323 (run 39164579251), including setup and artifact handling.
+"test:system:typescript" = 239
 
 [ci.setup]
 # The desktop shell (Tauri/WebKitGTK) and native media capture compile against these system libraries; the

@@ -18,7 +18,7 @@ import type { PlotPlaceholderText } from "@/plots/plot-placeholder";
 /* === Types === */
 
 type PlotPlaceholderProps = PlotPlaceholderText & {
-  title: string;
+  title?: string;
   description?: string | null;
   actions?: ReactNode;
 };
@@ -33,7 +33,7 @@ export function PlotPlaceholder({ actions, description, detail, label, title }: 
       data-testid="plot-placeholder"
     >
       {actions ? <div className="absolute top-2 right-2">{actions}</div> : null}
-      <strong>{title}</strong>
+      {title ? <strong>{title}</strong> : null}
       {description ? <span className="text-xs">{description}</span> : null}
       <span>{label}</span>
       <span className="text-xs">{detail}</span>
