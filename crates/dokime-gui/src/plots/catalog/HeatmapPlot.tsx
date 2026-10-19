@@ -53,34 +53,22 @@ const LEGEND_HEIGHT = 8;
 export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
   const points = heatmapPoints(plot);
   const domain = heatmapDomain(points);
-  if (plot.xScale === "log" && points.length)
-    domain.minX = Math.max(domain.minX, Math.min(...points.map((point) => point.x)) / 2);
-  if (plot.yScale === "log" && points.length)
-    domain.minY = Math.max(domain.minY, Math.min(...points.map((point) => point.y)) / 2);
+  if (plot.xScale === "log" && points.length) domain.minX = Math.max(domain.minX, Math.min(...points.map((point) => point.x)) / 2);
+  if (plot.yScale === "log" && points.length) domain.minY = Math.max(domain.minY, Math.min(...points.map((point) => point.y)) / 2);
   const zValues = points.map((point) => point.z);
   const minZ = zValues.length ? Math.min(...zValues) : null;
   const maxZ = zValues.length ? Math.max(...zValues) : null;
   const zDomain = normalizedZDomain(minZ, maxZ);
   const plotWidth = SVG_WIDTH - MARGIN.left - MARGIN.right;
   const plotHeight = SVG_HEIGHT - MARGIN.top - MARGIN.bottom;
-  const xScale = (plot.xScale === "log" ? scaleLog : scaleLinear)(
-    [domain.minX, domain.maxX],
-    [MARGIN.left, MARGIN.left + plotWidth],
-  );
-  const yScale = (plot.yScale === "log" ? scaleLog : scaleLinear)(
-    [domain.minY, domain.maxY],
-    [MARGIN.top + plotHeight, MARGIN.top],
-  );
+  const xScale = (plot.xScale === "log" ? scaleLog : scaleLinear)([domain.minX, domain.maxX], [MARGIN.left, MARGIN.left + plotWidth]);
+  const yScale = (plot.yScale === "log" ? scaleLog : scaleLinear)([domain.minY, domain.maxY], [MARGIN.top + plotHeight, MARGIN.top]);
   const colorScale = scaleSequential(interpolateYlOrRd).domain(zDomain);
   const surface =
-    points.length >= CONTOUR_MIN_POINTS && plot.xScale !== "log" && plot.yScale !== "log"
-      ? griddedSurface(points, domain)
-      : null;
+    points.length >= CONTOUR_MIN_POINTS && plot.xScale !== "log" && plot.yScale !== "log" ? griddedSurface(points, domain) : null;
   const contourPath = geoPath();
   const contourShapes = surface
-    ? contours().size([GRID_COLUMNS, GRID_ROWS]).thresholds(contourThresholds(zDomain))(
-        surface.map((cell) => cell.z),
-      )
+    ? contours().size([GRID_COLUMNS, GRID_ROWS]).thresholds(contourThresholds(zDomain))(surface.map((cell) => cell.z))
     : [];
   const legendId = `heatmap-legend-${plot.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const clipId = `${legendId}-clip`;
@@ -98,21 +86,14 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
     : (plot.stateDetail ?? "No XY samples with numeric Z values are available.");
 
   return (
-    <article
-      className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-md bg-muted/20 p-3"
-      data-testid="heatmap-plot"
-    >
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-md bg-muted/20 p-3" data-testid="heatmap-plot">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
-          {plot.description ? (
-            <p className="text-xs text-muted-foreground">{plot.description}</p>
-          ) : null}
+          {plot.description ? <p className="text-xs text-muted-foreground">{plot.description}</p> : null}
           <p className="text-xs text-muted-foreground">{summary}</p>
         </div>
-        <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold">
-          Heatmap
-        </span>
+        <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold">Heatmap</span>
       </header>
 
       {points.length ? (
@@ -131,13 +112,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                 {Array.from({ length: 9 }, (_, index) => {
                   const t = index / 8;
                   const value = zDomain[0] + (zDomain[1] - zDomain[0]) * t;
-                  return (
-                    <stop
-                      key={`legend-${value}`}
-                      offset={`${t * 100}%`}
-                      stopColor={colorScale(value)}
-                    />
-                  );
+                  return <stop key={`legend-${value}`} offset={`${t * 100}%`} stopColor={colorScale(value)} />;
                 })}
               </linearGradient>
             </defs>
@@ -152,40 +127,16 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
             />
             {xScale.ticks(6).map((tick) => (
               <g key={`x-${tick}`} transform={`translate(${xScale(tick)} 0)`}>
-                <line
-                  stroke="var(--border)"
-                  x1={0}
-                  x2={0}
-                  y1={MARGIN.top}
-                  y2={MARGIN.top + plotHeight}
-                />
-                <text
-                  fill="var(--muted-foreground)"
-                  fontSize={11}
-                  textAnchor="middle"
-                  x={0}
-                  y={MARGIN.top + plotHeight + 20}
-                >
+                <line stroke="var(--border)" x1={0} x2={0} y1={MARGIN.top} y2={MARGIN.top + plotHeight} />
+                <text fill="var(--muted-foreground)" fontSize={11} textAnchor="middle" x={0} y={MARGIN.top + plotHeight + 20}>
                   {formatNumber(tick, plot.xFormat ?? null)}
                 </text>
               </g>
             ))}
             {yScale.ticks(5).map((tick) => (
               <g key={`y-${tick}`} transform={`translate(0 ${yScale(tick)})`}>
-                <line
-                  stroke="var(--border)"
-                  x1={MARGIN.left}
-                  x2={MARGIN.left + plotWidth}
-                  y1={0}
-                  y2={0}
-                />
-                <text
-                  fill="var(--muted-foreground)"
-                  fontSize={11}
-                  textAnchor="end"
-                  x={MARGIN.left - 10}
-                  y={4}
-                >
+                <line stroke="var(--border)" x1={MARGIN.left} x2={MARGIN.left + plotWidth} y1={0} y2={0} />
+                <text fill="var(--muted-foreground)" fontSize={11} textAnchor="end" x={MARGIN.left - 10} y={4}>
                   {formatNumber(tick, plot.yFormat ?? null)}
                 </text>
               </g>
@@ -196,12 +147,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                 transform={`translate(${MARGIN.left} ${MARGIN.top}) scale(${plotWidth / GRID_COLUMNS} ${plotHeight / GRID_ROWS})`}
               >
                 {contourShapes.map((shape) => (
-                  <path
-                    d={contourPath(shape) ?? undefined}
-                    fill={colorScale(shape.value)}
-                    key={shape.value}
-                    stroke="none"
-                  >
+                  <path d={contourPath(shape) ?? undefined} fill={colorScale(shape.value)} key={shape.value} stroke="none">
                     <title>
                       Value contour {formatScore(shape.value)}
                       {plot.unit ?? ""}
@@ -259,14 +205,8 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                 const second = referenceCoordinate(band.axis, band.max);
                 if (first === null || second === null) return null;
 
-                const start = Math.max(
-                  Math.min(first, second),
-                  band.axis === "x" ? MARGIN.left : MARGIN.top,
-                );
-                const end = Math.min(
-                  Math.max(first, second),
-                  band.axis === "x" ? MARGIN.left + plotWidth : MARGIN.top + plotHeight,
-                );
+                const start = Math.max(Math.min(first, second), band.axis === "x" ? MARGIN.left : MARGIN.top);
+                const end = Math.min(Math.max(first, second), band.axis === "x" ? MARGIN.left + plotWidth : MARGIN.top + plotHeight);
                 if (end <= start) return null;
 
                 const x = band.axis === "x" ? start : MARGIN.left;
@@ -286,12 +226,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                       fillOpacity={0.15}
                     />
                     {band.label ? (
-                      <text
-                        x={x + 4}
-                        y={Math.min(y + 14, MARGIN.top + plotHeight - 4)}
-                        fill={color}
-                        fontSize={11}
-                      >
+                      <text x={x + 4} y={Math.min(y + 14, MARGIN.top + plotHeight - 4)} fill={color} fontSize={11}>
                         {band.label}
                       </text>
                     ) : null}
@@ -325,23 +260,11 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                     />
                     {line.label ? (
                       <text
-                        x={
-                          line.axis === "x"
-                            ? Math.min(coordinate + 4, MARGIN.left + plotWidth - 4)
-                            : MARGIN.left + 4
-                        }
-                        y={
-                          line.axis === "y"
-                            ? Math.max(coordinate - 4, MARGIN.top + 14)
-                            : MARGIN.top + 14
-                        }
+                        x={line.axis === "x" ? Math.min(coordinate + 4, MARGIN.left + plotWidth - 4) : MARGIN.left + 4}
+                        y={line.axis === "y" ? Math.max(coordinate - 4, MARGIN.top + 14) : MARGIN.top + 14}
                         fill={color}
                         fontSize={11}
-                        textAnchor={
-                          line.axis === "x" && coordinate > MARGIN.left + plotWidth / 2
-                            ? "end"
-                            : "start"
-                        }
+                        textAnchor={line.axis === "x" && coordinate > MARGIN.left + plotWidth / 2 ? "end" : "start"}
                       >
                         {line.label}
                       </text>
@@ -373,23 +296,11 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
               <text fill="var(--muted-foreground)" fontSize={11} x={0} y={0}>
                 Value {plot.unit ?? ""}
               </text>
-              <rect
-                fill={`url(#${legendId})`}
-                height={LEGEND_HEIGHT}
-                rx={4}
-                width={LEGEND_WIDTH}
-                y={12}
-              />
+              <rect fill={`url(#${legendId})`} height={LEGEND_HEIGHT} rx={4} width={LEGEND_WIDTH} y={12} />
               <text fill="var(--muted-foreground)" fontSize={10} x={0} y={34}>
                 {formatScore(minZ)}
               </text>
-              <text
-                fill="var(--muted-foreground)"
-                fontSize={10}
-                textAnchor="end"
-                x={LEGEND_WIDTH}
-                y={34}
-              >
+              <text fill="var(--muted-foreground)" fontSize={10} textAnchor="end" x={LEGEND_WIDTH} y={34}>
                 {formatScore(maxZ)}
               </text>
             </g>
@@ -413,11 +324,7 @@ export function heatmapPoints(plot: PlotCardSpec): HeatmapPoint[] {
         const x = finiteNumber(point.x);
         const y = finiteNumber(point.y);
         const z = finiteNumber(point.z);
-        return x === null ||
-          y === null ||
-          z === null ||
-          (plot.xScale === "log" && x <= 0) ||
-          (plot.yScale === "log" && y <= 0)
+        return x === null || y === null || z === null || (plot.xScale === "log" && x <= 0) || (plot.yScale === "log" && y <= 0)
           ? null
           : { x, y, z };
       })

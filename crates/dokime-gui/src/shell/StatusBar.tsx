@@ -11,12 +11,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,23 +27,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  type CycleLifecycle,
-  cycleStatusLabel,
-  cycleStatusVariant,
-  STATUS_PILL_CLASS,
-} from "@/features/cycle/cycle-workspace-model";
+import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
-import { CycleStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
-import { consoleAttentionCount } from "@/shell/ConsoleDrawer";
+import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
 import { useRouteCycleId } from "@/shell/route-scope";
-import { useSidebarState } from "@/shell/use-sidebar-state";
+import {
+  type BackendOperation,
+  operationPercent,
+  operationPhaseLabel,
+  operationsCountLabel,
+  summarizeOperations,
+} from "@/shell/status-bar-operations";
+import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
 
 /* === Types === */
@@ -64,7 +67,7 @@ type AttentionEntry = {
 
 /* === Constants === */
 
-const ACTIVE_CYCLE_STATUSES = [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING];
+const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
 
 const statusItemClassName =
   "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -84,63 +87,27 @@ const CONNECTION_LABEL = {
  * Its first cell is the sidebar's column and carries the one collapse toggle,
  * at the bar's own height — so the sidebar simply ends where this bar begins
  * and nothing stands taller than the band beside it. The remaining column
- * holds the four facts in two groups on one baseline: what the backend is and
- * what it stores from the left inset; what needs the operator and what is
- * running from the right.
+ * holds its facts in two groups on one baseline: what the backend is and
+ * what it stores from the left inset; what the backend is busy with, what
+ * needs the operator and what is running from the right.
  */
 export function StatusBar(props: StatusBarProps) {
-  const sidebar = useSidebarState();
-  const frozen = props.live === false ? props.frozen : null;
-
+  if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
   return (
-    <footer
-      className="grid shrink-0 border-t bg-card text-xs text-muted-foreground"
-      style={{
-        gridTemplateColumns: `${sidebar.width} minmax(0,1fr)`,
-        height: "var(--status-bar-height)",
-      }}
-    >
-      <div className="grid place-items-center border-r">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              aria-label={sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-              className="size-[var(--status-bar-height)] rounded-none"
-              onClick={sidebar.toggle}
-              size="icon-sm"
-              variant="ghost"
-            >
-              {sidebar.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            {sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          </TooltipContent>
-        </Tooltip>
+    <StatusBarFrame>
+      <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
+        <div className="flex min-w-0 items-stretch gap-6">
+          <BackendItem />
+          <StorageItem />
+        </div>
+        <div className="flex min-w-0 items-stretch gap-6">
+          <OperationsItem />
+          <AttentionItem />
+          <ActivityItem />
+          <ConsoleItem />
+        </div>
       </div>
-      {frozen ? (
-        /* A file has no connection and nothing needing attention. The page bar
-           above states what it is and when it was written, so the bar states
-           only how the cycle ended rather than repeating the provenance. */
-        <div className="flex min-w-0 items-center justify-end gap-6 px-[var(--shell-inset)]">
-          <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(frozen.status)}>
-            {cycleStatusLabel(frozen.status)}
-          </Badge>
-        </div>
-      ) : (
-        <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
-          <div className="flex min-w-0 items-stretch gap-6">
-            <BackendItem />
-            <StorageItem />
-          </div>
-          <div className="flex min-w-0 items-stretch gap-6">
-            <AttentionItem />
-            <ActivityItem />
-            <ConsoleItem />
-          </div>
-        </div>
-      )}
-    </footer>
+    </StatusBarFrame>
   );
 }
 
@@ -165,9 +132,7 @@ function ConsoleItem() {
     <button
       aria-label={drawer.open ? "Close Console" : "Open Console"}
       className={cn(statusItemClassName, "gap-1.5", unseen > 0 ? "text-warning" : null)}
-      onClick={() =>
-        setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })
-      }
+      onClick={() => setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })}
       type="button"
     >
       <SquareTerminal className="size-3.5" />
@@ -178,6 +143,85 @@ function ConsoleItem() {
         </Badge>
       ) : null}
     </button>
+  );
+}
+
+/**
+ * The backend's slow work, before what needs the operator.
+ *
+ * One operation shows its label, its phase and how far it has come; several
+ * collapse to a count named after the longest running, and open a list of
+ * every one. The segment is absent while the backend is idle.
+ */
+export function OperationsItem() {
+  const operations = useHubStore((state) => state.operations);
+  const summary = summarizeOperations(operations);
+
+  if (summary.kind === "idle") return null;
+  const shown = summary.kind === "single" ? summary.operation : summary.longest;
+  const listed = summary.kind === "single" ? [summary.operation] : summary.operations;
+  const label = summary.kind === "single" ? shown.label : operationsCountLabel(summary.count);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={`${label}: ${operationPhaseLabel(shown)}`}
+        className={cn(
+          statusItemClassName,
+          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_4rem] gap-2",
+          shown.status === "failed" ? "text-destructive" : null,
+        )}
+        data-testid="status-operations"
+        type="button"
+      >
+        <span className="truncate font-medium text-foreground">{label}</span>
+        <span className="truncate">{summary.kind === "many" ? shown.label : operationPhaseLabel(shown)}</span>
+        <OperationBar operation={shown} />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="grid w-80 gap-3 text-xs" side="top">
+        <span className="font-medium">Backend Operations</span>
+        {listed.map((operation) => (
+          <span className="grid gap-1" key={operation.id}>
+            <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <span className="truncate font-medium">{operation.label}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {operationPercent(operation) === null ? "" : `${operationPercent(operation)}%`}
+              </span>
+            </span>
+            <span className={cn("truncate", operation.status === "failed" ? "text-destructive" : "text-muted-foreground")}>
+              {operation.failure ?? operationPhaseLabel(operation)}
+            </span>
+            <OperationBar operation={operation} />
+          </span>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A thin bar: filled to the fraction, or a shimmer while the backend cannot tell. */
+function OperationBar({ operation }: { operation: BackendOperation }) {
+  const percent = operationPercent(operation);
+  return (
+    <span
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={percent ?? undefined}
+      className="relative h-1 w-full self-center overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+    >
+      {percent === null && operation.status === "running" ? (
+        <span className="absolute inset-y-0 w-2/5 animate-progress-indeterminate rounded-full bg-primary motion-reduce:animate-none" />
+      ) : (
+        <span
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full transition-[width]",
+            operation.status === "failed" ? "bg-destructive" : "bg-primary",
+          )}
+          style={{ width: `${operation.status === "running" ? (percent ?? 0) : 100}%` }}
+        />
+      )}
+    </span>
   );
 }
 
@@ -216,11 +260,7 @@ function StorageItem() {
   return (
     <StatusReadout
       tone="neutral"
-      value={
-        enabled === undefined
-          ? "Storage Unknown"
-          : `${enabled} ${enabled === 1 ? "Source" : "Sources"} Enabled`
-      }
+      value={enabled === undefined ? "Storage Unknown" : `${enabled} ${enabled === 1 ? "Source" : "Sources"} Enabled`}
     />
   );
 }
@@ -236,9 +276,7 @@ function AttentionItem() {
       label: prompt.title,
       open: () => {
         const cycleId = prompt.scope?.test_cycle_id;
-        void (cycleId
-          ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" })
-          : navigate({ to: "/cycles" }));
+        void (cycleId ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
       },
     })),
     ...(artifacts.data ?? [])
@@ -281,9 +319,7 @@ function AttentionItem() {
 function ActivityItem() {
   const navigate = useNavigate();
   const cycles = useCyclesQuery();
-  const active = (cycles.data ?? []).filter((cycle) =>
-    ACTIVE_CYCLE_STATUSES.includes(cycle.status),
-  );
+  const active = (cycles.data ?? []).filter((cycle) => ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""));
 
   if (!active.length) {
     return <StatusReadout tone="neutral" value="No Active Cycles" />;
@@ -294,9 +330,7 @@ function ActivityItem() {
       className={cn(statusItemClassName, "text-success")}
       onClick={() => {
         const only = active.length === 1 ? active[0] : undefined;
-        void (only
-          ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" })
-          : navigate({ to: "/cycles" }));
+        void (only ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
       }}
       type="button"
     >
@@ -305,15 +339,7 @@ function ActivityItem() {
   );
 }
 
-function StatusReadout({
-  title,
-  tone,
-  value,
-}: {
-  title?: string;
-  tone: "neutral" | "good" | "warn" | "bad";
-  value: ReactNode;
-}) {
+function StatusReadout({ title, tone, value }: { title?: string; tone: "neutral" | "good" | "warn" | "bad"; value: ReactNode }) {
   return (
     <span className={cn(statusItemClassName, "cursor-default", toneClassName(tone))} title={title}>
       {value}

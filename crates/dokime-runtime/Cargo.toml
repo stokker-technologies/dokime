@@ -1,0 +1,198 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-runtime"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html"]
+
+[features]
+default = ["native", "derive"]
+native = ["harmos/plugin-sidecar", "dep:globset", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber", "dep:tracing-error"]
+derive = ["dep:dokime-macros"]
+storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+host = [
+  "native",
+  "derive",
+  "storage",
+  "dep:arrow-select",
+  "dep:async-trait",
+  "dep:base64",
+  "dep:blake2",
+  "dep:cssparser",
+  "dep:dokime-host",
+  "dep:file-id",
+  "dep:futures-util",
+  "dep:keyring",
+  "dep:rustls-platform-verifier",
+  "dep:serde_arrow",
+  "dep:sha2",
+  "dep:suppaftp",
+  "dep:sysinfo",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:tokio-util",
+  "dep:toml",
+  "dep:walkdir",
+  "dep:zip",
+  "harmos/grpc",
+  "harmos/plugin-sidecar",
+]
+fault-injection = ["host"]
+fft = ["host", "harmos/signal-fft"]
+media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
+simulation = ["host", "harmos/simulation"]
+
+[dependencies]
+# Local
+dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
+dokime-host = { path = "../dokime-host", optional = true }
+dokime-macros = { path = "../dokime-macros", optional = true }
+
+# Git
+harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos-packaging = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-error = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+
+# Utilities
+blake2 = { workspace = true, optional = true }
+keyring = { workspace = true, optional = true }
+regex = { workspace = true }
+sha2 = { workspace = true, optional = true }
+time = { workspace = true }
+uuid = { workspace = true, features = ["js"] }
+
+# Serialization
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-select = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+hound = { workspace = true, optional = true }
+image = { workspace = true, optional = true, features = ["jpeg", "png"] }
+prost = { workspace = true }
+serde = { workspace = true }
+serde_arrow = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+sysinfo = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+
+# Filesystem
+globset = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+walkdir = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+
+# Parsing
+cssparser = { workspace = true, optional = true }
+
+# Async
+async-trait = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["process"], optional = true }
+tokio-stream = { workspace = true, features = ["sync"], optional = true }
+tokio-util = { workspace = true, features = ["io", "rt"], optional = true }
+
+# Networking
+rustls-platform-verifier = { workspace = true, optional = true }
+suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"], optional = true }
+
+# Storage
+rusqlite = { workspace = true, optional = true }
+
+# UI
+cpal = { workspace = true, optional = true }
+nokhwa = { workspace = true, optional = true, features = ["input-native"] }
+
+[target."cfg(unix)".dependencies]
+# Utilities
+libc = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Networking
+url = { workspace = true, optional = true }
+
+# UI
+ashpd = { workspace = true, optional = true, features = ["screenshot"] }
+
+[target."cfg(windows)".dependencies]
+# Filesystem
+# Windows has no inode in std metadata; the volume serial and file index tell a rotated file from a truncated one.
+file-id = { workspace = true, optional = true }
+
+[target."cfg(any(windows, target_os = \"macos\"))".dependencies]
+# UI
+xcap = { workspace = true, optional = true }
+
+
+[dev-dependencies]
+# Git
+harmos = { workspace = true, features = ["plugin-sidecar"] }
+
+# Logging
+tracing-subscriber = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["test-util"] }
+
+# Networking
+libunftp = { workspace = true, features = ["ring"] }
+unftp-core = { workspace = true }
+unftp-sbe-fs = { workspace = true }
+
+# Storage
+rusqlite = { workspace = true }
+
+# Testing
+criterion = { workspace = true }
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+required-features = ["host", "fault-injection"]
+
+[[test]]
+name = "acceptance"
+path = "tests/acceptance/main.rs"
+required-features = ["host", "fault-injection"]
+
+[[bench]]
+name = "unit-runtime"
+path = "benches/unit/main.rs"
+harness = false
+required-features = ["host"]
+
+[[bench]]
+name = "integration-runtime"
+path = "benches/integration/main.rs"
+harness = false
+required-features = ["host"]
+
+[[bench]]
+name = "system-runtime"
+path = "benches/system/main.rs"
+harness = false
+required-features = ["host"]

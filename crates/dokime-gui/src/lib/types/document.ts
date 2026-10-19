@@ -7,16 +7,11 @@
  * ***
  */
 
-import type {
-  DocumentStatistic,
-  JsonObject,
-  Metadata,
-  MetricPresentation,
-  MetricState,
-} from "../types";
+import type { DocumentStatistic, JsonObject, Metadata, MetricPresentation, MetricState } from "../types";
 import type { ValueFormat } from "./format";
 import type {
   DocumentAxisScale,
+  DocumentDownsampleTechnique,
   DocumentFftOptions,
   DocumentHistogramOptions,
   DocumentPlotAxisKind,
@@ -31,15 +26,7 @@ import type {
 
 export type DocumentDataExpression = JsonObject;
 
-export type DocumentFilterOperator =
-  | "eq"
-  | "ne"
-  | "gt"
-  | "gte"
-  | "lt"
-  | "lte"
-  | "contains"
-  | "exists";
+export type DocumentFilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";
 
 export type DocumentFilter = {
   expression: DocumentDataExpression;
@@ -120,7 +107,6 @@ export type DocumentViewPlot = {
   x?: string | null;
   series_by?: string | null;
   unit?: string | null;
-  group: string;
   description?: string | null;
   marker_record_types?: string[];
   filters?: DocumentFilter[];
@@ -131,29 +117,10 @@ export type DocumentViewPlot = {
   y_format?: ValueFormat | null;
   /** Absent for a payload written before the axis was declared on the wire. */
   x_axis?: DocumentPlotAxisKind | null;
-};
-
-export type DocumentViewHistogram = {
-  histogram_id: string;
-  title: string;
-  stream: string;
-  field: string;
-  group: string;
-  unit?: string | null;
-  description?: string | null;
-  bins: number;
-  live_window_s?: number | null;
-};
-
-export type DocumentViewBoxSummary = {
-  box_summary_id: string;
-  title: string;
-  stream: string;
-  field: string;
-  group: string;
-  unit?: string | null;
-  description?: string | null;
-  live_window_s?: number | null;
+  /** Displayed points; absent or `null` is the host default, `0` keeps every sample. */
+  display_points?: number | null;
+  /** Reduction technique; absent is the host default (`auto`). */
+  downsample?: DocumentDownsampleTechnique | null;
 };
 
 /** Presentation-ready table row: cells are already formatted for display, so no
@@ -174,8 +141,6 @@ export type DocumentViewCard = {
     | "criteria"
     | "steps"
     | "plots"
-    | "histograms"
-    | "box_summaries"
     | "notes"
     | "records"
     | "health"
@@ -195,8 +160,6 @@ export type DocumentViewCard = {
   region: "main" | "sidebar";
   groups: DocumentViewMetricGroup[];
   plots: DocumentViewPlot[];
-  histograms: DocumentViewHistogram[];
-  box_summaries: DocumentViewBoxSummary[];
   rows: DocumentViewTableRow[];
   show_report_outcome: boolean;
   max_items?: number | null;

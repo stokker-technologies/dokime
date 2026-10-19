@@ -13,49 +13,72 @@
 
 /* === Local Imports === */
 
-import { create } from "@bufbuild/protobuf";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  ExecutionCheckpointSchema,
-  type ExecutionCheckpoint as NativeExecutionCheckpoint,
-  type StorageCursor as NativeStorageCursor,
-} from "@/lib/rpc/generated/dokime/v1/checkpoint_pb";
-import type { Severity } from "@/lib/rpc/generated/dokime/v1/common_pb";
-import {
-  type ArtifactFrame,
-  type ArtifactMetadata,
-  ArtifactState,
-  ExecutionFileKind,
-  type ExecutionFileMetadata,
-  ExecutionFileState,
-  type ExecutionFileWindow,
-} from "@/lib/rpc/generated/dokime/v1/content_pb";
-import type { CapturedRecord } from "@/lib/rpc/generated/dokime/v1/evidence_pb";
-import { ExecutionStatus, ResultStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import {
-  type CheckpointContext,
-  type CheckpointDocument,
-  type CheckpointEvidence,
-  type CheckpointRecordPage,
-  type CheckpointTelemetryPage,
-  EvidenceSection,
-  ExecutionAvailability,
-  type HistoricalExecutionMetadata,
-  type HistoryIssue,
-  type ExecutionBrowsePage as NativeExecutionBrowsePage,
-} from "@/lib/rpc/generated/dokime/v1/history_pb";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
+  CheckpointCursor,
+  ExecutionBrowseCycle,
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
-import {
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  nativeValueObjectToJson,
-  timestampIso,
-} from "./native-values";
+import type { Row18 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type {
+  Row14 as GeneratedExecutionAvailability,
+  Row15 as GeneratedExecutionBrowseLifecycle,
+  Row8 as GeneratedExecutionStatus,
+  Row12 as GeneratedHistoricalExecutionMetadata,
+  Row6 as GeneratedHistoryIssue,
+  Row2 as GeneratedNativeExecutionBrowsePage,
+  Row13 as GeneratedNativeExecutionCheckpoint,
+  Row35 as GeneratedNativeStorageCursor,
+} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row3 as GeneratedArtifactFrame,
+  Row11 as GeneratedArtifactMetadata,
+  Row15 as GeneratedArtifactState,
+} from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
+import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointDocument } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
+import type {
+  Row2 as GeneratedCheckpointEvidence,
+  Row15 as GeneratedExecutionFileKind,
+  Row5 as GeneratedExecutionFileMetadata,
+  Row16 as GeneratedExecutionFileState,
+} from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
+import type {
+  Row7 as GeneratedCapturedRecord,
+  Row2 as GeneratedCheckpointRecordPage,
+  Row10 as GeneratedSeverity,
+} from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
+import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
+
+type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
+type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
+type Severity = Wire<GeneratedSeverity>;
+type ArtifactFrame = Wire<GeneratedArtifactFrame>;
+type ArtifactMetadata = Wire<GeneratedArtifactMetadata>;
+type ArtifactState = Wire<GeneratedArtifactState>;
+type ExecutionFileKind = Wire<GeneratedExecutionFileKind>;
+type ExecutionFileState = Wire<GeneratedExecutionFileState>;
+type ExecutionFileMetadata = Wire<GeneratedExecutionFileMetadata>;
+type ExecutionFileWindow = Wire<GeneratedExecutionFileWindow>;
+type CapturedRecord = Wire<GeneratedCapturedRecord>;
+type ExecutionStatus = Wire<GeneratedExecutionStatus>;
+type ResultStatus = Wire<GeneratedResultStatus>;
+type CheckpointContext = Wire<GeneratedCheckpointContext>;
+type CheckpointDocument = Wire<GeneratedCheckpointDocument>;
+type CheckpointEvidence = Wire<GeneratedCheckpointEvidence>;
+type CheckpointRecordPage = Wire<GeneratedCheckpointRecordPage>;
+type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
+type ExecutionAvailability = Wire<GeneratedExecutionAvailability>;
+type ExecutionBrowseLifecycle = Wire<GeneratedExecutionBrowseLifecycle>;
+type HistoricalExecutionMetadata = Wire<GeneratedHistoricalExecutionMetadata>;
+type HistoryIssue = Wire<GeneratedHistoryIssue>;
+type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
 
 /* === Limits and session ownership === */
 
@@ -80,22 +103,19 @@ export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionC
   ) {
     throw new Error("Invalid checkpoint identity or revision token.");
   }
-  const position = cursorKey(checkpoint.position);
-  const evidence = cursorKey(checkpoint.evidenceThrough);
-  if (
-    position[0] !== evidence[0] ||
-    position[1] !== evidence[1] ||
-    checkpoint.evidenceThrough!.sequence > checkpoint.position!.sequence
-  ) {
+  const positionCursor = checkpointCursor(checkpoint.position);
+  const evidenceCursor = checkpointCursor(checkpoint.evidenceThrough);
+  const position = cursorKey(positionCursor);
+  const evidence = cursorKey(evidenceCursor);
+  if (position[0] !== evidence[0] || position[1] !== evidence[1] || evidenceCursor.sequence > positionCursor.sequence) {
     throw new Error("Checkpoint evidence differs from inspected history.");
   }
-  const version = Array.from(checkpoint.version, (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
+  const version = Array.from(checkpoint.version, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return JSON.stringify([checkpoint.executionIdentifier, position, version, evidence]);
 }
 
-function cursorKey(cursor: CheckpointReference["position"] | NativeStorageCursor | undefined) {
+/** The cursor narrowed to its validated fields; throws when it is absent or out of bounds. */
+function checkpointCursor(cursor: CheckpointReference["position"] | NativeStorageCursor | undefined): CheckpointCursor {
   if (
     !cursor?.history?.store ||
     !cursor.history.epoch ||
@@ -107,28 +127,27 @@ function cursorKey(cursor: CheckpointReference["position"] | NativeStorageCursor
   ) {
     throw new Error("Invalid checkpoint storage cursor.");
   }
+  return {
+    history: { store: cursor.history.store, epoch: cursor.history.epoch },
+    sequence: cursor.sequence,
+  };
+}
+
+function cursorKey(cursor: CheckpointCursor) {
   return [cursor.history.store, cursor.history.epoch, cursor.sequence.toString()] as const;
 }
 
 function nativeCheckpoint(checkpoint: CheckpointReference): NativeExecutionCheckpoint {
   checkpointKey(checkpoint);
-  return create(ExecutionCheckpointSchema, checkpoint);
+  return checkpoint;
 }
 
-function assertActive(
-  session: SessionIdentity,
-  signal: AbortSignal | undefined,
-  operation: string,
-): void {
+function assertActive(session: SessionIdentity, signal: AbortSignal | undefined, operation: string): void {
   if (signal?.aborted) throw new Error(`${operation} was cancelled.`);
   if (!session.isCurrent()) throw new Error(`${operation} lost its owning connection.`);
 }
 
-function assertCheckpoint(
-  actual: NativeExecutionCheckpoint | undefined,
-  expected: CheckpointReference,
-  operation: string,
-): void {
+function assertCheckpoint(actual: NativeExecutionCheckpoint | undefined, expected: CheckpointReference, operation: string): void {
   if (!actual || checkpointKey(actual) !== checkpointKey(expected)) {
     throw new Error(`${operation} returned a different checkpoint.`);
   }
@@ -203,6 +222,7 @@ export async function fetchNativeExecutionPage(
     omitted_conflicts: page.omittedConflicts,
     issues: page.issues.map(mapIssue),
     omitted_issues: page.omittedIssues,
+    cycles: page.cycles.map(mapBrowseCycle),
   };
 }
 
@@ -217,9 +237,7 @@ export async function deleteNativeExecution(
   local_complete: boolean;
 }> {
   if (!requestIdentifier || new TextEncoder().encode(requestIdentifier).byteLength > 256) {
-    throw new Error(
-      "History.DeleteExecution requires a request identifier of 1 to 256 UTF-8 bytes.",
-    );
+    throw new Error("History.DeleteExecution requires a request identifier of 1 to 256 UTF-8 bytes.");
   }
 
   assertActive(session, undefined, "History.DeleteExecution");
@@ -250,24 +268,52 @@ function mapBrowseEntry(entry: NativeExecutionBrowsePage["entries"][number]): Ex
     metadata: mapExecutionMetadata(metadata),
     checkpoint: entry.checkpoint ? mapCheckpoint(entry.checkpoint) : null,
     availability: mapAvailability(entry.availability),
+    archived: entry.archived,
   };
+}
+
+function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): ExecutionBrowseCycle {
+  const count = (value: bigint, label: string) => safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
+  return {
+    cycle_id: cycle.cycleId,
+    label: cycle.label ?? null,
+    lifecycle: mapBrowseLifecycle(cycle.lifecycle),
+    result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
+    case_count: count(cycle.caseCount, "case"),
+    execution_count: count(cycle.executionCount, "execution"),
+    unrun_count: count(cycle.unrunCount, "unrun"),
+    queued_count: count(cycle.queuedCount, "queued"),
+    running_count: count(cycle.runningCount, "running"),
+    passed_count: count(cycle.passedCount, "passed"),
+    failed_count: count(cycle.failedCount, "failed"),
+    blocked_count: count(cycle.blockedCount, "blocked"),
+    started_at: timestampIso(cycle.startedAt),
+    finished_at: timestampIso(cycle.finishedAt),
+  };
+}
+
+function mapBrowseLifecycle(value: ExecutionBrowseLifecycle | undefined): ExecutionBrowseCycle["lifecycle"] {
+  switch (value?.HarmosVariant.case) {
+    case "Running":
+      return "running";
+    case "Interrupted":
+      return "interrupted";
+    case "Uncheckpointed":
+      return "uncheckpointed";
+    case "Completed":
+      return "completed";
+    default:
+      return "pending";
+  }
 }
 
 function mapCheckpoint(checkpoint: NativeExecutionCheckpoint): ExecutionCheckpoint {
   checkpointKey(checkpoint);
   return {
     executionIdentifier: checkpoint.executionIdentifier,
-    position: mapCursor(checkpoint.position),
+    position: checkpointCursor(checkpoint.position),
     version: checkpoint.version.slice(),
-    evidenceThrough: mapCursor(checkpoint.evidenceThrough),
-  };
-}
-
-function mapCursor(cursor: NativeStorageCursor | undefined): ExecutionCheckpoint["position"] {
-  cursorKey(cursor);
-  return {
-    history: { store: cursor!.history!.store, epoch: cursor!.history!.epoch },
-    sequence: cursor!.sequence,
+    evidenceThrough: checkpointCursor(checkpoint.evidenceThrough),
   };
 }
 
@@ -299,63 +345,52 @@ function mapExecutionMetadata(metadata: HistoricalExecutionMetadata) {
 }
 
 export function executionStatusLabel(
-  status: ExecutionStatus,
-):
-  | "skipped"
-  | "invalidated"
-  | "pending"
-  | "running"
-  | "passed"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-  | "interrupted" {
-  switch (status) {
-    case ExecutionStatus.SKIPPED:
+  status: ExecutionStatus | undefined,
+): "skipped" | "invalidated" | "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" {
+  switch (status?.HarmosVariant.case) {
+    case "Skipped":
       return "skipped";
-    case ExecutionStatus.RUNNING:
+    case "Running":
       return "running";
-    case ExecutionStatus.PASSED:
+    case "Passed":
       return "passed";
-    case ExecutionStatus.FAILED:
+    case "Failed":
       return "failed";
-    case ExecutionStatus.BLOCKED:
+    case "Blocked":
       return "blocked";
-    case ExecutionStatus.CANCELLED:
+    case "Cancelled":
       return "cancelled";
-    case ExecutionStatus.INTERRUPTED:
+    case "Interrupted":
       return "interrupted";
-    case ExecutionStatus.INVALIDATED:
+    case "Invalidated":
       return "invalidated";
     default:
       return "pending";
   }
 }
 
-function mapResultStatus(
-  status: ResultStatus,
-): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
-  switch (status) {
-    case ResultStatus.PASSED:
+function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
+  switch (status?.HarmosVariant.case) {
+    case "Passed":
       return "passed";
-    case ResultStatus.FAILED:
+    case "Failed":
       return "failed";
-    case ResultStatus.BLOCKED:
+    case "Blocked":
       return "blocked";
-    case ResultStatus.CANCELLED:
+    case "Cancelled":
       return "cancelled";
     default:
       return "pending";
   }
 }
 
-function mapAvailability(value: ExecutionAvailability): ExecutionBrowseEntry["availability"] {
-  switch (value) {
-    case ExecutionAvailability.LIVE:
+function mapAvailability(value: ExecutionAvailability | undefined): ExecutionBrowseEntry["availability"] {
+  switch (value?.HarmosVariant.case) {
+    case "Live":
       return "live";
-    case ExecutionAvailability.STORED:
+    case "Stored":
       return "stored";
-    case ExecutionAvailability.INTERRUPTED:
+    case "Interrupted":
       return "interrupted";
     default:
       return "uncheckpointed";
@@ -391,10 +426,10 @@ export async function fetchNativeCheckpointEvidence(
   const reply = await rpc.historyGetCheckpointEvidence(session, {
     checkpoint: nativeCheckpoint(checkpoint),
     sections: [
-      EvidenceSection.OUTPUTS,
-      EvidenceSection.ARTIFACTS,
-      EvidenceSection.RECORD_SCHEMAS,
-      EvidenceSection.TELEMETRY_TABLES,
+      { HarmosVariant: { case: "Outputs", value: {} } },
+      { HarmosVariant: { case: "Artifacts", value: {} } },
+      { HarmosVariant: { case: "RecordSchemas", value: {} } },
+      { HarmosVariant: { case: "TelemetryTables", value: {} } },
     ],
   });
   assertActive(session, signal, "History.GetCheckpointEvidence");
@@ -422,10 +457,7 @@ export async function fetchNativeCheckpointRecords(
     throw new NativeApiLimitError("History.ListCheckpointRecords", "pagination did not advance");
   }
   if (reply.records.some((row) => !row.epoch || !row.record)) {
-    throw new NativeApiLimitError(
-      "History.ListCheckpointRecords",
-      "record source identity is missing",
-    );
+    throw new NativeApiLimitError("History.ListCheckpointRecords", "record source identity is missing");
   }
   return reply;
 }
@@ -449,13 +481,9 @@ export async function fetchNativeCheckpointTelemetry(
   });
   assertActive(session, signal, "History.ListCheckpointTelemetry");
   assertCheckpoint(reply.checkpoint, checkpoint, "History.ListCheckpointTelemetry");
-  if (reply.table !== table)
-    throw new Error("History.ListCheckpointTelemetry returned another table.");
+  if (reply.table !== table) throw new Error("History.ListCheckpointTelemetry returned another table.");
   if (reply.rows.some((row) => !row.epoch || !row.sample || row.sample.stream !== table)) {
-    throw new NativeApiLimitError(
-      "History.ListCheckpointTelemetry",
-      "sample source identity differs",
-    );
+    throw new NativeApiLimitError("History.ListCheckpointTelemetry", "sample source identity differs");
   }
   if (reply.nextAfter !== undefined && reply.nextAfter === after) {
     throw new NativeApiLimitError("History.ListCheckpointTelemetry", "pagination did not advance");
@@ -486,17 +514,9 @@ export async function readNativeCheckpointOutput(
 ): Promise<ExecutionFileWindow> {
   const offset = options.offset ?? 0n;
   const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
-  if (offset < 0n)
-    throw new NativeApiLimitError("History.ReadCheckpointOutput", "offset is negative");
-  if (
-    !Number.isSafeInteger(maxBytes) ||
-    maxBytes < 0 ||
-    maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES
-  ) {
-    throw new NativeApiLimitError(
-      "History.ReadCheckpointOutput",
-      `max_bytes must be between 0 and ${NATIVE_CHECKPOINT_WINDOW_BYTES}`,
-    );
+  if (offset < 0n) throw new NativeApiLimitError("History.ReadCheckpointOutput", "offset is negative");
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES) {
+    throw new NativeApiLimitError("History.ReadCheckpointOutput", `max_bytes must be between 0 and ${NATIVE_CHECKPOINT_WINDOW_BYTES}`);
   }
   if (!relativePath || relativePath.includes("\0")) {
     throw new Error("History.ReadCheckpointOutput requires a relative path.");
@@ -515,10 +535,7 @@ export async function readNativeCheckpointOutput(
   if (content.relativePath !== relativePath || content.offset !== offset) {
     throw new Error("History.ReadCheckpointOutput returned a different window.");
   }
-  if (
-    content.data.byteLength > maxBytes ||
-    content.observedSizeBytes < content.offset + BigInt(content.data.byteLength)
-  ) {
+  if (content.data.byteLength > maxBytes || content.observedSizeBytes < content.offset + BigInt(content.data.byteLength)) {
     throw new NativeApiLimitError("History.ReadCheckpointOutput", "invalid response window");
   }
   return content;
@@ -537,8 +554,7 @@ export async function downloadNativeCheckpointArtifact(
   artifactId: string,
   signal?: AbortSignal,
 ): Promise<NativeCheckpointArtifact> {
-  if (!artifactId.trim())
-    throw new Error("History.DownloadCheckpointArtifact requires an artifact id.");
+  if (!artifactId.trim()) throw new Error("History.DownloadCheckpointArtifact requires an artifact id.");
   assertActive(session, signal, "History.DownloadCheckpointArtifact");
   let reader: NativeStream<ArtifactFrame> | undefined;
   let release: (() => void) | undefined;
@@ -557,11 +573,7 @@ export async function downloadNativeCheckpointArtifact(
     });
     assertActive(session, signal, "History.DownloadCheckpointArtifact");
     release = session.own(() => void cancelReader().catch(() => undefined));
-    return await assembleCheckpointArtifact(
-      reader,
-      artifactId,
-      () => !signal?.aborted && session.isCurrent(),
-    );
+    return await assembleCheckpointArtifact(reader, artifactId, () => !signal?.aborted && session.isCurrent());
   } finally {
     signal?.removeEventListener("abort", abort);
     await cancelReader().catch(() => undefined);
@@ -584,37 +596,34 @@ async function assembleCheckpointArtifact(
   for await (const frame of reader) {
     if (!active()) throw new Error("History.DownloadCheckpointArtifact was cancelled.");
     if (complete) throw new Error("History.DownloadCheckpointArtifact continued after completion.");
-    switch (frame.payload.case) {
-      case "metadata": {
-        if (metadata || frame.payload.value.artifactId !== artifactId) {
+    switch (frame.payload?.HarmosVariant.case) {
+      case "Metadata": {
+        if (metadata || !frame.payload.HarmosVariant.value.field0 || frame.payload.HarmosVariant.value.field0.artifactId !== artifactId) {
           throw new Error("History.DownloadCheckpointArtifact metadata identity is invalid.");
         }
-        metadata = frame.payload.value;
+        metadata = frame.payload.HarmosVariant.value.field0;
         validateArtifactMetadata(metadata);
         break;
       }
-      case "chunk": {
-        if (!metadata)
-          throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
-        const chunk = frame.payload.value;
+      case "Chunk": {
+        if (!metadata) throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
+        const chunk = frame.payload.HarmosVariant.value.field0;
+        if (!chunk) throw new Error("Artifact chunk payload is missing.");
         if (chunk.offset !== expectedOffset) {
           throw new Error("History.DownloadCheckpointArtifact chunks are not contiguous.");
         }
         total += BigInt(chunk.data.byteLength);
         if (total > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
-          throw new NativeApiLimitError(
-            "History.DownloadCheckpointArtifact",
-            "artifact is too large",
-          );
+          throw new NativeApiLimitError("History.DownloadCheckpointArtifact", "artifact is too large");
         }
         chunks.push(chunk.data);
         expectedOffset = total;
         break;
       }
-      case "complete": {
-        if (!metadata)
-          throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
-        const completion = frame.payload.value;
+      case "Complete": {
+        if (!metadata) throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
+        const completion = frame.payload.HarmosVariant.value.field0;
+        if (!completion) throw new Error("Artifact completion payload is missing.");
         completionSize = completion.sizeBytes;
         completionSha = normalizedSha(completion.sha256, "artifact completion");
         complete = true;
@@ -649,7 +658,7 @@ async function assembleCheckpointArtifact(
 }
 
 function validateArtifactMetadata(metadata: ArtifactMetadata): void {
-  if (metadata.state !== ArtifactState.COMPLETE) {
+  if (metadata.state?.HarmosVariant.case !== "Complete") {
     throw new Error("History.DownloadCheckpointArtifact metadata is not complete.");
   }
   if (metadata.sizeBytes > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
@@ -674,45 +683,43 @@ export function checkpointFileLabel(file: ExecutionFileMetadata): string {
   return `${file.relativePath} · ${file.sizeBytes.toString()} bytes · ${fileStateLabel(file.state)}`;
 }
 
-export function checkpointFileKind(
-  kind: ExecutionFileKind,
-): "text" | "binary" | "media" | "unknown" {
-  switch (kind) {
-    case ExecutionFileKind.TEXT:
+export function checkpointFileKind(kind: ExecutionFileKind | undefined): "text" | "binary" | "media" | "unknown" {
+  switch (kind?.HarmosVariant.case) {
+    case "Text":
       return "text";
-    case ExecutionFileKind.BINARY:
+    case "Binary":
       return "binary";
-    case ExecutionFileKind.MEDIA:
+    case "Media":
       return "media";
     default:
       return "unknown";
   }
 }
 
-export function checkpointFileState(state: ExecutionFileState): string {
+export function checkpointFileState(state: ExecutionFileState | undefined): string {
   return fileStateLabel(state);
 }
 
-function fileStateLabel(state: ExecutionFileState): string {
-  switch (state) {
-    case ExecutionFileState.STREAMING:
+function fileStateLabel(state: ExecutionFileState | undefined): string {
+  switch (state?.HarmosVariant.case) {
+    case "Streaming":
       return "streaming";
-    case ExecutionFileState.FINALIZED:
+    case "Finalized":
       return "finalized";
-    case ExecutionFileState.INTERRUPTED:
+    case "Interrupted":
       return "interrupted";
     default:
       return "unspecified";
   }
 }
 
-export function artifactStateLabel(state: ArtifactState): string {
-  switch (state) {
-    case ArtifactState.COMPLETE:
+export function artifactStateLabel(state: ArtifactState | undefined): string {
+  switch (state?.HarmosVariant.case) {
+    case "Complete":
       return "complete";
-    case ArtifactState.CANCELLED:
+    case "Cancelled":
       return "cancelled";
-    case ArtifactState.REJECTED:
+    case "Rejected":
       return "rejected";
     default:
       return "unspecified";
@@ -731,6 +738,6 @@ export function nativeRecordText(record: CapturedRecord): {
   };
 }
 
-function severityLabel(value: Severity): string {
-  return ["unspecified", "trace", "debug", "info", "warn", "error"][value] ?? "unspecified";
+function severityLabel(value: Severity | undefined): string {
+  return value?.HarmosVariant.case?.toLowerCase() ?? "unspecified";
 }

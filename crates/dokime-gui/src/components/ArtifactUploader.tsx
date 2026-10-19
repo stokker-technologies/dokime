@@ -15,24 +15,14 @@ import { type MutableRefObject, useEffect, useId, useRef, useState } from "react
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  invalidateWorkflowDocuments,
-  invalidateWorkflowResourceQueries,
-} from "@/features/cycle/server-state";
+import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { uploadScope } from "@/lib/api/native-content";
 import { type NativeRecordingSink, openNativeRecording } from "@/lib/rpc/artifact-upload";
 import type { RecordScope } from "@/lib/types";
@@ -87,13 +77,9 @@ export function ArtifactUploader({
   const [uploading, setUploading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraUploading, setCameraUploading] = useState(false);
-  const [recordingState, setRecordingState] = useState<
-    "idle" | "starting" | "recording" | "stopping" | "uploading"
-  >("idle");
+  const [recordingState, setRecordingState] = useState<"idle" | "starting" | "recording" | "stopping" | "uploading">("idle");
   const [recordingElapsedMs, setRecordingElapsedMs] = useState(0);
-  const [scopeKind, setScopeKind] = useState<"cycle" | "execution">(
-    executionScope ? "execution" : "cycle",
-  );
+  const [scopeKind, setScopeKind] = useState<"cycle" | "execution">(executionScope ? "execution" : "cycle");
   const uploadArtifactMutation = useOperatorArtifactUploadMutation();
   const session = useNativeSession();
   const queryClient = useQueryClient();
@@ -226,11 +212,7 @@ export function ArtifactUploader({
 
       // Opened before the recorder starts: a sink that fails to open aborts
       // the capture instead of recording content with nowhere to land.
-      const filename = nextGeneratedFilename(
-        existingArtifactPaths,
-        "recording",
-        recordingFormat.extension,
-      );
+      const filename = nextGeneratedFilename(existingArtifactPaths, "recording", recordingFormat.extension);
       const sink = await openNativeRecording(session.identity, {
         scope: uploadScope(resolvedScope),
         filename,
@@ -345,10 +327,7 @@ export function ArtifactUploader({
       const { commands } = await import("@/lib/desktop/commands");
       await commands.desktopRecordingFinish(session.identity.generation, durationMs, mediaType);
       setArtifactStatus("Recording saved");
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        invalidateWorkflowDocuments(queryClient),
-      ]);
+      await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);
       await onArtifactsChanged();
     } catch (exc) {
       setArtifactStatus(errorMessage(exc));
@@ -458,8 +437,7 @@ export function ArtifactUploader({
   const stopBusy = recordingState === "stopping" || recordingState === "uploading";
   const recordingActive = recordingState !== "idle";
   const captureBusy = uploading || recordingActive || cameraUploading;
-  const actionButtonClassName =
-    "min-h-11 min-w-[10.5rem] flex-1 justify-center whitespace-normal text-center text-sm font-semibold";
+  const actionButtonClassName = "min-h-11 min-w-[10.5rem] flex-1 justify-center whitespace-normal text-center text-sm font-semibold";
 
   const content = (
     <>
@@ -542,10 +520,7 @@ export function ArtifactUploader({
                 onClick={stopRecording}
               >
                 <span className="relative flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="inline-block h-2 w-2 rounded-full bg-current animate-pulse"
-                  />
+                  <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-current animate-pulse" />
                   <Square size={14} aria-hidden />
                   <span>{stopBusy ? "Saving" : "Stop"}</span>
                   <span className="font-mono tabular-nums text-xs opacity-90" aria-live="polite">
@@ -584,17 +559,10 @@ export function ArtifactUploader({
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Take Picture</DialogTitle>
-            <DialogDescription>
-              Capture a webcam image and attach it to the selected scope.
-            </DialogDescription>
+            <DialogDescription>Capture a webcam image and attach it to the selected scope.</DialogDescription>
           </DialogHeader>
           <div className="overflow-hidden rounded-xl border bg-black">
-            <video
-              className="max-h-[60vh] w-full object-contain"
-              muted
-              playsInline
-              ref={cameraVideo}
-            />
+            <video className="max-h-[60vh] w-full object-contain" muted playsInline ref={cameraVideo} />
             <canvas className="hidden" ref={cameraCanvas} />
           </div>
           <DialogFooter>
@@ -689,11 +657,7 @@ function errorMessage(exc: unknown): string {
   return exc instanceof Error ? exc.message : String(exc);
 }
 
-async function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  type: string,
-  quality?: number,
-): Promise<Blob> {
+async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -709,11 +673,7 @@ async function canvasToBlob(
   });
 }
 
-function nextGeneratedFilename(
-  existingArtifactPaths: string[],
-  prefix: "photo" | "recording",
-  extension: string,
-): string {
+function nextGeneratedFilename(existingArtifactPaths: string[], prefix: "photo" | "recording", extension: string): string {
   const nextIndex =
     existingArtifactPaths
       .map(pathBasename)

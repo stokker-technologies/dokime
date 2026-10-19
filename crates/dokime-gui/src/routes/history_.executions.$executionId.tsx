@@ -14,11 +14,7 @@ import { useCallback } from "react";
 
 /* === Local Imports === */
 
-import {
-  exploreSearchSchema,
-  searchFromSelectedIds,
-  selectedIdsFromSearch,
-} from "@/features/explore/explore-search";
+import { exploreSearchSchema, searchFromSelectedIds, selectedIdsFromSearch } from "@/features/explore/explore-search";
 import { HistoryDetailSurface } from "@/features/explore/HistoryDetailSurface";
 
 /* === Route === */
@@ -50,12 +46,5 @@ function HistoryExecutionDetailRoute() {
     [navigate, search],
   );
 
-  return (
-    <HistoryDetailSurface
-      key={executionId}
-      onBack={back}
-      onOpenCycle={openCycle}
-      target={{ id: executionId, kind: "execution" }}
-    />
-  );
+  return <HistoryDetailSurface key={executionId} onBack={back} onOpenCycle={openCycle} target={{ id: executionId, kind: "execution" }} />;
 }

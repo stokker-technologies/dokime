@@ -17,15 +17,16 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 // Third Party Imports
-use futures_util::stream;
-use prost::Message as _;
+use crate::grpc::transcode::Transcode;
+use harmos::{
+    MemorySize,
+    operations::{Response, StreamOutput},
+};
 use serde_json::Value;
-use tokio::sync::watch;
 use tonic::Status;
 // Local Imports
-use super::chunked::FrameStream;
 use super::redaction;
-use dokime_protocol::v1;
+use dokime_domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;
@@ -47,21 +48,21 @@ const MAX_LINE_BYTES: usize = 256 * 1024;
 /* === Structs === */
 pub(super) struct Watch {
     pub(super) path: PathBuf,
-    pub(super) min_level: i32,
+    pub(super) min_level: dokime_domain::model::backend::wire::LogLevel,
     pub(super) replay_lines: u32,
     pub(super) message_limit: usize,
-    pub(super) stopping: watch::Receiver<bool>,
 }
 
 struct Follow {
+    pending_bytes: usize,
     path: PathBuf,
-    min_level: i32,
+    min_level: dokime_domain::model::backend::wire::LogLevel,
     replay_lines: u32,
     message_limit: usize,
-    stopping: watch::Receiver<bool>,
     offset: u64,
     carry: Vec<u8>,
-    pending: VecDeque<v1::LogFrame>,
+    discarding_line: bool,
+    pending: VecDeque<dokime_domain::model::backend::wire::LogFrame>,
     dropped: u64,
     replayed: bool,
 }
@@ -72,156 +73,170 @@ struct Follow {
 
 /* === Implementations === */
 impl Watch {
-    pub(super) fn stream(self) -> FrameStream<v1::LogFrame> {
-        let replay_lines = if self.replay_lines == 0 {
-            DEFAULT_REPLAY_LINES
-        } else {
-            self.replay_lines.min(MAX_REPLAY_LINES)
-        };
-        let follow = Follow {
+    pub(super) async fn run(self, output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
+        let replay_lines = if self.replay_lines == 0 { DEFAULT_REPLAY_LINES } else { self.replay_lines.min(MAX_REPLAY_LINES) };
+        let mut follow = Follow {
+            pending_bytes: 0,
             path: self.path,
             min_level: self.min_level,
             replay_lines,
             message_limit: self.message_limit,
-            stopping: self.stopping,
             offset: 0,
             carry: Vec::new(),
+            discarding_line: false,
             pending: VecDeque::new(),
             dropped: 0,
             replayed: false,
         };
-        Box::pin(stream::try_unfold(follow, Follow::next))
+        while let Some(frame) = follow.next().await? {
+            output.send_owned(frame).await.map_err(memory_failure)?;
+        }
+        Ok(())
     }
 }
 
 impl Follow {
-    async fn next(mut self) -> Result<Option<(v1::LogFrame, Self)>, Status> {
+    async fn next(&mut self) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
         loop {
-            // A draining listener ends the stream rather than failing it: a tail
-            // has no completion frame to withhold, so there is nothing partial
-            // for a consumer to mistake for a whole transfer.
-            if *self.stopping.borrow() {
-                return Ok(None);
-            }
             if !self.replayed {
-                self.replay();
+                self.replay().await?;
                 self.replayed = true;
                 continue;
             }
-            if let Some(mut frame) = self.pending.pop_front() {
+            if let Some(mut frame) = self.pop() {
                 frame.dropped = self.dropped;
-                if frame.encoded_len() > self.message_limit {
-                    return Err(Status::resource_exhausted(
-                        "log frame exceeds the configured message budget",
-                    ));
+                if frame.wire_len()? > self.message_limit {
+                    return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
                 }
-                return Ok(Some((frame, self)));
+                return Ok(Some(frame.into()));
             }
-            if self.advance() == 0 {
-                let mut stopping = self.stopping.clone();
-                tokio::select! { biased;
-                    _ = stopping.changed() => return Ok(None),
-                    () = tokio::time::sleep(POLL_INTERVAL) => {}
-                }
+            if self.advance(None)? == 0 {
+                tokio::time::sleep(POLL_INTERVAL).await;
             }
         }
     }
 
-    fn replay(&mut self) {
-        let Ok(bytes) = std::fs::read(&self.path) else {
-            return;
-        };
-        // Follow from the last record boundary, not from the end: a line still
-        // being written belongs to the follow, not to the replay.
-        let boundary = bytes
-            .iter()
-            .rposition(|byte| *byte == b'\n')
-            .map_or(0, |boundary| boundary + 1);
-        self.offset = boundary as u64;
-        let mut frames: VecDeque<v1::LogFrame> = VecDeque::new();
-        for line in bytes[..boundary].split(|byte| *byte == b'\n') {
-            if let Some(frame) = self.frame(line) {
-                if frames.len() == self.replay_lines as usize {
-                    frames.pop_front();
-                }
-                frames.push_back(frame);
-            }
-        }
-        self.pending = frames;
-    }
-
-    fn advance(&mut self) -> u64 {
+    async fn replay(&mut self) -> Result<(), Status> {
         let Ok(metadata) = std::fs::metadata(&self.path) else {
-            return 0;
+            return Ok(());
         };
-        let length = metadata.len();
+        let end = metadata.len();
+        while self.offset < end {
+            if self.advance(Some(end))? == 0 {
+                break;
+            }
+            // Give Shared Cancellation A Boundary Between Fixed Read Windows.
+            tokio::task::yield_now().await;
+        }
+        // A Partial Last Record Belongs To Follow, Not To The Replay Snapshot.
+        self.offset = self.offset.saturating_sub(self.carry.len() as u64);
+        self.carry.clear();
+        Ok(())
+    }
+
+    fn advance(&mut self, end: Option<u64>) -> Result<u64, Status> {
+        let Ok(metadata) = std::fs::metadata(&self.path) else {
+            return Ok(0);
+        };
+        let length = metadata.len().min(end.unwrap_or(u64::MAX));
         if length < self.offset {
             self.offset = 0;
             self.carry.clear();
+            self.discarding_line = false;
         }
         if length == self.offset {
-            return 0;
+            return Ok(0);
         }
 
         use std::io::{Read as _, Seek as _, SeekFrom};
         let Ok(mut file) = std::fs::File::open(&self.path) else {
-            return 0;
+            return Ok(0);
         };
         if file.seek(SeekFrom::Start(self.offset)).is_err() {
-            return 0;
+            return Ok(0);
         }
         let window = (length - self.offset).min(READ_WINDOW_BYTES);
         let mut bytes = vec![0; usize::try_from(window).unwrap_or_default()];
         let Ok(read) = file.read(&mut bytes) else {
-            return 0;
+            return Ok(0);
         };
         bytes.truncate(read);
         self.offset += read as u64;
 
         self.carry.extend_from_slice(&bytes);
+        if self.discarding_line {
+            let Some(boundary) = self.carry.iter().position(|byte| *byte == b'\n') else {
+                self.carry.clear();
+                return Ok(read as u64);
+            };
+            self.carry.drain(..=boundary);
+            self.discarding_line = false;
+        }
         // Everything up to the last newline is whole records; the remainder is a
         // record still being written, unless it has grown past a plausible one.
         let boundary = self.carry.iter().rposition(|byte| *byte == b'\n');
         let complete = match boundary {
             Some(boundary) => self.carry.drain(..=boundary).collect::<Vec<_>>(),
-            None if self.carry.len() > MAX_LINE_BYTES => std::mem::take(&mut self.carry),
+            None if self.carry.len() > MAX_LINE_BYTES => {
+                self.carry.clear();
+                self.discarding_line = true;
+                Vec::new()
+            }
             None => Vec::new(),
         };
         for line in complete.split(|byte| *byte == b'\n') {
-            if let Some(frame) = self.frame(line) {
-                if self.pending.len() == MAX_PENDING_FRAMES {
-                    self.pending.pop_front();
-                    self.dropped += 1;
-                }
-                self.pending.push_back(frame);
+            if line.len() > MAX_LINE_BYTES {
+                continue;
+            }
+            if let Some(frame) = self.frame(line)? {
+                self.push(frame);
             }
         }
-        read as u64
+        Ok(read as u64)
     }
 
-    fn frame(&self, line: &[u8]) -> Option<v1::LogFrame> {
+    fn pop(&mut self) -> Option<dokime_domain::model::backend::wire::LogFrame> {
+        let frame = self.pending.pop_front()?;
+        self.pending_bytes = self.pending_bytes.saturating_sub(frame.memory_size());
+        Some(frame)
+    }
+    fn push(&mut self, frame: dokime_domain::model::backend::wire::LogFrame) {
+        let bytes = frame.memory_size();
+        let count = if self.replayed { MAX_PENDING_FRAMES } else { self.replay_lines as usize };
+        while !self.pending.is_empty() && (self.pending.len() >= count || self.pending_bytes.saturating_add(bytes) > self.message_limit) {
+            let count_drop = self.replayed || self.pending_bytes.saturating_add(bytes) > self.message_limit;
+            self.pop();
+            if count_drop {
+                self.dropped = self.dropped.saturating_add(1);
+            }
+        }
+        self.pending_bytes = self.pending_bytes.saturating_add(bytes);
+        self.pending.push_back(frame);
+    }
+    fn frame(&self, line: &[u8]) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
+        let Some(frame) = self.frame_wire(line) else {
+            return Ok(None);
+        };
+        if frame.memory_size() > self.message_limit || frame.wire_len()? > self.message_limit {
+            return Err(Status::resource_exhausted("log frame exceeds the configured message budget"));
+        }
+        Ok(Some(frame))
+    }
+    fn frame_wire(&self, line: &[u8]) -> Option<dokime_domain::model::backend::wire::LogFrame> {
         let line = std::str::from_utf8(line).ok()?.trim();
         if line.is_empty() {
             return None;
         }
         let record: Value = serde_json::from_str(line).ok()?;
         let record = record.as_object()?;
-        let level = level(
-            record
-                .get("level")
-                .or_else(|| record.get("severity"))?
-                .as_str()?,
-        )?;
-        if (level as i32) < self.min_level.max(v1::LogLevel::Trace as i32) {
+        let level = level(record.get("level").or_else(|| record.get("severity"))?.as_str()?)?;
+        if (level as i32) < self.min_level as i32 {
             return None;
         }
 
         let nested = record.get("fields").and_then(Value::as_object);
-        let message = nested
-            .and_then(|fields| fields.get("message"))
-            .or_else(|| record.get("message"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
+        let message =
+            nested.and_then(|fields| fields.get("message")).or_else(|| record.get("message")).and_then(Value::as_str).unwrap_or_default();
         let mut fields = std::collections::BTreeMap::new();
         for (name, value) in nested.into_iter().flatten() {
             if name == "message" {
@@ -233,20 +248,15 @@ impl Follow {
             fields.insert("spans".to_owned(), field("spans", spans));
         }
 
-        Some(v1::LogFrame {
-            time: record
-                .get("timestamp")
-                .or_else(|| record.get("time"))
-                .and_then(Value::as_str)
-                .and_then(timestamp),
-            level: level as i32,
-            target: record
-                .get("target")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned(),
+        Some(dokime_domain::model::backend::wire::LogFrame {
+            time: record.get("timestamp").or_else(|| record.get("time")).and_then(Value::as_str).and_then(timestamp),
+            level,
+            target: record.get("target").and_then(Value::as_str).unwrap_or_default().to_owned(),
             message: redaction::text(message),
-            fields,
+            fields: fields
+                .into_iter()
+                .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry { key, value })
+                .collect(),
             dropped: 0,
         })
     }
@@ -255,13 +265,13 @@ impl Follow {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn level(name: &str) -> Option<v1::LogLevel> {
+fn level(name: &str) -> Option<dokime_domain::model::backend::wire::LogLevel> {
     match name.trim().to_ascii_uppercase().as_str() {
-        "TRACE" => Some(v1::LogLevel::Trace),
-        "DEBUG" => Some(v1::LogLevel::Debug),
-        "INFO" => Some(v1::LogLevel::Info),
-        "WARN" | "WARNING" => Some(v1::LogLevel::Warn),
-        "ERROR" => Some(v1::LogLevel::Error),
+        "TRACE" => Some(dokime_domain::model::backend::wire::LogLevel::Trace),
+        "DEBUG" => Some(dokime_domain::model::backend::wire::LogLevel::Debug),
+        "INFO" => Some(dokime_domain::model::backend::wire::LogLevel::Info),
+        "WARN" | "WARNING" => Some(dokime_domain::model::backend::wire::LogLevel::Warn),
+        "ERROR" => Some(dokime_domain::model::backend::wire::LogLevel::Error),
         _ => None,
     }
 }
@@ -276,13 +286,17 @@ fn field(name: &str, value: &Value) -> String {
     }
 }
 
-fn timestamp(value: &str) -> Option<prost_types::Timestamp> {
-    let moment =
-        time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()?;
-    Some(prost_types::Timestamp {
-        seconds: moment.unix_timestamp(),
-        nanos: moment.nanosecond() as i32,
-    })
+fn timestamp(value: &str) -> Option<Timestamp> {
+    let moment = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()?;
+    Some(Timestamp { seconds: moment.unix_timestamp(), nanos: moment.nanosecond() as i32 })
 }
 
+fn memory_failure(source: harmos::Error) -> Status {
+    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
+        Status::resource_exhausted("log frame admission failed")
+    } else {
+        Status::internal("log frame admission failed")
+    };
+    crate::grpc::error::detailed(status, &source.into())
+}
 /* === Tests === */

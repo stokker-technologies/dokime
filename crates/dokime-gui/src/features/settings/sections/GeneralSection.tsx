@@ -22,33 +22,17 @@ import { useId, useRef, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import {
-  readStoragePolicy,
-  updateStoragePolicy,
-  type StoragePolicy,
-} from "@/lib/api/native-storage-settings";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { type Autosave, useAutosave } from "@/features/settings/settings-autosave";
-import {
-  applicationSettingsError,
-  useApplicationSettings,
-  useSaveDataRoot,
-} from "@/lib/application-settings";
+import { readStoragePolicy, type StoragePolicy, updateStoragePolicy } from "@/lib/api/native-storage-settings";
+import { applicationSettingsError, useApplicationSettings, useSaveDataRoot } from "@/lib/application-settings";
 import { useBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -60,13 +44,8 @@ export function GeneralSection() {
   if (!isTauriDesktop()) {
     return (
       <SettingsCard title="Output">
-        <SettingsRow
-          description="Execution storage belongs to the connected host."
-          label="Execution Directory"
-        >
-          <span className="text-sm text-muted-foreground">
-            Open Settings in the {brand.label} desktop application to choose it.
-          </span>
+        <SettingsRow description="Execution storage belongs to the connected host." label="Execution Directory">
+          <span className="text-sm text-muted-foreground">Open Settings in the {brand.label} desktop application to choose it.</span>
         </SettingsRow>
       </SettingsCard>
     );
@@ -75,32 +54,24 @@ export function GeneralSection() {
 }
 
 export function DesktopOutputSettings() {
-  const brand = useBrand();
   const session = useNativeSessionOptional();
   const settings = useApplicationSettings();
   const save = useSaveDataRoot();
-  const [restartPrompt, setRestartPrompt] = useState(false);
   const pick = useMutation({
     mutationFn: async () => {
       const directory = await commands.desktopPickExecutionDirectory();
       if (directory !== null) await save.mutateAsync(directory);
     },
   });
-  const restart = useMutation({ mutationFn: () => commands.desktopRestart() });
   const view = settings.data;
   const error = settings.error ?? pick.error ?? save.error;
-  const canEdit =
-    session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateDataRoot") ??
-    false;
+  const canEdit = session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateDataRoot") ?? false;
   const openable = session?.snapshot.ownership === "owned_local";
   const busy = pick.isPending || save.isPending;
 
   return (
     <>
-      <SettingsCard
-        description="Choose the data directory the backend uses when it next starts."
-        title="Output"
-      >
+      <SettingsCard description="Choose the data directory the backend uses when it next starts." title="Output">
         {!session ? (
           <SettingsRow label="Status">
             <span className="text-sm text-muted-foreground" role="status">
@@ -116,15 +87,19 @@ export function DesktopOutputSettings() {
           </SettingsRow>
         ) : null}
         {error ? (
-          <SettingsRow label="Status">
+          <SettingsRow
+            label="Status"
+            status={
+              settings.isError ? (
+                <Button onClick={() => void settings.refetch()} size="sm" variant="outline">
+                  Try Again
+                </Button>
+              ) : null
+            }
+          >
             <span className="text-sm text-destructive" role="alert">
               {applicationSettingsError(error)}
             </span>
-            {settings.isError ? (
-              <Button onClick={() => void settings.refetch()} size="sm" variant="outline">
-                Try Again
-              </Button>
-            ) : null}
           </SettingsRow>
         ) : null}
 
@@ -161,11 +136,7 @@ export function DesktopOutputSettings() {
             >
               <div className="flex flex-wrap justify-end gap-2">
                 {view.configuredDataRoot !== null ? (
-                  <Button
-                    disabled={!canEdit || busy}
-                    onClick={() => save.mutate(null)}
-                    variant="ghost"
-                  >
+                  <Button disabled={!canEdit || busy} onClick={() => save.mutate(null)} variant="ghost">
                     Use Default
                   </Button>
                 ) : null}
@@ -176,40 +147,6 @@ export function DesktopOutputSettings() {
             </SettingsRow>
           </>
         ) : null}
-
-        {view?.restartRequired ? (
-          <SettingsRow
-            description={`Restart ${brand.label} to use the new directory.`}
-            label="Restart"
-          >
-            <Button onClick={() => setRestartPrompt(true)}>Restart {brand.label}</Button>
-          </SettingsRow>
-        ) : null}
-
-        <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Restart {brand.label}?</DialogTitle>
-              <DialogDescription>
-                Active work will stop and plugin resources will close before the application
-                restarts.
-              </DialogDescription>
-            </DialogHeader>
-            {restart.isError ? (
-              <p role="alert" className="text-destructive">
-                {applicationSettingsError(restart.error)}
-              </p>
-            ) : null}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setRestartPrompt(false)}>
-                Later
-              </Button>
-              <Button disabled={restart.isPending} onClick={() => restart.mutate()}>
-                {restart.isPending ? "Restarting…" : "Restart Now"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </SettingsCard>
       <BackendPolicySettings />
     </>
@@ -220,9 +157,7 @@ export function DesktopOutputSettings() {
 
 function BackendPolicySettings() {
   const session = useNativeSessionOptional();
-  return session ? (
-    <ConnectedPolicySettings key={session.identity.generation} session={session} />
-  ) : null;
+  return session ? <ConnectedPolicySettings key={session.identity.generation} session={session} /> : null;
 }
 
 function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
@@ -251,39 +186,30 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
     pending.current = operation;
     return operation;
   };
-  const interval = useAutosave<number>(
-    (saveIntervalMs) => save({ saveIntervalMs }),
-    applicationSettingsError,
-  );
-  const compaction = useAutosave<number>(
-    (hours) => save({ compactionIntervalMs: hours * 3_600_000 }),
-    applicationSettingsError,
-  );
+  const compaction = useAutosave<number>((hours) => save({ compactionIntervalMs: hours * 3_600_000 }), applicationSettingsError);
   const retention = useAutosave<number | null>(
     (days) => save({ localRetentionMs: days === null ? null : days * 86_400_000 }),
     applicationSettingsError,
   );
   const view = query.data;
-  const canEdit =
-    session.snapshot.connection.backend?.methods.includes(
-      "/dokime.v1.Settings/UpdateStoragePolicy",
-    ) ?? false;
+  const canEdit = session.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateStoragePolicy") ?? false;
   return (
-    <SettingsCard
-      title="Backend Storage"
-      description="Policy belongs to the connected backend and applies when that backend restarts."
-    >
+    <SettingsCard title="Backend Storage" description="Policy belongs to the connected backend and applies when that backend restarts.">
       {query.isPending ? (
         <SettingsRow label="Status">
           <span role="status">Loading storage policy…</span>
         </SettingsRow>
       ) : null}
       {query.error ? (
-        <SettingsRow label="Status">
+        <SettingsRow
+          label="Status"
+          status={
+            <Button onClick={() => void query.refetch()} size="sm" variant="outline">
+              Try Again
+            </Button>
+          }
+        >
           <span role="alert">{applicationSettingsError(query.error)}</span>
-          <Button onClick={() => void query.refetch()} variant="outline">
-            Try Again
-          </Button>
         </SettingsRow>
       ) : null}
       {!canEdit ? (
@@ -293,25 +219,6 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
       ) : null}
       {view ? (
         <fieldset className="divide-y" disabled={!canEdit}>
-          <IntervalRow
-            autosave={interval}
-            description="How often running execution data is saved."
-            label="Save Interval (Seconds)"
-            max={86_400}
-            min={0.001}
-            parse={(text) => {
-              const seconds = Number(text);
-              const value = Math.round(seconds * 1000);
-              return Number.isSafeInteger(value) &&
-                value >= 1 &&
-                value <= 86_400_000 &&
-                seconds === value / 1000
-                ? value
-                : null;
-            }}
-            step="any"
-            value={String(view.configured.saveIntervalMs / 1000)}
-          />
           <IntervalRow
             autosave={compaction}
             description="Combines small storage files in the background; saves wait while it runs."
@@ -327,19 +234,14 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
           />
           <RetentionRow
             autosave={retention}
-            days={
-              view.configured.localRetentionMs === null
-                ? null
-                : view.configured.localRetentionMs / 86_400_000
-            }
+            days={view.configured.localRetentionMs === null ? null : view.configured.localRetentionMs / 86_400_000}
           />
         </fieldset>
       ) : null}
       {view?.restartRequired ? (
         <SettingsRow label="Pending Restart">
           <span role="status">
-            Saved. Restart the connected backend to apply this policy. Its current policy remains
-            active until then.
+            Saved. Restart the connected backend to apply this policy. Its current policy remains active until then.
           </span>
         </SettingsRow>
       ) : null}
@@ -397,13 +299,7 @@ function IntervalRow({
   );
 }
 
-function RetentionRow({
-  autosave,
-  days,
-}: {
-  autosave: Autosave<number | null>;
-  days: number | null;
-}) {
+function RetentionRow({ autosave, days }: { autosave: Autosave<number | null>; days: number | null }) {
   const id = useId();
   const [selected, setSelected] = useState(days === null ? "all" : String(days));
 
@@ -427,9 +323,7 @@ function RetentionRow({
         <option value="7">One Week</option>
         <option value="30">One Month</option>
         <option value="90">Three Months</option>
-        {days !== null && ![7, 30, 90].includes(days) ? (
-          <option value={String(days)}>{days} Days</option>
-        ) : null}
+        {days !== null && ![7, 30, 90].includes(days) ? <option value={String(days)}>{days} Days</option> : null}
       </select>
     </SettingsRow>
   );

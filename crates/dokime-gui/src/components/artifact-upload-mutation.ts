@@ -13,16 +13,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
-import {
-  invalidateWorkflowDocuments,
-  invalidateWorkflowResourceQueries,
-} from "@/features/cycle/server-state";
-import {
-  type NativeArtifactUploadOptions,
-  nativeContentSession,
-  uploadNativeArtifact,
-} from "@/lib/api/native-content";
+import { useNativeSession } from "@/app/native-session/context";
+import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
+import { type NativeArtifactUploadOptions, nativeContentSession, uploadNativeArtifact } from "@/lib/api/native-content";
 
 /* === Hooks === */
 
@@ -34,10 +27,7 @@ export function useOperatorArtifactUploadMutation() {
     mutationFn: (options: NativeArtifactUploadOptions) =>
       uploadNativeArtifact(nativeContentSession(session.identity, session.own), options),
     onSuccess: async () => {
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        invalidateWorkflowDocuments(queryClient),
-      ]);
+      await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);
     },
   });
 }

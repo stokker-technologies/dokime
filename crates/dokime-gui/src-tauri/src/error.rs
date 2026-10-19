@@ -48,11 +48,7 @@ pub enum Error {
     #[error("native RPC cancelled")]
     Cancelled,
     #[error("gRPC {code}: {message}")]
-    Grpc {
-        code: i32,
-        message: String,
-        details: Vec<u8>,
-    },
+    Grpc { code: i32, message: String, details: Vec<u8> },
 }
 
 /* === Traits === */

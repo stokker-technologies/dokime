@@ -15,24 +15,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { fetchNativeSuites } from "@/lib/api/native-catalog";
-import {
-  appendNativeTestCycle,
-  createNativeTestCycle,
-  listNativeCycles,
-  previewNativeTestCycle,
-} from "@/lib/api/native-planning";
-import type { PreviewTestCycleRequest, StartTestCycleRequest } from "@/lib/types";
+import { appendNativeTestCycle, listNativeCycles, previewNativeTestCycle } from "@/lib/api/native-planning";
+import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
 /* === Query Keys === */
 
 export const suiteQueryKeys = {
   all: ["suite"] as const,
   cycleLabel: (cycleId: string) => [...suiteQueryKeys.all, "cycle-label", cycleId] as const,
-  preview: (request: PreviewTestCycleRequest) =>
-    [...suiteQueryKeys.all, "preview", request] as const,
+  preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
 
@@ -50,25 +44,7 @@ export function useTestSuitesQuery() {
 export function usePreviewTestCycleMutation() {
   const session = useNativeSession();
   return useMutation({
-    mutationFn: (request: PreviewTestCycleRequest) =>
-      previewNativeTestCycle(session.identity, request),
-  });
-}
-
-/** Creates the cycle and leaves it Ready; the operator admits the run. */
-export function useCreateTestCycleMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (request: StartTestCycleRequest) =>
-      createNativeTestCycle(session.identity, request),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all }),
-      ]);
-    },
+    mutationFn: (request: PreviewTestCycleRequest) => previewNativeTestCycle(session.identity, request),
   });
 }
 
@@ -78,13 +54,10 @@ export function useAppendTestCycleMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ cycleId, request }: { cycleId: string; request: StartTestCycleRequest }) =>
-      appendNativeTestCycle(session.identity, cycleId, request),
+    mutationFn: ({ cycleId, selections }: { cycleId: string; selections: TestCycleSelection[] }) =>
+      appendNativeTestCycle(session.identity, cycleId, selections),
     onSuccess: async () => {
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all }),
-      ]);
+      await Promise.all([invalidateWorkflowResourceQueries(queryClient), queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all })]);
     },
   });
 }

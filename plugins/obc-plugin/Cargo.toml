@@ -1,0 +1,51 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+description = "Demonstrates onboard charger validation on a simulated testbench."
+name = "obc-plugin"
+version = { workspace = true }
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[package.metadata.dokime]
+debuginfo = false
+
+[dependencies]
+# Local
+dokime-domain = { path = "../../crates/dokime-domain" }
+dokime-runtime = { path = "../../crates/dokime-runtime" }
+obc-runtime = { path = "runtime" }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+sysinfo = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+[dev-dependencies]
+# Git
+harmos = { workspace = true, features = ["plugin-sidecar"] }
+
+# Utilities
+sha2 = { workspace = true }
+
+# Async
+futures-util = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }

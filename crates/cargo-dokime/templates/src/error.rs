@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -34,7 +34,7 @@ pub enum Error {
     Bench(#[from] crate::bench::BenchError),
 
     #[error("dokime sdk: {0}")]
-    Sdk(#[from] dokime::Error),
+    Sdk(#[from] dokime_runtime::Error),
 
     #[error("evidence file")]
     Artifact(#[from] std::io::Error),
@@ -49,7 +49,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
-impl From<Error> for dokime::domains::ActionDispatcherError {
+impl From<Error> for dokime_runtime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
         Self::Refused {
             code: -32_000,

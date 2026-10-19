@@ -7,7 +7,7 @@
  * ***
  */
 
-import type { StatsSummary } from "../statistics";
+import type { SeriesSummary, StatsSummary } from "../statistics";
 import type { DocumentDataExpression, DocumentValueSource } from "../types";
 import type { ParameterDefinition } from "./test";
 import type {
@@ -52,15 +52,11 @@ export type PlotPoint = Omit<NativePlotPoint, "x"> & {
   sample_count?: number | null;
 };
 
-export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> &
-  Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
+export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> & Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
 
 export type PlotDomain = { [Key in keyof NativePlotDomain]: NonNullable<NativePlotDomain[Key]> };
 
-export type PlotCartesianFrame = Omit<
-  NativePlotCartesianFrame,
-  "series" | "x_domain" | "y_domain"
-> & {
+export type PlotCartesianFrame = Omit<NativePlotCartesianFrame, "series" | "x_domain" | "y_domain"> & {
   series: Array<Omit<NativePlotCartesianSeriesFrame, "x"> & { x: number[] }>;
   x_domain?: PlotDomain | null;
   y_domain?: PlotDomain | null;
@@ -85,6 +81,9 @@ export type DocumentPlotType =
 export type DocumentPlotStyle = "line" | "points" | "line_points" | "step";
 
 export type DocumentAxisScale = "linear" | "log";
+
+/** How a plot is reduced to its display budget; the host default is `auto`. */
+export type DocumentDownsampleTechnique = "auto" | "lttb" | "min_max" | "raw";
 
 export type DocumentFrequencyLevelUnit = "linear" | "dB" | "dBu" | "dBm";
 
@@ -162,31 +161,55 @@ export type PlotAnalysis =
         upper_whisker: number;
         outliers: number[];
       }[];
+      /** Samples summarized across every box. */
+      total: number;
     }
   | {
       kind: "sigma_interval";
       series: {
         key: string;
         bins: { x: number; count: number; mean: number; lower: number; upper: number }[];
+        /** Samples the bins summarize. */
+        raw_points: number;
       }[];
+    }
+  | {
+      kind: "wifi_occupancy";
+      /** Every channel a series reported, ascending. */
+      channels: number[];
+      /** Channels that held a network in any scan, ascending. */
+      occupied_channels: number[];
+      bands: { band: string; occupied_channels: number }[];
+      /** Scans in time order. */
+      scans: WifiOccupancyScan[];
     };
 
+export type WifiOccupancyScan = {
+  time: string;
+  channels: { channel: number; count: number }[];
+  bands: WifiOccupancyBandScan[];
+  occupied_channels: number;
+  total_networks: number;
+  peak_count: number;
+};
+
+export type WifiOccupancyBandScan = {
+  band: string;
+  occupied_channels: number;
+  total_networks: number;
+  peak_count: number;
+};
+
 // Renderer payloads also represent locally materialized, partial plot data.
-export type PlotPayload = Pick<
-  NativePlotPayload,
-  "stream" | "x_key" | "max_points" | "generated_at"
-> &
-  Partial<
-    Pick<
-      NativePlotPayload,
-      "series_by" | "context" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at"
-    >
-  > & {
+export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
+  Partial<Pick<NativePlotPayload, "series_by" | "context" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
     series: PlotSeries[];
     computed?: EvidenceAnalysisResult | null;
     analysis?: PlotAnalysis | null;
     cartesian?: PlotCartesianFrame | null;
     markers?: PlotMarker[];
+    /** One per series of a time series or scatter plot, over the shown window. */
+    summaries?: SeriesSummary[];
   };
 
 export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {

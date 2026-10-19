@@ -50,10 +50,7 @@ impl Project {
         let metadata = metadata(&options, true).await?;
         let selected = select_package(&metadata, options.package.as_deref())?;
         let package_name = selected.name.clone();
-        let resolve = metadata
-            .resolve
-            .as_ref()
-            .ok_or_else(|| Error::Invalid("Cargo metadata omitted the dependency graph".into()))?;
+        let resolve = metadata.resolve.as_ref().ok_or_else(|| Error::Invalid("Cargo metadata omitted the dependency graph".into()))?;
         let mut pending = vec![selected.id.clone()];
         let mut seen = BTreeSet::new();
         while let Some(id) = pending.pop() {
@@ -64,15 +61,9 @@ impl Project {
                 pending.extend(node.deps.iter().map(|dependency| dependency.pkg.clone()));
             }
         }
-        let sdks = metadata
-            .packages
-            .iter()
-            .filter(|package| package.name == "dokime" && seen.contains(&package.id))
-            .collect::<Vec<_>>();
+        let sdks = metadata.packages.iter().filter(|package| package.name == "dokime" && seen.contains(&package.id)).collect::<Vec<_>>();
         if sdks.len() != 1 {
-            return Err(Error::Invalid(
-                "selected plugin must resolve exactly one Dokime SDK dependency".into(),
-            ));
+            return Err(Error::Invalid("selected plugin must resolve exactly one Dokime SDK dependency".into()));
         }
         let sdk_version = sdks[0].version.to_string();
         let sdk_source = sdks[0].source.as_ref().map(|source| source.repr.clone());
@@ -80,23 +71,9 @@ impl Project {
             .packages
             .iter()
             .filter(|package| package.source.is_none() && seen.contains(&package.id))
-            .map(|package| {
-                package
-                    .manifest_path
-                    .parent()
-                    .expect("manifest parent")
-                    .as_std_path()
-                    .to_owned()
-            })
+            .map(|package| package.manifest_path.parent().expect("manifest parent").as_std_path().to_owned())
             .collect::<Vec<_>>();
-        for file in [
-            "Cargo.toml",
-            "Cargo.lock",
-            ".cargo/config.toml",
-            ".cargo/config",
-            "rust-toolchain.toml",
-            "rust-toolchain",
-        ] {
+        for file in ["Cargo.toml", "Cargo.lock", ".cargo/config.toml", ".cargo/config", "rust-toolchain.toml", "rust-toolchain"] {
             watch_paths.push(metadata.workspace_root.join(file).into_std_path_buf());
         }
         watch_paths.sort();
@@ -107,15 +84,7 @@ impl Project {
             .map(std::path::absolute)
             .transpose()?
             .unwrap_or_else(|| metadata.target_directory.clone().into_std_path_buf());
-        Ok(Self {
-            options,
-            metadata,
-            package_name,
-            sdk_version,
-            sdk_source,
-            watch_paths,
-            target_directory,
-        })
+        Ok(Self { options, metadata, package_name: package_name.to_string(), sdk_version, sdk_source, watch_paths, target_directory })
     }
 
     pub fn package_name(&self) -> &str {

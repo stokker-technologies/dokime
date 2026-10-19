@@ -25,17 +25,7 @@ use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Meta, Token, Ty
 use crate::arguments::Shape;
 
 /* === Constants === */
-const FIELD_ARGUMENTS: &[&str] = &[
-    "label",
-    "description",
-    "unit",
-    "default",
-    "expansion",
-    "min",
-    "max",
-    "min_items",
-    "max_items",
-];
+const FIELD_ARGUMENTS: &[&str] = &["label", "description", "unit", "default", "expansion", "min", "max", "min_items", "max_items"];
 
 const VARIANT_ARGUMENTS: &[&str] = &["id", "label"];
 
@@ -131,7 +121,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             }
 
             fn from_parameters(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> #sdk::Result<Self> {
                 ::core::result::Result::Ok(Self { #(#reads),* })
             }
@@ -149,19 +139,11 @@ fn declarations(input: &DeriveInput) -> Result<Vec<ParameterDeclaration>, Error>
         .named
         .iter()
         .map(|field| {
-            let name = field
-                .ident
-                .clone()
-                .expect("a named field carries an identifier");
+            let name = field.ident.clone().expect("a named field carries an identifier");
             let written = arguments(field)?;
             let (shape, leaf) = crate::arguments::shape(&field.ty);
-            if matches!(shape, Shape::Required | Shape::Optional)
-                && (written.min_items.is_some() || written.max_items.is_some())
-            {
-                return Err(Error::new(
-                    name.span(),
-                    "min_items and max_items bound a list: declare the field as `Vec<T>`",
-                ));
+            if matches!(shape, Shape::Required | Shape::Optional) && (written.min_items.is_some() || written.max_items.is_some()) {
+                return Err(Error::new(name.span(), "min_items and max_items bound a list: declare the field as `Vec<T>`"));
             }
             let identifier = LitStr::new(&name.unraw().to_string(), name.span());
             let label = written.label.clone().unwrap_or_else(|| {
@@ -176,10 +158,7 @@ fn declarations(input: &DeriveInput) -> Result<Vec<ParameterDeclaration>, Error>
                 leaf,
                 shape,
                 label,
-                described: crate::arguments::description(
-                    written.description.as_ref(),
-                    &field.attrs,
-                ),
+                described: crate::arguments::description(written.description.as_ref(), &field.attrs),
                 written,
             })
         })
@@ -189,15 +168,7 @@ fn declarations(input: &DeriveInput) -> Result<Vec<ParameterDeclaration>, Error>
 fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
     let mut written = FieldArguments::default();
 
-    for (name, value) in crate::arguments::field_arguments(
-        field,
-        "parameter",
-        "a parameter argument",
-        FIELD_ARGUMENTS,
-        &[],
-    )?
-    .values()
-    {
+    for (name, value) in crate::arguments::field_arguments(field, "parameter", "a parameter argument", FIELD_ARGUMENTS, &[])?.values() {
         match name.to_string().as_str() {
             "label" => written.label = Some(value.to_token_stream()),
             "description" => written.description = Some(value),
@@ -206,43 +177,28 @@ fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
             "expansion" => {
                 let sdk = crate::facade::root();
                 written.expansion = Some(match &value {
-                    Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Str(text) if text.value() == "single") =>
-                    {
+                    Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Str(text) if text.value() == "single") => {
                         quote!(#sdk::definition::ParameterExpansion::Single)
                     }
-                    Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Str(text) if text.value() == "cartesian") =>
-                    {
+                    Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Str(text) if text.value() == "cartesian") => {
                         written.expanded = true;
                         quote!(#sdk::definition::ParameterExpansion::Cartesian)
                     }
-                    Expr::Call(call)
-                        if matches!(&*call.func, Expr::Path(path) if path.path.is_ident("zip"))
-                            && call.args.len() == 1 =>
-                    {
+                    Expr::Call(call) if matches!(&*call.func, Expr::Path(path) if path.path.is_ident("zip")) && call.args.len() == 1 => {
                         let group = &call.args[0];
-                        let Expr::Lit(syn::ExprLit {
-                            lit: syn::Lit::Str(group),
-                            ..
-                        }) = group
-                        else {
-                            return Err(Error::new_spanned(
-                                group,
-                                "zip requires a literal group name",
-                            ));
+                        let Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(group), .. }) = group else {
+                            return Err(Error::new_spanned(group, "zip requires a literal group name"));
                         };
                         if group.value().trim().is_empty() {
                             return Err(Error::new_spanned(group, "zip group cannot be empty"));
                         }
                         written.expanded = true;
                         quote!(#sdk::definition::ParameterExpansion::Zip {
-                            group: #sdk::core::Identifier::new(#group).expect("valid zip group identifier")
+                            group: #sdk::Identifier::new(#group).expect("valid zip group identifier")
                         })
                     }
                     _ => {
-                        return Err(Error::new_spanned(
-                            value,
-                            "expansion must be \"single\", \"cartesian\", or zip(\"group\")",
-                        ));
+                        return Err(Error::new_spanned(value, "expansion must be \"single\", \"cartesian\", or zip(\"group\")"));
                     }
                 });
             }
@@ -277,32 +233,14 @@ fn declaration(field: &ParameterDeclaration) -> TokenStream {
             )
         }
     };
-    let min = field
-        .written
-        .min
-        .as_ref()
-        .map(|min| quote!(let declared = declared.min((#min) as f64);));
-    let max = field
-        .written
-        .max
-        .as_ref()
-        .map(|max| quote!(let declared = declared.max((#max) as f64);));
-    let described = field
-        .described
-        .as_ref()
-        .map(|description| quote!(let declared = declared.description(#description);));
-    let unit =
-        field.written.unit.as_ref().map(
-            |unit| quote!(let declared = declared.unit(#sdk::definition::authored_unit(#unit));),
-        );
+    let min = field.written.min.as_ref().map(|min| quote!(let declared = declared.min((#min) as f64);));
+    let max = field.written.max.as_ref().map(|max| quote!(let declared = declared.max((#max) as f64);));
+    let described = field.described.as_ref().map(|description| quote!(let declared = declared.description(#description);));
+    let unit = field.written.unit.as_ref().map(|unit| quote!(let declared = declared.unit(#sdk::definition::authored_unit(#unit));));
     // A bare `None` names no type, and `Into<ParameterDefault>` is generic
     // over the option's payload, so the compiler cannot infer it from the
     // literal alone; the field's own leaf type is what it means.
-    let expansion = field
-        .written
-        .expansion
-        .as_ref()
-        .map(|strategy| quote!(let declared = declared.expansion(#strategy);));
+    let expansion = field.written.expansion.as_ref().map(|strategy| quote!(let declared = declared.expansion(#strategy);));
     let default = field.written.default.as_ref().map(|default| {
         let candidates = matches!(default, Expr::Array(_) | Expr::Range(_))
             || matches!(default, Expr::Macro(expression) if expression.mac.path.is_ident("vec"));
@@ -394,23 +332,15 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
     crate::arguments::Arguments::read(attribute, "a choice", &[])?;
     let input: DeriveInput = syn::parse2(item.clone())?;
     let Data::Enum(enumeration) = &input.data else {
-        return Err(Error::new(
-            input.ident.span(),
-            "a choice is an enum: its variants are the values it admits",
-        ));
+        return Err(Error::new(input.ident.span(), "a choice is an enum: its variants are the values it admits"));
     };
-    let variants = enumeration
-        .variants
-        .iter()
-        .map(variant)
-        .collect::<Result<Vec<_>, _>>()?;
+    let variants = enumeration.variants.iter().map(variant).collect::<Result<Vec<_>, _>>()?;
     if variants.is_empty() {
-        return Err(Error::new(
-            input.ident.span(),
-            "a choice admits at least one value: declare a variant",
-        ));
+        return Err(Error::new(input.ident.span(), "a choice admits at least one value: declare a variant"));
     }
-    let declared = stripped_choice(&input);
+    // Choices Used In Records And Rows Share The Same Message Codec.
+    let stripped = stripped_choice(&input);
+    let declared = crate::message::message(crate::message::Kind::Plain, quote!(), stripped);
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
     let choices = variants.iter().map(|variant| {
@@ -428,13 +358,9 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
     let encoded = variants.iter().map(|variant| {
         let variant_name = &variant.name;
         let identifier = &variant.identifier;
-        quote!(Self::#variant_name => #sdk::core::Value::Text(::std::string::String::from(#identifier)),)
+        quote!(Self::#variant_name => #sdk::Value::Text(::std::string::String::from(#identifier)),)
     });
-    let admitted = variants
-        .iter()
-        .map(|variant| variant.identifier.value())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let admitted = variants.iter().map(|variant| variant.identifier.value()).collect::<Vec<_>>().join(", ");
     let offered = variants.iter().map(|variant| &variant.identifier);
 
     Ok(quote! {
@@ -473,17 +399,17 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
 
         #[automatically_derived]
         impl #generics #sdk::values::FieldValue for #name #types #predicates {
-            const VALUE_TYPE: #sdk::core::ValueType = #sdk::core::ValueType::Text;
+            const VALUE_TYPE: #sdk::ValueType = #sdk::ValueType::Text;
 
-            fn into_value(self) -> #sdk::core::Value {
+            fn into_value(self) -> #sdk::Value {
                 match self { #(#encoded)* }
             }
 
-            fn from_value(value: ::core::option::Option<&#sdk::core::Value>) -> ::core::result::Result<Self, #sdk::values::FieldError> {
+            fn from_value(value: ::core::option::Option<&#sdk::Value>) -> ::core::result::Result<Self, #sdk::values::FieldError> {
                 let base = <::std::string::String as #sdk::values::FieldValue>::from_value(value)?;
                 <Self as #sdk::parameters::ParameterValue>::refine(base).map_err(|reason| #sdk::values::FieldError {
                     field: ::std::string::String::new(),
-                    declared: #sdk::core::ValueType::Text,
+                    declared: #sdk::ValueType::Text,
                     found: ::core::option::Option::Some(reason),
                 })
             }
@@ -494,30 +420,17 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
 
 fn variant(variant: &Variant) -> Result<ChoiceVariant, Error> {
     if !matches!(variant.fields, Fields::Unit) {
-        return Err(Error::new(
-            variant.fields.span(),
-            "a choice's variants carry no data: one variant is one value",
-        ));
+        return Err(Error::new(variant.fields.span(), "a choice's variants carry no data: one variant is one value"));
     }
     let mut identifier = None;
     let mut label = None;
-    for attribute in variant
-        .attrs
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("choice"))
-    {
-        for entry in attribute
-            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?
-            .into_iter()
-        {
+    for attribute in variant.attrs.iter().filter(|attribute| attribute.path().is_ident("choice")) {
+        for entry in attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?.into_iter() {
             let Meta::NameValue(named) = &entry else {
                 return Err(Error::new(entry.span(), "an argument is `name = value`"));
             };
             let Some(name) = named.path.get_ident() else {
-                return Err(Error::new(
-                    named.path.span(),
-                    "an argument is one bare name",
-                ));
+                return Err(Error::new(named.path.span(), "an argument is one bare name"));
             };
             match name.to_string().as_str() {
                 "id" => identifier = Some(literal(&named.value)?),
@@ -525,10 +438,7 @@ fn variant(variant: &Variant) -> Result<ChoiceVariant, Error> {
                 other => {
                     return Err(Error::new(
                         name.span(),
-                        format!(
-                            "`{other}` is not a choice argument; a variant takes {}",
-                            VARIANT_ARGUMENTS.join(", ")
-                        ),
+                        format!("`{other}` is not a choice argument; a variant takes {}", VARIANT_ARGUMENTS.join(", ")),
                     ));
                 }
             }
@@ -537,8 +447,7 @@ fn variant(variant: &Variant) -> Result<ChoiceVariant, Error> {
     let written = variant.ident.unraw().to_string();
 
     Ok(ChoiceVariant {
-        identifier: identifier
-            .unwrap_or_else(|| LitStr::new(&underscored(&written), variant.ident.span())),
+        identifier: identifier.unwrap_or_else(|| LitStr::new(&underscored(&written), variant.ident.span())),
         label: label.unwrap_or_else(|| {
             let titled = spaced(&written);
 
@@ -552,15 +461,9 @@ fn literal(value: &Expr) -> Result<LitStr, Error> {
     match value {
         Expr::Lit(literal) => match &literal.lit {
             syn::Lit::Str(text) => Ok(text.clone()),
-            other => Err(Error::new(
-                other.span(),
-                "a choice's id is a string literal",
-            )),
+            other => Err(Error::new(other.span(), "a choice's id is a string literal")),
         },
-        other => Err(Error::new(
-            other.span(),
-            "a choice's id is a string literal: it is what the resolved case carries",
-        )),
+        other => Err(Error::new(other.span(), "a choice's id is a string literal: it is what the resolved case carries")),
     }
 }
 

@@ -21,9 +21,8 @@ use tonic::Status;
 // Local Imports
 use super::super::{
     catalog,
-    value::{self, Budget},
+    value::{self, Budget, canonical},
 };
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -41,36 +40,32 @@ use dokime_protocol::v1;
 
 /* === Public Functions === */
 pub(super) fn selection(
-    value: v1::AnalysisSelection,
-) -> Result<dokime::analysis::Selection, Status> {
+    value: dokime_domain::model::plots::wire::AnalysisSelection,
+) -> Result<dokime_runtime::analysis::Selection, Status> {
     value::text(&value.id)?;
     if value.id.is_empty() || value.version == 0 {
-        return Err(Status::invalid_argument(
-            "analysis requires an ID and positive version",
-        ));
+        return Err(Status::invalid_argument("analysis requires an ID and positive version"));
     }
-    let parameters = value::decode_object(value.parameters)?;
-    let selection = dokime::analysis::Selection {
-        id: value.id,
-        version: value.version,
-        parameters,
+    let parameters = match value.parameters.map(|value| canonical::decode(value, &mut Budget::new(), 0)).transpose()? {
+        None => Default::default(),
+        Some(dokime_domain::model::values::Value::Object(fields)) => fields,
+        Some(_) => {
+            return Err(Status::invalid_argument("analysis parameters must be an object"));
+        }
     };
-    if serde_json::to_vec(&selection.parameters)
-        .map_err(|error| Status::invalid_argument(error.to_string()))?
-        .len()
-        > dokime::analysis::MAX_PARAMETER_BYTES
+    let selection = dokime_runtime::analysis::Selection { id: value.id, version: value.version, parameters };
+    if serde_json::to_vec(&selection.parameters).map_err(|error| Status::invalid_argument(error.to_string()))?.len()
+        > dokime_runtime::analysis::MAX_PARAMETER_BYTES
     {
-        return Err(Status::resource_exhausted(
-            "analysis configuration exceeds its budget",
-        ));
+        return Err(Status::resource_exhausted("analysis configuration exceeds its budget"));
     }
     Ok(selection)
 }
 
 pub(crate) fn selection_wire(
-    selection: &dokime::analysis::Selection,
-) -> Result<v1::AnalysisSelection, Status> {
-    Ok(v1::AnalysisSelection {
+    selection: &dokime_runtime::analysis::Selection,
+) -> Result<dokime_domain::model::plots::wire::AnalysisSelection, Status> {
+    Ok(dokime_domain::model::plots::wire::AnalysisSelection {
         id: selection.id.clone(),
         version: selection.version,
         parameters: Some(super::wire::values(&selection.parameters)?),
@@ -78,11 +73,11 @@ pub(crate) fn selection_wire(
 }
 
 pub(super) fn definition(
-    definition: &dokime::analysis::Definition,
-) -> Result<v1::AnalysisDefinition, Status> {
+    definition: &dokime_runtime::analysis::Definition,
+) -> Result<dokime_domain::model::plots::wire::AnalysisDefinition, Status> {
     definition.check().map_err(Status::internal)?;
     let mut budget = Budget::new();
-    Ok(v1::AnalysisDefinition {
+    Ok(dokime_domain::model::plots::wire::AnalysisDefinition {
         id: definition.id.clone(),
         version: definition.version,
         label: definition.label.clone(),
@@ -91,14 +86,14 @@ pub(super) fn definition(
         outputs: definition
             .outputs
             .iter()
-            .map(|output| v1::AnalysisOutput {
+            .map(|output| dokime_domain::model::plots::wire::AnalysisOutput {
                 key: output.key.clone(),
                 label: output.label.clone(),
                 unit: output.unit.clone(),
-                axis: output.axis.as_ref().map(|axis| v1::AnalysisAxis {
-                    key: axis.key.clone(),
-                    unit: axis.unit.clone(),
-                }),
+                axis: output
+                    .axis
+                    .as_ref()
+                    .map(|axis| dokime_domain::model::plots::wire::AnalysisAxis { key: axis.key.clone(), unit: axis.unit.clone() }),
             })
             .collect(),
         max_samples: definition.limits.max_samples,
@@ -107,20 +102,21 @@ pub(super) fn definition(
 }
 
 pub(super) fn computation(
-    computed: dokime_app::runtime::query::PlotComputation,
-) -> Result<v1::AnalysisComputation, Status> {
-    Ok(v1::AnalysisComputation {
+    computed: dokime_runtime::runtime::query::PlotComputation,
+) -> Result<dokime_domain::model::plots::wire::AnalysisComputation, Status> {
+    Ok(dokime_domain::model::plots::wire::AnalysisComputation {
         definition: Some(definition(&computed.definition)?),
         selection: Some(selection_wire(&computed.selection)?),
-        source: Some(v1::AnalysisEvidence {
+        source: Some(dokime_domain::model::plots::wire::AnalysisEvidence {
             epoch: computed.source.epoch,
             stream: computed.source.stream,
-            scope: computed.source.scope.as_ref().map(value::scope),
+            scope: computed.source.scope.as_ref().map(canonical::scope).transpose()?,
             telemetry_streams: computed
                 .source
                 .cursor
                 .telemetry_streams
                 .into_iter()
+                .map(|(key, value)| dokime_domain::model::plots::wire::AnalysisEvidenceTelemetryStreamsEntry { key, value })
                 .collect(),
             record_sequence: computed.source.cursor.record_sequence,
             window_s: computed.source.window_s,
@@ -130,7 +126,7 @@ pub(super) fn computation(
         series: computed
             .series
             .into_iter()
-            .map(|series| v1::AnalysisSeries {
+            .map(|series| dokime_domain::model::plots::wire::AnalysisSeries {
                 key: series.key,
                 label: series.label,
                 origin: series.origin,
@@ -141,12 +137,8 @@ pub(super) fn computation(
                     .output
                     .outputs
                     .into_iter()
-                    .map(|output| v1::AnalysisValues {
-                        display_indices: series
-                            .display_indices
-                            .get(&output.key)
-                            .cloned()
-                            .unwrap_or_default(),
+                    .map(|output| dokime_domain::model::plots::wire::AnalysisValues {
+                        display_indices: series.display_indices.get(&output.key).cloned().unwrap_or_default(),
                         key: output.key,
                         unit: output.unit,
                         axis_unit: output.axis_unit,

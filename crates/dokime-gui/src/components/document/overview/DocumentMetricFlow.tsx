@@ -21,13 +21,7 @@ import {
   writeMetricFlowOrder,
 } from "./metric-model";
 
-export function DocumentMetricFlow({
-  groups,
-  storageKey,
-}: {
-  groups: OverviewMetricGroup[];
-  storageKey: string;
-}) {
+export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMetricGroup[]; storageKey: string }) {
   const [savedOrder, setSavedOrder] = useState<string[]>(() => readMetricFlowOrder(storageKey));
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const orderedGroups = useMemo(() => orderMetricGroups(groups, savedOrder), [groups, savedOrder]);

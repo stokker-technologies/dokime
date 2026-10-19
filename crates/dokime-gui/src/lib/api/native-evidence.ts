@@ -11,18 +11,14 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
 import { fallbackRecordDisplay } from "@/lib/record-display";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import type { Cursor } from "@/lib/rpc/generated/dokime/v1/common_pb";
-import {
-  type CapturedRecord,
-  CapturedRecordSelectionSchema,
-  type RecordPage,
-} from "@/lib/rpc/generated/dokime/v1/evidence_pb";
+
+type Cursor = NonNullable<RecordPage["scanned"]>;
+
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, RecordScope } from "@/lib/types";
 import {
@@ -36,6 +32,11 @@ import {
   timestampIso,
 } from "./native-values";
 
+/* === Canonical Types === */
+
+type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceListRecords>>>;
+type CapturedRecord = RecordPage["records"][number];
+
 /* === Public API === */
 
 export async function fetchNativeRecords(
@@ -43,9 +44,12 @@ export async function fetchNativeRecords(
   options: { limit?: number; scope?: RecordScope | null } = {},
 ): Promise<HubRecord[]> {
   const records: CapturedRecord[] = [];
-  const selection = create(CapturedRecordSelectionSchema, {
+  const selection = {
     scope: nativeEvidenceScope(options.scope),
-  });
+    recordTypes: [],
+    sources: [],
+    severities: [],
+  };
   let after: Cursor | undefined;
   let through: Cursor | undefined;
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
@@ -57,10 +61,7 @@ export async function fetchNativeRecords(
     records.push(...reply.records);
     if (reply.replayComplete) break;
     if (!reply.scanned || !reply.through) {
-      throw new NativeApiLimitError(
-        "Evidence.ListRecords",
-        "replay page did not include continuation cursors",
-      );
+      throw new NativeApiLimitError("Evidence.ListRecords", "replay page did not include continuation cursors");
     }
     if (sameCursor(reply.scanned, after) && sameCursor(reply.through, through)) {
       throw new NativeApiLimitError("Evidence.ListRecords", "replay cursors did not advance");
@@ -109,7 +110,7 @@ export async function openNativeRecordStream(
   scope: RecordScope | null,
 ): Promise<NativeStream<HubRecord[]>> {
   const reader = await rpc.evidenceWatchRecords(session, {
-    selection: create(CapturedRecordSelectionSchema, { scope: nativeEvidenceScope(scope) }),
+    selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
   });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
@@ -191,9 +192,5 @@ export function mapNativeRecord(record: CapturedRecord): HubRecord {
 }
 
 function sameCursor(left?: Cursor, right?: Cursor): boolean {
-  return (
-    left?.epoch === right?.epoch &&
-    left?.stream === right?.stream &&
-    left?.position === right?.position
-  );
+  return left?.epoch === right?.epoch && left?.stream === right?.stream && left?.position === right?.position;
 }

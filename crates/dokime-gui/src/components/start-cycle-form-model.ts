@@ -106,15 +106,10 @@ export function createPlanSelection({
 
 export function templateSelectionId(template: SuiteTemplateEntry): string {
   const identifier = template.metadata.identifier;
-  return typeof identifier === "string" && identifier.length > 0
-    ? identifier
-    : template.template_id;
+  return typeof identifier === "string" && identifier.length > 0 ? identifier : template.template_id;
 }
 
-export function initialRows(
-  template: SuiteTemplateEntry,
-  draft?: TestcaseFormDraft,
-): ParameterRowState[] {
+export function initialRows(template: SuiteTemplateEntry, draft?: TestcaseFormDraft): ParameterRowState[] {
   return template.parameter_definitions.map((definition) => {
     const raw = draft?.parameters[definition.name] ?? initialParameterRaw(definition);
     return {
@@ -125,10 +120,7 @@ export function initialRows(
   });
 }
 
-export function initialFileRows(
-  template: SuiteTemplateEntry,
-  draft?: TestcaseFormDraft,
-): FileRowState[] {
+export function initialFileRows(template: SuiteTemplateEntry, draft?: TestcaseFormDraft): FileRowState[] {
   return template.file_definitions.map((definition) => ({
     name: definition.name,
     path: draft?.files[definition.name] ?? definition.default ?? "",
@@ -137,10 +129,7 @@ export function initialFileRows(
   }));
 }
 
-export function formDraftFromRows(
-  rows: ParameterRowState[],
-  fileRows: FileRowState[],
-): TestcaseFormDraft {
+export function formDraftFromRows(rows: ParameterRowState[], fileRows: FileRowState[]): TestcaseFormDraft {
   return {
     parameters: Object.fromEntries(rows.map((row) => [row.name, row.raw])),
     files: Object.fromEntries(fileRows.map((row) => [row.name, row.path])),
@@ -207,12 +196,9 @@ function initialParameterRaw(definition: ParameterDefinition): string {
     return parameterGroupVariantId(first) ?? "";
   }
   if (definition.list) {
-    if ((definition.expansion?.kind ?? "single") === "single" && definition.values[0] == null)
-      return "";
+    if ((definition.expansion?.kind ?? "single") === "single" && definition.values[0] == null) return "";
     return formatListRaw(
-      (definition.expansion?.kind ?? "single") === "single"
-        ? ((definition.values[0] as unknown[]) ?? [])
-        : definition.values,
+      (definition.expansion?.kind ?? "single") === "single" ? ((definition.values[0] as unknown[]) ?? []) : definition.values,
     );
   }
   if (definition.expansion?.kind === "zip") {
@@ -227,9 +213,7 @@ function formatPreviewValue(value: unknown, valueType: string): string {
     if (valueType === "int" || valueType === "integer") {
       return String(Math.trunc(value));
     }
-    return Number.isInteger(value)
-      ? String(value)
-      : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
   }
   if (typeof value === "boolean") {
     return value ? "true" : "false";
@@ -246,14 +230,9 @@ function parameterGroupVariantId(value: unknown): string | null {
   return typeof id === "string" ? id : null;
 }
 
-function selectionSummary(
-  values: Record<string, unknown[]>,
-  files: Record<string, string | null>,
-): string {
+function selectionSummary(values: Record<string, unknown[]>, files: Record<string, string | null>): string {
   const parts = [
-    ...Object.entries(values).map(
-      ([name, entryValues]) => `${name}=${formatSelectionValues(entryValues)}`,
-    ),
+    ...Object.entries(values).map(([name, entryValues]) => `${name}=${formatSelectionValues(entryValues)}`),
     ...Object.entries(files).map(([name, path]) => `${name}=${path || "default"}`),
   ];
   if (!parts.length) {
@@ -277,9 +256,7 @@ function formatSelectionValues(values: unknown[]): string {
 
 export function choiceLabelMap(metadata: Record<string, unknown>): Record<string, unknown> {
   const choiceLabels = metadata.choice_labels;
-  return choiceLabels && typeof choiceLabels === "object" && !Array.isArray(choiceLabels)
-    ? (choiceLabels as Record<string, unknown>)
-    : {};
+  return choiceLabels && typeof choiceLabels === "object" && !Array.isArray(choiceLabels) ? (choiceLabels as Record<string, unknown>) : {};
 }
 
 export function metadataString(metadata: Record<string, unknown>, key: string): string | null {
@@ -348,9 +325,7 @@ export type WifiChannelChoice = ParameterChoice & {
 
 export function parameterChoices(definition: ParameterDefinition): ParameterChoice[] {
   if (definition.metadata.kind === "parameter_group") {
-    const variants = Array.isArray(definition.metadata.variants)
-      ? definition.metadata.variants
-      : [];
+    const variants = Array.isArray(definition.metadata.variants) ? definition.metadata.variants : [];
     return variants.flatMap((variant): ParameterChoice[] => {
       if (!variant || typeof variant !== "object" || Array.isArray(variant)) {
         return [];
@@ -366,13 +341,9 @@ export function parameterChoices(definition: ParameterDefinition): ParameterChoi
 
   const choiceLabels = definition.metadata.choice_labels;
   const labels =
-    choiceLabels && typeof choiceLabels === "object" && !Array.isArray(choiceLabels)
-      ? (choiceLabels as Record<string, unknown>)
-      : {};
+    choiceLabels && typeof choiceLabels === "object" && !Array.isArray(choiceLabels) ? (choiceLabels as Record<string, unknown>) : {};
   return (definition.choices ?? [])
-    .filter((choice): choice is string | number | boolean =>
-      ["boolean", "number", "string"].includes(typeof choice),
-    )
+    .filter((choice): choice is string | number | boolean => ["boolean", "number", "string"].includes(typeof choice))
     .map((choice) => {
       const value = String(choice);
       return {
@@ -382,13 +353,8 @@ export function parameterChoices(definition: ParameterDefinition): ParameterChoi
     });
 }
 
-export function wifiChannelChoices(
-  definition: ParameterDefinition,
-  fallbackChoices: ParameterChoice[],
-): WifiChannelChoice[] {
-  const options = Array.isArray(definition.metadata.wifi_channel_options)
-    ? definition.metadata.wifi_channel_options
-    : [];
+export function wifiChannelChoices(definition: ParameterDefinition, fallbackChoices: ParameterChoice[]): WifiChannelChoice[] {
+  const options = Array.isArray(definition.metadata.wifi_channel_options) ? definition.metadata.wifi_channel_options : [];
   const parsed = options.flatMap((option): WifiChannelChoice[] => {
     if (!option || typeof option !== "object" || Array.isArray(option)) {
       return [];

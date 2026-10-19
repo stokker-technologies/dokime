@@ -1,15 +1,13 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-
 /* === Modules === */
-pub mod controls;
 pub mod temperature;
 
 /* === Re-Exports === */
@@ -31,14 +29,14 @@ pub use temperature::Temperature;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Observers {
     Temperature(Temperature),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
-    TemperatureRow(temperature::TemperatureRow),
+    TemperatureRow(crate::domain::model::chamber::TemperatureRow),
 }
 
 /* === Traits === */

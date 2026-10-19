@@ -53,16 +53,10 @@ struct Mp4Box {
 
 /* === Public Functions === */
 pub async fn desktop_recording_finish(
-    window: WebviewWindow,
-    bridge: tauri::State<'_, crate::rpc::Bridge>,
-    generation: String,
-    duration_ms: u64,
-    media_type: String,
+    window: WebviewWindow, bridge: tauri::State<'_, crate::rpc::Bridge>, generation: String, duration_ms: u64, media_type: String,
 ) -> Result<String, String> {
     ensure_main_window(&window)?;
-    let generation_value: u64 = generation
-        .parse()
-        .map_err(|_| "Native recording generation is invalid".to_string())?;
+    let generation_value: u64 = generation.parse().map_err(|_| "Native recording generation is invalid".to_string())?;
     let recording = bridge
         .take_recording(window.label(), generation_value)
         .await
@@ -70,36 +64,22 @@ pub async fn desktop_recording_finish(
     if is_mp4(&media_type) {
         patch_mp4_duration_in_place(&recording.path, duration_ms).await?;
     }
-    let uploaded = content::push_verified(&recording.lease, &recording.path, recording.header)
-        .await
-        .inspect_err(|_| {
-            let path = recording.path.clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = tokio::fs::remove_file(&path).await;
-            });
-        })?;
+    let uploaded = content::push_verified(&recording.lease, &recording.path, recording.header).await.inspect_err(|_| {
+        let path = recording.path.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = tokio::fs::remove_file(&path).await;
+        });
+    })?;
     let _ = tokio::fs::remove_file(&recording.path).await;
     Ok(uploaded.artifact_id)
 }
 
-pub(crate) async fn patch_mp4_duration_in_place(
-    path: &std::path::Path,
-    duration_ms: u64,
-) -> Result<bool, String> {
+pub(crate) async fn patch_mp4_duration_in_place(path: &std::path::Path, duration_ms: u64) -> Result<bool, String> {
     if duration_ms == 0 {
         return Ok(false);
     }
-    let file = tokio::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(path)
-        .await
-        .map_err(|error| error.to_string())?;
-    let file_len = file
-        .metadata()
-        .await
-        .map_err(|error| error.to_string())?
-        .len();
+    let file = tokio::fs::OpenOptions::new().read(true).write(true).open(path).await.map_err(|error| error.to_string())?;
+    let file_len = file.metadata().await.map_err(|error| error.to_string())?.len();
     patch_duration(file, file_len, duration_ms).await
 }
 
@@ -110,24 +90,16 @@ fn is_mp4(media_type: &str) -> bool {
 }
 
 async fn patch_duration(
-    mut file: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + tokio::io::AsyncSeek + Unpin,
-    file_len: u64,
-    duration_ms: u64,
+    mut file: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + tokio::io::AsyncSeek + Unpin, file_len: u64, duration_ms: u64,
 ) -> Result<bool, String> {
     let probe_len = MP4_HEADER_PROBE_BYTES.min(file_len) as usize;
     let mut buffer = vec![0_u8; probe_len];
-    file.read_exact(&mut buffer)
-        .await
-        .map_err(|error| error.to_string())?;
+    file.read_exact(&mut buffer).await.map_err(|error| error.to_string())?;
     if !fix_mp4_duration(&mut buffer, duration_ms) {
         return Ok(false);
     }
-    file.seek(std::io::SeekFrom::Start(0))
-        .await
-        .map_err(|error| error.to_string())?;
-    file.write_all(&buffer)
-        .await
-        .map_err(|error| error.to_string())?;
+    file.seek(std::io::SeekFrom::Start(0)).await.map_err(|error| error.to_string())?;
+    file.write_all(&buffer).await.map_err(|error| error.to_string())?;
     file.flush().await.map_err(|error| error.to_string())?;
     Ok(true)
 }
@@ -152,11 +124,7 @@ fn read_box(data: &[u8], offset: usize) -> Option<Mp4Box> {
     if end > data.len() as u64 || end <= offset as u64 {
         return None;
     }
-    Some(Mp4Box {
-        box_type,
-        end: end as usize,
-        payload,
-    })
+    Some(Mp4Box { box_type, end: end as usize, payload })
 }
 
 fn find_box(data: &[u8], start: usize, end: usize, target: &[u8; 4]) -> Option<Mp4Box> {
@@ -187,13 +155,7 @@ fn fix_mp4_duration(data: &mut [u8], duration_ms: u64) -> bool {
             break;
         };
         if &candidate.box_type == b"trak" {
-            patch_trak_duration(
-                data,
-                candidate.payload,
-                candidate.end,
-                movie_timescale,
-                duration_ms,
-            );
+            patch_trak_duration(data, candidate.payload, candidate.end, movie_timescale, duration_ms);
         }
         pos = candidate.end;
     }
@@ -201,9 +163,7 @@ fn fix_mp4_duration(data: &mut [u8], duration_ms: u64) -> bool {
 }
 
 fn duration_ticks_u32(duration_ms: u64, timescale: u32) -> u32 {
-    ((duration_ms as f64 / 1000.0) * timescale as f64)
-        .round()
-        .min(u32::MAX as f64) as u32
+    ((duration_ms as f64 / 1000.0) * timescale as f64).round().min(u32::MAX as f64) as u32
 }
 
 fn duration_ticks_u64(duration_ms: u64, timescale: u32) -> u64 {
@@ -231,13 +191,7 @@ fn patch_mvhd_duration(data: &mut [u8], payload: usize, duration_ms: u64) -> Opt
     }
 }
 
-fn patch_trak_duration(
-    data: &mut [u8],
-    start: usize,
-    end: usize,
-    movie_timescale: u32,
-    duration_ms: u64,
-) {
+fn patch_trak_duration(data: &mut [u8], start: usize, end: usize, movie_timescale: u32, duration_ms: u64) {
     let mut pos = start;
     while pos < end {
         let Some(candidate) = read_box(data, pos) else {

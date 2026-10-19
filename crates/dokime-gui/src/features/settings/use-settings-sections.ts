@@ -44,12 +44,7 @@ export function useSettingsSections(enabled = true): SettingsSectionsState {
   const frame = query.data ?? null;
 
   return {
-    error:
-      query.error instanceof Error
-        ? query.error.message
-        : query.isError
-          ? "Settings could not be loaded."
-          : null,
+    error: query.error instanceof Error ? query.error.message : query.isError ? "Settings could not be loaded." : null,
     frame,
     loading: enabled && query.isPending,
     retry: () => void query.refetch(),

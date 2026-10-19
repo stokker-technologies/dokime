@@ -9,6 +9,50 @@
 
 /* === Modules === */
 
+mod first {
+    use super::POLICY;
+
+    #[sdk::message]
+    #[derive(Clone, PartialEq)]
+    #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY, response = ())]
+    pub struct Read {}
+
+    pub struct ReadHandler;
+
+    #[sdk::operation]
+    impl ReadHandler {
+        pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
+            Self
+        }
+
+        async fn run(&mut self, _: &sdk::Supervisor, _: &mut Read) -> Result<(), sdk::Refusal> {
+            Ok(())
+        }
+    }
+}
+
+mod second {
+    use super::POLICY;
+
+    #[sdk::message]
+    #[derive(Clone, PartialEq)]
+    #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY, response = ())]
+    pub struct Read {}
+
+    pub struct ReadHandler;
+
+    #[sdk::operation]
+    impl ReadHandler {
+        pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
+            Self
+        }
+
+        async fn run(&mut self, _: &sdk::Supervisor, _: &mut Read) -> Result<(), sdk::Refusal> {
+            Ok(())
+        }
+    }
+}
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -23,6 +67,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -32,42 +77,16 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Structs === */
 struct Duplicated;
 
-struct First;
-
-struct Second;
-
 /* === Enums === */
 #[sdk::catalog]
 enum DuplicatedOperations {
-    First(First),
-    Second(Second),
+    First(first::ReadHandler),
+    Second(second::ReadHandler),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY)]
-impl First {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
-        Self
-    }
-
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-}
-
-#[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY)]
-impl Second {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
-        Self
-    }
-
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-}
-
 impl sdk::harmos::operations::lifecycle::Policy for Duplicated {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
@@ -93,13 +112,12 @@ impl sdk::Plugin for Duplicated {
     }
 
     fn bind_operations(
-        &self,
-        table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         table.bind_operations::<DuplicatedOperations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 
@@ -111,6 +129,10 @@ impl sdk::Plugin for Duplicated {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn main() {}
+fn main() {
+    // Schema markers link only through a reachable `markers()` call, as the
+    // sidecar runtime makes; inspection resolves contracts against them.
+    let _ = <Duplicated as sdk::harmos::plugin::Declared>::markers();
+}
 
 /* === Tests === */

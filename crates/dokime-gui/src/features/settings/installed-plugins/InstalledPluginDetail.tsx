@@ -14,15 +14,13 @@
 /* === Local Imports === */
 
 import { Separator } from "@/components/ui/separator";
-import {
-  InstalledPluginRuntimeBadge,
-  InstalledPluginStatusBadge,
-} from "@/features/settings/installed-plugins/InstalledPluginBadges";
+import { InstalledPluginRuntimeBadge, InstalledPluginStatusBadge } from "@/features/settings/installed-plugins/InstalledPluginBadges";
 import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
 import type {
   InstalledPluginDetail as InstalledPluginDetailModel,
   SettingValues,
 } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { useBrand } from "@/lib/brand";
 
 /* === Types === */
 
@@ -36,12 +34,8 @@ type InstalledPluginDetailProps = {
 
 /* === Components === */
 
-export function InstalledPluginDetail({
-  detail,
-  onSaveSettings,
-  onSaveCredential,
-  savingCredential,
-}: InstalledPluginDetailProps) {
+export function InstalledPluginDetail({ detail, onSaveSettings, onSaveCredential, savingCredential }: InstalledPluginDetailProps) {
+  const brand = useBrand();
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* One aligned row: what the program is, its version muted beside it,
@@ -59,24 +53,20 @@ export function InstalledPluginDetail({
         </div>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail.plugin_id}</p>
         {detail.error ? (
-          <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
-            {detail.error}
-          </p>
+          <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{detail.error}</p>
         ) : null}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="grid gap-6">
           <section className="grid gap-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Details
-            </h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Details</h4>
             <dl className="grid gap-1.5 text-sm">
               <DetailRow
                 label="Registration"
                 value={
                   detail.owner?.kind === "host"
-                    ? "Dokime host"
+                    ? `${brand.label} host`
                     : detail.owner?.kind === "bundle"
                       ? detail.owner.package
                       : detail.owner?.kind === "embedded"

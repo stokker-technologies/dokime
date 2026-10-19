@@ -32,7 +32,5 @@ export function TemplateStepTimeline({ template }: { template: SuiteTemplateEntr
   const statistics = useTemplateStepStatistics(template.template_id);
   const durations = useMemo(() => stepDurationLabels(statistics), [statistics]);
 
-  return (
-    <StepDiagram durations={durations} steps={suiteDiagramSteps(template)} template={template} />
-  );
+  return <StepDiagram durations={durations} steps={suiteDiagramSteps(template)} template={template} />;
 }

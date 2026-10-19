@@ -36,6 +36,8 @@ pub enum Error {
     OperationService(#[source] tonic::Status),
     #[error("runtime operation failed: {0}")]
     Operation(#[from] harmos::Error),
+    #[error("invalid declared operation contract: {0}")]
+    Contract(#[from] harmos::operations::ContractError),
     #[error("cannot bind gRPC listener: {0}")]
     Bind(#[from] std::io::Error),
     #[error("gRPC listener failed: {0}")]

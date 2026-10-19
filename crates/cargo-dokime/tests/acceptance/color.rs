@@ -37,7 +37,8 @@ use std::{fs, process::Command};
 /* === Private Functions === */
 
 /* === Tests === */
-pub(super) fn compiler_color_policy() {
+#[test]
+fn build_color_policy() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
@@ -45,11 +46,7 @@ pub(super) fn compiler_color_policy() {
         "[package]\nname = \"color-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[workspace]\n",
     )
     .unwrap();
-    fs::write(
-        project.path().join("src/main.rs"),
-        "fn main() { compile_error!(\"color-fixture-diagnostic\"); }\n",
-    )
-    .unwrap();
+    fs::write(project.path().join("src/main.rs"), "fn main() { compile_error!(\"color-fixture-diagnostic\"); }\n").unwrap();
     for (mode, inherited, colored) in [
         ("always", Some("never"), true),
         ("never", Some("always"), false),
@@ -73,21 +70,12 @@ pub(super) fn compiler_color_policy() {
         let stderr = String::from_utf8(output.stderr).unwrap();
         let diagnostic = stderr
             .lines()
-            .find(|line| {
-                line.contains("color-fixture-diagnostic") && !line.contains("compile_error!")
-            })
+            .find(|line| line.contains("color-fixture-diagnostic") && !line.contains("compile_error!"))
             .unwrap_or_else(|| panic!("compiler diagnostic missing: {stderr}"));
-        assert_eq!(
-            diagnostic.contains('\u{1b}'),
-            colored,
-            "--color {mode}, CARGO_TERM_COLOR={inherited:?}: {stderr}"
-        );
+        assert_eq!(diagnostic.contains('\u{1b}'), colored, "--color {mode}, CARGO_TERM_COLOR={inherited:?}: {stderr}");
         if !colored {
             assert!(!stderr.contains('\u{1b}'), "unexpected ANSI: {stderr}");
         }
-        assert!(
-            output.stdout.is_empty(),
-            "human diagnostics belong on stderr"
-        );
+        assert!(output.stdout.is_empty(), "human diagnostics belong on stderr");
     }
 }

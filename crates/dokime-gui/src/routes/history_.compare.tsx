@@ -15,12 +15,7 @@ import { useCallback } from "react";
 /* === Local Imports === */
 
 import { ExploreSurface } from "@/features/explore/ExploreSurface";
-import {
-  exploreSearchSchema,
-  searchFromSelectedIds,
-  selectedIdsFromSearch,
-  toggleSelectedId,
-} from "@/features/explore/explore-search";
+import { exploreSearchSchema, searchFromSelectedIds, selectedIdsFromSearch, toggleSelectedId } from "@/features/explore/explore-search";
 
 /* === Route === */
 

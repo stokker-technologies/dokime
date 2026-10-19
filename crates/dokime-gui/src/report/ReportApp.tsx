@@ -7,56 +7,27 @@
  * ***
  */
 
-/* The frozen report, which is the application with `live={false}`.
- *
- * There is no report frame and no report workspace: this file is boot, not
- * rendering. It puts the three things the shared components expect around
- * them — a query client nothing fetches through, a router nothing navigates
- * with, and the snapshot the workspace's hooks read instead of the backend —
- * and then mounts `AppShell` and `CycleWorkspace`.
- *
- * The router is a memory router with a root route and no children. The shell
- * reads the location (focus mode, the back chevron, the console scope) through
- * router hooks; giving it a router that goes nowhere is a smaller, more honest
- * change than teaching five components to survive without one.
- *
- * Selection is React state here rather than a URL: a single file has no
- * address bar of its own to keep it in.
+/* The frozen report supplies captured evidence to shared presentation views.
+ * Its memory router provides presentation state for shell focus and navigation.
+ * Selection stays local to the document; no live service is constructed.
  */
 
 /* === External Imports === */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
-import {
-  CycleSnapshotProvider,
-  type CycleSnapshotSource,
-  useCycleSnapshotSource,
-} from "@/features/cycle/snapshot-source";
+import { DokimeToaster } from "@/components/DokimeToaster";
+import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
+import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
+import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
-import { AppShell } from "@/shell/AppShell";
+import { ReportShell } from "./ReportShell";
 import { cycleSnapshotSource } from "./report-snapshot";
 
 /* === Constants === */
-
-/**
- * Nothing is ever fetched: every hook on this path answers from the snapshot
- * and leaves its query disabled. The client exists because those hooks still
- * call `useQuery`, which is what keeps one set of components.
- */
-const idleQueryClient = new QueryClient({
-  defaultOptions: { queries: { gcTime: Infinity, retry: false, staleTime: Infinity } },
-});
 
 const reportRouter = createRouter({
   history: createMemoryHistory({ initialEntries: ["/"] }),
@@ -72,11 +43,13 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
      it: a component the router owns must hold its own state, or the router
      never re-renders it when that state changes. */
   return (
-    <QueryClientProvider client={idleQueryClient}>
+    <>
       <CycleSnapshotProvider source={source}>
         <RouterProvider router={reportRouter} />
       </CycleSnapshotProvider>
-    </QueryClientProvider>
+      {/* Copy and download confirm themselves here as they do live. */}
+      <DokimeToaster />
+    </>
   );
 }
 
@@ -85,7 +58,7 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
 /** The routed surface: the shell, the workspace, and which case is open. */
 function ReportSurface() {
   const source = useCycleSnapshotSource();
-  const [selection, setSelection] = useState<{ caseId?: string; executionId?: string }>({});
+  const [selection, setSelection] = useState<CycleSelection>({});
 
   if (!source) return null;
 
@@ -94,41 +67,19 @@ function ReportSurface() {
   const title = plan?.test_cycle.title ?? "Frozen Report";
 
   return (
-    <AppShell
+    <ReportShell
       frozen={{
-        caseId: selection.caseId,
+        selection,
         cycleId,
         generatedAt: source.generatedAt,
-        onSelectCase: (caseId) =>
-          setSelection({ caseId, executionId: latestAttempt(source, caseId) }),
+        onSelect: setSelection,
         status: plan?.test_cycle.status ?? "planned",
         title,
       }}
-      live={false}
     >
-      <CycleWorkspace
-        caseId={selection.caseId}
-        cycleId={cycleId}
-        executionId={selection.executionId}
-        live={false}
-        onSelectionChange={setSelection}
-      />
-    </AppShell>
+      <ReportCycleWorkspace source={source} selection={selection} />
+    </ReportShell>
   );
 }
 
 /* === Private Functions === */
-
-/** The newest attempt of `caseId`, which is what selecting a case shows. */
-function latestAttempt(
-  source: CycleSnapshotSource,
-  caseId: string | undefined,
-): string | undefined {
-  if (!caseId) return undefined;
-  /* Attempts are ordered by their index, not by their place in the payload:
-     the newest attempt is the highest index, whatever order it was written. */
-  return [...source.executions]
-    .filter((execution) => execution.case_id === caseId)
-    .sort((left, right) => left.attempt_index - right.attempt_index)
-    .at(-1)?.test_execution_id;
-}

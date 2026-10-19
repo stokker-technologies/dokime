@@ -15,13 +15,12 @@
 // Standard Library Imports
 use std::collections::VecDeque;
 // Third Party Imports
-use prost::Message;
+use crate::grpc::transcode::Transcode;
+use dokime_domain::model::documents::wire::DocumentFrameFrame as Frame;
 use tonic::Status;
-use v1::document_frame::Frame;
 // Local Imports
-use super::super::value;
-use dokime_app::{CurrentDocumentCapture, document as native};
-use dokime_protocol::v1;
+use super::super::value::{self, canonical};
+use dokime_runtime::{CurrentDocumentCapture, document as native};
 
 /* === Constants === */
 
@@ -31,7 +30,7 @@ use dokime_protocol::v1;
 
 /* === Structs === */
 struct Frames {
-    frames: VecDeque<v1::DocumentFrame>,
+    frames: VecDeque<dokime_domain::model::documents::wire::DocumentFrame>,
     bytes: usize,
     limit: usize,
 }
@@ -43,15 +42,10 @@ struct Frames {
 /* === Implementations === */
 impl Frames {
     fn push(&mut self, frame: Frame) -> Result<(), Status> {
-        let frame = v1::DocumentFrame { frame: Some(frame) };
-        let bytes = frame.encoded_len();
-        if bytes > self.limit
-            || self.bytes.saturating_add(bytes) > 32 * 1024 * 1024
-            || self.frames.len() >= 20_000
-        {
-            return Err(Status::resource_exhausted(
-                "document response budget exceeded",
-            ));
+        let frame = dokime_domain::model::documents::wire::DocumentFrame { frame: Some(frame) };
+        let bytes = frame.wire_len()?;
+        if bytes > self.limit || self.bytes.saturating_add(bytes) > 32 * 1024 * 1024 || self.frames.len() >= 20_000 {
+            return Err(Status::resource_exhausted("document response budget exceeded"));
         }
         self.bytes += bytes;
         self.frames.push_back(frame);
@@ -61,81 +55,66 @@ impl Frames {
 
 /* === Public Functions === */
 pub(super) fn frames(
-    captured: CurrentDocumentCapture,
-    limit: usize,
-) -> Result<VecDeque<v1::DocumentFrame>, Status> {
-    use super::super::{enums, history::document as authoring, plots};
+    captured: CurrentDocumentCapture, limit: usize,
+) -> Result<VecDeque<dokime_domain::model::documents::wire::DocumentFrame>, Status> {
+    use super::super::{enums::canonical as enums, history::document::canonical as authoring, plots};
     use native::capture::CardBindingResult;
-    let mut output = Frames {
-        frames: VecDeque::new(),
-        bytes: 0,
-        limit: limit.min(512 * 1024),
-    };
+    let mut output = Frames { frames: VecDeque::new(), bytes: 0, limit: limit.min(512 * 1024) };
     let capture = captured.capture;
     let definition = capture.definition;
-    let scope = value::scope(&capture.selection.scope);
+    let scope = canonical::scope(&capture.selection.scope)?;
     let telemetry = captured.telemetry_cut.map(|cut| {
-        use dokime_app::CurrentDocumentTelemetryCut as ReadCut;
+        use dokime_runtime::CurrentDocumentTelemetryCut as ReadCut;
         let (delivered, source, ordinal) = match cut {
-            ReadCut::Window { delivered } => (
-                delivered,
-                v1::document_telemetry_cut::Source::RetainedWindow(true),
-                None,
-            ),
-            ReadCut::Series {
-                epoch,
-                delivered,
-                ordinal,
-            } => (
-                delivered,
-                v1::document_telemetry_cut::Source::SeriesEpoch(epoch),
-                Some(ordinal),
-            ),
+            ReadCut::Window { delivered } => {
+                (delivered, dokime_domain::model::documents::wire::DocumentTelemetryCutSource::RetainedWindow(true), None)
+            }
+            ReadCut::Series { epoch, delivered, ordinal } => {
+                (delivered, dokime_domain::model::documents::wire::DocumentTelemetryCutSource::SeriesEpoch(epoch), Some(ordinal))
+            }
         };
-        v1::DocumentTelemetryCut {
+        dokime_domain::model::documents::wire::DocumentTelemetryCut {
             delivered_cursor: delivered,
             source: Some(source),
             series_ordinal: ordinal,
         }
     });
-    output.push(Frame::Header(Box::new(v1::DocumentHeader {
+    output.push(Frame::Header(dokime_domain::model::documents::wire::DocumentHeader {
         document_id: definition.document_id.to_string(),
-        metadata: Some(value::checked_metadata(&definition.metadata)?),
+        metadata: Some(canonical::metadata(&definition.metadata)?),
         scope: Some(scope),
-        frontiers: Some(v1::DocumentFrontiers {
+        frontiers: Some(dokime_domain::model::documents::wire::DocumentFrontiers {
             process_epoch: captured.process_epoch,
             state_revision: captured.state_revision,
             telemetry,
             artifacts_sha256: captured.artifacts_sha256,
         }),
-    })))?;
+    }))?;
     let mut ordinal = 0;
     layout_nodes(&mut output, definition.layout.nodes, None, &mut ordinal)?;
     let card_count = definition.cards.len() as u64;
     for card in definition.cards {
+        use dokime_domain::model::documents::wire::DocumentCardBody as Wire;
         use native::DocumentCardBody as Body;
-        use v1::document_card::Body as Wire;
         let id = card.metadata.identifier.to_string();
         let body = match &card.body {
             Body::Text { markdown } => Wire::Markdown(markdown.clone()),
-            Body::Table { rows } => Wire::Table(v1::DocumentTable {
-                row_count: rows.len() as u64,
-            }),
-            Body::TelemetrySummary { summary } => Wire::Summary(v1::DocumentSummary {
-                group_count: summary.groups.len() as u64,
-            }),
+            Body::Table { rows } => Wire::Table(dokime_domain::model::documents::wire::DocumentTable { row_count: rows.len() as u64 }),
+            Body::TelemetrySummary { summary } => {
+                Wire::Summary(dokime_domain::model::documents::wire::DocumentSummary { group_count: summary.groups.len() as u64 })
+            }
             body => {
                 let kind = match body {
-                    Body::Plot { .. } => v1::DocumentCardKind::Plot,
-                    Body::Steps => v1::DocumentCardKind::Steps,
-                    Body::Criteria => v1::DocumentCardKind::Criteria,
-                    Body::Traceability => v1::DocumentCardKind::Traceability,
-                    Body::Notes => v1::DocumentCardKind::Notes,
-                    Body::Records => v1::DocumentCardKind::Records,
-                    Body::Artifacts => v1::DocumentCardKind::Artifacts,
-                    Body::Media => v1::DocumentCardKind::Media,
-                    Body::Health => v1::DocumentCardKind::Health,
-                    Body::TelemetryContext => v1::DocumentCardKind::TelemetryContext,
+                    Body::Plot { .. } => dokime_domain::model::documents::wire::DocumentCardKind::Plot,
+                    Body::Steps => dokime_domain::model::documents::wire::DocumentCardKind::Steps,
+                    Body::Criteria => dokime_domain::model::documents::wire::DocumentCardKind::Criteria,
+                    Body::Traceability => dokime_domain::model::documents::wire::DocumentCardKind::Traceability,
+                    Body::Notes => dokime_domain::model::documents::wire::DocumentCardKind::Notes,
+                    Body::Records => dokime_domain::model::documents::wire::DocumentCardKind::Records,
+                    Body::Artifacts => dokime_domain::model::documents::wire::DocumentCardKind::Artifacts,
+                    Body::Media => dokime_domain::model::documents::wire::DocumentCardKind::Media,
+                    Body::Health => dokime_domain::model::documents::wire::DocumentCardKind::Health,
+                    Body::TelemetryContext => dokime_domain::model::documents::wire::DocumentCardKind::TelemetryContext,
                     _ => unreachable!("literal cards handled above"),
                 };
                 let plot = if let Body::Plot { plot } = body {
@@ -151,22 +130,16 @@ pub(super) fn frames(
                 } else {
                     None
                 };
-                Wire::Owner(Box::new(v1::DocumentOwnerReference {
-                    kind: kind as i32,
-                    plot_id: plot
-                        .as_ref()
-                        .and_then(|plot| plot.request.as_ref()?.plot_id.clone()),
+                Wire::Owner(Box::new(dokime_domain::model::documents::wire::DocumentOwnerReference {
+                    kind,
+                    plot_id: plot.as_ref().and_then(|plot| plot.request.as_ref()?.plot_id.clone()),
                     plot,
                 }))
             }
         };
-        output.push(Frame::Card(v1::DocumentCard {
-            metadata: Some(value::checked_metadata(&card.metadata)?),
-            filters: card
-                .filters
-                .iter()
-                .map(plots::plot_filter_wire)
-                .collect::<Result<_, _>>()?,
+        output.push(Frame::Card(dokime_domain::model::documents::wire::DocumentCard {
+            metadata: Some(canonical::metadata(&card.metadata)?),
+            filters: card.filters.iter().map(plots::plot_filter_wire).collect::<Result<_, _>>()?,
             body: Some(body),
         }))?;
         if let Body::Table { rows } = card.body {
@@ -175,62 +148,41 @@ pub(super) fn frames(
                     .map_err(|_| Status::resource_exhausted("document row exceeds frame budget"))?;
                 value::collection(fields.len())?;
                 let mut budget = value::Budget::new();
-                let fields = fields
-                    .iter()
-                    .map(|(key, item)| {
-                        value::text(key)?;
-                        Ok((key.clone(), value::encode(item, &mut budget, 0)?))
-                    })
-                    .collect::<Result<_, Status>>()?;
-                output.push(Frame::TableRow(v1::DocumentTableRow {
+                output.push(Frame::TableRow(dokime_domain::model::documents::wire::DocumentTableRow {
                     card_id: id.clone(),
                     ordinal: ordinal as u64,
-                    values: Some(v1::ValueObject { fields }),
+                    values: Some(canonical::object(&fields, &mut budget)?),
                 }))?;
             }
         } else if let Body::TelemetrySummary { summary } = card.body {
             for (group_ordinal, group) in summary.groups.into_iter().enumerate() {
-                output.push(Frame::GroupDefinition(v1::DocumentSummaryGroupDefinition {
+                output.push(Frame::GroupDefinition(dokime_domain::model::documents::wire::DocumentSummaryGroupDefinition {
                     card_id: id.clone(),
                     ordinal: group_ordinal as u64,
-                    metadata: Some(value::checked_metadata(&group.metadata)?),
+                    metadata: Some(canonical::metadata(&group.metadata)?),
                     tile_count: group.tiles.len() as u64,
                 }))?;
                 for (ordinal, tile) in group.tiles.into_iter().enumerate() {
-                    native::bounded::document_size(
-                        &tile,
-                        output.limit.saturating_sub(8192) / 2,
-                        32,
-                    )
-                    .map_err(|_| {
-                        Status::resource_exhausted("summary declaration exceeds frame budget")
-                    })?;
+                    native::bounded::document_size(&tile, output.limit.saturating_sub(8192) / 2, 32)
+                        .map_err(|_| Status::resource_exhausted("summary declaration exceeds frame budget"))?;
                     let conditions = tile
                         .conditions
                         .into_iter()
                         .map(|condition| {
-                            Ok(v1::DocumentSummaryCondition {
-                                operator: enums::filter_operator(&condition.operator) as i32,
-                                value: Some(value::encode(
-                                    &condition.value,
-                                    &mut value::Budget::new(),
-                                    0,
-                                )?),
+                            Ok(dokime_domain::model::documents::wire::DocumentSummaryCondition {
+                                operator: enums::filter_operator(&condition.operator),
+                                value: Some(canonical::encode(&condition.value, &mut value::Budget::new(), 0)?),
                                 state: summary_state(condition.state),
                             })
                         })
                         .collect::<Result<_, Status>>()?;
-                    output.push(Frame::TileDefinition(v1::DocumentSummaryTileDefinition {
+                    output.push(Frame::TileDefinition(dokime_domain::model::documents::wire::DocumentSummaryTileDefinition {
                         card_id: id.clone(),
                         group_ordinal: group_ordinal as u64,
                         ordinal: ordinal as u64,
-                        metadata: Some(value::checked_metadata(&tile.metadata)?),
+                        metadata: Some(canonical::metadata(&tile.metadata)?),
                         value: Some(plots::data_expression_wire(&tile.value)?),
-                        filters: tile
-                            .filters
-                            .iter()
-                            .map(plots::plot_filter_wire)
-                            .collect::<Result<_, _>>()?,
+                        filters: tile.filters.iter().map(plots::plot_filter_wire).collect::<Result<_, _>>()?,
                         stat: summary_stat(tile.stat),
                         format: summary_format(tile.format),
                         presentation: summary_presentation(tile.presentation),
@@ -245,51 +197,39 @@ pub(super) fn frames(
     for binding in capture.cards {
         let id = binding.metadata.identifier.to_string();
         let result = match &binding.result {
-            CardBindingResult::Static => v1::document_binding::Result::Literal(true),
-            CardBindingResult::Summary { groups } => {
-                v1::document_binding::Result::Summary(v1::DocumentSummary {
-                    group_count: groups.len() as u64,
-                })
+            CardBindingResult::Static => dokime_domain::model::documents::wire::DocumentBindingResult::Literal(true),
+            CardBindingResult::Summary { groups } => dokime_domain::model::documents::wire::DocumentBindingResult::Summary(
+                dokime_domain::model::documents::wire::DocumentSummary { group_count: groups.len() as u64 },
+            ),
+            CardBindingResult::Plot { descriptor } => {
+                dokime_domain::model::documents::wire::DocumentBindingResult::Plot(Box::new(plots::document_plot_definition(descriptor)?))
             }
-            CardBindingResult::Plot { descriptor } => v1::document_binding::Result::Plot(Box::new(
-                plots::document_plot_definition(descriptor)?,
-            )),
         };
-        output.push(Frame::Binding(v1::DocumentBinding {
+        output.push(Frame::Binding(dokime_domain::model::documents::wire::DocumentBinding {
             source_id: binding.source_id.to_string(),
-            metadata: Some(value::checked_metadata(&binding.metadata)?),
+            metadata: Some(canonical::metadata(&binding.metadata)?),
             result: Some(result),
         }))?;
         if let CardBindingResult::Summary { groups } = binding.result {
             for (group_ordinal, group) in groups.into_iter().enumerate() {
-                output.push(Frame::SummaryGroup(v1::DocumentSummaryGroup {
+                output.push(Frame::SummaryGroup(dokime_domain::model::documents::wire::DocumentSummaryGroup {
                     card_id: id.clone(),
                     ordinal: group_ordinal as u64,
-                    metadata: Some(value::checked_metadata(&group.metadata)?),
+                    metadata: Some(canonical::metadata(&group.metadata)?),
                     tile_count: group.tiles.len() as u64,
                 }))?;
                 for (ordinal, tile) in group.tiles.into_iter().enumerate() {
-                    native::bounded::document_size(
-                        &tile,
-                        output.limit.saturating_sub(8192) / 2,
-                        32,
-                    )
-                    .map_err(|_| {
-                        Status::resource_exhausted("document summary exceeds frame budget")
-                    })?;
+                    native::bounded::document_size(&tile, output.limit.saturating_sub(8192) / 2, 32)
+                        .map_err(|_| Status::resource_exhausted("document summary exceeds frame budget"))?;
                     if !tile.valid_result() {
                         return Err(Status::internal("invalid summary unavailable result"));
                     }
-                    let encoded = tile
-                        .value
-                        .as_ref()
-                        .map(|item| value::encode(item, &mut value::Budget::new(), 0))
-                        .transpose()?;
-                    output.push(Frame::SummaryTile(v1::DocumentSummaryTile {
+                    let encoded = tile.value.as_ref().map(|item| canonical::encode(item, &mut value::Budget::new(), 0)).transpose()?;
+                    output.push(Frame::SummaryTile(dokime_domain::model::documents::wire::DocumentSummaryTile {
                         card_id: id.clone(),
                         group_ordinal: group_ordinal as u64,
                         ordinal: ordinal as u64,
-                        metadata: Some(value::checked_metadata(&tile.metadata)?),
+                        metadata: Some(canonical::metadata(&tile.metadata)?),
                         value: encoded,
                         stat: summary_stat(tile.stat),
                         format: summary_format(tile.format),
@@ -304,12 +244,12 @@ pub(super) fn frames(
     }
     let repeat_count = capture.repeats.len() as u64;
     for (id, instances) in capture.repeats {
-        output.push(Frame::RepeatSelection(v1::DocumentRepeatSelection {
+        output.push(Frame::RepeatSelection(dokime_domain::model::documents::wire::DocumentRepeatSelection {
             node_id: id.to_string(),
             instance_count: instances.len() as u64,
         }))?;
         for (ordinal, instance) in instances.into_iter().enumerate() {
-            output.push(Frame::RepeatInstance(v1::DocumentRepeatInstance {
+            output.push(Frame::RepeatInstance(dokime_domain::model::documents::wire::DocumentRepeatInstance {
                 selection_id: id.to_string(),
                 ordinal: ordinal as u64,
                 suffix: instance.suffix,
@@ -323,19 +263,19 @@ pub(super) fn frames(
         if !section.valid_result() {
             return Err(Status::internal("invalid section unavailable reason"));
         }
-        output.push(Frame::SectionIdentity(v1::DocumentSectionIdentity {
+        output.push(Frame::SectionIdentity(dokime_domain::model::documents::wire::DocumentSectionIdentity {
             node_id: node_id.to_string(),
-            metadata: Some(value::checked_metadata(&section.metadata)?),
+            metadata: Some(canonical::metadata(&section.metadata)?),
             unavailable: section.unavailable,
         }))?;
     }
     for warning in capture.warnings {
-        output.push(Frame::Warning(v1::DocumentWarning {
+        output.push(Frame::Warning(dokime_domain::model::documents::wire::DocumentWarning {
             code: warning.code.to_string(),
             message: warning.message,
         }))?;
     }
-    output.push(Frame::Completion(v1::DocumentCompletion {
+    output.push(Frame::Completion(dokime_domain::model::documents::wire::DocumentCompletion {
         frame_count: output.frames.len() as u64 + 1,
         card_count,
         layout_node_count: ordinal,
@@ -348,15 +288,9 @@ pub(super) fn frames(
 
 /* === Private Functions === */
 fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
-    use dokime_app::expressions::{DataSource, DataTransform};
+    use dokime_runtime::expressions::{DataSource, DataTransform};
     let mut streams = std::collections::BTreeSet::new();
-    for expression in plot
-        .y_expressions
-        .iter()
-        .chain(&plot.x_expression)
-        .chain(&plot.series_by_expression)
-        .chain(&plot.z_expression)
-    {
+    for expression in plot.y_expressions.iter().chain(&plot.x_expression).chain(&plot.series_by_expression).chain(&plot.z_expression) {
         if let DataSource::Telemetry { stream, .. } = &expression.source {
             streams.insert(stream.as_str());
         }
@@ -372,47 +306,42 @@ fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
         _ => None,
     }
 }
-fn layout_nodes(
-    output: &mut Frames,
-    nodes: Vec<native::DocumentNode>,
-    parent: Option<u64>,
-    ordinal: &mut u64,
-) -> Result<(), Status> {
+fn layout_nodes(output: &mut Frames, nodes: Vec<native::DocumentNode>, parent: Option<u64>, ordinal: &mut u64) -> Result<(), Status> {
     for node in nodes {
         let current = *ordinal;
         *ordinal += 1;
         let (node, children) = match node {
             native::DocumentNode::Section(section) => (
-                v1::document_layout_node::Node::Section(Box::new(v1::DocumentSection {
-                    node_id: section.node_id.to_string(),
-                    metadata: Some(value::checked_metadata(&section.metadata)?),
-                    repeat: section
-                        .repeat
-                        .as_ref()
-                        .map(super::super::history::document::repeat)
-                        .transpose()?,
-                })),
+                dokime_domain::model::documents::wire::DocumentLayoutNodeNode::Section(Box::new(
+                    dokime_domain::model::documents::wire::DocumentSection {
+                        node_id: section.node_id.to_string(),
+                        metadata: Some(canonical::metadata(&section.metadata)?),
+                        repeat: section.repeat.as_ref().map(super::super::history::document::canonical::repeat).transpose()?,
+                    },
+                )),
                 section.children,
             ),
             native::DocumentNode::Card(card) => (
-                v1::document_layout_node::Node::Placement(v1::DocumentPlacement {
-                    card_id: card.card_id.to_string(),
-                    column_span: Some(v1::DocumentSpan {
-                        base: card.layout.col_span.base.into(),
-                        sm: card.layout.col_span.sm.map(Into::into),
-                        md: card.layout.col_span.md.map(Into::into),
-                        lg: card.layout.col_span.lg.map(Into::into),
-                        xl: card.layout.col_span.xl.map(Into::into),
-                    }),
-                    row_span: card.layout.row_span.into(),
-                    order: card.layout.order,
-                    density: density(card.layout.density),
-                    rail: rail(card.layout.rail),
-                }),
+                dokime_domain::model::documents::wire::DocumentLayoutNodeNode::Placement(
+                    dokime_domain::model::documents::wire::DocumentPlacement {
+                        card_id: card.card_id.to_string(),
+                        column_span: Some(dokime_domain::model::documents::wire::DocumentSpan {
+                            base: card.layout.col_span.base.into(),
+                            sm: card.layout.col_span.sm.map(Into::into),
+                            md: card.layout.col_span.md.map(Into::into),
+                            lg: card.layout.col_span.lg.map(Into::into),
+                            xl: card.layout.col_span.xl.map(Into::into),
+                        }),
+                        row_span: card.layout.row_span.into(),
+                        order: card.layout.order,
+                        density: density(card.layout.density),
+                        rail: rail(card.layout.rail),
+                    },
+                ),
                 Vec::new(),
             ),
         };
-        output.push(Frame::LayoutNode(v1::DocumentLayoutNode {
+        output.push(Frame::LayoutNode(dokime_domain::model::documents::wire::DocumentLayoutNode {
             ordinal: current,
             parent_ordinal: parent,
             node: Some(node),
@@ -422,54 +351,54 @@ fn layout_nodes(
     Ok(())
 }
 
-fn density(value: native::DocumentCardDensity) -> i32 {
+fn density(value: native::DocumentCardDensity) -> dokime_domain::model::documents::wire::DocumentDensity {
     match value {
-        native::DocumentCardDensity::Compact => 1,
-        native::DocumentCardDensity::Normal => 2,
-        native::DocumentCardDensity::Spacious => 3,
+        native::DocumentCardDensity::Compact => dokime_domain::model::documents::wire::DocumentDensity::Compact,
+        native::DocumentCardDensity::Normal => dokime_domain::model::documents::wire::DocumentDensity::Normal,
+        native::DocumentCardDensity::Spacious => dokime_domain::model::documents::wire::DocumentDensity::Spacious,
     }
 }
 
-fn rail(value: native::DocumentCardRail) -> i32 {
+fn rail(value: native::DocumentCardRail) -> dokime_domain::model::documents::wire::DocumentRail {
     match value {
-        native::DocumentCardRail::Main => 1,
-        native::DocumentCardRail::Right => 2,
-        native::DocumentCardRail::Left => 3,
+        native::DocumentCardRail::Main => dokime_domain::model::documents::wire::DocumentRail::Main,
+        native::DocumentCardRail::Right => dokime_domain::model::documents::wire::DocumentRail::Right,
+        native::DocumentCardRail::Left => dokime_domain::model::documents::wire::DocumentRail::Left,
     }
 }
 
-fn summary_stat(value: native::TelemetrySummaryStat) -> i32 {
+fn summary_stat(value: native::TelemetrySummaryStat) -> dokime_domain::model::documents::wire::DocumentSummaryStat {
     match value {
-        native::TelemetrySummaryStat::Latest => 1,
+        native::TelemetrySummaryStat::Latest => dokime_domain::model::documents::wire::DocumentSummaryStat::Latest,
     }
 }
 
-fn summary_format(value: native::TelemetrySummaryFormat) -> i32 {
+fn summary_format(value: native::TelemetrySummaryFormat) -> dokime_domain::model::documents::wire::DocumentSummaryFormat {
     match value {
-        native::TelemetrySummaryFormat::Auto => 1,
-        native::TelemetrySummaryFormat::Number => 2,
-        native::TelemetrySummaryFormat::Percent => 3,
-        native::TelemetrySummaryFormat::Duration => 4,
-        native::TelemetrySummaryFormat::Distance => 5,
-        native::TelemetrySummaryFormat::Status => 6,
-        native::TelemetrySummaryFormat::Text => 7,
+        native::TelemetrySummaryFormat::Auto => dokime_domain::model::documents::wire::DocumentSummaryFormat::Auto,
+        native::TelemetrySummaryFormat::Number => dokime_domain::model::documents::wire::DocumentSummaryFormat::Number,
+        native::TelemetrySummaryFormat::Percent => dokime_domain::model::documents::wire::DocumentSummaryFormat::Percent,
+        native::TelemetrySummaryFormat::Duration => dokime_domain::model::documents::wire::DocumentSummaryFormat::Duration,
+        native::TelemetrySummaryFormat::Distance => dokime_domain::model::documents::wire::DocumentSummaryFormat::Distance,
+        native::TelemetrySummaryFormat::Status => dokime_domain::model::documents::wire::DocumentSummaryFormat::Status,
+        native::TelemetrySummaryFormat::Text => dokime_domain::model::documents::wire::DocumentSummaryFormat::Text,
     }
 }
 
-fn summary_presentation(value: native::TelemetrySummaryPresentation) -> i32 {
+fn summary_presentation(value: native::TelemetrySummaryPresentation) -> dokime_domain::model::documents::wire::DocumentSummaryPresentation {
     match value {
-        native::TelemetrySummaryPresentation::Value => 1,
-        native::TelemetrySummaryPresentation::Progress => 2,
-        native::TelemetrySummaryPresentation::Badge => 3,
+        native::TelemetrySummaryPresentation::Value => dokime_domain::model::documents::wire::DocumentSummaryPresentation::Value,
+        native::TelemetrySummaryPresentation::Progress => dokime_domain::model::documents::wire::DocumentSummaryPresentation::Progress,
+        native::TelemetrySummaryPresentation::Badge => dokime_domain::model::documents::wire::DocumentSummaryPresentation::Badge,
     }
 }
 
-fn summary_state(value: native::TelemetrySummaryState) -> i32 {
+fn summary_state(value: native::TelemetrySummaryState) -> dokime_domain::model::documents::wire::DocumentSummaryState {
     match value {
-        native::TelemetrySummaryState::Ok => 1,
-        native::TelemetrySummaryState::Warning => 2,
-        native::TelemetrySummaryState::Critical => 3,
-        native::TelemetrySummaryState::Muted => 4,
+        native::TelemetrySummaryState::Ok => dokime_domain::model::documents::wire::DocumentSummaryState::Ok,
+        native::TelemetrySummaryState::Warning => dokime_domain::model::documents::wire::DocumentSummaryState::Warning,
+        native::TelemetrySummaryState::Critical => dokime_domain::model::documents::wire::DocumentSummaryState::Critical,
+        native::TelemetrySummaryState::Muted => dokime_domain::model::documents::wire::DocumentSummaryState::Muted,
     }
 }
 

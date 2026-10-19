@@ -2,36 +2,80 @@
 # Native manifests own package metadata; mise owns executable recipes.
 # Defaults stay implicit. Commented sections do not declare configuration.
 
-# === Project ===
+# === Project === #
 
 [project]
 name = "Dokime"
+platforms = ["linux", "windows"]
 
+[languages.rust]
+roots = ["crates", "plugins"]
+# The domain crate also builds for the browser.
+targets = ["wasm32-unknown-unknown"]
+# The GUI's Node dependencies and the starter templates are not workspace Rust sources.
+exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
-# === Repository ===
+[languages.python]
+roots = ["tools/python", "packages"]
+generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/operation.py", "packages/dokime/src/dokime/dynamic.py"]
+
+[languages.typescript]
+roots = ["crates/dokime-gui"]
+exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
+generated = ["crates/dokime-gui/.generated", "crates/dokime-gui/src/lib/rpc/generated"]
+
+[features]
+# The build scripts compile the operation contracts with protoc.
+proto = true
+
+# === Repository === #
 
 [housekeeping]
 max_workspaces = 5
 
+# === CI === #
 
-# === CI ===
+[ci.runners]
+windows = ["windows-latest"]
 
+[ci.budgets]
+# Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
+build = 2400
+# User-approved two-hour Rust check job limit: 110 minutes plus the renderer's existing ten-minute margin.
+check = 6600
+# Measured on run 39135263053: the Linux acceptance lane spent about 10 minutes (download, extraction and
+# 58 stories) before the default 10-minute job budget cancelled it.
+"test:acceptance:rust" = 660
+# Successful hosted desktop job 117791229323 (run 39164579251), including setup and artifact handling.
+"test:system:typescript" = 239
 
-# === Agents ===
+[ci.setup]
+# The desktop shell (Tauri/WebKitGTK) and native media capture compile against these system libraries; the
+# shell's deep-link registration runs update-desktop-database and xdg-mime at startup.
+linux = [
+  "sudo apt-get update",
+  "sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver xvfb desktop-file-utils xdg-utils",
+  # The desktop walkthrough drives the native shell through WebKitWebDriver on a virtual display.
+  "Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &",
+  "echo DISPLAY=:99 >> \"$GITHUB_ENV\"",
+]
 
+# === Agents === #
 
-# === Hooks ===
+# === Hooks === #
 
 [hooks]
 # Workspace repair and checks exceed one minute even with warm Cargo caches.
 step_timeout_seconds = 900
 
+# === Conventions === #
 
-# === Conventions ===
+[conventions.testing.limits]
+unit = 512
+integration = 256
+acceptance = 128
+system = 64
 
-[conventions.ci.multitask]
-check = ["ci:route", "check"]
-test = ["ci:artifacts:restore", "test"]
 
 [conventions.rust.source_roots]
 # Validate the authored source that this compile-only crate renders and includes.
@@ -41,133 +85,37 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 # Audit native source and the dedicated project policy skeleton.
 include = ["**/*.rs", "**/*.py", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = [
-  "crates/dokime-python/python/dokime/client/_generated/**",
-  "crates/dokime-gui/src-tauri/src/rpc/generated.rs",
-]
+exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
 # Deliberate public façades, not accidental re-export files: the authoring
 # prelude and the one namespace a sidecar author imports from.
-exclude = ["crates/dokime/src/prelude.rs", "crates/dokime/src/plugin/sidecar.rs"]
+exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = [
-  "**/README.md",
-  "CHANGELOG.md",
-  "CONTRIBUTING.md",
-  "SECURITY.md",
-  "LICENSE.md",
-  ".github/**",
-]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**"]
 
+# === Templates === #
 
-# === Templates ===
+[[templates.scaffolds]]
+path = "crates/cargo-dokime/templates"
+profile = "plugin"
+suffix = ".tmpl"
+tasks = "crates/cargo-dokime/scaffold.tasks.toml"
 
+[templates.scaffolds.placeholders]
+package = "{{package}}"
+module = "{{crate}}"
+owner = "{{owner}}"
+repository = "{{repository}}"
+selection = "{{selection}}"
 
-# === Release ===
+# === Release === #
 
+# === Documentation === #
 
-# === Documentation ===
+# === Screenshots === #
 
+# === Catalogs === #
 
-# === Screenshots ===
-
-
-# === Catalogs ===
-
-[[catalogs]]
-language = "rust"
-path = "plugins/mini/src/operations/mod.rs"
-name = "Implemented"
-implementations = ["connections.rs", "readiness.rs", "status.rs"]
-
-
-[[catalogs]]
-language = "rust"
-path = "crates/cargo-dokime/templates/src/operations/mod.rs"
-name = "Implemented"
-implementations = ["status.rs", "chamber.rs"]
-
-[[catalogs]]
-language = "rust"
-path = "crates/dokime/src/storage/objects/mod.rs"
-name = "Objects"
-implementations = ["case.rs", "cycle.rs", "execution.rs", "suite.rs"]
-
-
-# === PyO3 ===
-
-[[pyo3.modules]]
-name = "_native"
-crate = "dokime-python"
-root = true
-module_rename = "_native"
-import = "dokime._native"
-flatten = ["authoring", "core_contracts", "server"]
-rust = "crates/dokime-python/src"
-stub = "crates/dokime-python/python/dokime/_native/__init__.pyi"
-class_module = "dokime.runtime"
-
-[pyo3.modules.native_classes]
-Runtime = "dokime._native"
-AuthoringContext = "dokime._native"
-Artifacts = "dokime._native"
-ArtifactWriter = "dokime._native"
-
-[pyo3.modules.public_classes]
-Runtime = "dokime._native"
-AuthoringContext = "dokime._native"
-Artifacts = "dokime._native"
-ArtifactWriter = "dokime._native"
-ServerConfig = "dokime.runtime"
-TlsIdentity = "dokime.runtime"
-BearerGrant = "dokime.runtime"
-Role = "dokime.runtime"
-
-[[pyo3.modules]]
-name = "authoring"
-crate = "dokime-python"
-module_rename = "authoring"
-import = "dokime._native.authoring"
-rust = "crates/dokime-python/src/authoring"
-stub = "crates/dokime-python/python/dokime/_native/authoring.pyi"
-
-[pyo3.modules.renames]
-PyContext = "AuthoringContext"
-
-[pyo3.modules.class_modules]
-PyContext = "dokime._native"
-PyArtifacts = "dokime._native"
-PyArtifactWriter = "dokime._native"
-
-[[pyo3.modules]]
-name = "server"
-crate = "dokime-python"
-module_rename = "server"
-import = "dokime._native.server"
-rust = "crates/dokime-python/src/server"
-stub = "crates/dokime-python/python/dokime/_native/server.pyi"
-
-[pyo3.modules.class_modules]
-PyServerConfig = "dokime.runtime"
-PyTlsIdentity = "dokime.runtime"
-PyBearerGrant = "dokime.runtime"
-PyRole = "dokime.runtime"
-
-[[pyo3.modules]]
-name = "core_contracts"
-crate = "dokime-python"
-module_rename = "core_contracts"
-import = "dokime._native.core_contracts"
-rust = "crates/dokime-python/src/core_contracts"
-stub = "crates/dokime-python/python/dokime/_native/core_contracts.pyi"
-
-[[pyo3.modules]]
-name = "client"
-crate = "dokime-python"
-module_rename = "client"
-import = "dokime._native.client"
-rust = "crates/dokime-python/src/client"
-stub = "crates/dokime-python/python/dokime/_native/client.pyi"
-class_module = "dokime._native.client"
+# === PyO3 === #

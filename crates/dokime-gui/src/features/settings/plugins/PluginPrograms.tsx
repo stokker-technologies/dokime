@@ -22,8 +22,9 @@ import { useNavigate } from "@tanstack/react-router";
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { PluginRow } from "@/features/settings/plugins/PluginRow";
+import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
+import { useBrand } from "@/lib/brand";
 
 /* === Public Functions === */
 
@@ -39,13 +40,13 @@ export function programKey(program: RuntimeInstalledPluginRecord): string {
 }
 
 /** Where a program came from, with its version, as the row's muted column. */
-export function programSource(program: RuntimeInstalledPluginRecord): string {
+export function programSource(program: RuntimeInstalledPluginRecord, brandLabel: string): string {
   const owner = program.owner;
   const origin =
     owner?.kind === "host"
-      ? "Dokime Host"
+      ? `${brandLabel} Host`
       : owner?.kind === "bundle"
-        ? owner.package
+        ? (owner.path ?? owner.package)
         : owner?.kind === "embedded"
           ? "Embedded"
           : "Unclassified";
@@ -56,33 +57,24 @@ export function programSource(program: RuntimeInstalledPluginRecord): string {
 /* === Components === */
 
 export function PluginPrograms({ programs }: { programs: RuntimeInstalledPluginRecord[] }) {
+  const brand = useBrand();
   const navigate = useNavigate();
   const settings = useSettingsSections();
 
   const sectionOf = (program: RuntimeInstalledPluginRecord): string | null =>
     (settings.frame?.sections ?? []).find(
-      (candidate) =>
-        candidate.owner.kind === "installed_plugin" &&
-        candidate.owner.plugin_id === program.plugin_id,
+      (candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id,
     )?.section_id ?? null;
 
-  return (
-    <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-      {programs.map((program) => {
-        const pluginId = sectionOf(program);
-        return (
-          <PluginRow
-            key={programKey(program)}
-            name={program.label}
-            onOpenSettings={
-              pluginId
-                ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" })
-                : undefined
-            }
-            source={programSource(program)}
-          />
-        );
-      })}
-    </ul>
-  );
+  const rows = programs.map((program): PluginTableRow => {
+    const pluginId = sectionOf(program);
+    return {
+      key: programKey(program),
+      name: program.label,
+      onOpenSettings: pluginId ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" }) : undefined,
+      source: programSource(program, brand.label),
+    };
+  });
+
+  return <PluginTable label="Plugin Programs" rows={rows} />;
 }

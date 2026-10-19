@@ -61,20 +61,8 @@ export function DocumentEmbeddedBlock<T extends ElementType = "section">({
   );
 }
 
-export function DocumentEmbeddedEmptyState({
-  children,
-  className,
-  dashed = false,
-}: DocumentEmbeddedEmptyStateProps) {
+export function DocumentEmbeddedEmptyState({ children, className, dashed = false }: DocumentEmbeddedEmptyStateProps) {
   return (
-    <p
-      className={cn(
-        "text-sm text-muted-foreground",
-        dashed && "border-l-2 border-dashed border-border/70 pl-3",
-        className,
-      )}
-    >
-      {children}
-    </p>
+    <p className={cn("text-sm text-muted-foreground", dashed && "border-l-2 border-dashed border-border/70 pl-3", className)}>{children}</p>
   );
 }

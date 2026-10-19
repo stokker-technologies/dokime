@@ -21,10 +21,7 @@ use syn::ext::IdentExt;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{
-    Attribute, Data, DeriveInput, Error, Expr, Field, Fields, FieldsNamed, Ident, Meta, MetaList,
-    Token, Type,
-};
+use syn::{Attribute, Data, DeriveInput, Error, Expr, Field, Fields, FieldsNamed, Ident, Meta, MetaList, Token, Type};
 // Local Imports
 
 /* === Constants === */
@@ -60,25 +57,15 @@ pub(crate) enum Shape {
 impl Arguments {
     pub(crate) fn read(attribute: TokenStream, kind: &str, known: &[&str]) -> Result<Self, Error> {
         let span = attribute.span();
-        let entries = Punctuated::<Meta, Token![,]>::parse_terminated
-            .parse2(attribute)?
-            .into_iter()
-            .collect::<Vec<_>>();
+        let entries = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)?.into_iter().collect::<Vec<_>>();
         for entry in &entries {
             let Some(name) = entry.path().get_ident() else {
                 return Err(Error::new(entry.span(), "an argument is one bare name"));
             };
             if !known.contains(&name.to_string().as_str()) {
-                let accepted = if known.is_empty() {
-                    "no arguments".to_owned()
-                } else {
-                    known.join(", ")
-                };
+                let accepted = if known.is_empty() { "no arguments".to_owned() } else { known.join(", ") };
 
-                return Err(Error::new(
-                    name.span(),
-                    format!("`{name}` is not {kind} argument; {kind} takes {accepted}"),
-                ));
+                return Err(Error::new(name.span(), format!("`{name}` is not {kind} argument; {kind} takes {accepted}")));
             }
         }
 
@@ -93,70 +80,41 @@ impl Arguments {
     }
 
     pub(crate) fn flag(&self, name: &str) -> Result<bool, Error> {
-        let mut matching = self
-            .entries
-            .iter()
-            .filter(|entry| entry.path().is_ident(name));
+        let mut matching = self.entries.iter().filter(|entry| entry.path().is_ident(name));
         let first = matching.next();
         if let Some(duplicate) = matching.next() {
-            return Err(Error::new_spanned(
-                duplicate,
-                format!("declare `{name}` only once"),
-            ));
+            return Err(Error::new_spanned(duplicate, format!("declare `{name}` only once")));
         }
         match first {
             Some(Meta::Path(_)) => Ok(true),
-            Some(other) => Err(Error::new_spanned(
-                other,
-                format!("declare the bare flag `{name}`"),
-            )),
+            Some(other) => Err(Error::new_spanned(other, format!("declare the bare flag `{name}`"))),
             None => Ok(false),
         }
     }
 
     pub(crate) fn catalog(&self, name: &str) -> Result<Option<&Expr>, Error> {
-        let mut matching = self
-            .entries
-            .iter()
-            .filter(|entry| entry.path().is_ident(name));
+        let mut matching = self.entries.iter().filter(|entry| entry.path().is_ident(name));
         let first = matching.next();
         if let Some(duplicate) = matching.next() {
-            return Err(Error::new_spanned(
-                duplicate,
-                format!("declare `{name}` only once"),
-            ));
+            return Err(Error::new_spanned(duplicate, format!("declare `{name}` only once")));
         }
 
         match first {
             Some(Meta::NameValue(named)) => Ok(Some(&named.value)),
-            Some(other) => Err(Error::new_spanned(
-                other,
-                format!("declare a named catalog with `{name} = Catalog`"),
-            )),
+            Some(other) => Err(Error::new_spanned(other, format!("declare a named catalog with `{name} = Catalog`"))),
             None => Ok(None),
         }
     }
 
     pub(crate) fn identifier(&self, name: &Ident) -> Result<Expr, Error> {
-        match self
-            .entries
-            .iter()
-            .find(|entry| entry.path().is_ident("id"))
-        {
+        match self.entries.iter().find(|entry| entry.path().is_ident("id")) {
             Some(Meta::NameValue(value)) => Ok(value.value.clone()),
-            Some(entry) => Err(Error::new(
-                entry.span(),
-                "use `id = …` to specify an identity",
-            )),
+            Some(entry) => Err(Error::new(entry.span(), "use `id = …` to specify an identity")),
             None => {
                 let value = name.unraw().to_string();
-                if !value.starts_with(|c: char| c.is_ascii_alphanumeric())
-                    || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                if !value.starts_with(|c: char| c.is_ascii_alphanumeric()) || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                 {
-                    return Err(Error::new(
-                        name.span(),
-                        "the item name is not a valid Dokime identifier; specify `id = …`",
-                    ));
+                    return Err(Error::new(name.span(), "the item name is not a valid Dokime identifier; specify `id = …`"));
                 }
                 Ok(syn::parse_quote!(#value))
             }
@@ -164,8 +122,7 @@ impl Arguments {
     }
 
     pub(crate) fn required(&self, name: &str, purpose: &str) -> Result<&Expr, Error> {
-        self.value(name)
-            .ok_or_else(|| Error::new(self.span, format!("`{name} = …` is required: {purpose}")))
+        self.value(name).ok_or_else(|| Error::new(self.span, format!("`{name} = …` is required: {purpose}")))
     }
 
     pub(crate) fn set(&self, name: &str) -> Option<&MetaList> {
@@ -254,9 +211,7 @@ pub(crate) fn wire_identity(written: Option<Expr>, name: &Ident) -> Result<Expr,
         None => (name.unraw().to_string(), name.span()),
     };
     if !value.starts_with(|first: char| first.is_ascii_lowercase())
-        || !value.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'.' | b'_')
-        })
+        || !value.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'.' | b'_'))
     {
         return Err(Error::new(
             span,
@@ -275,9 +230,7 @@ pub(crate) fn pairs(set: &MetaList) -> Result<Vec<(Ident, Expr)>, Error> {
         .into_iter()
         .map(|entry| match entry {
             Meta::NameValue(named) => {
-                let key = named.path.get_ident().cloned().ok_or_else(|| {
-                    Error::new(named.path.span(), "an entry key is one bare name")
-                })?;
+                let key = named.path.get_ident().cloned().ok_or_else(|| Error::new(named.path.span(), "an entry key is one bare name"))?;
                 Ok((key, named.value))
             }
             other => Err(Error::new(other.span(), "an entry is `key = expression`")),
@@ -288,19 +241,11 @@ pub(crate) fn pairs(set: &MetaList) -> Result<Vec<(Ident, Expr)>, Error> {
 pub(crate) fn elements(value: &Expr) -> Result<Vec<Expr>, Error> {
     match value {
         Expr::Array(array) => Ok(array.elems.iter().cloned().collect()),
-        other => Err(Error::new(
-            other.span(),
-            "this argument is a list: write it as `[\"one\", \"two\"]`",
-        )),
+        other => Err(Error::new(other.span(), "this argument is a list: write it as `[\"one\", \"two\"]`")),
     }
 }
 
-pub(crate) fn metadata(
-    identifier: &Expr,
-    label: &Expr,
-    written: Option<&Expr>,
-    attributes: &[Attribute],
-) -> TokenStream {
+pub(crate) fn metadata(identifier: &Expr, label: &Expr, written: Option<&Expr>, attributes: &[Attribute]) -> TokenStream {
     let sdk = crate::facade::root();
     let about = described(written, attributes);
 
@@ -308,18 +253,10 @@ pub(crate) fn metadata(
 }
 
 pub(crate) fn field_arguments(
-    field: &Field,
-    attribute: &str,
-    noun: &str,
-    accepted: &[&str],
-    flags: &[&str],
+    field: &Field, attribute: &str, noun: &str, accepted: &[&str], flags: &[&str],
 ) -> Result<FieldEntries, Error> {
     let mut read = FieldEntries::default();
-    for written in field
-        .attrs
-        .iter()
-        .filter(|written| written.path().is_ident(attribute))
-    {
+    for written in field.attrs.iter().filter(|written| written.path().is_ident(attribute)) {
         for entry in written.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)? {
             let Some(name) = entry.path().get_ident().cloned() else {
                 return Err(Error::new(entry.span(), "an argument is one bare name"));
@@ -332,13 +269,7 @@ pub(crate) fn field_arguments(
                 Meta::List(_) => false,
             };
             if !known {
-                return Err(Error::new(
-                    name.span(),
-                    format!(
-                        "`{spelled}` is not {noun}; a field takes {}",
-                        accepted.join(", ")
-                    ),
-                ));
+                return Err(Error::new(name.span(), format!("`{spelled}` is not {noun}; a field takes {}", accepted.join(", "))));
             }
             match entry {
                 Meta::Path(_) => read.flags.push(name),
@@ -379,21 +310,14 @@ pub(crate) fn wrapper(declared: &Type, name: &str) -> Option<Type> {
     })
 }
 
-pub(crate) fn named_fields<'a>(
-    fields: &'a Fields,
-    unnamed: &str,
-) -> Result<&'a FieldsNamed, Error> {
+pub(crate) fn named_fields<'a>(fields: &'a Fields, unnamed: &str) -> Result<&'a FieldsNamed, Error> {
     match fields {
         Fields::Named(named) => Ok(named),
         other => Err(Error::new(other.span(), unnamed)),
     }
 }
 
-pub(crate) fn named_struct_fields<'a>(
-    input: &'a DeriveInput,
-    not_a_struct: &str,
-    unnamed: &str,
-) -> Result<&'a FieldsNamed, Error> {
+pub(crate) fn named_struct_fields<'a>(input: &'a DeriveInput, not_a_struct: &str, unnamed: &str) -> Result<&'a FieldsNamed, Error> {
     let Data::Struct(structure) = &input.data else {
         return Err(Error::new(input.ident.span(), not_a_struct));
     };

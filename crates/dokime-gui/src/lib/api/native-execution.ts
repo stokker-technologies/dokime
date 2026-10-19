@@ -13,19 +13,19 @@
 
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  CycleStatus,
-  type CycleSummary,
-  type ExecutionDetail,
-  ExecutionParameterSet,
-  type ExecutionStep,
-  type ParameterCursor,
-  type StepCriterion,
-  type StepPageCursor,
-  type ExecutionPluginIdentity as WirePluginIdentity,
-} from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import type { Value } from "@/lib/rpc/generated/dokime/v1/value_pb";
+
+type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
+type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
+type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionListExecutionSteps>>["steps"][number]>;
+type StepCriterion = Wire<Awaited<ReturnType<typeof rpc.executionListStepCriteria>>["criteria"][number]>;
+type ParameterCursor = Parameters<typeof rpc.executionListExecutionParameters>[1]["cursor"];
+type ExecutionParameterSet = Parameters<typeof rpc.executionListExecutionParameters>[1]["set"];
+type StepPageCursor = Wire<Parameters<typeof rpc.executionListExecutionSteps>[1]["cursor"]>;
+type Value = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionListExecutionParameters>>["parameters"][number]>["value"]>;
+type WirePluginIdentity = NonNullable<ExecutionDetail["admittedPlugin"]>;
+
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionPluginIdentity,
@@ -51,7 +51,6 @@ import {
   mapBounded,
   metadataJson,
   NATIVE_MAX_PAGES,
-  NATIVE_MAX_SETTLE_ATTEMPTS,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
   nativeValueToJson,
@@ -76,29 +75,20 @@ export async function fetchNativeTestCycleDetail(
   };
 }
 
-export async function fetchNativeTestCycleExecutions(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<TestExecution[]> {
+export async function fetchNativeTestCycleExecutions(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {
   return (await fetchNativeTestCycleDetail(session, cycleId)).executions;
 }
 
 /** Load steps, criteria, parameters, and result data for one selected execution. */
-export async function fetchNativeTestExecutionDetail(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<TestExecution> {
+export async function fetchNativeTestExecutionDetail(session: SessionIdentity, executionId: string): Promise<TestExecution> {
   const native = await loadNativeExecution(session, executionId);
   const cycleId = native.detail.cycleId;
-  const [cycle, cases] = await Promise.all([
-    rpc.executionGetCycle(session, { cycleId }),
-    listNativeCases(session, cycleId),
-  ]);
+  const [cycle, cases] = await Promise.all([rpc.executionGetCycle(session, { cycleId }), listNativeCases(session, cycleId)]);
   const mappedCases = cases.map((item) => ({
     suite_id: item.suiteId,
     case_id: item.caseId,
     template_id: item.templateId,
-  })) as TestCase[];
+  }));
   return mapNativeExecution(native, mappedCases, cycle);
 }
 
@@ -114,19 +104,9 @@ export async function fetchNativeTestCycleSteps(
   if (options.executionId) {
     const execution = await loadNativeExecution(session, options.executionId);
     return execution.steps.flatMap(({ step, criteria }) => [
-      mapStepRecord(
-        step,
-        criteria,
-        execution.detail,
-        timestampIso(execution.detail.startedAt) ?? nowIso(),
-      ),
+      mapStepRecord(step, criteria, execution.detail, timestampIso(execution.detail.startedAt) ?? nowIso()),
       ...criteria.map((criterion) =>
-        mapCriterionRecord(
-          criterion,
-          execution.detail,
-          step,
-          timestampIso(execution.detail.startedAt) ?? nowIso(),
-        ),
+        mapCriterionRecord(criterion, execution.detail, step, timestampIso(execution.detail.startedAt) ?? nowIso()),
       ),
     ]);
   }
@@ -134,8 +114,7 @@ export async function fetchNativeTestCycleSteps(
   return executions
     .filter(
       (execution) =>
-        (!options.queueItemId || execution.case_id === options.queueItemId) &&
-        (!options.caseId || execution.case_id === options.caseId),
+        (!options.queueItemId || execution.case_id === options.queueItemId) && (!options.caseId || execution.case_id === options.caseId),
     )
     .flatMap((execution) => execution.steps);
 }
@@ -151,10 +130,7 @@ export async function fetchNativeTestCycleSteps(
  * hid the admission that had already succeeded from the caller's own refresh.
  * The workspace refreshes on the command settling and on the runtime stream.
  */
-export async function runNativeQueuedTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<NativeRunAdmission> {
+export async function runNativeQueuedTestCycle(session: SessionIdentity, cycleId: string): Promise<NativeRunAdmission> {
   return ensureNativeRunAccepted(
     await rpc.executionRunCycle(session, {
       cycleId,
@@ -163,10 +139,7 @@ export async function runNativeQueuedTestCycle(
   );
 }
 
-export async function runNativeQueuedTestExecution(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<NativeRunAdmission> {
+export async function runNativeQueuedTestExecution(session: SessionIdentity, executionId: string): Promise<NativeRunAdmission> {
   return ensureNativeRunAccepted(
     await rpc.executionRunExecution(session, {
       executionId,
@@ -175,11 +148,7 @@ export async function runNativeQueuedTestExecution(
   );
 }
 
-export async function runNativeQueuedTestCase(
-  session: SessionIdentity,
-  cycleId: string,
-  caseId: string,
-): Promise<NativeRunAdmission> {
+export async function runNativeQueuedTestCase(session: SessionIdentity, cycleId: string, caseId: string): Promise<NativeRunAdmission> {
   return ensureNativeRunAccepted(
     await rpc.executionRunCase(session, {
       cycleId,
@@ -189,70 +158,51 @@ export async function runNativeQueuedTestCase(
   );
 }
 
-export async function pauseNativeTestExecution(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<void> {
+export async function pauseNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
   await rpc.executionPauseExecution(session, { executionId });
 }
 
-export async function resumeNativeTestExecution(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<void> {
+export async function resumeNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
   await rpc.executionResumeExecution(session, { executionId });
 }
 
-export async function stopNativeTestExecution(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<void> {
+export async function stopNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
   await rpc.executionStopExecution(session, { executionId });
 }
 
-export async function pauseNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) =>
-    rpc.executionPauseCycle(session, { cycleId: id }),
-  );
+export async function pauseNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
+  return controlNativeCycle(session, cycleId, (id) => rpc.executionPauseCycle(session, { cycleId: id }));
 }
 
-export async function resumeNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) =>
-    rpc.executionResumeCycle(session, { cycleId: id }),
-  );
+export async function resumeNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
+  return controlNativeCycle(session, cycleId, (id) => rpc.executionResumeCycle(session, { cycleId: id }));
 }
 
-export async function stopNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<StartTestCycleResponse | null> {
-  return controlNativeCycle(session, cycleId, (id) =>
-    rpc.executionStopCycle(session, { cycleId: id }),
-  );
+export async function stopNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse | null> {
+  return controlNativeCycle(session, cycleId, (id) => rpc.executionStopCycle(session, { cycleId: id }));
 }
 
-export async function clearNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<void> {
-  const cycle = await rpc.executionGetCycle(session, { cycleId });
-  if ([CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING].includes(cycle.status)) {
-    await rpc.executionStopCycle(session, { cycleId });
-    await waitForNativeCycleSettled(session, cycleId);
-  }
-  await rpc.executionClearCycle(session, { cycleId });
+/** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */
+export async function setNativeCycleArchived(session: SessionIdentity, cycleId: string, archived: boolean): Promise<void> {
+  await rpc.executionSetCycleArchived(session, { cycleId, archived });
 }
 
-export async function reopenNativeTestCycle(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<StartTestCycleResponse> {
+/** Archives or unarchives a terminal execution; its lifecycle is unchanged. */
+export async function setNativeExecutionArchived(session: SessionIdentity, executionId: string, archived: boolean): Promise<void> {
+  await rpc.executionSetExecutionArchived(session, { executionId, archived });
+}
+
+/** Renames a cycle in any lifecycle state; resolves to the label as stored. */
+export async function renameNativeTestCycle(session: SessionIdentity, cycleId: string, label: string): Promise<string> {
+  return (await rpc.executionRenameCycle(session, { cycleId, label })).label;
+}
+
+/** Renames an execution's case, every attempt of it; resolves to the stored label. */
+export async function renameNativeTestExecution(session: SessionIdentity, executionId: string, label: string): Promise<string> {
+  return (await rpc.executionRenameExecution(session, { executionId, label })).label;
+}
+
+export async function reopenNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse> {
   const created = await rpc.executionCopyCycle(session, { sourceCycleId: cycleId });
   const plan = await fetchNativeTestCyclePlan(session, created.cycleId);
   if (!plan) throw new Error("Native CopyCycle did not produce a cycle.");
@@ -281,13 +231,25 @@ export async function updateNativeTestCyclePolicy(
   return { plan };
 }
 
-export async function rerunNativeTestCase(
-  session: SessionIdentity,
-  cycleId: string,
-  caseId: string,
-): Promise<NativeRunAdmission> {
+export async function rerunNativeTestCase(session: SessionIdentity, cycleId: string, caseId: string): Promise<NativeRunAdmission> {
   await rpc.executionScheduleCaseRerun(session, { cycleId, caseId });
   return runNativeQueuedTestCase(session, cycleId, caseId);
+}
+
+/**
+ * Run a finished cycle again: schedule a re-run of each named case, then run
+ * the cycle's queue once, so the cases run as one cycle request in plan order.
+ */
+export async function rerunNativeTestCycle(
+  session: SessionIdentity,
+  cycleId: string,
+  caseIds: readonly string[],
+): Promise<NativeRunAdmission> {
+  if (caseIds.length === 0) throw new Error("No case of this cycle can be run again.");
+  for (const caseId of caseIds) {
+    await rpc.executionScheduleCaseRerun(session, { cycleId, caseId });
+  }
+  return runNativeQueuedTestCycle(session, cycleId);
 }
 
 async function controlNativeCycle(
@@ -302,34 +264,14 @@ async function controlNativeCycle(
   return plan ? { plan } : null;
 }
 
-async function waitForNativeCycleSettled(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<CycleSummary> {
-  for (let attempt = 0; attempt < NATIVE_MAX_SETTLE_ATTEMPTS; attempt++) {
-    const cycle = await rpc.executionGetCycle(session, { cycleId });
-    if (![CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING].includes(cycle.status)) {
-      return cycle;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new NativeApiLimitError(
-    "Execution.StopCycle",
-    `cycle ${cycleId} did not settle after ${NATIVE_MAX_SETTLE_ATTEMPTS} observations`,
-  );
-}
-
-async function loadNativeExecution(
-  session: SessionIdentity,
-  executionId: string,
-): Promise<NativeExecution> {
+async function loadNativeExecution(session: SessionIdentity, executionId: string): Promise<NativeExecution> {
   const detail = await rpc.executionGetExecution(session, { executionId });
-  const inputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.INPUTS);
-  const outputs = await listExecutionParameters(
-    session,
-    executionId,
-    ExecutionParameterSet.OUTPUTS,
-  );
+  const inputs = await listExecutionParameters(session, executionId, {
+    HarmosVariant: { case: "Inputs", value: {} },
+  });
+  const outputs = await listExecutionParameters(session, executionId, {
+    HarmosVariant: { case: "Outputs", value: {} },
+  });
   const steps = await listExecutionSteps(session, executionId);
   const criteria = await mapBounded(steps, async (step) => ({
     step,
@@ -347,7 +289,7 @@ type NativeExecution = {
 
 function mapNativeExecution(
   native: NativeExecution,
-  cases: TestCase[],
+  cases: Pick<TestCase, "case_id" | "template_id">[],
   summary: CycleSummary,
 ): TestExecution {
   const detail = native.detail;
@@ -358,7 +300,24 @@ function mapNativeExecution(
   const fallback = timestampIso(summary.updatedAt) ?? nowIso();
   const startedAt = timestampIso(detail.startedAt);
   return {
-    controls: detail.controls ?? null,
+    controls: detail.controls
+      ? {
+          requestId: detail.controls.requestId,
+          paused: detail.controls.paused,
+          stopRequested: detail.controls.stopRequested,
+          canPause: detail.controls.canPause,
+          canResume: detail.controls.canResume,
+          canStop: detail.controls.canStop,
+          mode:
+            detail.controls.mode?.HarmosVariant.case === "Automatic"
+              ? "automatic"
+              : detail.controls.mode?.HarmosVariant.case === "Interactive"
+                ? "interactive"
+                : null,
+        }
+      : null,
+    archived: item.archived,
+    sealed: item.sealed,
     test_execution_id: item.executionId,
     test_cycle_id: detail.cycleId,
     queue_item_id: item.caseId,
@@ -368,9 +327,7 @@ function mapNativeExecution(
     invalidation: detail.invalidation
       ? {
           previous: mapPluginIdentity(detail.invalidation.previous),
-          current: detail.invalidation.current
-            ? mapPluginIdentity(detail.invalidation.current)
-            : null,
+          current: detail.invalidation.current ? mapPluginIdentity(detail.invalidation.current) : null,
         }
       : null,
     status: projectExecutionStatus(item.status, startedAt, summary.status),
@@ -392,12 +349,7 @@ function mapNativeExecution(
   };
 }
 
-function mapStepRecord(
-  step: ExecutionStep,
-  _criteria: StepCriterion[],
-  detail: ExecutionDetail,
-  fallback: string,
-): StepExecutionRecord {
+function mapStepRecord(step: ExecutionStep, _criteria: StepCriterion[], detail: ExecutionDetail, fallback: string): StepExecutionRecord {
   const startedAt = timestampIso(step.startedAt) ?? fallback;
   const finishedAt = timestampIso(step.finishedAt) ?? fallback;
   const status = mapStepStatus(step.status);
@@ -435,12 +387,7 @@ function mapStepRecord(
   };
 }
 
-function mapCriterionRecord(
-  criterion: StepCriterion,
-  detail: ExecutionDetail,
-  step: ExecutionStep,
-  fallback: string,
-): StepExecutionRecord {
+function mapCriterionRecord(criterion: StepCriterion, detail: ExecutionDetail, step: ExecutionStep, fallback: string): StepExecutionRecord {
   const status = mapCriterionStatus(criterion.status);
   return {
     record_type: "criterion",
@@ -451,9 +398,7 @@ function mapCriterionRecord(
     template_id: detail.admittedTemplateId ?? "",
     step_id: criterion.criterionId,
     method_name: criterion.metadata?.identifier || criterion.criterionId,
-    order:
-      safeNumber(step.ordinal, "step ordinal") * 100 +
-      safeNumber(criterion.ordinal, "criterion ordinal"),
+    order: safeNumber(step.ordinal, "step ordinal") * 100 + safeNumber(criterion.ordinal, "criterion ordinal"),
     status,
     result: {
       status,
@@ -469,11 +414,7 @@ function mapCriterionRecord(
   };
 }
 
-async function listExecutionParameters(
-  session: SessionIdentity,
-  executionId: string,
-  set: ExecutionParameterSet,
-) {
+async function listExecutionParameters(session: SessionIdentity, executionId: string, set: ExecutionParameterSet) {
   const result: { name: string; value?: Value }[] = [];
   let afterName = "";
   let cursor: ParameterCursor | undefined;
@@ -488,18 +429,11 @@ async function listExecutionParameters(
     result.push(...reply.parameters);
     const next = reply.nextAfterName;
     if (!next) return result;
-    if (next === afterName)
-      throw new NativeApiLimitError(
-        "Execution.ListExecutionParameters",
-        `cursor did not advance at ${next}`,
-      );
+    if (next === afterName) throw new NativeApiLimitError("Execution.ListExecutionParameters", `cursor did not advance at ${next}`);
     afterName = next;
     cursor = reply.cursor;
   }
-  throw new NativeApiLimitError(
-    "Execution.ListExecutionParameters",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Execution.ListExecutionParameters", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 async function listExecutionSteps(session: SessionIdentity, executionId: string) {
@@ -517,10 +451,7 @@ async function listExecutionSteps(session: SessionIdentity, executionId: string)
       throw new NativeApiLimitError("Execution.ListExecutionSteps", "cursor did not advance");
     cursor = reply.nextCursor;
   }
-  throw new NativeApiLimitError(
-    "Execution.ListExecutionSteps",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Execution.ListExecutionSteps", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 async function listStepCriteria(session: SessionIdentity, executionId: string, stepId: string) {
@@ -539,56 +470,42 @@ async function listStepCriteria(session: SessionIdentity, executionId: string, s
       throw new NativeApiLimitError("Execution.ListStepCriteria", "cursor did not advance");
     cursor = reply.nextCursor;
   }
-  throw new NativeApiLimitError(
-    "Execution.ListStepCriteria",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Execution.ListStepCriteria", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-async function loadNativeExecutionsForPlan(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<TestExecution[]> {
+async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {
   const summaries = await listNativeExecutions(session, cycleId);
   const cases = await listNativeCases(session, cycleId);
   const mappedCases = cases.map((item) => ({
     suite_id: item.suiteId,
     case_id: item.caseId,
     template_id: item.templateId,
-  })) as TestCase[];
+  }));
   const cycle = await rpc.executionGetCycle(session, { cycleId });
-  const executions = await mapBounded(summaries, (item) =>
-    loadNativeExecution(session, item.executionId),
-  );
+  const executions = await mapBounded(summaries, (item) => loadNativeExecution(session, item.executionId));
   return executions.map((execution) => mapNativeExecution(execution, mappedCases, cycle));
 }
 
-function stepCursorKey(cursor: unknown): string {
-  if (!cursor || typeof cursor !== "object") return "";
-  const value = cursor as {
-    executionId?: string;
-    stepId?: string;
-    kind?: number;
-    nextOrdinal?: bigint;
-  };
-  return `${value.executionId ?? ""}:${value.stepId ?? ""}:${value.kind ?? ""}:${String(value.nextOrdinal ?? "")}`;
+function stepCursorKey(cursor: StepPageCursor): string {
+  if (!cursor) return "";
+  return `${cursor.executionId}:${cursor.stepId}:${cursor.kind?.HarmosVariant?.case ?? ""}:${cursor.nextOrdinal}`;
 }
 
 function mapPluginIdentity(value: WirePluginIdentity | undefined): ExecutionPluginIdentity {
   if (!value) throw new Error("Execution invalidation has no previous provider identity.");
-  const implementation = value.implementation;
-  if (implementation.case === "contentDigest") {
+  const implementation = value.implementation?.HarmosVariant;
+  if (implementation?.case === "ContentDigest") {
     return {
       source: value.source,
       version: value.version,
-      implementation: { kind: "bundle", content_digest: implementation.value },
+      implementation: { kind: "bundle", content_digest: implementation.value.field0 },
     };
   }
-  if (implementation.case === "generation") {
+  if (implementation?.case === "Generation") {
     return {
       source: value.source,
       version: value.version,
-      implementation: { kind: "embedded", generation: implementation.value },
+      implementation: { kind: "embedded", generation: implementation.value.field0 },
     };
   }
   throw new Error("Execution provider identity has no implementation.");

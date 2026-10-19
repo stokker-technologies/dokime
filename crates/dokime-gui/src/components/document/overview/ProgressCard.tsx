@@ -26,11 +26,7 @@ export function ProgressCard({
   runFinished?: boolean;
 }) {
   const manual = mode === "manual";
-  const percent = progress
-    ? progress.total === 0
-      ? 100
-      : Math.max(0, Math.min(100, (progress.completed / progress.total) * 100))
-    : null;
+  const percent = progress ? (progress.total === 0 ? 100 : Math.max(0, Math.min(100, (progress.completed / progress.total) * 100))) : null;
 
   return (
     <div className={cn("grid gap-3 rounded-md border bg-muted/20 p-3", className)}>
@@ -39,33 +35,24 @@ export function ProgressCard({
           <Activity className="shrink-0" size={14} />
           <span className="truncate">Progress</span>
         </span>
-        {percent !== null && !manual ? (
-          <span className="shrink-0 text-sm font-semibold tabular-nums">{percent.toFixed(0)}%</span>
-        ) : null}
+        {percent !== null && !manual ? <span className="shrink-0 text-sm font-semibold tabular-nums">{percent.toFixed(0)}%</span> : null}
       </div>
 
       {manual ? (
         <div className="grid gap-1 text-sm">
           <strong>{runFinished ? "Run Finished" : "Running Until Stopped"}</strong>
           <span className="text-xs text-muted-foreground">
-            {runFinished
-              ? "The operator stopped this run."
-              : "Stop the run when enough evidence is available."}
+            {runFinished ? "The operator stopped this run." : "Stop the run when enough evidence is available."}
           </span>
         </div>
       ) : progress ? (
         <div className="grid gap-2">
           <div className="h-2.5 overflow-hidden rounded-full bg-background ring-1 ring-border">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500"
-              style={{ width: `${percent ?? 0}%` }}
-            />
+            <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${percent ?? 0}%` }} />
           </div>
           <div className="grid gap-1 text-sm">
             <strong className="inline-flex min-w-0 items-center gap-1.5" title={progress.phase}>
-              {(percent ?? 0) < 100 && !runFinished ? (
-                <LoaderCircle className="shrink-0 animate-spin" size={14} />
-              ) : null}
+              {(percent ?? 0) < 100 && !runFinished ? <LoaderCircle className="shrink-0 animate-spin" size={14} /> : null}
               <span className="truncate">{progress.phase}</span>
             </strong>
             <span className="truncate text-xs text-muted-foreground">

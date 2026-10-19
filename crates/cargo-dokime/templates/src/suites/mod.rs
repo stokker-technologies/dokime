@@ -1,6 +1,6 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -28,7 +28,7 @@ pub mod soak;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Suites {
     SoakSuite(soak::SoakSuite),
 }

@@ -7,26 +7,26 @@
  * ***
  */
 
+import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
 /* === Local Imports === */
 import { assembleCapture, type DeclaredNode } from "./document-assembly";
-import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
 
 import type {
   CardBinding,
+  DocumentCapture_Serialize as DocumentCapturePayload,
   DocumentCardDefinition_Serialize,
   DocumentNode,
-  DocumentCapture_Serialize as DocumentCapturePayload,
 } from "./document-contracts";
 import {
   documentCard,
   documentCardLayout,
   documentPlot,
   documentSummaryTile,
-  validateSummaryResult,
   documentTableRows,
   documentText,
+  validateSummaryResult,
 } from "./document-presentation";
-import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload, Metadata } from "./types";
+import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload } from "./types";
 
 export type { DocumentCapture_Serialize as DocumentCapturePayload } from "./document-contracts";
 
@@ -35,13 +35,10 @@ export type { DocumentCapture_Serialize as DocumentCapturePayload } from "./docu
 export function mapDocumentCapture(document: DocumentCapturePayload): DocumentViewPayload {
   if (document.definition.cards.length > 4096 || document.cards.length > 4096)
     throw new Error("Captured document sources or bindings exceed their contract");
-  const sources = new Map(
-    document.definition.cards.map((card) => [card.metadata.identifier, card]),
-  );
+  const sources = new Map(document.definition.cards.map((card) => [card.metadata.identifier, card]));
   let declared = 0;
   const nodes = (source: DocumentNode[], depth = 1): DeclaredNode[] => {
-    if (depth > 32 && source.length > 0)
-      throw new Error("Captured document depth exceeds its budget");
+    if (depth > 32 && source.length > 0) throw new Error("Captured document depth exceeds its budget");
     return source.map((node) => {
       if (++declared > 4096) throw new Error("Captured document declarations exceed their budget");
       return node.type === "card"
@@ -60,11 +57,10 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
     sources: document.definition.cards.map((card) => card.metadata.identifier),
     bindings: document.cards.map((binding) => {
       const source = sources.get(binding.source_id);
-      if (!source)
-        throw new Error(`Captured card binding has an invalid source: ${binding.source_id}`);
+      if (!source) throw new Error(`Captured card binding has an invalid source: ${binding.source_id}`);
       return {
         source_id: binding.source_id,
-        card: mapCardBinding(document.definition.metadata, source, binding),
+        card: mapCardBinding(source, binding),
       };
     }),
     nodes: nodes(document.definition.layout.nodes),
@@ -75,11 +71,7 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
 
 /* === Private Functions === */
 
-function mapCardBinding(
-  documentMetadata: Metadata,
-  card: DocumentCardDefinition_Serialize,
-  binding: CardBinding,
-): DocumentViewCard {
+function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBinding): DocumentViewCard {
   const result = binding.result;
   const metadata = binding.metadata;
   if (
@@ -138,19 +130,17 @@ function mapCardBinding(
       x_format: input.x_format,
       y_format: input.y_format,
       x_axis: input.x_axis,
-      group: documentMetadata.label,
       description: descriptor.metadata.description,
       marker_record_types: input.marker_record_types,
       filters: input.filters?.map((filter) => ({
         ...filter,
-        value:
-          filter.value === undefined || filter.value === null
-            ? filter.value
-            : serializedValueToJson(filter.value),
+        value: filter.value === undefined || filter.value === null ? filter.value : serializedValueToJson(filter.value),
       })),
       reference_lines: input.reference_lines,
       reference_bands: input.reference_bands,
       live_window_s: input.live_window_s,
+      display_points: input.display_points,
+      downsample: input.downsample,
     });
     return documentCard(metadata, "plots", { plots: [plot] });
   }

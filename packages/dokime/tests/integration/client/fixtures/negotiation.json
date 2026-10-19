@@ -1,0 +1,121 @@
+[
+  {
+    "name": "same-release",
+    "version": "0.6.0",
+    "accepted": true
+  },
+  {
+    "name": "compatible-patch",
+    "version": "0.6.7",
+    "accepted": true
+  },
+  {
+    "name": "different-descriptor",
+    "version": "0.6.0",
+    "descriptor": 7,
+    "accepted": true
+  },
+  {
+    "name": "breaking-minor",
+    "version": "0.7.0",
+    "accepted": false
+  },
+  {
+    "name": "missing-unavailable-results",
+    "version": "0.5.0",
+    "accepted": false
+  },
+  {
+    "name": "superseded-document-contract",
+    "version": "0.4.0",
+    "accepted": false
+  },
+  {
+    "name": "different-major",
+    "version": "1.2.0",
+    "accepted": false
+  },
+  {
+    "name": "missing-patch",
+    "version": "0.6",
+    "accepted": false
+  },
+  {
+    "name": "extra-component",
+    "version": "0.6.0.1",
+    "accepted": false
+  },
+  {
+    "name": "prerelease",
+    "version": "0.6.0-rc.1",
+    "accepted": false
+  },
+  {
+    "name": "leading-zero",
+    "version": "0.06.0",
+    "accepted": false
+  },
+  {
+    "name": "wrong-package",
+    "version": "0.6.0",
+    "package": "other.v1",
+    "accepted": false
+  },
+  {
+    "name": "missing-GetIdentity",
+    "version": "0.6.0",
+    "missing": "/dokime.v1.Backend/GetIdentity",
+    "accepted": false
+  },
+  {
+    "name": "missing-GetHealth",
+    "version": "0.6.0",
+    "missing": "/dokime.v1.Backend/GetHealth",
+    "accepted": false
+  },
+  {
+    "name": "missing-GetAvailability",
+    "version": "0.6.0",
+    "missing": "/dokime.v1.Backend/GetAvailability",
+    "accepted": false
+  },
+  {
+    "name": "degraded-ready",
+    "version": "0.6.0",
+    "readiness": 3,
+    "accepted": true
+  },
+  {
+    "name": "still-starting",
+    "version": "0.6.0",
+    "readiness": 1,
+    "accepted": false,
+    "error": "unavailable"
+  },
+  {
+    "name": "restarted-during-health",
+    "version": "0.6.0",
+    "health_epoch": "restarted",
+    "accepted": false,
+    "error": "identity"
+  },
+  {
+    "name": "restarted-during-availability",
+    "version": "0.6.0",
+    "availability_epoch": "restarted",
+    "accepted": false,
+    "error": "identity"
+  },
+  {
+    "name": "zero-request-limit",
+    "version": "0.6.0",
+    "max_request_bytes": 0,
+    "accepted": false
+  },
+  {
+    "name": "zero-response-limit",
+    "version": "0.6.0",
+    "max_response_bytes": 0,
+    "accepted": false
+  }
+]

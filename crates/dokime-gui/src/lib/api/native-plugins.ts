@@ -11,26 +11,19 @@
 
 /* === Local Imports === */
 
-import { create } from "@bufbuild/protobuf";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type AdmittedPlugin,
-  type PluginInstallation,
-  PluginInstallationState,
-  StagePluginFrameSchema,
-} from "@/lib/rpc/generated/dokime/v1/plugins_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import type { NativeContentSession } from "./native-content";
-import {
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  safeNumber,
-  sha256Hex,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, sha256Hex, timestampIso } from "./native-values";
+
+/* === Types === */
+
+type PluginInstallation = Wire<Awaited<ReturnType<typeof rpc.pluginsGetInstallation>>>;
+type PluginInstallationState = PluginInstallation["state"];
+type AdmittedPlugin = Wire<Awaited<ReturnType<typeof rpc.pluginsListAdmittedPlugins>>["plugins"][number]>;
 
 /* === Plugin installations === */
 
@@ -50,11 +43,7 @@ export async function listNativePlugins(session: SessionIdentity): Promise<Plugi
       manifestSha256: response.next.manifestSha256,
       afterInstallId: response.next.afterInstallId,
     };
-    if (
-      after &&
-      after.manifestSha256 === next.manifestSha256 &&
-      after.afterInstallId === next.afterInstallId
-    ) {
+    if (after && after.manifestSha256 === next.manifestSha256 && after.afterInstallId === next.afterInstallId) {
       throw new NativeApiLimitError("Plugins.ListInstallations", "cursor did not advance");
     }
     after = next;
@@ -63,17 +52,11 @@ export async function listNativePlugins(session: SessionIdentity): Promise<Plugi
   throw new NativeApiLimitError("Plugins.ListInstallations", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function getNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<PluginEntry> {
+export async function getNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
   return mapPluginInstallation(await rpc.pluginsGetInstallation(session, { installId }));
 }
 
-export async function consentNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<PluginEntry> {
+export async function consentNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
   const current = await rpc.pluginsGetInstallation(session, { installId });
   const installation = await rpc.pluginsConsent(session, {
     installId,
@@ -82,18 +65,11 @@ export async function consentNativePlugin(
   return mapPluginInstallation(installation);
 }
 
-export async function removeNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<void> {
+export async function removeNativePlugin(session: SessionIdentity, installId: string): Promise<void> {
   await rpc.pluginsRemove(session, { installId });
 }
 
-export async function setNativePluginEnabled(
-  session: SessionIdentity,
-  installId: string,
-  enabled: boolean,
-): Promise<PluginEntry> {
+export async function setNativePluginEnabled(session: SessionIdentity, installId: string, enabled: boolean): Promise<PluginEntry> {
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
 
@@ -120,12 +96,10 @@ interface StageStallBoundsMs {
 }
 
 /**
- * Matches the native side's own bounds: the bridge's 30 s idle timeout on
- * each `client_stream_write`/open frame (`client_streams.rs::IDLE_TIMEOUT`),
- * and the server's 300 s deadline on the whole `Plugins.Stage` call
- * (`grpc/deadline.rs::Deadlines::upload`). Nothing on the client enforces
- * either today, so an invoke that never resolves — the failure this module
- * exists to diagnose — spins "Inspecting …" forever.
+ * Bounds each staging phase on the client. The bridge forwards the whole
+ * `Plugins.Stage` call under its 300 s operation deadline; nothing else bounds a
+ * single open or write invoke, so one that never resolves — the failure this
+ * module exists to diagnose — would spin "Inspecting …" forever.
  */
 const DEFAULT_STAGE_STALL_MS: StageStallBoundsMs = {
   open: 30_000,
@@ -135,7 +109,7 @@ const DEFAULT_STAGE_STALL_MS: StageStallBoundsMs = {
 
 /**
  * Bound on the cancel invoke itself. `cancel` is what every stall path above
- * falls back on; without its own bound, a stalled `client_stream_cancel`
+ * falls back on; without its own bound, a stalled `rpc_stream_cancel`
  * would let the cleanup this module runs on the way out re-create the exact
  * hang it exists to end.
  */
@@ -148,11 +122,7 @@ export function formatStagePluginBytes(bytes: number): string {
 }
 
 /** Stage an inert plugin archive; activation remains a separate consent command. */
-export async function stageNativePlugin(
-  session: NativeContentSession,
-  file: File,
-  options: StagePluginOptions = {},
-): Promise<PluginEntry> {
+export async function stageNativePlugin(session: NativeContentSession, file: File, options: StagePluginOptions = {}): Promise<PluginEntry> {
   const onProgress = options.onProgress;
   const bounds = { ...DEFAULT_STAGE_STALL_MS, ...options.stallBoundsMs };
 
@@ -178,7 +148,12 @@ export async function stageNativePlugin(
     // forward an empty frame first, which the server rejects.
     stream = await withInvoke("opening", bounds.open, cancel, () =>
       rpc.pluginsStage(session, {
-        frame: { case: "header", value: { sizeBytes: BigInt(bytes.byteLength), sha256: digest } },
+        frame: {
+          HarmosVariant: {
+            case: "Header",
+            value: { field0: { sizeBytes: BigInt(bytes.byteLength), sha256: digest } },
+          },
+        },
       }),
     );
     release = session.own(() => void cancel().catch(() => undefined));
@@ -196,11 +171,11 @@ export async function stageNativePlugin(
       const label = `uploading chunk ${chunkIndex} of ${chunkCount} (${formatStagePluginBytes(offset)} of ${formatStagePluginBytes(total)})`;
       const openedStream = stream;
       await withInvoke(label, bounds.write, cancel, () =>
-        openedStream.write(
-          create(StagePluginFrameSchema, {
-            frame: { case: "chunk", value: { offset: BigInt(offset), data } },
-          }),
-        ),
+        openedStream.write({
+          frame: {
+            HarmosVariant: { case: "Chunk", value: { field0: { offset: BigInt(offset), data } } },
+          },
+        }),
       );
       chunkIndex += 1;
     }
@@ -208,9 +183,7 @@ export async function stageNativePlugin(
 
     onProgress?.({ phase: "finishing" });
     const openedStream = stream;
-    return mapPluginInstallation(
-      await withInvoke("finishing", bounds.finish, cancel, () => openedStream.finish()),
-    );
+    return mapPluginInstallation(await withInvoke("finishing", bounds.finish, cancel, () => openedStream.finish()));
   } finally {
     await cancel().catch(() => undefined);
     release?.();
@@ -222,10 +195,7 @@ const NATIVE_PLUGIN_CHUNK_BYTES = 256 * 1024;
 
 async function readPluginBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
   if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > NATIVE_PLUGIN_BYTES) {
-    throw new NativeApiLimitError(
-      "Plugins.Stage",
-      `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`,
-    );
+    throw new NativeApiLimitError("Plugins.Stage", `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`);
   }
   return new Uint8Array(await file.arrayBuffer());
 }
@@ -263,12 +233,7 @@ async function withPhase<T>(label: string, run: () => Promise<T>): Promise<T> {
  * with a phase-tagged "stalled after N s" message instead of leaving the
  * caller's "Inspecting …" spinning forever.
  */
-async function withInvoke<T>(
-  label: string,
-  timeoutMs: number,
-  cancel: () => Promise<void>,
-  run: () => Promise<T>,
-): Promise<T> {
+async function withInvoke<T>(label: string, timeoutMs: number, cancel: () => Promise<void>, run: () => Promise<T>): Promise<T> {
   try {
     return await withTimeout(run(), timeoutMs);
   } catch (error) {
@@ -291,9 +256,7 @@ function stagingFailure(label: string, error: unknown): Error {
 
 /* === Admitted Plugins === */
 
-export async function listNativeAdmittedPlugins(
-  session: SessionIdentity,
-): Promise<RuntimeInstalledPluginRecord[]> {
+export async function listNativeAdmittedPlugins(session: SessionIdentity): Promise<RuntimeInstalledPluginRecord[]> {
   const artifacts: AdmittedPlugin[] = [];
   let after: { epoch: string; revision: bigint; afterPluginId: string } | undefined;
 
@@ -310,21 +273,13 @@ export async function listNativeAdmittedPlugins(
       revision: response.next.revision,
       afterPluginId: response.next.afterPluginId,
     };
-    if (
-      after &&
-      after.epoch === next.epoch &&
-      after.revision === next.revision &&
-      after.afterPluginId === next.afterPluginId
-    ) {
+    if (after && after.epoch === next.epoch && after.revision === next.revision && after.afterPluginId === next.afterPluginId) {
       throw new NativeApiLimitError("Plugins.ListAdmittedPlugins", "cursor did not advance");
     }
     after = next;
   }
 
-  throw new NativeApiLimitError(
-    "Plugins.ListAdmittedPlugins",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Plugins.ListAdmittedPlugins", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 /* === Mapping === */
@@ -351,9 +306,7 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
                 description: installation.metadata.identity.description,
               }
             : (() => {
-                throw new Error(
-                  `Native plugin ${installation.installId} metadata has no identity.`,
-                );
+                throw new Error(`Native plugin ${installation.installId} metadata has no identity.`);
               })(),
           owners: installation.metadata.owners,
           size_bytes: safeNumber(installation.metadata.sizeBytes, "Plugins plugin size"),
@@ -372,14 +325,14 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
 }
 
 function mapPluginState(state: PluginInstallationState): PluginEntry["state"] {
-  switch (state) {
-    case PluginInstallationState.STAGED:
+  switch (state?.HarmosVariant.case) {
+    case "Staged":
       return "staged";
-    case PluginInstallationState.INSTALLED:
+    case "Installed":
       return "installed";
-    case PluginInstallationState.DISABLED:
+    case "Disabled":
       return "disabled";
-    case PluginInstallationState.REMOVAL_PENDING:
+    case "RemovalPending":
       return "removal_pending";
     default:
       throw new Error("Native plugin returned an unknown installation state.");
@@ -390,32 +343,39 @@ function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntr
   if (!lastBoot) return null;
   const at = timestampIso(lastBoot.at);
   if (!at) throw new Error("Native plugin returned a last-boot result without a timestamp.");
-  switch (lastBoot.result.case) {
-    case "loaded":
+  switch (lastBoot.result?.HarmosVariant.case) {
+    case "Loaded":
       return { state: "loaded", at };
-    case "error":
-      return { state: "failed", error: lastBoot.result.value, at };
+    case "Error":
+      return { state: "failed", error: lastBoot.result.HarmosVariant.value.field0, at };
     default:
       throw new Error("Native plugin returned a last-boot result without an outcome.");
   }
 }
 
 function mapAdmittedPlugin(artifact: AdmittedPlugin): RuntimeInstalledPluginRecord {
+  const owner = artifact.owner?.HarmosVariant;
+  let projectedOwner: RuntimeInstalledPluginRecord["owner"] = null;
+  if (owner?.case === "Host") projectedOwner = { kind: "host" };
+  if (owner?.case === "Bundle") {
+    const bundle = owner.value.field0;
+    if (!bundle) throw new Error("Admitted plugin omitted its bundle owner.");
+    projectedOwner = {
+      kind: "bundle",
+      package: bundle.package,
+      path: bundle.path ?? null,
+      installation: bundle.installationId ?? null,
+      content_digest: bundle.contentDigest,
+    };
+  }
+  if (owner?.case === "Embedded") {
+    const embedded = owner.value.field0;
+    if (!embedded) throw new Error("Admitted plugin omitted its embedded owner.");
+    projectedOwner = { kind: "embedded", generation: embedded.generation };
+  }
   return {
     plugin_id: artifact.pluginId,
-    owner:
-      artifact.owner.case === "host"
-        ? { kind: "host" }
-        : artifact.owner.case === "bundle"
-          ? {
-              kind: "bundle",
-              package: artifact.owner.value.package,
-              installation: artifact.owner.value.installationId ?? null,
-              content_digest: artifact.owner.value.contentDigest,
-            }
-          : artifact.owner.case === "embedded"
-            ? { kind: "embedded", generation: artifact.owner.value.generation }
-            : null,
+    owner: projectedOwner,
     label: artifact.label,
     version: artifact.version,
     enabled: artifact.enabled,

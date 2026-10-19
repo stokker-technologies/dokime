@@ -42,8 +42,7 @@ import { ExpressionReferencePopover, FileValueCell, ParameterValueCell } from ".
 /* === Constants === */
 
 /** 40px rows, 48px at touch; the whole grid reads off this one measure. */
-const GRID_DENSITY =
-  "[--parameter-row-height:2.5rem] [[data-density=touch]_&]:[--parameter-row-height:3rem]";
+const GRID_DENSITY = "[--parameter-row-height:2.5rem] [[data-density=touch]_&]:[--parameter-row-height:3rem]";
 
 const GRID_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.5rem]";
 
@@ -57,8 +56,7 @@ const GRID_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.5rem]";
 const ROW_INSET = "border-l-2 pr-4 pl-[0.875rem]";
 
 /** The eyebrow above a parameter group; the first one does not need the air. */
-const GROUP_HEADING =
-  "px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
+const GROUP_HEADING = "px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
 
 /* === Types === */
 
@@ -107,13 +105,7 @@ export function ParameterEditor({
             ? `${problems} ${problems === 1 ? "problem" : "problems"} to fix before the summary.`
             : "Values you change are remembered for this template."}
         </p>
-        <Button
-          disabled={!edited || fileRows.some((row) => row.uploading)}
-          onClick={onResetAll}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
+        <Button disabled={!edited || fileRows.some((row) => row.uploading)} onClick={onResetAll} size="sm" type="button" variant="ghost">
           Reset All
         </Button>
       </div>
@@ -123,12 +115,7 @@ export function ParameterEditor({
           <section className="grid" key={group.label}>
             <p className={cn(GROUP_HEADING, index === 0 ? "pt-1" : "pt-5")}>{group.label}</p>
             {group.rows.map((row) => (
-              <ParameterEditorRow
-                key={row.definition.parameter_id}
-                onChangeRaw={onChangeRaw}
-                onResetRow={onResetRow}
-                row={row}
-              />
+              <ParameterEditorRow key={row.definition.parameter_id} onChangeRaw={onChangeRaw} onResetRow={onResetRow} row={row} />
             ))}
           </section>
         ))}
@@ -266,11 +253,7 @@ function ParameterEditorRow({
           </Tooltip>
           {/* The help keeps its own slot beside the field whether or not the
               row has one, so it never competes with Reset for the same x. */}
-          {acceptsExpressions(row) ? (
-            <ExpressionReferencePopover />
-          ) : (
-            <span className="size-6 [[data-density=touch]_&]:size-11" />
-          )}
+          {acceptsExpressions(row) ? <ExpressionReferencePopover /> : <span className="size-6 [[data-density=touch]_&]:size-11" />}
         </div>
         {error ? (
           <p className="text-xs text-destructive" role="alert">
@@ -311,15 +294,7 @@ function ParameterEditorRow({
   );
 }
 
-function ParameterLabelCell({
-  description,
-  inputId,
-  label,
-}: {
-  description: string | null;
-  inputId: string;
-  label: string;
-}) {
+function ParameterLabelCell({ description, inputId, label }: { description: string | null; inputId: string; label: string }) {
   return (
     <div className="grid min-w-0 gap-0.5">
       <div className="flex min-w-0 items-center gap-1">

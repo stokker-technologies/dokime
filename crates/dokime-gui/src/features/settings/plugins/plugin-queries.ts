@@ -14,7 +14,7 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
 import { nativeContentSession } from "@/lib/api/native-content";
 import type { StagePluginProgress } from "@/lib/api/native-plugins";
@@ -31,9 +31,7 @@ import {
 export const pluginQueryKeys = {
   all: ["settings", "plugins"] as const,
   list: (generation?: string) =>
-    generation
-      ? ([...pluginQueryKeys.all, "list", generation] as const)
-      : ([...pluginQueryKeys.all, "list"] as const),
+    generation ? ([...pluginQueryKeys.all, "list", generation] as const) : ([...pluginQueryKeys.all, "list"] as const),
 };
 
 /* === Hooks === */

@@ -133,7 +133,5 @@ function searchObject(value: unknown): Record<string, unknown> {
       queueItemId: value.get("queueItemId") ?? undefined,
     };
   }
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }

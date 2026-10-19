@@ -84,9 +84,7 @@ export function SidebarRow({
   title,
   ...rest
 }: SidebarRowProps) {
-  const tone = active
-    ? "bg-primary/10 text-primary"
-    : "text-muted-foreground hover:bg-muted hover:text-foreground";
+  const tone = active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground";
 
   if (collapsed) {
     return (
@@ -109,19 +107,11 @@ export function SidebarRow({
     );
   }
 
-  const labelNode = (
-    <span className={cn("line-clamp-2 min-w-0 text-left leading-tight", LEVEL_TEXT[level])}>
-      {label}
-    </span>
-  );
+  const labelNode = <span className={cn("line-clamp-2 min-w-0 text-left leading-tight", LEVEL_TEXT[level])}>{label}</span>;
 
   return (
     <li
-      className={cn(
-        "grid min-h-[var(--sidebar-row-height)] items-center gap-1 rounded-md py-1 pr-2 pl-5",
-        LEVEL_LEAD[level],
-        tone,
-      )}
+      className={cn("grid min-h-[var(--sidebar-row-height)] items-center gap-1 rounded-md py-1 pr-2 pl-5", LEVEL_LEAD[level], tone)}
       data-active={active || undefined}
       data-level={level}
       ref={ref}

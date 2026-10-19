@@ -36,10 +36,7 @@ use syn::Error;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn argument(
-    arguments: &crate::arguments::Arguments,
-    name: &str,
-) -> Result<TokenStream, Error> {
+pub(crate) fn argument(arguments: &crate::arguments::Arguments, name: &str) -> Result<TokenStream, Error> {
     match arguments.catalog(name)? {
         Some(value) => {
             let path: syn::Path = syn::parse2(value.to_token_stream())?;

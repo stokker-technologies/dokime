@@ -20,21 +20,11 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
-use syn::{
-    Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Path, Token, Type,
-    punctuated::Punctuated,
-};
+use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Token, Type, punctuated::Punctuated};
 // Local Imports
 
 /* === Constants === */
-const ROLES: &[&str] = &[
-    "value",
-    "counter",
-    "state",
-    "distance",
-    "latency",
-    "throughput",
-];
+const ROLES: &[&str] = &["value", "counter", "state", "distance", "latency", "throughput"];
 
 /* === Macros === */
 
@@ -54,13 +44,6 @@ struct RowFieldDeclaration {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn row(item: TokenStream) -> TokenStream {
-    match expand(item) {
-        Ok(derived) => crate::facade::contracted(derived),
-        Err(refused) => refused.to_compile_error(),
-    }
-}
-
 pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let row = &input.ident;
@@ -88,7 +71,7 @@ pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> 
 
             fn into_row(self) -> ::std::collections::BTreeMap<
                 ::std::string::String,
-                #sdk::core::Value,
+                #sdk::Value,
             > {
                 let mut row = ::std::collections::BTreeMap::new();
                 #(#values)*
@@ -96,7 +79,7 @@ pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> 
             }
 
             fn from_row(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> ::std::result::Result<Self, #sdk::FieldError> {
                 ::std::result::Result::Ok(Self { #(#reads),* })
             }
@@ -108,39 +91,15 @@ pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
     crate::arguments::stripped(input, "dokime_row_format")
 }
 
-pub(crate) fn derives_row(input: &DeriveInput) -> bool {
-    input
-        .attrs
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("derive"))
-        .filter_map(|attribute| {
-            attribute
-                .parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
-                .ok()
-        })
-        .flatten()
-        .any(|path| {
-            path.segments
-                .last()
-                .is_some_and(|segment| segment.ident == "TelemetryRow")
-        })
-}
-
 pub(crate) fn column_count(input: &DeriveInput) -> Result<usize, Error> {
     let Data::Struct(structure) = &input.data else {
-        return Err(Error::new(
-            input.ident.span(),
-            "a stream is declared on a struct: its fields are the stream's columns",
-        ));
+        return Err(Error::new(input.ident.span(), "a stream is declared on a struct: its fields are the stream's columns"));
     };
 
     match &structure.fields {
         Fields::Named(named) => Ok(named.named.len()),
         Fields::Unit => Ok(0),
-        Fields::Unnamed(unnamed) => Err(Error::new(
-            unnamed.span(),
-            "a telemetry row names its fields: a column has an identifier",
-        )),
+        Fields::Unnamed(unnamed) => Err(Error::new(unnamed.span(), "a telemetry row names its fields: a column has an identifier")),
     }
 }
 
@@ -157,22 +116,15 @@ pub(crate) fn prepare(input: &mut DeriveInput) -> Result<(), Error> {
                 attributes.push(attribute.clone());
                 continue;
             }
-            let entries =
-                attribute.parse_args_with(Punctuated::<syn::Meta, Token![,]>::parse_terminated)?;
+            let entries = attribute.parse_args_with(Punctuated::<syn::Meta, Token![,]>::parse_terminated)?;
             let mut forwarded = Punctuated::<syn::Meta, Token![,]>::new();
             for entry in entries {
                 if entry.path().is_ident("format") {
                     let syn::Meta::NameValue(value) = entry else {
-                        return Err(Error::new_spanned(
-                            entry,
-                            "write `format = fixed(1)` or another document format",
-                        ));
+                        return Err(Error::new_spanned(entry, "write `format = fixed(1)` or another document format"));
                     };
                     if format_seen {
-                        return Err(Error::new_spanned(
-                            value.path,
-                            "`format` is declared twice on this field",
-                        ));
+                        return Err(Error::new_spanned(value.path, "`format` is declared twice on this field"));
                     }
                     format_seen = true;
                     let value = value.value;
@@ -200,20 +152,10 @@ pub(crate) fn optional(ty: &Type) -> bool {
         return false;
     };
 
-    path.path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == "Option")
+    path.path.segments.last().is_some_and(|segment| segment.ident == "Option")
 }
 
 /* === Private Functions === */
-fn expand(item: TokenStream) -> Result<TokenStream, Error> {
-    let mut input: DeriveInput = syn::parse2(item)?;
-    prepare(&mut input)?;
-
-    implementation(&input)
-}
-
 fn handles(fields: &[RowFieldDeclaration]) -> Vec<TokenStream> {
     let sdk = crate::facade::root();
     let mut handles = fields
@@ -252,21 +194,12 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RowFieldDeclaration>, Error> 
         .named
         .iter()
         .map(|field| {
-            let name = field
-                .ident
-                .clone()
-                .expect("a named field carries an identifier");
+            let name = field.ident.clone().expect("a named field carries an identifier");
             if name.unraw() == "timestamp" {
-                return Err(Error::new(
-                    name.span(),
-                    "`timestamp` is the automatic column every row carries; rename this field",
-                ));
+                return Err(Error::new(name.span(), "`timestamp` is the automatic column every row carries; rename this field"));
             }
             if name.unraw().to_string().starts_with("column_") {
-                return Err(Error::new(
-                    name.span(),
-                    "the `column_` prefix is reserved for generated plot handles",
-                ));
+                return Err(Error::new(name.span(), "the `column_` prefix is reserved for generated plot handles"));
             }
             let format = field
                 .attrs
@@ -275,22 +208,14 @@ fn declarations(input: &DeriveInput) -> Result<Vec<RowFieldDeclaration>, Error> 
                 .map(syn::Attribute::parse_args::<Expr>)
                 .transpose()?;
 
-            Ok(RowFieldDeclaration {
-                format,
-                name,
-                ty: field.ty.clone(),
-            })
+            Ok(RowFieldDeclaration { format, name, ty: field.ty.clone() })
         })
         .collect()
 }
 
 fn validate_role(value: &Expr) -> Result<(), Error> {
     let written = match value {
-        Expr::Path(path) => path
-            .path
-            .get_ident()
-            .map(ToString::to_string)
-            .unwrap_or_default(),
+        Expr::Path(path) => path.path.get_ident().map(ToString::to_string).unwrap_or_default(),
         Expr::Lit(literal) => match &literal.lit {
             syn::Lit::Str(text) => text.value(),
             _ => String::new(),
@@ -305,10 +230,7 @@ fn validate_role(value: &Expr) -> Result<(), Error> {
         ));
     }
     if !ROLES.contains(&written.as_str()) {
-        return Err(Error::new(
-            value.span(),
-            format!("a column is read under one of {}", ROLES.join(", ")),
-        ));
+        return Err(Error::new(value.span(), format!("a column is read under one of {}", ROLES.join(", "))));
     }
 
     Ok(())
@@ -341,11 +263,7 @@ fn column(field: &RowFieldDeclaration) -> TokenStream {
 
     // An optional field is a column that may have no measurement this tick:
     // saying so is what keeps the host from refusing an honest absence.
-    if optional(&field.ty) {
-        quote!(#declaration.nullable())
-    } else {
-        declaration
-    }
+    if optional(&field.ty) { quote!(#declaration.nullable()) } else { declaration }
 }
 
 fn value(field: &RowFieldDeclaration) -> TokenStream {

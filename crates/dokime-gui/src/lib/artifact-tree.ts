@@ -50,10 +50,7 @@ export type ArtifactTreeFolder = {
 
 /* === Public Functions === */
 
-export function buildArtifactTree(
-  artifacts: ArtifactTreeInput[],
-  runDir?: string | null,
-): ArtifactTreeFolder {
+export function buildArtifactTree(artifacts: ArtifactTreeInput[], runDir?: string | null): ArtifactTreeFolder {
   const root: ArtifactTreeFolder = {
     kind: "folder",
     name: "Artifacts",
@@ -89,10 +86,7 @@ export function buildArtifactTree(
   return root;
 }
 
-export function artifactDisplayPath(
-  artifact: Pick<ArtifactTreeInput, "label" | "path">,
-  runDir?: string | null,
-): string {
+export function artifactDisplayPath(artifact: Pick<ArtifactTreeInput, "label" | "path">, runDir?: string | null): string {
   const normalizedPath = normalizeArtifactPath(artifact.path);
   const normalizedRunDir = normalizeArtifactPath(runDir ?? "");
   const stripped = stripRunDir(normalizedPath, normalizedRunDir);
@@ -117,19 +111,12 @@ export function localFileHref(path: string | null | undefined): string | null {
   if (!normalized || !isAbsolutePath(normalized)) {
     return null;
   }
-  const escaped = normalized
-    .replace(/%/gu, "%25")
-    .replace(/#/gu, "%23")
-    .replace(/\?/gu, "%3F")
-    .replace(/ /gu, "%20");
+  const escaped = normalized.replace(/%/gu, "%25").replace(/#/gu, "%23").replace(/\?/gu, "%3F").replace(/ /gu, "%20");
   return normalized.startsWith("/") ? `file://${escaped}` : `file:///${escaped}`;
 }
 
 /** Resolve a relative artifact path against a native run directory. */
-export function localArtifactHref(
-  path: string | null | undefined,
-  runDir?: string | null,
-): string | null {
+export function localArtifactHref(path: string | null | undefined, runDir?: string | null): string | null {
   const normalizedPath = normalizeArtifactPath(path ?? "");
   if (!normalizedPath) return null;
   if (isAbsolutePath(normalizedPath)) return localFileHref(normalizedPath);
@@ -180,8 +167,6 @@ function isAbsolutePath(path: string): boolean {
 
 function sortArtifactFolder(folder: ArtifactTreeFolder): void {
   folder.folders.sort((left, right) => left.name.localeCompare(right.name));
-  folder.files.sort((left, right) =>
-    left.fileName.localeCompare(right.fileName, undefined, { numeric: true }),
-  );
+  folder.files.sort((left, right) => left.fileName.localeCompare(right.fileName, undefined, { numeric: true }));
   folder.folders.forEach(sortArtifactFolder);
 }

@@ -6,7 +6,7 @@
 # default. A fork rebrands by editing this manifest and the per-concern folders
 # beside it — no Rust or GUI changes.
 #
-# Bundle layout (one folder per concern; compiled into `dokime-theme` when the
+# Bundle layout (one folder per concern; compiled into `dokime-app` when the
 # binaries are built, so a rebrand needs a rebuild):
 #
 #   brand.toml    this manifest — identity, theme policy, corner geometry
@@ -16,7 +16,7 @@
 #   fonts/        vendored woff2 faces (offline; never fetched at runtime)
 #   generated/    tracked build outputs — never hand-edited
 #
-# Brand assets are compiled into dokime-theme; rebuild after editing.
+# Brand assets are compiled into dokime-app; rebuild after editing.
 #
 # Typography and palette values live in theme/. This TOML intentionally has no
 # font or color values.

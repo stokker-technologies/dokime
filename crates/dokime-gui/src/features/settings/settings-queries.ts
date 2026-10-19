@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSession } from "@/app/native-session/context";
 import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
 
 /* === Query Keys === */
@@ -21,9 +21,7 @@ import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
 export const settingsQueryKeys = {
   all: ["settings"] as const,
   frame: (generation?: string) =>
-    generation
-      ? ([...settingsQueryKeys.all, "frame", generation] as const)
-      : ([...settingsQueryKeys.all, "frame"] as const),
+    generation ? ([...settingsQueryKeys.all, "frame", generation] as const) : ([...settingsQueryKeys.all, "frame"] as const),
 };
 
 /* === Hooks === */

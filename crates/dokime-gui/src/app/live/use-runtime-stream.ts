@@ -14,18 +14,22 @@ import { useEffect } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
-import {
-  invalidateRuntimeProjectionQueries,
-  workflowQueryKeys,
-} from "@/features/cycle/server-state";
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
+import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import type { RuntimeStateFrame } from "@/lib/rpc/generated/dokime/v1/observation_pb";
-import { useHubStore } from "@/stores/hub-store";
+import { operationsFromFrame } from "@/shell/status-bar-operations";
+import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
   createRuntimeProjectionRefreshCoordinator,
+  createThrottledRefresh,
   type RuntimeProjectionRefreshCoordinator,
 } from "./runtime-refresh";
+
+/* === Constants === */
+
+/** The most often a running cycle re-reads its open documents. */
+const DOCUMENT_REFRESH_MS = 5_000;
 
 /* === Runtime stream ===
    The single live subscription. Native frames carry an observed cursor and
@@ -46,32 +50,35 @@ export function useRuntimeStream(): void {
     let active = true;
     let stream: Awaited<ReturnType<typeof openNativeRuntimeStream>> | undefined;
     let retry: number | undefined;
+    const documentRefresh = createThrottledRefresh(() => {
+      invalidateRuntimeDocuments(queryClient).catch((error: unknown) => {
+        if (!active || !session.identity.isCurrent()) return;
+        setHubState({ error: error instanceof Error ? error.message : String(error) });
+      });
+    }, DOCUMENT_REFRESH_MS);
     const refreshCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
       await Promise.all([
         invalidateRuntimeProjectionQueries(queryClient),
-        queryClient.invalidateQueries(
-          { queryKey: workflowQueryKeys.runtimeShell() },
-          { cancelRefetch: false },
-        ),
+        queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }, { cancelRefetch: false }),
       ]);
+      documentRefresh.request();
     });
 
     const connect = async () => {
       if (!active || !session.identity.isCurrent()) return;
       try {
-        stream = await openNativeRuntimeStream(
-          { ...session.identity, own: session.own },
-          undefined,
-        );
+        stream = await openNativeRuntimeStream({ ...session.identity, own: session.own }, undefined);
         if (!active || !session.identity.isCurrent()) {
           await stream.cancel();
           return;
         }
         setHubState({ connection: "connected", error: null });
+        let observed: string | null = null;
         for await (const frame of stream) {
           if (!active) break;
-          handleRuntimeFrame(
+          observed = handleRuntimeFrame(
             frame,
+            observed,
             queryClient,
             refreshCoordinator,
             setHubState,
@@ -88,7 +95,7 @@ export function useRuntimeStream(): void {
       } finally {
         stream = undefined;
         if (active && session.identity.isCurrent()) {
-          setHubState({ connection: "reconnecting" });
+          setHubState({ connection: "reconnecting", operations: [] });
           retry = window.setTimeout(() => void connect(), 1_000);
         }
       }
@@ -99,6 +106,7 @@ export function useRuntimeStream(): void {
       active = false;
       if (retry !== undefined) window.clearTimeout(retry);
       refreshCoordinator.dispose();
+      documentRefresh.dispose();
       void stream?.cancel();
     };
   }, [queryClient, session, setHubState]);
@@ -108,30 +116,33 @@ export function useRuntimeStream(): void {
 
 function handleRuntimeFrame(
   frame: RuntimeStateFrame,
+  observed: string | null,
   queryClient: ReturnType<typeof useQueryClient>,
   refreshCoordinator: RuntimeProjectionRefreshCoordinator,
-  setHubState: (patch: {
-    connection?: "connecting" | "connected" | "reconnecting";
-    error?: string | null;
-    lastStreamFrameAt?: number | null;
-  }) => void,
+  setHubState: (patch: BackendOperationsPatch) => void,
   sessionGeneration: string,
   isActive: () => boolean,
-) {
-  setHubState({ lastStreamFrameAt: Date.now(), error: null });
+): string | null {
+  setHubState({
+    error: null,
+    lastStreamFrameAt: Date.now(),
+    operations: operationsFromFrame(frame.operations),
+  });
   if (frame.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
-  if (frame.resynchronized || frame.cursor) {
+  /* A frame that only moves the backend's operations repeats its cursor;
+     the projections it would refresh have not changed. */
+  const cursor = frame.cursor ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}` : null;
+  if (frame.resynchronized || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =
       queryClient.isFetching({
-        predicate: (query) =>
-          query.queryKey[0] === workflowQueryKeys.all[0] &&
-          query.queryKey.at(-1) === sessionGeneration,
+        predicate: (query) => query.queryKey[0] === workflowQueryKeys.all[0] && query.queryKey.at(-1) === sessionGeneration,
       }) > 0;
     void refreshCoordinator.request({ ensureTrailing }).catch((error: unknown) => {
       if (!isActive()) return;
       setHubState({ error: error instanceof Error ? error.message : String(error) });
     });
   }
+  return cursor ?? observed;
 }

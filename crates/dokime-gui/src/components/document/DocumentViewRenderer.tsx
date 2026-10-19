@@ -9,33 +9,41 @@
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
 import { DocumentGrid } from "@/components/document/Document";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  documentCardForPlacement,
   documentCardLayoutAttributes,
   documentCardLayoutStyle,
-  documentCardForPlacement,
   documentNodeHasCards,
 } from "@/lib/document-layout";
-import type {
-  DocumentViewCard,
-  DocumentViewNode,
-  DocumentViewPayload,
-  DocumentViewSection,
-} from "@/lib/types";
+import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, DocumentViewSection, Metadata } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
 
+/**
+ * A control a surface places in one section's header, by section id — the
+ * live plot window beside the plots it scales. Absent, headers are plain.
+ */
+export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(() => null);
+
 /* === Types === */
+
+/** Renders one card; `section` is the enclosing section, absent at the top level. */
+export type DocumentCardRenderer = (card: DocumentViewCard, section: Metadata | null) => ReactNode;
+
+/** An optional control beside a card's title; `null` leaves the header as it is. */
+export type DocumentCardActionRenderer = (card: DocumentViewCard) => ReactNode;
 
 type DocumentViewRendererProps = {
   document: DocumentViewPayload | null | undefined;
-  renderCard: (card: DocumentViewCard) => ReactNode;
+  renderCard: DocumentCardRenderer;
+  cardAction?: DocumentCardActionRenderer;
   cardFilter?: (card: DocumentViewCard) => boolean;
   cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
   emptyMessage?: ReactNode;
@@ -43,10 +51,11 @@ type DocumentViewRendererProps = {
   sectionChrome?: DocumentSectionChrome;
 };
 
-type DocumentBlockChrome = "normal" | "embedded" | "flat";
+export type DocumentBlockChrome = "normal" | "embedded" | "flat";
 type DocumentSectionChrome = "plain" | "grouped" | "card";
 
 type DocumentViewBlockProps = {
+  action?: ReactNode;
   card: DocumentViewCard;
   children: ReactNode;
   chrome?: DocumentBlockChrome;
@@ -57,6 +66,7 @@ type DocumentViewBlockProps = {
 
 export function DocumentViewRenderer({
   document,
+  cardAction,
   cardChrome = defaultCardChrome,
   renderCard,
   cardFilter = () => true,
@@ -69,15 +79,9 @@ export function DocumentViewRenderer({
     return sectionChrome === "card" && chrome === "normal" ? "embedded" : chrome;
   };
   const cardMap = new Map(document?.cards.map((card) => [card.card_id, card]) ?? []);
-  const layoutNodes = (document?.layout.nodes ?? []).filter((node) =>
-    documentNodeHasCards(node, cardMap, cardFilter),
-  );
+  const layoutNodes = (document?.layout.nodes ?? []).filter((node) => documentNodeHasCards(node, cardMap, cardFilter));
   if (!document) {
-    const notice = (
-      <p className="text-sm text-muted-foreground">
-        No document has been resolved for the selected scope yet.
-      </p>
-    );
+    const notice = <p className="text-sm text-muted-foreground">No document has been resolved for the selected scope yet.</p>;
     return notice;
   }
 
@@ -87,6 +91,7 @@ export function DocumentViewRenderer({
       {layoutNodes.length ? (
         layoutNodes.map((node) => (
           <DocumentLayoutNodeBlock
+            cardAction={cardAction}
             cardFilter={cardFilter}
             cardMap={cardMap}
             chrome={sectionChrome}
@@ -94,6 +99,7 @@ export function DocumentViewRenderer({
             node={node}
             renderCard={renderCard}
             resolvedCardChrome={resolvedCardChrome}
+            section={null}
           />
         ))
       ) : (
@@ -107,19 +113,23 @@ export function DocumentViewRenderer({
 }
 
 function DocumentLayoutNodeBlock({
+  cardAction,
   cardFilter,
   cardMap,
   chrome,
   node,
   renderCard,
   resolvedCardChrome,
+  section: parent,
 }: {
+  cardAction?: DocumentCardActionRenderer;
   cardFilter: (card: DocumentViewCard) => boolean;
   cardMap: Map<string, DocumentViewCard>;
   chrome: DocumentSectionChrome;
   node: DocumentViewNode;
-  renderCard: (card: DocumentViewCard) => ReactNode;
+  renderCard: DocumentCardRenderer;
   resolvedCardChrome: (card: DocumentViewCard) => DocumentBlockChrome;
+  section: Metadata | null;
 }) {
   if (node.type === "card") {
     const card = documentCardForPlacement(cardMap, node);
@@ -128,8 +138,8 @@ function DocumentLayoutNodeBlock({
     }
 
     return (
-      <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
-        {renderCard(card)}
+      <DocumentViewBlock action={cardAction?.(card)} card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
+        {renderCard(card, parent)}
       </DocumentViewBlock>
     );
   }
@@ -141,8 +151,13 @@ function DocumentLayoutNodeBlock({
     const card = documentCardForPlacement(cardMap, onlyChild);
     if (card && sameLabel(node.metadata.label, card.title)) {
       return cardFilter(card) ? (
-        <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
-          {renderCard(card)}
+        <DocumentViewBlock
+          action={cardAction?.(card) ?? <SectionAction sectionId={node.metadata.identifier} />}
+          card={card}
+          chrome={resolvedCardChrome(card)}
+          key={card.card_id}
+        >
+          {renderCard(card, node.metadata)}
         </DocumentViewBlock>
       ) : null;
     }
@@ -152,6 +167,7 @@ function DocumentLayoutNodeBlock({
     .filter((child) => documentNodeHasCards(child, cardMap, cardFilter))
     .map((child) => (
       <DocumentLayoutNodeBlock
+        cardAction={cardAction}
         cardFilter={cardFilter}
         cardMap={cardMap}
         chrome={chrome}
@@ -159,6 +175,7 @@ function DocumentLayoutNodeBlock({
         node={child}
         renderCard={renderCard}
         resolvedCardChrome={resolvedCardChrome}
+        section={node.metadata}
       />
     ));
   if (!renderedChildren.length && !node.unavailable) {
@@ -182,12 +199,7 @@ function DocumentLayoutNodeBlock({
   );
 }
 
-export function DocumentViewBlock({
-  card,
-  children,
-  chrome = "normal",
-  contentClassName,
-}: DocumentViewBlockProps) {
+export function DocumentViewBlock({ action, card, children, chrome = "normal", contentClassName }: DocumentViewBlockProps) {
   const showHeader = chrome !== "flat";
   return (
     <section
@@ -206,21 +218,32 @@ export function DocumentViewBlock({
           {/* An eyebrow that only repeats the title below it introduces the
               same card twice. */}
           {sameLabel(documentCardEyebrow(card), card.title) ? null : (
-            <p className="text-xs font-bold uppercase text-muted-foreground">
-              {documentCardEyebrow(card)}
-            </p>
+            <p className="text-xs font-bold uppercase text-muted-foreground">{documentCardEyebrow(card)}</p>
           )}
-          <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+          {action ? (
+            /* The control shares the title's row and keeps its height, so a
+               card with an action lines up with one without. */
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+              <div className="-my-0.5 flex items-center">{action}</div>
+            </div>
+          ) : (
+            <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+          )}
           {card.metadata?.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {card.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{card.metadata.description}</p>
           ) : null}
         </header>
       ) : null}
       <div className={cn("grid min-w-0 gap-3", contentClassName)}>{children}</div>
     </section>
   );
+}
+
+/** The control the surface placed on this section, if any. */
+function SectionAction({ sectionId }: { sectionId: string }) {
+  const action = useContext(DocumentSectionActionContext)(sectionId);
+  return action ? <div className="flex min-w-0 items-center">{action}</div> : null;
 }
 
 function DocumentSectionBlock({
@@ -236,11 +259,12 @@ function DocumentSectionBlock({
     return (
       <Card className="rounded-lg bg-muted/20 py-0">
         <CardHeader className="border-b px-4 py-3">
-          <CardTitle className="text-base">{section.metadata.label}</CardTitle>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <CardTitle className="text-base">{section.metadata.label}</CardTitle>
+            <SectionAction sectionId={section.metadata.identifier} />
+          </div>
           {section.metadata.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {section.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
           ) : null}
         </CardHeader>
         <CardContent className="grid gap-4 p-4">{children}</CardContent>
@@ -255,11 +279,12 @@ function DocumentSectionBlock({
         data-section-id={section.metadata.identifier}
       >
         <header className="grid min-w-0 gap-0.5 border-b border-border/60 pb-2">
-          <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+            <SectionAction sectionId={section.metadata.identifier} />
+          </div>
           {section.metadata.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {section.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
           ) : null}
         </header>
         {children}
@@ -270,11 +295,12 @@ function DocumentSectionBlock({
   return (
     <section className="grid min-w-0 gap-3">
       <header className="grid min-w-0 gap-0.5">
-        <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+          <SectionAction sectionId={section.metadata.identifier} />
+        </div>
         {section.metadata.description ? (
-          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-            {section.metadata.description}
-          </p>
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
         ) : null}
       </header>
       {children}
@@ -282,10 +308,7 @@ function DocumentSectionBlock({
   );
 }
 
-function sectionChromeFor(
-  section: DocumentViewSection,
-  defaultChrome: DocumentSectionChrome,
-): DocumentSectionChrome {
+function sectionChromeFor(section: DocumentViewSection, defaultChrome: DocumentSectionChrome): DocumentSectionChrome {
   if (defaultChrome !== "plain") {
     return defaultChrome;
   }
@@ -293,7 +316,7 @@ function sectionChromeFor(
 }
 
 function defaultCardChrome(card: DocumentViewCard): DocumentBlockChrome {
-  return ["plots", "histograms", "box_summaries"].includes(card.kind) ? "flat" : "normal";
+  return card.kind === "plots" ? "flat" : "normal";
 }
 
 /** Do two labels say the same thing, ignoring case and word separators? */
@@ -307,9 +330,6 @@ function sameLabel(left: string, right: string): boolean {
 }
 
 function documentCardEyebrow(card: DocumentViewCard): string {
-  if (card.kind === "box_summaries") {
-    return "Distribution";
-  }
   if (card.kind === "telemetry_context") {
     return "Telemetry";
   }

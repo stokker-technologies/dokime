@@ -37,13 +37,7 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
   const { hidden, visible } = splitTags(tags);
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden",
-        TAG_COLUMN_WIDTH,
-        className,
-      )}
-    >
+    <div className={cn("flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden", TAG_COLUMN_WIDTH, className)}>
       {visible.map((tag) => (
         <TagChip key={tag} label={formatTagLabel(tag)} />
       ))}
@@ -67,9 +61,16 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
 
 /* === Subcomponents === */
 
-function TagChip({ label }: { label: string }) {
+/** One chip face, shared by the tag column and the Library's provenance pills. */
+export function TagChip({ className, label, title }: { className?: string; label: string; title?: string }) {
   return (
-    <span className="inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-[11px] leading-none whitespace-nowrap text-muted-foreground [[data-density=touch]_&]:h-6">
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-[11px] leading-none whitespace-nowrap text-muted-foreground [[data-density=touch]_&]:h-6",
+        className,
+      )}
+      title={title}
+    >
       {label}
     </span>
   );

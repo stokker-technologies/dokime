@@ -12,30 +12,30 @@
 
 /* === External Imports === */
 
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
-import { listNativeCycles, type NativeCycleSelection } from "@/lib/api/native-planning";
+import { useNativeSession } from "@/app/native-session/context";
+import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
+import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import {
-  CycleOrderKey,
-  CycleStatus,
-  type CycleSummary,
-} from "@/lib/rpc/generated/dokime/v1/execution_pb";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
+import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+
+type CycleSummary = Wire<GeneratedCycleSummary>;
 
 /* === Types === */
 
 export type CyclesQuerySelection = {
-  /** Matched server-side against label, identifier and admitted suite label. */
+  /** Matched server-side against the cycle's label and identifier. */
   text?: string;
-  /* False names the other lifecycles; an empty `statuses` is no constraint.
-     False is the default so the status bar and an unfiltered Cycles home ask
-     the identical question and share one cached read rather than paginating
-     the whole list twice every five seconds. */
-  includeCleared?: boolean;
+  /* True lists only archived cycles, false only the others. False is the
+     default so the status bar and an unfiltered Cycles home ask the identical
+     question and share one cached read rather than paginating the whole list
+     twice every five seconds. */
+  archived?: boolean;
 };
 
 /* === Query Keys === */
@@ -43,36 +43,10 @@ export type CyclesQuerySelection = {
 export const cyclesHomeQueryKeys = {
   all: ["cycles-home"] as const,
   cycles: (generation: string, selection: CyclesQuerySelection = {}) =>
-    [
-      ...cyclesHomeQueryKeys.all,
-      "cycles",
-      generation,
-      { includeCleared: selection.includeCleared ?? false, text: selection.text ?? "" },
-    ] as const,
-  pendingPrompts: (generation: string) =>
-    [...cyclesHomeQueryKeys.all, "pending-prompts", generation] as const,
+    [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false, text: selection.text ?? "" }] as const,
 };
 
 /* === Constants === */
-
-/**
- * The lifecycles a list without Show Cleared admits.
- *
- * An empty `statuses` is no constraint, so excluding one lifecycle means
- * naming the other ten. UNSPECIFIED is not among them: it is not a lifecycle
- * a cycle can be in.
- */
-const UNCLEARED_STATUSES = [
-  CycleStatus.PREVIEWED,
-  CycleStatus.READY,
-  CycleStatus.RUNNING,
-  CycleStatus.PAUSED,
-  CycleStatus.STOPPING,
-  CycleStatus.COMPLETED,
-  CycleStatus.FAILED,
-  CycleStatus.BLOCKED,
-  CycleStatus.STOPPED,
-];
 
 /* === Public Functions === */
 
@@ -86,10 +60,12 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
   return {
     filter: {
       text: selection.text?.trim() ?? "",
-      statuses: selection.includeCleared === false ? UNCLEARED_STATUSES : [],
-      suiteIds: [],
+      statuses: [],
+      archive: {
+        HarmosVariant: selection.archived ? { case: "Archived", value: {} } : { case: "Unarchived", value: {} },
+      },
     },
-    order: { key: CycleOrderKey.UPDATED_AT, descending: true },
+    order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
   };
 }
 
@@ -102,15 +78,13 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
  * bar counts, and a bar that inherited the home's filter box would report an
  * activity count of whatever the operator happened to be typing.
  */
-export function useCyclesQuery(
-  selection: CyclesQuerySelection = {},
-): UseQueryResult<CycleSummary[]> {
+export function useCyclesQuery(selection: CyclesQuerySelection = {}): UseQueryResult<CycleSummary[]> {
   const session = useNativeSession();
-  const includeCleared = selection.includeCleared ?? false;
+  const archived = selection.archived ?? false;
   const text = selection.text ?? "";
   return useQuery({
-    queryFn: () => listNativeCycles(session.identity, cycleListSelection({ includeCleared, text })),
-    queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { includeCleared, text }),
+    queryFn: () => listNativeCycles(session.identity, cycleListSelection({ archived, text })),
+    queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { archived, text }),
     refetchInterval: 5_000,
     staleTime: 2_000,
   });
@@ -121,8 +95,27 @@ export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
   const session = useNativeSession();
   return useQuery({
     queryFn: () => fetchNativePendingPrompts(session.identity),
-    queryKey: cyclesHomeQueryKeys.pendingPrompts(session.identity.generation),
+    // The workflow prompt key, so every runtime change that invalidates the
+    // cycle's prompts refreshes the navigation and status counts at once.
+    queryKey: [...workflowQueryKeys.prompts(), session.identity.generation],
     refetchInterval: 5_000,
     staleTime: 2_000,
+  });
+}
+
+/* === Mutation Hooks === */
+
+/** Creates an empty Ready cycle and refreshes every cycle list that shows it. */
+export function useCreateCycleMutation() {
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: NewCycleRequest) => createNativeTestCycle(session.identity, request),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateWorkflowResourceQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }),
+      ]);
+    },
   });
 }

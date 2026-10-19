@@ -18,10 +18,7 @@
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{
-    Error, Expr, FnArg, GenericArgument, ImplItem, ImplItemFn, ItemImpl, Meta, Path, PathArguments,
-    ReturnType, Type,
-};
+use syn::{Error, Expr, FnArg, GenericArgument, ImplItem, ImplItemFn, ItemImpl, Meta, Path, PathArguments, ReturnType, Type};
 // Local Imports
 use crate::arguments::{self, Arguments};
 
@@ -49,13 +46,7 @@ const LIFECYCLE: &[&str] = &["initialize", "traceability", "cleanup"];
 
 const RUNNABLE_CONTEXT: &str = "StepContext";
 
-const CONTEXTS: &[&str] = &[
-    "InitializationContext",
-    "TraceabilityContext",
-    "StepContext",
-    "ObserverContext",
-    "CleanupContext",
-];
+const CONTEXTS: &[&str] = &["InitializationContext", "TraceabilityContext", "StepContext", "ObserverContext", "CleanupContext"];
 
 const CRITERION_CONTEXT: &str = "CriterionContext";
 
@@ -125,27 +116,19 @@ pub(crate) fn template(attribute: TokenStream, item: TokenStream) -> TokenStream
 pub(crate) fn marker(name: &str, item: TokenStream) -> TokenStream {
     let refusal = Error::new(
         item.span(),
-        format!(
-            "`#[dokime::{name}]` is read by its owning block: declare it inside `#[dokime::template]`"
-        ),
+        format!("`#[dokime_runtime::{name}]` is read by its owning block: declare it inside `#[dokime_runtime::template]`"),
     )
     .to_compile_error();
 
     quote! { #item #refusal }
 }
 
-pub(crate) fn marked<'a>(
-    block: &'a ItemImpl,
-    name: &'a str,
-) -> impl Iterator<Item = (&'a ImplItemFn, &'a Meta)> {
+pub(crate) fn marked<'a>(block: &'a ItemImpl, name: &'a str) -> impl Iterator<Item = (&'a ImplItemFn, &'a Meta)> {
     block.items.iter().filter_map(move |item| {
         let ImplItem::Fn(function) = item else {
             return None;
         };
-        let marker = function
-            .attrs
-            .iter()
-            .find(|attribute| marks(attribute.meta.path(), name))?;
+        let marker = function.attrs.iter().find(|attribute| marks(attribute.meta.path(), name))?;
 
         Some((function, &marker.meta))
     })
@@ -153,10 +136,7 @@ pub(crate) fn marked<'a>(
 
 pub(crate) fn list(marker: &Meta, kind: &str, known: &[&str]) -> Result<Arguments, Error> {
     let Meta::List(list) = marker else {
-        return Err(Error::new(
-            marker.span(),
-            format!("{kind} declares {}", known.join(" and ")),
-        ));
+        return Err(Error::new(marker.span(), format!("{kind} declares {}", known.join(" and "))));
     };
 
     Arguments::read(list.tokens.clone(), kind, known)
@@ -168,15 +148,12 @@ fn observed(signature: &syn::Signature) -> Result<(), Error> {
         it takes one exclusive context and no receiver, and publishes what it saw \
         with `ctx.publish(value).await?`";
     if signature.asyncness.is_none() {
-        return Err(Error::new(
-            signature.span(),
-            "a template observer is async: a tick awaits whatever it is watching",
-        ));
+        return Err(Error::new(signature.span(), "a template observer is async: a tick awaits whatever it is watching"));
     }
     if signature.receiver().is_some()
         || signature.inputs.len() != 1
         || !signature.generics.params.is_empty()
-        || signature.unsafety.is_some()
+        || matches!(signature.safety, syn::Safety::Unsafe(_))
     {
         return Err(Error::new(signature.inputs.span(), SHAPE));
     }
@@ -196,19 +173,11 @@ fn observed(signature: &syn::Signature) -> Result<(), Error> {
     let Type::Path(path) = reference.elem.as_ref() else {
         return Err(Error::new(context.ty.span(), SHAPE));
     };
-    if path
-        .path
-        .segments
-        .last()
-        .is_none_or(|segment| segment.ident != "ObserverContext")
-    {
+    if path.path.segments.last().is_none_or(|segment| segment.ident != "ObserverContext") {
         return Err(Error::new(context.ty.span(), SHAPE));
     }
     if matches!(signature.output, ReturnType::Default) {
-        return Err(Error::new(
-            signature.span(),
-            "a template observer answers `Result<(), Error>`",
-        ));
+        return Err(Error::new(signature.span(), "a template observer answers `Result<(), Error>`"));
     }
 
     Ok(())
@@ -230,20 +199,11 @@ pub(crate) fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplIt
 }
 
 pub(crate) fn marks(path: &Path, name: &str) -> bool {
-    let segments = path
-        .segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect::<Vec<_>>();
+    let segments = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
 
-    match segments
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>()
-        .as_slice()
-    {
+    match segments.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
         [marker] => *marker == name,
-        [root, marker] => (*root == "dokime" || *root == crate::facade::name()) && *marker == name,
+        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
         _ => false,
     }
 }
@@ -253,37 +213,28 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a template", ARGUMENTS)?;
     let mut block: ItemImpl = syn::parse2(item.clone())?;
-    if let Some((_, path, _)) = &block.trait_ {
+    if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
-            "`#[dokime::template]` declares the template's own inherent impl, not a trait implementation",
+            "`#[dokime_runtime::template]` declares the template's own inherent impl, not a trait implementation",
         ));
     }
     let template = block.self_ty.clone();
 
-    let identifier = match arguments.value("id") {
-        Some(identifier) => identifier.clone(),
-        None => arguments.identifier(arguments::type_name(&template)?)?,
-    };
+    let identifier =
+        arguments.required("id", "a template is referenced as `<suite id>.<segment>`, which its item name cannot spell")?.clone();
+    refuse_malformed_segment(&identifier)?;
     let label = arguments.required("label", "an operator reads the template by its label")?;
-    let metadata = arguments::metadata(
-        &identifier,
-        label,
-        arguments.value("description"),
-        &block.attrs,
-    );
+    let metadata = arguments::metadata(&identifier, label, arguments.value("description"), &block.attrs);
     let template_id = match arguments.value("template_id") {
         Some(declared) => quote!(#declared),
-        None => quote!(#sdk::core::TemplateId::from_seed(#identifier)),
+        None => quote!(#sdk::TemplateId::from_seed(#identifier)),
     };
 
     let parameters = parameters(&block, arguments.value("parameters"))?;
     refuse_unrecognized_members(&block)?;
     let steps = steps(&block)?;
-    if let Some(step) = steps
-        .iter()
-        .find(|step| LIFECYCLE.iter().any(|hook| step.method == hook))
-    {
+    if let Some(step) = steps.iter().find(|step| LIFECYCLE.iter().any(|hook| step.method == hook)) {
         return Err(Error::new_spanned(
             &step.method,
             "initialize, traceability and cleanup are execution lifecycle hooks, not declared steps",
@@ -305,10 +256,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let phases = steps.iter().map(|step| &step.declaration);
     let streams = crate::catalog::argument(&arguments, "streams")?;
     let contracts = stream_contracts(&observers, &streams);
-    let records = record_contracts(
-        &crate::catalog::argument(&arguments, "records")?,
-        &observers,
-    );
+    let records = record_contracts(&crate::catalog::argument(&arguments, "records")?, &observers);
     let graceful_stop = arguments.value("graceful_stop");
     let requested = crate::catalog::argument(&arguments, "subscribes")?;
     let duplicate_holds = refuse_double_holds(&block, &requested)?;
@@ -316,20 +264,12 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let calls = requires(&template, &required);
     let engine = match runnable {
         true => {
-            let grant = Grant {
-                template: (*template).clone(),
-                own: own_resources(&block)?,
-                parameters: parameters.clone(),
-            };
+            let grant = Grant { template: (*template).clone(), own: own_resources(&block)?, parameters: parameters.clone() };
             let operations = operation_ids(&identifier)?;
             let generated = engine(
                 &block,
                 &grant,
-                Stages {
-                    steps: &steps,
-                    criteria: &criteria,
-                    observers: &observers,
-                },
+                Stages { steps: &steps, criteria: &criteria, observers: &observers },
                 &streams,
                 graceful_stop,
                 &operations,
@@ -346,12 +286,8 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     };
     strip(&mut block);
 
-    let tags = arguments
-        .value("tags")
-        .map(arguments::elements)
-        .transpose()?
-        .map(|tags| quote!(ctx.set_tags(::std::vec![#(#tags),*]);));
-    // Capabilities are declared here so the host can check them against the
+    let tags = arguments.value("tags").map(arguments::elements).transpose()?.map(|tags| quote!(ctx.set_tags(::std::vec![#(#tags),*]);));
+    // Prompts are declared here so the host can check them against the
     // installed suite. A run cannot widen its own grant once it is going.
     let prompts = crate::catalog::argument(&arguments, "prompts")?;
     let prompts = quote!(ctx.set_prompts(
@@ -367,7 +303,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         .map(|(key, value)| {
             let key = key.to_string();
 
-            quote!(ctx.set_attribute(#key, #sdk::core::Value::from(#value));)
+            quote!(ctx.set_attribute(#key, #sdk::Value::from(#value));)
         })
         .collect::<Vec<_>>();
 
@@ -376,8 +312,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             <#parameters as #sdk::parameters::FromParameters>::declaration()
         );)
     });
-    let document =
-        declared(&block, DOCUMENT).map(|_| quote!(ctx.set_document(<Self>::document());));
+    let document = declared(&block, DOCUMENT).map(|_| quote!(ctx.set_document(<Self>::document());));
     let declared_criteria = match criteria.as_slice() {
         // Written as methods, the criteria *are* the declaration: an author who
         // said what each one measures has said what they are.
@@ -394,7 +329,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #template {
-                                    pub fn template_id() -> #sdk::core::TemplateId {
+                                    pub fn template_id() -> #sdk::TemplateId {
                 #template_id
             }
 
@@ -424,7 +359,9 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #sdk::definition::DeclaredTemplate for #template {
-            fn template_id() -> #sdk::core::TemplateId {
+            const IDENTIFIER: &'static str = #identifier;
+
+            fn template_id() -> #sdk::TemplateId {
                 <Self>::template_id()
             }
 
@@ -458,6 +395,30 @@ fn requires(template: &Type, required: &TokenStream) -> TokenStream {
             type Operations = #required;
         }
     }
+}
+
+// A literal id is read on the line it was written: it names its suite and one
+// lowercase segment. The suite checks the prefix and uniqueness, and checks a
+// constant id the same way once it is evaluated.
+fn refuse_malformed_segment(identifier: &Expr) -> Result<(), Error> {
+    let Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(text), .. }) = identifier else {
+        return Ok(());
+    };
+    let value = text.value();
+    let segment = value.rsplit_once('.').map(|(_, segment)| segment);
+    let valid = segment.is_some_and(|segment| {
+        segment.starts_with(|first: char| first.is_ascii_lowercase())
+            && segment.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    });
+    if valid {
+        return Ok(());
+    }
+    Err(Error::new(
+        text.span(),
+        format!(
+            "`{value}` is not a template id: it is `<suite id>.<segment>`, the segment lowercase ASCII letters, digits, and underscores, starting with a letter"
+        ),
+    ))
 }
 
 fn operation_ids(identifier: &Expr) -> Result<(TokenStream, TokenStream), Error> {
@@ -568,11 +529,7 @@ fn steps(block: &ItemImpl) -> Result<Vec<DeclaredStep>, Error> {
     let sdk = crate::facade::root();
     marked(block, "step")
         .map(|(function, meta)| {
-            let arguments = list(
-                meta,
-                "a step",
-                &["id", "label", "description", "repeatable"],
-            )?;
+            let arguments = list(meta, "a step", &["id", "label", "description", "repeatable"])?;
             let identifier = arguments.identifier(&function.sig.ident)?;
             let label = arguments.required("label", "an operator reads the step by its label")?;
             let step = if arguments.flag("repeatable")? {
@@ -605,8 +562,7 @@ fn criteria(block: &ItemImpl) -> Result<Vec<DeclaredCriterion>, Error> {
             }
             let arguments = list(meta, "a criterion", &["id", "label", "description"])?;
             let identifier = arguments.identifier(&function.sig.ident)?;
-            let label =
-                arguments.required("label", "an operator reads the criterion by its label")?;
+            let label = arguments.required("label", "an operator reads the criterion by its label")?;
 
             Ok(DeclaredCriterion {
                 awaited: function.sig.asyncness.is_some(),
@@ -618,7 +574,7 @@ fn criteria(block: &ItemImpl) -> Result<Vec<DeclaredCriterion>, Error> {
                     quote!(#sdk::definition::authored_criterion(
                         #identifier,
                         #label,
-                        ::core::option::Option::Some(#sdk::core::Value::from(true)),
+                        ::core::option::Option::Some(#sdk::Value::from(true)),
                     )),
                     arguments.value("description"),
                     &function.attrs,
@@ -638,15 +594,8 @@ fn observers(block: &ItemImpl, runnable: bool) -> Result<Vec<DeclaredObserver>, 
                     "a template observer belongs to a runnable template: its steps take &mut StepContext",
                 ));
             }
-            let arguments = list(
-                meta,
-                "an observer",
-                &["interval_ms", "streams", "records", "label"],
-            )?;
-            let interval = arguments.required(
-                "interval_ms",
-                "an observer declares how often the engine calls it",
-            )?;
+            let arguments = list(meta, "an observer", &["interval_ms", "streams", "records", "label"])?;
+            let interval = arguments.required("interval_ms", "an observer declares how often the engine calls it")?;
             observed(&function.sig)?;
             let streams = crate::catalog::argument(&arguments, "streams")?;
             let records = crate::catalog::argument(&arguments, "records")?;
@@ -713,18 +662,13 @@ fn runnable(block: &ItemImpl, steps: &[DeclaredStep]) -> Result<bool, Error> {
     let Some(first) = steps.first() else {
         return Ok(false);
     };
-    let function = declared(block, &first.method.to_string())
-        .expect("a declared step came from a method on this block");
+    let function = declared(block, &first.method.to_string()).expect("a declared step came from a method on this block");
     let (context, _) = signature(function)?;
     let Type::Path(path) = &context else {
         return Ok(false);
     };
 
-    Ok(path
-        .path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == RUNNABLE_CONTEXT))
+    Ok(path.path.segments.last().is_some_and(|segment| segment.ident == RUNNABLE_CONTEXT))
 }
 
 fn validate_lifecycle(block: &ItemImpl) -> Result<(), Error> {
@@ -774,19 +718,15 @@ fn parameters(block: &ItemImpl, declared_type: Option<&Expr>) -> Result<Type, Er
     if let Some(method) = declared(block, "parameters") {
         return Err(Error::new_spanned(
             &method.sig,
-            "parameters are a type: declare a `#[dokime::parameters]` struct and name it with `#[dokime::template(parameters = …)]`",
+            "parameters are a type: declare a `#[dokime_runtime::parameters]` struct and name it with `#[dokime_runtime::template(parameters = …)]`",
         ));
     }
     let Some(declared_type) = declared_type else {
         return Ok(syn::parse_quote!(()));
     };
 
-    syn::parse2(quote!(#declared_type)).map_err(|_| {
-        Error::new(
-            declared_type.span(),
-            "parameters names the template's parameters struct: `parameters = SoakParameters`",
-        )
-    })
+    syn::parse2(quote!(#declared_type))
+        .map_err(|_| Error::new(declared_type.span(), "parameters names the template's parameters struct: `parameters = SoakParameters`"))
 }
 
 fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
@@ -798,9 +738,9 @@ fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
             other => {
                 return Err(Error::new(
                     other.span(),
-                    "this item is not read by `#[dokime::template]`. A template impl holds \
+                    "this item is not read by `#[dokime_runtime::template]`. A template impl holds \
                      initialize, traceability, document and cleanup, plus methods \
-                     marked #[dokime::step], #[dokime::criterion] or #[dokime::observer]; \
+                     marked #[dokime_runtime::step], #[dokime_runtime::criterion] or #[dokime_runtime::observer]; \
                      put helpers in a separate impl block.",
                 ));
             }
@@ -811,12 +751,7 @@ fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
 }
 
 fn refuse_unrecognized_method(function: &ImplItemFn) -> Result<(), Error> {
-    if ["step", "criterion", "observer"].iter().any(|name| {
-        function
-            .attrs
-            .iter()
-            .any(|attribute| marks(attribute.meta.path(), name))
-    }) {
+    if ["step", "criterion", "observer"].iter().any(|name| function.attrs.iter().any(|attribute| marks(attribute.meta.path(), name))) {
         return Ok(());
     }
     let name = function.sig.ident.to_string();
@@ -826,11 +761,7 @@ fn refuse_unrecognized_method(function: &ImplItemFn) -> Result<(), Error> {
             "construct shared observer handles in initialize; a separate resources hook is not supported",
         ));
     }
-    if LIFECYCLE.contains(&name.as_str())
-        || name == DOCUMENT
-        || name == CRITERIA
-        || name == "parameters"
-    {
+    if LIFECYCLE.contains(&name.as_str()) || name == DOCUMENT || name == CRITERIA || name == "parameters" {
         return Ok(());
     }
 
@@ -842,8 +773,8 @@ fn unclaimed(name: &syn::Ident, kind: &str) -> Error {
         name,
         format!(
             "`{name}` is not a template {kind}. A template impl holds initialize, \
-             traceability, document and cleanup, plus methods marked #[dokime::step], \
-             #[dokime::criterion] or #[dokime::observer]; put helpers in a separate impl block."
+             traceability, document and cleanup, plus methods marked #[dokime_runtime::step], \
+             #[dokime_runtime::criterion] or #[dokime_runtime::observer]; put helpers in a separate impl block."
         ),
     )
 }
@@ -892,8 +823,7 @@ fn resolve_context(declared: &mut Type, grant: &Grant) {
     if name == CRITERION_CONTEXT {
         let lifetime = lifetime(&segment.arguments);
         let template = &grant.template;
-        segment.arguments =
-            PathArguments::AngleBracketed(syn::parse_quote!(<#lifetime, #template, #parameters>));
+        segment.arguments = PathArguments::AngleBracketed(syn::parse_quote!(<#lifetime, #template, #parameters>));
         return;
     }
     if !CONTEXTS.contains(&name.as_str()) {
@@ -901,38 +831,26 @@ fn resolve_context(declared: &mut Type, grant: &Grant) {
     }
     let Grant { template, own, .. } = grant;
     let lifetime = lifetime(&segment.arguments);
-    segment.arguments =
-        PathArguments::AngleBracketed(syn::parse_quote!(<#lifetime, #template, #own, #parameters>));
+    segment.arguments = PathArguments::AngleBracketed(syn::parse_quote!(<#lifetime, #template, #own, #parameters>));
 }
 
 fn lifetime(arguments: &PathArguments) -> syn::Lifetime {
     match arguments {
-        PathArguments::AngleBracketed(arguments) => {
-            arguments.args.iter().find_map(|argument| match argument {
-                GenericArgument::Lifetime(lifetime) => Some(lifetime.clone()),
-                _ => None,
-            })
-        }
+        PathArguments::AngleBracketed(arguments) => arguments.args.iter().find_map(|argument| match argument {
+            GenericArgument::Lifetime(lifetime) => Some(lifetime.clone()),
+            _ => None,
+        }),
         _ => None,
     }
     .unwrap_or_else(|| syn::parse_quote!('_))
 }
 
 fn engine(
-    block: &ItemImpl,
-    grant: &Grant,
-    stages: Stages<'_>,
-    streams: &TokenStream,
-    graceful_stop: Option<&Expr>,
-    operations: &(TokenStream, TokenStream),
-    required: &TokenStream,
+    block: &ItemImpl, grant: &Grant, stages: Stages<'_>, streams: &TokenStream, graceful_stop: Option<&Expr>,
+    operations: &(TokenStream, TokenStream), required: &TokenStream,
 ) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let Stages {
-        steps,
-        criteria,
-        observers,
-    } = stages;
+    let Stages { steps, criteria, observers } = stages;
     let (run, signal) = operations;
     // Every arm below captures at the call rather than after it, spanned on the
     // author's own method. The `#[track_caller]` location a diagnostic records
@@ -953,8 +871,7 @@ fn engine(
         let identifier = &criterion.identifier;
         let method = &criterion.method;
         let awaited = criterion.awaited.then(|| quote!(.await));
-        let captured =
-            quote_spanned!(method.span()=> #sdk::plugin::captured(<Self>::#method(ctx)#awaited));
+        let captured = quote_spanned!(method.span()=> #sdk::plugin::captured(<Self>::#method(ctx)#awaited));
 
         quote!(#identifier => #captured.map(::core::option::Option::Some),)
     });
@@ -968,35 +885,34 @@ fn engine(
 
         quote!(#identifier => #captured,)
     });
-    let publications = observers.iter().map(|observer| &observer.streams)
-        .chain(::core::iter::once(streams))
-        .map(|catalog| quote! {
+    let publications = observers.iter().map(|observer| &observer.streams).chain(::core::iter::once(streams)).map(|catalog| {
+        quote! {
             for entry in <#catalog as #sdk::catalog::Catalog<#sdk::catalog::Publications<__DokimePlugin>>>::ENTRIES {
                 if stream.as_str() == entry.id {
-                    return (entry.publish)(host, token, values).await;
+                    return (entry.publish)(host, token, rows).await;
                 }
             }
-        });
+        }
+    });
+    let published = ::core::iter::once(streams).chain(observers.iter().map(|observer| &observer.streams)).collect::<Vec<_>>();
     let declarations = observers.iter().map(|observer| &observer.declaration);
     let cancellation = graceful_stop.map(|parameter| {
         quote! {
             fn cancellation_is_completion(
                 parameters: &::std::collections::BTreeMap<
                     ::std::string::String,
-                    #sdk::core::Value,
+                    #sdk::Value,
                 >,
             ) -> bool {
                 matches!(
                     parameters.get(#parameter),
-                    ::core::option::Option::Some(#sdk::core::Value::Bool(true))
+                    ::core::option::Option::Some(#sdk::Value::Bool(true))
                 )
             }
         }
     });
 
-    let Grant {
-        own, parameters, ..
-    } = grant;
+    let Grant { own, parameters, .. } = grant;
     let template = &block.self_ty;
     let cleanup = declared(block, "cleanup").map(|method| {
         let captured = quote_spanned!(method.sig.ident.span()=>
@@ -1033,8 +949,7 @@ fn engine(
         true => quote!(ctx.parameters(), ctx),
         false => quote!(ctx),
     };
-    let initialized =
-        initialize.map_or_else(|| block.self_ty.span(), |method| method.sig.ident.span());
+    let initialized = initialize.map_or_else(|| block.self_ty.span(), |method| method.sig.ident.span());
     let initialized = quote_spanned!(initialized=>
         #sdk::plugin::captured(<Self>::initialize(#arguments).await)
             .map(#sdk::__answer::Initialized::<Self>::into_parts)
@@ -1053,6 +968,11 @@ fn engine(
                     #sdk::__harmos::operations::Contracts,
                     #sdk::__harmos::operations::WireDeclaration,
                 >>::ENTRIES;
+            const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] = &[
+                #(#sdk::catalog::Node::Nested(
+                    &<#published as #sdk::catalog::Catalog<#sdk::catalog::Streams>>::ENTRIES
+                )),*
+            ];
 
             fn definition() -> #sdk::execution::TemplateDefinition {
                 #sdk::execution::TemplateDefinition {
@@ -1087,11 +1007,11 @@ fn engine(
                 })
             }
 
-            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::artifact::plugin::Declared>(
+            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::Declared>(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
-                stream: &'a #sdk::core::Identifier,
-                values: &'a ::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                stream: &'a #sdk::Identifier,
+                rows: &'a [#sdk::execution::StampedRow],
             ) -> #sdk::transport::TransportFuture<'a, ::core::result::Result<(), ::std::string::String>> {
                 ::std::boxed::Box::pin(async move {
                     #(#publications)*
@@ -1147,8 +1067,7 @@ fn table(block: &ItemImpl, steps: &[DeclaredStep]) -> Result<Option<TokenStream>
     let Some(first) = steps.first() else {
         return Ok(None);
     };
-    let function = declared(block, &first.method.to_string())
-        .expect("a declared step came from a method on this block");
+    let function = declared(block, &first.method.to_string()).expect("a declared step came from a method on this block");
     let (context, error) = signature(function)?;
     let entries = steps.iter().map(|step| {
         let declaration = &step.declaration;
@@ -1166,11 +1085,7 @@ fn table(block: &ItemImpl, steps: &[DeclaredStep]) -> Result<Option<TokenStream>
     }))
 }
 
-fn described(
-    declaration: TokenStream,
-    written: Option<&Expr>,
-    attributes: &[syn::Attribute],
-) -> TokenStream {
+fn described(declaration: TokenStream, written: Option<&Expr>, attributes: &[syn::Attribute]) -> TokenStream {
     match arguments::description(written, attributes) {
         None => declaration,
         Some(text) => quote!({
@@ -1194,10 +1109,7 @@ fn signature(function: &ImplItemFn) -> Result<(Type, Type), Error> {
         _ => return Err(Error::new(function.sig.inputs.span(), SHAPE)),
     };
     let ReturnType::Type(_, reply) = &function.sig.output else {
-        return Err(Error::new(
-            function.sig.output.span(),
-            "a step must answer `Result<(), Error>`",
-        ));
+        return Err(Error::new(function.sig.output.span(), "a step must answer `Result<(), Error>`"));
     };
 
     Ok((context, answer(reply, Part::Err)))
@@ -1206,11 +1118,7 @@ fn signature(function: &ImplItemFn) -> Result<(Type, Type), Error> {
 fn strip(block: &mut ItemImpl) {
     for item in &mut block.items {
         if let ImplItem::Fn(function) = item {
-            function.attrs.retain(|attribute| {
-                !["step", "criterion", "observer"]
-                    .iter()
-                    .any(|name| marks(attribute.meta.path(), name))
-            });
+            function.attrs.retain(|attribute| !["step", "criterion", "observer"].iter().any(|name| marks(attribute.meta.path(), name)));
         }
     }
 }

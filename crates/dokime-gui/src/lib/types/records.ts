@@ -50,14 +50,7 @@ export type RecordDisplay = {
 
 export type ContractValidationMode = "strict" | "prototype";
 
-export type ContractValueType =
-  | "number"
-  | "integer"
-  | "string"
-  | "boolean"
-  | "datetime"
-  | "object"
-  | "array";
+export type ContractValueType = "number" | "integer" | "string" | "boolean" | "datetime" | "object" | "array";
 
 export type HubRecord = {
   record_id: string;
@@ -165,6 +158,8 @@ export type PromptRequest = {
   prompt_type?: string | null;
   schema_version?: number | null;
   kind: "form" | "confirmation" | "choice" | "status" | "verification";
+  /** The author's declared level, on the record severity scale. */
+  level: Severity;
   title: string;
   message?: string | null;
   fields: PromptField[];

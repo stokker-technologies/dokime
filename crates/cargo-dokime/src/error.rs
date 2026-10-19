@@ -33,20 +33,14 @@ pub enum Error {
     Cancelled,
     #[error("{0}")]
     Invalid(String),
-    #[error("{0} exceeded the {1} byte limit")]
-    Output(String, usize),
     #[error(transparent)]
     Packaging(dokime_packaging::Error),
-    #[error(transparent)]
-    Grpc(#[from] tonic::Status),
-    #[error(transparent)]
-    Transport(#[from] tonic::transport::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
-    Bundle(#[from] harmos::plugin::Error),
+    Bundle(#[from] harmos_packaging::bundle::Error),
 }
 
 /* === Traits === */
@@ -63,9 +57,7 @@ impl From<dokime_packaging::Error> for Error {
 
 /* === Public Functions === */
 pub fn guest_refused(path: &str) -> Error {
-    Error::Invalid(format!(
-        "Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"
-    ))
+    Error::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
 
 /* === Private Functions === */

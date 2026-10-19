@@ -50,14 +50,7 @@ export function promptDefaults(prompt: PromptRequest | undefined): PromptValues 
 export function promptResponseValues(prompt: PromptRequest, values: PromptValues): JsonObject {
   return Object.fromEntries(
     prompt.fields
-      .filter(
-        (field) =>
-          !(
-            field.required === false &&
-            !field.multiple &&
-            (values[field.name] ?? promptFieldDefault(field)) === ""
-          ),
-      )
+      .filter((field) => !(field.required === false && !field.multiple && (values[field.name] ?? promptFieldDefault(field)) === ""))
       .map((field) => {
         const value = values[field.name] ?? promptFieldDefault(field);
         if (field.multiple) {
@@ -81,19 +74,14 @@ function coercePromptItem(field: PromptField, value: string) {
     }
   }
   if (field.kind === "float") {
-    const parsed = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim())
-      ? Number(value)
-      : Number.NaN;
+    const parsed = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim()) ? Number(value) : Number.NaN;
     return Number.isFinite(parsed) ? new NativeNumberValue(parsed) : null;
   }
   return value;
 }
 
 /** Immediate feedback; the host validates the submitted values again. */
-export function promptFieldError(
-  field: PromptField,
-  value: PromptValue | undefined,
-): string | null {
+export function promptFieldError(field: PromptField, value: PromptValue | undefined): string | null {
   if (field.readonly) return null;
   const current = value ?? promptFieldDefault(field);
   const items = field.multiple ? (Array.isArray(current) ? current : [String(current)]) : [current];
@@ -101,10 +89,8 @@ export function promptFieldError(
   if (field.multiple) {
     const minimum = rules.min_items ?? (field.required === false ? 0 : 1);
     if (items.length < minimum) return `Choose at least ${minimum} values.`;
-    if (rules.max_items != null && items.length > rules.max_items)
-      return `Choose at most ${rules.max_items} values.`;
-    if (field.kind === "choice" && new Set(items).size !== items.length)
-      return "Choose each value only once.";
+    if (rules.max_items != null && items.length > rules.max_items) return `Choose at most ${rules.max_items} values.`;
+    if (field.kind === "choice" && new Set(items).size !== items.length) return "Choose each value only once.";
   }
   for (const item of items) {
     if (typeof item === "boolean") continue;
@@ -115,35 +101,22 @@ export function promptFieldError(
       const converted = coercePromptItem(field, text);
       const number = numericValue(converted);
       if (converted === null)
-        return field.kind === "int"
-          ? "Enter a whole number that can be represented exactly."
-          : "Enter a finite number.";
+        return field.kind === "int" ? "Enter a whole number that can be represented exactly." : "Enter a finite number.";
       if (converted instanceof NativeIntegerValue) {
         const integer = BigInt(converted.decimal);
-        if (rules.minimum != null && integer < BigInt(Math.ceil(rules.minimum)))
-          return `Enter at least ${rules.minimum}.`;
-        if (rules.maximum != null && integer > BigInt(Math.floor(rules.maximum)))
-          return `Enter at most ${rules.maximum}.`;
+        if (rules.minimum != null && integer < BigInt(Math.ceil(rules.minimum))) return `Enter at least ${rules.minimum}.`;
+        if (rules.maximum != null && integer > BigInt(Math.floor(rules.maximum))) return `Enter at most ${rules.maximum}.`;
       }
-      if (rules.minimum != null && number !== null && number < rules.minimum)
-        return `Enter at least ${rules.minimum}.`;
-      if (rules.maximum != null && number !== null && number > rules.maximum)
-        return `Enter at most ${rules.maximum}.`;
+      if (rules.minimum != null && number !== null && number < rules.minimum) return `Enter at least ${rules.minimum}.`;
+      if (rules.maximum != null && number !== null && number > rules.maximum) return `Enter at most ${rules.maximum}.`;
     } else {
       const length = Array.from(text).length;
-      if (rules.min_length != null && length < rules.min_length)
-        return `Enter at least ${rules.min_length} characters.`;
-      if (rules.max_length != null && length > rules.max_length)
-        return `Enter at most ${rules.max_length} characters.`;
-      if (field.kind === "choice" && !field.choices?.includes(text))
-        return "Choose an offered value.";
+      if (rules.min_length != null && length < rules.min_length) return `Enter at least ${rules.min_length} characters.`;
+      if (rules.max_length != null && length > rules.max_length) return `Enter at most ${rules.max_length} characters.`;
+      if (field.kind === "choice" && !field.choices?.includes(text)) return "Choose an offered value.";
       // Rust and JavaScript differ on Unicode classes and set operations.
       // Only give local pattern errors for their common ASCII subset.
-      if (
-        rules.pattern &&
-        !/[\\]|&&|--|~~|\[:/.test(rules.pattern) &&
-        /^[\x20-\x7e]*$/.test(text)
-      ) {
+      if (rules.pattern && !/[\\]|&&|--|~~|\[:/.test(rules.pattern) && /^[\x20-\x7e]*$/.test(text)) {
         try {
           if (!new RegExp(rules.pattern, "u").test(text)) return "Use the requested format.";
         } catch {

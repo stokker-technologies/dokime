@@ -18,15 +18,14 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 /* === Constants === */
 
-const packageJson = JSON.parse(
-  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
-) as { version?: string };
+const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version?: string };
 const appVersion = packageJson.version ?? "dev";
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __DOKIME_UI_MODE__: JSON.stringify("report"),
+    __DOKIME_TRANSPORT__: JSON.stringify("ipc"),
   },
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
@@ -36,7 +35,7 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: "../dokime-app/dist-report",
+    outDir: "../dokime-runtime/dist-report",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {

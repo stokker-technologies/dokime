@@ -31,13 +31,7 @@ export const PARAMETER_OVERRIDES_STORAGE_KEY = "dokime.parameter-overrides";
 
 const parameterOverridesSchema = z.record(
   z.string(),
-  z.record(
-    z.string(),
-    z.union([
-      z.string(),
-      z.object({ raw: z.string(), valueType: z.string(), unit: z.string().nullable() }),
-    ]),
-  ),
+  z.record(z.string(), z.union([z.string(), z.object({ raw: z.string(), valueType: z.string(), unit: z.string().nullable() })])),
 );
 
 const persistedParameterOverridesSchema = z.object({
@@ -84,11 +78,7 @@ export function readPersistedParameterOverrides(value: unknown): ParameterOverri
 }
 
 /** The override for one parameter, or `null` when the default still applies. */
-export function parameterOverride(
-  overrides: ParameterOverrides,
-  templateId: string,
-  parameterId: string,
-): string | null {
+export function parameterOverride(overrides: ParameterOverrides, templateId: string, parameterId: string): string | null {
   const raw = overrides[templateId]?.[parameterId];
   return typeof raw === "string" ? raw : (raw?.raw ?? null);
 }

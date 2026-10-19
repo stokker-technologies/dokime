@@ -38,7 +38,7 @@ use tauri_plugin_opener::OpenerExt;
 //
 
 // ***
-use crate::app::content;
+use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
@@ -47,6 +47,8 @@ const MAX_REPORT_BASE64_CHARS: usize = MAX_REPORT_BYTES.div_ceil(3) * 4;
 const MAX_REPORT_FILENAME_CHARS: usize = 128;
 const MAX_DIAGNOSTICS_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS: usize = MAX_DIAGNOSTICS_BUNDLE_BYTES.div_ceil(3) * 4;
+const MAX_JSON_DOCUMENT_BYTES: usize = 32 * 1024 * 1024;
+const MAX_JSON_DOCUMENT_BASE64_CHARS: usize = MAX_JSON_DOCUMENT_BYTES.div_ceil(3) * 4;
 
 /* === Macros === */
 
@@ -76,7 +78,7 @@ pub struct ArtifactDeliveryRequest {
 pub enum DesktopSaveKind {
     HtmlReport,
     DiagnosticsBundle,
-    CycleBundle,
+    JsonDocument,
     Artifact,
 }
 
@@ -88,22 +90,10 @@ enum ExtensionPolicy {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ArtifactSource {
-    Artifact {
-        artifact_id: String,
-    },
-    ExecutionFile {
-        execution_id: String,
-        relative_path: String,
-    },
-    CycleBundle {
-        cycle_id: String,
-    },
+    Artifact { artifact_id: String },
+    ExecutionFile { execution_id: String, relative_path: String },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -119,32 +109,20 @@ pub enum DeliveryAction {
 
 /* === Public Functions === */
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        app.opener()
-            .open_path(path, None::<&str>)
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        app.opener()
-            .open_url(target, None::<&str>)
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || app.opener().open_url(target, None::<&str>).map_err(|error| error.to_string()))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 pub async fn desktop_save_document(
-    window: WebviewWindow,
-    state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-    document: DesktopSaveDocument,
-) -> Result<bool, String> {
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
+) -> Result<Option<String>, String> {
     ensure_main_window(&window)?;
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, kind) = validate_save_document(&generation, &document)?;
@@ -153,65 +131,42 @@ pub async fn desktop_save_document(
     let selected = tauri::async_runtime::spawn_blocking(move || {
         let dialog = app.dialog().file().set_file_name(filename);
         let dialog = apply_dialog_filter(dialog, kind);
-        dialog
-            .blocking_save_file()
-            .map(|path| path.into_path().map_err(|error| error.to_string()))
+        dialog.blocking_save_file().map(|path| path.into_path().map_err(|error| error.to_string()))
     })
     .await
     .map_err(|error| error.to_string())?;
     let Some(path) = selected.transpose()? else {
-        return Ok(false);
+        return Ok(None);
     };
     let path = ensure_selected_extension(path, kind)?;
     ensure_document_session(&session, &generation)?;
-    write_document(&session, &generation, path, bytes, false).await?;
-    Ok(true)
+    write_document(&session, &generation, path.clone(), bytes, false).await?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 pub async fn desktop_open_document(
-    window: WebviewWindow,
-    state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-    document: DesktopSaveDocument,
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
 ) -> Result<(), String> {
     ensure_main_window(&window)?;
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, _) = validate_save_document(&generation, &document)?;
     let session = state.inner().clone();
     ensure_document_session(&session, &generation)?;
-    let cache = app
-        .path()
-        .app_cache_dir()
-        .map_err(|error| error.to_string())?
-        .join("documents");
-    let path = cache.join(format!(
-        "dokime-{}-{}-{}",
-        generation,
-        random::<u64>(),
-        filename
-    ));
+    let cache = app.path().app_cache_dir().map_err(|error| error.to_string())?.join("documents");
+    let path = cache.join(format!("dokime-{}-{}-{}", generation, random::<u64>(), filename));
     write_document(&session, &generation, path.clone(), bytes, true).await?;
     ensure_document_session(&session, &generation)?;
     // The opener call itself forks/execs a launcher process; run it on the
     // blocking pool so it never occupies a Tokio worker thread that other
     // in-flight async commands (report streaming, connection I/O) need.
     let path = path.to_string_lossy().into_owned();
-    tauri::async_runtime::spawn_blocking(move || {
-        app.opener()
-            .open_path(path, None::<&str>)
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 pub async fn desktop_save_diagnostics_bundle(
-    window: WebviewWindow,
-    state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-    document: DesktopSaveDocument,
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
 ) -> Result<String, String> {
     ensure_main_window(&window)?;
     if document.kind != DesktopSaveKind::DiagnosticsBundle {
@@ -220,12 +175,9 @@ pub async fn desktop_save_diagnostics_bundle(
     let (filename, bytes, _) = validate_save_document(&generation, &document)?;
     let session = state.inner().clone();
     ensure_document_session(&session, &generation)?;
-    let downloads = app
-        .path()
-        .download_dir()
-        .map_err(|error| format!("The Downloads folder could not be resolved: {error}"))?;
+    let downloads = app.path().download_dir().map_err(|error| format!("The Downloads folder could not be resolved: {error}"))?;
     let path = downloads.join(filename);
-    // `dokime_filesystem::publication::write` stages beside the destination and
+    // `harmos::filesystem::publication::write` stages beside the destination and
     // renames into place, so a partially written archive is never visible under
     // the final name and a missing Downloads folder is created first.
     write_document(&session, &generation, path.clone(), bytes, false).await?;
@@ -233,72 +185,68 @@ pub async fn desktop_save_diagnostics_bundle(
 }
 
 pub async fn desktop_artifact_deliver(
-    window: WebviewWindow,
-    state: State<'_, ConnectionSession>,
-    app: AppHandle,
-    generation: String,
-    request: ArtifactDeliveryRequest,
-) -> Result<bool, String> {
-    ensure_main_window(&window)?;
-    ensure_generation_token(&generation)?;
-    ensure_picker_kind(request.kind)?;
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, request: ArtifactDeliveryRequest,
+) -> Result<bool, DeliveryError> {
+    let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
+
+    // Prepare: Owning Window, Session Lease, Filename And Private Staging Cache
+    ensure_main_window(&window).map_err(prepare)?;
+    ensure_generation_token(&generation).map_err(prepare)?;
+    ensure_picker_kind(request.kind).map_err(prepare)?;
     let session = state.inner().clone();
-    let lease = session.lease(&generation).map_err(|error| {
-        format!("Native artifact delivery lost its owning connection: {error:?}")
-    })?;
-    let filename = sanitize_filename(&request.filename, request.kind)?;
-    let cache = app
-        .path()
-        .app_cache_dir()
-        .map_err(|error| error.to_string())?
-        .join("documents");
+    let lease =
+        session.lease(&generation).map_err(|error| prepare(format!("Native artifact delivery lost its owning connection: {error:?}")))?;
+    let filename = sanitize_filename(&request.filename, request.kind).map_err(prepare)?;
+    let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
     tauri::async_runtime::spawn_blocking({
         let cache = cache.clone();
         move || ensure_private_directory(&cache)
     })
     .await
-    .map_err(|error| error.to_string())??;
+    .map_err(|error| prepare(error.to_string()))?
+    .map_err(prepare)?;
+
+    // Request, Stream, Write: The Shared Client Pulls And Verifies Into The Cache
     let staged = cache.join(format!("{generation}-{}-{filename}", random::<u64>()));
     let verified = content::fetch_verified(&lease, &request.source, &staged).await?;
-    ensure_document_session(&session, &generation)?;
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+
+    // Rename Or Open: Hand The Verified File To Its Destination
     match request.action {
         DeliveryAction::Save => {
             let kind = request.kind;
             let selected = tauri::async_runtime::spawn_blocking(move || {
                 let dialog = app.dialog().file().set_file_name(filename);
                 let dialog = apply_dialog_filter(dialog, kind);
-                dialog
-                    .blocking_save_file()
-                    .map(|path| path.into_path().map_err(|error| error.to_string()))
+                dialog.blocking_save_file().map(|path| path.into_path().map_err(|error| error.to_string()))
             })
             .await
-            .map_err(|error| error.to_string())?;
-            let Some(destination) = selected.transpose()? else {
+            .map_err(|error| prepare(error.to_string()))?;
+            let Some(destination) = selected.transpose().map_err(prepare)? else {
                 let _ = tokio::fs::remove_file(&verified.path).await;
                 return Ok(false);
             };
-            let destination = ensure_selected_extension(destination, kind)?;
-            ensure_document_session(&session, &generation)?;
-            move_verified_file(verified.path, destination).await?;
+            let destination = ensure_selected_extension(destination, kind).map_err(prepare)?;
+            ensure_document_session(&session, &generation).map_err(prepare)?;
+            move_verified_file(verified.path, destination).await.map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
             Ok(true)
         }
         DeliveryAction::Open => {
+            let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
             let path = verified.path.clone();
             tauri::async_runtime::spawn_blocking(move || set_private_file(&path))
                 .await
-                .map_err(|error| error.to_string())??;
-            ensure_document_session(&session, &generation)?;
+                .map_err(|error| open(error.to_string()))?
+                .map_err(open)?;
+            ensure_document_session(&session, &generation).map_err(prepare)?;
             // The opener call itself forks/execs a launcher process; run it
             // on the blocking pool so it never occupies a Tokio worker
             // thread other in-flight async commands need.
             let path = verified.path.to_string_lossy().into_owned();
-            tauri::async_runtime::spawn_blocking(move || {
-                app.opener()
-                    .open_path(path, None::<&str>)
-                    .map_err(|error| error.to_string())
-            })
-            .await
-            .map_err(|error| error.to_string())??;
+            tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
+                .await
+                .map_err(|error| open(error.to_string()))?
+                .map_err(open)?;
             Ok(true)
         }
     }
@@ -311,11 +259,7 @@ pub fn desktop_set_title(window: WebviewWindow, title: String) -> Result<(), Str
 // === Native document delivery helpers === //
 
 pub(super) fn ensure_main_window(window: &WebviewWindow) -> Result<(), String> {
-    if window.label() == "main" {
-        Ok(())
-    } else {
-        Err("Native document delivery is restricted to the main window".into())
-    }
+    if window.label() == "main" { Ok(()) } else { Err("Native document delivery is restricted to the main window".into()) }
 }
 
 pub(super) fn ensure_generation_token(generation: &str) -> Result<(), String> {
@@ -326,14 +270,7 @@ pub(super) fn ensure_generation_token(generation: &str) -> Result<(), String> {
 }
 
 pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
-    protect(
-        path,
-        true,
-        |path| {
-            dokime_filesystem::publication::create_dir_all(path).map_err(|error| error.to_string())
-        },
-        restrict_to_owner,
-    )
+    protect(path, true, |path| harmos::filesystem::publication::create_dir_all(path).map_err(|error| error.to_string()), restrict_to_owner)
 }
 
 pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
@@ -342,10 +279,7 @@ pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
 
 /* === Private Functions === */
 fn protect(
-    path: &Path,
-    directory: bool,
-    create: impl FnOnce(&Path) -> Result<(), String>,
-    restrict: impl FnOnce(&Path, u32) -> Result<(), String>,
+    path: &Path, directory: bool, create: impl FnOnce(&Path) -> Result<(), String>, restrict: impl FnOnce(&Path, u32) -> Result<(), String>,
 ) -> Result<(), String> {
     if directory {
         create(path)?;
@@ -361,21 +295,12 @@ fn set_window_title(window: &WebviewWindow, title: &str) -> tauri::Result<()> {
     window.set_title(title)
 }
 
-fn validate_save_document(
-    generation: &str,
-    document: &DesktopSaveDocument,
-) -> Result<(String, Vec<u8>, DesktopSaveKind), String> {
+fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> Result<(String, Vec<u8>, DesktopSaveKind), String> {
     ensure_generation_token(generation)?;
     let (max_encoded_chars, max_bytes, label) = match document.kind {
         DesktopSaveKind::HtmlReport => (MAX_REPORT_BASE64_CHARS, MAX_REPORT_BYTES, "Report HTML"),
-        DesktopSaveKind::DiagnosticsBundle => (
-            MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS,
-            MAX_DIAGNOSTICS_BUNDLE_BYTES,
-            "Diagnostics bundle",
-        ),
-        DesktopSaveKind::CycleBundle => {
-            return Err("Cycle bundle is delivered through desktop_artifact_deliver".into());
-        }
+        DesktopSaveKind::DiagnosticsBundle => (MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS, MAX_DIAGNOSTICS_BUNDLE_BYTES, "Diagnostics bundle"),
+        DesktopSaveKind::JsonDocument => (MAX_JSON_DOCUMENT_BASE64_CHARS, MAX_JSON_DOCUMENT_BYTES, "JSON document"),
         DesktopSaveKind::Artifact => {
             return Err("Artifact is delivered through desktop_artifact_deliver".into());
         }
@@ -389,23 +314,20 @@ fn validate_save_document(
 
 fn ensure_picker_kind(kind: DesktopSaveKind) -> Result<(), String> {
     if kind == DesktopSaveKind::DiagnosticsBundle {
-        return Err(
-            "Diagnostics bundle is delivered through desktop_save_diagnostics_bundle".into(),
-        );
+        return Err("Diagnostics bundle is delivered through desktop_save_diagnostics_bundle".into());
     }
     Ok(())
 }
 
 fn apply_dialog_filter(
-    dialog: tauri_plugin_dialog::FileDialogBuilder<tauri::Wry>,
-    kind: DesktopSaveKind,
+    dialog: tauri_plugin_dialog::FileDialogBuilder<tauri::Wry>, kind: DesktopSaveKind,
 ) -> tauri_plugin_dialog::FileDialogBuilder<tauri::Wry> {
     match kind {
         DesktopSaveKind::HtmlReport => dialog.add_filter("HTML report", &["html"]),
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
         DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
-        DesktopSaveKind::CycleBundle => dialog.add_filter("Cycle bundle", &["zip"]),
+        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
         DesktopSaveKind::Artifact => dialog,
     }
 }
@@ -414,38 +336,24 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
     match kind {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
         DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
-        DesktopSaveKind::CycleBundle => ExtensionPolicy::Append(".zip"),
+        DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
 }
 
-fn decode_bounded(
-    encoded: &str,
-    max_encoded_chars: usize,
-    max_bytes: usize,
-    label: &str,
-) -> Result<Vec<u8>, String> {
+fn decode_bounded(encoded: &str, max_encoded_chars: usize, max_bytes: usize, label: &str) -> Result<Vec<u8>, String> {
     if encoded.len() > max_encoded_chars {
-        return Err(format!(
-            "{label} bytes exceed the native delivery limit before decoding"
-        ));
+        return Err(format!("{label} bytes exceed the native delivery limit before decoding"));
     }
-    let bytes = BASE64
-        .decode(encoded)
-        .map_err(|error| format!("{label} bytes are not valid base64: {error}"))?;
+    let bytes = BASE64.decode(encoded).map_err(|error| format!("{label} bytes are not valid base64: {error}"))?;
     if bytes.len() > max_bytes {
-        return Err(format!(
-            "{label} exceeds the {max_bytes}-byte native delivery limit"
-        ));
+        return Err(format!("{label} exceeds the {max_bytes}-byte native delivery limit"));
     }
     Ok(bytes)
 }
 
 fn ensure_document_session(session: &ConnectionSession, generation: &str) -> Result<(), String> {
-    session
-        .lease(generation)
-        .map(|_| ())
-        .map_err(|error| format!("Native document delivery lost its owning connection: {error:?}"))
+    session.lease(generation).map(|_| ()).map_err(|error| format!("Native document delivery lost its owning connection: {error:?}"))
 }
 
 fn sanitize_filename(filename: &str, kind: DesktopSaveKind) -> Result<String, String> {
@@ -486,9 +394,7 @@ fn sanitize_filename(filename: &str, kind: DesktopSaveKind) -> Result<String, St
             }
             bound_with_suffix(safe, suffix)
         }
-        ExtensionPolicy::Free if safe.chars().count() > MAX_REPORT_FILENAME_CHARS => {
-            safe.chars().take(MAX_REPORT_FILENAME_CHARS).collect()
-        }
+        ExtensionPolicy::Free if safe.chars().count() > MAX_REPORT_FILENAME_CHARS => safe.chars().take(MAX_REPORT_FILENAME_CHARS).collect(),
         ExtensionPolicy::Free => safe,
     })
 }
@@ -497,18 +403,13 @@ fn bound_with_suffix(safe: String, suffix: &str) -> String {
     if safe.chars().count() <= MAX_REPORT_FILENAME_CHARS {
         return safe;
     }
-    let prefix = safe
-        .chars()
-        .take(MAX_REPORT_FILENAME_CHARS - suffix.chars().count())
-        .collect::<String>();
+    let prefix = safe.chars().take(MAX_REPORT_FILENAME_CHARS - suffix.chars().count()).collect::<String>();
     format!("{prefix}{suffix}")
 }
 
 fn ensure_selected_extension(path: PathBuf, kind: DesktopSaveKind) -> Result<PathBuf, String> {
     let expected = match extension_policy(kind) {
-        ExtensionPolicy::Append(suffix) | ExtensionPolicy::Require(suffix) => {
-            suffix.trim_start_matches('.')
-        }
+        ExtensionPolicy::Append(suffix) | ExtensionPolicy::Require(suffix) => suffix.trim_start_matches('.'),
         ExtensionPolicy::Free => return Ok(path),
     };
     match path.extension().and_then(|extension| extension.to_str()) {
@@ -528,13 +429,7 @@ fn restrict_to_owner(_path: &Path, _mode: u32) -> Result<(), String> {
     Ok(())
 }
 
-async fn write_document(
-    session: &ConnectionSession,
-    generation: &str,
-    path: PathBuf,
-    bytes: Vec<u8>,
-    private: bool,
-) -> Result<(), String> {
+async fn write_document(session: &ConnectionSession, generation: &str, path: PathBuf, bytes: Vec<u8>, private: bool) -> Result<(), String> {
     let session = session.clone();
     let generation = generation.to_owned();
     tauri::async_runtime::spawn_blocking(move || {
@@ -542,7 +437,7 @@ async fn write_document(
         if private && let Some(parent) = path.parent() {
             ensure_private_directory(parent)?;
         }
-        dokime_filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
+        harmos::filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
         if private {
             set_private_file(&path)?;
         }
@@ -556,11 +451,56 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf) -> Result<(),
     if tokio::fs::rename(&source, &destination).await.is_ok() {
         return Ok(());
     }
-    tokio::fs::copy(&source, &destination)
-        .await
-        .map_err(|error| error.to_string())?;
+    tokio::fs::copy(&source, &destination).await.map_err(|error| error.to_string())?;
     let _ = tokio::fs::remove_file(&source).await;
     Ok(())
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn json_document(filename: &str, bytes: &[u8]) -> DesktopSaveDocument {
+        serde_json::from_value(serde_json::json!({
+            "kind": "json_document",
+            "filename": filename,
+            "bytesBase64": BASE64.encode(bytes),
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn json_document_saves_through_the_picker() {
+        let bytes = br#"{"groups":[]}"#;
+        let document = json_document("Cycle-A-3-traceability.json", bytes);
+
+        ensure_picker_kind(document.kind).unwrap();
+        let (filename, decoded, kind) = validate_save_document("7", &document).unwrap();
+
+        assert_eq!(kind, DesktopSaveKind::JsonDocument);
+        assert_eq!(filename, "Cycle-A-3-traceability.json");
+        assert_eq!(decoded, bytes);
+    }
+
+    #[test]
+    fn json_document_names_a_json_file() {
+        let (filename, _, _) = validate_save_document("7", &json_document("trace:ability", b"{}")).unwrap();
+        assert_eq!(filename, "trace_ability.json");
+
+        let kind = DesktopSaveKind::JsonDocument;
+        assert_eq!(ensure_selected_extension(PathBuf::from("/tmp/trace"), kind).unwrap(), PathBuf::from("/tmp/trace.json"));
+        assert_eq!(ensure_selected_extension(PathBuf::from("/tmp/trace.JSON"), kind).unwrap(), PathBuf::from("/tmp/trace.JSON"));
+        assert!(ensure_selected_extension(PathBuf::from("/tmp/trace.txt"), kind).is_err());
+    }
+
+    #[test]
+    fn json_document_stays_bounded() {
+        let mut document = json_document("trace.json", b"{}");
+        document.bytes_base64 = "A".repeat(MAX_JSON_DOCUMENT_BASE64_CHARS + 4);
+
+        let error = validate_save_document("7", &document).unwrap_err();
+
+        assert!(error.contains("JSON document"), "{error}");
+    }
+}

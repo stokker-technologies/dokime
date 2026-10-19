@@ -18,10 +18,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Public Functions === */
 
-export async function getInstalledPluginDetail(
-  session: SessionIdentity,
-  pluginId: string,
-): Promise<InstalledPluginDetail | null> {
+export async function getInstalledPluginDetail(session: SessionIdentity, pluginId: string): Promise<InstalledPluginDetail | null> {
   const plugins = await listNativeAdmittedPlugins(session);
   const plugin = plugins.find((candidate) => candidate.plugin_id === pluginId);
   if (!plugin) return null;

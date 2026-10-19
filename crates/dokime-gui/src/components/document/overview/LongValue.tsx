@@ -14,15 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { ValueDisplay } from "@/components/ValueDisplay";
 import { isPathLike } from "@/lib/path-display";
 
-export function LongValue({
-  alwaysCopy = false,
-  label = "",
-  value,
-}: {
-  alwaysCopy?: boolean;
-  label?: string;
-  value: string;
-}) {
+export function LongValue({ alwaysCopy = false, label = "", value }: { alwaysCopy?: boolean; label?: string; value: string }) {
   const valueRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
 
@@ -38,8 +30,7 @@ export function LongValue({
     }
 
     updateTruncation();
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateTruncation);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateTruncation);
     observer?.observe(element);
     window.addEventListener("resize", updateTruncation);
     return () => {

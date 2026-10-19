@@ -10,23 +10,19 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime::operations::Access as Role;
+pub use dokime_domain::operations::Access as Role;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::{collections::BTreeSet, sync::Arc};
 // Third Party Imports
-use futures_util::future::BoxFuture;
+use harmos::plugin::Grant;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
-use tonic::codegen::http::{self, HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use tonic::{Request, Status};
-use tower::{Layer, Service};
 // Local Imports
-use super::{Error, method};
+use super::Error;
 
 /* === Constants === */
 
@@ -35,27 +31,26 @@ use super::{Error, method};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperationPermission {
+    pub owner: String,
+    pub id: String,
+    #[serde(default)]
+    pub grants: Vec<Grant>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Principal {
     subject: String,
     role: Role,
+    operations: Arc<[OperationPermission]>,
 }
 
 #[derive(Clone)]
 pub struct BearerGrant {
     principal: Principal,
     digest: [u8; 32],
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Authorize {
-    policy: Policy,
-}
-
-#[derive(Clone)]
-pub(crate) struct AuthorizeService<S> {
-    inner: S,
-    authorize: Authorize,
 }
 
 /* === Enums === */
@@ -73,86 +68,103 @@ impl Principal {
         &self.subject
     }
 
+    pub(crate) fn operation(&self, owner: &str, id: &str) -> Option<&OperationPermission> {
+        self.operations.iter().find(|permission| permission.owner == owner && permission.id == id)
+    }
+
     pub fn role(&self) -> Role {
         self.role
     }
 
     pub fn of<T>(request: &Request<T>) -> Result<&Self, Status> {
-        request
-            .extensions()
-            .get::<Self>()
-            .ok_or_else(|| Status::unauthenticated("authentication required"))
+        request.extensions().get::<Self>().ok_or_else(|| Status::unauthenticated("authentication required"))
     }
 }
 
 impl std::fmt::Debug for BearerGrant {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("BearerGrant")
-            .finish_non_exhaustive()
+        formatter.debug_struct("BearerGrant").finish_non_exhaustive()
     }
 }
 
 impl BearerGrant {
     pub fn new(subject: String, role: Role, token: &str) -> Result<Self, Error> {
-        if subject.trim().is_empty() || subject.len() > 256 || subject.chars().any(char::is_control)
-        {
+        if subject.trim().is_empty() || subject.len() > 256 || subject.chars().any(char::is_control) {
             return Err(Error::Configuration("invalid principal subject"));
         }
-        if !(32..=4096).contains(&token.len()) || !token.bytes().all(|byte| byte.is_ascii_graphic())
-        {
-            return Err(Error::Configuration(
-                "bearer tokens require 32–4096 visible ASCII bytes",
-            ));
+        if !(32..=4096).contains(&token.len()) || !token.bytes().all(|byte| byte.is_ascii_graphic()) {
+            return Err(Error::Configuration("bearer tokens require 32–4096 visible ASCII bytes"));
         }
-        Ok(Self {
-            principal: Principal { subject, role },
-            digest: Sha256::digest(token.as_bytes()).into(),
-        })
+        Ok(Self { principal: Principal { subject, role, operations: Arc::from([]) }, digest: Sha256::digest(token.as_bytes()).into() })
+    }
+}
+
+impl BearerGrant {
+    pub fn with_operations(mut self, operations: Vec<OperationPermission>) -> Result<Self, Error> {
+        if operations.len() > 128 {
+            return Err(Error::Configuration("at most 128 exact plugin operation permissions are allowed"));
+        }
+        let mut seen = BTreeSet::new();
+        for permission in &operations {
+            harmos::Identifier::new(&permission.owner).map_err(|_| Error::Configuration("invalid plugin permission owner"))?;
+            harmos::Identifier::new(&permission.id).map_err(|_| Error::Configuration("invalid plugin permission operation"))?;
+            if permission.owner == "dokime" || permission.owner == "harmos" {
+                return Err(Error::Configuration("plugin permissions cannot replace product or host policy"));
+            }
+            if !seen.insert((&permission.owner, &permission.id)) {
+                return Err(Error::Configuration("duplicate plugin operation permission"));
+            }
+            if permission.grants.len() > 32 {
+                return Err(Error::Configuration("at most 32 scoped grants are allowed per operation"));
+            }
+            let mut grants = BTreeSet::new();
+            for grant in &permission.grants {
+                let exact = grant.operation() == permission.id
+                    && grant.scope().is_some_and(|scope| {
+                        !scope.trim().is_empty()
+                            && scope.len() <= 1024
+                            && !scope.chars().any(|character| character.is_control() || character == '*')
+                    });
+                if !exact || !grants.insert(grant) {
+                    return Err(Error::Configuration("scoped grants require distinct bounded exact scopes on the permitted operation"));
+                }
+            }
+        }
+        self.principal.operations = operations.into();
+        Ok(self)
     }
 }
 
 impl Policy {
     pub(crate) fn bearer(grants: Vec<BearerGrant>) -> Result<Self, Error> {
         if grants.is_empty() {
-            return Err(Error::Configuration(
-                "bearer authentication requires at least one grant",
-            ));
+            return Err(Error::Configuration("bearer authentication requires at least one grant"));
         }
         for (index, grant) in grants.iter().enumerate() {
-            if grants[..index]
-                .iter()
-                .any(|other| bool::from(grant.digest.ct_eq(&other.digest)))
-            {
+            if grants[..index].iter().any(|other| bool::from(grant.digest.ct_eq(&other.digest))) {
                 return Err(Error::Configuration("duplicate bearer token grants"));
             }
         }
         Ok(Self::Bearer(grants.into()))
     }
 
-    fn authenticate(&self, headers: &HeaderMap) -> Result<Principal, Status> {
+    fn authenticate_values<'a>(&self, mut credentials: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         let Self::Bearer(grants) = self else {
-            return Ok(Principal {
-                subject: "local".into(),
-                role: Role::Admin,
-            });
+            return Ok(Principal { subject: "local".into(), role: Role::Admin, operations: Arc::from([]) });
         };
-        let mut credentials = headers.get_all(http::header::AUTHORIZATION).into_iter();
         let value = credentials
             .next()
-            .ok_or_else(|| Status::unauthenticated("authentication required"))?;
+            .ok_or_else(|| Status::unauthenticated("authentication required"))?
+            .ok_or_else(|| Status::unauthenticated("invalid credentials"))?;
         if credentials.next().is_some() {
             return Err(Status::unauthenticated("invalid credentials"));
         }
-        let token = value
-            .to_str()
-            .ok()
-            .and_then(|value| {
-                let (scheme, token) = value.split_once(' ')?;
-                (scheme.eq_ignore_ascii_case("bearer")
+        let (_, token) = value
+            .split_once(' ')
+            .filter(|(scheme, token)| {
+                scheme.eq_ignore_ascii_case("bearer")
                     && (32..=4096).contains(&token.len())
-                    && token.bytes().all(|byte| byte.is_ascii_graphic()))
-                .then_some(token)
+                    && token.bytes().all(|byte| byte.is_ascii_graphic())
             })
             .ok_or_else(|| Status::unauthenticated("invalid credentials"))?;
         let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
@@ -163,62 +175,21 @@ impl Policy {
                 matched = Some(index);
             }
         }
-        matched
-            .map(|index| grants[index].principal.clone())
-            .ok_or_else(|| Status::unauthenticated("invalid credentials"))
+        matched.map(|index| grants[index].principal.clone()).ok_or_else(|| Status::unauthenticated("invalid credentials"))
     }
 }
 
-impl Authorize {
-    pub(crate) fn new(policy: Policy) -> Self {
-        Self { policy }
-    }
+impl harmos::grpc::authentication::Authenticator for Policy {
+    type Principal = Principal;
 
-    fn admit<B>(&self, request: &mut HttpRequest<B>) -> Result<(), Status> {
-        let principal = self.policy.authenticate(request.headers())?;
-        let method = method::find(request.uri().path())
-            .ok_or_else(|| Status::unimplemented("method is not served by this listener"))?;
-        if principal.role < method.role {
-            return Err(Status::permission_denied("insufficient permission"));
-        }
-        // Credentials must not propagate to service logging or application code.
-        request.headers_mut().remove(http::header::AUTHORIZATION);
-        request.extensions_mut().insert(principal);
-        Ok(())
-    }
-}
-
-impl<S> Layer<S> for Authorize {
-    type Service = AuthorizeService<S>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        AuthorizeService {
-            inner,
-            authorize: self.clone(),
-        }
-    }
-}
-
-impl<S, B> Service<HttpRequest<B>> for AuthorizeService<S>
-where
-    S: Service<HttpRequest<B>, Response = HttpResponse<tonic::body::Body>>,
-    S::Future: Send + 'static,
-    S::Error: Send + 'static,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, mut request: HttpRequest<B>) -> Self::Future {
-        if let Err(status) = self.authorize.admit(&mut request) {
-            return Box::pin(async move { Ok(status.into_http()) });
-        }
-        let future = self.inner.call(request);
-        Box::pin(future)
+    fn authenticate<'a>(
+        &'a self, call: &'a harmos::grpc::middleware::Invocation,
+    ) -> harmos::grpc::authentication::Authentication<'a, Self::Principal> {
+        Box::pin(async move {
+            self.authenticate_values(call.metadata().get_all("authorization").iter().map(|value| value.to_str().ok()))
+                // Carry the authored status so the served error keeps its message.
+                .map_err(|status| harmos::Error::OperationFailed { operation: call.path().to_owned(), source: Arc::new(status) })
+        })
     }
 }
 

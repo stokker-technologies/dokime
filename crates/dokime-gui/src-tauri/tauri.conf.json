@@ -9,6 +9,7 @@
         "create": false,
         "dragDropEnabled": false,
         "height": 960,
+        "maximized": true,
         "minHeight": 720,
         "minWidth": 1080,
         "resizable": true,
@@ -18,7 +19,6 @@
     ]
   },
   "build": {
-    "beforeBuildCommand": "pnpm run build && mise run tauri:resources:release",
     "beforeDevCommand": "pnpm run dev",
     "devUrl": "http://127.0.0.1:5173",
     "frontendDist": "../dist"
@@ -26,9 +26,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "externalBin": [
-      "binaries/dokime"
-    ],
+    "externalBin": [],
     "resources": [],
     "targets": [
       "nsis"

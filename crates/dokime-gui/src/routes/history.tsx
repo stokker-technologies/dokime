@@ -16,12 +16,7 @@ import { useCallback } from "react";
 
 import { ExploreSurface } from "@/features/explore/ExploreSurface";
 import type { ExploreTarget } from "@/features/explore/explore-contracts";
-import {
-  exploreSearchSchema,
-  searchFromSelectedIds,
-  selectedIdsFromSearch,
-  toggleSelectedId,
-} from "@/features/explore/explore-search";
+import { exploreSearchSchema, searchFromSelectedIds, selectedIdsFromSearch, toggleSelectedId } from "@/features/explore/explore-search";
 
 /* === Route === */
 

@@ -115,11 +115,7 @@ export function formatDuration(seconds: number | null | undefined): string | nul
  * time-kind format reaching here (a mismatched or stale caller) falls back the
  * same way, so a renderer never throws over a format it cannot use.
  */
-export function formatNumber(
-  value: number,
-  format: ValueFormat | null,
-  options?: NumberFormatOptions,
-): string {
+export function formatNumber(value: number, format: ValueFormat | null, options?: NumberFormatOptions): string {
   if (!Number.isFinite(value)) {
     return "";
   }
@@ -151,11 +147,7 @@ export function formatNumber(
  * prefix into the unit (`120 µm`) rather than the number text, which is why
  * the unit travels with the call instead of being appended by the caller.
  */
-export function formatWithUnit(
-  value: number,
-  format: ValueFormat | null,
-  unit?: string | null,
-): FormattedValueWithUnit {
+export function formatWithUnit(value: number, format: ValueFormat | null, unit?: string | null): FormattedValueWithUnit {
   if (!Number.isFinite(value)) {
     return { text: "", unit: unit ?? null };
   }
@@ -174,11 +166,7 @@ export function formatWithUnit(
  * documented fallback (the payload's `run_started_at`/`cycle_started_at`, or
  * else the first point of the first series) before calling this.
  */
-export function formatTime(
-  epochSeconds: number,
-  format: ValueFormat | null,
-  origin: TimeFormatOrigin,
-): string {
+export function formatTime(epochSeconds: number, format: ValueFormat | null, origin: TimeFormatOrigin): string {
   if (!Number.isFinite(epochSeconds)) {
     return "";
   }
@@ -187,9 +175,7 @@ export function formatTime(
   }
   if (format?.kind === "elapsed_since_run" || format?.kind === "elapsed_since_cycle") {
     const originSeconds = format.kind === "elapsed_since_run" ? origin.runStart : origin.cycleStart;
-    const elapsedSeconds = Number.isFinite(originSeconds)
-      ? epochSeconds - (originSeconds as number)
-      : 0;
+    const elapsedSeconds = Number.isFinite(originSeconds) ? epochSeconds - (originSeconds as number) : 0;
     return elapsedText(elapsedSeconds, format.unit);
   }
   return new Date(epochSeconds * 1000).toLocaleString();
@@ -220,17 +206,12 @@ export function defaultPlotNumber(value: number, increment?: number): string {
     // axis into rows that differ only in a digit nobody asked for.
     const digits =
       increment !== undefined && Number.isFinite(increment) && increment > 0
-        ? Math.min(
-            6,
-            Math.max(0, Math.floor(Math.log10(magnitude)) - Math.floor(Math.log10(increment))),
-          )
+        ? Math.min(6, Math.max(0, Math.floor(Math.log10(magnitude)) - Math.floor(Math.log10(increment))))
         : 1;
     return value.toExponential(digits);
   }
   const fromIncrement =
-    increment !== undefined && Number.isFinite(increment) && increment > 0
-      ? Math.max(0, Math.ceil(-Math.log10(increment)))
-      : undefined;
+    increment !== undefined && Number.isFinite(increment) && increment > 0 ? Math.max(0, Math.ceil(-Math.log10(increment))) : undefined;
   const maximumFractionDigits = Math.min(6, fromIncrement ?? 4);
   return value.toLocaleString(undefined, { maximumFractionDigits });
 }
@@ -304,10 +285,7 @@ function engineeringText(value: number, significantDigits: number): string {
   return `${mantissaText}e${exponent >= 0 ? "+" : ""}${exponent}`;
 }
 
-function siPrefixParts(
-  value: number,
-  significantDigits: number,
-): { mantissaText: string; prefix: string } {
+function siPrefixParts(value: number, significantDigits: number): { mantissaText: string; prefix: string } {
   const { sign, mantissa, exponent } = engineeringParts(value);
   if (mantissa === 0) {
     return { mantissaText: "0", prefix: "" };

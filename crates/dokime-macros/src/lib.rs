@@ -12,6 +12,7 @@ mod arguments;
 mod catalog;
 mod facade;
 mod listener;
+mod message;
 mod observers;
 mod parameters;
 mod plugin;
@@ -93,14 +94,12 @@ pub fn catalog(attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn message(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    let mut input = match syn::parse::<syn::DeriveInput>(item) {
-        Ok(input) => input,
-        Err(error) => return error.to_compile_error().into(),
-    };
-    if let Err(error) = row::prepare(&mut input) {
-        return error.to_compile_error().into();
-    }
-    facade::harmos_attribute("message", attribute.into(), quote::quote!(#input)).into()
+    message::message(message::Kind::Plain, attribute.into(), item.into()).into()
+}
+
+#[proc_macro_attribute]
+pub fn row(attribute: TokenStream, item: TokenStream) -> TokenStream {
+    message::message(message::Kind::Row, attribute.into(), item.into()).into()
 }
 
 #[proc_macro_attribute]
@@ -110,17 +109,12 @@ pub fn stream(attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn record(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    record::record(attribute.into(), item.into()).into()
+    message::message(message::Kind::Record, attribute.into(), item.into()).into()
 }
 
 #[proc_macro_attribute]
 pub fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream {
     listener::listener(attribute.into(), item.into()).into()
-}
-
-#[proc_macro_derive(TelemetryRow, attributes(row, dokime_row_format))]
-pub fn telemetry_row(item: TokenStream) -> TokenStream {
-    row::row(item.into()).into()
 }
 
 #[proc_macro_attribute]

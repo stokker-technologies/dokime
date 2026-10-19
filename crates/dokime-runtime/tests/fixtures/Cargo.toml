@@ -1,0 +1,68 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-fixtures"
+edition.workspace = true
+rust-version.workspace = true
+description = "Boundary sidecars the runtime stories install: protocol, suites, telemetry and dependencies."
+license.workspace = true
+version = { workspace = true }
+publish = false
+autobins = false
+
+[features]
+# Every binary requires this feature, so workspace builds compile none of them;
+# the fixture task builds each bundle once with it enabled.
+fixtures = []
+
+[dependencies]
+# Local
+dokime-domain = { path = "../../../dokime-domain" }
+dokime-runtime = { path = "../../../dokime-runtime" }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+[[bin]]
+name = "fixture-sidecar-protocol"
+path = "protocol_sidecar/main.rs"
+required-features = ["fixtures"]
+test = false
+bench = false
+
+[[bin]]
+name = "dokime-app-suite-sidecar-fixture"
+path = "suite_sidecar/main.rs"
+required-features = ["fixtures"]
+test = false
+bench = false
+
+[[bin]]
+name = "dokime-app-telemetry-sidecar-fixture"
+path = "telemetry_sidecar/main.rs"
+required-features = ["fixtures"]
+test = false
+bench = false
+
+[[bin]]
+name = "dokime-app-dependent-sidecar-fixture"
+path = "dependent_sidecar/main.rs"
+required-features = ["fixtures"]
+test = false
+bench = false

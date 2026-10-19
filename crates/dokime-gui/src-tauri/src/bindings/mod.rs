@@ -69,6 +69,37 @@ native_commands! {
         () -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_session_status;
 
+
+    sync desktop_profiles_list
+        []
+        () -> Result<dokime_client::profiles::Document, String>
+        => crate::native_session::desktop_profiles_list;
+
+    // Open the failed owned start's log; the shell supplies the path.
+    async desktop_open_backend_log
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>, app: tauri::AppHandle]
+        () -> Result<(), String>
+        => crate::native_session::desktop_open_backend_log;
+
+    // Development only: delete the owned backend's storage and restart it.
+    async desktop_reset_local_storage
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (directory: String) -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
+        => crate::native_session::desktop_reset_local_storage;
+
+    // Name the archive a local storage backup writes: beside the data root, or
+    // where the operator picks; `None` when the operator cancels.
+    async desktop_storage_backup_destination
+        [window: tauri::WebviewWindow, app: tauri::AppHandle]
+        (choose: bool) -> Result<Option<String>, crate::native_session::DesktopSessionError>
+        => crate::native_session::desktop_storage_backup_destination;
+
+    // After a failed owned start: archive the data root, reset it and restart.
+    async desktop_backup_reset_local_storage
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (archive: String) -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
+        => crate::native_session::desktop_backup_reset_local_storage;
+
     async desktop_open_path
         [app: tauri::AppHandle]
         (path: String) -> Result<(), String>
@@ -82,7 +113,7 @@ native_commands! {
     // Save a verified document through the native file picker.
     async desktop_save_document
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<bool, String>
+        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
     // Open a verified document from the private native cache.
@@ -102,7 +133,7 @@ native_commands! {
     // native destination.
     async desktop_artifact_deliver
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, String>
+        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, crate::app::content::DeliveryError>
         => crate::app::desktop::desktop_artifact_deliver;
 
     // Materialize one verified artifact in the private media cache and return its preview URL path.

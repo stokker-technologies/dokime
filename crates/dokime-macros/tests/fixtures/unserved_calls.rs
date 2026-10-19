@@ -23,6 +23,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -30,7 +31,12 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ReadVoltage;
+#[sdk::message]
+#[derive(Clone, PartialEq)]
+#[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY, response = ())]
+struct ReadVoltage {}
+
+struct ReadVoltageHandler;
 
 struct Probe;
 
@@ -60,37 +66,32 @@ enum NoOperations {}
 /* === Traits === */
 
 /* === Implementations === */
-#[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY)]
-impl ReadVoltage {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+#[sdk::operation]
+impl ReadVoltageHandler {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
-    async fn run(&mut self, _: &sdk::Supervisor, _: &()) -> Result<(), sdk::Refusal> {
+    async fn run(&mut self, _: &sdk::Supervisor, _: &mut ReadVoltage) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 }
 
-#[sdk::template(label = "Probe", requires = ProbeRequired)]
+#[sdk::template(id = "mismatched.checks.probe", label = "Probe", requires = ProbeRequired)]
 impl Probe {
-    async fn initialize(
-        _: &mut sdk::execution::InitializationContext<'_>,
-    ) -> Result<Self, std::convert::Infallible> {
+    async fn initialize(_: &mut sdk::execution::InitializationContext<'_>) -> Result<Self, std::convert::Infallible> {
         Ok(Self)
     }
 
     #[sdk::step(label = "Run")]
-    async fn run(
-        &mut self,
-        ctx: &mut sdk::execution::StepContext<'_>,
-    ) -> Result<(), std::convert::Infallible> {
-        let _ = ctx.call::<ReadVoltage>(()).await;
+    async fn run(&mut self, ctx: &mut sdk::execution::StepContext<'_>) -> Result<(), std::convert::Infallible> {
+        let _ = ctx.call(ReadVoltage {}).await;
 
         Ok(())
     }
 }
 
-#[sdk::suite(label = "Checks", templates = ChecksTemplates)]
+#[sdk::suite(id = "mismatched.checks", label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
 impl sdk::harmos::operations::lifecycle::Policy for Plugin {
@@ -124,13 +125,12 @@ impl sdk::Plugin for Plugin {
     }
 
     fn bind_operations(
-        &self,
-        table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
+        &self, table: &mut sdk::harmos::operations::WireTable<sdk::Supervisor>,
     ) -> Result<(), sdk::harmos::operations::ServingError> {
         sdk::execution::serve::<Self, PluginSuites>(table)
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 

@@ -26,8 +26,8 @@
 /* === Type Aliases === */
 
 /* === Structs === */
-#[sdk::message]
-#[derive(Clone, sdk::TelemetryRow)]
+#[sdk::row]
+#[derive(Clone)]
 struct Shape {
     value: f64,
 }

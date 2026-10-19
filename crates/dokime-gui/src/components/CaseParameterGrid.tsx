@@ -36,13 +36,7 @@ export function CaseParameterGrid({ testCase, environment }: CaseParameterGridPr
   );
 }
 
-function ParameterSection({
-  entries,
-  title,
-}: {
-  entries: Array<[string, unknown]>;
-  title: string;
-}) {
+function ParameterSection({ entries, title }: { entries: Array<[string, unknown]>; title: string }) {
   if (!entries.length) {
     return null;
   }
@@ -52,10 +46,7 @@ function ParameterSection({
       <dl className="grid min-w-0 gap-x-5 gap-y-3 text-xs sm:grid-cols-2 2xl:grid-cols-3">
         {entries.map(([key, value]) => (
           <div className="grid min-w-0 gap-1.5" key={key}>
-            <dt
-              className="truncate text-[0.68rem] font-semibold uppercase leading-4 text-muted-foreground"
-              title={key}
-            >
+            <dt className="truncate text-[0.68rem] font-semibold uppercase leading-4 text-muted-foreground" title={key}>
               {key}
             </dt>
             <dd className="min-w-0 font-mono text-xs leading-5 text-foreground">
@@ -75,9 +66,7 @@ function objectEntries(value: Record<string, unknown> | null | undefined) {
   return Object.entries(value).filter(([, item]) => item !== null && item !== "");
 }
 
-function environmentDisplayEntries(
-  environment: Record<string, unknown> | null | undefined,
-): Array<[string, unknown]> {
+function environmentDisplayEntries(environment: Record<string, unknown> | null | undefined): Array<[string, unknown]> {
   if (!environment) {
     return [];
   }
@@ -96,7 +85,5 @@ function environmentDisplayEntries(
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

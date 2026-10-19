@@ -29,12 +29,7 @@ type EvidenceSummaryInput = {
 
 /* === Public Functions === */
 
-export function buildEvidenceSummary({
-  artifacts,
-  records,
-  health,
-  notes,
-}: EvidenceSummaryInput): EvidenceSummary {
+export function buildEvidenceSummary({ artifacts, records, health, notes }: EvidenceSummaryInput): EvidenceSummary {
   return {
     artifacts: artifacts.length,
     records: records.length,

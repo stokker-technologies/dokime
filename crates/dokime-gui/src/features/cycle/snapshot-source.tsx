@@ -7,18 +7,9 @@
  * ***
  */
 
-/* Where the cycle workspace reads from when it is not live.
- *
- * The frozen report renders the same components as the application, so it
- * cannot have its own workspace: it has its own *source*. This context carries
- * one cycle's evidence already projected into the types the `lib/api` adapters
- * produce, and the query hooks in `cycle-queries.ts` and `server-state.ts`
- * consult it before they consult the backend. A hook that finds a source
- * returns the frozen value in the very shape its live branch returns, so no
- * component below ever learns which one it got.
- *
- * Nothing here is report-only rendering: it is report-only *data*. The
- * components stay one set, selected by the `live` boolean.
+/* Captured evidence for shared cycle presentation and recorded-data adapters.
+ * The standalone report passes this source directly into presentation views;
+ * application query adapters can also use it when displaying captured data.
  */
 
 /* === External Imports === */
@@ -28,7 +19,6 @@ import { createContext, type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
-import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import type {
   ArtifactRecord,
   DocumentViewPayload,
@@ -44,10 +34,8 @@ import type {
 
 /* === Types === */
 
-/** The document payloads a frozen plot, histogram or box summary is drawn from. */
+/** The captured plot payloads a frozen document is drawn from. */
 export type FrozenPlotPayloads = {
-  boxSummaries: Record<string, DocumentBoxSummaryPayload>;
-  histograms: Record<string, DocumentHistogramPayload>;
   plots: Record<string, PlotPayload>;
 };
 
@@ -68,10 +56,11 @@ export type CycleSnapshotSource = {
   artifacts: ArtifactRecord[];
   /** The artifacts one attempt produced, as the live execution-file read returns them. */
   executionFiles: (executionId: string | null) => ArtifactRecord[];
-  /** The selected execution document; null selection has no document. */
+  /** The selected execution's document, or the cycle's own for `null`. */
   document: (executionId: string | null) => DocumentViewPayload | null;
   plotPayloads: (executionId: string | null) => FrozenPlotPayloads;
   traceability: (executionId: string | null) => TraceabilitySnapshot | null;
+  /** What the report left out or cut to fit its budget, and why. */
 };
 
 /* === Constants === */
@@ -84,13 +73,7 @@ const CycleSnapshotContext = createContext<CycleSnapshotSource | null>(null);
  * Puts one frozen cycle in reach of the workspace's hooks. Present exactly
  * when the surface renders with `live={false}`.
  */
-export function CycleSnapshotProvider({
-  children,
-  source,
-}: {
-  children: ReactNode;
-  source: CycleSnapshotSource;
-}) {
+export function CycleSnapshotProvider({ children, source }: { children: ReactNode; source: CycleSnapshotSource }) {
   return <CycleSnapshotContext.Provider value={source}>{children}</CycleSnapshotContext.Provider>;
 }
 
@@ -101,7 +84,7 @@ export function useCycleSnapshotSource(): CycleSnapshotSource | null {
   return useContext(CycleSnapshotContext);
 }
 
-/** The payloads a frozen plot, histogram or box summary is drawn from. */
+/** The captured plot payloads a frozen document is drawn from. */
 export function useFrozenPlotPayloads(executionId: string | null): FrozenPlotPayloads | null {
   const snapshot = useContext(CycleSnapshotContext);
   return snapshot ? snapshot.plotPayloads(executionId) : null;

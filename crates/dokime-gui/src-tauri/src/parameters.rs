@@ -70,13 +70,12 @@ pub fn save(path: &Path, values: &Values) -> std::io::Result<()> {
     if bytes.len() > MAX_BYTES {
         return Err(invalid("remembered parameters exceed 1 MiB"));
     }
-    dokime_filesystem::publication::write(path, &bytes).map_err(Into::into)
+    harmos::filesystem::publication::write(path, &bytes).map_err(Into::into)
 }
 
 /* === Private Functions === */
 fn validate(values: &Values) -> std::io::Result<()> {
-    let valid_id =
-        |id: &str| !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control);
+    let valid_id = |id: &str| !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control);
     let count = values.values().map(BTreeMap::len).sum::<usize>();
     if values.len() > 4096
         || count > 4096
@@ -85,15 +84,9 @@ fn validate(values: &Values) -> std::io::Result<()> {
                 || parameters.iter().any(|(id, value)| {
                     let (raw, metadata_valid) = match value {
                         Value::Legacy(raw) => (raw, true),
-                        Value::Defined {
-                            raw,
-                            value_type,
-                            unit,
-                        } => (
-                            raw,
-                            valid_id(value_type)
-                                && unit.as_ref().is_none_or(|unit| unit.len() <= 256),
-                        ),
+                        Value::Defined { raw, value_type, unit } => {
+                            (raw, valid_id(value_type) && unit.as_ref().is_none_or(|unit| unit.len() <= 256))
+                        }
                     };
                     !valid_id(id) || raw.len() > 8192 || !metadata_valid
                 })

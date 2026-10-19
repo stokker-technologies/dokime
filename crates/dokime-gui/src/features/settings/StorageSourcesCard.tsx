@@ -9,72 +9,45 @@
 
 /* Storage sources, in priority order.
  *
- * One aligned grid, not a table: `Source | State | Priority` on the same row
- * height as every other settings row. The switch writes the moment it moves
- * and the arrow pair writes the moment it is pressed; the card states the
- * outcome once rather than once per row.
+ * The same table as every other list: `Source | State | Priority`, the state
+ * beside its source rather than across the card from it. The switch writes
+ * the moment it moves and the arrow pair writes the moment it is pressed; the
+ * card states the outcome once rather than once per row.
  */
 
 /* === External Imports === */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import {
-  fetchStorageSources,
-  reorderStorageSources,
-  setStorageSourceEnabled,
-} from "@/lib/api/native-storage-settings";
-import { cn } from "@/lib/utils";
+import { fetchStorageSources, reorderStorageSources, setStorageSourceEnabled } from "@/lib/api/native-storage-settings";
 
 /* === Constants === */
 
-/**
- * The storage columns, shared by the header row and every source.
- *
- * The column count is the source count's business: one source has no priority
- * to argue about, so the pair is not drawn and the column it would take does
- * not exist. A placeholder cell is not an option here — `display: contents`
- * puts every cell on this one grid and auto-placement flows straight through
- * the row boundaries, so a header with three cells over rows with two (or a
- * screen-reader-only cell, which is absolutely positioned and therefore skipped
- * by placement) walks the whole list one column out of line.
- */
-const TABLE_CLASS = "grid gap-x-6 text-left text-sm";
-
-const COLUMNS: Record<"one" | "many", string> = {
-  many: "minmax(0,1fr) auto auto",
-  one: "minmax(0,1fr) auto",
-};
-
-const CELL_CLASS = "flex min-w-0 items-center";
-
-const HEAD_CLASS = "pb-1 text-xs tracking-wide text-muted-foreground uppercase";
-
-/** 40px rows, 48px at touch, cells centred on them. */
-const ROW_HEIGHT = "min-h-[var(--settings-row-height)]";
+const NO_SOURCES: StorageSource[] = [];
 
 /* === Types === */
 
-type Change =
-  | { kind: "enabled"; identifier: string; enabled: boolean }
-  | { kind: "order"; identifiers: string[] };
+type StorageSource = Awaited<ReturnType<typeof fetchStorageSources>>[number];
+
+type Change = { kind: "enabled"; identifier: string; enabled: boolean } | { kind: "order"; identifiers: string[] };
 
 /* === Components === */
 
 export function StorageSourcesCard() {
   const session = useNativeSessionOptional();
-  return session ? (
-    <ConnectedStorageSources key={session.identity.generation} session={session} />
-  ) : null;
+  return session ? <ConnectedStorageSources key={session.identity.generation} session={session} /> : null;
 }
 
 /* === Private Components === */
@@ -97,22 +70,94 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
   const methods = session.snapshot.connection.backend?.methods ?? [];
   const canReorder = methods.includes("/dokime.v1.Settings/ReorderStorageSources");
   const canEnable = methods.includes("/dokime.v1.Settings/SetStorageSourceEnabled");
-  const sources = query.data ?? [];
+  const sources = query.data ?? NO_SOURCES;
   const error = mutation.error ?? query.error;
   // The autosave readout belongs beside the control that moved, so the row
   // remembers which source the last write was about.
   const change = mutation.variables;
   const changedIdentifier = change?.kind === "enabled" ? change.identifier : null;
-  /** More than one source is what makes priority a question worth a column. */
-  const ranked = sources.length > 1;
 
-  function move(index: number, direction: number) {
-    const identifiers = sources.map((source) => source.identifier);
-    const target = index + direction;
-    if (target < 0 || target >= identifiers.length || mutation.isPending) return;
-    [identifiers[index], identifiers[target]] = [identifiers[target], identifiers[index]];
-    mutation.mutate({ kind: "order", identifiers });
-  }
+  const { isPending, isSuccess, mutate } = mutation;
+
+  // Columns: the order is the data, so nothing here sorts.
+  const columns = useMemo(() => {
+    const column = dataTableColumns<StorageSource>();
+
+    function move(index: number, direction: number) {
+      const identifiers = sources.map((source) => source.identifier);
+      const target = index + direction;
+      if (target < 0 || target >= identifiers.length || isPending) return;
+      [identifiers[index], identifiers[target]] = [identifiers[target], identifiers[index]];
+      mutate({ kind: "order", identifiers });
+    }
+
+    const source = column.accessor((row) => sourceLabel(row.identifier), {
+      cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+      enableSorting: false,
+      header: "Source",
+      id: "source",
+      meta: { label: "Source", truncate: true },
+    });
+    const state = column.display({
+      cell: ({ row }) => {
+        const label = sourceLabel(row.original.identifier);
+        const locked = row.original.identifier === "local" || !canEnable;
+        return (
+          <div className="flex items-center gap-2">
+            <Switch
+              aria-label={`${row.original.enabled ? "Disable" : "Enable"} ${label}`}
+              checked={row.original.enabled}
+              disabled={locked || isPending}
+              onCheckedChange={(enabled) => mutate({ kind: "enabled", identifier: row.original.identifier, enabled })}
+            />
+            <span className="text-muted-foreground">{row.original.enabled ? "Enabled" : "Disabled"}</span>
+            {changedIdentifier === row.original.identifier ? (
+              <span className="text-xs text-muted-foreground" role={isPending ? "status" : undefined}>
+                {isPending ? "Saving" : isSuccess ? "Saved" : null}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
+      header: "State",
+      id: "state",
+      meta: { label: "State", width: "w-48" },
+    });
+    // One source has no priority to argue about, so neither the pair nor its
+    // column is drawn.
+    const priority = column.display({
+      cell: ({ row }) => {
+        const label = sourceLabel(row.original.identifier);
+        return (
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label={`Move ${label} Up`}
+              disabled={!canReorder || isPending || row.index === 0}
+              onClick={() => move(row.index, -1)}
+              size="icon-sm"
+              variant="outline"
+            >
+              <ChevronUp />
+            </Button>
+            <Button
+              aria-label={`Move ${label} Down`}
+              disabled={!canReorder || isPending || row.index === sources.length - 1}
+              onClick={() => move(row.index, 1)}
+              size="icon-sm"
+              variant="outline"
+            >
+              <ChevronDown />
+            </Button>
+          </div>
+        );
+      },
+      header: "Priority",
+      id: "priority",
+      meta: { label: "Priority", width: "w-24" },
+    });
+
+    return (sources.length > 1 ? [source, state, priority] : [source, state]) as DataTableColumns<StorageSource>;
+  }, [canEnable, canReorder, changedIdentifier, isPending, isSuccess, mutate, sources]);
 
   return (
     <SettingsCard
@@ -127,15 +172,19 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
         </SettingsRow>
       ) : null}
       {error ? (
-        <SettingsRow label="Status">
+        <SettingsRow
+          label="Status"
+          status={
+            query.isError ? (
+              <Button onClick={() => void query.refetch()} size="sm" variant="outline">
+                Try Again
+              </Button>
+            ) : null
+          }
+        >
           <span className="text-sm text-destructive" role="alert">
             {error instanceof Error ? error.message : String(error)}
           </span>
-          {query.isError ? (
-            <Button onClick={() => void query.refetch()} size="sm" variant="outline">
-              Try Again
-            </Button>
-          ) : null}
         </SettingsRow>
       ) : null}
       {query.isSuccess && sources.length === 0 ? (
@@ -145,99 +194,28 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       ) : null}
 
       {sources.length > 0 ? (
-        /* A real table laid out as one grid: `display: contents` on the row
-           groups puts every cell on the table's own columns, so the three
-           columns line up down the list without losing table semantics. */
-        <table
+        <DataTable
           aria-label="Storage source priority"
-          className={cn(TABLE_CLASS, "px-4 [[data-density=touch]_&]:px-6")}
-          style={{ gridTemplateColumns: COLUMNS[ranked ? "many" : "one"] }}
-        >
-          <thead className="contents">
-            <tr className="contents">
-              <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                Source
-              </th>
-              <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                State
-              </th>
-              {ranked ? (
-                <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                  Priority
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody className="contents">
-            {sources.map((source, index) => {
-              const label = sourceLabel(source.identifier);
-              const locked = source.identifier === "local" || !canEnable;
-              return (
-                <tr className="contents" key={source.identifier}>
-                  <th className={cn(CELL_CLASS, ROW_HEIGHT, "font-medium")} scope="row">
-                    <span className="truncate">{label}</span>
-                  </th>
-                  <td className={cn(CELL_CLASS, ROW_HEIGHT, "gap-2")}>
-                    <Switch
-                      aria-label={`${source.enabled ? "Disable" : "Enable"} ${label}`}
-                      checked={source.enabled}
-                      disabled={locked || mutation.isPending}
-                      onCheckedChange={(enabled) =>
-                        mutation.mutate({ kind: "enabled", identifier: source.identifier, enabled })
-                      }
-                    />
-                    <span className="text-muted-foreground">
-                      {source.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                    {changedIdentifier === source.identifier ? (
-                      <span
-                        className="text-xs text-muted-foreground"
-                        role={mutation.isPending ? "status" : undefined}
-                      >
-                        {mutation.isPending ? "Saving" : mutation.isSuccess ? "Saved" : null}
-                      </span>
-                    ) : null}
-                  </td>
-                  {/* One source has no priority to argue about, so neither the
-                      pair nor the column it would sit in is drawn. */}
-                  {ranked ? (
-                    <td className={cn(CELL_CLASS, ROW_HEIGHT, "gap-1")}>
-                      <Button
-                        aria-label={`Move ${label} Up`}
-                        disabled={!canReorder || mutation.isPending || index === 0}
-                        onClick={() => move(index, -1)}
-                        size="icon-sm"
-                        variant="outline"
-                      >
-                        <ChevronUp />
-                      </Button>
-                      <Button
-                        aria-label={`Move ${label} Down`}
-                        disabled={!canReorder || mutation.isPending || index === sources.length - 1}
-                        onClick={() => move(index, 1)}
-                        size="icon-sm"
-                        variant="outline"
-                      >
-                        <ChevronDown />
-                      </Button>
-                    </td>
-                  ) : null}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          className="[--table-inset:1rem] [--table-surface:var(--card)] [[data-density=touch]_&]:[--table-inset:1.5rem]"
+          columns={columns}
+          data={sources}
+          emptyText="No storage sources are configured."
+          getRowId={sourceId}
+          stickyHeader={false}
+        />
       ) : null}
 
-      {/* An unavailable capability is a note, not a row with an empty value. */}
-      <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">
-        Remote synchronization is not available yet.
-      </p>
+      {/* An unavailable feature is a note, not a row with an empty value. */}
+      <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">Remote synchronization is not available yet.</p>
     </SettingsCard>
   );
 }
 
 /* === Private Functions === */
+
+function sourceId(source: StorageSource): string {
+  return source.identifier;
+}
 
 function sourceLabel(identifier: string): string {
   return identifier === "local" ? "Local" : identifier === "fabric" ? "Fabric" : identifier;

@@ -16,22 +16,20 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  AggregateFunction,
-  type AggregateReply,
-  QueryAggregateSchema,
-  QueryFilterOperator,
-  QueryFilterSchema,
-  QuerySource,
-} from "@/lib/rpc/generated/dokime/v1/query_pb";
-import type { Value } from "@/lib/rpc/generated/dokime/v1/value_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import type {
+  Row2 as GeneratedAggregateReply,
+  Row14 as GeneratedValue,
+} from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
+import { aggregateMessage } from "./native-aggregate";
 import { jsonToNativeValue, NativeApiLimitError, safeNumber } from "./native-values";
+
+type AggregateReply = Wire<GeneratedAggregateReply>;
+type Value = Wire<GeneratedValue>;
 
 /* === Types === */
 
@@ -70,37 +68,34 @@ const MEAN_MS_ALIAS = "mean_ms";
  * Counting `duration_ms` rather than the rows means a step still running, and
  * therefore without a duration, is not counted as a sample of itself.
  */
-export async function fetchNativeStepDurations(
-  session: SessionIdentity,
-  templateId: string,
-): Promise<StepDurationStatistics> {
+export async function fetchNativeStepDurations(session: SessionIdentity, templateId: string): Promise<StepDurationStatistics> {
   const reply = await rpc.queryAggregate(session, {
     aggregates: [
-      create(QueryAggregateSchema, {
+      {
         alias: SAMPLE_COUNT_ALIAS,
         column: DURATION_COLUMN,
-        function: AggregateFunction.COUNT,
-      }),
-      create(QueryAggregateSchema, {
+        aggregate: aggregateMessage("count"),
+      },
+      {
         alias: MEAN_MS_ALIAS,
         column: DURATION_COLUMN,
-        function: AggregateFunction.MEAN,
-      }),
+        aggregate: aggregateMessage("mean"),
+      },
     ],
     filters: [
-      create(QueryFilterSchema, {
+      {
         column: TEMPLATE_COLUMN,
-        op: QueryFilterOperator.EQ,
+        op: { HarmosVariant: { case: "Eq", value: {} } },
         values: [jsonToNativeValue(templateId)],
-      }),
-      create(QueryFilterSchema, {
+      },
+      {
         column: STATUS_COLUMN,
-        op: QueryFilterOperator.EQ,
+        op: { HarmosVariant: { case: "Eq", value: {} } },
         values: [jsonToNativeValue(PASSED_STATUS)],
-      }),
+      },
     ],
     groupBy: [STEP_COLUMN],
-    source: QuerySource.STEPS,
+    source: { HarmosVariant: { case: "Steps", value: {} } },
   });
   return mapStepDurations(reply);
 }
@@ -147,16 +142,17 @@ function columnIndex(reply: AggregateReply, name: string): number {
 }
 
 function textOf(value?: Value): string | null {
-  return value?.kind.case === "textValue" ? value.kind.value : null;
+  return value?.nodes[0]?.kind?.HarmosVariant.case === "Text" ? value.nodes[0].kind.HarmosVariant.value.field0 : null;
 }
 
 function numberOf(value?: Value): number | null {
-  switch (value?.kind.case) {
-    case "integerValue":
-    case "unsignedValue":
-      return safeNumber(value.kind.value, "Query.Aggregate numeric column");
-    case "numberValue":
-      return Number.isFinite(value.kind.value) ? value.kind.value : null;
+  const kind = value?.nodes[0]?.kind?.HarmosVariant;
+  switch (kind?.case) {
+    case "Integer":
+    case "Unsigned":
+      return safeNumber(kind.value.field0, "Query.Aggregate numeric column");
+    case "Number":
+      return Number.isFinite(kind.value.field0) ? kind.value.field0 : null;
     default:
       return null;
   }

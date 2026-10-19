@@ -11,24 +11,10 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-import type { Cursor } from "@/lib/rpc/generated/dokime/v1/common_pb";
-import { MutationContextSchema } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import {
-  type PromptResponse as NativePromptResponse,
-  type PendingPromptIdentity,
-  type PromptActionEmphasis,
-  PromptActionEmphasisSchema,
-  type PromptDefinition,
-  PromptFieldKind,
-  type PromptInstance,
-  PromptKind,
-  TelemetryMatchOperator,
-} from "@/lib/rpc/generated/dokime/v1/prompts_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
@@ -36,6 +22,7 @@ import {
   enumTail,
   jsonToNativeValue,
   mapBounded,
+  mapNativeSeverity,
   NATIVE_MAX_PAGES,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
@@ -46,6 +33,21 @@ import {
   timestampIso,
   valueTypeName,
 } from "./native-values";
+
+/* === Types === */
+
+type PromptView = Wire<Awaited<ReturnType<typeof rpc.promptsGetPrompt>>>;
+type PromptInstance = NonNullable<PromptView["prompt"]>;
+type NativePromptResponse = NonNullable<PromptView["response"]>;
+type PromptDefinition = NonNullable<PromptInstance["definition"]>;
+type PendingPromptIdentity = Wire<Awaited<ReturnType<typeof rpc.promptsListPending>>["prompts"][number]>;
+type Cursor = NonNullable<Parameters<typeof rpc.promptsListPending>[1]["cursor"]>;
+type PromptFieldKind = PromptDefinition["fields"][number]["kind"];
+type PromptKind = PromptInstance["kind"];
+type PromptActionEmphasis = PromptDefinition["actions"][number]["emphasis"];
+type ConditionVariant = NonNullable<NonNullable<PromptDefinition["condition"]>["nodes"][number]["kind"]>["HarmosVariant"];
+type TelemetryCondition = NonNullable<Extract<ConditionVariant, { case: "Telemetry" }>["value"]["field0"]>;
+type TelemetryMatchOperator = TelemetryCondition["op"];
 
 /* === Public API === */
 
@@ -76,9 +78,7 @@ export async function fetchNativePendingPrompts(
       throw new NativeApiLimitError("Prompts.ListPending", `more than ${NATIVE_MAX_PAGES} pages`);
     }
   }
-  const views = await mapBounded(identities, (identity) =>
-    rpc.promptsGetPrompt(session, { promptId: identity.promptId }),
-  );
+  const views = await mapBounded(identities, (identity) => rpc.promptsGetPrompt(session, { promptId: identity.promptId }));
   return views.map((view, index) => {
     if (!view.prompt) {
       throw new Error(`Native prompt ${identities[index]?.promptId ?? "unknown"} has no instance.`);
@@ -96,13 +96,9 @@ export async function respondNativePrompt(
   const receipt = await rpc.promptsRespond(session, {
     promptId: correlationId,
     action,
-    values: {
-      fields: Object.fromEntries(
-        Object.entries(values).map(([name, value]) => [name, jsonToNativeValue(value)]),
-      ),
-    },
+    values: jsonToNativeValue(values),
     accepted: !["abort", "cancel"].includes(action),
-    context: create(MutationContextSchema, { correlationId: crypto.randomUUID() }),
+    context: { correlationId: crypto.randomUUID() },
   });
   const acceptedAt = timestampIso(receipt.acceptedAt) ?? nowIso();
   return {
@@ -131,14 +127,14 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
   const definition = prompt.definition;
   if (!definition) throw new Error(`Native prompt ${prompt.promptId} has no definition.`);
   const createdAt = timestampIso(prompt.createdAt);
-  if (!createdAt)
-    throw new Error(`Native prompt ${prompt.promptId} has no valid creation timestamp.`);
+  if (!createdAt) throw new Error(`Native prompt ${prompt.promptId} has no valid creation timestamp.`);
   return {
     correlation_id: prompt.promptId,
     template_id: definition.templateIdentifier ?? prompt.scope?.templateId ?? "",
     prompt_type: definition.promptType,
     schema_version: definition.schemaVersion,
     kind: mapPromptKind(prompt.kind),
+    level: mapNativeSeverity(definition.level),
     title: definition.title,
     message: definition.message ?? null,
     fields: definition.fields.map(mapPromptField),
@@ -176,25 +172,13 @@ function mapPromptField(field: PromptDefinition["fields"][number]) {
     choices: field.choices.map((choice) => String(choice)),
     validation: field.validation
       ? {
-          min_length:
-            field.validation.minLength === undefined
-              ? null
-              : safeNativeNumber(field.validation.minLength),
-          max_length:
-            field.validation.maxLength === undefined
-              ? null
-              : safeNativeNumber(field.validation.maxLength),
+          min_length: field.validation.minLength === undefined ? null : safeNativeNumber(field.validation.minLength),
+          max_length: field.validation.maxLength === undefined ? null : safeNativeNumber(field.validation.maxLength),
           pattern: field.validation.pattern ?? null,
           minimum: nativeValueToNumber(field.validation.minimum),
           maximum: nativeValueToNumber(field.validation.maximum),
-          min_items:
-            field.validation.minItems === undefined
-              ? null
-              : safeNativeNumber(field.validation.minItems),
-          max_items:
-            field.validation.maxItems === undefined
-              ? null
-              : safeNativeNumber(field.validation.maxItems),
+          min_items: field.validation.minItems === undefined ? null : safeNativeNumber(field.validation.minItems),
+          max_items: field.validation.maxItems === undefined ? null : safeNativeNumber(field.validation.maxItems),
         }
       : undefined,
   };
@@ -204,16 +188,16 @@ function mapPromptFieldKind(
   kind: PromptFieldKind,
   valueType: Parameters<typeof valueTypeName>[0],
 ): "text" | "float" | "int" | "choice" | "boolean" {
-  switch (kind) {
-    case PromptFieldKind.FLOAT:
+  switch (kind?.HarmosVariant.case) {
+    case "Float":
       return "float";
-    case PromptFieldKind.INT:
+    case "Int":
       return "int";
-    case PromptFieldKind.CHOICE:
+    case "Choice":
       return "choice";
-    case PromptFieldKind.BOOLEAN:
+    case "Boolean":
       return "boolean";
-    case PromptFieldKind.TEXT:
+    case "Text":
       return "text";
     default:
       if (valueTypeName(valueType) === "integer") return "int";
@@ -224,16 +208,16 @@ function mapPromptFieldKind(
 }
 
 function mapPromptKind(kind: PromptKind): PromptRequest["kind"] {
-  switch (kind) {
-    case PromptKind.CONFIRMATION:
+  switch (kind?.HarmosVariant.case) {
+    case "Confirmation":
       return "confirmation";
-    case PromptKind.FORM:
+    case "Form":
       return "form";
-    case PromptKind.CHOICE:
+    case "Choice":
       return "choice";
-    case PromptKind.STATUS:
+    case "Status":
       return "status";
-    case PromptKind.VERIFICATION:
+    case "Verification":
       return "verification";
     default:
       throw new Error("Native prompt has an unspecified kind.");
@@ -241,7 +225,7 @@ function mapPromptKind(kind: PromptKind): PromptRequest["kind"] {
 }
 
 function mapActionEmphasis(emphasis: PromptActionEmphasis): "primary" | "secondary" | "danger" {
-  return enumTail(PromptActionEmphasisSchema, emphasis, "primary");
+  return enumTail(undefined, emphasis, "primary");
 }
 
 function mapPromptResponse(
@@ -249,8 +233,7 @@ function mapPromptResponse(
   scope?: Parameters<typeof recordScopeFromNative>[0],
 ): NonNullable<PromptRequest["response"]> {
   const respondedAt = timestampIso(response.submittedAt);
-  if (!respondedAt)
-    throw new Error(`Native prompt ${response.promptId} has no response timestamp.`);
+  if (!respondedAt) throw new Error(`Native prompt ${response.promptId} has no response timestamp.`);
   return {
     correlation_id: response.promptId,
     action: response.action,
@@ -267,19 +250,22 @@ function mapResponseSource(value: string): "gui" | "api" | "webhook" | "verifica
 }
 
 function mapVerification(definition: PromptDefinition): PromptRequest["verification"] {
-  const condition = definition.condition;
+  const condition = definition.condition?.nodes[0]?.kind?.HarmosVariant;
   if (!condition) return null;
-  if (condition.kind.case === "record") {
+  if (condition.case === "Record") {
+    const record = condition.value.field0;
+    if (!record) throw new Error("Native prompt omitted its record verification condition.");
     return {
       condition: {
         kind: "record",
-        record_type: condition.kind.value.recordType,
-        details: nativeValueObjectToJson(condition.kind.value.matchFields),
+        record_type: record.recordType,
+        details: nativeValueObjectToJson(record.matchFields),
       },
     };
   }
-  if (condition.kind.case === "telemetry") {
-    const telemetry = condition.kind.value;
+  if (condition.case === "Telemetry") {
+    const telemetry = condition.value.field0;
+    if (!telemetry) throw new Error("Native prompt omitted its telemetry verification condition.");
     const operator = mapTelemetryOperator(telemetry.op);
     if (!operator || !telemetry.target) return null;
     const target = nativeValueToNumber(telemetry.target);
@@ -298,21 +284,19 @@ function mapVerification(definition: PromptDefinition): PromptRequest["verificat
   return null;
 }
 
-function mapTelemetryOperator(
-  operator: TelemetryMatchOperator,
-): "within" | "eq" | "gte" | "lte" | "gt" | "lt" | null {
-  switch (operator) {
-    case TelemetryMatchOperator.WITHIN:
+function mapTelemetryOperator(operator: TelemetryMatchOperator): "within" | "eq" | "gte" | "lte" | "gt" | "lt" | null {
+  switch (operator?.HarmosVariant.case) {
+    case "Within":
       return "within";
-    case TelemetryMatchOperator.EQ:
+    case "Eq":
       return "eq";
-    case TelemetryMatchOperator.GTE:
+    case "Gte":
       return "gte";
-    case TelemetryMatchOperator.LTE:
+    case "Lte":
       return "lte";
-    case TelemetryMatchOperator.GT:
+    case "Gt":
       return "gt";
-    case TelemetryMatchOperator.LT:
+    case "Lt":
       return "lt";
     default:
       return null;

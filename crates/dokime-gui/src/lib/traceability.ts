@@ -9,13 +9,7 @@
 
 /* === Local Imports === */
 
-import type {
-  JsonObject,
-  RecordScope,
-  TraceabilityGroup,
-  TraceabilityItem,
-  TraceabilitySnapshot,
-} from "@/lib/types";
+import type { JsonObject, RecordScope, TraceabilityGroup, TraceabilityItem, TraceabilitySnapshot } from "@/lib/types";
 
 /* === Types === */
 
@@ -45,7 +39,44 @@ type TraceabilitySnapshotInput<TScope> = {
   created_at: string;
 };
 
+/** Names the execution a traceability export belongs to. */
+export type TraceabilityExportName = {
+  cycleLabel: string;
+  executionOrdinal: number;
+};
+
 /* === Public Functions === */
+
+/**
+ * The traceability a card renders, as indented JSON.
+ *
+ * Groups and rows keep the card's order, stated sections included. Values stay
+ * raw rather than formatted, and every row is kept: the card caps a derived
+ * group for reading, an export does not.
+ */
+export function traceabilityJson(snapshot: TraceabilitySnapshot | null | undefined): string {
+  const groups = (snapshot?.groups ?? []).map((group) => ({
+    title: group.title,
+    ...(group.summary ? { summary: group.summary } : {}),
+    rows: group.items.map((item) => ({
+      label: item.label,
+      value: item.value,
+      ...(item.unit ? { unit: item.unit } : {}),
+      ...(typeof item.details.identifier === "string" ? { identifier: item.details.identifier } : {}),
+      ...(typeof item.details.source === "string" ? { source: item.details.source } : {}),
+    })),
+  }));
+  const warnings = snapshot?.warnings ?? [];
+
+  return JSON.stringify({ groups, ...(warnings.length ? { warnings } : {}) }, null, 2);
+}
+
+/** `<cycle label>-<execution ordinal>-traceability.json`, safe as a filename. */
+export function traceabilityJsonFilename(name: TraceabilityExportName | null | undefined): string {
+  const cycle = name ? filenameStem(name.cycleLabel) : "";
+  const stem = name && cycle ? `${cycle}-${name.executionOrdinal}` : "execution";
+  return `${stem}-traceability.json`;
+}
 
 export function traceabilitySnapshotFromItems<TScope>(
   items: TraceabilitySnapshotInput<TScope>[],
@@ -70,9 +101,7 @@ function traceabilityGroups<TScope>(
   mapScope: (scope?: TScope | null) => RecordScope | null,
 ): TraceabilityGroup[] {
   const scope = mapScope(item.scope);
-  const visibleEntries = item.entries.filter(
-    (entry) => entry.source !== "traceability.environment",
-  );
+  const visibleEntries = item.entries.filter((entry) => entry.source !== "traceability.environment");
   if (!visibleEntries.length) {
     return [];
   }
@@ -178,23 +207,12 @@ function latestTraceabilityGroups(groups: TraceabilityGroup[]): TraceabilityGrou
       continue;
     }
 
-    const updatedAt =
-      existing.updated_at.localeCompare(group.updated_at) <= 0
-        ? group.updated_at
-        : existing.updated_at;
-    const sources = [
-      ...new Set([
-        ...traceabilityItemSources(existing.items),
-        ...traceabilityItemSources(group.items),
-      ]),
-    ];
+    const updatedAt = existing.updated_at.localeCompare(group.updated_at) <= 0 ? group.updated_at : existing.updated_at;
+    const sources = [...new Set([...traceabilityItemSources(existing.items), ...traceabilityItemSources(group.items)])];
     const items = cleanTraceabilityItems(group.title, [...existing.items, ...group.items]);
     mergedByTitle.set(key, {
       ...existing,
-      group_id:
-        existing.updated_at.localeCompare(group.updated_at) <= 0
-          ? group.group_id
-          : existing.group_id,
+      group_id: existing.updated_at.localeCompare(group.updated_at) <= 0 ? group.group_id : existing.group_id,
       summary: "",
       items,
       details: sources.length ? { sources } : {},
@@ -218,9 +236,7 @@ const DERIVED_TRACEABILITY_GROUPS: ReadonlyArray<{ source: string; label: string
 
 function derivedTraceabilityGroup(source: string | null | undefined): string | undefined {
   if (!source) return undefined;
-  return DERIVED_TRACEABILITY_GROUPS.find(
-    (group) => source === group.source || source.startsWith(`${group.source}.`),
-  )?.label;
+  return DERIVED_TRACEABILITY_GROUPS.find((group) => source === group.source || source.startsWith(`${group.source}.`))?.label;
 }
 
 function traceabilityGroupTitle<TScope>(
@@ -233,9 +249,7 @@ function traceabilityGroupTitle<TScope>(
   // whose label is rewritten stays in the group it was filed under. This
   // mirrors `derived_group_title` in the Rust reporter; the ladder below it is
   // the older one, which still names the one-per-resource groups.
-  const derived = entries
-    .map((entry) => derivedTraceabilityGroup(entry.source))
-    .find((group) => group !== undefined);
+  const derived = entries.map((entry) => derivedTraceabilityGroup(entry.source)).find((group) => group !== undefined);
   if (derived) return derived;
 
   const text = entries
@@ -247,16 +261,13 @@ function traceabilityGroupTitle<TScope>(
   if (text.includes("traceability.head_unit")) return "Head Unit Traceability";
   if (text.includes("bluetooth")) return "Bluetooth Traceability";
   if (text.includes("traceability.wifi") || text.includes("wifi")) return "WiFi Traceability";
-  if (text.includes("traceability.network") || text.includes("network"))
-    return "Network Traceability";
+  if (text.includes("traceability.network") || text.includes("network")) return "Network Traceability";
   if (text.includes("host")) return "Host Traceability";
   if (text.includes("power") || text.includes("battery")) return "Power Traceability";
-  if (text.includes("environment") || text.includes("weather") || text.includes("location"))
-    return "Environment Traceability";
+  if (text.includes("environment") || text.includes("weather") || text.includes("location")) return "Environment Traceability";
   if (text.includes("cycle") || text.includes("suite")) return "Cycle Traceability";
   if (text.includes("execution")) return "Execution Traceability";
-  if (text.includes("instrument") || text.includes("device") || text.includes("dut"))
-    return "Head Unit Traceability";
+  if (text.includes("instrument") || text.includes("device") || text.includes("dut")) return "Head Unit Traceability";
   if (scope?.test_execution_id) return "Execution Traceability";
   if (scope?.test_case_id) return "Case Traceability";
   if (scope?.test_cycle_id) return "Cycle Traceability";
@@ -327,31 +338,13 @@ function expandTraceabilityItems(title: string, items: TraceabilityItem[]): Trac
       "Production Number",
       identity.production_number ?? properties?.ProductionNumber,
     );
-    pushExpandedHeadUnitValue(
-      expanded,
-      item,
-      `${identifier}.model_number`,
-      "Model Number",
-      identity.model_number,
-    );
-    pushExpandedHeadUnitValue(
-      expanded,
-      item,
-      `${identifier}.tool_type`,
-      "Tool Type",
-      properties?.ToolType,
-    );
+    pushExpandedHeadUnitValue(expanded, item, `${identifier}.model_number`, "Model Number", identity.model_number);
+    pushExpandedHeadUnitValue(expanded, item, `${identifier}.tool_type`, "Tool Type", properties?.ToolType);
   }
   return expanded;
 }
 
-function pushExpandedHeadUnitValue(
-  items: TraceabilityItem[],
-  source: TraceabilityItem,
-  identifier: string,
-  label: string,
-  value: unknown,
-) {
+function pushExpandedHeadUnitValue(items: TraceabilityItem[], source: TraceabilityItem, identifier: string, label: string, value: unknown) {
   if (!hasTraceabilityValue(value)) {
     return;
   }
@@ -366,11 +359,7 @@ function pushExpandedHeadUnitValue(
   });
 }
 
-function preferredTraceabilityItem(
-  title: string,
-  current: TraceabilityItem,
-  candidate: TraceabilityItem,
-): TraceabilityItem {
+function preferredTraceabilityItem(title: string, current: TraceabilityItem, candidate: TraceabilityItem): TraceabilityItem {
   const currentScore = traceabilityItemScore(title, current);
   const candidateScore = traceabilityItemScore(title, candidate);
   return candidateScore > currentScore ? candidate : current;
@@ -451,17 +440,13 @@ function hasTraceabilityValue(value: unknown): boolean {
 function traceabilityItemSources(items: TraceabilityItem[]): string[] {
   return [
     ...new Set(
-      items
-        .map((item) => item.details.source)
-        .filter((source): source is string => typeof source === "string" && Boolean(source)),
+      items.map((item) => item.details.source).filter((source): source is string => typeof source === "string" && Boolean(source)),
     ),
   ];
 }
 
 function traceabilityIdentifier(item: TraceabilityItem): string {
-  return typeof item.details.identifier === "string"
-    ? item.details.identifier.toLowerCase()
-    : normalizeTraceabilityKey(item.label);
+  return typeof item.details.identifier === "string" ? item.details.identifier.toLowerCase() : normalizeTraceabilityKey(item.label);
 }
 
 function normalizeTraceabilityKey(value: string): string {
@@ -470,6 +455,14 @@ function normalizeTraceabilityKey(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "_")
     .replace(/^_+|_+$/gu, "");
+}
+
+function filenameStem(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|\p{Cc}]+/gu, "")
+    .replace(/\s+/gu, "-")
+    .replace(/^[.-]+|[.-]+$/gu, "");
 }
 
 function isHeadUnitGroup(title: string): boolean {

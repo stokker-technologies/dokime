@@ -8,202 +8,118 @@
  */
 
 /* === Modules === */
-mod codec;
+mod frames;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 // Standard Library Imports
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 // Third Party Imports
-use futures_util::stream;
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use sha2::{Digest, Sha256};
-use tokio::sync::watch;
 use tonic::Status;
+
 // Local Imports
-use super::super::chunked;
-use super::super::error::detailed;
-use dokime_app::{Error, ExecutionFileStream, RuntimeHandle};
-use dokime_protocol::v1;
+use crate::grpc::{error::detailed, value};
+use dokime_domain::operations::content as wire;
+use dokime_runtime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(super) type DownloadStream = chunked::FrameStream<super::super::charged::Bytes>;
 
 /* === Structs === */
-struct Transfer {
-    source: ExecutionFileStream,
-    digest: Sha256,
-    hashed: u64,
-    maximum: NonZeroUsize,
-    projection: NonZeroUsize,
-    message_limit: usize,
-    stopping: watch::Receiver<bool>,
-    phase: Phase,
+struct Resources {
+    runtime: RuntimeHandle,
+    maximum: usize,
+}
+struct Download {
+    resources: Arc<Resources>,
 }
 
 /* === Enums === */
-enum Phase {
-    Metadata,
-    Chunks,
-    Done,
-}
 
 /* === Traits === */
 
 /* === Implementations === */
-impl Transfer {
-    async fn next(&mut self) -> Result<Option<super::super::charged::Bytes>, Status> {
-        if *self.stopping.borrow() {
-            return Err(Status::unavailable(
-                "execution transfer interrupted by listener shutdown",
-            ));
+impl Operation for Download {
+    type Declaration = wire::DownloadExecutionFile;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileDownloadFrame>;
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut wire::DownloadExecutionFile, output: &mut Self::Endpoints,
+    ) -> Result<Response<()>, Status> {
+        let runtime = &self.resources.runtime;
+        let message_limit = self.resources.maximum;
+        let (id, _) = super::files::execution(runtime, &request.execution_id)?;
+        value::text(&request.relative_path)?;
+        if request.relative_path.is_empty() {
+            return Err(Status::invalid_argument("output name is required"));
         }
-        let projected = match self.phase {
-            Phase::Metadata => {
-                let frame = self
-                    .source
-                    .project_metadata(self.projection, |metadata, allowance| {
-                        codec::metadata(metadata, allowance, self.message_limit)
-                    })
-                    .map_err(stream_failure)?;
-                self.phase = Phase::Chunks;
-                frame
+        let mut source = runtime
+            .open_execution_file_stream(&id, std::mem::take(&mut request.relative_path))
+            .await
+            .map_err(stream_failure)?
+            .ok_or_else(|| Status::not_found("registered execution output not found"))?;
+        if source.metadata().size_bytes > super::MAX_CONTENT_BYTES {
+            return Err(Status::resource_exhausted("execution output exceeds native content limit"));
+        }
+        let maximum = NonZeroUsize::new(super::transfer_chunk_bytes(message_limit))
+            .ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
+        let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(metadata.into()).await.map_err(|error| stream_failure(error.into()))?;
+        let mut digest = Sha256::new();
+        let mut hashed = 0u64;
+        loop {
+            let Some(content) = source.next_chunk(maximum).await.map_err(stream_failure)? else {
+                break;
+            };
+            if content.offset != hashed {
+                return Err(Status::data_loss("execution output chunk does not continue its prefix"));
             }
-            Phase::Chunks => {
-                let digest = &mut self.digest;
-                let hashed = &mut self.hashed;
-                let message_limit = self.message_limit;
-                let pending = self.source.next_chunk_projected(
-                    self.maximum,
-                    self.projection,
-                    |content, allowance| {
-                        let end = content
-                            .offset
-                            .checked_add(content.bytes.len() as u64)
-                            .ok_or(harmos::Error::InvalidInput {
-                                field: "execution download",
-                                reason: "chunk offset overflows",
-                            })?;
-                        if content.offset != *hashed && end != *hashed {
-                            return Err(harmos::Error::InvalidInput {
-                                field: "execution download",
-                                reason: "digest prefix differs from original chunk",
-                            });
-                        }
-                        let frame = codec::chunk(content, allowance, message_limit)?;
-                        // A Timeout After This Callback May Retain The Original Chunk For Retry.
-                        if content.offset == *hashed {
-                            digest.update(&content.bytes);
-                            *hashed = end;
-                        }
-                        Ok(frame)
-                    },
-                );
-                let frame = tokio::select! { biased;
-                    _ = self.stopping.changed() => return Err(Status::unavailable("execution transfer interrupted by listener shutdown")),
-                    frame = pending => frame.map_err(stream_failure)?,
-                };
-                if let Some(frame) = frame {
-                    return Ok(Some(frame));
-                }
-                if self.hashed != self.source.metadata().size_bytes {
-                    return Err(Status::data_loss(
-                        "execution output ended before declared prefix",
-                    ));
-                }
-                let frame = self
-                    .source
-                    .project_metadata(self.projection, |metadata, allowance| {
-                        codec::complete(
-                            metadata.size_bytes,
-                            &self.digest,
-                            allowance,
-                            self.message_limit,
-                        )
-                    })
-                    .map_err(stream_failure)?;
-                self.phase = Phase::Done;
-                frame
-            }
-            Phase::Done => return Ok(None),
-        };
-        Ok(Some(projected))
+            let frame = frames::chunk(&content, message_limit).map_err(|error| stream_failure(error.into()))?;
+            digest.update(&content.bytes);
+            hashed = content.offset + content.bytes.len() as u64;
+            output.send_owned(frame.into()).await.map_err(|error| stream_failure(error.into()))?;
+        }
+        if hashed != source.metadata().size_bytes {
+            return Err(Status::data_loss("execution output ended before declared prefix"));
+        }
+        let complete =
+            frames::complete(source.metadata().size_bytes, &digest, message_limit).map_err(|error| stream_failure(error.into()))?;
+        output.send_owned(complete.into()).await.map_err(|error| stream_failure(error.into()))?;
+        Ok(().into())
     }
 }
 
 /* === Public Functions === */
-pub(super) async fn download(
-    runtime: &RuntimeHandle,
-    request: v1::DownloadExecutionFileRequest,
-    max_message_bytes: usize,
-    stopping: watch::Receiver<bool>,
-) -> Result<DownloadStream, Status> {
-    if *stopping.borrow() {
-        return Err(Status::unavailable("listener is stopping"));
-    }
-    let (id, _) = super::files::execution(runtime, &request.execution_id)?;
-    super::super::value::text(&request.relative_path)?;
-    if request.relative_path.is_empty() {
-        return Err(Status::invalid_argument("output name is required"));
-    }
-    let content = runtime
-        .open_execution_file_stream(&id, request.relative_path)
-        .await
-        .map_err(stream_failure)?
-        .ok_or_else(|| Status::not_found("registered execution output not found"))?;
-    if content.metadata().size_bytes > super::MAX_CONTENT_BYTES {
-        return Err(Status::resource_exhausted(
-            "execution output exceeds native content limit",
-        ));
-    }
-    let chunk_bytes = super::transfer_chunk_bytes(max_message_bytes);
-    let maximum = NonZeroUsize::new(chunk_bytes).ok_or_else(|| {
-        Status::resource_exhausted("message limit cannot contain execution chunk")
-    })?;
-    let projection = max_message_bytes
-        .checked_add(std::mem::size_of::<Vec<u8>>())
-        .and_then(NonZeroUsize::new)
-        .ok_or_else(|| Status::resource_exhausted("execution frame memory overflows"))?;
-    let transfer = Transfer {
-        source: content,
-        digest: Sha256::new(),
-        hashed: 0,
-        maximum,
-        projection,
-        message_limit: max_message_bytes,
-        stopping,
-        phase: Phase::Metadata,
-    };
-    Ok(Box::pin(stream::unfold(
-        Some(transfer),
-        |state| async move {
-            let mut transfer = state?;
-            match transfer.next().await {
-                Ok(Some(frame)) => Some((Ok(frame), Some(transfer))),
-                Ok(None) => None,
-                Err(error) => Some((Err(error), None)),
-            }
-        },
-    )))
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<Download>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
+    )?;
+    Ok(())
 }
 
 /* === Private Functions === */
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
-        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => Status::resource_exhausted(
-            format!("execution output exceeds its original {resource} budget"),
-        ),
-        Error::ExecutionFileTooLarge => {
-            Status::resource_exhausted("execution output exceeds native content limit")
+        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => {
+            Status::resource_exhausted(format!("execution output exceeds its original {resource} budget"))
         }
-        Error::ShuttingDown | Error::Interrupted => {
-            Status::unavailable("execution output capture interrupted")
-        }
+        Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),
+        Error::ShuttingDown | Error::Interrupted => Status::unavailable("execution output capture interrupted"),
         _ => Status::internal("execution output could not be captured"),
     };
 

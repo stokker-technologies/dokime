@@ -28,15 +28,8 @@ export type PlotInteraction = {
 
 const PlotInteractionContext = createContext<PlotInteraction>({ zoom: false });
 
-export function PlotInteractionProvider({
-  children,
-  ...interaction
-}: PlotInteraction & { children: ReactNode }) {
-  return (
-    <PlotInteractionContext.Provider value={interaction}>
-      {children}
-    </PlotInteractionContext.Provider>
-  );
+export function PlotInteractionProvider({ children, ...interaction }: PlotInteraction & { children: ReactNode }) {
+  return <PlotInteractionContext.Provider value={interaction}>{children}</PlotInteractionContext.Provider>;
 }
 
 export function usePlotInteraction(): PlotInteraction {

@@ -15,12 +15,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_app::records::RecordEntry;
-use dokime_protocol::v1;
+use dokime_domain::model::identity::wire as common;
+use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 pub(super) const MAX_ALTERNATIVES: usize = 64;
@@ -32,7 +31,7 @@ pub(super) const MAX_SEVERITIES: usize = 4;
 
 /* === Structs === */
 pub(super) struct Selection {
-    value: v1::CapturedRecordSelection,
+    value: dokime_domain::model::evidence::wire::CapturedRecordSelection,
     pub(super) stream: String,
 }
 
@@ -42,13 +41,11 @@ pub(super) struct Selection {
 
 /* === Implementations === */
 impl Selection {
-    pub(super) fn new(value: Option<v1::CapturedRecordSelection>) -> Result<Self, Status> {
+    pub(super) fn new(value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
             if items.len() > MAX_ALTERNATIVES {
-                return Err(Status::invalid_argument(
-                    "selection exceeds 64 alternatives",
-                ));
+                return Err(Status::invalid_argument("selection exceeds 64 alternatives"));
             }
             for item in items.iter() {
                 super::super::value::text(item)?;
@@ -57,20 +54,22 @@ impl Selection {
             items.dedup();
         }
         for kind in &value.record_types {
-            dokime_app::core::Identifier::new(kind)
-                .map_err(|_| Status::invalid_argument("invalid record type"))?;
+            dokime_domain::model::identity::Identifier::new(kind).map_err(|_| Status::invalid_argument("invalid record type"))?;
         }
         if value.severities.len() > MAX_SEVERITIES
-            || value
-                .severities
-                .iter()
-                .any(|severity| !matches!(*severity, 2..=5))
+            || value.severities.iter().any(|severity| {
+                !matches!(*severity, common::Severity::Debug | common::Severity::Info | common::Severity::Warn | common::Severity::Error)
+            })
         {
-            return Err(Status::invalid_argument(
-                "expected Debug, Info, Warn or Error severity",
-            ));
+            return Err(Status::invalid_argument("expected Debug, Info, Warn or Error severity"));
         }
-        value.severities.sort();
+        value.severities.sort_by_key(|severity| match severity {
+            common::Severity::Debug => 2,
+            common::Severity::Info => 3,
+            common::Severity::Warn => 4,
+            common::Severity::Error => 5,
+            _ => 0,
+        });
         value.severities.dedup();
         if let Some(scope) = &mut value.scope {
             for id in [
@@ -86,39 +85,28 @@ impl Selection {
             .into_iter()
             .flatten()
             {
-                let parsed = uuid::Uuid::parse_str(id)
-                    .map_err(|_| Status::invalid_argument("invalid scope UUID"))?;
+                let parsed = uuid::Uuid::parse_str(id).map_err(|_| Status::invalid_argument("invalid scope UUID"))?;
                 if parsed.is_nil() {
                     return Err(Status::invalid_argument("scope UUID must not be nil"));
                 }
                 *id = parsed.to_string();
             }
-            if scope == &v1::EvidenceScope::default() {
+            if scope == &common::EvidenceScope::default() {
                 value.scope = None;
             }
         }
         let stream = format!(
             "evidence.records:{}",
-            Sha256::digest(value.encode_to_vec())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>()
+            Sha256::digest(harmos::Message::encode_to_vec(&value)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         Ok(Self { value, stream })
     }
 
     pub(super) fn matches(&self, record: &RecordEntry) -> bool {
         let value = &self.value;
-        if !value.record_types.is_empty()
-            && !value
-                .record_types
-                .iter()
-                .any(|v| v == record.record_type.as_str())
+        if !value.record_types.is_empty() && !value.record_types.iter().any(|v| v == record.record_type.as_str())
             || !value.sources.is_empty() && !value.sources.contains(&record.source)
-            || !value.severities.is_empty()
-                && !value
-                    .severities
-                    .contains(&super::wire::severity(record.severity))
+            || !value.severities.is_empty() && !value.severities.contains(&super::canonical::severity(record.severity))
         {
             return false;
         }
@@ -128,7 +116,9 @@ impl Selection {
         let Some(scope) = &record.scope else {
             return false;
         };
-        let actual = super::super::value::scope(scope);
+        let Ok(actual) = super::super::value::canonical::scope(scope) else {
+            return false;
+        };
         [
             (&selected.session_id, &actual.session_id),
             (&selected.cycle_id, &actual.cycle_id),

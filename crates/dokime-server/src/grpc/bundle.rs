@@ -22,7 +22,7 @@ use tonic::Status;
 use zip::{ZipWriter, write::SimpleFileOptions};
 // Local Imports
 use super::redaction;
-use dokime_app::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 pub(super) const MAX_BUNDLE_BYTES: usize = 16 * 1024 * 1024;
@@ -54,20 +54,9 @@ pub(super) struct Entry {
 
 /* === Enums === */
 pub(super) enum Part {
-    Json {
-        path: String,
-        value: Value,
-    },
-    Tail {
-        path: String,
-        source: PathBuf,
-        max_bytes: u64,
-    },
-    File {
-        path: String,
-        source: PathBuf,
-        max_bytes: u64,
-    },
+    Json { path: String, value: Value },
+    Tail { path: String, source: PathBuf, max_bytes: u64 },
+    File { path: String, source: PathBuf, max_bytes: u64 },
 }
 
 /* === Traits === */
@@ -75,26 +64,15 @@ pub(super) enum Part {
 /* === Implementations === */
 impl Part {
     pub(super) fn json(path: impl Into<String>, value: Value) -> Self {
-        Self::Json {
-            path: path.into(),
-            value,
-        }
+        Self::Json { path: path.into(), value }
     }
 
     pub(super) fn tail(path: impl Into<String>, source: PathBuf, max_bytes: u64) -> Self {
-        Self::Tail {
-            path: path.into(),
-            source,
-            max_bytes,
-        }
+        Self::Tail { path: path.into(), source, max_bytes }
     }
 
     pub(super) fn file(path: impl Into<String>, source: PathBuf, max_bytes: u64) -> Self {
-        Self::File {
-            path: path.into(),
-            source,
-            max_bytes,
-        }
+        Self::File { path: path.into(), source, max_bytes }
     }
 
     fn path(&self) -> &str {
@@ -112,19 +90,12 @@ impl Part {
                     Err(error) => (None, Some(redaction::text(&error.to_string()))),
                 }
             }
-            Self::Tail {
-                source, max_bytes, ..
-            } => match read_tail(&source, max_bytes) {
+            Self::Tail { source, max_bytes, .. } => match read_tail(&source, max_bytes) {
                 Ok(bytes) => (Some(bytes), None),
                 Err(note) => (None, Some(note)),
             },
-            Self::File {
-                source, max_bytes, ..
-            } => match std::fs::read(&source) {
-                Ok(bytes) if bytes.len() as u64 > max_bytes => (
-                    None,
-                    Some(format!("source exceeds the {max_bytes} byte entry ceiling")),
-                ),
+            Self::File { source, max_bytes, .. } => match std::fs::read(&source) {
+                Ok(bytes) if bytes.len() as u64 > max_bytes => (None, Some(format!("source exceeds the {max_bytes} byte entry ceiling"))),
                 Ok(bytes) => (Some(bytes), None),
                 Err(error) => (None, Some(absence(&error))),
             },
@@ -134,16 +105,10 @@ impl Part {
 
 /* === Public Functions === */
 pub(super) fn log_tail_ceiling(requested: Option<u64>) -> u64 {
-    requested
-        .unwrap_or(MAX_LOG_TAIL_BYTES)
-        .min(MAX_LOG_TAIL_BYTES)
+    requested.unwrap_or(MAX_LOG_TAIL_BYTES).min(MAX_LOG_TAIL_BYTES)
 }
 
-pub(super) fn build(
-    parts: Vec<Part>,
-    context: Value,
-    generated_at: Timestamp,
-) -> Result<Bundle, Status> {
+pub(super) fn build(parts: Vec<Part>, context: Value, generated_at: Timestamp) -> Result<Bundle, Status> {
     let parts = parts
         .into_iter()
         .map(|part| {
@@ -155,11 +120,7 @@ pub(super) fn build(
     assemble(parts, context, generated_at)
 }
 
-fn assemble(
-    parts: Vec<(String, Option<Vec<u8>>, Option<String>)>,
-    context: Value,
-    generated_at: Timestamp,
-) -> Result<Bundle, Status> {
+fn assemble(parts: Vec<(String, Option<Vec<u8>>, Option<String>)>, context: Value, generated_at: Timestamp) -> Result<Bundle, Status> {
     let filename = archive_filename(&generated_at);
     let mut members = Vec::with_capacity(parts.len());
     let mut entries = Vec::with_capacity(parts.len());
@@ -186,15 +147,11 @@ fn assemble(
         "entries": entries,
     });
     redaction::scrub(&mut manifest);
-    let manifest = serde_json::to_vec_pretty(&manifest)
-        .map_err(|_| Status::internal("diagnostics manifest could not be encoded"))?;
+    let manifest = serde_json::to_vec_pretty(&manifest).map_err(|_| Status::internal("diagnostics manifest could not be encoded"))?;
 
     let mut archive = Vec::new();
-    write_archive(
-        &mut archive,
-        std::iter::once((MANIFEST_PATH.to_owned(), manifest)).chain(members),
-    )
-    .map_err(|_| Status::internal("diagnostics archive could not be assembled"))?;
+    write_archive(&mut archive, std::iter::once((MANIFEST_PATH.to_owned(), manifest)).chain(members))
+        .map_err(|_| Status::internal("diagnostics archive could not be assembled"))?;
     if archive.len() > MAX_BUNDLE_BYTES {
         return Err(Status::resource_exhausted(format!(
             "diagnostics archive exceeds {MAX_BUNDLE_BYTES} bytes; request a smaller log tail"
@@ -205,27 +162,17 @@ fn assemble(
         filename,
         generated_at,
         entries,
-        sha256: Sha256::digest(&archive)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>(),
+        sha256: Sha256::digest(&archive).iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
         bytes: archive,
     })
 }
 
 /* === Private Functions === */
-fn write_archive(
-    output: &mut Vec<u8>,
-    members: impl Iterator<Item = (String, Vec<u8>)>,
-) -> std::io::Result<()> {
+fn write_archive(output: &mut Vec<u8>, members: impl Iterator<Item = (String, Vec<u8>)>) -> std::io::Result<()> {
     let mut writer = ZipWriter::new(Cursor::new(output));
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored)
-        .large_file(false);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored).large_file(false);
     for (path, bytes) in members {
-        writer
-            .start_file(path, options)
-            .map_err(std::io::Error::other)?;
+        writer.start_file(path, options).map_err(std::io::Error::other)?;
         writer.write_all(&bytes)?;
     }
     writer.finish().map_err(std::io::Error::other)?;
@@ -240,23 +187,16 @@ fn read_tail(source: &PathBuf, max_bytes: u64) -> Result<Vec<u8>, String> {
     tail_from(&mut file, max_bytes)
 }
 
-fn tail_from(
-    file: &mut (impl std::io::Read + std::io::Seek),
-    max_bytes: u64,
-) -> Result<Vec<u8>, String> {
+fn tail_from(file: &mut (impl std::io::Read + std::io::Seek), max_bytes: u64) -> Result<Vec<u8>, String> {
     use std::io::SeekFrom;
     if max_bytes == 0 {
         return Err("the request asked for no log tail".to_owned());
     }
-    let length = file
-        .seek(SeekFrom::End(0))
-        .map_err(|error| absence(&error))?;
+    let length = file.seek(SeekFrom::End(0)).map_err(|error| absence(&error))?;
     let start = length.saturating_sub(max_bytes);
-    file.seek(SeekFrom::Start(start))
-        .map_err(|error| absence(&error))?;
+    file.seek(SeekFrom::Start(start)).map_err(|error| absence(&error))?;
     let mut bytes = Vec::with_capacity(usize::try_from(length - start).unwrap_or_default());
-    file.read_to_end(&mut bytes)
-        .map_err(|error| absence(&error))?;
+    file.read_to_end(&mut bytes).map_err(|error| absence(&error))?;
     if start > 0 {
         // The window opened mid-record. Drop that fragment so every archived
         // line is a whole one.

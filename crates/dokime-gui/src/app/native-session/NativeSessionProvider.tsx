@@ -1,27 +1,12 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { QueryClientProvider } from "@tanstack/react-query";
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
 import { connectionError } from "./errors";
+import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
 import { type ConnectedSession, NativeSession } from "./session";
-
-const Controller = createContext<NativeSession | null>(null);
-const Connection = createContext<ConnectedSession | null>(null);
-type NativeAppearanceState = {
-  resource: AppearanceResource | null;
-  refresh(): void;
-};
-const Appearance = createContext<NativeAppearanceState | null>(null);
 
 /** One native owner and fresh backend query/resource scope per generation. */
 export function NativeSessionProvider({
@@ -76,8 +61,7 @@ function Connected({ session, children }: { session: ConnectedSession; children:
     let release: (() => void) | undefined;
     void loadAppearance(session.identity)
       .catch((error: unknown) => {
-        if (active && session.identity.isCurrent() && needsAppearanceRefresh(error))
-          return loadAppearance(session.identity);
+        if (active && session.identity.isCurrent() && needsAppearanceRefresh(error)) return loadAppearance(session.identity);
         throw error;
       })
       .then((resource) => {
@@ -119,42 +103,8 @@ function Connected({ session, children }: { session: ConnectedSession; children:
     </Connection.Provider>
   );
 }
-export function useNativeSessionController() {
-  const value = useContext(Controller);
-  if (!value) throw new Error("Native session provider is required");
-  return value;
-}
-export function useNativeSession() {
-  const value = useContext(Connection);
-  if (!value) throw new Error("A connected native backend is required");
-  return value;
-}
-
-/** Optional form for shell providers that also render while disconnected. */
-export function useNativeSessionOptional() {
-  return useContext(Connection);
-}
-export function useNativeAppearance() {
-  return useContext(Appearance)?.resource ?? null;
-}
-export function useRefreshNativeAppearance() {
-  return useContext(Appearance)?.refresh ?? (() => undefined);
-}
-
 function needsAppearanceRefresh(error: unknown): boolean {
-  if (
-    !error ||
-    typeof error !== "object" ||
-    !("kind" in error) ||
-    error.kind !== "grpc" ||
-    !("detail" in error)
-  )
-    return false;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) return false;
   const detail = error.detail;
-  return (
-    !!detail &&
-    typeof detail === "object" &&
-    "code" in detail &&
-    (detail.code === 5 || detail.code === 9)
-  );
+  return !!detail && typeof detail === "object" && "code" in detail && (detail.code === 5 || detail.code === 9);
 }
