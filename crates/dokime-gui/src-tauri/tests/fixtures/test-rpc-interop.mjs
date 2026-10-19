@@ -109,9 +109,7 @@ try {
     lateRead,
     (error) => error.kind === "session" && error.detail.kind === "superseded",
   );
-  // Client streams cross the same bridge; this caller may not stage plugins.
-  // Whether the refusal lands on the first write or on finish, it is the
-  // backend's own status that surfaces.
+  // Full-Control Access Permits Staging; Invalid Bytes Retain The Backend's Refusal.
   await assert.rejects(
     (async () => {
       const staging = await api.pluginsStage(session, {
@@ -124,7 +122,7 @@ try {
       });
       await staging.finish();
     })(),
-    (error) => error.kind === "grpc" && error.detail.code === 7,
+    (error) => error.kind === "grpc" && error.detail.code === 3 && error.message.includes("stage size or digest mismatch"),
   );
   // A download opens with the artifact's metadata, so the stream is the only
   // request needed to learn what it is about to deliver.

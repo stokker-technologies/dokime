@@ -412,6 +412,7 @@ async fn pool_refusal_settles() {
     assert!(cycle.saved.is_none(), "refused report remains unsealed");
     assert!(handle.open_cycle_report(&cycle_id).await.is_err());
     drop(handle);
-    // The Refusal Is A Clean Failure: Nothing Remains Stuck To Report At Shutdown.
-    runtime.shutdown().await.unwrap();
+    // Shutdown Cannot Claim Durability While The Required Report Still Exceeds Its Budget.
+    let failure = runtime.shutdown().await.unwrap_err().to_string();
+    assert!(failure.contains(EXHAUSTED) || failure.contains("exhaust"), "shutdown retains the report refusal: {failure}");
 }

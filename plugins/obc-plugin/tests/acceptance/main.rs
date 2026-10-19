@@ -644,16 +644,20 @@ async fn inventory_matches_dispatch() {
         served.push((run, <dokime_runtime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime_runtime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
+    use obc_plugin::domain::operations::device::{ReadDevice, SetPower};
     use obc_plugin::domain::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
         (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
         (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
         (<ListConnections as OperationDeclaration>::ID, <ListConnections as OperationDeclaration>::POLICY.timeout),
+        (<ReadDevice as OperationDeclaration>::ID, <ReadDevice as OperationDeclaration>::POLICY.timeout),
     ] {
-        // All three bench operations have an empty native request.
+        // These Bench Operations Have Empty Native Requests.
         runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
         served.push((operation.to_owned(), timeout.as_millis() as u64));
     }
+    runtime.operations.call(SetPower { enabled: false }).await.unwrap();
+    served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.

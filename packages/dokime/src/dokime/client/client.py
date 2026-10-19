@@ -104,7 +104,7 @@ class DokimeClient:
         return await self._transport.connect()
 
     async def operations(self) -> tuple[DiscoveredOperation, ...]:
-        """Discover Authorized Operations, Including Separately Installed Plugins"""
+        """Discover Authorized Providers With gRPC Declarations, Including Installed Plugins"""
         return await self._transport.operations()
 
     async def show(self, identifier: str, *, owner: str | None = None) -> DiscoveredOperation:

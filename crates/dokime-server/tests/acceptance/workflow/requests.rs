@@ -147,7 +147,10 @@ async fn crashed_run_replay() {
     );
     assert_eq!(replay.command_id, request_id);
     let restored = owner.handle().watch_state().latest();
-    assert!(restored.state().cycles.is_empty(), "recovery seals previous-session cycles before serving admission");
+    assert!(
+        restored.state().cycles.values().all(|cycle| cycle.phase == model::execution::result::CyclePhase::Sealed && cycle.saved.is_some()),
+        "recovery seals previous-session cycles before serving admission"
+    );
     let cycle_id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = dokime_runtime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await

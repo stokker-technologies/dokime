@@ -247,6 +247,7 @@ class Transport:
         cursors = set()
         after = None
         used = 0
+        seen_rows = 0
         async with asyncio.timeout(self.timeout):
             while True:
                 page = await self._invoke_operation(
@@ -264,8 +265,9 @@ class Transport:
                     batch = json.loads(page.entries, object_pairs_hook=_object)
                 except (ValueError, UnicodeError) as error:
                     raise ProtocolError("invalid caller operation catalog") from error
-                if not isinstance(batch, list) or len(batch) > 64 or len(entries) + len(batch) > 4096:
+                if not isinstance(batch, list) or len(batch) > 64 or seen_rows + len(batch) > 4096:
                     raise ProtocolError("operation catalog exceeds row limit")
+                seen_rows += len(batch)
                 for row in batch:
                     if (
                         not isinstance(row, dict)
@@ -278,6 +280,11 @@ class Transport:
                         or not isinstance(row.get("grants"), list)
                     ):
                         raise ProtocolError("invalid provider operation metadata")
+                    # Native-Only Contracts Have No Protobuf Projection Or Remote Binding.
+                    contract = row.get("contract")
+                    native_only = isinstance(contract, dict) and "grpc" not in contract and not row["grpc_available"]
+                    if native_only:
+                        continue
                     try:
                         descriptor = from_contract(row["contract"])
                     except (ValueError, TypeError, KeyError) as error:

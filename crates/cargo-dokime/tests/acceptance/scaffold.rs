@@ -130,6 +130,7 @@ pub(super) fn generated_plugin_tasks() {
     // Exercise The Generated Project's Actual Archive Producer Before Its
     // Unit Lane Reads That Archive. This Is Authoring Behavior Under Test.
     task(&plugin, "build");
+    task(&plugin, "build:tests");
     task(&plugin, "test:unit");
 }
 

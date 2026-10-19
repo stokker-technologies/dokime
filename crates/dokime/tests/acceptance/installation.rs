@@ -39,11 +39,10 @@ const ENDPOINT: &str = "http://127.0.0.1:8765";
 
 /* === Private Functions === */
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
-    let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
-    let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir_in(target).unwrap();
+    let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir().unwrap();
     for program in programs {
         let program = program.canonicalize().expect("the program under test exists");
-        std::fs::hard_link(&program, directory.path().join(program.file_name().unwrap())).unwrap();
+        std::fs::copy(&program, directory.path().join(program.file_name().unwrap())).unwrap();
     }
     directory
 }

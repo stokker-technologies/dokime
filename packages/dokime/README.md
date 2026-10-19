@@ -265,7 +265,9 @@ caller-authorized operations from separately installed plugins, without requirin
 those plugins in the Python distribution. A valid remote access key grants full
 control over the installed plugins, including their request-dependent scopes;
 see [Full-Control Access And Plugin Capabilities](../../README.md#full-control-access-and-plugin-capabilities).
-Native-only operations and internal host providers stay unavailable remotely.
+Python discovery projects providers with gRPC declarations. Native-only operations
+are omitted; declared bindings that are unavailable retain `grpc_available=False`.
+Internal host providers stay unavailable remotely.
 The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
