@@ -395,18 +395,14 @@ impl Session {
     }
 
     async fn settle_records(&self, replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>) -> Result<(), ProviderExecutionFailure> {
-        let started = std::time::Instant::now();
         let close = replayed.is_some();
         let context = &self.context;
         let execution = &self.execution;
-        eprintln!("settlement diagnostic {}: host begins, close={close}", execution.test_execution_id);
         context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
-        eprintln!("settlement diagnostic {}: publications flushed at {:?}", execution.test_execution_id, started.elapsed());
         let cycle_id = execution.test_cycle_id.clone();
         let execution_id = execution.test_execution_id.clone();
         if close {
             close_record_subscriptions(context, execution).await?;
-            eprintln!("settlement diagnostic {}: subscriptions closed at {:?}", execution.test_execution_id, started.elapsed());
         }
         let ids = context
             .runtime
@@ -430,12 +426,6 @@ impl Session {
             .wait_through(&context.runtime.state_manager, through)
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
-        eprintln!(
-            "settlement diagnostic {}: record source caught up at {:?}, ids={}",
-            execution.test_execution_id,
-            started.elapsed(),
-            ids.len()
-        );
         let mut remaining = ids;
         if !remaining.is_empty() {
             let mut reader = context
@@ -444,7 +434,6 @@ impl Session {
                 .history(&context.runtime.state_manager, 0, through)
                 .await
                 .map_err(|error| failure("sidecar_records", error.to_string()))?;
-            eprintln!("settlement diagnostic {}: history opened at {:?}", execution.test_execution_id, started.elapsed());
             loop {
                 let record = reader.next().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
                 let Some(record) = record else {
@@ -467,12 +456,6 @@ impl Session {
                         ..ExecutionSignal::default()
                     })
                     .await?;
-                eprintln!(
-                    "settlement diagnostic {}: record delivered at {:?}, remaining={}",
-                    execution.test_execution_id,
-                    started.elapsed(),
-                    remaining.len()
-                );
                 if remaining.is_empty() {
                     break;
                 }
@@ -482,10 +465,8 @@ impl Session {
             }
         }
         if let Some(replayed) = replayed {
-            eprintln!("settlement diagnostic {}: replay begins at {:?}", execution.test_execution_id, started.elapsed());
             super::replay_sample_inputs(context, &self.target, execution, replayed).await?;
         }
-        eprintln!("settlement diagnostic {}: host settled at {:?}", execution.test_execution_id, started.elapsed());
         Ok(())
     }
 }

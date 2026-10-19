@@ -82,19 +82,8 @@ impl Source {
     pub(super) async fn history_scoped(
         self: &Arc<Self>, state_manager: &crate::app::StateManager, start: Start, through: u64, scope: Option<harmos::Identifier>,
     ) -> Result<History> {
-        let started = std::time::Instant::now();
-        let diagnostic = matches!(&start, Start::Physical(0)) && scope.is_none();
-        if diagnostic {
-            eprintln!("record history diagnostic {}: begin, through={through}", self.epoch);
-        }
         self.wait_through(state_manager, through).await?;
-        if diagnostic {
-            eprintln!("record history diagnostic {}: projected at {:?}", self.epoch, started.elapsed());
-        }
         let at = self.save_accepted(state_manager).await?;
-        if diagnostic {
-            eprintln!("record history diagnostic {}: saved at {:?}", self.epoch, started.elapsed());
-        }
         let (after, sequence_after) = match start {
             Start::Physical(after) => (after, None),
             Start::Logical(after) => {
@@ -104,14 +93,10 @@ impl Source {
                 (0, (after > 0).then_some(after))
             }
         };
-        let rows = self.rows(at, scope, after).await?;
-        if diagnostic {
-            eprintln!("record history diagnostic {}: reader opened at {:?}", self.epoch, started.elapsed());
-        }
         Ok(History {
             source: self.clone(),
             state_manager: state_manager.clone(),
-            rows,
+            rows: self.rows(at, scope, after).await?,
             pending: VecDeque::new(),
             sequence_after,
             after,
@@ -122,21 +107,8 @@ impl Source {
 
     // Save Everything Accepted So Far; One Saved Cut Then Covers The Whole History.
     async fn save_accepted(&self, state_manager: &crate::app::StateManager) -> Result<harmos::storage::StorageCursor> {
-        let started = std::time::Instant::now();
         let accepted = self.storage.cursor_accepted();
-        let files = self.storage.capture_files(Some(&accepted))?;
-        eprintln!(
-            "storage flush diagnostic {}: begin accepted={}, saved={}, files={}",
-            self.epoch,
-            accepted.sequence,
-            self.storage.cursor_saved().sequence,
-            files.is_some()
-        );
-        self.storage.await_durable(&accepted).await?;
-
-        eprintln!("storage flush diagnostic {}: data durable at {:?}", self.epoch, started.elapsed());
-        let saved = self.storage.flush_prepared(&accepted, &files).await?;
-        eprintln!("storage flush diagnostic {}: files durable at {:?}", self.epoch, started.elapsed());
+        let saved = self.storage.flush_until(&accepted).await?;
         self.healthy(state_manager)?;
         Ok(saved)
     }
@@ -173,15 +145,10 @@ impl History {
                 self.after = row.position;
                 return Ok(Some(row));
             }
-            let page_started = std::time::Instant::now();
             let Some(rows) = self.rows.next().await? else {
                 self.done = true;
                 break;
             };
-            let diagnostic = self.after == 0;
-            if diagnostic {
-                eprintln!("record page diagnostic {}: read {} rows at {:?}", self.source.epoch, rows.len(), page_started.elapsed());
-            }
             let sequence_after = self.sequence_after;
             for row in rows.into_iter().filter(|row| sequence_after.is_none_or(|after| row.payload.sequence() > after)) {
                 self.pending.push_back(CapturedRecord {
@@ -189,14 +156,6 @@ impl History {
                     current_process: row.scope.as_ref() == Some(&self.source.epoch),
                     record: Arc::new(row.payload.entry()?),
                 });
-            }
-            if diagnostic {
-                eprintln!(
-                    "record page diagnostic {}: converted {} rows at {:?}",
-                    self.source.epoch,
-                    self.pending.len(),
-                    page_started.elapsed()
-                );
             }
         }
         Ok(None)
