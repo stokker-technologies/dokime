@@ -18,7 +18,7 @@ import json
 import math
 import os
 import re
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -167,6 +167,9 @@ class Transport:
                     source_revision=identity.source_revision if identity.HasField("source_revision") else None,
                     sdk_revision=identity.sdk_revision if identity.HasField("sdk_revision") else None,
                     descriptor_sha256=bytes(identity.api.descriptor_sha256),
+                    max_evidence_bytes=availability.limits.max_evidence_bytes
+                    if availability.limits.HasField("max_evidence_bytes")
+                    else None,
                 )
                 return self.backend
             except BaseException:
@@ -390,8 +393,15 @@ class Transport:
         request: Message,
         destination: Path,
         expected: tuple[int, str] | None = None,
+        *,
+        endpoint: tuple[str, str] | None = None,
+        validate: Callable[[Message], tuple[int, str]] | None = None,
+        maximum_bytes: int | None = None,
+        overwrite: bool = True,
     ) -> tuple[int, str, Message]:
-        service, method = ("History", "DownloadCheckpointArtifact") if expected is not None else ("Reports", "DownloadCycleReport")
+        service, method = endpoint or (
+            ("History", "DownloadCheckpointArtifact") if expected is not None else ("Reports", "DownloadCycleReport")
+        )
         reader = await self.stream(service, method, request)
         partial = destination.with_name(destination.name + ".part")
         owned = False
@@ -412,17 +422,25 @@ class Transport:
                     kind = kind.lower()
                     if kind in ("metadata", "report") and metadata is None:
                         metadata = payload
-                        if expected is not None:
+                        if validate is not None:
+                            expected = validate(metadata)
+                        elif expected is not None:
                             if metadata.artifact_id != request.artifact_id or (metadata.size_bytes, metadata.sha256) != expected:
                                 raise ProtocolError("artifact identity or inventory changed")
                         elif metadata.test_cycle_id != request.cycle_id or metadata.identifier != request.identifier:
                             raise ProtocolError("report identity differs from request")
+                        if expected is not None and maximum_bytes is not None and expected[0] > maximum_bytes:
+                            raise ProtocolError("download exceeds its byte limit")
                     elif kind == "chunk" and metadata is not None:
                         chunk = payload
                         if chunk.offset != offset or not chunk.data:
                             raise ProtocolError("chunks are not contiguous")
-                        output.write(chunk.data)
-                        offset += len(chunk.data)
+                        end = offset + len(chunk.data)
+                        if maximum_bytes is not None and end > maximum_bytes or expected is not None and end > expected[0]:
+                            raise ProtocolError("download exceeds its declared size or byte limit")
+                        if output.write(chunk.data) != len(chunk.data):
+                            raise OSError("download did not write the complete chunk")
+                        offset = end
                         digest.update(chunk.data)
                     elif kind == "complete" and metadata is not None:
                         complete = payload
@@ -437,13 +455,19 @@ class Transport:
                     raise ProtocolError("download ended without metadata or completion")
                 output.flush()
                 os.fsync(output.fileno())
-            os.replace(partial, destination)
+            if overwrite:
+                os.replace(partial, destination)
+            else:
+                os.link(partial, destination)
+                partial.unlink()
             owned = False
             return offset, digest.hexdigest(), metadata
         finally:
-            await reader.close()
-            if owned:
-                partial.unlink(missing_ok=True)
+            try:
+                await reader.close()
+            finally:
+                if owned:
+                    partial.unlink(missing_ok=True)
 
     async def verify(self, expected: Backend, *, live: bool = False) -> None:
         identity = await self.unary("Backend", "GetIdentity", _contracts.request("Backend", "GetIdentity"))

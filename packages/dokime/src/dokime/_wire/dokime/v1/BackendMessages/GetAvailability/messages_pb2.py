@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nEdokime/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x12)dokime.v1.BackendMessages.GetAvailability\"\x06\n\x04Row1\"\xad\x01\n\x04Row2\x12!\n\nbackend_id\x18\xbf\xa1\xea\x95\x01 \x01(\tR\tbackendId\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1b\n\x07methods\x18\xc1\xbb\x91\x11 \x03(\tR\x07methods\x12K\n\x06limits\x18\x80\xad\x90\xac\x01 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row3R\x06limits\"\xb0\x03\n\x04Row3\x12-\n\x11max_request_bytes\x18\x9d\xea\xae\n \x01(\x04R\x0fmaxRequestBytes\x12\x30\n\x12max_response_bytes\x18\xdd\xca\xdf\x9e\x01 \x01(\x04R\x10maxResponseBytes\x12\x33\n\x11max_content_bytes\x18\xc7\x90\xf9\x86\x01 \x01(\x04H\x00R\x0fmaxContentBytes\x88\x01\x01\x12/\n\x0fmax_chunk_bytes\x18\xfe\xaf\xbd\xdc\x01 \x01(\rH\x01R\rmaxChunkBytes\x88\x01\x01\x12,\n\x0emax_page_items\x18\xf6\xee\xda\x08 \x01(\rH\x02R\x0cmaxPageItems\x88\x01\x01\x12=\n\x17max_stream_buffer_items\x18\xa3\xb0\x98( \x01(\rH\x03R\x14maxStreamBufferItems\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_283002951B\x1c\n\x1a_harmos_presence_462379006B\x1b\n\x19_harmos_presence_18265974B\x1b\n\x19_harmos_presence_84285475\"\x9e\x01\n\x04Row0\x12I\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row1R\x07request\x12K\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nEdokime/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x12)dokime.v1.BackendMessages.GetAvailability\"\x06\n\x04Row1\"\xad\x01\n\x04Row2\x12!\n\nbackend_id\x18\xbf\xa1\xea\x95\x01 \x01(\tR\tbackendId\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1b\n\x07methods\x18\xc1\xbb\x91\x11 \x03(\tR\x07methods\x12K\n\x06limits\x18\x80\xad\x90\xac\x01 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row3R\x06limits\"\x85\x04\n\x04Row3\x12-\n\x11max_request_bytes\x18\x9d\xea\xae\n \x01(\x04R\x0fmaxRequestBytes\x12\x30\n\x12max_response_bytes\x18\xdd\xca\xdf\x9e\x01 \x01(\x04R\x10maxResponseBytes\x12\x33\n\x11max_content_bytes\x18\xc7\x90\xf9\x86\x01 \x01(\x04H\x00R\x0fmaxContentBytes\x88\x01\x01\x12\x35\n\x12max_evidence_bytes\x18\xb4\xba\xda\xd0\x01 \x01(\x04H\x01R\x10maxEvidenceBytes\x88\x01\x01\x12/\n\x0fmax_chunk_bytes\x18\xfe\xaf\xbd\xdc\x01 \x01(\rH\x02R\rmaxChunkBytes\x88\x01\x01\x12,\n\x0emax_page_items\x18\xf6\xee\xda\x08 \x01(\rH\x03R\x0cmaxPageItems\x88\x01\x01\x12=\n\x17max_stream_buffer_items\x18\xa3\xb0\x98( \x01(\rH\x04R\x14maxStreamBufferItems\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_283002951B\x1c\n\x1a_harmos_presence_437689652B\x1c\n\x1a_harmos_presence_462379006B\x1b\n\x19_harmos_presence_18265974B\x1b\n\x19_harmos_presence_84285475\"\x9e\x01\n\x04Row0\x12I\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row1R\x07request\x12K\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -57,9 +57,9 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW2']._serialized_start=125
   _globals['_ROW2']._serialized_end=298
   _globals['_ROW3']._serialized_start=301
-  _globals['_ROW3']._serialized_end=733
-  _globals['_ROW0']._serialized_start=736
-  _globals['_ROW0']._serialized_end=894
+  _globals['_ROW3']._serialized_end=818
+  _globals['_ROW0']._serialized_start=821
+  _globals['_ROW0']._serialized_end=979
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -29,6 +29,7 @@ mod upload;
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
 pub use dokime_domain::operations as contracts;
+pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
 pub use execution::{ExecutionRequestHandle, TestExecutionHandle};
 pub use follow::FileResume;
@@ -100,6 +101,7 @@ pub struct Limits {
     pub max_request_bytes: u64,
     pub max_response_bytes: u64,
     pub max_content_bytes: Option<u64>,
+    pub max_evidence_bytes: Option<u64>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,

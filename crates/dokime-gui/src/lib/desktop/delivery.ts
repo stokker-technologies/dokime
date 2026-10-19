@@ -50,7 +50,9 @@ export type DesktopSaveDocument = {
  */
 export type ArtifactSource =
   | { kind: "artifact"; artifactId: string }
-  | { kind: "execution_file"; executionId: string; relativePath: string };
+  | { kind: "execution_file"; executionId: string; relativePath: string }
+  | { kind: "execution_evidence"; executionId: string }
+  | { kind: "cycle_evidence"; cycleId: string };
 
 /** Whether a verified pull is handed to the save dialog or the OS opener. */
 export type DeliveryAction = "save" | "open";

@@ -168,6 +168,12 @@ impl Client {
         self.download::<contracts::content::DownloadArtifact>(contracts::content::DownloadArtifact::PATH, message).await
     }
 
+    pub async fn content_download_evidence(
+        &self, message: contracts::content::DownloadEvidence,
+    ) -> Result<ResponseStream<dokime_domain::model::exports::EvidenceExportFrame>> {
+        self.download::<contracts::content::DownloadEvidence>(contracts::content::DownloadEvidence::PATH, message).await
+    }
+
     pub async fn content_upload_artifact(
         &self, message: impl tokio_stream::Stream<Item = dokime_domain::model::content::wire::UploadArtifactFrame> + Send + 'static,
     ) -> Result<dokime_domain::model::content::wire::ArtifactMetadata> {

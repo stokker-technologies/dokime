@@ -24,6 +24,7 @@ pub mod document;
 pub mod documents;
 pub mod evidence;
 pub mod execution;
+pub mod exports;
 pub mod expressions;
 pub mod files;
 pub mod history;

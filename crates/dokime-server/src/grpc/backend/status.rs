@@ -170,6 +170,7 @@ impl Operation for Availability {
                 max_request_bytes: maximum as u64,
                 max_response_bytes: maximum as u64,
                 max_content_bytes: Some(super::super::content::MAX_CONTENT_BYTES),
+                max_evidence_bytes: Some(dokime_domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES),
                 max_page_items: Some(dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS),
                 max_stream_buffer_items: Some(1),
                 max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(maximum) as u32),

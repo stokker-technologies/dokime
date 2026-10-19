@@ -22,7 +22,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use rand::random;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 // Local Imports
 // ***
@@ -96,6 +96,8 @@ enum ExtensionPolicy {
 pub enum ArtifactSource {
     Artifact { artifact_id: String },
     ExecutionFile { execution_id: String, relative_path: String },
+    ExecutionEvidence { execution_id: String },
+    CycleEvidence { cycle_id: String },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -220,26 +222,27 @@ pub async fn desktop_artifact_deliver(
     // Request, Stream, Write: The Shared Client Pulls And Verifies Into The Cache
     let staged = cache.join(format!("{generation}-{}-{filename}", random::<u64>()));
     let verified = content::fetch_verified(&lease, &request.source, &staged).await?;
+    let cleanup = tempfile::TempPath::try_from_path(staged).map_err(|error| prepare(error.to_string()))?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
     // Rename Or Open: Hand The Verified File To Its Destination
     match request.action {
         DeliveryAction::Save => {
             let kind = request.kind;
-            let selected = tauri::async_runtime::spawn_blocking(move || {
-                let dialog = app.dialog().file().set_file_name(filename);
-                let dialog = apply_dialog_filter(dialog, kind);
-                dialog.blocking_save_file().map(|path| path.into_path().map_err(|error| error.to_string()))
-            })
-            .await
-            .map_err(|error| prepare(error.to_string()))?;
-            let Some(destination) = selected.transpose().map_err(prepare)? else {
+            let explicit_overwrite =
+                matches!(request.source, ArtifactSource::ExecutionEvidence { .. } | ArtifactSource::CycleEvidence { .. });
+            let selected = tauri::async_runtime::spawn_blocking(move || pick_destination(app, filename, kind, explicit_overwrite))
+                .await
+                .map_err(|error| prepare(error.to_string()))?
+                .map_err(prepare)?;
+            let Some((destination, overwrite)) = selected else {
                 let _ = tokio::fs::remove_file(&verified.path).await;
                 return Ok(false);
             };
-            let destination = ensure_selected_extension(destination, kind).map_err(prepare)?;
             ensure_document_session(&session, &generation).map_err(prepare)?;
-            move_verified_file(verified.path, destination).await.map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
+            move_verified_file(verified.path, destination, overwrite)
+                .await
+                .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
             Ok(true)
         }
         DeliveryAction::Open => {
@@ -258,6 +261,7 @@ pub async fn desktop_artifact_deliver(
                 .await
                 .map_err(|error| open(error.to_string()))?
                 .map_err(open)?;
+            cleanup.keep().map_err(|error| open(error.to_string()))?;
             Ok(true)
         }
     }
@@ -477,13 +481,56 @@ async fn write_document(session: &ConnectionSession, generation: &str, path: Pat
     .map_err(|error| error.to_string())?
 }
 
-async fn move_verified_file(source: PathBuf, destination: PathBuf) -> Result<(), String> {
-    if tokio::fs::rename(&source, &destination).await.is_ok() {
-        return Ok(());
+fn pick_destination(
+    app: AppHandle, filename: String, kind: DesktopSaveKind, explicit_overwrite: bool,
+) -> Result<Option<(PathBuf, bool)>, String> {
+    let dialog = app.dialog().file().set_file_name(filename);
+    let dialog = apply_dialog_filter(dialog, kind);
+    let Some(path) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let path = path.into_path().map_err(|error| error.to_string())?;
+    let destination = ensure_selected_extension(path, kind)?;
+    if !explicit_overwrite {
+        return Ok(Some((destination, true)));
     }
-    tokio::fs::copy(&source, &destination).await.map_err(|error| error.to_string())?;
-    let _ = tokio::fs::remove_file(&source).await;
-    Ok(())
+
+    let metadata = match std::fs::symlink_metadata(&destination) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some((destination, false))),
+        Err(error) => return Err(error.to_string()),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Evidence destination must be a regular file".into());
+    }
+    let message = format!("Replace {} with the verified evidence archive?", destination.display());
+    let confirmed = app
+        .dialog()
+        .message(message)
+        .title("Replace Evidence File")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
+        .blocking_show();
+    Ok(confirmed.then_some((destination, true)))
+}
+
+async fn move_verified_file(source: PathBuf, destination: PathBuf, overwrite: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _source = tempfile::TempPath::try_from_path(source.clone()).map_err(|error| error.to_string())?;
+        let parent = destination.parent().ok_or("destination has no parent directory")?;
+        let mut staged = tempfile::Builder::new().prefix(".dokime-").tempfile_in(parent).map_err(|error| error.to_string())?;
+        let mut input = std::fs::File::open(source).map_err(|error| error.to_string())?;
+        std::io::copy(&mut input, staged.as_file_mut()).map_err(|error| error.to_string())?;
+        staged.as_file().sync_all().map_err(|error| error.to_string())?;
+        if overwrite {
+            harmos::filesystem::publication::replace(staged.path(), &destination)
+        } else {
+            harmos::filesystem::publication::install(staged.path(), &destination)
+        }
+        .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /* === Tests === */

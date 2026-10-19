@@ -53,6 +53,10 @@ import { Row1Schema as contentDownloadArtifactRequest } from "../../../../.gener
 import { Row3Schema as contentDownloadArtifactResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb.js";
 import { ContentDownloadArtifactOutputSchema as contentDownloadArtifactEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
 export const contentDownloadArtifact = (session: SessionIdentity, request: Parameters<typeof openStream<typeof contentDownloadArtifactRequest, typeof contentDownloadArtifactResponse>>[4]) => openStream("/dokime.v1.Content/DownloadArtifact", contentDownloadArtifactRequest, contentDownloadArtifactResponse, session, request, contentDownloadArtifactEnvelope, 300000);
+import { Row1Schema as contentDownloadEvidenceRequest } from "../../../../.generated/dokime/v1/ContentMessages/DownloadEvidence/messages_pb.js";
+import { Row3Schema as contentDownloadEvidenceResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadEvidence/messages_pb.js";
+import { ContentDownloadEvidenceOutputSchema as contentDownloadEvidenceEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
+export const contentDownloadEvidence = (session: SessionIdentity, request: Parameters<typeof openStream<typeof contentDownloadEvidenceRequest, typeof contentDownloadEvidenceResponse>>[4]) => openStream("/dokime.v1.Content/DownloadEvidence", contentDownloadEvidenceRequest, contentDownloadEvidenceResponse, session, request, contentDownloadEvidenceEnvelope, 300000);
 import { Row1Schema as contentDownloadExecutionFileRequest } from "../../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb.js";
 import { Row3Schema as contentDownloadExecutionFileResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb.js";
 import { ContentDownloadExecutionFileOutputSchema as contentDownloadExecutionFileEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";

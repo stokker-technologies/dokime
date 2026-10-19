@@ -32,6 +32,7 @@ from ..errors import (
     RpcError,
     SubmissionUncertain,
 )
+from ..exports import export_evidence
 from ..history import Download, download_report
 from ..models import (
     Backend,
@@ -75,6 +76,10 @@ class Cycle:
     @property
     def id(self) -> str:
         return self._id
+
+    async def export(self, destination: str | Path, *, overwrite: bool = False) -> Download:
+        """Download Every Member Of This Durably Sealed Cycle."""
+        return await export_evidence(self._transport, self._backend, "Cycle", self.id, destination, overwrite=overwrite)
 
     @property
     def executions(self) -> tuple[TestExecutionHandle, ...]:

@@ -121,6 +121,7 @@ pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataVa
             max_request_bytes: limits.max_request_bytes,
             max_response_bytes: limits.max_response_bytes,
             max_content_bytes: limits.max_content_bytes,
+            max_evidence_bytes: limits.max_evidence_bytes,
             max_chunk_bytes: limits.max_chunk_bytes,
             max_page_items: limits.max_page_items,
             max_stream_buffer_items: limits.max_stream_buffer_items,

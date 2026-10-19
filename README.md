@@ -333,6 +333,33 @@ query the durable request again to observe settlement.
 after a lost response. `cycle stop` leaves the container Active. The Python
 client provides the same durable boundary with `await cycle.seal()`.
 
+Download saved evidence without running any work again:
+
+```sh
+dokime execution export EXECUTION_UUID --backend lab --output execution.zip
+dokime cycle seal CYCLE_UUID --backend lab --json
+dokime cycle export CYCLE_UUID --backend lab --output cycle.zip
+```
+
+A sealed execution is exportable while its cycle stays Active. A cycle export
+requires its durable seal and includes every exact member revision. The ZIP
+contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
+reports. The manifest records source identities, revisions, row counts and
+payload checksums; SQLite exposes inputs, definitions, outcomes, records and
+typed stream columns. Query `streams` and `stream_columns` to find each stream's
+tables, field names and units. Wide streams use partitions joined by `m_row`.
+Canonical JSON retains nested values and unsigned integer identity.
+
+Exports use saved storage snapshots and survive server restart. Missing
+required evidence fails the export. The server admits one export at a time,
+with an 8 GiB archive limit. The client verifies contiguous chunks, size,
+SHA-256 and final transport success before publishing the ZIP atomically.
+Existing destinations require `--overwrite`. Failed downloads preserve the
+previous output; retry starts a fresh download and never repeats execution.
+The desktop's **Export Evidence** action uses the same exporter and a native
+save dialog. The Python handles provide `await execution.export(path)` and
+`await cycle.export(path)`, with `overwrite=True` for explicit replacement.
+
 Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
 that configuration's saved default. An explicit endpoint uses only credentials
 supplied for that invocation. Profile edits affect future connections.

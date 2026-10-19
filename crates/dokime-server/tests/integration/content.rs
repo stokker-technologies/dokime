@@ -347,6 +347,40 @@ async fn artifact_transfer(message_bytes: usize) {
             dokime_domain::model::execution::result::CycleStatus::Completed,
         )
         .await;
+        // Export Sealed Evidence Through The Same Runtime And Shared Client.
+        let execution_id = records[0].0.scope.test_execution_id.as_ref().unwrap().clone();
+        let execution_handle = native.execution(execution_id.clone());
+        owner
+            .handle()
+            .watch_state()
+            .wait_until(|state| state.state().executions.get(&execution_id).is_some_and(|item| item.saved.is_some()))
+            .await
+            .unwrap();
+        let evidence = root.path().join("execution.zip");
+        let downloaded = execution_handle.export(evidence.clone(), false).await.unwrap();
+        assert_eq!(downloaded.metadata.subject, Some(model::exports::EvidenceSubject::Execution(execution_id.to_string())));
+        let previous = std::fs::read(&evidence).unwrap();
+        assert!(execution_handle.export(evidence.clone(), false).await.is_err());
+        assert_eq!(std::fs::read(&evidence).unwrap(), previous);
+        execution_handle.export(evidence.clone(), true).await.unwrap();
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&evidence).unwrap()).unwrap();
+        let manifest: serde_json::Value = serde_json::from_reader(archive.by_name("manifest.json").unwrap()).unwrap();
+        assert_eq!(manifest["executions"].as_array().unwrap().len(), 1);
+        assert!(manifest["payloads"].as_array().unwrap().iter().any(|entry| entry["path"] == "evidence.sqlite"));
+        drop(archive);
+        let cycle_id = records[0].0.scope.test_cycle_id.as_ref().unwrap().clone();
+        native.cycle(cycle_id.clone()).seal().await.unwrap();
+        let cycle_export = root.path().join("cycle.zip");
+        let endpoint = server.local_endpoint();
+        let output = cycle_export.to_str().unwrap();
+        let cycle_id = cycle_id.to_string();
+        let key_file = root.path().join("remote.key");
+        std::fs::write(&key_file, TOKEN).unwrap();
+        let command =
+            ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--key-file", key_file.to_str().unwrap(), "--output", output];
+        dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        assert!(cycle_export.is_file());
+        assert!(!root.path().join("cycle.zip.part").exists());
         // A sealed execution cannot acquire another mutable artifact producer.
         assert!(
             native
@@ -367,7 +401,7 @@ async fn artifact_transfer(message_bytes: usize) {
         let directory = root.path().join("publication-directory");
         std::fs::create_dir(&directory).unwrap();
         assert!(matches!(native.download_artifact(request.clone(), directory).await, Err(dokime_client::DownloadError::Publication(_))));
-        assert!(root.path().join("publication-directory.part").exists());
+        assert!(!root.path().join("publication-directory.part").exists());
 
         let partial = root.path().join("verified.bin.part");
         std::fs::write(&partial, b"another owner").unwrap();

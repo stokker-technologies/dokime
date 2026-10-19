@@ -10,6 +10,7 @@
 /* === Modules === */
 mod download_appearance_asset;
 mod download_artifact;
+mod download_evidence;
 mod download_execution_file;
 mod follow_execution_file;
 mod list_artifacts;
@@ -20,6 +21,7 @@ mod upload_artifact;
 /* === Re-Exports === */
 pub use download_appearance_asset::DownloadAppearanceAsset;
 pub use download_artifact::DownloadArtifact;
+pub use download_evidence::DownloadEvidence;
 pub use download_execution_file::DownloadExecutionFile;
 pub use follow_execution_file::FollowExecutionFile;
 pub use list_artifacts::ListArtifacts;
@@ -94,6 +96,7 @@ pub enum Operations {
     FollowExecutionFile(FollowExecutionFile),
     ListArtifacts(ListArtifacts),
     DownloadArtifact(DownloadArtifact),
+    DownloadEvidence(DownloadEvidence),
     UploadArtifact(UploadArtifact),
 }
 
@@ -102,6 +105,11 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for DownloadAppearanceAsset {
     const PATH: &'static str = "/dokime.v1.Content/DownloadAppearanceAsset";
+    const ACCESS: Access = Access::Read;
+}
+
+impl Endpoint for DownloadEvidence {
+    const PATH: &'static str = "/dokime.v1.Content/DownloadEvidence";
     const ACCESS: Access = Access::Read;
 }
 

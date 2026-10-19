@@ -123,6 +123,22 @@ pub(crate) async fn fetch_verified(
             )
             .await
             .map(|download| VerifiedContent::from_download(download, |metadata| metadata.content_type)),
+        ArtifactSource::ExecutionEvidence { execution_id } => client
+            .download_evidence(
+                v1::DownloadEvidence { subject: Some(dokime_domain::model::exports::EvidenceSubject::Execution(execution_id.clone())) },
+                destination,
+                false,
+            )
+            .await
+            .map(|download| VerifiedContent::from_download(download, |_| Some("application/zip".into()))),
+        ArtifactSource::CycleEvidence { cycle_id } => client
+            .download_evidence(
+                v1::DownloadEvidence { subject: Some(dokime_domain::model::exports::EvidenceSubject::Cycle(cycle_id.clone())) },
+                destination,
+                false,
+            )
+            .await
+            .map(|download| VerifiedContent::from_download(download, |_| Some("application/zip".into()))),
     };
     result.map_err(DeliveryError::from)
 }

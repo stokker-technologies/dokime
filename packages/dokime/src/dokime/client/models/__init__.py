@@ -172,6 +172,7 @@ class Backend:
     source_revision: str | None = None
     sdk_revision: str | None = None
     descriptor_sha256: bytes = b""
+    max_evidence_bytes: int | None = None
 
 
 @dataclass(frozen=True)

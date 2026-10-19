@@ -77,7 +77,7 @@ export const commands = {
    */
   desktopSaveDiagnosticsBundle: (generation: string, document: DesktopSaveDocument) =>
     invoke<string>("desktop_save_diagnostics_bundle", { generation, document }),
-  /** Stream one verified artifact, execution output or cycle bundle to a native destination. */
+  /** Stream one verified artifact, execution output or sealed evidence bundle to a native destination. */
   desktopArtifactDeliver: (generation: string, request: ArtifactDeliveryRequest) =>
     invoke<boolean>("desktop_artifact_deliver", { generation, request }),
   /** Materialize one verified artifact in the private media cache; returns its preview URL path. */

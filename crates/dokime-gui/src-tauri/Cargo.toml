@@ -74,6 +74,9 @@ serde_json = { workspace = true }
 # Configuration
 dotenv = { workspace = true }
 
+# Filesystem
+tempfile = { workspace = true }
+
 # Async
 tokio = { workspace = true, features = ["process"] }
 tokio-stream = { workspace = true }
@@ -106,7 +109,6 @@ harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Filesystem
-tempfile = { workspace = true }
 
 # Async
 async-trait = { workspace = true }

@@ -63,6 +63,7 @@ pub struct BackendLimits {
     pub max_request_bytes: String,
     pub max_response_bytes: String,
     pub max_content_bytes: Option<String>,
+    pub max_evidence_bytes: Option<String>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,

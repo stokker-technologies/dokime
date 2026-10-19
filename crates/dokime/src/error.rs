@@ -47,6 +47,8 @@ pub enum Error {
     #[error(transparent)]
     Client(#[from] dokime_client::Error),
     #[error(transparent)]
+    Download(#[from] dokime_client::DownloadError),
+    #[error(transparent)]
     Operation(#[from] dokime_client::operations::Error),
 
     #[error(

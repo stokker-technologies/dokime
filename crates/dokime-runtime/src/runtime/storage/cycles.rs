@@ -39,11 +39,14 @@ impl ExecutionStorage {
         let storage = self.clone();
         tokio::spawn(async move {
             let _order = storage.cycle_save.lock().await;
+            if sealed(&storage.storage, &id).await? {
+                return Ok(());
+            }
             let selected = storage
                 .state_manager
                 .state()
                 .read(|state| {
-                    let Some(header) = state.cycles.get(&id) else {
+                    let Some(header) = state.cycles.get(&id).filter(|header| header.saved.is_none()) else {
                         return Ok::<_, Error>(None);
                     };
                     let cycle = state
@@ -80,7 +83,15 @@ impl ExecutionStorage {
         let storage = self.clone();
         tokio::spawn(async move {
             let _order = storage.cycle_save.lock().await;
-            let native = storage.state_manager.state().read(|state| state.cycles.get(&id).map(native_cycle).transpose()).await?.value?;
+            if sealed(&storage.storage, &id).await? {
+                return Ok(());
+            }
+            let native = storage
+                .state_manager
+                .state()
+                .read(|state| state.cycles.get(&id).filter(|header| header.saved.is_none()).map(native_cycle).transpose())
+                .await?
+                .value?;
             if let Some(native) = native {
                 let receipt = storage.storage.write_object(&native).await?;
                 storage.storage.flush_until(&receipt.position).await?;
@@ -103,6 +114,12 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+async fn sealed(storage: &crate::storage::Manager, id: &TestCycleId) -> Result<bool> {
+    // Native Publication Precedes The State Mirror; Both Are Immutable Once Sealed.
+    let revision = crate::storage::objects::cycle::read(storage, id, harmos::storage::ObjectVersion::Latest).await?;
+    Ok(revision.is_some_and(|revision| revision.value.saved.is_some()))
+}
+
 fn native_cycle(header: &dokime_domain::model::execution::result::TestCycle) -> Result<Cycle> {
     Ok(Cycle::try_from(header)?)
 }

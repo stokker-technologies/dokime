@@ -235,6 +235,7 @@ impl FixtureUnary for backend::GetAvailability {
                 max_request_bytes: service.max_request_bytes,
                 max_response_bytes: service.max_response_bytes,
                 max_content_bytes: Some(u64::MAX),
+                max_evidence_bytes: Some(u64::MAX),
                 max_chunk_bytes: Some(u32::MAX),
                 max_page_items: None,
                 max_stream_buffer_items: None,

@@ -152,6 +152,13 @@ impl ExecutionRequestHandle {
 }
 
 impl TestExecutionHandle {
+    pub async fn export(
+        &self, destination: std::path::PathBuf, overwrite: bool,
+    ) -> std::result::Result<super::Download<dokime_domain::model::exports::EvidenceExportMetadata>, super::DownloadError> {
+        let subject = dokime_domain::model::exports::EvidenceSubject::Execution(self.id.to_string());
+        self.client.download_evidence(contracts::content::DownloadEvidence { subject: Some(subject) }, destination, overwrite).await
+    }
+
     pub fn id(&self) -> &TestExecutionId {
         &self.id
     }

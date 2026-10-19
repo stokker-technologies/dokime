@@ -119,6 +119,9 @@ where
 
 fn cache_key(source: &ArtifactSource) -> Result<String, String> {
     match source {
+        ArtifactSource::ExecutionEvidence { .. } | ArtifactSource::CycleEvidence { .. } => {
+            Err("evidence bundles must be saved, not previewed as media".into())
+        }
         ArtifactSource::Artifact { artifact_id } => {
             let id = dokime_domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
                 .map_err(|_| "invalid artifact id".to_string())?;

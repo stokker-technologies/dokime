@@ -48,6 +48,7 @@ import {
   updateNativeTestCyclePolicy,
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
+import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import {
   downloadNativeCycleReport,
@@ -142,6 +143,15 @@ export function useCycleCommands(cycleId: string) {
   };
 
   return {
+    exportEvidence: useMutation({
+      mutationFn: ({ executionId }: { executionId: string | null }) =>
+        deliverNativeArtifact(session().identity, {
+          source: executionId ? { kind: "execution_evidence", executionId } : { kind: "cycle_evidence", cycleId },
+          kind: "artifact",
+          action: "save",
+          filename: executionId ? `execution-${executionId}.zip` : `cycle-${cycleId}.zip`,
+        }),
+    }),
     archiveCycle: useMutation({
       mutationFn: (archived: boolean) => setNativeCycleArchived(session().identity, cycleId, archived),
       onSettled: invalidateAll,

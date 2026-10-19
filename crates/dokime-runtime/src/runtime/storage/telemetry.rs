@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
@@ -57,6 +58,7 @@ pub(crate) struct PreparedTelemetry {
 pub struct TelemetryReader {
     storage: Manager,
     readers: Vec<TypedRead>,
+    page_rows: usize,
 }
 
 struct TypedRead {
@@ -102,14 +104,22 @@ impl PreparedTelemetry {
 
 impl TelemetryReader {
     pub(crate) fn open(view: &ExecutionView, _context: bool) -> Result<Self> {
-        Self::selected(view, None, 0)
+        Self::selected(view, None, None, 0, PAGE_ROWS)
     }
 
     pub(super) fn open_page(view: &ExecutionView, stream: &Identifier, after: u64) -> Result<Self> {
-        Self::selected(view, Some(stream), after)
+        Self::selected(view, Some(stream), None, after, PAGE_ROWS)
     }
 
-    fn selected(view: &ExecutionView, stream: Option<&Identifier>, after: u64) -> Result<Self> {
+    pub(crate) fn for_contract(view: &ExecutionView, stream: &Identifier, version: u32, page_rows: NonZeroUsize) -> Result<Self> {
+        let reader = Self::selected(view, Some(stream), Some(version), 0, page_rows.get())?;
+        if reader.readers.len() != 1 {
+            return Err(invalid("selected telemetry schema is not captured"));
+        }
+        Ok(reader)
+    }
+
+    fn selected(view: &ExecutionView, stream: Option<&Identifier>, version: Option<u32>, after: u64, page_rows: usize) -> Result<Self> {
         let captured = view.captured_source().ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
         let scope = Identifier::new(view.execution().test_execution_id.as_str()).map_err(crate::storage::Error::from)?;
         let mut readers = Vec::new();
@@ -118,6 +128,9 @@ impl TelemetryReader {
                 continue;
             }
             for contract in versions.values() {
+                if version.is_some_and(|selected| selected != contract.schema_version) {
+                    continue;
+                }
                 let codec = telemetry::codec(contract)?;
                 let query = Query {
                     at: view.evidence_through()?.clone(),
@@ -136,7 +149,7 @@ impl TelemetryReader {
                 readers.push(TypedRead { query, codec, head: None, offset: 0, finished: false });
             }
         }
-        Ok(Self { storage: view.storage().clone(), readers })
+        Ok(Self { storage: view.storage().clone(), readers, page_rows })
     }
 
     pub async fn next(&mut self) -> Result<Option<Vec<TelemetryEntry>>> {
@@ -146,10 +159,10 @@ impl TelemetryReader {
     pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedTelemetry>>> {
         // Each Head Retains One Bounded Batch; Merge By Durable Storage Position.
         let mut selected = Vec::new();
-        while selected.len() < PAGE_ROWS {
+        while selected.len() < self.page_rows {
             for source in &mut self.readers {
                 while !source.finished && source.head.is_none() {
-                    source.head = read_head(&self.storage, source).await?;
+                    source.head = read_head(&self.storage, source, self.page_rows).await?;
                     source.offset = 0;
                 }
             }
@@ -345,8 +358,8 @@ async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &
 }
 // One Bounded Query Per Head, Resuming After The Last Row The Head Read;
 // Holding Readers For Every Schema Can Exhaust Admission.
-async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<Vec<PositionedTelemetry>>> {
-    source.query.slice.limit = Some(PAGE_ROWS as u64);
+async fn read_head(storage: &Manager, source: &mut TypedRead, page_rows: usize) -> Result<Option<Vec<PositionedTelemetry>>> {
+    source.query.slice.limit = Some(page_rows as u64);
     let mut reader = storage.query(source.query.clone()).await?;
     let mut rows = Vec::new();
     while let Some(output) = reader.next().await? {
@@ -366,7 +379,7 @@ async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<V
         }
     }
     reader.completion()?;
-    source.finished = rows.len() < PAGE_ROWS;
+    source.finished = rows.len() < page_rows;
     if let (Some(last), Source::Stream(selection)) = (rows.last(), &mut source.query.source) {
         selection.after = last.position;
     }

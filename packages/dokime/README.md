@@ -92,6 +92,27 @@ Other cycles continue. Repeating `seal()` safely resolves a lost response;
 it never runs device operations again. Shutdown seals Active cycles, and startup
 finishes old cycles before admitting new work.
 
+Export an execution after it seals, then close and export its cycle:
+
+```python
+await execution.wait()
+saved = await execution.export("execution.zip")
+await cycle.seal()
+await cycle.export("cycle.zip", overwrite=True)
+print(saved.path, saved.size_bytes, saved.sha256)
+```
+
+The execution export works while its cycle is Active; a cycle export requires
+a durable seal. Both use the runtime's saved revisions and include a manifest,
+SQLite evidence, captured files and saved HTML reports. Inspect `streams` and
+`stream_columns` in `evidence.sqlite` for typed table/column mappings and units.
+The server allows one export at a time and limits each archive to 8 GiB.
+Missing required evidence fails explicitly. Downloads verify size, SHA-256 and
+successful terminal transport status before atomic publication. Existing files
+require `overwrite=True`; failure preserves the old destination and removes the
+partial file. Cancelling export never cancels execution. A download retry starts
+from the beginning and never reruns device operations.
+
 ## Remote Control And Listening
 
 Use the backend's HTTPS origin, a bearer token issued for that backend, and its

@@ -29,8 +29,9 @@ from google.protobuf.message import Message
 from .. import _wire
 from .._transport import Transport, _cursor
 from ..errors import ExecutionSubmissionUncertain, ProtocolError, RpcError, RunRejected
+from ..exports import export_evidence
 from ..files import FileIdentity, FileUpdate, follow_file
-from ..history import Checkpoint
+from ..history import Checkpoint, Download
 from ..models import (
     Backend,
     CommandAction,
@@ -81,6 +82,10 @@ class TestExecutionHandle:
     @property
     def id(self) -> str:
         return self._id
+
+    async def export(self, destination: str | Path, *, overwrite: bool = False) -> Download:
+        """Download This Execution's Sealed Evidence, Including From An Active Cycle."""
+        return await export_evidence(self._transport, self._backend, "Execution", self.id, destination, overwrite=overwrite)
 
     async def snapshot(self) -> dict[str, Any]:
         """An owned current-runtime snapshot, verified against the original epoch."""

@@ -50,6 +50,9 @@ pub(crate) enum Command {
 
     #[command(about = "Close Admission, Stop This Cycle's Work And Wait For Durable Sealing.")]
     Seal(seal::Args),
+
+    #[command(about = "Download A Self-Contained Evidence ZIP For A Sealed Cycle.")]
+    Export(super::evidence::Args),
     #[command(about = "Append A Case's Next Attempt As A New Execution And Admit It Once.")]
     Rerun(rerun::Args),
 }
@@ -67,6 +70,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Request(args) => request::run(args).await,
         Command::Stop(args) => stop::run(args).await,
         Command::Seal(args) => seal::run(args).await,
+        Command::Export(args) => super::evidence::run(args, dokime_domain::model::exports::EvidenceSubject::Cycle).await,
         Command::Rerun(args) => rerun::run(args).await,
     }
 }

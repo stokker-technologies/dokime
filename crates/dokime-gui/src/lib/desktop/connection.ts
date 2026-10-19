@@ -30,6 +30,7 @@ export type BackendLimits = {
   maxRequestBytes: string;
   maxResponseBytes: string;
   maxContentBytes: string | null;
+  maxEvidenceBytes: string | null;
   maxChunkBytes: number | null;
   maxPageItems: number | null;
   maxStreamBufferItems: number | null;

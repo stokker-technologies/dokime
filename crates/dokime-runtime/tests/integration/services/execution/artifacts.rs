@@ -41,7 +41,7 @@ const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 
 /* === Private Functions === */
 async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
-    let provider = Smoke::new(Behaviour::new(0, 0, false).artifacts(abandoned));
+    let provider = Smoke::new(Behaviour::new(777, 0, false).artifacts(abandoned));
     let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
     let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite), false).await;
@@ -60,7 +60,107 @@ fn spill_removed(root: &Path) {
     }
 }
 
+async fn export_zip(
+    runtime: &RuntimeHandle, subject: dokime_domain::model::exports::EvidenceSubject, destination: &Path,
+) -> serde_json::Value {
+    use sha2::{Digest, Sha256};
+    use std::io::{Read, Write};
+    let mut bundle = runtime.export_evidence(subject.clone()).await.unwrap();
+    assert_eq!(bundle.metadata().subject.as_ref(), Some(&subject));
+    let metadata = bundle.metadata().clone();
+    assert!(matches!(runtime.export_evidence(subject).await, Err(dokime_runtime::domains::exports::evidence::Error::Busy)));
+    let mut output = std::fs::File::create_new(destination).unwrap();
+    let mut digest = Sha256::new();
+    let mut offset = 0;
+    while let Some(chunk) = bundle.next_chunk(std::num::NonZeroUsize::new(32_768).unwrap()).await.unwrap() {
+        assert_eq!(chunk.offset, offset);
+        offset += chunk.data.len() as u64;
+        digest.update(&chunk.data);
+        output.write_all(&chunk.data).unwrap();
+    }
+    assert_eq!(offset, metadata.size_bytes);
+    assert_eq!(digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(), metadata.sha256);
+    drop(output);
+    drop(bundle);
+
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(destination).unwrap()).unwrap();
+    let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
+    assert_eq!(manifest["schema_version"], 1);
+    assert_eq!(manifest["complete"], true);
+    for payload in manifest["payloads"].as_array().unwrap() {
+        let mut entry = zip.by_name(payload["path"].as_str().unwrap()).unwrap();
+        assert_eq!(entry.size(), payload["size_bytes"].as_u64().unwrap());
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 65_536];
+        loop {
+            let read = entry.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        let sha256 = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(sha256, payload["sha256"].as_str().unwrap());
+    }
+    manifest
+}
+
 /* === Tests === */
+#[tokio::test]
+async fn saved_evidence_export() {
+    use dokime_domain::model::exports::EvidenceSubject;
+    let root = tempfile::tempdir().unwrap();
+    let (mut owner, runtime, cycle) = execute(root.path(), false).await;
+    let execution = &cycle.test_executions[0];
+    let execution_subject = EvidenceSubject::Execution(execution.test_execution_id.to_string());
+    let cycle_subject = EvidenceSubject::Cycle(cycle.test_cycle_id.to_string());
+    assert!(matches!(
+        runtime.export_evidence(cycle_subject.clone()).await,
+        Err(dokime_runtime::domains::exports::evidence::Error::Unsealed("cycle"))
+    ));
+    let path = root.path().join("execution.zip");
+    let manifest = export_zip(&runtime, execution_subject.clone(), &path).await;
+    assert_eq!(manifest["executions"].as_array().unwrap().len(), 1);
+    assert_eq!(manifest["executions"][0]["counts"]["samples"], 777);
+    assert!(manifest["executions"][0]["counts"]["records"].as_u64().unwrap() > 0);
+    let database_path = root.path().join("inspection.sqlite");
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+    let mut database_file = std::fs::File::create_new(&database_path).unwrap();
+    std::io::copy(&mut zip.by_name("evidence.sqlite").unwrap(), &mut database_file).unwrap();
+    drop(database_file);
+    let database = rusqlite::Connection::open(&database_path).unwrap();
+    assert_eq!(database.query_row("SELECT count(*) FROM executions", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    assert_eq!(database.query_row("SELECT phase FROM cycles", [], |row| row.get::<_, String>(0)).unwrap(), "active");
+    assert_eq!(database.query_row("SELECT sum(sample_count) FROM streams", [], |row| row.get::<_, i64>(0)).unwrap(), 777);
+    assert!(database.query_row("SELECT count(*) FROM outputs", [], |row| row.get::<_, i64>(0)).unwrap() >= 2);
+    let table = database.query_row("SELECT table_name FROM streams WHERE sample_count=777", [], |row| row.get::<_, String>(0)).unwrap();
+    assert_eq!(database.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get::<_, i64>(0)).unwrap(), 777);
+    assert!(!manifest.to_string().contains("PRIVATE KEY"));
+    drop(database);
+    drop(zip);
+
+    runtime
+        .append_cycle_cases(cycle.test_cycle_id.clone(), vec![execution.snapshot.case().clone()], CommandContext::default())
+        .await
+        .unwrap();
+    runtime.seal_cycle(cycle.test_cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let manifest = export_zip(&runtime, cycle_subject.clone(), &root.path().join("cycle.zip")).await;
+    assert!(manifest["cycle_revision"].is_object());
+    assert_eq!(manifest["executions"].as_array().unwrap().len(), 2);
+    assert_eq!(manifest["executions"][1]["counts"]["samples"], 0);
+    assert!(manifest["payloads"].as_array().unwrap().iter().any(|entry| entry["path"].as_str().unwrap().starts_with("reports/cycle-")));
+    owner.shutdown().await.unwrap();
+    drop(runtime);
+    let (mut owner, runtime) = started(config(root.path())).await;
+    let historical = export_zip(&runtime, execution_subject, &root.path().join("historical.zip")).await;
+    assert_eq!(historical["executions"].as_array().unwrap().len(), 1);
+    assert_eq!(historical["executions"][0], manifest["executions"][0]);
+    let historical_cycle = export_zip(&runtime, cycle_subject, &root.path().join("historical-cycle.zip")).await;
+    assert_eq!(historical_cycle["executions"], manifest["executions"]);
+    assert_eq!(historical_cycle["cycle_revision"], manifest["cycle_revision"]);
+    owner.shutdown().await.unwrap();
+}
+
 // SDK FrameArtifactSink -> Workflow EvidenceBatch -> host Session/ArtifactBridge.
 // IPC encoding/admission stays in the OBC system walkthrough and protocol contracts.
 #[tokio::test]

@@ -117,6 +117,13 @@ impl Client {
 }
 
 impl TestCycleHandle {
+    pub async fn export(
+        &self, destination: std::path::PathBuf, overwrite: bool,
+    ) -> std::result::Result<super::Download<dokime_domain::model::exports::EvidenceExportMetadata>, super::DownloadError> {
+        let subject = dokime_domain::model::exports::EvidenceSubject::Cycle(self.id.to_string());
+        self.client.download_evidence(contracts::content::DownloadEvidence { subject: Some(subject) }, destination, overwrite).await
+    }
+
     pub fn samples(
         &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>, page_size: u32,
         interval: Option<Duration>,

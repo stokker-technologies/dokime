@@ -12,6 +12,7 @@ mod auth;
 mod backend;
 mod catalog;
 mod cycle;
+mod evidence;
 mod execution;
 mod gui;
 mod operation;

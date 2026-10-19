@@ -23,20 +23,22 @@ class Row2(_message.Message):
     def __init__(self, backend_id: _Optional[str] = ..., epoch: _Optional[str] = ..., methods: _Optional[_Iterable[str]] = ..., limits: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
-    __slots__ = ("max_request_bytes", "max_response_bytes", "max_content_bytes", "max_chunk_bytes", "max_page_items", "max_stream_buffer_items")
+    __slots__ = ("max_request_bytes", "max_response_bytes", "max_content_bytes", "max_evidence_bytes", "max_chunk_bytes", "max_page_items", "max_stream_buffer_items")
     MAX_REQUEST_BYTES_FIELD_NUMBER: _ClassVar[int]
     MAX_RESPONSE_BYTES_FIELD_NUMBER: _ClassVar[int]
     MAX_CONTENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    MAX_EVIDENCE_BYTES_FIELD_NUMBER: _ClassVar[int]
     MAX_CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
     MAX_PAGE_ITEMS_FIELD_NUMBER: _ClassVar[int]
     MAX_STREAM_BUFFER_ITEMS_FIELD_NUMBER: _ClassVar[int]
     max_request_bytes: int
     max_response_bytes: int
     max_content_bytes: int
+    max_evidence_bytes: int
     max_chunk_bytes: int
     max_page_items: int
     max_stream_buffer_items: int
-    def __init__(self, max_request_bytes: _Optional[int] = ..., max_response_bytes: _Optional[int] = ..., max_content_bytes: _Optional[int] = ..., max_chunk_bytes: _Optional[int] = ..., max_page_items: _Optional[int] = ..., max_stream_buffer_items: _Optional[int] = ...) -> None: ...
+    def __init__(self, max_request_bytes: _Optional[int] = ..., max_response_bytes: _Optional[int] = ..., max_content_bytes: _Optional[int] = ..., max_evidence_bytes: _Optional[int] = ..., max_chunk_bytes: _Optional[int] = ..., max_page_items: _Optional[int] = ..., max_stream_buffer_items: _Optional[int] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

@@ -60,6 +60,7 @@ pub(super) fn backend(value: &dokime_client::Backend) -> BackendSnapshot {
             max_request_bytes: value.limits.max_request_bytes.to_string(),
             max_response_bytes: value.limits.max_response_bytes.to_string(),
             max_content_bytes: value.limits.max_content_bytes.map(|value| value.to_string()),
+            max_evidence_bytes: value.limits.max_evidence_bytes.map(|value| value.to_string()),
             max_chunk_bytes: value.limits.max_chunk_bytes,
             max_page_items: value.limits.max_page_items,
             max_stream_buffer_items: value.limits.max_stream_buffer_items,

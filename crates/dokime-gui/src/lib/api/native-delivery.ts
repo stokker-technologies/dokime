@@ -104,12 +104,11 @@ export type NativeArtifactDeliveryRequest = {
 };
 
 /**
- * Stream one verified artifact, execution output, or cycle bundle to a
+ * Stream one verified artifact, execution output, or sealed evidence bundle to a
  * native destination (the save dialog or the OS opener) without routing its
- * bytes through the webview. Unlike `saveNativeDocument`/`openNativeDocument`,
- * there is no client-side byte bound to preflight: `content::fetch_verified`
- * pulls the content straight from the server, scaling to the full 2 GiB
- * artifact/cycle-bundle bound instead of the 32 MiB base64 JSON cap.
+ * bytes through the webview. The native client verifies the server pull;
+ * evidence follows the backend's declared archive limit. Inline document
+ * byte limits do not apply to this file-backed transfer.
  */
 export async function deliverNativeArtifact(session: SessionIdentity, request: NativeArtifactDeliveryRequest): Promise<boolean> {
   if (!isTauriDesktop()) {

@@ -40,6 +40,11 @@ const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError
 /* === Public Functions === */
 #[track_caller]
 pub(super) fn detailed(status: Status, error: &HostError) -> Status {
+    detailed_error(status, error)
+}
+
+#[track_caller]
+pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 'static)) -> Status {
     let diagnostic = Diagnostic::capture(error).redacted();
     let code = status.code();
     let message = status.message().to_owned();

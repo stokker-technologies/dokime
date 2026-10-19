@@ -49,6 +49,7 @@ pub(super) struct Download<F> {
 pub(super) enum Source {
     Bytes { data: Vec<u8>, read: usize },
     Artifact(Box<ArtifactReader>),
+    Evidence(Box<dokime_runtime::domains::exports::evidence::Bundle>),
 }
 
 /* === Traits === */
@@ -101,9 +102,14 @@ impl Source {
         Self::Artifact(Box::new(reader))
     }
 
-    async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>, dokime_runtime::runtime::Error> {
+    async fn next_chunk(&mut self, maximum: NonZeroUsize, failure: &'static str) -> Result<Option<Vec<u8>>, Status> {
         match self {
-            Self::Artifact(reader) => reader.next_chunk(maximum).await,
+            Self::Artifact(reader) => reader.next_chunk(maximum).await.map_err(|error| file_failure(error, failure)),
+            Self::Evidence(reader) => reader
+                .next_chunk(maximum)
+                .await
+                .map(|chunk| chunk.map(|chunk| chunk.data))
+                .map_err(|error| super::content::evidence::failure(&error)),
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
         }
     }
@@ -157,9 +163,8 @@ impl<F: Frames> Download<F> {
                     *read = end;
                     offset = next;
                 }
-                Source::Artifact(_) => {
-                    let Some(chunk) = self.source.next_chunk(maximum).await.map_err(|source| file_failure(source, self.read_failure))?
-                    else {
+                Source::Artifact(_) | Source::Evidence(_) => {
+                    let Some(chunk) = self.source.next_chunk(maximum, self.read_failure).await? else {
                         break;
                     };
                     let count = chunk.len();

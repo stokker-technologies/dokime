@@ -14,7 +14,7 @@
  * the cycle document. The execution page (`ExecutionSections`) is one
  * scrolling column of sections under the execution's title: its prompts, step
  * progress and run controls lead it in Control. The page bar carries the
- * cycle's run controls on the cycle page, and Download Report and Focus on
+ * cycle's run controls on the cycle page, and Export Evidence, Download Report and Focus on
  * both. The sidebar tree owns selection. The route owns the URL, so every
  * selection change leaves here through `onSelectionChange`.
  *
@@ -42,6 +42,7 @@ import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
+import { CycleExportButton } from "./CycleExportButton";
 import { CyclePromptBanner } from "./CyclePromptBanner";
 import { CycleReportButton } from "./CycleReportButton";
 import { CycleRunControls } from "./CycleRunControls";
@@ -142,6 +143,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   /* The node whose report Download Report saves: the selected execution, or
      the cycle. A case that has not run yet has no report of its own. */
   const selectedExecutionId = selectedRow?.execution?.test_execution_id ?? null;
+  const evidenceSealed = selectedRow ? selectedRow.execution?.sealed === true : plan?.test_cycle.phase === "sealed";
   const selectedLabel = selectedRow ? executionTitle(selectedRow) : null;
   const cycleTitle = plan?.test_cycle.title ?? null;
   const reportSubject = useMemo(() => {
@@ -161,7 +163,10 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} onSeal={() => setConfirm({ kind: "seal" })} />
           )}
           {reportSubject ? (
-            <CycleReportButton cycleId={cycleId} executionId={reportSubject.executionId} label={reportSubject.label} />
+            <>
+              <CycleExportButton cycleId={cycleId} executionId={reportSubject.executionId} sealed={evidenceSealed} />
+              <CycleReportButton cycleId={cycleId} executionId={reportSubject.executionId} label={reportSubject.label} />
+            </>
           ) : null}
           {/* Focus names its exit in text: the bar is the only chrome left,
               and Escape is a shortcut, not the way out. */}
@@ -185,7 +190,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           </Button>
         </div>
       ) : null,
-    [cycleId, executionSelected, focusLabel, focused, live, reportSubject, toggleFocus],
+    [cycleId, evidenceSealed, executionSelected, focusLabel, focused, live, reportSubject, toggleFocus],
   );
   /* The page bar names the selected node as a breadcrumb; Back from an
      execution returns to the cycle (see `useParentRoute`). */

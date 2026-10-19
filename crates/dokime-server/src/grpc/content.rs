@@ -9,6 +9,7 @@
 
 /* === Modules === */
 pub(super) mod artifacts;
+pub(super) mod evidence;
 mod execution;
 pub(super) mod files;
 mod follow;
@@ -45,6 +46,7 @@ const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    evidence::register(runtime, maximum)?;
     artifacts::register(runtime, maximum)
 }
 
@@ -66,6 +68,9 @@ pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
         }),
         transfer_frame_memory(dokime_domain::model::content::wire::AppearanceAssetFrame {
             payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(dokime_domain::model::exports::EvidenceExportFrame {
+            payload: Some(dokime_domain::model::exports::EvidenceExportPayload::Chunk(chunk.clone())),
         }),
     ]
     .into_iter()
