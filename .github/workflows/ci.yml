@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bdfbf3ebde0ac1fad08904c1bd3d872b76bf0e9b2ebda8dd0c5f7323d1399669
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:e1ba1ce2a5ce553a14451f42a9aa84869e96c7fdb3e171dc8ff0ec713302ff47
 name: CI
 "on":
   push:
@@ -69,7 +69,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -173,7 +173,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -269,7 +269,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -368,7 +368,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -486,7 +486,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -600,7 +600,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -719,7 +719,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -886,7 +886,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -1100,7 +1100,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -1267,7 +1267,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -1481,7 +1481,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -1622,7 +1622,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -1751,7 +1751,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -1896,7 +1896,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -2022,7 +2022,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -2151,7 +2151,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -2313,7 +2313,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -2443,7 +2443,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -2594,7 +2594,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -2763,7 +2763,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -2956,7 +2956,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3113,7 +3113,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -3297,7 +3297,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3427,7 +3427,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3530,7 +3530,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3654,7 +3654,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
@@ -3752,7 +3752,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3832,7 +3832,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3911,7 +3911,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -3990,7 +3990,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
@@ -4090,7 +4090,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
       if: matrix.os == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &

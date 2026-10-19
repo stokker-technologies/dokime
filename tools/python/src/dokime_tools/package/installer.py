@@ -29,6 +29,7 @@ from pathlib import Path
 from dokime_tools import temporary
 from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
+from dokime_tools.package import linux
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -66,6 +67,12 @@ def check(root: Path = ROOT) -> None:
     if bundle.get("externalBin") != []:
         raise ValueError("Cargo-facing Tauri config must not require companion build outputs")
     packaging = json.loads((directory / "tauri.bundle.conf.json").read_text(encoding="utf-8"))
+    icons = packaging["bundle"].get("icon", [])
+    if not icons or not any(icon.endswith(".png") for icon in icons) or "icons/icon.ico" not in icons:
+        raise ValueError("Tauri bundle.icon must select generated PNG and Windows icon inputs")
+    for icon in icons:
+        if not (directory / icon).is_file():
+            raise ValueError(f"missing installer icon: {icon}")
     if packaging["bundle"].get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
         raise ValueError("Tauri bundle.externalBin must contain the Dokime CLI and server")
     if bundle.get("resources") != []:
@@ -166,6 +173,9 @@ def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> 
             f"{slug}_{version}_amd64.deb": _one(list((bundles / "deb").glob("*.deb")), "DEB installer"),
             f"{slug}-{version}-1.x86_64.rpm": _one(list((bundles / "rpm").glob("*.rpm")), "RPM installer"),
         }
+        rpm = sources[f"{slug}-{version}-1.x86_64.rpm"]
+        launcher = _one(list((bundles / "rpm").rglob("*.desktop")), "RPM desktop launcher")
+        linux.verify(rpm, launcher)
         installers.mkdir(parents=True, exist_ok=True)
         for name, source in sources.items():
             stage_file(source, installers / name)

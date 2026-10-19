@@ -11,14 +11,16 @@
 # === Imports === #
 
 # Standard Library Imports
+import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 # Third Party Imports
 import pytest
 
 # Local Imports
-from dokime_tools.package import installer
+from dokime_tools.package import installer, linux
 
 # Type Checking Imports
 
@@ -90,6 +92,31 @@ def test_development_unsigned_candidate(tmp_path: Path, monkeypatch: pytest.Monk
     # Explicit Signed Verification Cannot Silently Downgrade A Candidate
     with pytest.raises(FileNotFoundError):
         installer.check_package(root, dist=dist, require_signed=True)
+
+
+@pytest.mark.parametrize("scenario", ["valid", "missing", "wrong_name", "empty_payload", "wrong_launcher", "unsupported_digest"])
+def test_linux_launcher_icon(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str) -> None:
+    launcher = tmp_path / "Dokime.desktop"
+    launcher.write_text("[Desktop Entry]\nName=Dokime\nExec=dokime-gui\nIcon=dokime-gui\n", encoding="utf-8")
+    digest = hashlib.sha256(launcher.read_bytes()).hexdigest()
+    icon = "another-app" if scenario == "wrong_name" else "dokime-gui"
+    icon_digest = "" if scenario == "empty_payload" else "1" * 64
+    algorithm = "1" if scenario == "unsupported_digest" else "8"
+    entries = [f"/usr/share/applications/Dokime.desktop\t{digest}"]
+    if scenario != "missing":
+        entries.append(f"/usr/share/icons/hicolor/128x128/apps/{icon}.png\t{icon_digest}")
+    output = "\n".join([algorithm, *entries]) + "\n"
+    if scenario == "wrong_launcher":
+        launcher.write_text("[Desktop Entry]\nIcon=another-app\n", encoding="utf-8")
+    monkeypatch.setattr(linux.shutil, "which", lambda _: "/usr/bin/rpm")
+    monkeypatch.setattr(linux.subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(stdout=output))
+
+    # The Old Package Has A Launcher But No Resolvable Installed Icon
+    if scenario == "valid":
+        linux.verify(tmp_path / "candidate.rpm", launcher)
+    else:
+        with pytest.raises(ValueError, match="hicolor|packaged payload|SHA-256"):
+            linux.verify(tmp_path / "candidate.rpm", launcher)
 
 
 # === Private Functions === #

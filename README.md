@@ -882,6 +882,9 @@ platforms consume that same wheel. Packages are separated by language: raw
 carriers live under the native `rust/` subtree; Python distributions and the
 declared tutorial ZIP live under `any/python/`. Raw executable names include
 the package version and ABI-accurate Rust target triple.
+Linux packaging requires `rpm` for payload inspection and rejects a desktop
+launcher whose icon is missing from the assembled RPM. The installers use the
+existing generated application icons.
 Stable Windows release packages require the protected updater signing key;
 their signatures are verified against the configured public key and exact
 installer bytes. Development packages remain unsigned. Python publication

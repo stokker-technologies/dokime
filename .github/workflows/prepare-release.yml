@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:c11483fdcd600f0d2faf6a58efaa24d9f0818b2f1b972c3a8e63575365b7ee6f
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:97402f10c2e9544c9a4e016396c8899d0abdad2d90e93b487508844cd7c5bfbe
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -46,7 +46,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
+        xvfb desktop-file-utils xdg-utils rpm
     - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
