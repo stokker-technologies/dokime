@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:73926cf3289b0029f4f940f20f60591b84af5663cf034175c9d770746a492107
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:bdfbf3ebde0ac1fad08904c1bd3d872b76bf0e9b2ebda8dd0c5f7323d1399669
 name: CI
 "on":
   push:
@@ -757,7 +757,7 @@ jobs:
     - name: Extract Python Product
       shell: bash
       run: tar --zstd -xf "build-product-python-dev-any.tar.zst"
-    - run: mise run --skip-deps build --profile dev
+    - run: mise run build --profile dev
     - name: Archive Build
       if: matrix.os != 'windows'
       shell: bash
@@ -821,6 +821,13 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
+    env:
+      MISE_TASK_SKIP: build:python
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
     if: "!startsWith(github.ref, 'refs/tags/v')"
     strategy:
       fail-fast: false
@@ -828,12 +835,6 @@ jobs:
         os:
         - linux
         - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   build_tests_dev:
     name: Build / Tests / Dev
     runs-on: >-
@@ -1035,6 +1036,13 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
+    env:
+      MISE_TASK_SKIP: build:python
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
     if: "!startsWith(github.ref, 'refs/tags/v')"
     strategy:
       fail-fast: false
@@ -1042,12 +1050,6 @@ jobs:
         os:
         - linux
         - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   build_product_release:
     name: Build / Product / Release
     runs-on: >-
@@ -1136,7 +1138,7 @@ jobs:
     - name: Extract Python Product
       shell: bash
       run: tar --zstd -xf "build-product-python-release-any.tar.zst"
-    - run: mise run --skip-deps build --profile release
+    - run: mise run build --profile release
     - name: Archive Build
       if: matrix.os != 'windows'
       shell: bash
@@ -1200,6 +1202,13 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
+    env:
+      MISE_TASK_SKIP: build:python
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -1207,12 +1216,6 @@ jobs:
         os:
         - linux
         - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   build_tests_release:
     name: Build / Tests / Release
     runs-on: >-
@@ -1414,6 +1417,13 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
+    env:
+      MISE_TASK_SKIP: build:python
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -1421,12 +1431,6 @@ jobs:
         os:
         - linux
         - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   validate_generated:
     name: Validate / Generated
     runs-on:
